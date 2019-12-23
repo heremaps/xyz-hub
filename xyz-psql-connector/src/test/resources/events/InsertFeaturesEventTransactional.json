@@ -1,0 +1,64 @@
+{
+  "type": "ModifyFeaturesEvent",
+  "space": "foo",
+  "params": {},
+  "transaction":true,
+  "enableUUID": true,
+  "insertFeatures": [
+    {
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.3222,
+          -2.32506
+        ]
+      },
+      "type": "Feature",
+      "properties": {
+        "name": "Toyota",
+        "@ns:com:here:xyz": {
+          "tags": [
+            "yellow"
+          ]
+        }
+      }
+    },
+    {
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.3222,
+          -2.32506
+        ]
+      },
+      "type": "Feature",
+      "properties": {
+        "name": "Tesla",
+        "@ns:com:here:xyz": {
+          "tags": [
+            "red"
+          ]
+        }
+      }
+    },
+    {
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.4222,
+          -2.12506
+        ]
+      },
+      "type": "Feature",
+      "properties": {
+        "name": "Bar",
+        "@ns:com:here:xyz": {
+          "tags": [
+            "green"
+          ]
+        }
+      },
+      "id": "test"
+    }
+  ]
+}

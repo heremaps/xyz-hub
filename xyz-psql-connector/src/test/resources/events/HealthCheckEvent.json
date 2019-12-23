@@ -1,0 +1,4 @@
+{
+	"type": "HealthCheckEvent",
+	"minResponseTime": 100
+}

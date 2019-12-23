@@ -1,0 +1,8 @@
+{
+  "type": "Space",
+  "title": "New style space with null values",
+  "processors": null,
+  "listeners": {
+    "schema-validator": null
+  }
+}

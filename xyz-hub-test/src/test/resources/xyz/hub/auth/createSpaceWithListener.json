@@ -1,0 +1,18 @@
+{
+  "id": "x-auth-test-space",
+  "title": "My Demo Space",
+  "tileMinLevel": 0,
+  "tileMaxLevel": 20,
+  "ISOCountryCodesAsProperty": false,
+  "insertBBox": true,
+  "client": {},
+  "listeners": [
+    {
+      "id": "c1",
+      "eventTypes": ["GetFeaturesByIdEvent.request"],
+      "params": {
+        "someSpaceSpecificParamForTheConnector": "some value"
+      }
+    }
+  ]
+}

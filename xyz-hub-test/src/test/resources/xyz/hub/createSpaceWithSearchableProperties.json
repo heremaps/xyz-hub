@@ -1,0 +1,8 @@
+{
+  "id": "x-psql-test",
+  "title": "My space with searchableProperties",
+  "searchableProperties": {
+    "name": true,
+    "other": false
+  }
+}

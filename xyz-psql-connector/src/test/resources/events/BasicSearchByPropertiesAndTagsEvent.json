@@ -1,0 +1,6 @@
+{
+  "type": "SearchForFeaturesEvent",
+  "space": "foo",
+  "params": {},
+  "limit": 400
+}

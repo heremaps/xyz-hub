@@ -1,0 +1,22 @@
+{
+  "type": "ModifyFeaturesEvent",
+  "space": "foo",
+  "params": {},
+  "insertFeatures": [
+    {
+      "id": "1",
+      "geometry": null,
+      "type": "Feature",
+      "properties": {
+        "name": "Toyota",
+        "size": 8.5,
+        "car": true,
+        "@ns:com:here:xyz": {
+          "tags": [
+            "yellow"
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+	"type": "IterateFeaturesEvent",
+	"space": "foo",
+	"params": {},
+	"limit": 5,
+	"propertiesQuery": [[]]
+}

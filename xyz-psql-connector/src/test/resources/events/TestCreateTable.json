@@ -1,0 +1,10 @@
+{
+  "connectorParams": {
+  },
+  "type": "LoadFeaturesEvent",
+  "streamId": "VwSa8UFALpu500000001",
+  "space": "foo-test",
+  "idsMap": {
+    "test": null
+  }
+}

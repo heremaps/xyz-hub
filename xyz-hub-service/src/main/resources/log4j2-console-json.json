@@ -1,0 +1,39 @@
+{
+  "configuration": {
+    "status": "info",
+
+    "name": "Default Log Config",
+    "packages": "com.here.xyz",
+
+    "ThresholdFilter": {
+      "level": "info"
+    },
+    "appenders": {
+      "Console": {
+        "name": "STDOUT",
+        "PatternLayout": {
+          "ScriptPatternSelector": {
+            "defaultPattern": "{\"t\":\"%p\",\"time\":\"%d{ISO8601}\",\"unixtime\":\"%d{UNIX_MILLIS}\",\"src\":\"%C{1}:%L\",\"msg\":\"%replace{%replace{%.-4096msg%throwable}{[\n]}{\\\\n}}{[\\\"]}{\\\\\"}\",\"streamId\":\"%marker\"}%n%xEx{none}",
+            "Script": {
+              "name": "JavaScriptSelector",
+              "language": "JavaScript",
+              "value": "logEvent.getMessage().getFormattedMessage().contains('clientInfo') ? 'STREAM' : null"
+            },
+            "PatternMatch": {
+              "key": "STREAM",
+              "pattern": "%m%n"
+            }
+          }
+        }
+      }
+    },
+    "loggers": {
+      "root": {
+        "level": "info",
+        "AppenderRef": {
+          "ref": "STDOUT"
+        }
+      }
+    }
+  }
+}

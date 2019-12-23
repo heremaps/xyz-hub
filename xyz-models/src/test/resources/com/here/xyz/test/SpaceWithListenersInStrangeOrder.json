@@ -1,0 +1,73 @@
+{
+  "type": "Space",
+  "title": "Old style space with Listeners/Processors in List in a strange order",
+  "processors": [
+    {
+      "id": "rule-tagger",
+      "params": {
+        "not_the_real_order": 0,
+        "storageMode": "FULL"
+      },
+      "eventTypes": [
+        "ModifySpaceEvent.request"
+      ]
+    },
+    {
+      "id": "schema-validator",
+      "params": {
+        "not_the_real_order": 1,
+        "storageMode": "DIFF"
+      },
+      "eventTypes": [
+        "ModifySpaceEvent.request"
+      ]
+    },
+    {
+      "id": "rule-tagger",
+      "params": {
+        "not_the_real_order": 2,
+        "storageMode": "DIFF"
+      },
+      "eventTypes": [
+        "ModifySpaceEvent.request"
+      ]
+    },
+    {
+      "id": "test1",
+      "params": {
+        "not_the_real_order": 3
+      },
+      "eventTypes": [
+        "ModifySpaceEvent.request"
+      ]
+    },
+    {
+      "id": "test2",
+      "params": {
+        "not_the_real_order": 4
+      },
+      "eventTypes": [
+        "ModifySpaceEvent.request"
+      ]
+    },
+    {
+      "id": "test1",
+      "params": {
+        "not_the_real_order": 5
+      },
+      "eventTypes": [
+        "ModifySpaceEvent.request"
+      ]
+    },
+    {
+      "id": "test3",
+      "params": {
+        "not_the_real_order": 6
+      },
+      "eventTypes": [
+        "ModifySpaceEvent.request"
+      ]
+    }
+  ],
+  "listeners": []
+}

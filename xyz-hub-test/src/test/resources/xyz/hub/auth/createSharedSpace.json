@@ -1,0 +1,10 @@
+{
+  "id": "x-auth-test-space-shared",
+  "title": "My Shared Demo Space",
+  "tileMinLevel": 0,
+  "tileMaxLevel": 20,
+  "ISOCountryCodesAsProperty": false,
+  "insertBBox": true,
+  "client": {},
+  "shared": true
+}

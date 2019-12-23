@@ -1,0 +1,49 @@
+{
+  "configuration": {
+    "status": "info",
+
+    "name": "Default Log Config",
+    "packages": "com.here.xyz",
+
+    "ThresholdFilter": {
+      "level": "info"
+    },
+    "appenders": {
+      "RollingFile": {
+        "name": "RollingFile-Appender",
+        "fileName": "${env:LOG_PATH}/trace.log.0",
+        "filePattern": "${env:LOG_PATH}/trace.log.%i",
+        "PatternLayout": {
+          "ScriptPatternSelector": {
+            "defaultPattern": "{\"t\":\"%p\",\"time\":\"%d{ISO8601}\",\"unixtime\":\"%d{UNIX_MILLIS}\",\"src\":\"%C{1}:%L\",\"msg\":\"%replace{%replace{%.-4096msg%throwable}{[\n]}{\\\\n}}{[\\\"]}{\\\\\"}\",\"streamId\":\"%marker\"}%n%xEx{none}",
+            "Script": {
+              "name": "JavaScriptSelector",
+              "language": "JavaScript",
+              "value": "logEvent.getMessage().getFormattedMessage().contains('clientInfo') ? 'STREAM' : null"
+            },
+            "PatternMatch": {
+              "key": "STREAM",
+              "pattern": "%m%n"
+            }
+          }
+        },
+        "Policies": {
+          "SizeBasedTriggeringPolicy": {
+            "size": "100 MB"
+          }
+        },
+        "DefaultRolloverStrategy": {
+          "max": "1"
+        }
+      }
+    },
+    "loggers": {
+      "root": {
+        "level": "info",
+        "AppenderRef": {
+          "ref": "RollingFile-Appender"
+        }
+      }
+    }
+  }
+}

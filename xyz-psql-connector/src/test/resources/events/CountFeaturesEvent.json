@@ -1,0 +1,9 @@
+{
+  "type": "CountFeaturesEvent",
+  "space": "foo",
+  "params": {},
+  "tags": [
+    ["red"],
+    ["yellow"]
+  ]
+}

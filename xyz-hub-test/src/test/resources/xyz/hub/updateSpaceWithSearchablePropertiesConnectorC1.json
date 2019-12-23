@@ -1,0 +1,10 @@
+{
+  "title": "My Demo Space updated with searchableProperties",
+  "storage": {
+    "id": "c1"
+  },
+  "searchableProperties": {
+    "name": true,
+    "other": false
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "type": "SearchForFeaturesEvent",
+  "space": "foo",
+  "params": {},
+  "tags": [
+    ["yellow"],
+    ["red"]
+  ],
+  "limit": 400
+}

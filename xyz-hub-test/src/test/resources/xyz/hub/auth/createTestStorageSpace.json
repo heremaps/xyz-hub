@@ -1,0 +1,13 @@
+{
+  "id": "x-auth-test-space",
+  "title": "My Demo Space",
+  "tileMinLevel": 0,
+  "tileMaxLevel": 20,
+  "ISOCountryCodesAsProperty": false,
+  "insertBBox": true,
+  "storage": {
+    "id": "c1",
+    "params": {}
+  },
+  "client": {}
+}

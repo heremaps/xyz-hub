@@ -1,0 +1,45 @@
+{
+  "type": "ModifyFeaturesEvent",
+  "space": "foo",
+  "params": {},
+  "insertFeatures": [
+    {
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.3222,
+          -2.32506
+        ]
+      },
+      "type": "Feature",
+      "properties": {
+        "name": "Toyota",
+        "size": 8.5,
+        "car": true,
+        "@ns:com:here:xyz": {
+          "tags": [
+            "yellow"
+          ]
+        }
+      }
+    },
+    {
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.3222,
+          -2.32506
+        ]
+      },
+      "type": "Feature",
+      "properties": {
+        "name": "Tesla",
+        "@ns:com:here:xyz": {
+          "tags": [
+            "red"
+          ]
+        }
+      }
+    }
+  ]
+}

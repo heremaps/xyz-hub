@@ -1,0 +1,189 @@
+[
+  {
+    "id": "psql",
+    "params": {
+      "propertySearch": true
+    },
+    "capabilities": {
+      "propertySearch": true,
+      "searchablePropertiesConfiguration": true,
+      "preserializedResponseSupport": true,
+      "enableAutoCache": true,
+      "clusteringTypes": [
+        "hexbin"
+      ]
+    },
+    "connectionSettings": {
+      "maxConnections": 32
+    },
+    "remoteFunction": {
+      "type": "Embedded",
+      "id": "xyz-psql-local",
+      "warmUp": 1,
+      "className": "com.here.xyz.psql.PSQLXyzConnector",
+      "env": {
+        "PSQL_HOST": "${PSQL_HOST}",
+        "PSQL_USER": "postgres",
+        "PSQL_PASSWORD": "password"
+      }
+    }
+  },
+  {
+    "id": "failing1",
+    "params": {
+    },
+    "capabilities": {
+    },
+    "defaultEventTypes": [
+      "ModifyFeaturesEvent.request"
+    ],
+    "connectionSettings": {
+      "maxConnections": 32
+    },
+    "remoteFunction": {
+      "type": "Embedded",
+      "id": "xyz-failing-local1",
+      "warmUp": 1,
+      "className": "com.here.xyz.hub.connectors.test.FailingPreProcessor",
+      "env": {
+      }
+    }
+  },
+  {
+    "id": "failing2",
+    "params": {
+    },
+    "capabilities": {
+    },
+    "defaultEventTypes": [
+      "ModifyFeaturesEvent.request"
+    ],
+    "connectionSettings": {
+      "maxConnections": 32
+    },
+    "remoteFunction": {
+      "type": "Embedded",
+      "id": "xyz-failing-local2",
+      "warmUp": 1,
+      "className": "com.here.xyz.hub.connectors.test.FailingPreProcessor",
+      "env": {
+      }
+    }
+  },
+  {
+    "id": "error",
+    "params": {
+    },
+    "capabilities": {
+    },
+    "defaultEventTypes": [
+      "ModifyFeaturesEvent.request"
+    ],
+    "connectionSettings": {
+      "maxConnections": 32
+    },
+    "remoteFunction": {
+      "type": "Embedded",
+      "id": "xyz-error-local",
+      "warmUp": 1,
+      "className": "com.here.xyz.hub.connectors.test.ErrorPreProcessor",
+      "env": {
+      }
+    }
+  },
+  {
+    "id": "exception",
+    "params": {
+    },
+    "capabilities": {
+    },
+    "defaultEventTypes": [
+      "ModifyFeaturesEvent.request"
+    ],
+    "connectionSettings": {
+      "maxConnections": 32
+    },
+    "remoteFunction": {
+      "type": "Embedded",
+      "id": "xyz-exception-local",
+      "warmUp": 1,
+      "className": "com.here.xyz.hub.connectors.test.ExceptionPreProcessor",
+      "env": {
+      }
+    }
+  },
+  {
+    "id": "rule-tagger",
+    "params": {},
+    "capabilities": {
+      "maxUncompressedSize": 1,
+      "preserializedResponseSupport": true
+    },
+    "remoteFunction": {
+      "id": "xyz-rule-tagger",
+      "type": "Embedded",
+      "warmUp": 0,
+      "className": "com.here.xyz.hub.connectors.test.DummyPreProcessor",
+      "env": {
+        "ECPS_PHRASE": "testing"
+      }
+    },
+    "defaultEventTypes": [
+      "ModifySpaceEvent.request",
+      "ModifyFeaturesEvent.request"
+    ],
+    "connectionSettings": {
+      "maxConnections": 64,
+      "minConnections": 16
+    }
+  },
+  {
+    "id": "c1",
+    "params": {
+    },
+    "capabilities": {
+      "preserializedResponseSupport": true
+    },
+    "connectionSettings": {
+      "maxConnections": 32
+    },
+    "remoteFunction": {
+      "type": "Embedded",
+      "id": "xyz-psql-local",
+      "warmUp": 0,
+      "className": "com.here.xyz.psql.PSQLXyzConnector",
+      "env": {
+        "PSQL_HOST": "${PSQL_HOST}",
+        "PSQL_USER": "postgres",
+        "PSQL_PASSWORD": "password"
+      }
+    }
+  },
+  {
+    "id": "test",
+    "params": {},
+    "capabilities": {},
+    "connectionSettings": {
+      "maxConnections": 32
+    },
+    "remoteFunction": {
+      "type": "Embedded",
+      "id": "xyz-test-local",
+      "warmUp": 0,
+      "className": "com.here.xyz.hub.connectors.test.TestStorageConnector",
+      "env": {}
+    }
+  },
+  {
+    "id": "listener-test",
+    "params": {},
+    "capabilities": {},
+    "remoteFunction": {
+      "type": "Embedded",
+      "id": "xyz-listener-local",
+      "warmUp": 0,
+      "className": "com.here.xyz.hub.connectors.test.DummyListener",
+      "env": {}
+    }
+  }
+]

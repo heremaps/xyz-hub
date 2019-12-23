@@ -1,0 +1,32 @@
+{
+    "urm": {
+      "xyz-hub": {
+        "readFeatures": [
+          {
+            "owner": "XYZ-01234567-89ab-cdef-0123-456789aUSER2"
+          }
+        ],
+        "createFeatures": [
+          {
+            "owner": "XYZ-01234567-89ab-cdef-0123-456789aUSER2"
+          }
+        ],
+        "updateFeatures": [
+          {
+            "owner": "XYZ-01234567-89ab-cdef-0123-456789aUSER2"
+          }
+        ],
+        "deleteFeatures": [
+          {
+            "owner": "XYZ-01234567-89ab-cdef-0123-456789aUSER2"
+          }
+        ],
+        "adminSpaces": [
+          {}
+        ]
+      }
+    },
+    "aid": "XYZ-01234567-89ab-cdef-0123-456789aUSER2",
+    "iat": 1521982864,
+    "exp": 2000000000
+  }

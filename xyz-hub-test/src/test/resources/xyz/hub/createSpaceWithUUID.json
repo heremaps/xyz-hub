@@ -1,0 +1,6 @@
+{
+  "id": "x-psql-test",
+  "title": "My Demo Space",
+  "enableUUID": true,
+  "client": {}
+}

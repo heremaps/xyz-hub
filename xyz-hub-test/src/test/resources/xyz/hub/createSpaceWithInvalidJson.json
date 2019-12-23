@@ -1,0 +1,8 @@
+{
+    "title": "My Demo Space",
+    "storage": {
+        "id": "psql"
+        "params": {}
+    },
+    "client": {}
+}

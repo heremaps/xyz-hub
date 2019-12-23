@@ -1,0 +1,8 @@
+{
+  "title": "My Demo Space",
+  "storage": {
+    "id": "non-allowed-storage",
+    "params": {}
+  },
+  "client": {}
+}

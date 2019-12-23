@@ -1,0 +1,15 @@
+{
+  "title": "Test Space Listener",
+  "description": "Test Space Listener",
+  "listeners": [
+    {
+      "id": "listener-test",
+      "eventTypes": [
+        "ModifyFeaturesEvent.response"
+      ],
+      "params": {
+        "targetArn": "arn:aws:sns:test-sns"
+      }
+    }
+  ]
+}

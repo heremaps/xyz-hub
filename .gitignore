@@ -1,0 +1,8 @@
+*.iml
+*.iws
+*.ipr
+.vertx/
+.idea/
+target/
+file-uploads/
+release.properties

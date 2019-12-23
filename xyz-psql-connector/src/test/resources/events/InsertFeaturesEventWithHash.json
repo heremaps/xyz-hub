@@ -1,0 +1,44 @@
+{
+  "type": "ModifyFeaturesEvent",
+  "space": "foo",
+  "enableUUID": true,
+  "params": {},
+  "insertFeatures": [
+    {
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.3222,
+          -2.32506
+        ]
+      },
+      "type": "Feature",
+      "properties": {
+        "name": "Toyota",
+        "@ns:com:here:xyz": {
+          "tags": [
+            "yellow"
+          ]
+        }
+      }
+    },
+    {
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.3222,
+          -2.32506
+        ]
+      },
+      "type": "Feature",
+      "properties": {
+        "name": "Tesla",
+        "@ns:com:here:xyz": {
+          "tags": [
+            "red"
+          ]
+        }
+      }
+    }
+  ]
+}
