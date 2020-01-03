@@ -152,7 +152,7 @@ public class SpaceAuthorization extends Authorization {
     }
 
     // If this is an edit on storage, listeners or processors properties.
-    if (isStorageEdit || isListenersEdit || isProcessorsEdit) {
+    if ( isStorageEdit || isListenersEdit || isProcessorsEdit) {
       final XyzHubActionMatrix connectorsRights = new XyzHubActionMatrix();
 
       //Check for storage.

@@ -170,4 +170,17 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
         .body("processors.rule-tagger.size()", is(1))
         .body("processors.rule-tagger[0].eventTypes.size()", is(2));
   }
+
+  @Test
+  public void testRemoveStorage() {
+    given()
+        .accept(APPLICATION_JSON)
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_ACCESS_CONNECTOR_RULE_TAGGER))
+        .body("{\"storage\": null}")
+        .when()
+        .patch("/spaces/x-psql-test")
+        .then()
+        .statusCode(BAD_REQUEST.code());
+  }
 }

@@ -86,7 +86,8 @@ public class SpaceTaskHandler {
   }
 
   static <X extends ReadQuery<?>> void readFromJWT(final X task, final Callback<X> callback) {
-    final List<String> authorizedListSpacesOps = Arrays.asList(ADMIN_SPACES, MANAGE_SPACES, READ_FEATURES, CREATE_FEATURES, UPDATE_FEATURES, DELETE_FEATURES);
+    final List<String> authorizedListSpacesOps = Arrays
+        .asList(ADMIN_SPACES, MANAGE_SPACES, READ_FEATURES, CREATE_FEATURES, UPDATE_FEATURES, DELETE_FEATURES);
     final ActionMatrix tokenRights = task.getJwt().getXyzHubMatrix();
 
     task.authorizedCondition = new SpaceSelectionCondition();
@@ -97,8 +98,8 @@ public class SpaceTaskHandler {
     final Supplier<Stream<AttributeMap>> sup = () -> tokenRights
         .entrySet()
         .stream()
-        .filter(e->authorizedListSpacesOps.contains(e.getKey()))
-        .flatMap(e->e.getValue().stream());
+        .filter(e -> authorizedListSpacesOps.contains(e.getKey()))
+        .flatMap(e -> e.getValue().stream());
 
     boolean readAll = sup.get().anyMatch(HashMap::isEmpty);
     if (!readAll) {
@@ -169,6 +170,9 @@ public class SpaceTaskHandler {
     if (space.getOwner() == null) {
       throw new HttpException(BAD_REQUEST, "Validation failed. The property 'owner' cannot be empty.");
     }
+    if (space.getStorage() == null || space.getStorage().getId() == null) {
+      throw new HttpException(BAD_REQUEST, "Validation failed. The storage ID cannot be empty.");
+    }
     if (space.getTitle() == null) {
       throw new HttpException(BAD_REQUEST, "Validation failed. The property 'title' cannot be empty.");
     }
@@ -180,20 +184,17 @@ public class SpaceTaskHandler {
       Space.resolveConnector(task.getMarker(), space.getStorage().getId(), arConnector -> {
         if (arConnector.failed()) {
           callback.exception(new Exception(arConnector.cause()));
-        }
-        else {
+        } else {
           Connector connector = arConnector.result();
           if (!connector.capabilities.searchablePropertiesConfiguration) {
             callback.exception(new HttpException(BAD_REQUEST, "It's not supported to define the searchableProperties"
                 + " on space with storage connector " + space.getStorage().getId()));
-          }
-          else {
+          } else {
             callback.call(task);
           }
         }
       });
-    }
-    else {
+    } else {
       callback.call(task);
     }
   }
