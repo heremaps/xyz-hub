@@ -37,27 +37,27 @@ public class ModifyFeatureOp extends ModifyOp<Feature, Feature, Feature> {
   }
 
   @Override
-  public Feature patch(Feature headState, Feature editedState, Feature inputState) throws ModifyOpError {
-    final Map<String, Object> editedStateMap = editedState.asMap();
+  public Feature patch(Feature headState, Feature baseState, Feature inputState) throws ModifyOpError {
+    final Map<String, Object> baseStateMap = baseState.asMap();
 
-    final Difference diff = Patcher.calculateDifferenceOfPartialUpdate(editedStateMap, inputState.asMap(), null, true);
-    Patcher.patch(editedStateMap, diff);
-    return merge(headState, editedState, XyzSerializable.fromMap(editedStateMap, Feature.class));
+    final Difference diff = Patcher.calculateDifferenceOfPartialUpdate(baseStateMap, inputState.asMap(), null, true);
+    Patcher.patch(baseStateMap, diff);
+    return merge(headState, baseState, XyzSerializable.fromMap(baseStateMap, Feature.class));
   }
 
   @Override
-  public Feature merge(Feature headState, Feature editedState, Feature inputState) throws ModifyOpError {
-    if (equalStates(editedState, headState)) {
+  public Feature merge(Feature headState, Feature baseState, Feature inputState) throws ModifyOpError {
+    if (equalStates(baseState, headState)) {
       return replace(headState, inputState);
     }
 
-    final Map<String, Object> editedStateMap = editedState.asMap();
-    final Difference diffInput = Patcher.getDifference(editedStateMap, inputState.asMap());
-    final Difference diffHead = Patcher.getDifference(editedStateMap, headState.asMap());
+    final Map<String, Object> baseStateMap = baseState.asMap();
+    final Difference diffInput = Patcher.getDifference(baseStateMap, inputState.asMap());
+    final Difference diffHead = Patcher.getDifference(baseStateMap, headState.asMap());
     try {
       final Difference mergedDiff = Patcher.mergeDifferences(diffInput, diffHead);
-      Patcher.patch(editedStateMap, mergedDiff);
-      return XyzSerializable.fromMap(editedStateMap, Feature.class);
+      Patcher.patch(baseStateMap, mergedDiff);
+      return XyzSerializable.fromMap(baseStateMap, Feature.class);
     } catch (Exception e) {
       throw new ModifyOpError(e.getMessage());
     }
