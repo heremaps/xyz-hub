@@ -103,9 +103,9 @@ public abstract class ModifyOp<INPUT, SOURCE, TARGET> {
     }
   }
 
-  public abstract TARGET patch(SOURCE headState, SOURCE editedState, INPUT inputState) throws ModifyOpError, HttpException;
+  public abstract TARGET patch(SOURCE headState, SOURCE baseState, INPUT inputState) throws ModifyOpError, HttpException;
 
-  public abstract TARGET merge(SOURCE headState, SOURCE editedState, INPUT inputState) throws ModifyOpError, HttpException;
+  public abstract TARGET merge(SOURCE headState, SOURCE baseState, INPUT inputState) throws ModifyOpError, HttpException;
 
   public abstract TARGET replace(SOURCE headState, INPUT inputState) throws ModifyOpError, HttpException;
 
@@ -160,7 +160,7 @@ public abstract class ModifyOp<INPUT, SOURCE, TARGET> {
     }
   }
 
-  public static class Entry<INPUT, SOURCE, RESULT> {
+  public static class Entry<INPUT, SOURCE, TARGET> {
 
     public boolean isModified;
     /**
@@ -181,7 +181,7 @@ public abstract class ModifyOp<INPUT, SOURCE, TARGET> {
     /**
      * The resulting target state which should go to the data storage after merging
      */
-    public RESULT result;
+    public TARGET result;
 
     public Exception exception;
 

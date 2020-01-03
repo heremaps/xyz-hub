@@ -42,23 +42,23 @@ public class ModifySpaceOp extends ModifyOp<JsonObject, Space, Space> {
 
   @SuppressWarnings({"rawtypes", "unchecked"})
   @Override
-  public Space patch(Space headState, Space editedState, JsonObject inputState) throws ModifyOpError, HttpException {
-    Map editedClone = Json.mapper.convertValue(editedState, Map.class);
+  public Space patch(Space headState, Space baseState, JsonObject inputState) throws ModifyOpError, HttpException {
+    Map baseClone = Json.mapper.convertValue(baseState, Map.class);
     Map input = inputState.getMap();
-    final Difference difference = Patcher.calculateDifferenceOfPartialUpdate(editedClone, input, null, true);
-    Patcher.patch(editedClone, difference);
-    return merge(headState, editedState, new JsonObject(editedClone));
+    final Difference difference = Patcher.calculateDifferenceOfPartialUpdate(baseClone, input, null, true);
+    Patcher.patch(baseClone, difference);
+    return merge(headState, baseState, new JsonObject(baseClone));
   }
 
   @SuppressWarnings("rawtypes")
   @Override
-  public Space merge(Space headState, Space editedState, JsonObject inputState) throws ModifyOpError, HttpException {
+  public Space merge(Space headState, Space baseState, JsonObject inputState) throws ModifyOpError, HttpException {
     Map headClone = Json.mapper.convertValue(headState, Map.class);
-    Map editedClone = Json.mapper.convertValue(editedState, Map.class);
+    Map baseClone = Json.mapper.convertValue(baseState, Map.class);
     Map input = inputState.getMap();
 
-    final Difference diffInput = Patcher.getDifference(editedClone, input);
-    final Difference diffHead = Patcher.getDifference(editedClone, headClone);
+    final Difference diffInput = Patcher.getDifference(baseClone, input);
+    final Difference diffHead = Patcher.getDifference(baseClone, headClone);
     try {
       final Difference mergedDiff = Patcher.mergeDifferences(diffInput, diffHead);
       Patcher.patch(headClone, mergedDiff);
