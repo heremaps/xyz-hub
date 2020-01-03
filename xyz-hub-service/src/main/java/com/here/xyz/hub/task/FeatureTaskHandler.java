@@ -50,6 +50,7 @@ import com.here.xyz.hub.task.FeatureTask.DeleteOperation;
 import com.here.xyz.hub.task.FeatureTask.ReadQuery;
 import com.here.xyz.hub.task.FeatureTask.TileQuery;
 import com.here.xyz.hub.task.ModifyOp.Entry;
+import com.here.xyz.hub.task.ModifyOp.ModifyOpError;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
 import com.here.xyz.hub.util.geo.MapBoxVectorTileBuilder;
 import com.here.xyz.hub.util.geo.MapBoxVectorTileFlattenedBuilder;
@@ -648,8 +649,7 @@ public class FeatureTaskHandler implements Logging {
     callback.call(task);
   }
 
-  static void processConditionalOp(ConditionalOperation task, Callback<ConditionalOperation> callback)
-      throws Exception {
+  static void processConditionalOp(ConditionalOperation task, Callback<ConditionalOperation> callback) throws Exception {
     try {
       task.modifyOp.process();
 
@@ -690,7 +690,7 @@ public class FeatureTaskHandler implements Logging {
       task.getEvent().setDeleteFeatures(delete);
 
       callback.call(task);
-    } catch (Error e) {
+    } catch (ModifyOpError e) {
       Logging.getLogger().info(task.getMarker(), "ConditionalOperationError: {}", e.getMessage(), e);
       throw new HttpException(CONFLICT, e.getMessage());
     }

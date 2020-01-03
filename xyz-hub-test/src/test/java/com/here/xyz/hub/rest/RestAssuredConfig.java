@@ -24,7 +24,6 @@ public class RestAssuredConfig {
   public int port;
 
   private RestAssuredConfig() {
-    System.out.println("Test config created");
   }
 
   private static RestAssuredConfig config = null;

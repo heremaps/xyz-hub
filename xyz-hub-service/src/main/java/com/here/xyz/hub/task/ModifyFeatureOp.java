@@ -65,7 +65,7 @@ public class ModifyFeatureOp extends ModifyOp<Feature, Feature, Feature> {
 
   @Override
   public Feature replace(Feature headState, Feature inputState) throws ModifyOpError {
-    if (getUuid(inputState) != null && !Objects.equal(getUuid(inputState), getUuid(headState) != null)) {
+    if (getUuid(inputState) != null && !Objects.equal(getUuid(inputState), getUuid(headState))) {
       throw new ModifyOpError(
           "The feature with id " + headState.getId() + " cannot be replaced. The provided UUID doesn't match the UUID of the head state: "+ getUuid(headState));
     }
