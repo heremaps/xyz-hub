@@ -19,7 +19,7 @@
 
 package com.here.xyz.connectors;
 
-import com.here.xyz.models.geojson.implementation.XyzError;
+import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.ErrorResponse;
 
 /**

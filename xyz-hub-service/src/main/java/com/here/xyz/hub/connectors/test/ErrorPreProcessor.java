@@ -23,7 +23,7 @@ import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.connectors.NotificationParams;
 import com.here.xyz.connectors.ProcessorConnector;
 import com.here.xyz.events.ModifyFeaturesEvent;
-import com.here.xyz.models.geojson.implementation.XyzError;
+import com.here.xyz.responses.XyzError;
 
 public class ErrorPreProcessor extends ProcessorConnector {
     @Override

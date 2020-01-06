@@ -17,11 +17,10 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.models.geojson.implementation;
+package com.here.xyz.responses;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonValue;
-import com.here.xyz.responses.ErrorResponse;
 
 /**
  * An enumeration of all possible error codes that can happen while processing a request. Be aware that the XYZ Hub itself will respond
@@ -29,21 +28,41 @@ import com.here.xyz.responses.ErrorResponse;
  */
 @JsonFormat(shape = JsonFormat.Shape.OBJECT)
 public enum XyzError {
+
   /**
-   * An event that was sent to a remote function which is required to process the request failed, because it does not support this event.
-   * Details may be found in the {@link ErrorResponse#getErrorMessage()}.
+   * An unexpected error (not further specified) happened while processing the request.
    *
-   * This will lead to a HTTP 502 Bad Gateway response.
+   * This can result in a 502 Bad Gateway.
+   */
+  EXCEPTION("Exception"),
+
+  /**
+   * An event that was sent to the connector failed, because the connector cannot process it.
+   *
+   * This will result in an 501 Not Implemented response.
    */
   NOT_IMPLEMENTED("NotImplemented"),
 
   /**
-   * The tile level is not supported by a remove function required to process the request (for example the storage connector) or it is
-   * generally invalid (for example less than zero or not well formed).
+   * A conflict occurred when updating a feature.
    *
-   * This will lead to a HTTP 400 Bad Request response.
+   * This will result in an 409 Conflict response.
    */
-  INVALID_TILE_LEVEL("InvalidTileLevel"),
+  CONFLICT("Conflict"),
+
+   /**
+   * Indicates an authorization error.
+   *
+   * This will result in an 401 Forbidden response.
+   */
+  FORBIDDEN("Forbidden"),
+
+  /**
+   * The connector cannot handle the request due to a processing limitation in an upstream service or a database.
+   *
+   * This will result in an 429 Too Many Requests response.
+   */
+  TOO_MANY_REQUESTS("TooManyRequests"),
 
   /**
    * A provided argument is invalid or missing.
@@ -53,28 +72,18 @@ public enum XyzError {
   ILLEGAL_ARGUMENT("IllegalArgument"),
 
   /**
-   * Any service or remote function required to process the request was not reachable. Details about which remote function failed will be
-   * found in the {@link ErrorResponse#getErrorMessage()}.
+   * Any service or remote function required to process the request was not reachable.
    *
-   * This will lead to a HTTP 502 Bad Gateway response.
+   * This will result in a 502 Bad Gateway response.
    */
   BAD_GATEWAY("BadGateway"),
 
   /**
    * The request was aborted due to a timeout.
    *
-   * This will lead to a HTTP 504 Gateway Timeout response.
+   * This will result in a HTTP 504 Gateway Timeout response.
    */
-  TIMEOUT("Timeout"),
-
-  /**
-   * An unexpected error (not further specified) happened while processing the request. Details will be found in the {@link
-   * ErrorResponse#getErrorMessage()}.
-   *
-   * This can lead to different HTTP status codes, for example 500 Internal Server Error or 502 Bad Gateway, dependent on what was the
-   * source of the error.
-   */
-  EXCEPTION("Exception");
+  TIMEOUT("Timeout");
 
   /**
    * The error code.

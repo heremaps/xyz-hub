@@ -46,7 +46,7 @@ import com.here.xyz.hub.task.Task;
 import com.here.xyz.hub.util.logging.AccessLog;
 import com.here.xyz.hub.util.logging.Logging;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.models.geojson.implementation.XyzError;
+import com.here.xyz.responses.XyzError;
 import com.here.xyz.models.hub.Space.Internal;
 import com.here.xyz.models.hub.Space.Public;
 import com.here.xyz.models.hub.Space.WithConnectors;

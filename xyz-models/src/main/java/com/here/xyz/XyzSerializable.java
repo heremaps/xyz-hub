@@ -19,8 +19,8 @@
 
 package com.here.xyz;
 
-import static com.here.xyz.models.geojson.implementation.XyzError.EXCEPTION;
-import static com.here.xyz.models.geojson.implementation.XyzError.TIMEOUT;
+import static com.here.xyz.responses.XyzError.EXCEPTION;
+import static com.here.xyz.responses.XyzError.TIMEOUT;
 
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.core.JsonProcessingException;

@@ -21,8 +21,12 @@ package com.here.xyz.hub.connectors;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
+import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
+import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 import static io.netty.handler.codec.rtsp.RtspResponseStatuses.REQUEST_ENTITY_TOO_LARGE;
 
 import com.fasterxml.jackson.core.JsonParseException;
@@ -37,7 +41,7 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.util.logging.Logging;
-import com.here.xyz.models.geojson.implementation.XyzError;
+import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzResponse;
 import io.vertx.core.AsyncResult;
@@ -218,12 +222,16 @@ public class RpcClient implements Logging {
         logger().info(marker, "The connector responded with an error of type {}: {}", errorResponse.getError(),
             errorResponse.getErrorMessage());
 
-        if (XyzError.TIMEOUT.equals(errorResponse.getError())) {
-          throw new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.");
-        } else if (XyzError.ILLEGAL_ARGUMENT.equals(errorResponse.getError())) {
-          throw new HttpException(BAD_REQUEST, errorResponse.getErrorMessage());
+        switch (errorResponse.getError()) {
+          case NOT_IMPLEMENTED: throw new HttpException(NOT_IMPLEMENTED, "The connector is unable to process this request.");
+          case CONFLICT: throw new HttpException(CONFLICT, "A conflict occurred when updating a feature: " + errorResponse.getErrorMessage());
+          case FORBIDDEN: throw new HttpException(FORBIDDEN, "The user is not authorized.");
+          case TOO_MANY_REQUESTS: throw new HttpException(TOO_MANY_REQUESTS, "The connector cannot process the message due to a limitation in an upstream service or a database.");
+          case ILLEGAL_ARGUMENT: throw new HttpException(BAD_REQUEST, errorResponse.getErrorMessage());
+          case TIMEOUT: throw new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.");
+          case EXCEPTION:
+          case BAD_GATEWAY: throw new HttpException(BAD_GATEWAY, "Connector error.");
         }
-        throw new HttpException(BAD_GATEWAY, "Connector error.");
       }
       if (payload instanceof XyzResponse) {
         //noinspection rawtypes
