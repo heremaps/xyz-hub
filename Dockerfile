@@ -12,10 +12,10 @@ ENV STORAGE_DB_URL jdbc:postgresql://postgres/postgres
 ENV PSQL_HOST postgres
 ENV XYZ_HUB_REDIS_HOST redis
 
-COPY xyz-hub-service/target/xyz-hub-service.jar .
-
 EXPOSE 8080 8181
 
 CMD java -jar xyz-hub-service.jar
 
 ADD Dockerfile /
+
+COPY xyz-hub-service/target/xyz-hub-service.jar .
