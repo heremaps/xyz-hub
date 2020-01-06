@@ -21,7 +21,6 @@ package com.here.xyz.responses;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.here.xyz.models.geojson.implementation.XyzError;
 
 /**
  * An error response.

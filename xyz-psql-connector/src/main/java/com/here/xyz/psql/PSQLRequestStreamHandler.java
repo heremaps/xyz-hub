@@ -25,7 +25,7 @@ import com.here.xyz.connectors.StorageConnector;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.QueryEvent;
-import com.here.xyz.models.geojson.implementation.XyzError;
+import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.HealthStatus;
@@ -49,7 +49,6 @@ import org.apache.commons.dbutils.ResultSetHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
-import com.mchange.v2.c3p0.C3P0Registry;
 
 
 @SuppressWarnings("SqlDialectInspection")

@@ -26,7 +26,7 @@ import com.amazonaws.services.s3.AmazonS3URI;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.here.xyz.Payload;
 import com.here.xyz.events.RelocatedEvent;
-import com.here.xyz.models.geojson.implementation.XyzError;
+import com.here.xyz.responses.XyzError;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;

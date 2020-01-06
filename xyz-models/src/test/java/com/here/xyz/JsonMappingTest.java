@@ -32,7 +32,7 @@ import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.XyzError;
+import com.here.xyz.responses.XyzError;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.ErrorResponse;
 import java.io.IOException;

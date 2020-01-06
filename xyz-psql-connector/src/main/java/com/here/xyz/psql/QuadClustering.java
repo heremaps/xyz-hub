@@ -3,7 +3,7 @@ package com.here.xyz.psql;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.models.geojson.WebMercatorTile;
-import com.here.xyz.models.geojson.implementation.XyzError;
+import com.here.xyz.responses.XyzError;
 
 public class QuadClustering {
     public static final String QUAD = "quad";
