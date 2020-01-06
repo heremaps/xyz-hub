@@ -9,7 +9,7 @@
       "level": "info"
     },
     "appenders": {
-      "RollingFile": {
+      "RollingRandomAccessFile": {
         "name": "RollingFile-Appender",
         "fileName": "${env:LOG_PATH}/trace.log.0",
         "filePattern": "${env:LOG_PATH}/trace.log.%i",
@@ -29,11 +29,11 @@
         },
         "Policies": {
           "SizeBasedTriggeringPolicy": {
-            "size": "100 MB"
+            "size": "64 MB"
           }
         },
         "DefaultRolloverStrategy": {
-          "max": "1"
+          "max": "2"
         }
       }
     },

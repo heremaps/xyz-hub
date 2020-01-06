@@ -11,8 +11,7 @@
   "XYZ_HUB_REDIS_HOST": "localhost",
 
   "LOG_CONFIG": "log4j2-console-plain.json",
-  "LOGGING_TYPE": "Console",
-  "LOG_PATH": "/var/log/xyzhub",
+
   "INSERT_LOCAL_CONNECTORS": true,
 
   "STORAGE_DB_URL": "jdbc:postgresql://localhost/postgres",

@@ -263,8 +263,6 @@ public class Service implements Logging {
     public String JWT_PUB_KEY;
     public Authorization.AuthorizationType XYZ_HUB_AUTH;
     public String LOG_CONFIG;
-    public String LOGGING_TYPE;
-    public String LOG_PATH;
     public boolean INSERT_LOCAL_CONNECTORS;
     public String PSQL_HOST;
 
