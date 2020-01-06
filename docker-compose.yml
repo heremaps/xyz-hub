@@ -12,6 +12,7 @@ services:
             - "postgres"
             - "dynamodb"
             - "redis"
+        command: java -jar xyz-hub-service.jar
     postgres:
         image: "xyz-postgres"
         build:
