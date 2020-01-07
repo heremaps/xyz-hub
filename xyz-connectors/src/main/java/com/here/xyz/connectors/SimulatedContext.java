@@ -25,14 +25,13 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
-import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * When you need to run you AWS lambda locally you may use this class an pass it to the AWS lambda handler as context.
@@ -40,7 +39,8 @@ import org.slf4j.LoggerFactory;
 @SuppressWarnings("unused")
 public class SimulatedContext implements Context, LambdaLogger {
 
-  private static final Logger logger = LoggerFactory.getLogger(AbstractConnectorHandler.class);
+  private static final Logger logger = LogManager.getLogger();
+
   private final Map<String, String> environmentVariables;
   private String getLogStreamName;
   private String logGroupName;

@@ -36,11 +36,14 @@ import com.amazonaws.services.dynamodbv2.model.ResourceInUseException;
 import com.amazonaws.services.dynamodbv2.model.TimeToLiveSpecification;
 import com.amazonaws.services.dynamodbv2.model.UpdateTimeToLiveRequest;
 import com.here.xyz.hub.util.ARN;
-import com.here.xyz.hub.util.logging.Logging;
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-public class DynamoClient implements Logging {
+public class DynamoClient {
+
+  private static final Logger logger = LogManager.getLogger();
 
   protected final AmazonDynamoDBAsync client;
   protected final String tableName;
@@ -101,10 +104,11 @@ public class DynamoClient implements Logging {
       db.createTable(req);
 
       if (ttl != null) {
-        client.updateTimeToLive(new UpdateTimeToLiveRequest().withTableName(tableName).withTimeToLiveSpecification(new TimeToLiveSpecification().withAttributeName(ttl).withEnabled(true)));
+        client.updateTimeToLive(new UpdateTimeToLiveRequest().withTableName(tableName)
+            .withTimeToLiveSpecification(new TimeToLiveSpecification().withAttributeName(ttl).withEnabled(true)));
       }
     } catch (ResourceInUseException e) {
-      logger().info("Table {} already exists, skipping creation", tableName);
+      logger.info("Table {} already exists, skipping creation", tableName);
     }
   }
 }

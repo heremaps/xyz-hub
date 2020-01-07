@@ -23,7 +23,6 @@ import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 import com.here.xyz.connectors.AbstractConnectorHandler;
 import com.here.xyz.connectors.SimulatedContext;
 import com.here.xyz.hub.connectors.models.Connector;
-import com.here.xyz.hub.util.logging.Logging;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -35,10 +34,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import org.slf4j.Marker;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
-public class EmbeddedFunctionClient extends QueueingRemoteFunctionClient implements Logging {
+public class EmbeddedFunctionClient extends QueueingRemoteFunctionClient {
 
+  private static final Logger logger = LogManager.getLogger();
   /**
    * The thread pool being used for running calls to embedded connectors asynchronously.
    */
@@ -56,7 +58,7 @@ public class EmbeddedFunctionClient extends QueueingRemoteFunctionClient impleme
   }
 
   protected void invoke(Marker marker, byte[] bytes, Handler<AsyncResult<byte[]>> callback) {
-    logger().info(marker, "Invoke embedded lambda '{}' for event: {}", connectorConfig.remoteFunction.id,
+    logger.info(marker, "Invoke embedded lambda '{}' for event: {}", connectorConfig.remoteFunction.id,
         new String(bytes, StandardCharsets.UTF_8));
     embeddedExecutor.execute(() -> {
       String className = null;
@@ -71,19 +73,19 @@ public class EmbeddedFunctionClient extends QueueingRemoteFunctionClient impleme
         reqHandler.handleRequest(new ByteArrayInputStream(bytes), output,
             new EmbeddedContext(marker, connectorConfig.remoteFunction.id,
                 ((Connector.RemoteFunctionConfig.Embedded) connectorConfig.remoteFunction).env));
-        logger().info(marker, "Handling response of embedded lambda call to '{}'.", connectorConfig.remoteFunction.id);
+        logger.info(marker, "Handling response of embedded lambda call to '{}'.", connectorConfig.remoteFunction.id);
         byte[] responseBytes = output.toByteArray();
         checkResponseSize(responseBytes);
         callback.handle(Future.succeededFuture(getDecompressed(responseBytes)));
       } catch (ClassNotFoundException e) {
-        logger().error(marker, "Configuration error, the specified class '{}' was not found {}", className, e);
+        logger.error(marker, "Configuration error, the specified class '{}' was not found {}", className, e);
         callback.handle(Future.failedFuture(e));
       } catch (NoClassDefFoundError e) {
-        logger().error(marker, "Configuration error, the specified class '{}' is referring to '{}' which does not exist", className,
+        logger.error(marker, "Configuration error, the specified class '{}' is referring to '{}' which does not exist", className,
             e.getMessage());
         callback.handle(Future.failedFuture(e));
       } catch (Throwable e) {
-        logger()
+        logger
             .error(marker, "Exception occurred, while trying to execute embedded lambda with id '{}' {}", connectorConfig.remoteFunction.id,
                 e);
         callback.handle(Future.failedFuture(e));
@@ -94,8 +96,9 @@ public class EmbeddedFunctionClient extends QueueingRemoteFunctionClient impleme
   /**
    * Context used by embedded lambda connectors.
    */
-  private static class EmbeddedContext extends SimulatedContext implements Logging {
+  private static class EmbeddedContext extends SimulatedContext {
 
+    private static final Logger logger = LogManager.getLogger();
     private final Marker marker;
 
     public EmbeddedContext(Marker marker, String functionName, Map<String, String> environmentVariables) {
@@ -105,12 +108,12 @@ public class EmbeddedFunctionClient extends QueueingRemoteFunctionClient impleme
 
     @Override
     public void log(String string) {
-      logger().info(marker, string);
+      logger.info(marker, string);
     }
 
     @Override
     public void log(byte[] bytes) {
-      logger().info(marker, "bytes: {}", bytes);
+      logger.info(marker, "bytes: {}", bytes);
     }
   }
 }

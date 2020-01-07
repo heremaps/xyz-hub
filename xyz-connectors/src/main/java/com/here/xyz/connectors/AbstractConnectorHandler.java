@@ -34,13 +34,15 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * A default implementation of a request handler that can be reused. It supports out of the box caching via e-tag.
  */
 public abstract class AbstractConnectorHandler implements RequestStreamHandler {
+
+  private static final Logger logger = LogManager.getLogger();
 
   /**
    * The event-type-suffix for response notifications.
@@ -51,10 +53,6 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    * The event-type-suffix for request notifications.
    */
   static final String REQUEST = ".request";
-  /**
-   * The SLF4J logger
-   */
-  private static final Logger logger = LoggerFactory.getLogger(AbstractConnectorHandler.class);
   /**
    * The relocation client
    */
@@ -164,10 +162,10 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
       logger.info("{} [{} ms] - Parsed event: {}", receivedEvent.getStreamId(), ms(), streamPreview);
       return receivedEvent;
     } catch (ClassCastException e) {
-      logger.error("{} [{} ms] - Exception occurred while reading the event: {}", "FATAL", ms(), e.getStackTrace());
+      logger.error("{} [{} ms] - Exception occurred while reading the event: {}", "FATAL", ms(), e);
       throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "The input is doesn't have known type.");
     } catch (Exception e) {
-      logger.error("{} [{} ms] - Exception occurred while reading the event: {}", "FATAL", ms(), e.getStackTrace());
+      logger.error("{} [{} ms] - Exception occurred while reading the event: {}", "FATAL", ms(), e);
       throw new ErrorResponseException(streamId, XyzError.EXCEPTION, e);
     }
   }

@@ -24,7 +24,6 @@ import static io.netty.handler.codec.http.HttpResponseStatus.UNAUTHORIZED;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization.AuthorizationType;
 import com.here.xyz.hub.rest.HttpException;
-import com.here.xyz.hub.util.logging.Logging;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -35,15 +34,18 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.JWTAuthHandler;
 import io.vertx.ext.web.handler.impl.AuthHandlerImpl;
 import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class JwtDummyHandler extends AuthHandlerImpl implements JWTAuthHandler {
 
+  private static final Logger logger = LogManager.getLogger();
   private final JsonObject options = new JsonObject();
   private static final String DUMMY_JWT_RESOURCE_FILE = "/auth/dummyJwt.json";
   private static volatile String dummyJwt = JwtGenerator.generateToken(DUMMY_JWT_RESOURCE_FILE);
 
   static {
-    Logging.getLogger().info("DUMMY token was created.");
+    logger.info("DUMMY token was created.");
   }
 
   private JwtDummyHandler(JWTAuth authProvider) {
@@ -55,16 +57,16 @@ public class JwtDummyHandler extends AuthHandlerImpl implements JWTAuthHandler {
   }
 
   private static String getDummyJwt() {
-    if (Service.configuration.XYZ_HUB_AUTH != AuthorizationType.DUMMY)
+    if (Service.configuration.XYZ_HUB_AUTH != AuthorizationType.DUMMY) {
       throw new IllegalStateException("DUMMY authorization is not activate. DUMMY JWT can't be used.");
+    }
     return dummyJwt;
   }
 
   public void parseCredentials(RoutingContext context, Handler<AsyncResult<JsonObject>> handler) {
     try {
       handler.handle(Future.succeededFuture(new JsonObject().put("jwt", getDummyJwt()).put("options", options)));
-    }
-    catch(Exception e) {
+    } catch (Exception e) {
       handler.handle(Future.failedFuture(new HttpException(UNAUTHORIZED, "DUMMY Authorization failed.", e)));
     }
   }

@@ -26,7 +26,6 @@ import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.util.ByteSizeAware;
 import com.here.xyz.hub.util.LimitedQueue;
-import com.here.xyz.hub.util.logging.Logging;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -37,9 +36,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
-import org.slf4j.Marker;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
-public abstract class QueueingRemoteFunctionClient extends RemoteFunctionClient implements Logging {
+public abstract class QueueingRemoteFunctionClient extends RemoteFunctionClient {
+
+  private static final Logger logger = LogManager.getLogger();
 
   /**
    * The global maximum byte size that is available for allocation by all of the queues.
@@ -62,11 +65,10 @@ public abstract class QueueingRemoteFunctionClient extends RemoteFunctionClient 
    */
   private double SARET = 1d; // 1 second initial value
   /**
-   * An approximation for the maximum number of requests per second which can be executed based on the performance of
-   * the remote function.
+   * An approximation for the maximum number of requests per second which can be executed based on the performance of the remote function.
    */
   private double rateOfService;
-  private LimitedQueue<FunctionCall> queue = new LimitedQueue<>(0,0);
+  private LimitedQueue<FunctionCall> queue = new LimitedQueue<>(0, 0);
 
 
   public QueueingRemoteFunctionClient(Connector connectorConfig) {
@@ -103,8 +105,8 @@ public abstract class QueueingRemoteFunctionClient extends RemoteFunctionClient 
   }
 
   /**
-   * (Re-)Adjusts the maximum byte sizes of the queues of all existing RemoteFunctionClients.
-   * When calling this method while there are requests in the queues this could result in discards of those requests.
+   * (Re-)Adjusts the maximum byte sizes of the queues of all existing RemoteFunctionClients. When calling this method while there are
+   * requests in the queues this could result in discards of those requests.
    */
   private static void adjustQueueByteSizes() {
     //NOTE: For simplicity the queues will only get a fix maxByteSize which is dependent by their priority
@@ -116,13 +118,21 @@ public abstract class QueueingRemoteFunctionClient extends RemoteFunctionClient 
     return clientInstances.stream().mapToLong(c -> c.queue.getByteSize()).sum();
   }
 
-  public static double getGlobalThroughput() { return clientInstances.stream().mapToDouble(c -> c.getThroughput()).sum(); }
+  public static double getGlobalThroughput() {
+    return clientInstances.stream().mapToDouble(c -> c.getThroughput()).sum();
+  }
 
-  public static double getGlobalArrivalRate() { return clientInstances.stream().mapToDouble(c -> c.getArrivalRate()).sum(); }
+  public static double getGlobalArrivalRate() {
+    return clientInstances.stream().mapToDouble(c -> c.getArrivalRate()).sum();
+  }
 
-  public static long getGlobalMaxConnections() { return clientInstances.stream().mapToLong(c -> c.getMaxConnections()).sum(); }
+  public static long getGlobalMaxConnections() {
+    return clientInstances.stream().mapToLong(c -> c.getMaxConnections()).sum();
+  }
 
-  public static long getGlobalUsedConnections() { return clientInstances.stream().mapToLong(c -> c.getUsedConnections()).sum(); }
+  public static long getGlobalUsedConnections() {
+    return clientInstances.stream().mapToLong(c -> c.getUsedConnections()).sum();
+  }
 
   public static Set<QueueingRemoteFunctionClient> getInstances() {
     return Collections.unmodifiableSet(clientInstances);
@@ -154,13 +164,13 @@ public abstract class QueueingRemoteFunctionClient extends RemoteFunctionClient 
       //recalculatePerformance(end - start, TimeUnit.NANOSECONDS);
       //Look into queue if there is something further to do
       FunctionCall fc = queue.remove();
-      if (fc == null)
+      if (fc == null) {
         usedConnections.getAndDecrement(); //Free the connection only in case it's not needed for the next invocation
+      }
       try {
         callback.handle(r);
-      }
-      catch (Exception e) {
-        logger().error(marker, "Error while calling response handler", e);
+      } catch (Exception e) {
+        logger.error(marker, "Error while calling response handler", e);
       }
       //In case there has been an enqueued element invoke the it
       if (fc != null) {
@@ -187,29 +197,45 @@ public abstract class QueueingRemoteFunctionClient extends RemoteFunctionClient 
     rateOfService = getMaxConnections() / SARET;
   }
 
-  public double getRateOfService() { return rateOfService; }
+  public double getRateOfService() {
+    return rateOfService;
+  }
 
-  public int getMinConnections() { return connectorConfig.getMinConnectionsPerInstance(); }
+  public int getMinConnections() {
+    return connectorConfig.getMinConnectionsPerInstance();
+  }
 
-  public int getMaxConnections() { return connectorConfig.getMaxConnectionsPerInstance(); }
+  public int getMaxConnections() {
+    return connectorConfig.getMaxConnectionsPerInstance();
+  }
 
-  public int getUsedConnections() { return usedConnections.intValue(); }
+  public int getUsedConnections() {
+    return usedConnections.intValue();
+  }
 
   public double getPriority() {
     return (double) getMinConnections() / globalMinConnectionSum.doubleValue();
   }
 
-    public long getMaxQueueSize() { return queue.getMaxSize(); }
+  public long getMaxQueueSize() {
+    return queue.getMaxSize();
+  }
 
-  public long getQueueSize() { return queue.getSize(); }
+  public long getQueueSize() {
+    return queue.getSize();
+  }
 
-  public long getMaxQueueByteSize() { return queue.getMaxByteSize(); }
+  public long getMaxQueueByteSize() {
+    return queue.getMaxByteSize();
+  }
 
-  public long getQueueByteSize() { return queue.getByteSize(); }
+  public long getQueueByteSize() {
+    return queue.getByteSize();
+  }
 
   /**
-   * Sets the maximum feasible element count of the queue with respect to the {@link #REQUEST_TIMEOUT} and the
-   * {@link #rateOfService} of this RemoteFunctionClient.
+   * Sets the maximum feasible element count of the queue with respect to the {@link #REQUEST_TIMEOUT} and the {@link #rateOfService} of
+   * this RemoteFunctionClient.
    */
   private void adjustQueueElementCount() {
     long maxFeasibleElements = (long) Math.ceil(rateOfService * REQUEST_TIMEOUT);
@@ -217,7 +243,7 @@ public abstract class QueueingRemoteFunctionClient extends RemoteFunctionClient 
   }
 
   private void enqueue(final Marker marker, byte[] bytes, final Handler<AsyncResult<byte[]>> callback) {
-    FunctionCall fc = new FunctionCall(marker,bytes,callback);
+    FunctionCall fc = new FunctionCall(marker, bytes, callback);
 
     /*if (System.currentTimeMillis() > lastSizeAdjustment.get() + SIZE_ADJUSTMENT_INTERVAL
         && fc.getByteSize() + queue.getByteSize() > queue.getMaxByteSize()) {
@@ -239,6 +265,7 @@ public abstract class QueueingRemoteFunctionClient extends RemoteFunctionClient 
     final Marker marker;
     final byte[] bytes;
     final Handler<AsyncResult<byte[]>> callback;
+
     public FunctionCall(Marker marker, byte[] bytes, Handler<AsyncResult<byte[]>> callback) {
       this.marker = marker;
       this.bytes = bytes;

@@ -27,7 +27,7 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import org.slf4j.Marker;
+import org.apache.logging.log4j.Marker;
 
 public class MockedRemoteFunctionClient extends RemoteFunctionClient {
 

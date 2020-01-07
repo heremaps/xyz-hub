@@ -20,7 +20,6 @@
 package com.here.xyz.hub.config;
 
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.util.logging.Logging;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -29,8 +28,12 @@ import io.vertx.ext.sql.SQLClient;
 import io.vertx.ext.sql.SQLConnection;
 import java.util.Arrays;
 import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-public class JDBCConfig implements Logging {
+public class JDBCConfig {
+
+  private static final Logger logger = LogManager.getLogger();
 
   private static final String SCHEMA = "xyz_config";
   static final String CONNECTOR_TABLE = SCHEMA + ".xyz_storage";
@@ -70,7 +73,7 @@ public class JDBCConfig implements Logging {
 
     client.getConnection(res -> {
       if (res.failed()) {
-        Logging.getLogger().error("Initializing of the config table failed.", res.cause());
+        logger.error("Initializing of the config table failed.", res.cause());
         onReady.handle(Future.failedFuture(res.cause()));
         return;
       }
@@ -79,7 +82,7 @@ public class JDBCConfig implements Logging {
       String query = "SELECT schema_name FROM information_schema.schemata WHERE schema_name='xyz_config'";
       connection.query(query, out -> {
         if (out.succeeded() && out.result().getNumRows() > 0) {
-          Logging.getLogger().info("schema already created");
+          logger.info("schema already created");
           onReady.handle(Future.succeededFuture());
           connection.close();
           return;
@@ -106,9 +109,9 @@ public class JDBCConfig implements Logging {
         // step 3
         onComplete.setHandler(ar -> {
           if (ar.failed()) {
-            Logging.getLogger().error("Initializing of the config table failed.", ar.cause());
+            logger.error("Initializing of the config table failed.", ar.cause());
           } else {
-            Logging.getLogger().info("Initializing of the config table was successful.");
+            logger.info("Initializing of the config table was successful.");
           }
           onReady.handle(ar);
           connection.close();

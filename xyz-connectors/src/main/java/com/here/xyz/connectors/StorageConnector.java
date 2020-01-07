@@ -19,8 +19,6 @@
 
 package com.here.xyz.connectors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
@@ -41,8 +39,6 @@ import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.XyzResponse;
 
 public abstract class StorageConnector extends AbstractConnectorHandler {
-
-  private static final Logger logger = LoggerFactory.getLogger(StorageConnector.class);
 
   @Override
   public XyzResponse processEvent(Event event) throws Exception {

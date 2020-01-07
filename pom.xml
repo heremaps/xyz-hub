@@ -94,7 +94,7 @@
     <jts-version>1.14.0</jts-version>
     <jackson-version>2.10.0</jackson-version>
     <lambda-core-version>1.2.0</lambda-core-version>
-    <log4j-version>2.12.1</log4j-version>
+    <log4j-version>2.13.0</log4j-version>
   </properties>
 
   <!-- Release settings -->
@@ -384,22 +384,6 @@
       </dependency>
 
       <!-- Logging -->
-      <dependency>
-        <artifactId>slf4j-api</artifactId>
-        <groupId>org.slf4j</groupId>
-        <version>1.7.28</version>
-      </dependency>
-      <dependency>
-        <groupId>org.slf4j</groupId>
-        <artifactId>jcl-over-slf4j</artifactId>
-        <version>1.7.28</version>
-      </dependency>
-      <dependency>
-        <groupId>org.slf4j</groupId>
-        <artifactId>slf4j-simple</artifactId>
-        <version>1.7.28</version>
-        <scope>test</scope>
-      </dependency>
       <dependency>
         <groupId>org.apache.logging.log4j</groupId>
         <artifactId>log4j-slf4j-impl</artifactId>

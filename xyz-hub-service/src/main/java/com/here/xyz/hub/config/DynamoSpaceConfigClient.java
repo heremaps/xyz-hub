@@ -41,9 +41,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.slf4j.Marker;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
 public class DynamoSpaceConfigClient extends SpaceConfigClient {
+
+  private static final Logger logger = LogManager.getLogger();
 
   private final DynamoClient dynamoClient;
   private Table spaces;
@@ -52,7 +56,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
   public DynamoSpaceConfigClient(final String tableArn) {
     dynamoClient = new DynamoClient(tableArn);
 
-    logger().info("Instantiating a reference to Dynamo Table {}", dynamoClient.tableName);
+    logger.info("Instantiating a reference to Dynamo Table {}", dynamoClient.tableName);
     spaces = dynamoClient.db.getTable(dynamoClient.tableName);
     packages = dynamoClient.db.getTable(new ARN(Service.configuration.PACKAGES_DYNAMODB_TABLE_ARN).getResourceWithoutType());
   }
@@ -78,7 +82,8 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
   @Override
   public void storeSpace(Marker marker, Space space, Handler<AsyncResult<Space>> handler) {
-    Map<String, Object> itemData = defaultMapper().convertValue(space, new TypeReference<Map<String, Object>>() {});
+    Map<String, Object> itemData = defaultMapper().convertValue(space, new TypeReference<Map<String, Object>>() {
+    });
     itemData.put("shared", space.isShared() ? 1 : 0);
     spaces.putItem(Item.fromMap(itemData));
 
@@ -113,7 +118,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
   private void storeSpaceIntoPackages(Marker marker, Space space) {
     if (space.getPackages() != null) {
       for (String packageName : space.getPackages()) {
-        logger().info(marker, "Adding space: {} into package: {}", space.getId(), packageName);
+        logger.info(marker, "Adding space: {} into package: {}", space.getId(), packageName);
         final Map<String, Object> packagesMap = new HashMap<>();
         packagesMap.put("packageName", packageName);
         packagesMap.put("spaceId", space.getId());
@@ -122,8 +127,10 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       }
     }
   }
+
   /**
    * Deletes the relationship between a space and its packages
+   *
    * @param marker used in logs
    * @param space the spaceId which is being deleted
    */
@@ -131,7 +138,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     if (space == null) {
       return;
     }
-    logger().info(marker, "Removing packages from spaceId: {}", space.getId());
+    logger.info(marker, "Removing packages from spaceId: {}", space.getId());
 
     final List<String> packagesList = new ArrayList<>();
     if (space.getPackages() != null) {
@@ -157,9 +164,10 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
     // get all shared spaces if the selection for shared spaces is enabled
     if (selectedCondition.shared) {
-      spaces.getIndex("shared-index").query(new QuerySpec().withHashKey("shared", 1).withProjectionExpression("id")).pages().forEach(p -> p.forEach(i -> {
-        authorizedSpaces.add(i.getString("id"));
-      }));
+      spaces.getIndex("shared-index").query(new QuerySpec().withHashKey("shared", 1).withProjectionExpression("id")).pages()
+          .forEach(p -> p.forEach(i -> {
+            authorizedSpaces.add(i.getString("id"));
+          }));
     }
 
     // filter out the ones not present in the selectedCondition (null or empty represents 'do not filter')
@@ -171,7 +179,8 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     if (!CollectionUtils.isNullOrEmpty(selectedCondition.ownerIds)) {
       final Set<String> ownersSpaces = new HashSet<>();
       selectedCondition.ownerIds.forEach(o ->
-          spaces.getIndex("owner-index").query(new QuerySpec().withHashKey("owner", o).withProjectionExpression("id")).pages().forEach(p -> p.forEach(i -> ownersSpaces.add(i.getString("id")))));
+          spaces.getIndex("owner-index").query(new QuerySpec().withHashKey("owner", o).withProjectionExpression("id")).pages()
+              .forEach(p -> p.forEach(i -> ownersSpaces.add(i.getString("id")))));
 
       // HINT: A ^ TRUE == !A (negateOwnerIds: keep or remove the spaces contained in the owner's spaces list)
       authorizedSpaces.removeIf(i -> !selectedCondition.negateOwnerIds ^ ownersSpaces.contains(i));
@@ -228,7 +237,8 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     if (CollectionUtils.isNullOrEmpty(authorizedCondition.spaceIds)
         && CollectionUtils.isNullOrEmpty(authorizedCondition.ownerIds)
         && CollectionUtils.isNullOrEmpty(authorizedCondition.packages)) {
-      spaces.scan(new ScanSpec().withProjectionExpression("id")).pages().forEach(p -> p.forEach(i -> authorizedSpaces.add(i.getString("id"))));
+      spaces.scan(new ScanSpec().withProjectionExpression("id")).pages()
+          .forEach(p -> p.forEach(i -> authorizedSpaces.add(i.getString("id"))));
     }
 
     return authorizedSpaces;
@@ -236,6 +246,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
   /**
    * Fills the result list transforming the raw elements from the outcome into real Space objects
+   *
    * @param outcome the query result
    * @param result the transformed resulting elements
    */

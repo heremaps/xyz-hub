@@ -24,7 +24,6 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
 import com.here.xyz.hub.rest.admin.AdminMessage;
-import com.here.xyz.hub.util.logging.Logging;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -42,9 +41,13 @@ import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.slf4j.Marker;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
-public abstract class ConnectorConfigClient implements Initializable, Logging {
+public abstract class ConnectorConfigClient implements Initializable {
+
+  private static final Logger logger = LogManager.getLogger();
 
   public static final ExpiringMap<String, Connector> cache = ExpiringMap.builder()
       .expirationPolicy(ExpirationPolicy.CREATED)
@@ -70,7 +73,7 @@ public abstract class ConnectorConfigClient implements Initializable, Logging {
     final Connector connectorFromCache = cache.get(connectorId);
 
     if (connectorFromCache != null) {
-      logger().info(marker, "storageId: {} - The connector was loaded from cache", connectorId);
+      logger.info(marker, "storageId: {} - The connector was loaded from cache", connectorId);
       handler.handle(Future.succeededFuture(connectorFromCache));
       return;
     }
@@ -81,7 +84,7 @@ public abstract class ConnectorConfigClient implements Initializable, Logging {
         cache.put(connectorId, connector);
         handler.handle(Future.succeededFuture(connector));
       } else {
-        logger().info(marker, "storageId[{}]: Connector not found", connectorId);
+        logger.info(marker, "storageId[{}]: Connector not found", connectorId);
         handler.handle(Future.failedFuture(ar.cause()));
       }
     });
@@ -99,11 +102,12 @@ public abstract class ConnectorConfigClient implements Initializable, Logging {
     storeConnector(marker, connector, ar -> {
       if (ar.succeeded()) {
         final Connector connectorResult = ar.result();
-        if (withInvalidation)
+        if (withInvalidation) {
           invalidateCache(connector.id);
+        }
         handler.handle(Future.succeededFuture(connectorResult));
       } else {
-        logger().info(marker, "storageId[{}]: Failed to store connector configuration, reason: ", connector.id, ar.cause());
+        logger.info(marker, "storageId[{}]: Failed to store connector configuration, reason: ", connector.id, ar.cause());
         handler.handle(Future.failedFuture(ar.cause()));
       }
     });
@@ -116,7 +120,7 @@ public abstract class ConnectorConfigClient implements Initializable, Logging {
         invalidateCache(connectorId);
         handler.handle(Future.succeededFuture(connectorResult));
       } else {
-        logger().info(marker, "storageId[{}]: Failed to store connector configuration, reason: ", connectorId, ar.cause());
+        logger.info(marker, "storageId[{}]: Failed to store connector configuration, reason: ", connectorId, ar.cause());
         handler.handle(Future.failedFuture(ar.cause()));
       }
     });
@@ -129,7 +133,7 @@ public abstract class ConnectorConfigClient implements Initializable, Logging {
         connectors.forEach(c -> cache.put(c.id, c));
         handler.handle(Future.succeededFuture(connectors));
       } else {
-        logger().info(marker, "Failed to load connectors, reason: ", ar.cause());
+        logger.info(marker, "Failed to load connectors, reason: ", ar.cause());
         handler.handle(Future.failedFuture(ar.cause()));
       }
     });
@@ -146,17 +150,19 @@ public abstract class ConnectorConfigClient implements Initializable, Logging {
 
         storeConnectorIfNotExists(null, c, r -> {
           if (r.failed()) {
-            logger().info(r.toString());
+            logger.info(r.toString());
           }
         });
       });
     } catch (IOException e) {
-      logger().info("Unable to insert the local connectors.");
+      logger.info("Unable to insert the local connectors.");
     }
   }
 
   private void replaceEnvVars(final Connector connector) {
-    if (connector == null) return;
+    if (connector == null) {
+      return;
+    }
 
     if (connector.remoteFunction instanceof Embedded) {
       final Map<String, String> map = new HashMap<String, String>() {{
@@ -167,13 +173,13 @@ public abstract class ConnectorConfigClient implements Initializable, Logging {
       final Map<String, String> replacement = new HashMap<>();
 
       embedded.env.entrySet().stream()
-        .filter(e->StringUtils.startsWith(e.getValue(), "${") && StringUtils.endsWith(e.getValue(), "}"))
-        .forEach(e-> {
-          final String placeholder = StringUtils.substringBetween(e.getValue(), "${", "}");
-          if (map.containsKey(placeholder)) {
-            replacement.put(e.getKey(), map.get(placeholder));
-          }
-        });
+          .filter(e -> StringUtils.startsWith(e.getValue(), "${") && StringUtils.endsWith(e.getValue(), "}"))
+          .forEach(e -> {
+            final String placeholder = StringUtils.substringBetween(e.getValue(), "${", "}");
+            if (map.containsKey(placeholder)) {
+              replacement.put(e.getKey(), map.get(placeholder));
+            }
+          });
 
       embedded.env.putAll(replacement);
     }
@@ -182,7 +188,7 @@ public abstract class ConnectorConfigClient implements Initializable, Logging {
   private void storeConnectorIfNotExists(Marker marker, Connector connector, Handler<AsyncResult<Connector>> handler) {
     get(marker, connector.id, r -> {
       if (r.failed()) {
-        logger().info("Connector with ID {} does not exist. Creating it ...", connector.id);
+        logger.info("Connector with ID {} does not exist. Creating it ...", connector.id);
         store(marker, connector, handler, false);
       } else {
         handler.handle(Future.failedFuture("Connector with ID " + connector.id + " already exists."));

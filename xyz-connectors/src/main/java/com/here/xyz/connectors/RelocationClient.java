@@ -31,13 +31,14 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 @SuppressWarnings("WeakerAccess")
-public class RelocationClient {
+public class RelocationClient{
 
-  private static final Logger logger = LoggerFactory.getLogger(AbstractConnectorHandler.class);
+  private static final Logger logger = LogManager.getLogger();
+
   private final static String S3_PATH = "tmp/";
   private volatile AmazonS3 s3client;
   private final String bucket;

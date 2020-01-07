@@ -37,7 +37,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
-import org.slf4j.Marker;
+import org.apache.logging.log4j.Marker;
 
 /**
  * A client for reading and editing xyz space and connector definitions.

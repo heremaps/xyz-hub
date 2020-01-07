@@ -27,7 +27,7 @@ import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.task.TaskPipeline.C1;
 import com.here.xyz.hub.task.TaskPipeline.C2;
 import io.vertx.ext.web.RoutingContext;
-import org.slf4j.Marker;
+import org.apache.logging.log4j.Marker;
 
 /**
  * A task for processing of an event.

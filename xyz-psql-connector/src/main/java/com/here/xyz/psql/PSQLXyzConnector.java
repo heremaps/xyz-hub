@@ -82,9 +82,9 @@ import java.util.stream.Stream;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.postgresql.util.PGobject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * The default implementation of an XYZ Hub Lambda connector. This connector is fully featured and used by the MapHub platform to access
@@ -95,7 +95,8 @@ public class PSQLXyzConnector extends PSQLRequestStreamHandler {
 
   protected static final int STATEMENT_TIMEOUT_SECONDS = 24;
 
-  private static final Logger logger = LoggerFactory.getLogger(PSQLXyzConnector.class);
+  private static final Logger logger = LogManager.getLogger();
+
   private static final long EQUATOR_LENGTH = 40_075_016;
   private static final long TILE_SIZE = 256;
   private static final int MAX_PRECISE_STATS_COUNT = 10_000;
@@ -405,8 +406,9 @@ public class PSQLXyzConnector extends PSQLRequestStreamHandler {
 
   /**** Begin - HEXBIN related section ******/
 
-  private FeatureCollection processHexbinGetFeaturesByBBoxEvent(GetFeaturesByBBoxEvent event, BBox bbox, boolean isBigQuery, Map<String, Object> clusteringParams) throws Exception {
-    
+  private FeatureCollection processHexbinGetFeaturesByBBoxEvent(GetFeaturesByBBoxEvent event, BBox bbox, boolean isBigQuery,
+      Map<String, Object> clusteringParams) throws Exception {
+
     int zLevel = (event instanceof GetFeaturesByTileEvent ? (int) ((GetFeaturesByTileEvent) event).getLevel() : H3.bbox2zoom(bbox)),
         maxResForLevel = H3.zoom2resolution(zLevel),
         h3res = (clusteringParams != null && clusteringParams.get(H3.HEXBIN_RESOLUTION) != null
@@ -417,29 +419,32 @@ public class PSQLXyzConnector extends PSQLRequestStreamHandler {
     boolean statisticalPropertyProvided = (statisticalProperty != null && statisticalProperty.length() > 0),
         h3cflip = (clusteringParams.get(H3.HEXBIN_POINTMODE) == Boolean.TRUE);
 
-    final String expBboxSql = String.format("st_envelope( st_buffer( ST_MakeEnvelope(%f,%f,%f,%f, 4326)::geography, ( 2.5 * edgeLengthM( %d )) )::geometry )", bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat(), h3res);
+    final String expBboxSql = String
+        .format("st_envelope( st_buffer( ST_MakeEnvelope(%f,%f,%f,%f, 4326)::geography, ( 2.5 * edgeLengthM( %d )) )::geometry )",
+            bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat(), h3res);
 
-        /*clippedGeo - passed bbox is extended by "margin" on service level */                        
-    String clippedGeo = ( !event.getClip() ? "geo" : String.format("ST_Intersection(geo,ST_MakeEnvelope(%f,%f,%f,%f,4326) )", bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() ) ),
-           fid = ( !event.getClip() ? "h3" : String.format("h3 || %f || %f",bbox.minLon(), bbox.minLat() ) ),
-           filterEmptyGeo = ( !event.getClip() ? "" : String.format(" and not st_isempty( %s ) ", clippedGeo ) );
+    /*clippedGeo - passed bbox is extended by "margin" on service level */
+    String clippedGeo = (!event.getClip() ? "geo" : String
+        .format("ST_Intersection(geo,ST_MakeEnvelope(%f,%f,%f,%f,4326) )", bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat())),
+        fid = (!event.getClip() ? "h3" : String.format("h3 || %f || %f", bbox.minLon(), bbox.minLat())),
+        filterEmptyGeo = (!event.getClip() ? "" : String.format(" and not st_isempty( %s ) ", clippedGeo));
 
     final SQLQuery searchQuery = generateSearchQuery(event);
 
-    String aggField = ( statisticalPropertyProvided ? "jsonb_set('{}'::jsonb, ? , agg::jsonb)::json" : "agg" );
+    String aggField = (statisticalPropertyProvided ? "jsonb_set('{}'::jsonb, ? , agg::jsonb)::json" : "agg");
 
-    final SQLQuery query = new SQLQuery(String.format(H3.h3sqlBegin, h3res, 
-                                                       !h3cflip ? "st_centroid(geo)" : "geo", 
-                                                        h3cflip ? "st_centroid(geo)" : clippedGeo,
-                                                       statisticalPropertyProvided ? ", min, max, sum, avg, median" : "", 
-                                                       zLevel, 
-                                                       !h3cflip ? "centroid" : "hexagon",
-                                                       aggField,
-                                                       fid ));
+    final SQLQuery query = new SQLQuery(String.format(H3.h3sqlBegin, h3res,
+        !h3cflip ? "st_centroid(geo)" : "geo",
+        h3cflip ? "st_centroid(geo)" : clippedGeo,
+        statisticalPropertyProvided ? ", min, max, sum, avg, median" : "",
+        zLevel,
+        !h3cflip ? "centroid" : "hexagon",
+        aggField,
+        fid));
 
-    if(statisticalPropertyProvided)
-    { ArrayList<String> jpath = new ArrayList<>();
-      jpath.add( statisticalProperty );
+    if (statisticalPropertyProvided) {
+      ArrayList<String> jpath = new ArrayList<>();
+      jpath.add(statisticalProperty);
       query.addParameter(createSQLArray(jpath.toArray(new String[]{}), "text"));
     }
 
@@ -471,7 +476,7 @@ public class PSQLXyzConnector extends PSQLRequestStreamHandler {
 
     //query.append("limit ?", 1000);
 
-    query.append( String.format(H3.h3sqlEnd,filterEmptyGeo) );
+    query.append(String.format(H3.h3sqlEnd, filterEmptyGeo));
     query.append("LIMIT ?", event.getLimit());
 
 /*
@@ -483,13 +488,15 @@ public class PSQLXyzConnector extends PSQLRequestStreamHandler {
 
     return executeQueryWithRetry(query);
   }
+
   /**** End - HEXBIN related section ******/
 
-  private FeatureCollection processQuadCount(GetFeaturesByBBoxEvent event, BBox bbox, Map<String, Object> clusteringParams)   throws Exception  {
+  private FeatureCollection processQuadCount(GetFeaturesByBBoxEvent event, BBox bbox, Map<String, Object> clusteringParams)
+      throws Exception {
     /** Quadkey calc */
     final int lev = WebMercatorTile.getZoomFromBBOX(bbox);
-    double lon2 = bbox.minLon()+((bbox.maxLon()-bbox.minLon())/2);
-    double lat2 = bbox.minLat()+((bbox.maxLat()-bbox.minLat())/2);
+    double lon2 = bbox.minLon() + ((bbox.maxLon() - bbox.minLon()) / 2);
+    double lat2 = bbox.minLat() + ((bbox.maxLat() - bbox.minLat()) / 2);
 
     final WebMercatorTile tile = WebMercatorTile.getTileFromLatLonLev(lat2, lon2, lev);
     final SQLQuery query;
@@ -500,23 +507,24 @@ public class PSQLXyzConnector extends PSQLRequestStreamHandler {
     final int resolution = clusteringParams.get("resolution") != null ? (int) clusteringParams.get("resolution") : 0;
     final String quadMode = clusteringParams.get("quadmode") != null ? (String) clusteringParams.get("quadmode") : null;
 
-    QuadClustering.checkQuadInput(quadMode,resolution,event,streamId,this);
+    QuadClustering.checkQuadInput(quadMode, resolution, event, streamId, this);
 
-    if(propertiesQuery != null) {
+    if (propertiesQuery != null) {
       propQuery = generatePropertiesQuery(propertiesQuery);
 
-      if(propQuery != null) {
+      if (propQuery != null) {
         propQuerySQL = propQuery.text();
-        for (Object param : propQuery.parameters() ) {
-          propQuerySQL = propQuerySQL.replaceFirst("\\?", "'"+param+"'");
+        for (Object param : propQuery.parameters()) {
+          propQuerySQL = propQuerySQL.replaceFirst("\\?", "'" + param + "'");
         }
       }
     }
-    return executeQueryWithRetry(QuadClustering.generateQuadClusteringSQL(config.schema(),config.table(event),resolution,quadMode,propQuerySQL,tile));
+    return executeQueryWithRetry(
+        QuadClustering.generateQuadClusteringSQL(config.schema(), config.table(event), resolution, quadMode, propQuerySQL, tile));
   }
 
   private FeatureCollection performGeometrySearch(GetFeaturesByGeometryEvent event)
-       throws Exception {
+      throws Exception {
 
     final int radius = event.getRadius();
     final Geometry geometry = event.getGeometry();
@@ -525,8 +533,8 @@ public class PSQLXyzConnector extends PSQLRequestStreamHandler {
     final SQLQuery searchQuery = generateSearchQuery(event);
 
     final SQLQuery geoQuery = radius != 0 ? new SQLQuery("ST_Intersects(geo, ST_Buffer(ST_GeomFromText('"
-        +WKTHelper.geometryToWKB(geometry)+"')::geography, ? )::geometry)",radius) : new SQLQuery("ST_Intersects(geo, ST_GeomFromText('"
-            +WKTHelper.geometryToWKB(geometry)+"',4326))");
+        + WKTHelper.geometryToWKB(geometry) + "')::geography, ? )::geometry)", radius) : new SQLQuery("ST_Intersects(geo, ST_GeomFromText('"
+        + WKTHelper.geometryToWKB(geometry) + "',4326))");
 
     if (searchQuery == null) {
       query = new SQLQuery("SELECT");
@@ -559,7 +567,7 @@ public class PSQLXyzConnector extends PSQLRequestStreamHandler {
 
     if (clusteringType != null && H3.HEXBIN.equalsIgnoreCase(clusteringType)) {
       return processHexbinGetFeaturesByBBoxEvent(event, bbox, isBigQuery, clusteringParams);
-    }else if(clusteringType != null && QuadClustering.QUAD.equalsIgnoreCase(clusteringType)) {
+    } else if (clusteringType != null && QuadClustering.QUAD.equalsIgnoreCase(clusteringType)) {
       return processQuadCount(event, bbox, clusteringParams);
     }
 
@@ -599,11 +607,12 @@ public class PSQLXyzConnector extends PSQLRequestStreamHandler {
     query.append("SELECT");
     query.append(selectJson(event.getSelection()));
 
-    if(event instanceof GetFeaturesByBBoxEvent) {
+    if (event instanceof GetFeaturesByBBoxEvent) {
       query.append(",");
-      query.append(geometrySelectorForEvent((GetFeaturesByBBoxEvent)event));
-    }else
+      query.append(geometrySelectorForEvent((GetFeaturesByBBoxEvent) event));
+    } else {
       query.append(",geojson");
+    }
 
     query.append("FROM features WHERE");
     query.append(secondaryQuery);
@@ -1376,7 +1385,7 @@ public class PSQLXyzConnector extends PSQLRequestStreamHandler {
           }
           if (cnt > ON_DEMAND_IDX_LIM) {
             throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-                    "On-Demand-Indexing - Maximum permissible: "+ON_DEMAND_IDX_LIM+" searchable properties per space!");
+                "On-Demand-Indexing - Maximum permissible: " + ON_DEMAND_IDX_LIM + " searchable properties per space!");
           }
 
           if (property.contains("'")) {

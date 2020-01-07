@@ -23,7 +23,6 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.health.HealthApi;
-import com.here.xyz.hub.util.logging.Logging;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -33,11 +32,15 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * A Node represents one running Service Node of the XYZ Hub Service.
  */
-public class Node implements Logging {
+public class Node {
+
+  private static final Logger logger = LogManager.getLogger();
 
   public static final Node OWN_INSTANCE = new Node(Service.HOST_ID, Service.getHostname(),
       Service.configuration != null ? Service.configuration.ADMIN_MESSAGE_PORT : -1);
@@ -75,11 +78,10 @@ public class Node implements Logging {
             HttpResponse<Buffer> response = ar.result();
             if (onlyAliveCheck || response.statusCode() == 200) {
               callback.handle(Future.succeededFuture());
-            }
-            else
+            } else {
               callback.handle(Future.failedFuture("Node with ID " + id + " and IP " + ip + " is not healthy."));
-          }
-          else {
+            }
+          } else {
             callback.handle(Future.failedFuture("Node with ID " + id + " and IP " + ip + " is not reachable."));
           }
         });
@@ -90,7 +92,7 @@ public class Node implements Logging {
     try {
       url = new URL("http", ip, port, "");
     } catch (MalformedURLException e) {
-      logger().error("Unable to create the URL for the local node.", e);
+      logger.error("Unable to create the URL for the local node.", e);
     }
     return url;
   }

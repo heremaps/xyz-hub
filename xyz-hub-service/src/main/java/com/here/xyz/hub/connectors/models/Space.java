@@ -27,7 +27,6 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.google.common.primitives.Longs;
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.util.logging.Logging;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
 import java.util.ArrayList;
@@ -38,7 +37,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import org.slf4j.Marker;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
 /**
  * The space configuration.
@@ -48,6 +49,7 @@ import org.slf4j.Marker;
 @JsonInclude(Include.NON_DEFAULT)
 public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
 
+  private static final Logger logger = LogManager.getLogger();
   public static final long CONTENT_UPDATED_AT_INTERVAL_MILLIS = TimeUnit.MINUTES.toMillis(1);
   private final static long MAX_SLIDING_WINDOW = TimeUnit.DAYS.toMillis(10);
 
@@ -70,11 +72,11 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
   public static void resolveConnector(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler) {
     Service.connectorConfigClient.get(marker, connectorId, arStorage -> {
       if (arStorage.failed()) {
-        Logging.getLogger().info(marker, "Unable to load the connector definition for storage '{}'",
+        logger.info(marker, "Unable to load the connector definition for storage '{}'",
             connectorId, arStorage.cause());
       } else {
         final Connector storage = arStorage.result();
-        Logging.getLogger().info(marker, "Loaded storage, configuration is: {}", io.vertx.core.json.Json.encode(storage));
+        logger.info(marker, "Loaded storage, configuration is: {}", io.vertx.core.json.Json.encode(storage));
       }
       handler.handle(arStorage);
     });
@@ -104,7 +106,9 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
 
   @JsonIgnore
   public Map<String, List<ResolvableListenerConnectorRef>> getEventTypeConnectorRefsMap(ConnectorType connectorType) {
-    if (resolvedConnectorRefs == null) resolvedConnectorRefs = new HashMap<>();
+    if (resolvedConnectorRefs == null) {
+      resolvedConnectorRefs = new HashMap<>();
+    }
     resolvedConnectorRefs.computeIfAbsent(connectorType, k -> {
       List<Space.ListenerConnectorRef> connectorRefs = getConnectorRefs(connectorType);
 
@@ -131,7 +135,7 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
         return Collections.emptyMap();
       }
       return getListeners();
-    } else if (connectorType == ConnectorType.PROCESSOR){
+    } else if (connectorType == ConnectorType.PROCESSOR) {
       if (getProcessors() == null) {
         return Collections.emptyMap();
       }
@@ -144,10 +148,10 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
   @JsonIgnore
   private List<Space.ListenerConnectorRef> getConnectorRefs(final ConnectorType connectorType) {
     return getConnectorRefsMap(connectorType)
-            .values()
-            .stream()
-            .flatMap(Collection::stream)
-            .collect(Collectors.toList());
+        .values()
+        .stream()
+        .flatMap(Collection::stream)
+        .collect(Collectors.toList());
   }
 
   @JsonIgnore
@@ -210,6 +214,7 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
    * Extended space class, which includes the granted access rights.
    */
   public static class SpaceWithRights extends Space {
+
     @JsonView(Public.class)
     public List<String> rights;
   }

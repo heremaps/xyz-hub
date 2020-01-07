@@ -21,12 +21,15 @@ package com.here.xyz.hub.rest.admin.messages;
 
 import com.here.xyz.hub.rest.admin.AdminMessage;
 import com.here.xyz.hub.rest.admin.Node;
-import com.here.xyz.hub.util.logging.Logging;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * A message which can be used to write a log on all nodes at (nearly) the same time.
  */
-public class BroadcastLog extends AdminMessage implements Logging {
+public class BroadcastLog extends AdminMessage {
+
+  private static final Logger logger = LogManager.getLogger();
 
   public final Node destination = null;
   public String logMessage;
@@ -42,6 +45,6 @@ public class BroadcastLog extends AdminMessage implements Logging {
 
   @Override
   protected void handle() {
-    logger().info("[BROADCAST from " + source.id + " (" + source.ip + ")] " + logMessage);
+    logger.info("[BROADCAST from " + source.id + " (" + source.ip + ")] " + logMessage);
   }
 }

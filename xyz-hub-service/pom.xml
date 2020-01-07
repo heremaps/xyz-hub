@@ -170,27 +170,8 @@
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>xyz-psql-connector</artifactId>
-      <exclusions>
-        <exclusion>
-          <artifactId>log4j-slf4j-impl</artifactId>
-          <groupId>org.apache.logging.log4j</groupId>
-        </exclusion>
-        <exclusion>
-          <artifactId>log4j-core</artifactId>
-          <groupId>org.apache.logging.log4j</groupId>
-        </exclusion>
-        <exclusion>
-          <artifactId>log4j-api</artifactId>
-          <groupId>org.apache.logging.log4j</groupId>
-        </exclusion>
-      </exclusions>
     </dependency>
-
     <!-- Logging libraries -->
-    <dependency>
-      <artifactId>slf4j-api</artifactId>
-      <groupId>org.slf4j</groupId>
-    </dependency>
     <dependency>
       <artifactId>log4j-slf4j-impl</artifactId>
       <groupId>org.apache.logging.log4j</groupId>

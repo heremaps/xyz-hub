@@ -20,15 +20,17 @@
 package com.here.xyz.hub.cache;
 
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.util.logging.Logging;
 import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.redis.RedisClient;
 import io.vertx.redis.RedisOptions;
 import io.vertx.redis.op.SetOptions;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-public class RedisCacheClient implements CacheClient, Logging {
+public class RedisCacheClient implements CacheClient {
 
+  private static final Logger logger = LogManager.getLogger();
   private RedisOptions config;
 
   private RedisClient redis;
@@ -42,12 +44,13 @@ public class RedisCacheClient implements CacheClient, Logging {
   }
 
   public static CacheClient create() {
-    if (Service.configuration.XYZ_HUB_REDIS_HOST == null)
+    if (Service.configuration.XYZ_HUB_REDIS_HOST == null) {
       return new NoopCacheClient();
+    }
     try {
       return new RedisCacheClient();
     } catch (Exception e) {
-      Logging.getLogger().error("Error when trying to create the Redis client.", e);
+      logger.error("Error when trying to create the Redis client.", e);
       return new NoopCacheClient();
     }
   }

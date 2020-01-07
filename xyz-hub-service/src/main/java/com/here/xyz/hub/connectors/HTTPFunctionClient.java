@@ -25,7 +25,6 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.HTTP;
 import com.here.xyz.hub.rest.HttpException;
-import com.here.xyz.hub.util.logging.Logging;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -34,9 +33,13 @@ import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.WebClientOptions;
 import java.io.IOException;
 import java.util.concurrent.TimeoutException;
-import org.slf4j.Marker;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
-public class HTTPFunctionClient extends QueueingRemoteFunctionClient implements Logging {
+public class HTTPFunctionClient extends QueueingRemoteFunctionClient {
+
+  private static final Logger logger = LogManager.getLogger();
 
   private volatile WebClient webClient;
   private static volatile String url;
@@ -62,7 +65,7 @@ public class HTTPFunctionClient extends QueueingRemoteFunctionClient implements 
 
   @Override
   protected void invoke(Marker marker, byte[] bytes, Handler<AsyncResult<byte[]>> callback) {
-    logger().debug(marker, "Invoke http remote function '{}' Event size is: {}", connectorConfig.remoteFunction.id, bytes.length);
+    logger.debug(marker, "Invoke http remote function '{}' Event size is: {}", connectorConfig.remoteFunction.id, bytes.length);
 
     webClient.post(url)
         .timeout(REQUEST_TIMEOUT)
@@ -70,12 +73,10 @@ public class HTTPFunctionClient extends QueueingRemoteFunctionClient implements 
           if (ar.failed()) {
             if (ar.cause() instanceof TimeoutException) {
               callback.handle(Future.failedFuture(new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.")));
-            }
-            else {
+            } else {
               callback.handle(Future.failedFuture(ar.cause()));
             }
-          }
-          else {
+          } else {
             try {
               //TODO: Refactor to move decompression into the base-class RemoteFunctionClient as it's not HTTP specific
               byte[] responseBytes = ar.result().body().getBytes();

@@ -31,9 +31,13 @@ import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import java.util.ArrayList;
 import java.util.List;
-import org.slf4j.Marker;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
 public class MigratingSpaceConfigClient extends SpaceConfigClient {
+
+  private static final Logger logger = LogManager.getLogger();
 
   private static boolean initialized = false;
   private SpaceConfigClient newSpaceClient;
@@ -134,12 +138,12 @@ public class MigratingSpaceConfigClient extends SpaceConfigClient {
   private void moveSpace(Marker marker, Space space, Handler<AsyncResult<Space>> handler) {
     newSpaceClient.store(marker, space, storeResult -> {
       if (storeResult.failed()) {
-        logger().error(marker, "Error when trying to store space while migrating it. Space ID: " + space.getId(), storeResult.cause());
+        logger.error(marker, "Error when trying to store space while migrating it. Space ID: " + space.getId(), storeResult.cause());
         return;
       }
       oldSpaceClient.delete(marker, space.getId(), deletionResult -> {
         if (deletionResult.failed()) {
-          logger().error(marker, "Error when trying to delete old space while migrating it. Space ID: " + space.getId(),
+          logger.error(marker, "Error when trying to delete old space while migrating it. Space ID: " + space.getId(),
               deletionResult.cause());
           return;
         }
