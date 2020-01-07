@@ -52,7 +52,6 @@ import com.here.xyz.hub.task.SpaceTask.ReadQuery;
 import com.here.xyz.hub.task.SpaceTask.View;
 import com.here.xyz.hub.task.TaskPipeline.C1;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
-import com.here.xyz.hub.util.logging.Logging;
 import com.here.xyz.models.hub.Space.ConnectorRef;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.json.Json;
@@ -67,15 +66,19 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class SpaceTaskHandler {
+
+  private static final Logger logger = LogManager.getLogger();
 
   private static final int CLIENT_VALUE_MAX_SIZE = 1024;
 
   static <X extends ReadQuery<?>> void readSpaces(final X task, final Callback<X> callback) {
     Service.spaceConfigClient.getSelected(task.getMarker(), task.authorizedCondition, task.selectedCondition, ar -> {
       if (ar.failed()) {
-        Logging.getLogger().info(task.getMarker(), "Unable to load space definitions.'", ar.cause());
+        logger.info(task.getMarker(), "Unable to load space definitions.'", ar.cause());
         callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the space definitions", ar.cause()));
         return;
       }
@@ -152,7 +155,7 @@ public class SpaceTaskHandler {
       task.modifyOp.process();
       callback.call(task);
     } catch (ModifyOpError e) {
-      Logging.getLogger().info(task.getMarker(), "ConditionalOperationError: {}", e.getMessage(), e);
+      logger.info(task.getMarker(), "ConditionalOperationError: {}", e.getMessage(), e);
       throw new HttpException(CONFLICT, e.getMessage());
     }
   }
@@ -315,7 +318,7 @@ public class SpaceTaskHandler {
 
     Service.spaceConfigClient.getOwn(task.getMarker(), jwt.aid, ar -> {
       if (ar.failed()) {
-        Logging.getLogger().info(task.getMarker(), "Unable to load the space definitions.", ar.cause());
+        logger.info(task.getMarker(), "Unable to load the space definitions.", ar.cause());
         callback.exception(new HttpException(BAD_GATEWAY, "Unable to load the space definitions.", ar.cause()));
         return;
       }

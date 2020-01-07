@@ -36,15 +36,18 @@ import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLambda;
 import com.here.xyz.hub.rest.HttpException;
-import com.here.xyz.hub.util.logging.Logging;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import org.slf4j.Marker;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
-public class LambdaFunctionClient extends QueueingRemoteFunctionClient implements Logging {
+public class LambdaFunctionClient extends QueueingRemoteFunctionClient {
+
+  private static final Logger logger = LogManager.getLogger();
 
   /**
    * The maximal response size in bytes that can be sent back without relocating the response.
@@ -81,7 +84,7 @@ public class LambdaFunctionClient extends QueueingRemoteFunctionClient implement
    */
   @Override
   protected void invoke(final Marker marker, byte[] bytes, final Handler<AsyncResult<byte[]>> callback) {
-    logger()
+    logger
         .debug(marker, "Invoking remote lambda function with id '{}' Event size is: {}", connectorConfig.remoteFunction.id, bytes.length);
 
     InvokeRequest invokeReq = new InvokeRequest().
@@ -138,7 +141,7 @@ public class LambdaFunctionClient extends QueueingRemoteFunctionClient implement
   }
 
   private HttpException getWHttpException(Marker marker, Throwable e) {
-    logger().info(marker, "Unexpected exception while contacting lambda provider", e);
+    logger.info(marker, "Unexpected exception while contacting lambda provider", e);
 
     if (e instanceof HttpException) {
       return (HttpException) e;

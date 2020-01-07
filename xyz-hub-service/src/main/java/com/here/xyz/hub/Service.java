@@ -28,7 +28,6 @@ import com.here.xyz.hub.connectors.BurstAndUpdateThread;
 import com.here.xyz.hub.util.ARN;
 import com.here.xyz.hub.util.ConfigDecryptor;
 import com.here.xyz.hub.util.ConfigDecryptor.CryptoException;
-import com.here.xyz.hub.util.logging.Logging;
 import io.vertx.config.ConfigRetriever;
 import io.vertx.config.ConfigRetrieverOptions;
 import io.vertx.config.ConfigStoreOptions;
@@ -50,10 +49,14 @@ import java.util.Date;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.util.NetUtils;
 
-public class Service implements Logging {
+public class Service {
+
+  private static final Logger logger = LogManager.getLogger();
 
   /**
    * The service start time.
@@ -170,13 +173,13 @@ public class Service implements Logging {
 
             vertx.deployVerticle(XYZHubRESTVerticle.class, new DeploymentOptions().setConfig(config).setWorker(true).setInstances(8));
 
-            Logging.getLogger().info("XYZ Hub " + BUILD_VERSION + " was started at " + new Date().toString());
+            logger.info("XYZ Hub " + BUILD_VERSION + " was started at " + new Date().toString());
 
-            Thread.setDefaultUncaughtExceptionHandler((thread, t) -> Logging.getLogger().error("Uncaught exception: ", t));
+            Thread.setDefaultUncaughtExceptionHandler((thread, t) -> logger.error("Uncaught exception: ", t));
 
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
               //This may fail, if we are OOM, but lets at least try.
-              Logging.getLogger().info("XYZ Service is going down at " + new Date().toString());
+              logger.info("XYZ Service is going down at " + new Date().toString());
             }));
           }
         });
@@ -194,7 +197,7 @@ public class Service implements Logging {
       configuration.ADMIN_MESSAGE_JWT = decryptSecret(configuration.ADMIN_MESSAGE_JWT);
     } catch (CryptoException e) {
       configuration.ADMIN_MESSAGE_JWT = null;
-      Logging.getLogger().error("Error when trying to decrypt ADMIN_MESSAGE_JWT. AdminMessaging won't work.", e);
+      logger.error("Error when trying to decrypt ADMIN_MESSAGE_JWT. AdminMessaging won't work.", e);
     }
   }
 
@@ -220,7 +223,7 @@ public class Service implements Logging {
         try {
           Service.hostname = InetAddress.getLocalHost().getHostAddress();
         } catch (UnknownHostException e) {
-          Logging.getLogger().error("Unable to resolve the hostname using Java's API.", e);
+          logger.error("Unable to resolve the hostname using Java's API.", e);
           Service.hostname = "localhost";
         }
       }

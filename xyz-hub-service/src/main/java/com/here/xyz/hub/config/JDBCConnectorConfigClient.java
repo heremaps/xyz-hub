@@ -32,12 +32,16 @@ import io.vertx.ext.sql.SQLClient;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import org.slf4j.Marker;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
 /**
  * A client for reading and editing xyz space and connector definitions.
  */
 public class JDBCConnectorConfigClient extends ConnectorConfigClient {
+
+  private static final Logger logger = LogManager.getLogger();
 
   private static JDBCConnectorConfigClient instance;
   private final SQLClient client;
@@ -66,14 +70,14 @@ public class JDBCConnectorConfigClient extends ConnectorConfigClient {
         final Optional<String> config = out.result().getRows().stream().map(r -> r.getString("config")).findFirst();
         if (config.isPresent()) {
           final Connector connector = Json.decodeValue(config.get(), Connector.class);
-          logger().debug(marker, "storageId[{}]: Loaded connector from the database.", connectorId);
+          logger.debug(marker, "storageId[{}]: Loaded connector from the database.", connectorId);
           handler.handle(Future.succeededFuture(connector));
         } else {
-          logger().debug(marker, "storageId[{}]: This configuration does not exist", connectorId);
+          logger.debug(marker, "storageId[{}]: This configuration does not exist", connectorId);
           handler.handle(Future.failedFuture("The connector config not found for storageId: " + connectorId));
         }
       } else {
-        logger().debug(marker, "storageId[{}]: Failed to load configuration, reason: ", connectorId, out.cause());
+        logger.debug(marker, "storageId[{}]: Failed to load configuration, reason: ", connectorId, out.cause());
         handler.handle(Future.failedFuture(out.cause()));
       }
     });

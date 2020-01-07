@@ -24,7 +24,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.admin.AdminMessage;
-import com.here.xyz.hub.util.logging.Logging;
 import com.here.xyz.models.hub.Space.WithConnectors;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -40,10 +39,13 @@ import java.util.concurrent.TimeUnit;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.slf4j.Marker;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
-public abstract class SpaceConfigClient implements Initializable, Logging {
+public abstract class SpaceConfigClient implements Initializable {
 
+  private static final Logger logger = LogManager.getLogger();
   private static ThreadLocal<ObjectMapper> SPACE_CONFIG_MAPPER = ThreadLocal.withInitial(() -> {
     ObjectMapper mapper = XyzSerializable.DEFAULT_MAPPER.get().copy();
     return mapper
@@ -76,7 +78,7 @@ public abstract class SpaceConfigClient implements Initializable, Logging {
   public void get(Marker marker, String spaceId, Handler<AsyncResult<Space>> handler) {
     Space cached = cache.get(spaceId);
     if (cached != null) {
-      logger().info(marker, "space[{}}]: Loaded space from cache: {}", spaceId, Json.encode(cached));
+      logger.info(marker, "space[{}}]: Loaded space from cache: {}", spaceId, Json.encode(cached));
       handler.handle(Future.succeededFuture(cached));
       return;
     }
@@ -97,14 +99,14 @@ public abstract class SpaceConfigClient implements Initializable, Logging {
         Space space = ar.result();
         if (space != null) {
           cache.put(spaceId, space);
-          logger().info(marker, "space[{}}]: Loaded space: {} {}", spaceId, Json.encode(space), ar.cause());
+          logger.info(marker, "space[{}}]: Loaded space: {} {}", spaceId, Json.encode(space), ar.cause());
         } else {
-          logger().info(marker, "space[{}}]: Space with this ID was not found {}", spaceId, ar.cause());
+          logger.info(marker, "space[{}}]: Space with this ID was not found {}", spaceId, ar.cause());
         }
         cache.put(spaceId, space);
         handlersToCall.forEach(h -> h.handle(Future.succeededFuture(ar.result())));
       } else {
-        logger().info(marker, "space[{}]: Failed to load the space, reason: {}", spaceId, ar.cause());
+        logger.info(marker, "space[{}]: Failed to load the space, reason: {}", spaceId, ar.cause());
         handlersToCall.forEach(h -> h.handle(Future.failedFuture(ar.cause())));
       }
     });
@@ -118,10 +120,10 @@ public abstract class SpaceConfigClient implements Initializable, Logging {
     storeSpace(marker, space, ar -> {
       if (ar.succeeded()) {
         invalidateCache(space.getId());
-        logger().info(marker, "space[{}}]: Stored space: {}", space.getId(), Json.encode(space), ar.cause());
+        logger.info(marker, "space[{}}]: Stored space: {}", space.getId(), Json.encode(space), ar.cause());
         handler.handle(Future.succeededFuture(ar.result()));
       } else {
-        logger().info(marker, "space[{}}]: Failed storing the space", space.getId(), ar.cause());
+        logger.info(marker, "space[{}}]: Failed storing the space", space.getId(), ar.cause());
         handler.handle(Future.failedFuture(ar.cause()));
       }
     });
@@ -131,10 +133,10 @@ public abstract class SpaceConfigClient implements Initializable, Logging {
     deleteSpace(marker, spaceId, ar -> {
       if (ar.succeeded()) {
         invalidateCache(spaceId);
-        logger().info(marker, "space[{}}]: Deleted space", spaceId, ar.cause());
+        logger.info(marker, "space[{}}]: Deleted space", spaceId, ar.cause());
         handler.handle(Future.succeededFuture(ar.result()));
       } else {
-        logger().info(marker, "space[{}}]: Failed storing the space", spaceId, ar.cause());
+        logger.info(marker, "space[{}}]: Failed storing the space", spaceId, ar.cause());
         handler.handle(Future.failedFuture(ar.cause()));
       }
     });
@@ -146,10 +148,10 @@ public abstract class SpaceConfigClient implements Initializable, Logging {
       if (ar.succeeded()) {
         List<Space> spaces = ar.result();
         spaces.forEach(s -> cache.put(s.getId(), s));
-        logger().info(marker, "Loaded spaces by condition", ar.cause());
+        logger.info(marker, "Loaded spaces by condition", ar.cause());
         handler.handle(Future.succeededFuture(ar.result()));
       } else {
-        logger().info(marker, "Failed to load spaces by condition", ar.cause());
+        logger.info(marker, "Failed to load spaces by condition", ar.cause());
         handler.handle(Future.failedFuture(ar.cause()));
       }
     });

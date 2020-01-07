@@ -31,9 +31,13 @@ import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import java.util.ArrayList;
 import java.util.List;
-import org.slf4j.Marker;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
 public class MigratingConnectorConfigClient extends ConnectorConfigClient {
+
+  private static final Logger logger = LogManager.getLogger();
 
   private static MigratingConnectorConfigClient instance;
   private static boolean initialized = false;
@@ -131,13 +135,13 @@ public class MigratingConnectorConfigClient extends ConnectorConfigClient {
   private void moveConnector(Marker marker, Connector connector, Handler<AsyncResult<Connector>> handler) {
     newConnectorClient.store(marker, connector, storeResult -> {
       if (storeResult.failed()) {
-        logger()
+        logger
             .error(marker, "Error when trying to store connector while migrating it. Connector ID: " + connector.id, storeResult.cause());
         return;
       }
       oldConnectorClient.delete(marker, connector.id, deletionResult -> {
         if (deletionResult.failed()) {
-          logger().error(marker, "Error when trying to delete old connector while migrating it. Connector ID: " + connector.id,
+          logger.error(marker, "Error when trying to delete old connector while migrating it. Connector ID: " + connector.id,
               deletionResult.cause());
           return;
         }

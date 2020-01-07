@@ -24,11 +24,14 @@ import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.Task;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
-import com.here.xyz.hub.util.logging.Logging;
 import io.vertx.core.json.Json;
-import org.slf4j.Marker;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
 public abstract class Authorization {
+
+  private static final Logger logger = LogManager.getLogger();
 
   public enum AuthorizationType {
     JWT,
@@ -36,8 +39,8 @@ public abstract class Authorization {
   }
 
   protected static void evaluateRights(Marker marker, ActionMatrix requestRights, ActionMatrix tokenRights) throws HttpException {
-    Logging.getLogger().info(marker, "Token access rights: {}", Json.encode(tokenRights));
-    Logging.getLogger().info(marker, "Request access rights: {}", Json.encode(requestRights));
+    logger.info(marker, "Token access rights: {}", Json.encode(tokenRights));
+    logger.info(marker, "Request access rights: {}", Json.encode(requestRights));
 
     if (tokenRights == null || !tokenRights.matches(requestRights)) {
       throw new HttpException(FORBIDDEN, getForbiddenMessage(requestRights, tokenRights));
@@ -48,8 +51,7 @@ public abstract class Authorization {
     try {
       evaluateRights(task.getMarker(), requestRights, tokenRights);
       callback.call(task);
-    }
-    catch (HttpException e) {
+    } catch (HttpException e) {
       callback.exception(e);
     }
   }

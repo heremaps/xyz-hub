@@ -40,8 +40,6 @@ import com.here.xyz.events.RelocatedEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.rest.HttpException;
-import com.here.xyz.hub.util.logging.Logging;
-import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzResponse;
 import io.vertx.core.AsyncResult;
@@ -53,9 +51,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
-import org.slf4j.Marker;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
-public class RpcClient implements Logging {
+public class RpcClient {
+
+  private static final Logger logger = LogManager.getLogger();
 
   private static final ConcurrentHashMap<String, RpcClient> storageIdToClient = new ConcurrentHashMap<>();
   private static final RelocationClient relocationClient = new RelocationClient(Service.configuration.XYZ_HUB_S3_BUCKET);
@@ -121,7 +123,7 @@ public class RpcClient implements Logging {
       if (bytes.length > connector.capabilities.maxPayloadSize) { // If the payload is too large to send directly to the connector
         // If relocation is supported, use the relocation client to transfer the event to the connector
         if (connector.capabilities.relocationSupport) {
-          logger().info(marker, "Relocating event. Total event byte size: {}", bytes.length);
+          logger.info(marker, "Relocating event. Total event byte size: {}", bytes.length);
           // TODO: Execute blocking
           bytes = relocationClient.relocate(marker.getName(), bytes);
         } else {
@@ -149,7 +151,7 @@ public class RpcClient implements Logging {
     event.setConnectorParams(connector.params);
     final String eventJson = event.serialize();
     final byte[] bytes = eventJson.getBytes();
-    logger().info(marker, "Invoking remote function \"{}\". Total uncompressed event size: {}, Event: {}", this.storage().id, bytes.length,
+    logger.info(marker, "Invoking remote function \"{}\". Total uncompressed event size: {}, Event: {}", this.storage().id, bytes.length,
         preview(eventJson, 4092));
 
     invokeWithRelocation(marker, bytes, bytesResult -> {
@@ -160,7 +162,7 @@ public class RpcClient implements Logging {
 
       parseResponse(marker, bytesResult.result(), r -> {
         if (r.failed()) {
-          logger().error(marker, "Unable to decode the response.", r.cause());
+          logger.error(marker, "Unable to decode the response.", r.cause());
           callback.handle(Future.failedFuture(r.cause()));
           return;
         }
@@ -188,7 +190,7 @@ public class RpcClient implements Logging {
     event.setConnectorParams(connector.params);
     invokeWithRelocation(marker, event.serialize().getBytes(), r -> {
       if (r.failed()) {
-        logger().error(marker, "Failed to send event to remote function {}.", connector.remoteFunction.id);
+        logger.error(marker, "Failed to send event to remote function {}.", connector.remoteFunction.id);
       }
     });
   }
@@ -199,7 +201,7 @@ public class RpcClient implements Logging {
       stringResponse = new String(bytes, StandardCharsets.UTF_8);
     }
     if (bytes == null || stringResponse.length() == 0) {
-      logger().error(marker, "Received empty response, but expected a JSON response.", new NullPointerException());
+      logger.error(marker, "Received empty response, but expected a JSON response.", new NullPointerException());
       callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Received an empty response from the storage connector.")));
       return;
     }
@@ -212,14 +214,14 @@ public class RpcClient implements Logging {
           InputStream input = relocationClient.processRelocatedEvent((RelocatedEvent) payload);
           payload = XyzSerializable.deserialize(input);
         } catch (Exception e) {
-          logger().error("An error when processing a relocated response.", e);
+          logger.error("An error when processing a relocated response.", e);
           throw new HttpException(BAD_GATEWAY, "Unable to load the relocated event.");
         }
       }
 
       if (payload instanceof ErrorResponse) {
         ErrorResponse errorResponse = (ErrorResponse) payload;
-        logger().info(marker, "The connector responded with an error of type {}: {}", errorResponse.getError(),
+        logger.info(marker, "The connector responded with an error of type {}: {}", errorResponse.getError(),
             errorResponse.getErrorMessage());
 
         switch (errorResponse.getError()) {
@@ -239,27 +241,27 @@ public class RpcClient implements Logging {
         return;
       }
 
-      logger().info(marker, "The connector responded with an unexpected response type {}", payload.getClass().getSimpleName());
+      logger.info(marker, "The connector responded with an unexpected response type {}", payload.getClass().getSimpleName());
       callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "The connector responded with unexpected response type.")));
     } catch (NullPointerException e) {
-      logger().error(marker, "Received empty response, but expected a JSON response.", new NullPointerException());
+      logger.error(marker, "Received empty response, but expected a JSON response.", new NullPointerException());
       callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Received an empty response from the storage connector.")));
     } catch (JsonMappingException e) {
-      logger().error(marker, "Error in the provided content {}", stringResponse, e);
+      logger.error(marker, "Error in the provided content {}", stringResponse, e);
       HttpException parsedError = getErrorMessage(stringResponse);
       callback.handle(Future.failedFuture(parsedError != null ? parsedError : new HttpException(BAD_GATEWAY,
           "Invalid content provided by the connector: Invalid JSON type. Expected is a sub-type of XyzResponse.")));
     } catch (JsonParseException e) {
-      logger().error(marker, "Error in the provided content", e);
+      logger.error(marker, "Error in the provided content", e);
       callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Invalid content provided by the connector: Invalid JSON string. "
           + "Error at line " + e.getLocation().getLineNr() + ", column " + e.getLocation().getColumnNr() + ".")));
     } catch (IOException e) {
-      logger().error(marker, "Error in the provided content ", e);
+      logger.error(marker, "Error in the provided content ", e);
       callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Cannot read input JSON string from the connector.")));
     } catch (HttpException e) {
       callback.handle(Future.failedFuture(e));
     } catch (Exception e) {
-      logger().error(marker, "Unexpected exception while processing connector response: {}", stringResponse, e);
+      logger.error(marker, "Unexpected exception while processing connector response: {}", stringResponse, e);
       callback.handle(
           Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unexpected exception while processing connector response.")));
     }
@@ -283,7 +285,7 @@ public class RpcClient implements Logging {
         return new HttpException(BAD_GATEWAY, errorMessage);
       }
     } catch (IOException jpe) {
-      logger().error("Invalid content provided by the connector: Invalid JSON string: " + stringResponse, jpe);
+      logger.error("Invalid content provided by the connector: Invalid JSON string: " + stringResponse, jpe);
       return new HttpException(BAD_GATEWAY, "Invalid content provided by the connector");
     }
     return null;

@@ -41,9 +41,13 @@ import io.vertx.ext.web.RoutingContext;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import org.slf4j.Marker;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
-public class LogUtil implements Logging {
+public class LogUtil {
+
+  private static final Logger logger = LogManager.getLogger();
 
   private static List<String> skipLoggingHeaders = Collections.singletonList(X_FORWARDED_FOR);
 
@@ -60,7 +64,7 @@ public class LogUtil implements Logging {
 
     buf.append('\n');
     buf.append(context.getBodyAsString());
-    Logging.getLogger().info(Api.Context.getMarker(context), "{}", buf.toString().trim());
+    logger.info(Api.Context.getMarker(context), "{}", buf.toString().trim());
   }
 
   public static String responseToLogEntry(RoutingContext context) {
@@ -134,7 +138,8 @@ public class LogUtil implements Logging {
     final AccessLog accessLog = Api.Context.getAccessLog(context);
     final Marker marker = Api.Context.getMarker(context);
     accessLog.streamId = marker.getName();
-    final String formattedLog = XyzSerializable.serialize(accessLog, new TypeReference<AccessLog>() {});
-    Logging.getLogger().warn(marker, formattedLog);
+    final String formattedLog = XyzSerializable.serialize(accessLog, new TypeReference<AccessLog>() {
+    });
+    logger.warn(marker, formattedLog);
   }
 }

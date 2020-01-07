@@ -30,6 +30,7 @@ import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.XyzResponse;
+import com.mchange.v2.c3p0.ComboPooledDataSource;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -46,15 +47,14 @@ import java.util.stream.Collectors;
 import javax.sql.DataSource;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import com.mchange.v2.c3p0.ComboPooledDataSource;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 
 @SuppressWarnings("SqlDialectInspection")
 public abstract class PSQLRequestStreamHandler extends StorageConnector {
 
-  private static final Logger logger = LoggerFactory.getLogger(PSQLXyzConnector.class);
+  private static final Logger logger = LogManager.getLogger();
 
   Event event;
 
@@ -136,16 +136,16 @@ public abstract class PSQLRequestStreamHandler extends StorageConnector {
           config.password(), config.applicationName(), config.maxPostgreSQLConnections());
       dataSources.put(ecps, source);
 
-      Map<String,String> m = new HashMap<>();
-      m.put( C3P0EXT_CONFIG_SCHEMA ,config.schema());
-      source.setExtensions( m );
+      Map<String, String> m = new HashMap<>();
+      m.put(C3P0EXT_CONFIG_SCHEMA, config.schema());
+      source.setExtensions(m);
 
       if (config.replica() != null) {
         final ComboPooledDataSource replicaDataSource = getComboPooledDataSource(config.replica(), config.port(), config.database(),
             config.user(), config.password(), config.applicationName(), config.maxPostgreSQLConnections());
         replicaDataSources.put(ecps, replicaDataSource);
 
-        replicaDataSource.setExtensions( m );
+        replicaDataSource.setExtensions(m);
       }
 
       configs.put(ecps, config);
@@ -166,7 +166,8 @@ public abstract class PSQLRequestStreamHandler extends StorageConnector {
       String password, String applicationName, int maxPostgreSQLConnections) {
     final ComboPooledDataSource cpds = new ComboPooledDataSource();
 
-    cpds.setJdbcUrl( String.format("jdbc:postgresql://%1$s:%2$d/%3$s?ApplicationName=%4$s&tcpKeepAlive=true",host,port,database,applicationName) );
+    cpds.setJdbcUrl(
+        String.format("jdbc:postgresql://%1$s:%2$d/%3$s?ApplicationName=%4$s&tcpKeepAlive=true", host, port, database, applicationName));
 
     cpds.setUser(user);
     cpds.setPassword(password);
@@ -176,7 +177,7 @@ public abstract class PSQLRequestStreamHandler extends StorageConnector {
     cpds.setAcquireIncrement(1);
     cpds.setMaxPoolSize(maxPostgreSQLConnections);
 
-    cpds.setConnectionCustomizerClassName( PSQLXyzConnector.XyzConnectionCustomizer.class.getName() );
+    cpds.setConnectionCustomizerClassName(PSQLXyzConnector.XyzConnectionCustomizer.class.getName());
 
     return cpds;
   }
@@ -193,10 +194,10 @@ public abstract class PSQLRequestStreamHandler extends StorageConnector {
 
     boolean autoIndexing = (event.getConnectorParams() != null && event.getConnectorParams().get("autoIndexing") == Boolean.TRUE);
     ON_DEMAND_IDX_LIM = (event.getConnectorParams() != null && event.getConnectorParams().get("onDemandIdxLimit") != null) ?
-            (Integer)event.getConnectorParams().get("onDemandIdxLimit") : ON_DEMAND_IDX_LIM;
+        (Integer) event.getConnectorParams().get("onDemandIdxLimit") : ON_DEMAND_IDX_LIM;
 
     final String checkExtentions = "SELECT COALESCE(array_agg(extname) @> '{postgis,postgis_topology,tsm_system_rows"
-        +       (hasPropertySearch ? ",dblink" : "" )+"}', false) as all_ext_av,"
+        + (hasPropertySearch ? ",dblink" : "") + "}', false) as all_ext_av,"
         + "COALESCE(array_agg(extname)) as ext_av, "
         + "(select current_setting('is_superuser')) as is_su "
         + "FROM (\n"
@@ -205,19 +206,19 @@ public abstract class PSQLRequestStreamHandler extends StorageConnector {
         + "	order by extname\n"
         + ") A";
 
-    final String checkSchemasAndIdxTable = "SELECT array_agg(nspname) @> ARRAY['"+config.schema()+"'] as main_schema, "
-        +" array_agg(nspname) @> ARRAY['xyz_config'] as config_schema, "
-        + "(SELECT (to_regclass('"+XYZ_CONFIG_SCHEMA+".xyz_idxs_status') IS NOT NULL) as idx_table) "
-        +"FROM( "
-        +"	SELECT nspname::text FROM pg_catalog.pg_namespace "
-        +"		WHERE nspowner <> 1 "
-        +")a ";
+    final String checkSchemasAndIdxTable = "SELECT array_agg(nspname) @> ARRAY['" + config.schema() + "'] as main_schema, "
+        + " array_agg(nspname) @> ARRAY['xyz_config'] as config_schema, "
+        + "(SELECT (to_regclass('" + XYZ_CONFIG_SCHEMA + ".xyz_idxs_status') IS NOT NULL) as idx_table) "
+        + "FROM( "
+        + "	SELECT nspname::text FROM pg_catalog.pg_namespace "
+        + "		WHERE nspowner <> 1 "
+        + ")a ";
 
     final String searchEnsureVersionFnct = "SELECT routine_name FROM information_schema.routines "
         + "WHERE routine_type='FUNCTION' AND specific_schema='" + config.schema()
         + "' AND routine_name='xyz_ext_version';";
 
-    final String xyzFunctionCheck = "select "+ config.schema()+".xyz_ext_version()";
+    final String xyzFunctionCheck = "select " + config.schema() + ".xyz_ext_version()";
 
     try (final Connection connection = dataSource.getConnection()) {
 
@@ -228,15 +229,16 @@ public abstract class PSQLRequestStreamHandler extends StorageConnector {
       if (rs.next()) {
         if (!rs.getBoolean("all_ext_av")) {
           /** Create Missing IDX_Maintenance Table */
-          if(rs.getString("is_su").equalsIgnoreCase("on")) {
+          if (rs.getString("is_su").equalsIgnoreCase("on")) {
             stmt.execute("CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;");
             stmt.execute("CREATE EXTENSION IF NOT EXISTS postgis_topology");
             stmt.execute("CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public");
-            if(hasPropertySearch)
+            if (hasPropertySearch) {
               stmt.execute("CREATE EXTENSION IF NOT EXISTS dblink SCHEMA public;");
-          }else {
+            }
+          } else {
             logger.error("{} - Not allowed to create missing extentions on database': {}@{}. Currently installed are: {}",
-                  streamId,config.user(), config.database(), rs.getString("ext_av"));
+                streamId, config.user(), config.database(), rs.getString("ext_av"));
             /** Cannot proceed without extensions!
              * postgis,postgis_topology -> provides all GIS functions which are essential!
              * tsm_system_rows -> Is used for generating statistics
@@ -252,45 +254,46 @@ public abstract class PSQLRequestStreamHandler extends StorageConnector {
       rs = stmt.executeQuery(checkSchemasAndIdxTable);
 
       if (rs.next()) {
-          final boolean mainSchema = rs.getBoolean("main_schema");
-          boolean configSchema = rs.getBoolean("config_schema");
-          final boolean idx_table = rs.getBoolean("idx_table");
+        final boolean mainSchema = rs.getBoolean("main_schema");
+        boolean configSchema = rs.getBoolean("config_schema");
+        final boolean idx_table = rs.getBoolean("idx_table");
 
-          try {
-	          /** Create Missing Schemas */
-	          if(!mainSchema) {
-	        	  logger.info("{} - Create missing Schema {} on {}!", streamId, config.schema(),config.database());
-	        	  stmt.execute("CREATE SCHEMA IF NOT EXISTS \"" +config.schema()+ "\";");
-	          }
+        try {
+          /** Create Missing Schemas */
+          if (!mainSchema) {
+            logger.info("{} - Create missing Schema {} on {}!", streamId, config.schema(), config.database());
+            stmt.execute("CREATE SCHEMA IF NOT EXISTS \"" + config.schema() + "\";");
+          }
 
-	          if (!configSchema && hasPropertySearch) {
-                  logger.info("{} - Create missing Schema {} on {}!", streamId, XYZ_CONFIG_SCHEMA,config.database());
-                  stmt.execute("CREATE SCHEMA IF NOT EXISTS \"" + XYZ_CONFIG_SCHEMA + "\";");
-                  stmt.execute("CREATE TABLE IF NOT EXISTS  " + XYZ_CONFIG_SCHEMA + ".xyz_storage (id VARCHAR(50) primary key, config JSONB);");
-	        	  stmt.execute("CREATE TABLE IF NOT EXISTS  "+XYZ_CONFIG_SCHEMA+".xyz_space (id VARCHAR(50) primary key, owner VARCHAR (50), cid VARCHAR (50), config JSONB);");
-	          }
+          if (!configSchema && hasPropertySearch) {
+            logger.info("{} - Create missing Schema {} on {}!", streamId, XYZ_CONFIG_SCHEMA, config.database());
+            stmt.execute("CREATE SCHEMA IF NOT EXISTS \"" + XYZ_CONFIG_SCHEMA + "\";");
+            stmt.execute("CREATE TABLE IF NOT EXISTS  " + XYZ_CONFIG_SCHEMA + ".xyz_storage (id VARCHAR(50) primary key, config JSONB);");
+            stmt.execute("CREATE TABLE IF NOT EXISTS  " + XYZ_CONFIG_SCHEMA
+                + ".xyz_space (id VARCHAR(50) primary key, owner VARCHAR (50), cid VARCHAR (50), config JSONB);");
+          }
 
-	          if(!idx_table && hasPropertySearch) {
-                /** Create Missing IDX_Maintenance Table */
-                stmt.execute("CREATE TABLE IF NOT EXISTS " + XYZ_CONFIG_SCHEMA + ".xyz_idxs_status "
-                      + "( "
-                      + "  runts timestamp with time zone, "
-                      + "  spaceid text NOT NULL, "
-                      + "  schem text, "
-                      + "  idx_available jsonb,"
-                      + "  idx_proposals jsonb, "
-                      + "  idx_creation_finished boolean, "
-                      + "  count bigint, "
-                      + "  prop_stat jsonb, "
-                      + "  idx_manual jsonb, "
-                      + "  CONSTRAINT xyz_idxs_status_pkey PRIMARY KEY (spaceid) "
-                      + "); ");
-                  stmt.execute("INSERT INTO xyz_config.xyz_idxs_status (spaceid,count) VALUES ('idx_in_progress','0') "
-                    + " ON CONFLICT DO NOTHING; ");
-              }
-	      } catch (Exception e) {
-		       logger.warn("{} - Failed to create missing Schema(s) on database': {} {}", streamId, config.database() , e);
-		  }
+          if (!idx_table && hasPropertySearch) {
+            /** Create Missing IDX_Maintenance Table */
+            stmt.execute("CREATE TABLE IF NOT EXISTS " + XYZ_CONFIG_SCHEMA + ".xyz_idxs_status "
+                + "( "
+                + "  runts timestamp with time zone, "
+                + "  spaceid text NOT NULL, "
+                + "  schem text, "
+                + "  idx_available jsonb,"
+                + "  idx_proposals jsonb, "
+                + "  idx_creation_finished boolean, "
+                + "  count bigint, "
+                + "  prop_stat jsonb, "
+                + "  idx_manual jsonb, "
+                + "  CONSTRAINT xyz_idxs_status_pkey PRIMARY KEY (spaceid) "
+                + "); ");
+            stmt.execute("INSERT INTO xyz_config.xyz_idxs_status (spaceid,count) VALUES ('idx_in_progress','0') "
+                + " ON CONFLICT DO NOTHING; ");
+          }
+        } catch (Exception e) {
+          logger.warn("{} - Failed to create missing Schema(s) on database': {} {}", streamId, config.database(), e);
+        }
       }
 
       stmt.execute("SET search_path=" + config.schema() + ",h3,public,topology;");
@@ -298,7 +301,7 @@ public abstract class PSQLRequestStreamHandler extends StorageConnector {
       stmt = connection.createStatement();
       rs = stmt.executeQuery(searchEnsureVersionFnct);
       if (rs.next()) {
-          /** If xyz_ext_version exists, use it to evaluate if the functions needs to get updated*/
+        /** If xyz_ext_version exists, use it to evaluate if the functions needs to get updated*/
         rs = stmt.executeQuery(xyzFunctionCheck);
         if (rs.next()) {
           functionsUpToDate = (rs.getInt(1) == xyz_ext_version);
@@ -313,91 +316,96 @@ public abstract class PSQLRequestStreamHandler extends StorageConnector {
         stmt.execute("SET search_path=" + config.schema() + ",h3,public,topology;");
         stmt.execute(content);
 
-        logger.info("{} - Successfully created missing SQL-Functions on database {}!", streamId,config.database());
+        logger.info("{} - Successfully created missing SQL-Functions on database {}!", streamId, config.database());
       } else {
-        logger.info("{} - All required SQL-Functions are already present on database {}!", streamId,config.database());
+        logger.info("{} - All required SQL-Functions are already present on database {}!", streamId, config.database());
       }
     } catch (Exception e) {
-      logger.error("{} - Failed to create missing SQL-Functions on database {} : {}", streamId, config.database(),  e);
+      logger.error("{} - Failed to create missing SQL-Functions on database {} : {}", streamId, config.database(), e);
     }
 
-    if(hasPropertySearch) {
-        /** Trigger Auto-Indexing and or On-Demand Index Maintenance  */
-	    try (final Connection connection = dataSource.getConnection()) {
-  	    	final String writeStatistics = "SELECT xyz_write_newest_statistics('"+ config.schema()
-  	            +"',ARRAY['wikvaya','"+config.user()+"'],"+IDX_MIN_THRESHOLD+");";
-	    	final String analyseStatistic = "SELECT xyz_write_newest_idx_analyses('"+ config.schema() +"')";
-	    	final String createIDX = "SELECT * from xyz_create_idxs_over_dblink('"+ config.schema() +"',100, 0,'"+config.user()
-	    	    +"','"+config.password()+"','"+config.database()+"',"+config.port()+",'"+ config.schema()+",h3,public,topology)')";
+    if (hasPropertySearch) {
+      /** Trigger Auto-Indexing and or On-Demand Index Maintenance  */
+      try (final Connection connection = dataSource.getConnection()) {
+        final String writeStatistics = "SELECT xyz_write_newest_statistics('" + config.schema()
+            + "',ARRAY['wikvaya','" + config.user() + "']," + IDX_MIN_THRESHOLD + ");";
+        final String analyseStatistic = "SELECT xyz_write_newest_idx_analyses('" + config.schema() + "')";
+        final String createIDX = "SELECT * from xyz_create_idxs_over_dblink('" + config.schema() + "',100, 0,'" + config.user()
+            + "','" + config.password() + "','" + config.database() + "'," + config.port() + ",'" + config.schema()
+            + ",h3,public,topology)')";
 
-	    	final String checkRunningQueries = "SELECT * FROM xyz_index_status();";
+        final String checkRunningQueries = "SELECT * FROM xyz_index_status();";
 
-	    	Statement stmt = connection.createStatement();
-	    	ResultSet rs = stmt.executeQuery(checkRunningQueries);
+        Statement stmt = connection.createStatement();
+        ResultSet rs = stmt.executeQuery(checkRunningQueries);
 
-	    	int progress = 0;
+        int progress = 0;
 
-	    	if (rs.next()) {
-	    	    /**
-	    	     * ((progress  &  (1<<0)) == (1<<0) = statisticsInProgress
-	    	     * ((progress  &  (1<<1)) == (1<<1) = analyseInProgress
-	    	     * ((progress  &  (1<<2)) == (1<<2) = idxCreationInProgress
-	    	     * ((progress  &  (1<<3)) == (1<<3) = idx_mode=16 (disable indexing completely)
-	    	     * ((progress  &  (1<<4)) == (1<<4) = idx_mode=32 (disable auto-indexer)
-	    	     */
-		        progress = rs.getInt(1);
-		    }
+        if (rs.next()) {
+          /**
+           * ((progress  &  (1<<0)) == (1<<0) = statisticsInProgress
+           * ((progress  &  (1<<1)) == (1<<1) = analyseInProgress
+           * ((progress  &  (1<<2)) == (1<<2) = idxCreationInProgress
+           * ((progress  &  (1<<3)) == (1<<3) = idx_mode=16 (disable indexing completely)
+           * ((progress  &  (1<<4)) == (1<<4) = idx_mode=32 (disable auto-indexer)
+           */
+          progress = rs.getInt(1);
+        }
 
-            if(progress == 0 || progress == 32) {
-              /** no process is running */
-              stmt.execute("SET statement_timeout = "+ (15 * 60 * 1000) + " ;");
-              stmt.execute(writeStatistics);
+        if (progress == 0 || progress == 32) {
+          /** no process is running */
+          stmt.execute("SET statement_timeout = " + (15 * 60 * 1000) + " ;");
+          stmt.execute(writeStatistics);
 
-              if(progress == 0 && autoIndexing) {
-                  /** Pay attention - Lambda timeout is currently set to 25s */
-                  stmt.execute(analyseStatistic);
-              }
+          if (progress == 0 && autoIndexing) {
+            /** Pay attention - Lambda timeout is currently set to 25s */
+            stmt.execute(analyseStatistic);
+          }
 
-              /** CREATE INDICES */
-              stmt.execute(createIDX);
-              stmt.execute("SET statement_timeout = "+ PSQLXyzConnector.STATEMENT_TIMEOUT_SECONDS * 1000  + " ;");
-            }
-	    } catch (Exception e) {
-	        logger.error("{} - Failed run auto-indexing on database {} : {}", streamId, config.database(), e);
-	    }
+          /** CREATE INDICES */
+          stmt.execute(createIDX);
+          stmt.execute("SET statement_timeout = " + PSQLXyzConnector.STATEMENT_TIMEOUT_SECONDS * 1000 + " ;");
+        }
+      } catch (Exception e) {
+        logger.error("{} - Failed run auto-indexing on database {} : {}", streamId, config.database(), e);
+      }
     }
 
-    if( true ) // check h3 availability 1. test if version function exists, 2. test if version is outdated compared with H3CoreVersion
+    if (true) // check h3 availability 1. test if version function exists, 2. test if version is outdated compared with H3CoreVersion
     {
       try (final Connection connection = dataSource.getConnection();
-           final  Statement stmt = connection.createStatement(); )
-      {
+          final Statement stmt = connection.createStatement();) {
         final int H3CoreVersion = 103;
         boolean needUpdate = false;
 
         ResultSet rs;
 
-        if( (rs = stmt.executeQuery("select count(1)::integer from pg_catalog.pg_proc r inner join pg_catalog.pg_namespace l  on ( r.pronamespace = l.oid ) where 1 = 1 and l.nspname = 'h3' and r.proname = 'h3_version'")).next() )
-         needUpdate = ( 0 == rs.getInt(1) );
+        if ((rs = stmt.executeQuery(
+            "select count(1)::integer from pg_catalog.pg_proc r inner join pg_catalog.pg_namespace l  on ( r.pronamespace = l.oid ) where 1 = 1 and l.nspname = 'h3' and r.proname = 'h3_version'"))
+            .next()) {
+          needUpdate = (0 == rs.getInt(1));
+        }
 
-        if( !needUpdate && (rs = stmt.executeQuery( "select h3.h3_version()" )).next() )
-         needUpdate = ( H3CoreVersion > rs.getInt(1) );
+        if (!needUpdate && (rs = stmt.executeQuery("select h3.h3_version()")).next()) {
+          needUpdate = (H3CoreVersion > rs.getInt(1));
+        }
 
-        if( needUpdate )
-        { String currSearchPath;
+        if (needUpdate) {
+          String currSearchPath;
 
-          if( (rs = stmt.executeQuery("show search_path")).next() )
-           currSearchPath = rs.getString(1);
-          else
-           throw new Exception("failed on statement [show search_path]");
+          if ((rs = stmt.executeQuery("show search_path")).next()) {
+            currSearchPath = rs.getString(1);
+          } else {
+            throw new Exception("failed on statement [show search_path]");
+          }
 
-          stmt.execute( readResource("/h3Core.sql") );
-          stmt.execute( String.format("set search_path = %1$s", currSearchPath ) );
+          stmt.execute(readResource("/h3Core.sql"));
+          stmt.execute(String.format("set search_path = %1$s", currSearchPath));
           logger.info("{} - Successfully created H3 SQL-Functions", streamId);
         }
+      } catch (Exception e) {
+        logger.error("{} - Failed run h3 init'{}'", streamId, e);
       }
-      catch (Exception e)
-      { logger.error("{} - Failed run h3 init'{}'", streamId, e); }
     }
   }
 
@@ -460,7 +468,7 @@ public abstract class PSQLRequestStreamHandler extends StorageConnector {
   /**
    * Executes the given query and returns the processed by the handler result using the provided dataSource.
    */
-  private <T> T executeQuery(SQLQuery query, ResultSetHandler<T> handler, DataSource  dataSource) throws SQLException {
+  private <T> T executeQuery(SQLQuery query, ResultSetHandler<T> handler, DataSource dataSource) throws SQLException {
     final long start = System.currentTimeMillis();
     try {
       final QueryRunner run = new QueryRunner(dataSource);

@@ -80,16 +80,16 @@ import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class PSQLXyzConnectorIT {
 
-  private static final Logger logger = LoggerFactory.getLogger(PSQLXyzConnectorIT.class);
+  private static final Logger logger = LogManager.getLogger();
 
   private static PSQLXyzConnector lambda;
 

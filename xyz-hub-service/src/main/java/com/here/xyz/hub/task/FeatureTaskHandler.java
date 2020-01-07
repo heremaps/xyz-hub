@@ -54,7 +54,6 @@ import com.here.xyz.hub.task.ModifyOp.ModifyOpError;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
 import com.here.xyz.hub.util.geo.MapBoxVectorTileBuilder;
 import com.here.xyz.hub.util.geo.MapBoxVectorTileFlattenedBuilder;
-import com.here.xyz.hub.util.logging.Logging;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -86,10 +85,13 @@ import java.util.concurrent.TimeUnit;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.slf4j.Logger;
-import org.slf4j.Marker;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
-public class FeatureTaskHandler implements Logging {
+public class FeatureTaskHandler {
+
+  private static final Logger logger = LogManager.getLogger();
 
   private static final ExpiringMap<String, Long> countCache = ExpiringMap.builder()
       .maxSize(1024)
@@ -179,7 +181,7 @@ public class FeatureTaskHandler implements Logging {
           task.space.contentUpdatedAt = System.currentTimeMillis();
           task.space.volatilityAtLastContentUpdate = task.space.getVolatility();
           Service.spaceConfigClient.store(task.getMarker(), task.space,
-              (ar) -> Logging.getLogger().info(task.getMarker(), "Updated contentUpdatedAt for space {}", task.getEvent().getSpace()));
+              (ar) -> logger.info(task.getMarker(), "Updated contentUpdatedAt for space {}", task.getEvent().getSpace()));
         }
       }
       //Send event to potentially registered request-listeners
@@ -207,8 +209,7 @@ public class FeatureTaskHandler implements Logging {
     if (value instanceof BinaryResponse) {
       byteValue = ((BinaryResponse) value).getBytes();
       type[0] = BINARY_VALUE;
-    }
-    else {
+    } else {
       byteValue = value.serialize().getBytes();
       type[0] = JSON_VALUE;
     }
@@ -219,15 +220,13 @@ public class FeatureTaskHandler implements Logging {
   public static <T extends FeatureTask> void readCache(T task, Callback<T> callback) {
     if (task.getCacheProfile().serviceTTL > 0) {
       String cacheKey = task.getCacheKey();
-      Logger logger = Logging.getLogger();
 
       //Check the cache
       Service.cacheClient.getBinary(cacheKey, cacheResult -> {
         if (cacheResult == null) {
           //Cache MISS: Just go on in the task pipeline
           logger.info(task.getMarker(), "Cache MISS for cache key {}", cacheKey);
-        }
-        else {
+        } else {
           //Cache HIT: Set the response for the task to the result from the cache so invoke (in the task pipeline) won't have anything to do
           task.setCacheHit(true);
           logger.info(task.getMarker(), "Cache HIT for cache key {}", cacheKey);
@@ -241,8 +240,7 @@ public class FeatureTaskHandler implements Logging {
         }
         callback.call(task);
       });
-    }
-    else {
+    } else {
       callback.call(task);
     }
   }
@@ -256,7 +254,7 @@ public class FeatureTaskHandler implements Logging {
     if (cacheProfile.serviceTTL > 0 && response != null && !task.isCacheHit()
         && !(response instanceof NotModifiedResponse) && !(response instanceof ErrorResponse)) {
       String cacheKey = task.getCacheKey();
-      Logging.getLogger().debug(task.getMarker(), "Writing entry with cache key {} to cache", cacheKey);
+      logger.debug(task.getMarker(), "Writing entry with cache key {} to cache", cacheKey);
       Service.cacheClient.setBinary(cacheKey, transform(response), cacheProfile.serviceTTL);
     }
   }
@@ -300,7 +298,7 @@ public class FeatureTaskHandler implements Logging {
       callback.exception((Exception) cause);
       return;
     }
-    Logging.getLogger().error(marker, "Unexpected error", cause);
+    logger.error(marker, "Unexpected error", cause);
     callback.exception(new Exception(cause));
   }
 
@@ -365,7 +363,7 @@ public class FeatureTaskHandler implements Logging {
       try {
         client = RpcClient.getInstanceFor(l.resolvedConnector);
       } catch (Exception e) {
-        Logging.getLogger().warn(task.getMarker(), "Error when trying to get client for remote function (listener) {}.", l.getId(), e);
+        logger.warn(task.getMarker(), "Error when trying to get client for remote function (listener) {}.", l.getId(), e);
         return;
       }
       //Send the event (notify the listener)
@@ -505,7 +503,7 @@ public class FeatureTaskHandler implements Logging {
       //Load the space definition.
       Service.spaceConfigClient.get(task.getMarker(), task.getEvent().getSpace(), arSpace -> {
         if (arSpace.failed()) {
-          Logging.getLogger()
+          logger
               .info(task.getMarker(), "Unable to load the space definition for space '{}' {}", task.getEvent().getSpace(), arSpace.cause());
           callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the space definition", arSpace.cause()));
           return;
@@ -526,7 +524,7 @@ public class FeatureTaskHandler implements Logging {
       callback.exception(new HttpException(NOT_FOUND, "The space with this ID does not exist."));
       return;
     }
-    Logging.getLogger().debug(task.getMarker(), "Given space configuration is: {}", Json.encode(task.space));
+    logger.debug(task.getMarker(), "Given space configuration is: {}", Json.encode(task.space));
 
     final String storageId = task.space.getStorage().getId();
     Space.resolveConnector(task.getMarker(), storageId, (arStorage) -> {
@@ -547,14 +545,16 @@ public class FeatureTaskHandler implements Logging {
           callback.call(task);
         });
       } catch (Exception e) {
-        Logging.getLogger().info(task.getMarker(), "The listeners for this space cannot be initialized", e);
+        logger.info(task.getMarker(), "The listeners for this space cannot be initialized", e);
         callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "The listeners for this space cannot be initialized"));
       }
     });
   }
 
   private static CompletableFuture<Void> resolveConnectors(Marker marker, final Space space, final ConnectorType connectorType) {
-    if (space == null || connectorType == null) return CompletableFuture.completedFuture(null);
+    if (space == null || connectorType == null) {
+      return CompletableFuture.completedFuture(null);
+    }
 
     final Map<String, List<Space.ListenerConnectorRef>> connectorRefs = space.getConnectorRefsMap(connectorType);
 
@@ -567,7 +567,7 @@ public class FeatureTaskHandler implements Logging {
     for (Map.Entry<String, List<Space.ListenerConnectorRef>> entry : connectorRefs.entrySet()) {
       if (entry.getValue() != null && !entry.getValue().isEmpty()) {
         ListIterator<Space.ListenerConnectorRef> i = entry.getValue().listIterator();
-        while(i.hasNext()) {
+        while (i.hasNext()) {
           Space.ListenerConnectorRef cR = i.next();
           CompletableFuture<Void> f = new CompletableFuture<>();
           Space.resolveConnector(marker, entry.getKey(), arListener -> {
@@ -579,7 +579,8 @@ public class FeatureTaskHandler implements Logging {
             rCR.setEventTypes(cR.getEventTypes());
             rCR.resolvedConnector = c;
             //If no event types have been defined in the connectorRef we use the defaultEventTypes from the resolved connector config
-            if ((rCR.getEventTypes() == null || rCR.getEventTypes().isEmpty()) && c.defaultEventTypes != null && !c.defaultEventTypes.isEmpty()) {
+            if ((rCR.getEventTypes() == null || rCR.getEventTypes().isEmpty()) && c.defaultEventTypes != null && !c.defaultEventTypes
+                .isEmpty()) {
               rCR.setEventTypes(new ArrayList<>(c.defaultEventTypes));
             }
             // replace ListenerConnectorRef with ResolvableListenerConnectorRef
@@ -615,7 +616,7 @@ public class FeatureTaskHandler implements Logging {
 
       if (id != null) { // Test for duplicate IDs
         if (ids.containsKey(id)) {
-          Logging.getLogger().info(task.getMarker(), "Objects with the same ID {} are included in the request.", id);
+          logger.info(task.getMarker(), "Objects with the same ID {} are included in the request.", id);
           throw new HttpException(BAD_REQUEST, "Objects with the same ID " + id + " is included in the request.");
         }
         ids.put(id, true);
@@ -642,7 +643,7 @@ public class FeatureTaskHandler implements Logging {
       try {
         input.validateGeometry();
       } catch (InvalidGeometryException e) {
-        Logging.getLogger().info(task.getMarker(), "Invalid geometry found in feature: {}", input, e);
+        logger.info(task.getMarker(), "Invalid geometry found in feature: {}", input, e);
         throw new HttpException(BAD_REQUEST, e.getMessage() + ". Feature: \n" + Json.encode(input));
       }
     }
@@ -691,7 +692,7 @@ public class FeatureTaskHandler implements Logging {
 
       callback.call(task);
     } catch (ModifyOpError e) {
-      Logging.getLogger().info(task.getMarker(), "ConditionalOperationError: {}", e.getMessage(), e);
+      logger.info(task.getMarker(), "ConditionalOperationError: {}", e.getMessage(), e);
       throw new HttpException(CONFLICT, e.getMessage());
     }
   }
@@ -825,7 +826,7 @@ public class FeatureTaskHandler implements Logging {
         }
         binaryResponse.setBytes(mvt);
       } catch (Exception e) {
-        Logging.getLogger().info(task.getMarker(), "Exception while transforming the response.", e);
+        logger.info(task.getMarker(), "Exception while transforming the response.", e);
         callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Error while transforming the response."));
         return;
       }
@@ -880,8 +881,9 @@ public class FeatureTaskHandler implements Logging {
     // updates the searchable flag for each property in case of ALL or NONE
     final Searchable searchable = response.getProperties().getSearchable();
     if (searchable != null && searchable != Searchable.PARTIAL) {
-      if (response.getProperties().getValue() != null)
-      response.getProperties().getValue().forEach(c->c.setSearchable(searchable == Searchable.ALL));
+      if (response.getProperties().getValue() != null) {
+        response.getProperties().getValue().forEach(c -> c.setSearchable(searchable == Searchable.ALL));
+      }
     }
   }
 

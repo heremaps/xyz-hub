@@ -33,7 +33,6 @@ import com.here.xyz.hub.util.health.checks.RedisHealthCheck;
 import com.here.xyz.hub.util.health.checks.RemoteFunctionHealthChecks;
 import com.here.xyz.hub.util.health.schema.Reporter;
 import com.here.xyz.hub.util.health.schema.Response;
-import com.here.xyz.hub.util.logging.Logging;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpMethod;
@@ -41,8 +40,12 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import java.net.URI;
 import java.net.URISyntaxException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class HealthApi extends Api {
+
+  private static final Logger logger = LogManager.getLogger();
 
   public static final String MAIN_HEALTCHECK_ENDPOINT = "/hub/";
   private static final URI NODE_HEALTHCHECK_ENDPOINT = getNodeHealthCheckEndpoint();
@@ -77,7 +80,7 @@ public class HealthApi extends Api {
     try {
       return new URI(Service.configuration.STORAGE_DB_URL);
     } catch (URISyntaxException e) {
-      Logging.getLogger().error("Wrong format of STORAGE_DB_URL: " + Service.configuration.STORAGE_DB_URL, e);
+      logger.error("Wrong format of STORAGE_DB_URL: " + Service.configuration.STORAGE_DB_URL, e);
       return null;
     }
   }
@@ -88,7 +91,7 @@ public class HealthApi extends Api {
           Service.configuration.XYZ_HUB_PUBLIC_HOST, Service.configuration.XYZ_HUB_PUBLIC_PORT,
           MAIN_HEALTCHECK_ENDPOINT, null, null);
     } catch (URISyntaxException e) {
-      Logging.getLogger().error("Wrong format of public service endpoint URI: " + Service.configuration.XYZ_HUB_PUBLIC_HOST, e);
+      logger.error("Wrong format of public service endpoint URI: " + Service.configuration.XYZ_HUB_PUBLIC_HOST, e);
       return null;
     }
   }
@@ -97,7 +100,7 @@ public class HealthApi extends Api {
     try {
       return new URI("http://" + Service.getHostname() + ":" + Service.configuration.HTTP_PORT + MAIN_HEALTCHECK_ENDPOINT);
     } catch (URISyntaxException e) {
-      Logging.getLogger().error("Wrong format of internal node hostname URI: " + Service.getHostname(), e);
+      logger.error("Wrong format of internal node hostname URI: " + Service.getHostname(), e);
       return null;
     }
   }

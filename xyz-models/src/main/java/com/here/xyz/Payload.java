@@ -30,30 +30,15 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @JsonSubTypes({
     @JsonSubTypes.Type(value = Event.class),
     @JsonSubTypes.Type(value = XyzResponse.class)
 })
 public class Payload implements Typed {
-
-  private static final Logger logger = LoggerFactory.getLogger(Event.class);
-  @JsonIgnore
-  private static final ThreadLocal<MessageDigest> sha256 = ThreadLocal.withInitial(() -> {
-    try {
-      return MessageDigest.getInstance("SHA-256");
-    } catch (NoSuchAlgorithmException e) {
-      logger.error("An unexpected NoSuchAlgorithmException ", e);
-      return null;
-    }
-  });
 
   public static InputStream prepareInputStream(InputStream input) throws IOException {
     if (!input.markSupported()) {

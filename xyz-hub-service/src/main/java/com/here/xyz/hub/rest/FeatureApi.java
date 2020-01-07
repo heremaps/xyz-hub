@@ -53,9 +53,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.slf4j.Marker;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
 public class FeatureApi extends Api {
+
+  private static final Logger logger = LogManager.getLogger();
 
   public FeatureApi(OpenAPI3RouterFactory routerFactory) {
     routerFactory.addHandlerByOperationId("getFeature", this::getFeature);
@@ -253,14 +257,14 @@ public class FeatureApi extends Api {
       Api.Context.getAccessLog(context).reqInfo.numberOfObjects = featureCollection.getFeatures().size();
       return featureCollection;
     } catch (JsonMappingException e) {
-      logger().info(logMarker, "Error in the provided content ", e);
+      logger.info(logMarker, "Error in the provided content ", e);
       throw new HttpException(BAD_REQUEST, "Invalid JSON type. Expected is a FeatureCollection or a Feature.");
     } catch (JsonParseException e) {
-      logger().info(logMarker, "Error in the provided content ", e);
+      logger.info(logMarker, "Error in the provided content ", e);
       throw new HttpException(BAD_REQUEST,
           "Invalid JSON string. Error at line " + e.getLocation().getLineNr() + ", column " + e.getLocation().getColumnNr() + ".");
     } catch (IOException e) {
-      logger().info(logMarker, "Error in the provided content ", e);
+      logger.info(logMarker, "Error in the provided content ", e);
       throw new HttpException(BAD_REQUEST, "Cannot read input JSON string.");
     }
   }

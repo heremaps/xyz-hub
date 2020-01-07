@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.slf4j.Marker;
+import org.apache.logging.log4j.Marker;
 
 @SuppressWarnings("unused")
 public class InMemConnectorConfigClient extends ConnectorConfigClient {

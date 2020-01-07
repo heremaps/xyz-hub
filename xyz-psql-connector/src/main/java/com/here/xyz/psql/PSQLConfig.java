@@ -33,12 +33,12 @@ import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.spec.SecretKeySpec;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 class PSQLConfig {
 
-  private static final Logger logger = LoggerFactory.getLogger(PSQLXyzConnector.class);
+  private static final Logger logger = LogManager.getLogger();
 
   /**
    * A constant that is normally used as environment variable name for the host.
@@ -227,7 +227,7 @@ class PSQLConfig {
 
   private String applicationName;
 
-  PSQLConfig(Event event, Context context){
+  PSQLConfig(Event event, Context context) {
     this.context = context;
     this.connectorParams = readECPS(getECPS(event));
     this.applicationName = context.getFunctionName();
@@ -284,16 +284,18 @@ class PSQLConfig {
   }
 
   public static class AESHelper {
+
     private static Map<String, AESHelper> helpers = new HashMap<>();
     public byte[] key;
+
     /**
      * Returns an instance helper for this passphrase.
      *
      * @param passphrase The passphrase from which to derive a key.
      */
     @SuppressWarnings("WeakerAccess")
-    public static AESHelper getInstance( String passphrase ) {
-      if( helpers.get(passphrase) == null){
+    public static AESHelper getInstance(String passphrase) {
+      if (helpers.get(passphrase) == null) {
         helpers.put(passphrase, new AESHelper(passphrase));
       }
       return helpers.get(passphrase);

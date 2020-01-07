@@ -29,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.slf4j.Marker;
+import org.apache.logging.log4j.Marker;
 
 @SuppressWarnings("unused")
 public class InMemSpaceConfigClient extends SpaceConfigClient {

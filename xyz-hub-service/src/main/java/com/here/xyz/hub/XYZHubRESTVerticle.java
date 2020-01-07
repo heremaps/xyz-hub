@@ -49,7 +49,6 @@ import com.here.xyz.hub.rest.SpaceApi;
 import com.here.xyz.hub.rest.admin.AdminApi;
 import com.here.xyz.hub.rest.health.HealthApi;
 import com.here.xyz.hub.util.logging.LogUtil;
-import com.here.xyz.hub.util.logging.Logging;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
@@ -72,9 +71,13 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.slf4j.Marker;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
-public class XYZHubRESTVerticle extends AbstractVerticle implements Logging {
+public class XYZHubRESTVerticle extends AbstractVerticle {
+
+  private static final Logger logger = LogManager.getLogger();
 
   private static final HttpServerOptions SERVER_OPTIONS = new HttpServerOptions()
       .setCompressionSupported(true)
@@ -110,7 +113,7 @@ public class XYZHubRESTVerticle extends AbstractVerticle implements Logging {
    */
   private static void onResponseSent(RoutingContext context) {
     final Marker marker = Api.Context.getMarker(context);
-    Logging.getLogger().info(marker, "{}", LogUtil.responseToLogEntry(context));
+    logger.info(marker, "{}", LogUtil.responseToLogEntry(context));
     LogUtil.addResponseInfo(context).end();
     LogUtil.writeAccessLog(context);
   }
@@ -118,8 +121,7 @@ public class XYZHubRESTVerticle extends AbstractVerticle implements Logging {
   private static void failureHandler(RoutingContext context) {
     if (context.failure() != null) {
       sendErrorResponse(context, context.failure());
-    }
-    else {
+    } else {
       String message = context.statusCode() == 401 ? "Missing auth credentials." : "A failure occurred during the execution.";
       HttpResponseStatus status = context.statusCode() >= 400 ? HttpResponseStatus.valueOf(context.statusCode()) : INTERNAL_SERVER_ERROR;
       sendErrorResponse(context, new HttpException(status, message));
@@ -141,11 +143,12 @@ public class XYZHubRESTVerticle extends AbstractVerticle implements Logging {
     try {
       final Marker marker = Api.Context.getMarker(context);
       if (error.statusCode >= 500) {
-        Logging.getLogger().error(marker, "sendErrorResponse: {} {} {}", error.statusCode, error.reasonPhrase, exception);
-        if (error.statusCode == 500)
+        logger.error(marker, "sendErrorResponse: {} {} {}", error.statusCode, error.reasonPhrase, exception);
+        if (error.statusCode == 500) {
           error.message = null;
+        }
       } else {
-        Logging.getLogger().warn(marker, "sendErrorResponse: {} {} {}", error.statusCode, error.reasonPhrase, exception);
+        logger.warn(marker, "sendErrorResponse: {} {} {}", error.statusCode, error.reasonPhrase, exception);
       }
     } catch (Exception e) {
       e.printStackTrace(System.err);
@@ -161,8 +164,9 @@ public class XYZHubRESTVerticle extends AbstractVerticle implements Logging {
    * The initial request handler.
    */
   private void onRequestReceived(final RoutingContext context) {
-    if (context.request().getHeader(STREAM_ID) == null)
+    if (context.request().getHeader(STREAM_ID) == null) {
       context.request().headers().add(STREAM_ID, RandomStringUtils.randomAlphanumeric(10));
+    }
 
     //Log the request information.
     LogUtil.addRequestInfo(context);
@@ -201,7 +205,7 @@ public class XYZHubRESTVerticle extends AbstractVerticle implements Logging {
         //Static resources
         router.route("/hub/static/*").handler(StaticHandler.create().setIndexPage("index.html"));
         if (Service.configuration.FS_WEB_ROOT != null) {
-          logger().debug("Serving extra web-root folder in file-system with location: {}", Service.configuration.FS_WEB_ROOT);
+          logger.debug("Serving extra web-root folder in file-system with location: {}", Service.configuration.FS_WEB_ROOT);
           new File(Service.configuration.FS_WEB_ROOT).mkdirs();
           router.route("/hub/static/*")
               .handler(StaticHandler.create(Service.configuration.FS_WEB_ROOT).setIndexPage("index.html"));
@@ -216,9 +220,8 @@ public class XYZHubRESTVerticle extends AbstractVerticle implements Logging {
                 Service.configuration.HTTP_PORT, result -> {
                   if (result.succeeded()) {
                     fut.complete();
-                  }
-                  else {
-                    logger().error("An error occurred, during the initialization of the server.", result.cause());
+                  } else {
+                    logger.error("An error occurred, during the initialization of the server.", result.cause());
                     fut.fail(result.cause());
                   }
                 });
@@ -230,17 +233,16 @@ public class XYZHubRESTVerticle extends AbstractVerticle implements Logging {
               .requestHandler(router::accept)
               .listen(messagePort, result -> {
                 if (result.succeeded()) {
-                  logger().debug("HTTP server also listens on admin-messaging port {}.", messagePort);
-                }
-                else {
-                  logger().error("An error occurred, during the initialization of admin-messaging http port" + messagePort + ". Messaging won't work correctly.",
+                  logger.debug("HTTP server also listens on admin-messaging port {}.", messagePort);
+                } else {
+                  logger.error("An error occurred, during the initialization of admin-messaging http port" + messagePort
+                          + ". Messaging won't work correctly.",
                       result.cause());
                 }
               });
         }
-      }
-      else {
-        logger().error("An error occurred, during the creation of the router from the Open API specification file.", ar.cause());
+      } else {
+        logger.error("An error occurred, during the creation of the router from the Open API specification file.", ar.cause());
       }
     });
   }
@@ -270,8 +272,9 @@ public class XYZHubRESTVerticle extends AbstractVerticle implements Logging {
         .append(JWTAuthHandler.create(authProvider))
         .append(JWTURIHandler.create(authProvider));
 
-    if (Service.configuration.XYZ_HUB_AUTH == AuthorizationType.DUMMY)
+    if (Service.configuration.XYZ_HUB_AUTH == AuthorizationType.DUMMY) {
       authHandler.append(JwtDummyHandler.create(authProvider));
+    }
 
     return authHandler;
   }

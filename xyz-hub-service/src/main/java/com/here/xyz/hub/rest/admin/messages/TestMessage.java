@@ -25,7 +25,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.admin.Node;
-import com.here.xyz.hub.util.logging.Logging;
 import io.vertx.ext.web.handler.StaticHandler;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -34,14 +33,18 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
- * A message solely for testing purposes. The sender can provide some content which the receiver will write
- * to some local file in the webroot folder along with some other data about the received message.
- * As this is a {@link RelayedMessage} it can also be sent from "outside" to a node through a load-balancer.
- * The receiving node will care about relaying it to the final destination node where it actually get's handled.
+ * A message solely for testing purposes. The sender can provide some content which the receiver will write to some local file in the
+ * webroot folder along with some other data about the received message. As this is a {@link RelayedMessage} it can also be sent from
+ * "outside" to a node through a load-balancer. The receiving node will care about relaying it to the final destination node where it
+ * actually get's handled.
  */
-public class TestMessage extends RelayedMessage implements Logging {
+public class TestMessage extends RelayedMessage {
+
+  private static final Logger logger = LogManager.getLogger();
 
   private static final ObjectMapper mapper = new ObjectMapper();
   public String temporaryFileName;
@@ -59,8 +62,9 @@ public class TestMessage extends RelayedMessage implements Logging {
     fileContent.put("receiver", Node.OWN_INSTANCE);
     fileContent.put("nodeCount", Service.configuration.INSTANCE_COUNT);
     fileContent.put("receiverRelayed", relay);
-    if (relay)
+    if (relay) {
       fileContent.put("relayedTo", destination);
+    }
     return mapper.writeValueAsString(fileContent);
   }
 
@@ -76,13 +80,13 @@ public class TestMessage extends RelayedMessage implements Logging {
         public void run() {
           try {
             Thread.sleep(5000);
-          } catch (InterruptedException e) {}
+          } catch (InterruptedException e) {
+          }
           f.delete();
         }
       }).start();
-    }
-    catch (IOException | URISyntaxException e) {
-      logger().error("Error handling TestMessage", e);
+    } catch (IOException | URISyntaxException e) {
+      logger.error("Error handling TestMessage", e);
     }
   }
 

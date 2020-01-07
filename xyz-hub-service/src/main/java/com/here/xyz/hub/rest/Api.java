@@ -44,7 +44,6 @@ import com.here.xyz.hub.task.FeatureTask;
 import com.here.xyz.hub.task.SpaceTask;
 import com.here.xyz.hub.task.Task;
 import com.here.xyz.hub.util.logging.AccessLog;
-import com.here.xyz.hub.util.logging.Logging;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.models.hub.Space.Internal;
@@ -69,10 +68,14 @@ import java.net.URLDecoder;
 import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.stream.Stream;
-import org.slf4j.Marker;
-import org.slf4j.MarkerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
+import org.apache.logging.log4j.MarkerManager;
 
-public abstract class Api implements Logging {
+public abstract class Api {
+
+  private static final Logger logger = LogManager.getLogger();
 
   public static final int MAX_RESPONSE_LENGTH = 100 * 1024 * 1024;
   public static final int MAX_COMPRESSED_RESPONSE_LENGTH = 10 * 1024 * 1024;
@@ -108,7 +111,7 @@ public abstract class Api implements Logging {
         if (featureTask.getResponse() instanceof ErrorResponse) {
           final ErrorResponse errorResponse = (ErrorResponse) featureTask.getResponse();
           // Note: This is only a warning as it is generally not our fault, so its no real error in the service.
-          logger().warn(task.getMarker(), "Received an error response: {}", errorResponse);
+          logger.warn(task.getMarker(), "Received an error response: {}", errorResponse);
           if (XyzError.TIMEOUT.equals(errorResponse.getError())) {
             sendErrorResponse(task.context, GATEWAY_TIMEOUT, XyzError.TIMEOUT, DEFAULT_GATEWAY_TIMEOUT_MESSAGE);
           } else {
@@ -166,7 +169,7 @@ public abstract class Api implements Logging {
     if (response instanceof ErrorResponse) {
       final ErrorResponse errorResponse = (ErrorResponse) response;
       // Note: This is only a warning as it is generally not our fault, so its no real error in the service.
-      logger().warn(task.getMarker(), "Received an error response: {}", errorResponse);
+      logger.warn(task.getMarker(), "Received an error response: {}", errorResponse);
       if (XyzError.TIMEOUT.equals(errorResponse.getError())) {
         sendErrorResponse(task.context, GATEWAY_TIMEOUT, XyzError.TIMEOUT, DEFAULT_GATEWAY_TIMEOUT_MESSAGE);
       } else {
@@ -216,7 +219,7 @@ public abstract class Api implements Logging {
 
             sendGeoJsonResponse(task, Json.encode(collection.getFeatures().get(0)));
           } catch (JsonProcessingException e) {
-            logger().error(task.getMarker(), "The service received an invalid response and is unable to serialize it.", e);
+            logger.error(task.getMarker(), "The service received an invalid response and is unable to serialize it.", e);
             sendErrorResponse(task.context, INTERNAL_SERVER_ERROR, XyzError.EXCEPTION,
                 "The service received an invalid response and is unable to serialize it.");
           }
@@ -243,7 +246,7 @@ public abstract class Api implements Logging {
       default:
     }
 
-    logger().warn(task.getMarker(), "Invalid response for request {}: {}, stack-trace: {}", task.responseType, response, new Exception());
+    logger.warn(task.getMarker(), "Invalid response for request {}: {}, stack-trace: {}", task.responseType, response, new Exception());
     sendErrorResponse(task.context, BAD_GATEWAY, XyzError.EXCEPTION,
         "Received an invalid response from the storage connector, expected '" + task.responseType.name() + "', but received: '"
             + response.getClass().getSimpleName() + "'");
@@ -306,7 +309,7 @@ public abstract class Api implements Logging {
     }
 
     // Invalid response.
-    logger().error(task.getMarker(), "Invalid response for requested type {}: {}, stack-trace: {}", task.responseType,
+    logger.error(task.getMarker(), "Invalid response for requested type {}: {}, stack-trace: {}", task.responseType,
         task.responseSpaces, new Exception());
     sendErrorResponse(task.context, INTERNAL_SERVER_ERROR, XyzError.EXCEPTION,
         "Internally generated invalid response for Space-API, expected: " + task.responseType);
@@ -345,14 +348,14 @@ public abstract class Api implements Logging {
         }
 
         //This is an exception sent by intention and nothing special, no need for stacktrace logging.
-        logger().warn("Error was handled by Api and will be sent as response: {}", httpException.status.code());
+        logger.warn("Error was handled by Api and will be sent as response: {}", httpException.status.code());
         sendErrorResponse(context, httpException.status, error, e.getMessage());
         return;
       }
     }
 
     // This is an exception that is not done by intention.
-    logger().error("Unintentional Error:", e);
+    logger.error("Unintentional Error:", e);
     XYZHubRESTVerticle.sendErrorResponse(context, e);
   }
 
@@ -486,7 +489,7 @@ public abstract class Api implements Logging {
       }
       Marker marker = context.get(MARKER);
       if (marker == null) {
-        marker = MarkerFactory.getMarker(context.request().getHeader(STREAM_ID));
+        marker = MarkerManager.getMarker(context.request().getHeader(STREAM_ID));
         context.put(MARKER, marker);
       }
       return marker;

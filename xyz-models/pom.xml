@@ -64,17 +64,8 @@
       <groupId>com.fasterxml.jackson.core</groupId>
     </dependency>
     <dependency>
-      <artifactId>slf4j-api</artifactId>
-      <groupId>org.slf4j</groupId>
-    </dependency>
-    <dependency>
       <artifactId>junit</artifactId>
       <groupId>junit</groupId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <artifactId>slf4j-simple</artifactId>
-      <groupId>org.slf4j</groupId>
       <scope>test</scope>
     </dependency>
   </dependencies>

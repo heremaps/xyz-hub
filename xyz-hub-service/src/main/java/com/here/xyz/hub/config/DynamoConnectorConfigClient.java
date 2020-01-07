@@ -28,16 +28,20 @@ import io.vertx.core.Handler;
 import io.vertx.core.json.Json;
 import java.util.ArrayList;
 import java.util.List;
-import org.slf4j.Marker;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
 public class DynamoConnectorConfigClient extends ConnectorConfigClient {
+
+  private static final Logger logger = LogManager.getLogger();
 
   private final Table connectors;
   private final DynamoClient dynamoClient;
 
   public DynamoConnectorConfigClient(String tableArn) {
     dynamoClient = new DynamoClient(tableArn);
-    logger().debug("Instantiating a reference to Dynamo Table {}", dynamoClient.tableName);
+    logger.debug("Instantiating a reference to Dynamo Table {}", dynamoClient.tableName);
     connectors = dynamoClient.db.getTable(dynamoClient.tableName);
   }
 
@@ -49,11 +53,11 @@ public class DynamoConnectorConfigClient extends ConnectorConfigClient {
 
   @Override
   protected void getConnector(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler) {
-    logger().debug(marker, "Getting connectorId {} from Dynamo Table {}", connectorId, dynamoClient.tableName);
+    logger.debug(marker, "Getting connectorId {} from Dynamo Table {}", connectorId, dynamoClient.tableName);
     final Item item = connectors.getItem("id", connectorId);
 
     if (item == null) {
-      logger().debug(marker, "connector ID [{}]: This configuration does not exist", connectorId);
+      logger.debug(marker, "connector ID [{}]: This configuration does not exist", connectorId);
       handler.handle(Future.failedFuture("The connector config was not found for connector ID: " + connectorId));
       return;
     }
@@ -64,14 +68,14 @@ public class DynamoConnectorConfigClient extends ConnectorConfigClient {
 
   @Override
   protected void storeConnector(Marker marker, Connector connector, Handler<AsyncResult<Connector>> handler) {
-    logger().debug(marker, "Storing connector ID {} into Dynamo Table {}", connector.id, dynamoClient.tableName);
+    logger.debug(marker, "Storing connector ID {} into Dynamo Table {}", connector.id, dynamoClient.tableName);
     connectors.putItem(Item.fromJSON(Json.encode(connector)));
     handler.handle(Future.succeededFuture());
   }
 
   @Override
   protected void deleteConnector(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler) {
-    logger().debug(marker, "Removing connector with ID {} from Dynamo Table {}", connectorId, dynamoClient.tableName);
+    logger.debug(marker, "Removing connector with ID {} from Dynamo Table {}", connectorId, dynamoClient.tableName);
     connectors.deleteItem("id", connectorId);
     handler.handle(Future.succeededFuture());
   }

@@ -56,7 +56,7 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.api.contract.openapi3.OpenAPI3RouterFactory;
 import java.io.IOException;
 import java.util.List;
-import org.slf4j.Marker;
+import org.apache.logging.log4j.Marker;
 
 public class FeatureQueryApi extends Api {
 
