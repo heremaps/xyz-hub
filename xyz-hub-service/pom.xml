@@ -65,9 +65,9 @@
       <resource>
         <directory>src/main/resources</directory>
         <filtering>false</filtering>
-        <includes>
-          <include>**/*</include>
-        </includes>
+        <excludes>
+          <exclude>**/build.properties</exclude>
+        </excludes>
       </resource>
     </resources>
   </build>
