@@ -24,6 +24,7 @@ import com.here.xyz.Payload;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
+import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.AsyncResult;
@@ -75,7 +76,7 @@ public abstract class RemoteFunctionClient {
     else if (connectorConfig.remoteFunction instanceof Connector.RemoteFunctionConfig.Embedded) {
       return new EmbeddedFunctionClient(connectorConfig);
     }
-    else if (connectorConfig.remoteFunction instanceof Connector.RemoteFunctionConfig.HTTP) {
+    else if (connectorConfig.remoteFunction instanceof Http) {
       return new HTTPFunctionClient(connectorConfig);
     }
     else {
