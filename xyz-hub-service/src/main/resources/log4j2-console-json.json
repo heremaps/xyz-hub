@@ -8,19 +8,20 @@
     "ThresholdFilter": {
       "level": "info"
     },
+    "CustomLevels": {
+      "CustomLevel": [{
+        "name": "STREAM",
+        "intLevel": 350
+      }]
+    },
     "appenders": {
       "Console": {
         "name": "STDOUT",
         "PatternLayout": {
-          "ScriptPatternSelector": {
-            "defaultPattern": "{\"t\":\"%p\",\"time\":\"%d{ISO8601}\",\"unixtime\":\"%d{UNIX_MILLIS}\",\"src\":\"%C{1}:%L\",\"msg\":\"%replace{%replace{%.-4096msg%throwable}{[\n]}{\\\\n}}{[\\\"]}{\\\\\"}\",\"streamId\":\"%marker\"}%n%xEx{none}",
-            "Script": {
-              "name": "JavaScriptSelector",
-              "language": "JavaScript",
-              "value": "logEvent.getMessage().getFormattedMessage().contains('clientInfo') ? 'STREAM' : null"
-            },
+          "MarkerPatternSelector": {
+            "defaultPattern": "{\"t\":\"%p\",\"time\":\"%d{ISO8601}\",\"unixtime\":\"%d{UNIX_MILLIS}\",\"msg\":\"%replace{%replace{%.-4096msg%throwable}{[\n]}{\\\\n}}{[\\\"]}{\\\\\"}\",\"streamId\":\"%marker\"}%n%xEx{none}",
             "PatternMatch": {
-              "key": "STREAM",
+              "key": "ACCESS",
               "pattern": "%m%n"
             }
           }
