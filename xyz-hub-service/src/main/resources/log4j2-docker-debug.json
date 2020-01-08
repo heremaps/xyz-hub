@@ -8,24 +8,40 @@
     "ThresholdFilter": {
       "level": "info"
     },
+    "CustomLevels": {
+      "CustomLevel": [{
+        "name": "STREAM",
+        "intLevel": 350
+      }]
+    },
     "appenders": {
-      "RollingRandomAccessFile": {
-        "name": "RollingFile-Appender",
+      "RollingRandomAccessFile": [{
+        "name": "DefaultAppender",
         "fileName": "${env:LOG_PATH}/trace.log.0",
         "filePattern": "${env:LOG_PATH}/trace.log.%i",
         "PatternLayout": {
-          "ScriptPatternSelector": {
-            "defaultPattern": "{\"t\":\"%p\",\"time\":\"%d{ISO8601}\",\"unixtime\":\"%d{UNIX_MILLIS}\",\"src\":\"%C{1}:%L\",\"msg\":\"%replace{%replace{%.-4096msg%throwable}{[\n]}{\\\\n}}{[\\\"]}{\\\\\"}\",\"streamId\":\"%marker\"}%n%xEx{none}",
-            "Script": {
-              "name": "JavaScriptSelector",
-              "language": "JavaScript",
-              "value": "logEvent.getMessage().getFormattedMessage().contains('clientInfo') ? 'STREAM' : null"
-            },
-            "PatternMatch": {
-              "key": "STREAM",
-              "pattern": "%m%n"
-            }
+          "pattern": "{\"t\":\"%p\",\"time\":\"%d{ISO8601}\",\"unixtime\":\"%d{UNIX_MILLIS}\",\"src\":\"%C{1}:%L\",\"msg\":\"%replace{%replace{%.-4096msg%throwable}{[\n]}{\\\\n}}{[\\\"]}{\\\\\"}\",\"streamId\":\"%marker\"}%n%xEx{none}"
+        },
+
+        "Policies": {
+          "SizeBasedTriggeringPolicy": {
+            "size": "64 MB"
           }
+        },
+        "DefaultRolloverStrategy": {
+          "max": "2"
+        }
+      }, {
+        "name": "AccessLogAppender",
+        "fileName": "${env:LOG_PATH}/access.log.0",
+        "filePattern": "${env:LOG_PATH}/access.log.%i",
+        "PatternLayout": {
+          "pattern": "%m%n"
+        },
+        "MarkerFilter": {
+          "marker": "ACCESS",
+          "onMatch": "ACCEPT",
+          "onMismatch": "DENY"
         },
         "Policies": {
           "SizeBasedTriggeringPolicy": {
@@ -35,15 +51,25 @@
         "DefaultRolloverStrategy": {
           "max": "2"
         }
+      }],
+      "Console": {
+        "name": "STDOUT",
+        "PatternLayout": {
+          "pattern": "%m%n"
+        }
       }
     },
     "loggers": {
       "root": {
         "level": "info",
         "includeLocation": true,
-        "AppenderRef": {
-          "ref": "RollingFile-Appender"
-        }
+        "AppenderRef": [{
+          "ref": "STDOUT"
+        }, {
+          "ref": "DefaultAppender"
+        }, {
+          "ref": "AccessLogAppender"
+        }]
       }
     }
   }
