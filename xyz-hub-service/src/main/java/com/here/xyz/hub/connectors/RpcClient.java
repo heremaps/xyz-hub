@@ -101,12 +101,14 @@ public class RpcClient {
   }
 
   public static void destroyInstance(@SuppressWarnings("unused") RpcClient client) {
-    //TODO: destroy the functionClient (which then closes all its connections aso.)
+    //Close the functionClient (which then closes all its connections aso.)
+    client.functionClient.close();
+    client.functionClient = null;
   }
 
   public final void updateConnectorConfig(Connector connectorConfig) {
     this.connector = connectorConfig;
-    this.functionClient.updateStorageConfig(connectorConfig);
+    this.functionClient.setConnectorConfig(connectorConfig);
   }
 
   /**
@@ -124,7 +126,7 @@ public class RpcClient {
         // If relocation is supported, use the relocation client to transfer the event to the connector
         if (connector.capabilities.relocationSupport) {
           logger.info(marker, "Relocating event. Total event byte size: {}", bytes.length);
-          // TODO: Execute blocking
+          //TODO: Execute blocking
           bytes = relocationClient.relocate(marker.getName(), bytes);
         } else {
           // The size is to large, the event cannot be sent to the connector.
@@ -210,7 +212,7 @@ public class RpcClient {
       Typed payload = XyzSerializable.deserialize(stringResponse);
       if (payload instanceof RelocatedEvent) {
         try {
-          // TODO: async
+          //TODO: async
           InputStream input = relocationClient.processRelocatedEvent((RelocatedEvent) payload);
           payload = XyzSerializable.deserialize(input);
         } catch (Exception e) {

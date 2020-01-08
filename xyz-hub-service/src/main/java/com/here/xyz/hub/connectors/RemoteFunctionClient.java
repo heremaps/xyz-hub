@@ -21,13 +21,16 @@ package com.here.xyz.hub.connectors;
 
 import com.google.common.io.ByteStreams;
 import com.here.xyz.Payload;
+import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
+import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.zip.GZIPInputStream;
@@ -35,9 +38,11 @@ import org.apache.logging.log4j.Marker;
 
 public abstract class RemoteFunctionClient {
 
+  public static final long REQUEST_TIMEOUT = TimeUnit.SECONDS.toMillis(Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT);
   private static int MEASUREMENT_INTERVAL = 1000; //1s
 
   protected Connector connectorConfig;
+  protected RemoteFunctionConfig remoteFunction;
 
   private LongAdder requestsSinceLastArrivaleRateMeasurement = new LongAdder();
   private AtomicLong lastArrivalRateMeasurement = new AtomicLong(System.currentTimeMillis());
@@ -56,20 +61,24 @@ public abstract class RemoteFunctionClient {
   private volatile double arrivalRate;
 
   public RemoteFunctionClient(Connector connectorConfig) {
-    this.connectorConfig = connectorConfig;
+      this.connectorConfig = connectorConfig;
+      remoteFunction = connectorConfig.remoteFunction;
   }
 
   public static RemoteFunctionClient getInstanceFor(Connector connectorConfig) {
-      if (connectorConfig == null) {
-          throw new NullPointerException("Can not create RemoteFunctionClient without connector configuration.");
-      }
+    if (connectorConfig == null) {
+      throw new NullPointerException("Can not create RemoteFunctionClient without connector configuration.");
+    }
     if (connectorConfig.remoteFunction instanceof Connector.RemoteFunctionConfig.AWSLambda) {
       return new LambdaFunctionClient(connectorConfig);
-    } else if (connectorConfig.remoteFunction instanceof Connector.RemoteFunctionConfig.Embedded) {
+    }
+    else if (connectorConfig.remoteFunction instanceof Connector.RemoteFunctionConfig.Embedded) {
       return new EmbeddedFunctionClient(connectorConfig);
-    } else if (connectorConfig.remoteFunction instanceof Connector.RemoteFunctionConfig.HTTP) {
+    }
+    else if (connectorConfig.remoteFunction instanceof Connector.RemoteFunctionConfig.HTTP) {
       return new HTTPFunctionClient(connectorConfig);
-    } else {
+    }
+    else {
       throw new IllegalArgumentException("Unknown remote function type: " + connectorConfig.getClass().getSimpleName());
     }
   }
@@ -88,24 +97,12 @@ public abstract class RemoteFunctionClient {
    * Should be overridden in sub-classes to implement refreshing steps (e.g. creating client / connections) whenever the connector
    * configuration was changed during the runtime.
    */
-  protected void updateStorageConfig() {
-  }
+  protected void onConnectorConfigUpdate() {}
 
-  /**
-   * Should be called when the connector configuration changed during the runtime in order to inform this function client to do necessary
-   * update steps.
-   *
-   * @param connectorConfig the connector configuration
-   */
-  public final void updateStorageConfig(Connector connectorConfig) {
-      if (!connectorConfig.id.equals(this.connectorConfig.id)) {
-          throw new IllegalArgumentException("Wrong connector config " +
-              "was provided to an existing function client during a runtime update. IDs are not matching. " +
-              "new ID: " + connectorConfig.id + " vs. old ID: " + this.connectorConfig.id);
-      }
-    this.connectorConfig = connectorConfig;
-    updateStorageConfig();
-  }
+    /**
+     * Should be overridden in sub-classes to implement clean-up steps (e.g. closing client / connections).
+     */
+  void close() {}
 
   protected void submit(final Marker marker, byte[] bytes, final Handler<AsyncResult<byte[]>> callback) {
     invoke(marker, bytes, r -> {
@@ -184,10 +181,26 @@ public abstract class RemoteFunctionClient {
   }
 
   /**
+   * Should be called when the connector configuration changed during the runtime in order to inform this function client to do necessary
+   * update steps.
+   *
+   * @param connectorConfig the connector configuration
+   */
+  final void setConnectorConfig(Connector connectorConfig) {
+    if (!connectorConfig.id.equals(this.connectorConfig.id)) throw new IllegalArgumentException("Wrong connector config " +
+        "was provided to an existing function client during a runtime update. IDs are not matching. " +
+        "new ID: " + connectorConfig.id + " vs. old ID: " + this.connectorConfig.id);
+    this.connectorConfig = connectorConfig;
+    remoteFunction = connectorConfig.remoteFunction;
+    onConnectorConfigUpdate();
+  }
+
+  /**
+   *
    * @param currentValue The current value of the sliding average of the dimension
    * @param slideInValue The value to take into account for the new average additionally
-   * @param slideInRelevance A number between 0 .. 1 indicating the relevance of the slideInValue in relation to the current value of the
-   * sliding average.
+   * @param slideInRelevance A number between 0 .. 1 indicating the relevance of the slideInValue in relation to the
+   *  current value of the sliding average.
    * @return The new value of the sliding average
    */
   @SuppressWarnings("unused")

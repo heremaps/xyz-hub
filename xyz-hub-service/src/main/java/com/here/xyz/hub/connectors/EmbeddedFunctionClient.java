@@ -23,6 +23,7 @@ import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 import com.here.xyz.connectors.AbstractConnectorHandler;
 import com.here.xyz.connectors.SimulatedContext;
 import com.here.xyz.hub.connectors.models.Connector;
+import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -48,22 +49,49 @@ public class EmbeddedFunctionClient extends QueueingRemoteFunctionClient {
 
   EmbeddedFunctionClient(Connector connectorConfig) {
     super(connectorConfig);
-    if (!(connectorConfig.remoteFunction instanceof Connector.RemoteFunctionConfig.Embedded)) {
+    createExecutorService();
+  }
+
+  @Override
+  protected void onConnectorConfigUpdate() {
+    shutdown(embeddedExecutor);
+    createExecutorService();
+  }
+
+  private void createExecutorService() {
+    if (!(remoteFunction instanceof RemoteFunctionConfig.Embedded)) {
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of Embedded");
     }
-
     int maxConnections = connectorConfig.getMaxConnectionsPerInstance();
     embeddedExecutor = new ThreadPoolExecutor(8, maxConnections, 10, TimeUnit.MINUTES,
         new SynchronousQueue<>());
   }
 
+  @Override
+  void close() {
+    super.close();
+    shutdown(embeddedExecutor);
+  }
+
+  private static void shutdown(ExecutorService execService) {
+    //Shutdown the executor service after the request timeout
+    //TODO: Use CompletableFuture.delayedExecutor() after switching to Java 9
+    new Thread(() -> {
+      try {
+        Thread.sleep(REQUEST_TIMEOUT);
+      }
+      catch (InterruptedException ignored) {}
+      execService.shutdownNow();
+    }).start();
+  }
+
   protected void invoke(Marker marker, byte[] bytes, Handler<AsyncResult<byte[]>> callback) {
-    logger.info(marker, "Invoke embedded lambda '{}' for event: {}", connectorConfig.remoteFunction.id,
+    logger.info(marker, "Invoke embedded lambda '{}' for event: {}", remoteFunction.id,
         new String(bytes, StandardCharsets.UTF_8));
     embeddedExecutor.execute(() -> {
       String className = null;
       try {
-        className = ((Connector.RemoteFunctionConfig.Embedded) connectorConfig.remoteFunction).className;
+        className = ((Connector.RemoteFunctionConfig.Embedded) remoteFunction).className;
         final Class<?> mainClass = Class.forName(className);
         final RequestStreamHandler reqHandler = (RequestStreamHandler) mainClass.newInstance();
         if (reqHandler instanceof AbstractConnectorHandler) {
@@ -71,9 +99,9 @@ public class EmbeddedFunctionClient extends QueueingRemoteFunctionClient {
         }
         final ByteArrayOutputStream output = new ByteArrayOutputStream();
         reqHandler.handleRequest(new ByteArrayInputStream(bytes), output,
-            new EmbeddedContext(marker, connectorConfig.remoteFunction.id,
-                ((Connector.RemoteFunctionConfig.Embedded) connectorConfig.remoteFunction).env));
-        logger.info(marker, "Handling response of embedded lambda call to '{}'.", connectorConfig.remoteFunction.id);
+            new EmbeddedContext(marker, remoteFunction.id,
+                ((Connector.RemoteFunctionConfig.Embedded) remoteFunction).env));
+        logger.info(marker, "Handling response of embedded lambda call to '{}'.", remoteFunction.id);
         byte[] responseBytes = output.toByteArray();
         checkResponseSize(responseBytes);
         callback.handle(Future.succeededFuture(getDecompressed(responseBytes)));
@@ -86,8 +114,7 @@ public class EmbeddedFunctionClient extends QueueingRemoteFunctionClient {
         callback.handle(Future.failedFuture(e));
       } catch (Throwable e) {
         logger
-            .error(marker, "Exception occurred, while trying to execute embedded lambda with id '{}' {}", connectorConfig.remoteFunction.id,
-                e);
+            .error(marker, "Exception occurred, while trying to execute embedded lambda with id '{}' {}", remoteFunction.id, e);
         callback.handle(Future.failedFuture(e));
       }
     });

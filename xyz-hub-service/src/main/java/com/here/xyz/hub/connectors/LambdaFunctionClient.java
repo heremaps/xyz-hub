@@ -60,23 +60,44 @@ public class LambdaFunctionClient extends QueueingRemoteFunctionClient {
    */
   LambdaFunctionClient(final Connector connectorConfig) {
     super(connectorConfig);
-    if (!(connectorConfig.remoteFunction instanceof AWSLambda)) {
+    createClient();
+  }
+
+  @Override
+  protected void onConnectorConfigUpdate() {
+    shutdownLambdaClient(asyncClient);
+    createClient();
+  }
+
+  private void createClient() {
+    if (!(remoteFunction instanceof AWSLambda)) {
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of AWSLambda");
     }
-
     int maxConnections = connectorConfig.getMaxConnectionsPerInstance();
-    this.asyncClient = AWSLambdaAsyncClientBuilder
+    asyncClient = AWSLambdaAsyncClientBuilder
         .standard()
-        .withRegion(extractRegionFromArn(((AWSLambda) connectorConfig.remoteFunction).lambdaARN))
+        .withRegion(extractRegionFromArn(((AWSLambda) remoteFunction).lambdaARN))
         .withCredentials(getAWSCredentialsProvider())
         .withClientConfiguration(new ClientConfiguration().withMaxConnections(maxConnections))
         .build();
   }
 
+  private static void shutdownLambdaClient(AWSLambdaAsync lambdaClient) {
+    //Shutdown the lambda client after the request timeout
+    //TODO: Use CompletableFuture.delayedExecutor() after switching to Java 9
+    new Thread(() -> {
+      try {
+        Thread.sleep(REQUEST_TIMEOUT);
+      }
+      catch (InterruptedException ignored) {}
+      lambdaClient.shutdown();
+    }).start();
+  }
+
   @Override
-  protected void updateStorageConfig() {
-    super.updateStorageConfig();
-    //TODO: Rebuild the asyncClient if necessary (e.g. if maxConnection, lambda ARN or role was changed)
+  void close() {
+    super.close();
+    shutdownLambdaClient(asyncClient);
   }
 
   /**
@@ -85,10 +106,10 @@ public class LambdaFunctionClient extends QueueingRemoteFunctionClient {
   @Override
   protected void invoke(final Marker marker, byte[] bytes, final Handler<AsyncResult<byte[]>> callback) {
     logger
-        .debug(marker, "Invoking remote lambda function with id '{}' Event size is: {}", connectorConfig.remoteFunction.id, bytes.length);
+        .debug(marker, "Invoking remote lambda function with id '{}' Event size is: {}", remoteFunction.id, bytes.length);
 
     InvokeRequest invokeReq = new InvokeRequest().
-        withFunctionName(((AWSLambda) connectorConfig.remoteFunction).lambdaARN).
+        withFunctionName(((AWSLambda) remoteFunction).lambdaARN).
         withPayload(ByteBuffer.wrap(bytes));
 
     asyncClient.invokeAsync(invokeReq, new AsyncHandler<InvokeRequest, InvokeResult>() {
@@ -128,8 +149,8 @@ public class LambdaFunctionClient extends QueueingRemoteFunctionClient {
    */
   private AWSCredentialsProvider getAWSCredentialsProvider() {
     if (awsCredentialsProvider == null) {
-      if (((AWSLambda) connectorConfig.remoteFunction).roleARN != null) {
-        awsCredentialsProvider = new STSAssumeRoleSessionCredentialsProvider.Builder(((AWSLambda) connectorConfig.remoteFunction).roleARN,
+      if (((AWSLambda) remoteFunction).roleARN != null) {
+        awsCredentialsProvider = new STSAssumeRoleSessionCredentialsProvider.Builder(((AWSLambda) remoteFunction).roleARN,
             "" + this.hashCode())
             .withStsClient(AWSSecurityTokenServiceClientBuilder.defaultClient())
             .build();

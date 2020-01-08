@@ -49,7 +49,6 @@ public abstract class QueueingRemoteFunctionClient extends RemoteFunctionClient 
    */
   public static final long GLOBAL_MAX_QUEUE_BYTE_SIZE = (long) Service.configuration.GLOBAL_MAX_QUEUE_SIZE * 1024 * 1024;
 
-  public static final long REQUEST_TIMEOUT = TimeUnit.SECONDS.toMillis(Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT);
   /**
    * Tweaking constant for the percentage that the connection slots relevance should be used. The rest is the rateOfService relevance.
    */

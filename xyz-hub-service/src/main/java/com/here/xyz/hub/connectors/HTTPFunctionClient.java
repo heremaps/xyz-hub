@@ -21,8 +21,10 @@ package com.here.xyz.hub.connectors;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
 
+import com.amazonaws.services.lambda.AWSLambdaAsync;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
+import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.HTTP;
 import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.AsyncResult;
@@ -46,17 +48,20 @@ public class HTTPFunctionClient extends QueueingRemoteFunctionClient {
 
   public HTTPFunctionClient(Connector connectorConfig) {
     super(connectorConfig);
-    if (!(connectorConfig.remoteFunction instanceof Connector.RemoteFunctionConfig.HTTP)) {
-      throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of HTTP");
-    }
-
-    updateStorageConfig();
+    createClient();
   }
 
   @Override
-  protected void updateStorageConfig() {
-    super.updateStorageConfig();
-    HTTP remoteFunctionConfig = (HTTP) connectorConfig.remoteFunction;
+  protected void onConnectorConfigUpdate() {
+    shutdownWebClient(webClient);
+    createClient();
+  }
+
+  private void createClient() {
+    if (!(remoteFunction instanceof HTTP)) {
+      throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of HTTP");
+    }
+    HTTP remoteFunctionConfig = (HTTP) remoteFunction;
     url = remoteFunctionConfig.url.toString();
     webClient = WebClient.create(Service.vertx, new WebClientOptions()
         .setUserAgent(Service.XYZ_HUB_USER_AGENT)
@@ -64,8 +69,26 @@ public class HTTPFunctionClient extends QueueingRemoteFunctionClient {
   }
 
   @Override
+  void close() {
+    super.close();
+    shutdownWebClient(webClient);
+  }
+
+  private static void shutdownWebClient(WebClient webClient) {
+    //Shutdown the web client after the request timeout
+    //TODO: Use CompletableFuture.delayedExecutor() after switching to Java 9
+    new Thread(() -> {
+      try {
+        Thread.sleep(REQUEST_TIMEOUT);
+      }
+      catch (InterruptedException ignored) {}
+      webClient.close();
+    }).start();
+  }
+
+  @Override
   protected void invoke(Marker marker, byte[] bytes, Handler<AsyncResult<byte[]>> callback) {
-    logger.debug(marker, "Invoke http remote function '{}' Event size is: {}", connectorConfig.remoteFunction.id, bytes.length);
+    logger.debug(marker, "Invoke http remote function '{}' Event size is: {}", remoteFunction.id, bytes.length);
 
     webClient.post(url)
         .timeout(REQUEST_TIMEOUT)

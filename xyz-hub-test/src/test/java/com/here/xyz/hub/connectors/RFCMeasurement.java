@@ -21,6 +21,8 @@ package com.here.xyz.hub.connectors;
 
 import static org.junit.Assert.assertEquals;
 
+import com.here.xyz.hub.Service;
+import com.here.xyz.hub.Service.Config;
 import com.here.xyz.hub.connectors.models.Connector;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -46,6 +48,8 @@ public class RFCMeasurement {
         s.id = "testStorage";
         s.connectionSettings = new Connector.ConnectionSettings();
         s.connectionSettings.maxConnections = RFC_MAX_CONNECTIONS;
+        Service.configuration = new Config();
+        Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT = 20;
         rfc = new MockedRemoteFunctionClient(s, 10);
 
         requesterPool = new ScheduledThreadPoolExecutor(20);
