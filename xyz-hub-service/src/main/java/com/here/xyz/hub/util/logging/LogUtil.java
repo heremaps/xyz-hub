@@ -41,13 +41,17 @@ import io.vertx.ext.web.RoutingContext;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
+import org.apache.logging.log4j.MarkerManager;
 
 public class LogUtil {
 
   private static final Logger logger = LogManager.getLogger();
+  private static final Level STREAM_LEVEL = Level.getLevel("STREAM");
+  private static final Marker ACCESS_LOG_MARKER = MarkerManager.getMarker("ACCESS");
 
   private static List<String> skipLoggingHeaders = Collections.singletonList(X_FORWARDED_FOR);
 
@@ -137,9 +141,9 @@ public class LogUtil {
   public static void writeAccessLog(RoutingContext context) {
     final AccessLog accessLog = Api.Context.getAccessLog(context);
     final Marker marker = Api.Context.getMarker(context);
+
     accessLog.streamId = marker.getName();
-    final String formattedLog = XyzSerializable.serialize(accessLog, new TypeReference<AccessLog>() {
-    });
-    logger.warn(marker, formattedLog);
+    final String formattedLog = XyzSerializable.serialize(accessLog, new TypeReference<AccessLog>() {});
+    logger.log(STREAM_LEVEL, ACCESS_LOG_MARKER, formattedLog);
   }
 }
