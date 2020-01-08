@@ -8,6 +8,12 @@
     "ThresholdFilter": {
       "level": "info"
     },
+    "CustomLevels": {
+      "CustomLevel": [{
+        "name": "STREAM",
+        "intLevel": 350
+      }]
+    },
     "appenders": {
       "Console": {
         "name": "STDOUT",
