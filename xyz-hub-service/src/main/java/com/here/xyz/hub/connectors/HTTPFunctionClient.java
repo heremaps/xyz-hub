@@ -21,11 +21,9 @@ package com.here.xyz.hub.connectors;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
 
-import com.amazonaws.services.lambda.AWSLambdaAsync;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
-import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
-import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.HTTP;
+import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -58,10 +56,10 @@ public class HTTPFunctionClient extends QueueingRemoteFunctionClient {
   }
 
   private void createClient() {
-    if (!(remoteFunction instanceof HTTP)) {
+    if (!(remoteFunction instanceof Http)) {
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of HTTP");
     }
-    HTTP remoteFunctionConfig = (HTTP) remoteFunction;
+    Http remoteFunctionConfig = (Http) remoteFunction;
     url = remoteFunctionConfig.url.toString();
     webClient = WebClient.create(Service.vertx, new WebClientOptions()
         .setUserAgent(Service.XYZ_HUB_USER_AGENT)

@@ -23,12 +23,12 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import com.fasterxml.jackson.annotation.JsonTypeInfo.As;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLambda;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
+import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import java.net.URL;
 import java.util.List;
 import java.util.Map;
@@ -64,7 +64,7 @@ public class Connector {
   /**
    * Arbitrary parameters to be provided to the remote function with the event.
    */
-  public RemoteFunctionConfig remoteFunction = new RemoteFunctionConfig();
+  public RemoteFunctionConfig remoteFunction;
 
   /**
    * The connection and throttling settings.
@@ -191,13 +191,14 @@ public class Connector {
     }
   }
 
-  @JsonTypeInfo(use = Id.NAME, include = As.PROPERTY, property = "type")
-  @JsonTypeName(value = "Connector")
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  @JsonTypeInfo(use = Id.NAME, property = "type")
   @JsonSubTypes({
       @JsonSubTypes.Type(value = Embedded.class, name = "Embedded"),
-      @JsonSubTypes.Type(value = AWSLambda.class, name = "AWSLambda")
+      @JsonSubTypes.Type(value = AWSLambda.class, name = "AWSLambda"),
+      @JsonSubTypes.Type(value = Http.class, name = "Http")
   })
-  public static class RemoteFunctionConfig {
+  public abstract static class RemoteFunctionConfig {
 
     /**
      * The ID of this remote function.
@@ -217,8 +218,6 @@ public class Connector {
           id.equals(that.id);
     }
 
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    @JsonTypeInfo(use = Id.NAME, include = As.PROPERTY, property = "type")
     @JsonTypeName(value = "AWSLambda")
     public static class AWSLambda extends RemoteFunctionConfig {
 
@@ -251,8 +250,6 @@ public class Connector {
       }
     }
 
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    @JsonTypeInfo(use = Id.NAME, include = As.PROPERTY, property = "type")
     @JsonTypeName(value = "Embedded")
     public static class Embedded extends RemoteFunctionConfig {
 
@@ -260,10 +257,8 @@ public class Connector {
       public Map<String, String> env;
     }
 
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    @JsonTypeInfo(use = Id.NAME, include = As.PROPERTY, property = "type")
-    @JsonTypeName(value = "HTTP")
-    public static class HTTP extends RemoteFunctionConfig {
+    @JsonTypeName(value = "Http")
+    public static class Http extends RemoteFunctionConfig {
 
       /**
        * The URL of the endpoint to POST events to.
