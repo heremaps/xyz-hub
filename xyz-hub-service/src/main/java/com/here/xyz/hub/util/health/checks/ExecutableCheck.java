@@ -24,6 +24,7 @@ import static com.here.xyz.hub.util.health.Config.Setting.CHECK_DEFAULT_TIMEOUT;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.here.xyz.hub.util.health.Config;
+import com.here.xyz.hub.util.health.MainHealthCheck;
 import com.here.xyz.hub.util.health.schema.Check;
 import com.here.xyz.hub.util.health.schema.Response;
 import com.here.xyz.hub.util.health.schema.Status;
@@ -33,6 +34,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * A check which executes a specific action periodically and asynchronously.
@@ -44,7 +47,8 @@ import java.util.concurrent.TimeoutException;
  * @see Config
  */
 public abstract class ExecutableCheck extends Check implements Runnable {
-	
+	private static final Logger logger = LogManager.getLogger();
+
 	protected static ScheduledExecutorService executorService = Executors.newScheduledThreadPool(4);
 	
 	protected int checkInterval = Config.getInt(CHECK_DEFAULT_INTERVAL);
@@ -75,11 +79,11 @@ public abstract class ExecutableCheck extends Check implements Runnable {
 	
 	public void run() {
 		try {
-			long t1 = System.currentTimeMillis();
+			final long t1 = System.currentTimeMillis();
 			try {
 				executorService.submit(() -> {
 					Status s = execute();
-					long t2 = System.currentTimeMillis();
+					final long t2 = System.currentTimeMillis();
 					s.setCheckDuration(t2 - t1);
 					s.setTimestamp(t2);
 					setStatus(s);
@@ -88,15 +92,14 @@ public abstract class ExecutableCheck extends Check implements Runnable {
 			catch (TimeoutException e) {
 				Status s = new Status();
 				s.setResult(Result.TIMEOUT);
-				long t2 = System.currentTimeMillis();
+				final long t2 = System.currentTimeMillis();
 				s.setCheckDuration(t2 - t1);
 				s.setTimestamp(t2);
 				setStatus(s);
 			}
 		}
 		catch (Throwable t) {
-			//TODO: Better error reporting / logging, maybe to some file?
-			t.printStackTrace();
+			logger.error("{}: Error when executing check", this.getClass().getSimpleName(), t );
 		}
 	}
 	
@@ -113,8 +116,6 @@ public abstract class ExecutableCheck extends Check implements Runnable {
 	 * - {@link Check#setAdditionalProperty(String, Object)} (For arbitrary non-standard details)
 	 * 
 	 * The following details will be set automatically by the health-check system:
-	 * - {@link Status#setCheckDuration(Double)}
-	 * - {@link Status#setTimestamp(Double)}
 	 * - {@link Check#setStatus(Status)}
 	 * - {@link Check#setTarget(Target)}
 	 * - {@link Check#setRole(Role)}

@@ -36,6 +36,7 @@ import java.net.MalformedURLException;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
+import org.apache.logging.log4j.core.util.CachedClock;
 
 public class MainHealthCheck extends ExecutableCheck {
 
@@ -163,7 +164,9 @@ public class MainHealthCheck extends ExecutableCheck {
      * Directly do the execution of this MainHealthCheck here on-demand
      * as it's only about collecting the sub-results.
      */
-    run();
+    Status s = execute()
+        .withTimestamp(CachedClock.instance().currentTimeMillis());
+    setStatus(s);
     Response r = super.getResponse();
     r.setReporter(reporter);
     return r;
