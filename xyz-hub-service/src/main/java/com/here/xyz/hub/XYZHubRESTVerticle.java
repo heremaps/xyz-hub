@@ -203,7 +203,7 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
         this.adminApi = new AdminApi(vertx, router, jwtHandler);
 
         //Static resources
-        router.route("/hub/static/*").handler(StaticHandler.create().setIndexPage("index.html"));
+        router.route("/hub/static/*").handler(StaticHandler.create().setIndexPage("index.html")).handler(createCorsHandler());
         if (Service.configuration.FS_WEB_ROOT != null) {
           logger.debug("Serving extra web-root folder in file-system with location: {}", Service.configuration.FS_WEB_ROOT);
           new File(Service.configuration.FS_WEB_ROOT).mkdirs();
