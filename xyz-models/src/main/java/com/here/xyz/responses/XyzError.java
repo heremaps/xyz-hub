@@ -50,10 +50,10 @@ public enum XyzError {
    */
   CONFLICT("Conflict"),
 
-   /**
+  /**
    * Indicates an authorization error.
    *
-   * This will result in an 401 Forbidden response.
+   * This will result in an 403 Forbidden response.
    */
   FORBIDDEN("Forbidden"),
 
