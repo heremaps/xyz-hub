@@ -73,6 +73,27 @@ The service start parameters could be specified by editing the [default config f
 
 # Usage
 
+### With swagger-ui
+
+Once the server is up and running, you can easily play with the endpoints listed in the Open API specification files under:
+
+ * xyz-hub-service/src/main/resources/webroot/openapi/stable.yaml
+ * xyz-hub-service/src/main/resources/webroot/openapi/experimental.yaml
+ 
+We suggest to use swagger-ui as Open API specification viewer, by running it locally with docker:
+
+```bash
+docker run -d -p 8081:8080 --rm swaggerapi/swagger-ui
+```
+
+Then, navigate to:
+```
+http://localhost:8081/?url=http://localhost:8080/hub/static/openapi/stable.yaml
+```
+
+
+### With cURL
+
 Start using the service by creating a _space_:
 
 ```bash
