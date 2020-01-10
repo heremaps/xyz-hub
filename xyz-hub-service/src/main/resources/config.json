@@ -12,6 +12,7 @@
 
   "LOG_CONFIG": "log4j2-console-plain.json",
 
+  "DEFAULT_STORAGE_ID": "psql",
   "INSERT_LOCAL_CONNECTORS": true,
 
   "STORAGE_DB_URL": "jdbc:postgresql://localhost/postgres",

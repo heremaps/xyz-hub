@@ -45,8 +45,6 @@ import java.util.List;
 
 public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
 
-  public static final String DEFAULT_STORAGE_ID = "psql";
-
   public View view = View.BASIC;
 
   /**

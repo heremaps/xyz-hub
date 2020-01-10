@@ -266,7 +266,7 @@ public class SpaceTaskHandler {
     space.setCid(cid);
     space.setEnableUUID(false);
     space.setClient(null);
-    space.setStorage(new ConnectorRef().withId(SpaceTask.DEFAULT_STORAGE_ID));
+    space.setStorage(new ConnectorRef().withId(Service.configuration.DEFAULT_STORAGE_ID));
     return space;
   }
 

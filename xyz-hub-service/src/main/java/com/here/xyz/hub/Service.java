@@ -269,6 +269,8 @@ public class Service {
     public boolean INSERT_LOCAL_CONNECTORS;
     public String PSQL_HOST;
 
+    public String DEFAULT_STORAGE_ID;
+
     public String STORAGE_DB_URL;
     public String STORAGE_DB_USER;
     public String STORAGE_DB_PASSWORD;
@@ -295,5 +297,6 @@ public class Service {
 
     public String HEALTH_CHECK_HEADER_NAME;
     public String HEALTH_CHECK_HEADER_VALUE;
+
   }
 }
