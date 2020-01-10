@@ -27,7 +27,6 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.*;
 
-import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 import org.junit.After;
@@ -156,7 +155,7 @@ public class ReadSpaceApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void readSpacesOwner2NoAccess() throws Exception {
+  public void readSpacesOwner2NoAccess() {
     cleanUpIds.add(given()
         .contentType(APPLICATION_JSON)
         .accept(APPLICATION_JSON)

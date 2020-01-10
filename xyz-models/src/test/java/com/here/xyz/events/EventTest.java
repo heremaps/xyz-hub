@@ -40,15 +40,15 @@ public class EventTest {
   @Test
   public void fromJson() throws Exception {
     final InputStream is = new ByteArrayInputStream(eventJson.getBytes());
-    final Event event = new ObjectMapper().readValue(is, Event.class);
+    final Event<?> event = new ObjectMapper().readValue(is, Event.class);
     assertNotNull(event);
     assertTrue(event instanceof IterateFeaturesEvent);
   }
 
   @Test
   public void testClone() throws Exception {
-    final Event event = new ObjectMapper().readValue(eventJson, Event.class);
-    final Event clone = XyzSerializable.copy(event);
+    final Event<?> event = new ObjectMapper().readValue(eventJson, Event.class);
+    final Event<?> clone = XyzSerializable.copy(event);
 
     assertNotSame(event, clone);
     assertTrue(event instanceof IterateFeaturesEvent);

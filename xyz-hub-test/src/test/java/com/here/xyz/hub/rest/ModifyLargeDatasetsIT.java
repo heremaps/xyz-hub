@@ -24,13 +24,13 @@ import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import java.io.IOException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.FixMethodOrder;
 import org.junit.runners.MethodSorters;
 
+@SuppressWarnings("unused")
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class ModifyLargeDatasetsIT extends TestSpaceWithFeature {
 

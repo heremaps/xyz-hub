@@ -25,16 +25,13 @@ import static com.jayway.restassured.RestAssured.given;
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.equalTo;
 
-import com.jayway.restassured.response.ValidatableResponse;
-import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import org.awaitility.Durations;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-;
-
+@SuppressWarnings("unused")
 public class PropertiesSearchIT extends TestSpaceWithFeature {
 
   @BeforeClass
@@ -109,7 +106,7 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
 
   @Test
   public void errorTest() {
-    final ValidatableResponse response = given().
+    given().
         contentType(APPLICATION_JSON).
         accept(APPLICATION_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
@@ -162,10 +159,9 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
         body("features.size()", equalTo(252));
   }
 
-  /**
+  /*
    * Test is commented out because it takes too long to execute, since the indexes should be created by the connector for the test be valid.
    * Only kept here for future reference
-   * @throws Exception
    */
   //@Test
   public void testCreatedAtAndUpdatedAtWith10ThousandFeaturesPlus()  throws Exception {

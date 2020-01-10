@@ -33,7 +33,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 import com.jayway.restassured.response.ValidatableResponse;
-import java.io.IOException;
 import org.junit.After;
 import org.junit.Test;
 

@@ -31,7 +31,6 @@ import static org.hamcrest.Matchers.not;
 import com.jayway.restassured.http.Method;
 import com.jayway.restassured.response.Response;
 import com.jayway.restassured.specification.RequestSpecification;
-import java.io.IOException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;

@@ -38,6 +38,7 @@ import com.here.xyz.responses.ErrorResponse;
 import java.io.IOException;
 import org.junit.Test;
 
+@SuppressWarnings("unused")
 public class JsonMappingTest {
 
   @Test
@@ -92,6 +93,7 @@ public class JsonMappingTest {
         obj.getErrorMessage());
   }
 
+  @SuppressWarnings("deprecation")
   @Test
   public void test_map() throws Exception {
     final String json = "{\"type\":\"CountFeaturesEvent\", \"space\":\"test\"}";
