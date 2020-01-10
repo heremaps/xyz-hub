@@ -82,7 +82,7 @@ public class Service {
   /**
    * The log4J2 console configuration
    */
-  private static final String CONSOLE_LOG_CONFIG = "log4j2-console-json.json";
+  private static final String CONSOLE_LOG_CONFIG = "log4j2-console-plain.json";
 
   /**
    * The entry point to the Vert.x core API.
