@@ -20,7 +20,7 @@
         "fileName": "${env:LOG_PATH}/trace.log.0",
         "filePattern": "${env:LOG_PATH}/trace.log.%i",
         "PatternLayout": {
-          "pattern": "{\"t\":\"%p\",\"time\":\"%d{ISO8601}\",\"unixtime\":\"%d{UNIX_MILLIS}\",\"src\":\"%C{1}:%L\",\"msg\":\"%replace{%replace{%.-4096msg%throwable}{[\n]}{\\\\n}}{[\\\"]}{\\\\\"}\",\"streamId\":\"%marker\"}%n%xEx{none}"
+          "pattern": "{\"t\":\"%p\",\"time\":\"%d{ISO8601}\",\"unixtime\":\"%d{UNIX_MILLIS}\",\"src\":\"%C{1}:%L\",\"msg\":\"%replace{%replace{%.-4096msg%ex}{[\n]}{\\\\n}}{[\\\"]}{\\\\\"}\",\"streamId\":\"%marker\"}%n%xEx{none}"
         },
 
         "Policies": {
