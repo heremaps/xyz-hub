@@ -36,8 +36,6 @@ import io.vertx.core.json.Json;
 import org.junit.After;
 import org.junit.Test;
 
-import java.io.IOException;
-
 public class ErrorResponseTestIT extends TestSpaceWithFeature {
 
   private String cleanUpId;

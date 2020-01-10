@@ -46,6 +46,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+@SuppressWarnings("unused")
 public class AdminMessagesApiIT extends RestAssuredTest {
 
   private static ExecutorService threadPool;
@@ -143,7 +144,6 @@ public class AdminMessagesApiIT extends RestAssuredTest {
     //String nodeId = response.path("receiver.id");
     //String nodeIp = response.path("receiver.ip");
     Node node = JsonObject.mapFrom(bcResponse.path("receiver")).mapTo(Node.class);
-    ;
 
     //Send a message dedicated to the node
     now = System.currentTimeMillis();

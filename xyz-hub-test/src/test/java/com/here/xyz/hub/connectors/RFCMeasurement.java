@@ -31,6 +31,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+@SuppressWarnings("unused")
 public class RFCMeasurement {
 
     MockedRemoteFunctionClient rfc;
@@ -66,7 +67,7 @@ public class RFCMeasurement {
 
     public void checkMeasuring(int concurrency, long offset, long interval, long measureDelay, int expectedArrivalRate,
                                int expectedThroughput) throws InterruptedException {
-        ScheduledFuture f = requesterPool.scheduleAtFixedRate(() -> {
+        ScheduledFuture<?> f = requesterPool.scheduleAtFixedRate(() -> {
             for (int i = 0; i < concurrency; i++) {
                 long now = System.currentTimeMillis();
                 System.out.println("Submitted at: " + (now - TEST_START));

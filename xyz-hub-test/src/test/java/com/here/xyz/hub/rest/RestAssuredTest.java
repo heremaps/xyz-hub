@@ -21,9 +21,6 @@ package com.here.xyz.hub.rest;
 
 import com.here.xyz.hub.auth.TestAuthenticator;
 import com.jayway.restassured.RestAssured;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import org.apache.commons.io.IOUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 

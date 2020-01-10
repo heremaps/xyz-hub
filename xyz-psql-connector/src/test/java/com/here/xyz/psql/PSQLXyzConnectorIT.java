@@ -20,7 +20,6 @@
 package com.here.xyz.psql;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -87,6 +86,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+@SuppressWarnings("unused")
 public class PSQLXyzConnectorIT {
 
   private static final Logger logger = LogManager.getLogger();
@@ -130,7 +130,7 @@ public class PSQLXyzConnectorIT {
 
   @Test
   public void testHealthCheckWithConnectorParams() throws Exception {
-    Map<String, Object> connectorParams = new HashMap();
+    Map<String, Object> connectorParams = new HashMap<>();
     Map<String, Object> parametersToEncrypt = new HashMap<>();
     parametersToEncrypt.put(PSQLConfig.PSQL_HOST, "example.com");
     parametersToEncrypt.put(PSQLConfig.PSQL_PORT, "1234");
@@ -177,7 +177,7 @@ public class PSQLXyzConnectorIT {
   @Test
   public void testGetFeaturesByGeometryQuery() throws Exception {
     FeatureCollection collection = new FeatureCollection();
-    List<Feature> featureList = new ArrayList<Feature>();
+    List<Feature> featureList = new ArrayList<>();
     // =========== INSERT Point Grid 20x20 ==========
     for (double x = 7.; x < 7.19d; x += 0.01d) {
       for (double y = 50.; y < 50.19d; y += 0.01d) {
@@ -292,11 +292,10 @@ public class PSQLXyzConnectorIT {
     featureCollection = XyzSerializable.deserialize(queryResponse);
     assertNotNull(featureCollection);
     for (Feature feature : featureCollection.getFeatures()) {
-      /** try to find polygon inside the hole  */
+      /* try to find polygon inside the hole  */
       if ((feature.getProperties().get("foo")).toString().contains(("999.2"))) {
-        assertFalse(true);
+        fail();
       }
-      ;
     }
     assertEquals(114, featureCollection.getFeatures().size());
     logger.info("Area Query with POLYGON incl. hole tested successfully");
@@ -324,11 +323,10 @@ public class PSQLXyzConnectorIT {
     assertNotNull(featureCollection);
     int cnt = 0;
     for (Feature feature : featureCollection.getFeatures()) {
-      /** Try to find the both polyons */
+      /* Try to find the both polygons */
       if ((feature.getProperties().get("foo")).toString().contains(("999."))) {
         cnt++;
       }
-      ;
     }
     assertEquals(213, featureCollection.getFeatures().size());
     assertEquals(2, cnt);
@@ -337,7 +335,7 @@ public class PSQLXyzConnectorIT {
     PropertiesQuery pq = new PropertiesQuery();
     PropertyQueryList pql = new PropertyQueryList();
     pql.add(new PropertyQuery().withKey("properties.foo").withOperation(QueryOperation.LESS_THAN_OR_EQUALS)
-        .withValues(new ArrayList<>(Arrays.asList(7.1))));
+        .withValues(new ArrayList<>(Collections.singletonList(7.1))));
     pq.add(pql);
 
     geo = new MultiPolygon().withCoordinates(multiCords);
@@ -356,7 +354,7 @@ public class PSQLXyzConnectorIT {
     geometryEvent = new GetFeaturesByGeometryEvent()
         .withSpace("foo")
         .withGeometry(geo)
-        .withSelection(new ArrayList<String>(Arrays.asList("properties.foo2")));
+        .withSelection(new ArrayList<>(Collections.singletonList("properties.foo2")));
 
     queryResponse = invokeLambda(geometryEvent.serialize());
     featureCollection = XyzSerializable.deserialize(queryResponse);
@@ -680,7 +678,7 @@ public class PSQLXyzConnectorIT {
     String statisticsJson = invokeLambda(eventJson);
     StatisticsResponse response = XyzSerializable.deserialize(statisticsJson);
 
-    assertTrue(response instanceof StatisticsResponse);
+    assertNotNull(response);
 
     assertEquals(new Long(3), response.getCount().getValue());
     assertEquals(false, response.getCount().getEstimated());
@@ -688,7 +686,7 @@ public class PSQLXyzConnectorIT {
     assertTrue(response.getByteSize().getValue() > 0);
     assertEquals(true, response.getByteSize().getEstimated());
 
-    assertTrue(response.getBbox() instanceof StatisticsResponse.Value<?>);
+    assertNotNull(response.getBbox());
     assertEquals(false, response.getBbox().getEstimated());
 
     assertEquals("name", response.getProperties().getValue().get(0).getKey());
@@ -700,7 +698,7 @@ public class PSQLXyzConnectorIT {
     assertEquals(3, response.getTags().getValue().size());
     assertEquals(false, response.getTags().getEstimated());
 
-    assertEquals(new ArrayList<>(Arrays.asList("Point")), response.getGeometryTypes().getValue());
+    assertEquals(new ArrayList<>(Collections.singletonList("Point")), response.getGeometryTypes().getValue());
     assertEquals(false, response.getGeometryTypes().getEstimated());
 
     // =========== INSERT 11k ==========
@@ -728,7 +726,7 @@ public class PSQLXyzConnectorIT {
     mfevent.setInsertFeatures(collection.getFeatures());
     invokeLambda(mfevent.serialize());
 
-    /** Needed to trigger update on pg_stat*/
+    /* Needed to trigger update on pg_stat*/
     try (final Connection connection = lambda.dataSource.getConnection()) {
       Statement stmt = connection.createStatement();
       stmt.execute("ANALYZE public.\"foo\";");
@@ -785,7 +783,7 @@ public class PSQLXyzConnectorIT {
     mfevent.setInsertFeatures(collection.getFeatures());
     invokeLambda(mfevent.serialize());
 
-    /** Needed to trigger update on pg_stat*/
+    /* Needed to trigger update on pg_stat*/
     try (final Connection connection = lambda.dataSource.getConnection()) {
       Statement stmt = connection.createStatement();
       stmt.execute("DELETE FROM xyz_config.xyz_idxs_status WHERE spaceid='foo';");
@@ -1062,10 +1060,10 @@ public class PSQLXyzConnectorIT {
     }
   }
 
+  @SuppressWarnings({"unchecked", "rawtypes"})
   private void addTagsToSearchObject(Map<String, Object> json, String... tags) {
     json.remove("tags");
     json.put("tags", new ArrayList<String>());
-    //noinspection unchecked
     ((List) json.get("tags")).add(new ArrayList(Arrays.asList(tags)));
   }
 
@@ -1080,7 +1078,7 @@ public class PSQLXyzConnectorIT {
       json.put("propertiesQuery", new ArrayList<List<Map<String, Object>>>());
     }
 
-    @SuppressWarnings("unchecked") final List<List<Map<String, Object>>> list = (List) json.get("propertiesQuery");
+    @SuppressWarnings({"unchecked", "rawtypes"}) final List<List<Map<String, Object>>> list = (List) json.get("propertiesQuery");
     if (or) {
       list.add(new ArrayList<>(Stream.of(objects).collect(Collectors.toList())));
       return;
@@ -1145,7 +1143,7 @@ public class PSQLXyzConnectorIT {
     String deleteByTagResponse = invokeLambda(deleteByTagEvent);
     assertNoErrorInResponse(deleteByTagResponse);
     final JsonPath jsonPathFeatures = JsonPath.compile("$.features");
-    List features = jsonPathFeatures.read(deleteByTagResponse, jsonPathConf);
+    @SuppressWarnings("rawtypes") List features = jsonPathFeatures.read(deleteByTagResponse, jsonPathConf);
     if (includeOldStates) {
       assertNotNull("'features' element in DeleteByTagResponse is missing", features);
       assertTrue("'features' element in DeleteByTagResponse is empty", features.size() > 0);
@@ -1191,6 +1189,7 @@ public class PSQLXyzConnectorIT {
     testModifyFeatures(true);
   }
 
+  @SuppressWarnings({"rawtypes", "unchecked"})
   private void testModifyFeatures(boolean includeOldStates) throws Exception {
     // =========== INSERT ==========
     String insertJsonFile = "/events/InsertFeaturesEvent.json";
@@ -1213,7 +1212,7 @@ public class PSQLXyzConnectorIT {
     List<Map> updateFeatures = jsonPathFeatures.read(insertResponse, jsonPathConf);
     updateFeaturesEventDoc.delete("$.insertFeatures");
     updateFeatures.forEach((Map feature) -> {
-      @SuppressWarnings("unchecked") final Map<String, Object> properties = (Map<String, Object>) feature.get("properties");
+      final Map<String, Object> properties = (Map<String, Object>) feature.get("properties");
       properties.put("test", "updated");
     });
     updateFeaturesEventDoc.put("$", "updateFeatures", updateFeatures);

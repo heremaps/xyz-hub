@@ -19,9 +19,6 @@
 
 package com.here.xyz.connectors;
 
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.Payload;
 import com.here.xyz.Typed;
@@ -40,7 +37,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -49,10 +45,14 @@ import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.Test;
 
+import static org.junit.Assert.*;
+
+@SuppressWarnings("unused")
 public class AbstractConnectorHandlerTest {
 
   private String HealthCheckEventString = "{\"type\":\"HealthCheckEvent\", \"streamId\":\"STREAM_ID_EXAMPLE\"}";
 
+  @SuppressWarnings("SameParameterValue")
   private static FeatureCollection generateRandomFeatures(int featureCount, int propertyCount) throws JsonProcessingException {
     FeatureCollection collection = new FeatureCollection();
     Random random = new Random();
@@ -77,7 +77,7 @@ public class AbstractConnectorHandlerTest {
     InputStream is = new ByteArrayInputStream(HealthCheckEventString.getBytes());
     TestStorageConnector testStorageConnector = new TestStorageConnector();
     try {
-      Event event = testStorageConnector.readEvent(is);
+      Event<?> event = testStorageConnector.readEvent(is);
       assertTrue(event instanceof HealthCheckEvent);
     } catch (ErrorResponseException e) {
       e.printStackTrace();
@@ -97,7 +97,7 @@ public class AbstractConnectorHandlerTest {
     // Read back the result
     byte[] outputBytes = os.toByteArray();
 
-    Event outputEvent = testStorageConnector.readEvent(new ByteArrayInputStream(outputBytes));
+    Event<?> outputEvent = testStorageConnector.readEvent(new ByteArrayInputStream(outputBytes));
     assertTrue(outputEvent instanceof HealthCheckEvent);
   }
 
@@ -128,6 +128,7 @@ public class AbstractConnectorHandlerTest {
 //    System.out.println(stringBuilder.toString());
 
     FeatureCollection result = XyzSerializable.deserialize(stringBuilder.toString());
+    assertNotNull(result);
   }
 
   //This is a test for the relocation client. To run it, an S3 bucket and valid credentials are required.
@@ -139,10 +140,11 @@ public class AbstractConnectorHandlerTest {
 
     InputStream input = client.processRelocatedEvent(relocated);
     input = Payload.prepareInputStream(input);
-    Event event = XyzSerializable.deserialize(input);
+    Event<?> event = XyzSerializable.deserialize(input);
     assertTrue(event instanceof HealthCheckEvent);
   }
 
+  @SuppressWarnings("rawtypes")
   static class TestStorageConnector extends AbstractConnectorHandler {
 
     @Override

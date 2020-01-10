@@ -68,6 +68,7 @@ public class AuthTestsIT extends RestAssuredTest {
     }
   }
 
+  @SuppressWarnings("SameParameterValue")
   private static ValidatableResponse createSpaceWithFeatures(String spaceFile, String featuresFile, AuthProfile profile) {
     cleanUpId = createSpace(spaceFile, profile)
         .statusCode(OK.code()).extract().path("id");
@@ -121,6 +122,7 @@ public class AuthTestsIT extends RestAssuredTest {
         .then();
   }
 
+  @SuppressWarnings("SameParameterValue")
   private static ValidatableResponse updateSpaceStorage(String storageId, AuthProfile profile) {
     return given()
         .contentType(APPLICATION_JSON)

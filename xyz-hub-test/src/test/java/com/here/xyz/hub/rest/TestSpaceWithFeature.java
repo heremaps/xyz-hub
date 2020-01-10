@@ -32,7 +32,6 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.jayway.restassured.response.ValidatableResponse;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -121,6 +120,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
     executorService.awaitTermination(10, TimeUnit.SECONDS);
   }
 
+  @SuppressWarnings("SameParameterValue")
   static void publishSpace(String spaceId) {
     final ValidatableResponse response = given().
         contentType(APPLICATION_JSON).
@@ -134,6 +134,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         body("shared", equalTo(true));
   }
 
+  @SuppressWarnings("SameParameterValue")
   static void addListener(String spaceId) {
     final ValidatableResponse response = given().
         contentType(APPLICATION_JSON).
@@ -146,6 +147,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         body("id", equalTo(spaceId));
   }
 
+  @SuppressWarnings("SameParameterValue")
   static void addProcessor(String spaceId) {
     final ValidatableResponse response = given().
         contentType(APPLICATION_JSON).
@@ -170,6 +172,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
             "count.estimated", equalTo(false));
   }
 
+  @SuppressWarnings("SameParameterValue")
   static FeatureCollection generateRandomFeatures(int featureCount, int propertyCount) {
     FeatureCollection collection = new FeatureCollection();
     Random random = new Random();

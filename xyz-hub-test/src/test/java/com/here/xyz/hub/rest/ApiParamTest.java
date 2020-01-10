@@ -31,6 +31,7 @@ import org.junit.Test;
 
 public class ApiParamTest {
 
+  @SuppressWarnings("OptionalGetWithoutIsPresent")
   @Test
   public void parsePropertiesQuery() {
     String URIquery = "a=1&b=2&p.a=3&p.b>4.1&p.boolean=true&f.createdAt>0&p.testString=string,\"5\"";
