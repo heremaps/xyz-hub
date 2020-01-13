@@ -436,6 +436,9 @@ public class Patcher {
    * @param diff The difference object.
    */
   public static void patch(Object obj, final Difference diff) {
+    if( diff == null )
+      return;
+
     if (obj instanceof Map) {
       if (!(diff instanceof DiffMap)) {
         throw new IllegalArgumentException("Patch failed, the object is a Map, but the difference is no DiffMap");
@@ -556,21 +559,24 @@ public class Patcher {
         continue;
       }
 
-      if (partialUpdate.get(key) == null) {
+      final V partialUpdateVal = partialUpdate.get(key);
+      final V sourceObjectVal = sourceObject.get(key);
+      if (partialUpdateVal == null) {
         if (sourceObject.containsKey(key)) {
-          diff.put(key, new Remove(sourceObject.get(key)));
+          diff.put(key, new Remove(sourceObjectVal));
         }
-      } else if (!sourceObject.containsKey(key)) {
-        diff.put(key, new Insert(partialUpdate.get(key)));
-      } else if (recursive && sourceObject.get(key) instanceof Map && partialUpdate.get(key) instanceof Map) {
-        diff.put(key,
-            calculateDifferenceOfPartialUpdate((Map<K, V>) sourceObject.get(key), (Map<K, V>) partialUpdate.get(key), ignoreKeys, true));
-      } else {
-        diff.put(key, new Update(sourceObject.get(key), partialUpdate.get(key)));
+      } else if (sourceObjectVal == null ) {
+        diff.put(key, new Insert(partialUpdateVal));
+      } else if (recursive && sourceObjectVal instanceof Map && partialUpdateVal instanceof Map) {
+        Difference childDiff = calculateDifferenceOfPartialUpdate((Map<K, V>) sourceObjectVal, (Map<K, V>) partialUpdateVal, ignoreKeys,true);
+        if( childDiff != null )
+          diff.put(key, childDiff);
+      } else if (!sourceObjectVal.equals(partialUpdateVal)) {
+        diff.put(key, new Update(sourceObjectVal, partialUpdateVal));
       }
     }
 
-    return diff;
+    return diff.size() == 0 ? null : diff;
   }
 
   /**
