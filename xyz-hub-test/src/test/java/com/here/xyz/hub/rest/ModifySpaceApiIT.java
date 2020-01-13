@@ -182,4 +182,17 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
         .then()
         .statusCode(BAD_REQUEST.code());
   }
+
+  @Test
+  public void patchWithoutChange() {
+    given()
+        .accept(APPLICATION_JSON)
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body("{\"title\": \"My Demo Space\"}")
+        .when()
+        .patch("/spaces/x-psql-test")
+        .then()
+        .statusCode(OK.code());
+  }
 }
