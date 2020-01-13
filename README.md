@@ -28,11 +28,8 @@ XYZ Hub uses [GeoJSON](https://tools.ietf.org/html/rfc79460) as the main geospat
  * Maven 3.6+
  * Postgres 9.6+ with PostGIS 2.5+
  * Redis 5+ (optional)
- * Amazon DynamoDB (optional)
  * Docker 18+ (optional)
- * Docker Compose 1.24+  (optional)
-
-*Hint: Postgres with PostGIS will be automatically started if you use 'docker-compose up -d' to start the service.*
+ * Docker Compose 1.24+ (optional)
 
 # Getting started
 Clone and install the project using:
@@ -53,6 +50,8 @@ Alternatively, you can start freshly from the sources by using this command afte
 ```bash
 mvn clean install -Pdocker
 ```
+
+*Hint: Postgres with PostGIS will be automatically started if you use 'docker-compose up -d' to start the service.*
 
 ### Without docker
 
