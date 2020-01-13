@@ -21,12 +21,6 @@ services:
         container_name: "postgres"
         ports:
             - "5432:5432"
-    dynamodb:
-        image: "amazon/dynamodb-local"
-        container_name: "dynamodb"
-        ports:
-            - "8000:8000"
-        command: ["-jar", "DynamoDBLocal.jar", "-sharedDb"]
     redis:
         image: "redis:alpine"
         container_name: "redis"

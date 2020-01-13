@@ -22,6 +22,8 @@ package com.here.xyz.hub.config;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.hub.Service;
+import com.here.xyz.hub.config.tmp.MigratingSpaceConfigClient;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.admin.AdminMessage;
 import com.here.xyz.models.hub.Space.WithConnectors;
@@ -62,17 +64,16 @@ public abstract class SpaceConfigClient implements Initializable {
   private SpaceSelectionCondition emptySpaceCondition = new SpaceSelectionCondition();
 
   public static SpaceConfigClient getInstance() {
-    // TODO remove the below comments when it's time to move to dynamo
-//    if (Service.configuration.SPACES_DYNAMODB_TABLE_ARN != null) {
-//      if (Service.configuration.STORAGE_DB_URL != null) {
-//        //We're in the migration phase
-//        return MigratingSpaceConnectorConfigClient.getInstance();
-//      }
-//      else
-//          return new DynamoSpaceConfigClient(Service.configuration.SPACES_DYNAMODB_TABLE_ARN);
-//    }
-//    else
-    return JDBCSpaceConfigClient.getInstance();
+    if (Service.configuration.SPACES_DYNAMODB_TABLE_ARN != null) {
+      if (Service.configuration.STORAGE_DB_URL != null) {
+        //We're in the migration phase
+        return MigratingSpaceConfigClient.getInstance();
+      }
+      else
+          return new DynamoSpaceConfigClient(Service.configuration.SPACES_DYNAMODB_TABLE_ARN);
+    }
+    else
+      return JDBCSpaceConfigClient.getInstance();
   }
 
   public void get(Marker marker, String spaceId, Handler<AsyncResult<Space>> handler) {
