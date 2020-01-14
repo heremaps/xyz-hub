@@ -75,7 +75,7 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
   }
 
   @Override
-  protected void getSpace(Marker marker, String spaceId, Handler<AsyncResult<Space>> handler) {
+  public void getSpace(Marker marker, String spaceId, Handler<AsyncResult<Space>> handler) {
     SQLQuery query = new SQLQuery(String.format("SELECT config FROM %s WHERE id = ?", SPACE_TABLE), spaceId);
     client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
