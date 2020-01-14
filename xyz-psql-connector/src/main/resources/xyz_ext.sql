@@ -4,13 +4,13 @@
 -- CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;
 
 -- DROP FUNCTION xyz_index_status();
--- DROP FUNCTION xyz_create_idxs_over_dblink(text, integer, integer, text, text, text, integer, text);
+-- DROP FUNCTION xyz_create_idxs_over_dblink(text, integer, integer, integer, text[], text, text, text, integer, text);
 -- DROP FUNCTION xyz_space_bbox(text, text, integer);
 -- DROP FUNCTION xyz_update_dummy_v5();
 -- DROP FUNCTION xyz_index_check_comments(text, text);
 -- DROP FUNCTION xyz_index_creation_on_property_object(text, text, text, text, text, character);
 -- DROP FUNCTION xyz_maintain_idxs_for_space(text, text);
--- DROP FUNCTION xyz_create_idxs_v2(text, integer, integer);
+-- DROP FUNCTION xyz_create_idxs(text, integer, integer, integer, text[]);
 -- DROP FUNCTION xyz_property_path_to_array(text);
 -- DROP FUNCTION xyz_property_path(text);
 -- DROP FUNCTION xyz_property_datatype(text, text, text, integer);
@@ -47,13 +47,13 @@
 ------ ENV: XYZ-CIT ; SPACE: QgQCHStH ; OWNER: psql
 ---------------------------------------------------------------------------------
 -- xyz_index_status							:	select * from xyz_index_status();
--- xyz_create_idxs_over_dblink				:	select xyz_create_idxs_over_dblink('xyz', 20, 0, 'psql', 'xxx', 'xyz', 5432, 'xyz,h3,public,topology');
+-- xyz_create_idxs_over_dblink				:	select xyz_create_idxs_over_dblink('xyz', 20, 0, 2, ARRAY['postgres'], 'psql', 'xxx', 'xyz', 5432, 'xyz,h3,public,topology');
 -- xyz_space_bbox							:	select * from xyz_space_bbox('xyz', 'QgQCHStH', 1000);
 -- xyz_update_dummy_v5						:	select xyz_update_dummy_v5();
 -- xyz_index_check_comments					:	select xyz_index_check_comments('xyz', 'QgQCHStH');
 -- xyz_index_creation_on_property_object	:	select xyz_index_creation_on_property_object('xyz','QgQCHStH', 'feature_type', 'idx_QgQCHStH_a306a6c_a', 'number', 'a');
 -- xyz_maintain_idxs_for_space				:	select xyz_maintain_idxs_for_space('xyz','QgQCHStH');
--- xyz_create_idxs_v2						:	select xyz_create_idxs_v2('public', 20, 0);
+-- xyz_create_idxs  						:	select xyz_create_idxs_v2('public', 20, 0, 0, ARRAY['postgres']);
 -- xyz_property_path_to_array				:	select * from xyz_property_path_to_array('foo.bar');
 -- xyz_property_path						:	select * from xyz_property_path('foo.bar');
 -- xyz_property_datatype					:	select * from xyz_property_datatype('xyz','QgQCHStH', 'feature_type', 1000);
@@ -121,24 +121,14 @@
 --			where spaceid != 'idx_in_progess' order by count desc
 ------------------------------------------------------------------------------------------------
 ------------------------------------------------
-------------------------------------------------
-------------------------------------------------
-DROP FUNCTION IF EXISTS xyz_ensure_functions(text, text[]);
-DROP FUNCTION IF EXISTS xyz_update_dummy_v5();
-DROP FUNCTION IF EXISTS point2ridl(geometry,integer);
-DROP FUNCTION IF EXISTS rid2qidL( rid rid_t );
-DROP FUNCTION IF EXISTS qid2ridL( qid text );
-DROP FUNCTION IF EXISTS rid2bboxL( rid rid_t );
-DROP FUNCTION IF EXISTS qid2bboxL( qid text );
-DROP FUNCTION IF EXISTS point2qid( geo geometry(Point,4326), level integer );
-DROP FUNCTION IF EXISTS bbox2zooml( geometry );
-DROP TYPE IF EXISTS rid_t;
+DROP FUNCTION IF EXISTS xyz_create_idxs_v2(text, integer, integer);
+DROP FUNCTION IF EXISTS xyz_create_idxs_over_dblink(text, integer, integer, text, text, text, integer, text);
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 122
+ select 123
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
@@ -154,9 +144,9 @@ BEGIN
             rows := substring(rec."QUERY PLAN" FROM ' rows=([[:digit:]]+)');
             EXIT WHEN rows IS NOT NULL;
         END LOOP;
-    IF ROWS <= 1 THEN
-        RETURN null;
-    END IF;
+    --IF ROWS <= 1 THEN
+    --    RETURN null;
+    --END IF;
     RETURN rows;
 END;
 $BODY$
@@ -176,10 +166,6 @@ BEGIN
 
 	resolution := resolution-1;
 	LOOP
-		IF resolution = 0 THEN
-			select into result array_append(result, concat(quadkey,i));
-		END IF;
-
 		select into result xyz_qk_child_calculation(concat(quadkey,i),resolution,result);
 
 		EXIT WHEN i = 3;
@@ -236,7 +222,7 @@ $BODY$
 			SELECT
 			  (CASE WHEN (position('xyz_write_newest_statistics' IN query) > 0) THEN 1 ELSE 0 END)::bit as statitics_running ,
 			  (CASE WHEN(position('xyz_write_newest_idx_analyses' IN query) > 0) THEN 1 ELSE 0 END)::bit as analyses_running ,
-			  (CASE WHEN (position('xyz_create_idxs_over_dblink' IN query) > 0) THEN 1 ELSE 0 END)::bit as idx_running,
+			  (CASE WHEN (position('xyz_create_idxs' IN query) > 0) THEN 1 ELSE 0 END)::bit as idx_running,
 			  pid,
 			  now() - pg_stat_activity.query_start AS duration,
 			  query,
@@ -251,12 +237,14 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_create_idxs_over_dblink(text, integer, integer, text, text, text, integer, text)
--- DROP FUNCTION xyz_create_idxs_over_dblink(text, integer, integer, text, text, text, integer, text);
+-- Function: xyz_create_idxs_over_dblink(text, integer, integer, integer, text[], text, text, text, integer, text)
+-- DROP FUNCTION xyz_create_idxs_over_dblink(text, integer, integer, integer, text[], text, text, text, integer, text);
 CREATE OR REPLACE FUNCTION xyz_create_idxs_over_dblink(
 	schema text,
 	lim integer,
 	off integer,
+	mode integer,
+    	owner_list text[],
 	usr text,
 	pwd text,
 	dbname text,
@@ -271,18 +259,20 @@ CREATE OR REPLACE FUNCTION xyz_create_idxs_over_dblink(
 		*   @schema	- schema in which the xyz-spaces are located
 		*   @lim 	- max amount of spaces to iterate over
 		*   @off 	- offset, required for parallel executions
-		*	@usr 	- database user
-		*	@pwd	- database user password
-		*	@dbname	- database name
-		*	@port	- database port
-		*	@searchp	- searchpath
+		*   @mode 	- 0 = only indexing, 1 = statistics+indexing , 2 = statistic, analyzing, indexing
+		*   @owner_list	- list of database users which has the tables created (owner). Normally is this only one user.
+		*   @usr 	- database user
+		*   @pwd	- database user password
+		*   @dbname	- database name
+		*   @port	- database port
+		*   @searchp	- searchpath
 		*/
 
 		DECLARE
 			v_conn_str  text := 'port='||port||' dbname='||dbname||' host=localhost user='||usr||' password='||pwd||' options=-csearch_path='||searchp||'';
 			v_query     text;
 		BEGIN
-			v_query := 'select xyz_create_idxs_v2('''||schema||''',100, 0)';
+			v_query := 'select xyz_create_idxs('''||schema||''',100, 0, '||mode||', '''||owner_list::text||''')';
 			/** Requires the installed dblink extension - we use dblink to avoid connection interruption through Lambda termination */
 			PERFORM * FROM dblink(v_conn_str, v_query) AS t1(test text);
 		END;
@@ -627,12 +617,14 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_create_idxs_v2(text, integer, integer)
--- DROP FUNCTION xyz_create_idxs_v2(text, integer, integer);
-CREATE OR REPLACE FUNCTION xyz_create_idxs_v2(
+-- Function: xyz_create_idxs(text, integer, integer, integer, text[])
+-- DROP FUNCTION xyz_create_idxs(text, integer, integer, integer, text[]);
+CREATE OR REPLACE FUNCTION xyz_create_idxs(
     schema text,
     lim integer,
-    off integer)
+    off integer,
+    mode integer,
+    owner_list text[])
   RETURNS void AS
 $BODY$
 	/**
@@ -647,8 +639,19 @@ $BODY$
 
 	DECLARE xyz_space_stat record;
 	DECLARE xyz_idx_proposal record;
+	DECLARE big_space_threshold integer := 10000;
 
 	BEGIN
+		IF mode = 1 OR mode = 2 THEN
+			RAISE NOTICE 'WRITE NEWEST STATISTICS!';
+			PERFORM xyz_write_newest_statistics(schema, owner_list, big_space_threshold);
+		END IF;
+
+		IF mode = 2 THEN
+			RAISE NOTICE 'WRITE NEWEST ANALYSES!';
+			PERFORM xyz_write_newest_idx_analyses(schema);
+		END IF;
+
 		FOR xyz_space_stat IN
 			SELECT * FROM xyz_config.xyz_idxs_status
 				WHERE count > 0
