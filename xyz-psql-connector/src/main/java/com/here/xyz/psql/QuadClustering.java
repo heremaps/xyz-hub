@@ -7,9 +7,11 @@ import com.here.xyz.responses.XyzError;
 
 public class QuadClustering {
     public static final String QUAD = "quad";
-    public static final String QUADMODE_REAL = "real";
-    public static final String QUADMODE_ESTIMATED = "estimated";
-    public static final String QUADMODE_MIXED = "mixed";
+    private static final String QUADMODE_REAL = "real";
+    private static final String QUADMODE_ESTIMATED = "estimated";
+    private static final String QUADMODE_MIXED = "mixed";
+
+    private static final Integer LIMIT_MIXED_MODE = 6000000;
 
     protected static void checkQuadInput(String quadMode, int resolution, GetFeaturesByBBoxEvent event, String streamId,
                                          PSQLXyzConnector connector) throws
@@ -17,6 +19,7 @@ public class QuadClustering {
         if(quadMode != null && (!quadMode.equalsIgnoreCase(QuadClustering.QUADMODE_REAL) && !quadMode.equalsIgnoreCase(QuadClustering.QUADMODE_ESTIMATED) && !quadMode.equalsIgnoreCase(QuadClustering.QUADMODE_MIXED)) )
             throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
                     "Invalid request parameters. Unknown clustering.quadmode="+quadMode+". Available are: ["+ QuadClustering.QUADMODE_REAL +","+ QuadClustering.QUADMODE_ESTIMATED+","+ QuadClustering.QUADMODE_MIXED+"]!");
+
         if(resolution > 5)
             throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
                     "Invalid request parameters. clustering.resolution="+resolution+" to high. 5 is maximum!");
@@ -36,7 +39,7 @@ public class QuadClustering {
 
         String realCountCondition = "";
         String pureEstimation = "";
-        String estClac = "cond_est_cnt";
+        String estCalc = "cond_est_cnt";
 
         if(quadMode == null)
             quadMode = QuadClustering.QUADMODE_MIXED;
@@ -51,24 +54,25 @@ public class QuadClustering {
 
                 if(quadMode.equalsIgnoreCase(QuadClustering.QUADMODE_MIXED)) {
                     if (propQuery != null) {
-                        realCountCondition = "cond_est_cnt < 100 AND est_cnt < 2000000";
+                        realCountCondition = "cond_est_cnt < 100 AND est_cnt < "+LIMIT_MIXED_MODE;
                     } else {
-                        realCountCondition = "cond_est_cnt < (10000 / est_cnt) AND est_cnt < 2000000";
+                        realCountCondition = "cond_est_cnt < (1000 / est_cnt) AND est_cnt < "+LIMIT_MIXED_MODE;
                     }
                 }else
                     realCountCondition = "FALSE";
 
                 if(propQuery != null){
                     pureEstimation =
-                            "              (SELECT xyz_count_estimation(concat(" +
-                                    "                 'select 1 from "+ schema+".\""+space+"\""+
-                                    "                  WHERE ST_Intersects(geo, xyz_qk_qk2bbox(''',qk,''')) "+
+                                    "  SELECT xyz_count_estimation(concat(" +
+                                    "      'select 1 from "+ schema+".\""+space+"\""+
+                                    "       WHERE ST_Intersects(geo, xyz_qk_qk2bbox(''',qk,''')) "+
                                     " AND "+
                                     propQuery.replaceAll("'","''")+
-                                    "')))";
+                                    "'))";
+                    estCalc = "cond_est_cnt"; // "(CASE WHEN cond_est_cnt <= 1 THEN 0 ELSE cond_est_cnt END)";
                 }else{
                     pureEstimation = "_postgis_selectivity( '"+schema+".\""+space+"\"'::regclass, 'geo',qkbbox)";
-                    estClac += " * est_cnt ";
+                    estCalc += " * est_cnt ";
                 }
                 break;
         }
@@ -101,14 +105,14 @@ public class QuadClustering {
         }
         query.append(")"+
                 "         ELSE "+
-                "          "+estClac+""+
+                "          "+estCalc+""+
                 "        END)::bigint as cnt_bbox_est"+
                 "    FROM stats,"+
                 "        (SELECT *,"+
                 "              ("+pureEstimation+") as cond_est_cnt "+
                 "            from("+
                 "            SELECT qk, xyz_qk_qk2bbox( qk ) as qkbbox, xyz_qk_qk2lrc(qk) as qkxyz from ("+
-                "                SELECT unnest(xyz_qk_child_calculation('"+tile.asQuadkey()+"',"+resolution+",null)) as qk"+
+                "            SELECT unnest(xyz_qk_child_calculation('"+(tile.asQuadkey() == null ? 0 :tile.asQuadkey())+"',"+resolution+",null)) as qk"+
                 "            )a"+
                 "        ) b"+
                 "    )c"+

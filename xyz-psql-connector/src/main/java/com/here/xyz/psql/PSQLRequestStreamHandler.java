@@ -188,7 +188,7 @@ public abstract class PSQLRequestStreamHandler extends StorageConnector {
   public abstract PSQLConfig initializeConfig(Event event, Context context) throws Exception;
 
   private synchronized void setup() {
-    final int xyz_ext_version = 122;
+    final int xyz_ext_version = 123;
     boolean functionsUpToDate = false;
     boolean hasPropertySearch = (event.getConnectorParams() != null && event.getConnectorParams().get("propertySearch") == Boolean.TRUE);
 
@@ -327,12 +327,9 @@ public abstract class PSQLRequestStreamHandler extends StorageConnector {
     if (hasPropertySearch) {
       /** Trigger Auto-Indexing and or On-Demand Index Maintenance  */
       try (final Connection connection = dataSource.getConnection()) {
-        final String writeStatistics = "SELECT xyz_write_newest_statistics('" + config.schema()
-            + "',ARRAY['wikvaya','" + config.user() + "']," + IDX_MIN_THRESHOLD + ");";
-        final String analyseStatistic = "SELECT xyz_write_newest_idx_analyses('" + config.schema() + "')";
-        final String createIDX = "SELECT * from xyz_create_idxs_over_dblink('" + config.schema() + "',100, 0,'" + config.user()
-            + "','" + config.password() + "','" + config.database() + "'," + config.port() + ",'" + config.schema()
-            + ",h3,public,topology)')";
+        String createIDX = "SELECT * from xyz_create_idxs_over_dblink('" + config.schema() + "',50, 0,mode123,ARRAY['wikvaya','" + config.user() + "'],'" + config.user()
+                + "','" + config.password() + "','" + config.database() + "'," + config.port() + ",'" + config.schema()
+                + ",h3,public,topology)')";
 
         final String checkRunningQueries = "SELECT * FROM xyz_index_status();";
 
@@ -355,12 +352,15 @@ public abstract class PSQLRequestStreamHandler extends StorageConnector {
         if (progress == 0 || progress == 32) {
           /** no process is running */
           stmt.execute("SET statement_timeout = " + (15 * 60 * 1000) + " ;");
-          stmt.execute(writeStatistics);
 
-          if (progress == 0 && autoIndexing) {
-            /** Pay attention - Lambda timeout is currently set to 25s */
-            stmt.execute(analyseStatistic);
-          }
+          //Set Mode for statistic,analyze,index creation
+          createIDX = createIDX.replaceAll("mode123" , ""+((progress == 0 && autoIndexing) ? 2 : 1));
+
+//          stmt.execute(writeStatistics);
+//          if (progress == 0 && autoIndexing) {
+//            /** Pay attention - Lambda timeout is currently set to 25s */
+//            stmt.execute(analyseStatistic);
+//          }
 
           /** CREATE INDICES */
           stmt.execute(createIDX);
