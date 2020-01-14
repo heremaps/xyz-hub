@@ -39,13 +39,22 @@ public class MigratingSpaceConfigClient extends SpaceConfigClient {
 
   private static final Logger logger = LogManager.getLogger();
 
+  private static MigratingSpaceConfigClient instance;
   private static boolean initialized = false;
-  private SpaceConfigClient newSpaceClient;
-  private SpaceConfigClient oldSpaceClient;
+  private DynamoSpaceConfigClient newSpaceClient;
+  private JDBCSpaceConfigClient oldSpaceClient;
+
 
   private MigratingSpaceConfigClient() {
     this.newSpaceClient = new DynamoSpaceConfigClient(Service.configuration.SPACES_DYNAMODB_TABLE_ARN);
     this.oldSpaceClient = JDBCSpaceConfigClient.getInstance();
+  }
+
+  public static MigratingSpaceConfigClient getInstance() {
+    if (instance == null) {
+      instance = new MigratingSpaceConfigClient();
+    }
+    return instance;
   }
 
   @Override
@@ -78,9 +87,9 @@ public class MigratingSpaceConfigClient extends SpaceConfigClient {
   @Override
   protected void getSpace(Marker marker, String spaceId, Handler<AsyncResult<Space>> handler) {
     // i know this is pretty bad logic, anyways, this is just temporary...
-    newSpaceClient.get(marker, spaceId, ar -> {
+    newSpaceClient.getSpace(marker, spaceId, ar -> {
       if (ar.failed() || ar.result() == null) {
-        oldSpaceClient.get(marker, spaceId, oldAr -> {
+        oldSpaceClient.getSpace(marker, spaceId, oldAr -> {
           if (oldAr.failed()) {
             handler.handle(oldAr);
           } else {
