@@ -63,6 +63,10 @@ public class TTLTestsIT extends TestWithSpaceCleanup {
         .path("id");
   }
 
+  /**
+   * This test will fail if Redis is not running.
+   * Please start a Redis instance or skip this test.
+   */
   @Test
   public void testCacheWithGeoJson() {
     createRandomFeatureSpace();
@@ -86,6 +90,10 @@ public class TTLTestsIT extends TestWithSpaceCleanup {
     assertEquals(id, id_cached);
   }
 
+  /**
+   * This test will fail if Redis is not running.
+   * Please start a Redis instance or skip this test.
+   */
   @Test
   public void testCacheWithMvt() {
     createRandomFeatureSpace();
