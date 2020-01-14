@@ -93,7 +93,7 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
     long now = System.currentTimeMillis();
 
     // if the space existed for a shorter period of time, use this as a sliding window.
-    long slidingWindow = Math.min(now - getCreatedAt(), MAX_SLIDING_WINDOW);
+    long slidingWindow = Math.min(1 + now - getCreatedAt(), MAX_SLIDING_WINDOW);
     double averageInterval = slidingWindow * (1 - volatilityAtLastContentUpdate);
 
     // limit the interval to the length of the sliding window
