@@ -10,7 +10,6 @@ services:
             - "8181:8181"
         depends_on:
             - "postgres"
-            - "dynamodb"
             - "redis"
         command: java -jar xyz-hub-service.jar
     postgres:
