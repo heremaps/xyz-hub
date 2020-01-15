@@ -55,7 +55,7 @@ public class DynamoClient {
     final ARN arn = new ARN(tableArn);
 
     final AmazonDynamoDBAsyncClientBuilder builder = AmazonDynamoDBAsyncClientBuilder.standard();
-    if (Arrays.stream(Region.values()).anyMatch(r -> r.name().equals(arn.getRegion()))) {
+    if (!Arrays.stream(Region.values()).anyMatch(r -> r.name().equals(arn.getRegion()))) {
       final String endpoint = String.format("http://%s:%s", arn.getRegion(), Integer.parseInt(arn.getAccountId()));
       builder.setEndpointConfiguration(new EndpointConfiguration(endpoint, "US-WEST-1"));
     }
