@@ -35,8 +35,10 @@ import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
 import com.amazonaws.services.dynamodbv2.model.ResourceInUseException;
 import com.amazonaws.services.dynamodbv2.model.TimeToLiveSpecification;
 import com.amazonaws.services.dynamodbv2.model.UpdateTimeToLiveRequest;
+import com.amazonaws.services.s3.model.Region;
 import com.here.xyz.hub.util.ARN;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -53,8 +55,7 @@ public class DynamoClient {
     final ARN arn = new ARN(tableArn);
 
     final AmazonDynamoDBAsyncClientBuilder builder = AmazonDynamoDBAsyncClientBuilder.standard();
-
-    if ("localhost".equals(arn.getRegion())) {
+    if (!Arrays.stream(Region.values()).anyMatch(r -> r.name().equals(arn.getRegion()))) {
       final String endpoint = String.format("http://%s:%s", arn.getRegion(), Integer.parseInt(arn.getAccountId()));
       builder.setEndpointConfiguration(new EndpointConfiguration(endpoint, "US-WEST-1"));
     }
