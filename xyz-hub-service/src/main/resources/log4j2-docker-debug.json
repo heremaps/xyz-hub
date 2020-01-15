@@ -20,9 +20,14 @@
         "fileName": "${env:LOG_PATH}/trace.log.0",
         "filePattern": "${env:LOG_PATH}/trace.log.%i",
         "PatternLayout": {
-          "pattern": "{\"t\":\"%p\",\"time\":\"%d{ISO8601}\",\"unixtime\":\"%d{UNIX_MILLIS}\",\"src\":\"%C{1}:%L\",\"msg\":\"%replace{%replace{%.-4096msg%ex}{[\n]}{\\\\n}}{[\\\"]}{\\\\\"}\",\"streamId\":\"%marker\"}%n%xEx{none}"
+          "MarkerPatternSelector": {
+            "defaultPattern": "{\"t\":\"%p\",\"time\":\"%d{ISO8601}\",\"unixtime\":\"%d{UNIX_MILLIS}\",\"msg\":\"%enc{%.-4096msg%ex}{JSON} \",\"streamId\":\"%marker\"}%n%xEx{none}",
+            "PatternMatch": {
+              "key": "ACCESS",
+              "pattern": "%m%n"
+            }
+          }
         },
-
         "Policies": {
           "SizeBasedTriggeringPolicy": {
             "size": "64 MB"
