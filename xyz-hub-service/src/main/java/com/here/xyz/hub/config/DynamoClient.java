@@ -20,7 +20,7 @@
 package com.here.xyz.hub.config;
 
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.AnonymousAWSCredentials;
+import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsync;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClientBuilder;
@@ -58,7 +58,7 @@ public class DynamoClient {
 
     final AmazonDynamoDBAsyncClientBuilder builder = AmazonDynamoDBAsyncClientBuilder.standard();
     if (Arrays.stream(Region.values()).noneMatch(r -> r.name().equals(arn.getRegion()))) {
-      builder.setCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()));
+      builder.setCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("dummy", "dummy")));
       final String endpoint = String.format("http://%s:%s", arn.getRegion(), Integer.parseInt(arn.getAccountId()));
       builder.setEndpointConfiguration(new EndpointConfiguration(endpoint, "US-WEST-1"));
     }
