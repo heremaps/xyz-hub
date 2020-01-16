@@ -33,6 +33,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,12 +61,12 @@ public abstract class ConnectorConfigClient implements Initializable {
       if (Service.configuration.STORAGE_DB_URL != null) {
         //We're in the migration phase
         return MigratingConnectorConfigClient.getInstance();
-      }
-      else
+      } else {
         return new DynamoConnectorConfigClient(Service.configuration.CONNECTORS_DYNAMODB_TABLE_ARN);
-    }
-    else
+      }
+    } else {
       return JDBCConnectorConfigClient.getInstance();
+    }
   }
 
 
@@ -165,9 +166,17 @@ public abstract class ConnectorConfigClient implements Initializable {
     }
 
     if (connector.remoteFunction instanceof Embedded) {
-      final Map<String, String> map = new HashMap<String, String>() {{
-        put("PSQL_HOST", Service.configuration.PSQL_HOST);
-      }};
+      final Map<String, String> map = new HashMap<>();
+
+      if (Service.configuration.STORAGE_DB_URL != null) {
+        URI uri = URI.create(Service.configuration.STORAGE_DB_URL.substring(5));
+        map.put("PSQL_HOST", uri.getHost());
+        if (uri.getPort() != -1) {
+          map.put("PSQL_PORT", uri.getPort() + "");
+        }
+        map.put("PSQL_USER", Service.configuration.STORAGE_DB_USER);
+        map.put("PSQL_PASSWORD", Service.configuration.STORAGE_DB_PASSWORD);
+      }
 
       final Embedded embedded = (Embedded) connector.remoteFunction;
       final Map<String, String> replacement = new HashMap<>();
