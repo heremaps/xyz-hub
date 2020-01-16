@@ -270,6 +270,16 @@ public class Service {
     public String HOST_NAME;
 
     /**
+     * The initial number of instances.
+     */
+    public int INSTANCE_COUNT;
+
+    /**
+     *  The S3 Bucket, which connectors with transfer limitations, could use to relocate responses.
+     */
+    public String XYZ_HUB_S3_BUCKET;
+
+    /**
      * The public endpoint.
      */
     public String XYZ_HUB_PUBLIC_ENDPOINT;
@@ -378,10 +388,5 @@ public class Service {
      * The value of the health check header to instruct for additional health status information.
      */
     public String HEALTH_CHECK_HEADER_VALUE;
-
-    /**
-     *  The S3 Bucket, which connectors with transfer limitations, could use to relocate responses.
-     */
-    public String XYZ_HUB_S3_BUCKET;
   }
 }

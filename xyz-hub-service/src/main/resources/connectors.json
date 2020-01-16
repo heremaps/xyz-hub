@@ -23,7 +23,7 @@
       "className": "com.here.xyz.psql.PSQLXyzConnector",
       "env": {
         "PSQL_HOST": "${PSQL_HOST}",
-        "PSQL_HOST": "${PSQL_PORT}",
+        "PSQL_PORT": "${PSQL_PORT}",
         "PSQL_USER": "${PSQL_USER}",
         "PSQL_PASSWORD": "${PSQL_PASSWORD}"
       }
