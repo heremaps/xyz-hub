@@ -80,7 +80,7 @@ public class Service {
   public static final String HOST_ID = UUID.randomUUID().toString();
 
   /**
-   * The log4J2 console configuration
+   * The LOG4J configuration file.
    */
   private static final String CONSOLE_LOG_CONFIG = "log4j2-console-plain.json";
 
@@ -258,45 +258,135 @@ public class Service {
    */
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class Config {
+
+    /**
+     * The port of the HTTP server.
+     */
     public int HTTP_PORT;
-    public String XYZ_HUB_REDIS_HOST;
-    public int XYZ_HUB_REDIS_PORT;
-    public String XYZ_HUB_S3_BUCKET;
 
-    public String JWT_PUB_KEY;
-    public Authorization.AuthorizationType XYZ_HUB_AUTH;
-    public String LOG_CONFIG;
-    public boolean INSERT_LOCAL_CONNECTORS;
-    public String PSQL_HOST;
-
-    public String DEFAULT_STORAGE_ID;
-
-    public String STORAGE_DB_URL;
-    public String STORAGE_DB_USER;
-    public String STORAGE_DB_PASSWORD;
-
-    public String SPACES_DYNAMODB_TABLE_ARN;
-    public String CONNECTORS_DYNAMODB_TABLE_ARN;
-    public String PACKAGES_DYNAMODB_TABLE_ARN;
-
-    public int INSTANCE_COUNT;
-    public ARN ADMIN_MESSAGE_TOPIC_ARN;
-    public String ADMIN_MESSAGE_JWT;
-    public int ADMIN_MESSAGE_PORT;
-
-    public String XYZ_HUB_PUBLIC_PROTOCOL;
-    public String XYZ_HUB_PUBLIC_HOST;
-    public int XYZ_HUB_PUBLIC_PORT;
-
+    /**
+     * The hostname, which under instances can use to contact the this service node.
+     */
     public String HOST_NAME;
 
+    /**
+     * The initial number of instances.
+     */
+    public int INSTANCE_COUNT;
+
+    /**
+     *  The S3 Bucket, which connectors with transfer limitations, could use to relocate responses.
+     */
+    public String XYZ_HUB_S3_BUCKET;
+
+    /**
+     * The public endpoint.
+     */
+    public String XYZ_HUB_PUBLIC_ENDPOINT;
+
+    /**
+     * The redis host.
+     */
+    public String XYZ_HUB_REDIS_HOST;
+
+    /**
+     * The redis port.
+     */
+    public int XYZ_HUB_REDIS_PORT;
+
+    /**
+     * The authorization type.
+     */
+    public Authorization.AuthorizationType XYZ_HUB_AUTH;
+
+    /**
+     * The public key used for verifying the signature of the JWT tokens.
+     */
+    public String JWT_PUB_KEY;
+
+    /**
+     * The LOG4J config file location.
+     */
+    public String LOG_CONFIG;
+
+    /**
+     * If set to true, the connectors configuration will be populated with connectors defined in connectors.json.
+     */
+    public boolean INSERT_LOCAL_CONNECTORS;
+
+    /**
+     * The ID of the default storage connector.
+     */
+    public String DEFAULT_STORAGE_ID;
+
+    /**
+     * The PostgreSQL URL.
+     */
+    public String STORAGE_DB_URL;
+
+    /**
+     * The database user.
+     */
+    public String STORAGE_DB_USER;
+
+    /**
+     * The database password.
+     */
+    public String STORAGE_DB_PASSWORD;
+
+    /**
+     * The ARN of the space table in DynamoDB.
+     */
+    public String SPACES_DYNAMODB_TABLE_ARN;
+
+    /**
+     * The ARN of the connectors table in DynamoDB.
+     */
+    public String CONNECTORS_DYNAMODB_TABLE_ARN;
+
+    /**
+     * The ARN of the packages table in DynamoDB.
+     */
+    public String PACKAGES_DYNAMODB_TABLE_ARN;
+
+    /**
+     * The ARN of the admin message topic.
+     */
+    public ARN ADMIN_MESSAGE_TOPIC_ARN;
+
+    /**
+     * The JWT token used for sending admin messages.
+     */
+    public String ADMIN_MESSAGE_JWT;
+
+    /**
+     * The port for the admin message server.
+     */
+    public int ADMIN_MESSAGE_PORT;
+
+    /**
+     * The total size assigned for remote functions queues.
+     */
     public int GLOBAL_MAX_QUEUE_SIZE; //MB
+
+    /**
+     * The default timeout for remote functions requests.
+     */
     public int REMOTE_FUNCTION_REQUEST_TIMEOUT; //seconds
 
+    /**
+     * The web root for serving static resources from the file system.
+     */
     public String FS_WEB_ROOT;
 
+    /**
+     * The name of the health check header to instruct for additional health status information.
+     */
     public String HEALTH_CHECK_HEADER_NAME;
-    public String HEALTH_CHECK_HEADER_VALUE;
 
+    /**
+     * The value of the health check header to instruct for additional health status information.
+     */
+    public String HEALTH_CHECK_HEADER_VALUE;
   }
 }
