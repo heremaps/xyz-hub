@@ -80,14 +80,14 @@ public class Service {
   public static final String HOST_ID = UUID.randomUUID().toString();
 
   /**
-   * The LOGJ2 configuration file.
+   * The LOG4J configuration file.
    */
   private static final String CONSOLE_LOG_CONFIG = "log4j2-console-plain.json";
 
   /**
    * The entry point to the Vert.x core API.
    */
-  public static Vertx  vertx;
+  public static Vertx vertx;
 
   /**
    * The service configuration.
