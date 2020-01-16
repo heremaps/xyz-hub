@@ -45,19 +45,20 @@ import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class DynamoClient {
+class DynamoClient {
 
   private static final Logger logger = LogManager.getLogger();
 
-  protected final AmazonDynamoDBAsync client;
-  protected final String tableName;
-  protected final DynamoDB db;
+  final AmazonDynamoDBAsync client;
+  final String tableName;
+  final DynamoDB db;
+  final ARN arn;
 
-  protected DynamoClient(String tableArn) {
-    final ARN arn = new ARN(tableArn);
+  DynamoClient(String tableArn) {
+    arn = new ARN(tableArn);
 
     final AmazonDynamoDBAsyncClientBuilder builder = AmazonDynamoDBAsyncClientBuilder.standard();
-    if (Arrays.stream(Region.values()).noneMatch(r -> r.toAWSRegion().getName().equals(arn.getRegion()))) {
+    if (isLocal()) {
       builder.setCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("dummy", "dummy")));
       final String endpoint = String.format("http://%s:%s", arn.getRegion(), Integer.parseInt(arn.getAccountId()));
       builder.setEndpointConfiguration(new EndpointConfiguration(endpoint, "US-WEST-1"));
@@ -68,7 +69,7 @@ public class DynamoClient {
     tableName = new ARN(tableArn).getResourceWithoutType();
   }
 
-  protected void createTable(String tableName, String attributes, String keys, String indexes, String ttl) {
+  void createTable(String tableName, String attributes, String keys, String indexes, String ttl) {
     try {
       // required
       final List<AttributeDefinition> attList = new ArrayList<>();
@@ -114,5 +115,9 @@ public class DynamoClient {
     } catch (ResourceInUseException e) {
       logger.info("Table {} already exists, skipping creation", tableName);
     }
+  }
+
+  boolean isLocal() {
+    return Arrays.stream(Region.values()).noneMatch(r -> r.toAWSRegion().getName().equals(arn.getRegion()));
   }
 }
