@@ -63,8 +63,10 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
   @Override
   public void init(Handler<AsyncResult<Void>> onReady) {
-    dynamoClient.createTable(spaces.getTableName(), "id:S,owner:S,shared:N", "id", "owner,shared", "exp");
-    dynamoClient.createTable(packages.getTableName(), "packageName:S,spaceId:S", "packageName,spaceId", null, null);
+    if (dynamoClient.isLocal()) {
+      dynamoClient.createTable(spaces.getTableName(), "id:S,owner:S,shared:N", "id", "owner,shared", "exp");
+      dynamoClient.createTable(packages.getTableName(), "packageName:S,spaceId:S", "packageName,spaceId", null, null);
+    }
 
     onReady.handle(Future.succeededFuture());
   }
