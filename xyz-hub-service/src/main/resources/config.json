@@ -14,7 +14,7 @@
 
   "DEFAULT_STORAGE_ID": "psql",
 
-  "STORAGE_DB_URL": "jdbc:postgresql://localhost:5432/postgres",
+  "STORAGE_DB_URL": "jdbc:postgresql://localhost/postgres",
   "STORAGE_DB_USER": "postgres",
   "STORAGE_DB_PASSWORD": "password",
 
