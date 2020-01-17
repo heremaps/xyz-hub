@@ -8,7 +8,7 @@ ENV LOG_CONFIG log4j2-console-plain.json
 ENV FS_WEB_ROOT www
 
 #Override the following environment variables to let the service connect to different host names
-ENV STORAGE_DB_URL jdbc:postgresql://postgres/postgres
+ENV STORAGE_DB_URL jdbc:postgresql://postgres:5432/postgres
 ENV PSQL_HOST postgres
 ENV XYZ_HUB_REDIS_HOST redis
 
