@@ -98,6 +98,7 @@ public class MigratingConnectorConfigClient extends ConnectorConfigClient {
           } else {
             List<Connector> connectors = new ArrayList<>(oldResult.result());
             connectors.addAll(newResult.result());
+            connectors.forEach((c) -> moveConnector(marker, c, migrationResult -> {}));
             handler.handle(Future.succeededFuture(connectors));
           }
         });
