@@ -96,9 +96,10 @@ public class MigratingConnectorConfigClient extends ConnectorConfigClient {
           if (newResult.failed()) {
             handler.handle(newResult);
           } else {
+            oldResult.result().forEach((c) -> moveConnector(marker, c, migrationResult -> {}));
+
             List<Connector> connectors = new ArrayList<>(oldResult.result());
             connectors.addAll(newResult.result());
-            connectors.forEach((c) -> moveConnector(marker, c, migrationResult -> {}));
             handler.handle(Future.succeededFuture(connectors));
           }
         });
@@ -134,13 +135,16 @@ public class MigratingConnectorConfigClient extends ConnectorConfigClient {
   }
 
   private void moveConnector(Marker marker, Connector connector, Handler<AsyncResult<Connector>> handler) {
+    logger.info(marker, "Moving the connector ID: {}", connector.id);
     newConnectorClient.store(marker, connector, storeResult -> {
+      logger.info(marker, "Connector ID {} store operation succeeded: {}", connector.id, storeResult.succeeded());
       if (storeResult.failed()) {
         logger
             .error(marker, "Error when trying to store connector while migrating it. Connector ID: " + connector.id, storeResult.cause());
         return;
       }
       oldConnectorClient.delete(marker, connector.id, deletionResult -> {
+        logger.info(marker, "Connector ID: {} delete operation succeeded: {}", connector.id, deletionResult.succeeded());
         if (deletionResult.failed()) {
           logger.error(marker, "Error when trying to delete old connector while migrating it. Connector ID: " + connector.id,
               deletionResult.cause());
