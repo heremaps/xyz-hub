@@ -88,7 +88,7 @@ public class HTTPFunctionClient extends QueueingRemoteFunctionClient {
   protected void invoke(Marker marker, byte[] bytes, Handler<AsyncResult<byte[]>> callback) {
     logger.debug(marker, "Invoke http remote function '{}' Event size is: {}", remoteFunction.id, bytes.length);
 
-    webClient.post(url)
+    webClient.postAbs(url)
         .timeout(REQUEST_TIMEOUT)
         .sendBuffer(Buffer.buffer(bytes), ar -> {
           if (ar.failed()) {
