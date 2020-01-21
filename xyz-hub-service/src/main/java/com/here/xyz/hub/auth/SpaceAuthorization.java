@@ -28,7 +28,6 @@ import static com.here.xyz.hub.auth.XyzHubAttributeMap.SEARCHABLE_PROPERTIES;
 import static com.here.xyz.hub.auth.XyzHubAttributeMap.SPACE;
 import static com.here.xyz.hub.auth.XyzHubAttributeMap.STORAGE;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
-import static io.vertx.core.json.Json.encode;
 
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.HttpException;
@@ -38,6 +37,7 @@ import com.here.xyz.hub.task.SpaceTask.MatrixReadQuery;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
 import com.here.xyz.hub.util.diff.Difference.DiffMap;
 import com.here.xyz.hub.util.diff.Patcher;
+import com.here.xyz.models.hub.Space.Static;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -102,16 +102,19 @@ public class SpaceAuthorization extends Authorization {
 
     // CREATE
     if (task.isCreate()) {
+      final Map templateAsMap = asMap(task.template);
+      final Map inputAsMap = asMap(Json.mapper.convertValue(input, Space.class));
+
       xyzhubFilter = new XyzHubAttributeMap()
               .withValue(OWNER, input.getString("owner"))
               .withValue(SPACE, input.getString("id"));
-      isBasicEdit = isBasicEdit(asMap(task.template), asMap(input));
-      isAdminEdit = isAdminEdit(asMap(task.template), asMap(input));
-      isStorageEdit = isPropertyEdit(asMap(task.template), asMap(input), STORAGE);
-      isListenersEdit = isPropertyEdit(asMap(task.template), asMap(input), LISTENERS);
-      isProcessorsEdit = isPropertyEdit(asMap(task.template), asMap(input), PROCESSORS);
-      isPackagesEdit = isPropertyEdit(asMap(task.template), asMap(input), PACKAGES);
-      isSearchablePropertiesEdit = isPropertyEdit(asMap(task.template), asMap(input), SEARCHABLE_PROPERTIES);
+      isBasicEdit = isBasicEdit(templateAsMap, inputAsMap);
+      isAdminEdit = isAdminEdit(templateAsMap, inputAsMap);
+      isStorageEdit = isPropertyEdit(templateAsMap, inputAsMap, STORAGE);
+      isListenersEdit = isPropertyEdit(templateAsMap, inputAsMap, LISTENERS);
+      isProcessorsEdit = isPropertyEdit(templateAsMap, inputAsMap, PROCESSORS);
+      isPackagesEdit = isPropertyEdit(templateAsMap, inputAsMap, PACKAGES);
+      isSearchablePropertiesEdit = isPropertyEdit(templateAsMap, inputAsMap, SEARCHABLE_PROPERTIES);
     }
     // READ, UPDATE, DELETE
     else {
@@ -121,17 +124,20 @@ public class SpaceAuthorization extends Authorization {
         return;
       }
 
+      final Map targetAsMap = asMap(target);
+      final Map headAsMap = asMap(head);
+
       xyzhubFilter = new XyzHubAttributeMap()
           .withValue(OWNER, head.getOwner())
           .withValue(SPACE, head.getId())
           .withValue(PACKAGES, head.getPackages());
-      isBasicEdit = isBasicEdit(asMap(target), asMap(head));
-      isAdminEdit = !task.isDelete() && isAdminEdit(asMap(target), asMap(head));
-      isStorageEdit = !task.isDelete() && isPropertyEdit(asMap(target), asMap(head), STORAGE);
-      isListenersEdit = !task.isDelete() && isPropertyEdit(asMap(target), asMap(head), LISTENERS);
-      isProcessorsEdit = !task.isDelete() && isPropertyEdit(asMap(target), asMap(head), PROCESSORS);
-      isPackagesEdit = !task.isDelete() && isPropertyEdit(asMap(target), asMap(head), PACKAGES);
-      isSearchablePropertiesEdit = !task.isDelete() && isPropertyEdit(asMap(target), asMap(head), SEARCHABLE_PROPERTIES);
+      isBasicEdit = isBasicEdit(targetAsMap, headAsMap);
+      isAdminEdit = !task.isDelete() && isAdminEdit(targetAsMap, headAsMap);
+      isStorageEdit = !task.isDelete() && isPropertyEdit(targetAsMap, headAsMap, STORAGE);
+      isListenersEdit = !task.isDelete() && isPropertyEdit(targetAsMap, headAsMap, LISTENERS);
+      isProcessorsEdit = !task.isDelete() && isPropertyEdit(targetAsMap, headAsMap, PROCESSORS);
+      isPackagesEdit = !task.isDelete() && isPropertyEdit(targetAsMap, headAsMap, PACKAGES);
+      isSearchablePropertiesEdit = !task.isDelete() && isPropertyEdit(targetAsMap, headAsMap, SEARCHABLE_PROPERTIES);
     }
 
     // Mark in the task, if the app is allowed to read the admin properties.
@@ -152,7 +158,7 @@ public class SpaceAuthorization extends Authorization {
     }
 
     // If this is an edit on storage, listeners or processors properties.
-    if ( isStorageEdit || isListenersEdit || isProcessorsEdit) {
+    if (isStorageEdit || isListenersEdit || isProcessorsEdit) {
       final XyzHubActionMatrix connectorsRights = new XyzHubActionMatrix();
 
       //Check for storage.
@@ -229,6 +235,7 @@ public class SpaceAuthorization extends Authorization {
     try {
       DiffMap diff = (DiffMap) Patcher.getDifference(state1, state2);
       final List<String> basicPlusPackagesList = Stream.concat(basicEdit.stream(), packageEdit.stream()).collect(Collectors.toList());
+
       return diff != null && !basicPlusPackagesList.containsAll(diff.keySet());
     } catch (Exception e) {
       return true;
@@ -276,6 +283,10 @@ public class SpaceAuthorization extends Authorization {
 
 
   private static Map asMap(Object object) {
-    return Json.decodeValue(encode(object), Map.class);
+    try {
+      return Json.decodeValue(Json.mapper.writerWithView(Static.class).writeValueAsString(object), Map.class);
+    } catch (Exception e) {
+      return Collections.emptyMap();
+    }
   }
 }

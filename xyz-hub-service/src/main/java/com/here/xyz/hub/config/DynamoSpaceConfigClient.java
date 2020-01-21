@@ -28,6 +28,7 @@ import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
 import com.amazonaws.services.dynamodbv2.document.spec.ScanSpec;
 import com.amazonaws.util.CollectionUtils;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.util.ARN;
@@ -84,8 +85,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
   @Override
   public void storeSpace(Marker marker, Space space, Handler<AsyncResult<Space>> handler) {
-    Map<String, Object> itemData = defaultMapper().convertValue(space, new TypeReference<Map<String, Object>>() {
-    });
+    Map<String, Object> itemData = XyzSerializable.STATIC_MAPPER.get().convertValue(space, new TypeReference<Map<String, Object>>() {});
     itemData.put("shared", space.isShared() ? 1 : 0);
     spaces.putItem(Item.fromMap(itemData));
 

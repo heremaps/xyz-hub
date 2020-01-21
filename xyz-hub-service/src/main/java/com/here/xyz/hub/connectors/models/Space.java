@@ -57,7 +57,7 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
    * Indicates the last time the content of a space was updated.
    */
   @JsonInclude(Include.NON_DEFAULT)
-  @JsonView(Public.class)
+  @JsonView({Public.class, Static.class})
   public long contentUpdatedAt = 0;
 
   /**
@@ -82,13 +82,13 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
     });
   }
 
-  @JsonView(Internal.class)
+  @JsonView({Internal.class})
   @SuppressWarnings("unused")
   public CacheProfile getAutoCacheProfile() {
     return getCacheProfile(false, true);
   }
 
-  @JsonView(Internal.class)
+  @JsonView({Internal.class})
   public double getVolatility() {
     long now = System.currentTimeMillis();
 
@@ -215,7 +215,7 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
    */
   public static class SpaceWithRights extends Space {
 
-    @JsonView(Public.class)
+    @JsonView({Public.class})
     public List<String> rights;
   }
 

@@ -22,8 +22,8 @@ package com.here.xyz.hub.config;
 import static com.here.xyz.hub.config.JDBCConfig.SPACE_TABLE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.connectors.models.Space;
-import com.here.xyz.models.hub.Space.WithConnectors;
 import com.here.xyz.psql.SQLQuery;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -99,12 +99,11 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
       query = new SQLQuery(String.format(
           "INSERT INTO %s(id, owner, cid, config) VALUES (?, ?, ?, cast(? as JSONB)) ON CONFLICT (id) DO UPDATE SET owner = excluded.owner, cid = excluded.cid, config = excluded.config",
           SPACE_TABLE), space.getId(), space.getOwner(), space.getCid(),
-          defaultMapper().writerWithView(WithConnectors.class).writeValueAsString(space));
+          XyzSerializable.STATIC_MAPPER.get().writeValueAsString(space));
+      updateWithParams(space, query, handler);
     } catch (JsonProcessingException e) {
       handler.handle(Future.failedFuture(new EncodeException("Failed to encode as JSON: " + e.getMessage(), e)));
     }
-
-    updateWithParams(space, query, handler);
   }
 
   @Override
