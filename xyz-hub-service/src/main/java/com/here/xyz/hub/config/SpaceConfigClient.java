@@ -19,14 +19,10 @@
 
 package com.here.xyz.hub.config;
 
-import com.fasterxml.jackson.databind.MapperFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.config.tmp.MigratingSpaceConfigClient;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.admin.AdminMessage;
-import com.here.xyz.models.hub.Space.WithConnectors;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -48,12 +44,6 @@ import org.apache.logging.log4j.Marker;
 public abstract class SpaceConfigClient implements Initializable {
 
   private static final Logger logger = LogManager.getLogger();
-  private static ThreadLocal<ObjectMapper> SPACE_CONFIG_MAPPER = ThreadLocal.withInitial(() -> {
-    ObjectMapper mapper = XyzSerializable.DEFAULT_MAPPER.get().copy();
-    return mapper
-        .disable(MapperFeature.DEFAULT_VIEW_INCLUSION)
-        .setConfig(mapper.getSerializationConfig().withView(WithConnectors.class));
-  });
 
   public static final ExpiringMap<String, Space> cache = ExpiringMap.builder()
       .expirationPolicy(ExpirationPolicy.CREATED)
@@ -177,14 +167,6 @@ public abstract class SpaceConfigClient implements Initializable {
   public void invalidateCache(String spaceId) {
     cache.remove(spaceId);
     new InvalidateSpaceCacheMessage().withId(spaceId).broadcast();
-  }
-
-  protected static final ObjectMapper defaultMapper() {
-    return XyzSerializable.DEFAULT_MAPPER.get();
-  }
-
-  protected static final ObjectMapper defaultConverter() {
-    return SPACE_CONFIG_MAPPER.get();
   }
 
   public static class SpaceAuthorizationCondition {

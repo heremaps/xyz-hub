@@ -27,6 +27,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.here.xyz.models.hub.Space.Static;
 import com.here.xyz.responses.ErrorResponse;
 import java.io.InputStream;
 import java.util.List;
@@ -39,6 +40,8 @@ public interface XyzSerializable {
   ThreadLocal<ObjectMapper> DEFAULT_MAPPER = ThreadLocal.withInitial(() -> new ObjectMapper().setSerializationInclusion(Include.NON_NULL));
   ThreadLocal<ObjectMapper> SORTED_MAPPER = ThreadLocal.withInitial(() ->
       new ObjectMapper().configure(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY, true).setSerializationInclusion(Include.NON_NULL));
+  ThreadLocal<ObjectMapper> STATIC_MAPPER = ThreadLocal.withInitial(() -> new ObjectMapper().setConfig(
+      DEFAULT_MAPPER.get().getSerializationConfig().withView(Static.class)));
 
   @SuppressWarnings("unused")
   static <T extends Typed> String serialize(T object) {
