@@ -27,10 +27,13 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
 public class MockedRemoteFunctionClient extends RemoteFunctionClient {
 
+    private static final Logger logger = LogManager.getLogger();
     ScheduledThreadPoolExecutor threadPool;
     private long minExecutionTime = 0; //ms
     private long maxExecutionTime = 30_000; //ms
@@ -68,7 +71,7 @@ public class MockedRemoteFunctionClient extends RemoteFunctionClient {
                 }
                 endTime = System.currentTimeMillis();
                 long eT = this.endTime - this.startTime;
-                System.out.println("Request " + requestId + " was executed with desired executionTime: " + executionTime + "ms and actual eT: " + eT + "ms; relEndTime: " + (endTime - testStart));
+                logger.info("Request " + requestId + " was executed with desired executionTime: " + executionTime + "ms and actual eT: " + eT + "ms; relEndTime: " + (endTime - testStart));
                 callback.handle(Future.succeededFuture());
             }
         };

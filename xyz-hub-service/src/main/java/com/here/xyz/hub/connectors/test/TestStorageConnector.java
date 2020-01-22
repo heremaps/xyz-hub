@@ -61,10 +61,6 @@ public class TestStorageConnector extends StorageConnector {
           .withCreatedAt(System.currentTimeMillis())
           .withUpdatedAt(System.currentTimeMillis())));
 
-  public static void main(String[] args) {
-    System.out.println(sampleKBFeature.serialize().getBytes().length);
-  }
-
   @Override
   protected XyzResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception {
     if (RANDOM_FEATURE_SPACE.equals(event.getSpace())) {
