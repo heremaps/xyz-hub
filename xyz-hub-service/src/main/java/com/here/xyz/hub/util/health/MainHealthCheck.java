@@ -24,6 +24,7 @@ import static com.here.xyz.hub.util.health.schema.Status.Result.OK;
 import static com.here.xyz.hub.util.health.schema.Status.Result.UNKNOWN;
 import static com.here.xyz.hub.util.health.schema.Status.Result.WARNING;
 
+import com.here.xyz.hub.Service;
 import com.here.xyz.hub.util.health.checks.ExecutableCheck;
 import com.here.xyz.hub.util.health.checks.FunctionCheck;
 import com.here.xyz.hub.util.health.checks.ServiceHealthCheck;
@@ -95,7 +96,7 @@ public class MainHealthCheck extends ExecutableCheck {
             + Config.getEnvName(BOOT_GRACE_TIME) + "! Otherwise this could lead to blocking health check "
             + "requests which might disturb dependent systems.");
       }
-      graceUntil = System.currentTimeMillis() + remainingGraceTime;
+      graceUntil = Service.currentTimeMillis() + remainingGraceTime;
     }
 
     Response r = new Response();
@@ -111,7 +112,7 @@ public class MainHealthCheck extends ExecutableCheck {
   }
 
   private boolean isGraceTimeElapsed() {
-    return System.currentTimeMillis() > graceUntil;
+    return Service.currentTimeMillis() > graceUntil;
   }
 
   /**

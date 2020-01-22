@@ -244,7 +244,7 @@ public abstract class QueueingRemoteFunctionClient extends RemoteFunctionClient 
   private void enqueue(final Marker marker, byte[] bytes, final Handler<AsyncResult<byte[]>> callback) {
     FunctionCall fc = new FunctionCall(marker, bytes, callback);
 
-    /*if (System.currentTimeMillis() > lastSizeAdjustment.get() + SIZE_ADJUSTMENT_INTERVAL
+    /*if (Service.currentTimeMillis() > lastSizeAdjustment.get() + SIZE_ADJUSTMENT_INTERVAL
         && fc.getByteSize() + queue.getByteSize() > queue.getMaxByteSize()) {
       //Element won't fit into queue so we try to enlarge it
       adjustQueueByteSizes();

@@ -44,7 +44,7 @@ public class RFCMeasurement {
     @Before
     public void setup() {
         Connector s = new Connector();
-        TEST_START = System.currentTimeMillis();
+        TEST_START = Service.currentTimeMillis();
         MockedRemoteFunctionClient.MockedRequest.testStart = TEST_START;
         s.id = "testStorage";
         s.connectionSettings = new Connector.ConnectionSettings();
@@ -69,12 +69,12 @@ public class RFCMeasurement {
                                int expectedThroughput) throws InterruptedException {
         ScheduledFuture<?> f = requesterPool.scheduleAtFixedRate(() -> {
             for (int i = 0; i < concurrency; i++) {
-                long now = System.currentTimeMillis();
+                long now = Service.currentTimeMillis();
                 System.out.println("Submitted at: " + (now - TEST_START));
                 rfc.submit(null, null, r -> {
                     //Nothing to do
                 });
-                System.out.println("Submit took: " + (System.currentTimeMillis() - now));
+                System.out.println("Submit took: " + (Service.currentTimeMillis() - now));
             }
         }, offset, interval, TimeUnit.MILLISECONDS);
 

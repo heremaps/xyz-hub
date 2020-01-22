@@ -384,7 +384,7 @@ public class SpaceTaskHandler {
       final Entry<JsonObject, Space, Space> entry = task.modifyOp.entries.get(0);
 
       //The current UTC timestamp
-      entry.result.setUpdatedAt(System.currentTimeMillis());
+      entry.result.setUpdatedAt(Service.currentTimeMillis());
 
       //The same timestamp goes to createdAt when it's a create task
       if (task.isCreate()) {
