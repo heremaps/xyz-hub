@@ -95,8 +95,7 @@ public class MigratingSpaceConfigClient extends SpaceConfigClient {
           } else {
             Space space = oldAr.result();
             if (space != null) {
-              moveSpace(marker, space, migrationResult -> {
-              });
+              moveSpace(marker, space, migrationResult -> {});
             }
             handler.handle(oldAr);
           }
@@ -145,12 +144,19 @@ public class MigratingSpaceConfigClient extends SpaceConfigClient {
   }
 
   private void moveSpace(Marker marker, Space space, Handler<AsyncResult<Space>> handler) {
+    if (space == null) {
+      return;
+    }
+
+    logger.info(marker, "Moving Space ID: {}", space.getId());
     newSpaceClient.store(marker, space, storeResult -> {
+      logger.info(marker, "Store space with ID: {} during migration has finished", space.getId());
       if (storeResult.failed()) {
         logger.error(marker, "Error when trying to store space while migrating it. Space ID: " + space.getId(), storeResult.cause());
         return;
       }
       oldSpaceClient.delete(marker, space.getId(), deletionResult -> {
+        logger.info(marker, "Delete space with ID: {} during migration has finished", space.getId());
         if (deletionResult.failed()) {
           logger.error(marker, "Error when trying to delete old space while migrating it. Space ID: " + space.getId(),
               deletionResult.cause());
