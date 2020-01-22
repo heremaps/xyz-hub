@@ -176,9 +176,9 @@ public class FeatureTaskHandler {
 
       // update the contentUpdatedAt timestamp to indicate that the data in this space was modified
       if (task instanceof FeatureTask.ConditionalOperation || task instanceof FeatureTask.DeleteOperation) {
-        long now = System.currentTimeMillis();
+        long now = Service.currentTimeMillis();
         if (now - task.space.contentUpdatedAt > Space.CONTENT_UPDATED_AT_INTERVAL_MILLIS) {
-          task.space.contentUpdatedAt = System.currentTimeMillis();
+          task.space.contentUpdatedAt = Service.currentTimeMillis();
           task.space.volatilityAtLastContentUpdate = task.space.getVolatility();
           Service.spaceConfigClient.store(task.getMarker(), task.space,
               (ar) -> logger.info(task.getMarker(), "Updated contentUpdatedAt for space {}", task.getEvent().getSpace()));

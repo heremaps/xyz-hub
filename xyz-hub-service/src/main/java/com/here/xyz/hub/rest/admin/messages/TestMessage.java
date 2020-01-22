@@ -58,7 +58,7 @@ public class TestMessage extends RelayedMessage {
   private String generateFileContent() throws JsonProcessingException {
     Map<String, Object> fileContent = new HashMap<>();
     fileContent.put("content", content);
-    fileContent.put("receivedAt", System.currentTimeMillis());
+    fileContent.put("receivedAt", Service.currentTimeMillis());
     fileContent.put("receiver", Node.OWN_INSTANCE);
     fileContent.put("nodeCount", Service.configuration.INSTANCE_COUNT);
     fileContent.put("receiverRelayed", relay);

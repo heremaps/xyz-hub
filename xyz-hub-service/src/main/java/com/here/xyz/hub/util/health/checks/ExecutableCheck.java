@@ -23,6 +23,7 @@ import static com.here.xyz.hub.util.health.Config.Setting.CHECK_DEFAULT_TIMEOUT;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.here.xyz.hub.Service;
 import com.here.xyz.hub.util.health.Config;
 import com.here.xyz.hub.util.health.MainHealthCheck;
 import com.here.xyz.hub.util.health.schema.Check;
@@ -79,11 +80,11 @@ public abstract class ExecutableCheck extends Check implements Runnable {
 	
 	public void run() {
 		try {
-			final long t1 = System.currentTimeMillis();
+			final long t1 = Service.currentTimeMillis();
 			try {
 				executorService.submit(() -> {
 					Status s = execute();
-					final long t2 = System.currentTimeMillis();
+					final long t2 = Service.currentTimeMillis();
 					s.setCheckDuration(t2 - t1);
 					s.setTimestamp(t2);
 					setStatus(s);
@@ -92,7 +93,7 @@ public abstract class ExecutableCheck extends Check implements Runnable {
 			catch (TimeoutException e) {
 				Status s = new Status();
 				s.setResult(Result.TIMEOUT);
-				final long t2 = System.currentTimeMillis();
+				final long t2 = Service.currentTimeMillis();
 				s.setCheckDuration(t2 - t1);
 				s.setTimestamp(t2);
 				setStatus(s);

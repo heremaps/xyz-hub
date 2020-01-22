@@ -52,16 +52,18 @@ import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.apache.logging.log4j.core.util.CachedClock;
 import org.apache.logging.log4j.core.util.NetUtils;
 
 public class Service {
 
   private static final Logger logger = LogManager.getLogger();
+  private static final CachedClock clock = CachedClock.instance();
 
   /**
    * The service start time.
    */
-  public static final long START_TIME = System.currentTimeMillis();
+  public static final long START_TIME = Service.currentTimeMillis();
 
   /**
    * The build version.
@@ -253,6 +255,10 @@ public class Service {
     }
   }
 
+  public static long currentTimeMillis() {
+    return clock.currentTimeMillis();
+  }
+
   /**
    * The service configuration.
    */
@@ -275,7 +281,7 @@ public class Service {
     public int INSTANCE_COUNT;
 
     /**
-     *  The S3 Bucket, which connectors with transfer limitations, could use to relocate responses.
+     * The S3 Bucket, which connectors with transfer limitations, could use to relocate responses.
      */
     public String XYZ_HUB_S3_BUCKET;
 

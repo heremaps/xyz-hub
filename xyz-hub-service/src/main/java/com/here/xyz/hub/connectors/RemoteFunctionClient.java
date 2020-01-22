@@ -46,10 +46,10 @@ public abstract class RemoteFunctionClient {
   protected RemoteFunctionConfig remoteFunction;
 
   private LongAdder requestsSinceLastArrivaleRateMeasurement = new LongAdder();
-  private AtomicLong lastArrivalRateMeasurement = new AtomicLong(System.currentTimeMillis());
+  private AtomicLong lastArrivalRateMeasurement = new AtomicLong(Service.currentTimeMillis());
 
   private LongAdder responsesSinceLastThroughputMeasurement = new LongAdder();
-  private AtomicLong lastThroughputMeasurement = new AtomicLong(System.currentTimeMillis());
+  private AtomicLong lastThroughputMeasurement = new AtomicLong(Service.currentTimeMillis());
 
   /**
    * The number of requests per second currently being executed by this RemoteFunctionClient.
@@ -126,7 +126,7 @@ public abstract class RemoteFunctionClient {
    * return value is -1.
    */
   protected final double measureDimension(LongAdder eventCount, AtomicLong lastMeasurementTime) {
-    long now = System.currentTimeMillis();
+    long now = Service.currentTimeMillis();
     long last = lastMeasurementTime.get();
     if (now - last > MEASUREMENT_INTERVAL) {
       //Only if this thread was the one setting the new measurement timestamp it may be the one resetting the event counter

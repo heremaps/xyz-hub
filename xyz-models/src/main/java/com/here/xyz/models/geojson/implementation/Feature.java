@@ -60,23 +60,11 @@ public class Feature extends Extensible<Feature> implements Typed {
    *
    * @param feature the feature for which to update the {@link XyzNamespace} map.
    * @param space the full qualified space identifier in which this feature is stored (so prefix and base part combined, e.g. "x-foo").
-   * @throws NullPointerException if feature, space or the 'id' of the feature are null.
-   */
-  @SuppressWarnings("unused")
-  public static void finalizeFeature(final Feature feature, final String space) throws NullPointerException {
-    finalizeFeature(feature, space, true);
-  }
-
-  /**
-   * Updates the {@link XyzNamespace} properties in a feature so that all values are valid.
-   *
-   * @param feature the feature for which to update the {@link XyzNamespace} map.
-   * @param space the full qualified space identifier in which this feature is stored (so prefix and base part combined, e.g. "x-foo").
    * @param addUUID If the uuid to be added or not.
    * @throws NullPointerException if feature, space or the 'id' of the feature are null.
    */
   @SuppressWarnings("WeakerAccess")
-  public static void finalizeFeature(final Feature feature, final String space, boolean addUUID) throws NullPointerException {
+  public static void finalizeFeature(final Feature feature, final String space, final long timestamp, boolean addUUID) throws NullPointerException {
     if (feature == null) {
       throw new NullPointerException("feature");
     }
@@ -96,7 +84,6 @@ public class Feature extends Extensible<Feature> implements Typed {
     final XyzNamespace nsXyz = props.getXyzNamespace();
     nsXyz.setSpace(space);
 
-    final long now = System.currentTimeMillis();
     final List<String> tags = nsXyz.getTags();
 
     if (tags != null) {
@@ -105,9 +92,9 @@ public class Feature extends Extensible<Feature> implements Typed {
       nsXyz.setTags(new ArrayList<>());
     }
     if (nsXyz.getCreatedAt() == 0) {
-      nsXyz.setCreatedAt(now);
+      nsXyz.setCreatedAt(timestamp);
     }
-    nsXyz.setUpdatedAt(now);
+    nsXyz.setUpdatedAt(timestamp);
     if (addUUID) {
       String puuid = nsXyz.getUuid();
       if (puuid != null) {
