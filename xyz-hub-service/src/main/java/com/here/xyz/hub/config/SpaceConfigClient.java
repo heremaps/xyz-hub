@@ -69,7 +69,7 @@ public abstract class SpaceConfigClient implements Initializable {
   public void get(Marker marker, String spaceId, Handler<AsyncResult<Space>> handler) {
     Space cached = cache.get(spaceId);
     if (cached != null) {
-      logger.info(marker, "space[{}}]: Loaded space from cache: {}", spaceId, Json.encode(cached));
+      logger.info(marker, "space[{}]: Loaded space with title \"{}\" from cache", spaceId, cached.getTitle());
       handler.handle(Future.succeededFuture(cached));
       return;
     }
@@ -90,9 +90,9 @@ public abstract class SpaceConfigClient implements Initializable {
         Space space = ar.result();
         if (space != null) {
           cache.put(spaceId, space);
-          logger.info(marker, "space[{}}]: Loaded space: {} {}", spaceId, Json.encode(space), ar.cause());
+          logger.info(marker, "space[{}]: Loaded space with title: \"{}\"", spaceId, space.getTitle());
         } else {
-          logger.info(marker, "space[{}}]: Space with this ID was not found {}", spaceId, ar.cause());
+          logger.info(marker, "space[{}]: Space with this ID was not found", spaceId);
         }
         cache.put(spaceId, space);
         handlersToCall.forEach(h -> h.handle(Future.succeededFuture(ar.result())));
@@ -111,10 +111,10 @@ public abstract class SpaceConfigClient implements Initializable {
     storeSpace(marker, space, ar -> {
       if (ar.succeeded()) {
         invalidateCache(space.getId());
-        logger.info(marker, "space[{}}]: Stored space: {}", space.getId(), Json.encode(space), ar.cause());
+        logger.info(marker, "space[{}]: Stored successfully with title: \"{}\"", space.getId(), space.getTitle());
         handler.handle(Future.succeededFuture(ar.result()));
       } else {
-        logger.info(marker, "space[{}}]: Failed storing the space", space.getId(), ar.cause());
+        logger.info(marker, "space[{}]: Failed storing the space", space.getId(), ar.cause());
         handler.handle(Future.failedFuture(ar.cause()));
       }
     });
@@ -124,10 +124,10 @@ public abstract class SpaceConfigClient implements Initializable {
     deleteSpace(marker, spaceId, ar -> {
       if (ar.succeeded()) {
         invalidateCache(spaceId);
-        logger.info(marker, "space[{}}]: Deleted space", spaceId, ar.cause());
+        logger.info(marker, "space[{}]: Deleted space", spaceId);
         handler.handle(Future.succeededFuture(ar.result()));
       } else {
-        logger.info(marker, "space[{}}]: Failed storing the space", spaceId, ar.cause());
+        logger.info(marker, "space[{}]: Failed deleting the space", spaceId, ar.cause());
         handler.handle(Future.failedFuture(ar.cause()));
       }
     });
@@ -139,7 +139,7 @@ public abstract class SpaceConfigClient implements Initializable {
       if (ar.succeeded()) {
         List<Space> spaces = ar.result();
         spaces.forEach(s -> cache.put(s.getId(), s));
-        logger.info(marker, "Loaded spaces by condition", ar.cause());
+        logger.info(marker, "Loaded spaces by condition");
         handler.handle(Future.succeededFuture(ar.result()));
       } else {
         logger.info(marker, "Failed to load spaces by condition", ar.cause());
