@@ -19,15 +19,12 @@
 
 package com.here.xyz.hub.util.geo;
 
-import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.LineString;
 import com.vividsolutions.jts.geom.LinearRing;
 import com.vividsolutions.jts.geom.MultiPolygon;
 import com.vividsolutions.jts.geom.Point;
 import com.vividsolutions.jts.geom.Polygon;
-import com.vividsolutions.jts.geom.PrecisionModel;
 import com.vividsolutions.jts.operation.polygonize.Polygonizer;
 import java.util.Collection;
 import java.util.Iterator;
@@ -46,43 +43,9 @@ import org.opengis.referencing.operation.MathTransform;
 public class GeoTools {
 
   /**
-   * The WGS'84 coordinate reference system.
+   * The factory is used to guarantee that the coordinate order is x, y (so longitude/latitude) and not in an unknown state.
    */
-  public static final String WGS84_EPSG = "EPSG:4326";
-  /**
-   * The Google Mercator coordinate reference system, which basically uses meters from -20037508.342789244 to + 20037508.342789244.
-   */
-  public static final String WEB_MERCATOR_EPSG = "EPSG:3857";
-  /**
-   * Equal-Area Scalable Earth Grid coordinate reference system.
-   *
-   * @see <a href="http://nsidc.org/data/ease/ease_grid.html">http://nsidc.org/data/ease/ease_grid.html</a>
-   */
-  public static final String EASE_GRID_EPSG = "EPSG:3410";
-  /**
-   * Difference to the min and max latitude.
-   */
-  protected static final double WEB_EPSILON = 0.0001d;
-  /**
-   * The minimal latitude value to be allowed for mathematical operations to succeed.
-   */
-  protected static final double WEB_MIN_LATITUDE = -90d + WEB_EPSILON;
-  /**
-   * The maximal latitude value to be allowed for mathematical operations to succeed.
-   */
-  protected static final double WEB_MAX_LATITUDE = +90d - WEB_EPSILON;
-  /**
-   * The minimal longitude to be allowed for mathematical operations to succeed.
-   */
-  protected static final double WEB_MIN_LONGITUDE = -180d;
-  /**
-   * The maximal longitude to be allowed for mathematical operations to succeed.
-   */
-  protected static final double WEB_MAX_LONGITUDE = +180d;
-  /**
-   * We use this factory to guarantee that the coordinate order is x, y (so longitude/latitude) and not in an unknown state.
-   */
-  private static final CRSAuthorityFactory factory = CRS.getAuthorityFactory(true); // first parameter is "longitudeFirst"
+  private static final CRSAuthorityFactory factory = CRS.getAuthorityFactory(true);
   private static final ConcurrentHashMap<String, CoordinateReferenceSystem> crsCache = new ConcurrentHashMap<>();
   private static final ConcurrentHashMap<String, MathTransform> transformCache = new ConcurrentHashMap<>();
 
@@ -95,7 +58,7 @@ public class GeoTools {
    * @throws NoSuchAuthorityCodeException if the given EPSG identifier is unknown.
    * @throws FactoryException if the requested coordinate reference system can't be created.
    */
-  public static final CoordinateReferenceSystem crs(final String crsId)
+  public static CoordinateReferenceSystem crs(final String crsId)
       throws NullPointerException, NoSuchAuthorityCodeException, FactoryException {
     if (crsId == null) {
       throw new NullPointerException("crsId");
@@ -121,7 +84,7 @@ public class GeoTools {
    * @throws NoSuchAuthorityCodeException if any of the given EPSG identifier is unknown.
    * @throws FactoryException if the requested coordinate reference system can't be created or the transformation or the coordinate failed.
    */
-  public static final MathTransform mathTransform(final String fromCrsId, final String toCrsId)
+  public static MathTransform mathTransform(final String fromCrsId, final String toCrsId)
       throws NullPointerException, NoSuchAuthorityCodeException, FactoryException {
     if (fromCrsId == null) {
       throw new NullPointerException("fromCrsId");
@@ -143,39 +106,6 @@ public class GeoTools {
     return newTransform;
   }
 
-  public static void main(String[] args) throws Exception {
-    final PrecisionModel precisionModel = new PrecisionModel(PrecisionModel.FLOATING);
-    final GeometryFactory geometryFactory = new GeometryFactory(precisionModel);
-
-    final Point topLeft = geometryFactory.createPoint(new Coordinate(WEB_MIN_LONGITUDE, WEB_MIN_LATITUDE));
-    final Point lowerRight = geometryFactory.createPoint(new Coordinate(WEB_MAX_LATITUDE, WEB_MAX_LATITUDE));
-
-    System.out.println("PIXEL:");
-    System.out.println(crs(WEB_MERCATOR_EPSG).getCoordinateSystem().getAxis(0).getMinimumValue() + " -> "
-        + crs(WEB_MERCATOR_EPSG).getCoordinateSystem().getAxis(0).getMaximumValue());
-    System.out.println(crs(WEB_MERCATOR_EPSG).getCoordinateSystem().getAxis(1).getMinimumValue() + " -> "
-        + crs(WEB_MERCATOR_EPSG).getCoordinateSystem().getAxis(1).getMaximumValue());
-
-    System.out.println("WGS84:");
-    System.out.println(crs(WGS84_EPSG).getCoordinateSystem().getAxis(0).getMinimumValue() + " -> "
-        + crs(WGS84_EPSG).getCoordinateSystem().getAxis(0).getMaximumValue());
-    System.out.println(crs(WGS84_EPSG).getCoordinateSystem().getAxis(1).getMinimumValue() + " -> "
-        + crs(WGS84_EPSG).getCoordinateSystem().getAxis(1).getMaximumValue());
-
-    System.out.println("EASE-GRID:");
-    System.out.println(crs(EASE_GRID_EPSG).getCoordinateSystem().getAxis(0).getMinimumValue() + " -> "
-        + crs(EASE_GRID_EPSG).getCoordinateSystem().getAxis(0).getMaximumValue());
-    System.out.println(crs(EASE_GRID_EPSG).getCoordinateSystem().getAxis(1).getMinimumValue() + " -> "
-        + crs(EASE_GRID_EPSG).getCoordinateSystem().getAxis(1).getMaximumValue());
-
-    // String to = EASE_GRID_EPSG;
-    String to = WEB_MERCATOR_EPSG;
-    Point pixel = (Point) JTS.transform(topLeft, mathTransform(WGS84_EPSG, to));
-    System.out.println(((long) pixel.getX()) + ", " + ((long) pixel.getY()));
-    pixel = (Point) JTS.transform(lowerRight, mathTransform(WGS84_EPSG, to));
-    System.out.println(((long) pixel.getX()) + ", " + ((long) pixel.getY()));
-  }
-
   /**
    * Get / create a valid version of the geometry given. If the geometry is a polygon or multi polygon, self intersections / inconsistencies
    * are fixed. Otherwise the geometry is returned.
@@ -190,7 +120,8 @@ public class GeoTools {
       }
       Polygonizer polygonizer = new Polygonizer();
       addPolygon((Polygon) geom, polygonizer);
-      return toPolygonGeometry(polygonizer.getPolygons(), geom.getFactory());
+      //noinspection unchecked
+      return toPolygonGeometry(polygonizer.getPolygons());
     } else if (geom instanceof MultiPolygon) {
       if (geom.isValid()) {
         geom.normalize(); // validate does not pick up rings in the wrong order - this will fix that
@@ -200,7 +131,8 @@ public class GeoTools {
       for (int n = geom.getNumGeometries(); n-- > 0; ) {
         addPolygon((Polygon) geom.getGeometryN(n), polygonizer);
       }
-      return toPolygonGeometry(polygonizer.getPolygons(), geom.getFactory());
+      //noinspection unchecked
+      return toPolygonGeometry(polygonizer.getPolygons());
     } else {
       return geom; // In my case, I only care about polygon / multipolygon geometries
     }
@@ -243,10 +175,9 @@ public class GeoTools {
    * Get a geometry from a collection of polygons.
    *
    * @param polygons collection
-   * @param factory factory to generate MultiPolygon if required
    * @return null if there were no polygons, the polygon if there was only one, or a MultiPolygon containing all polygons otherwise
    */
-  static Geometry toPolygonGeometry(Collection<Polygon> polygons, GeometryFactory factory) {
+  static Geometry toPolygonGeometry(Collection<Polygon> polygons) {
     switch (polygons.size()) {
       case 0:
         return null; // No valid polygons!
