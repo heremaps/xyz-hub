@@ -71,12 +71,14 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       try {
         dynamoClient.createTable(spaces.getTableName(), "id:S,owner:S,shared:N", "id", "owner,shared", "exp");
         dynamoClient.createTable(packages.getTableName(), "packageName:S,spaceId:S", "packageName,spaceId", null, null);
-        onReady.handle(Future.succeededFuture());
       } catch (AmazonDynamoDBException e) {
         logger.error("Failure during creating tables on DynamoSpaceConfigClient init", e);
         onReady.handle(Future.failedFuture(e));
+        return;
       }
     }
+
+    onReady.handle(Future.succeededFuture());
   }
 
   @Override
