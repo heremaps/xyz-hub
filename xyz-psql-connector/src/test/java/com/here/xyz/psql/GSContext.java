@@ -26,7 +26,6 @@ import java.util.Map;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import sun.rmi.runtime.Log;
 
 public class GSContext extends SimulatedContext implements LambdaLogger {
 
