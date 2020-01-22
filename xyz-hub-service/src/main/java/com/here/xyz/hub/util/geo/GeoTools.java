@@ -43,6 +43,15 @@ import org.opengis.referencing.operation.MathTransform;
 public class GeoTools {
 
   /**
+   * The WGS'84 coordinate reference system.
+   */
+  public static final String WGS84_EPSG = "EPSG:4326";
+  /**
+   * The Google Mercator coordinate reference system, which basically uses meters from -20037508.342789244 to + 20037508.342789244.
+   */
+  public static final String WEB_MERCATOR_EPSG = "EPSG:3857";
+
+  /**
    * The factory is used to guarantee that the coordinate order is x, y (so longitude/latitude) and not in an unknown state.
    */
   private static final CRSAuthorityFactory factory = CRS.getAuthorityFactory(true);
