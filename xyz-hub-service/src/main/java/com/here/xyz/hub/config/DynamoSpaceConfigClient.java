@@ -113,8 +113,11 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
   public void storeSpace(Marker marker, Space space, Handler<AsyncResult<Space>> handler) {
     try {
       logger.info(marker, "Storing space with ID: {}", space.getId());
-      Map<String, Object> itemData = XyzSerializable.STATIC_MAPPER.get().convertValue(space, new TypeReference<Map<String, Object>>() {});
-      itemData.put("shared", space.isShared() ? 1 : 0);
+
+      final Map<String, Object> itemData = XyzSerializable.STATIC_MAPPER.get().convertValue(space, new TypeReference<Map<String, Object>>() {});
+      itemData.put("shared", space.isShared() ? 1 : 0); // shared value must be a number because it's also used as index
+
+      sanitize(itemData);
       spaces.putItem(Item.fromMap(itemData));
 
       deleteSpaceFromPackage(marker, space);
@@ -342,5 +345,33 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
    */
   private void processOutcome(BatchGetItemOutcome outcome, List<Space> result) {
     outcome.getTableItems().get(dynamoClient.tableName).forEach(i -> result.add(Json.decodeValue(i.toJSON(), Space.class)));
+  }
+
+  /**
+   * Deep search removing values which contains empty string.
+   * @param obj a Map or a List to suffer the transformation
+   * @return the size of the resulting map or list after sanitization
+   */
+  private static int sanitize(Object obj) {
+    if (!(obj instanceof Map || obj instanceof List)) return -1;
+
+    final Collection values = obj instanceof Map ? ((Map) obj).values() : (List) obj;
+    final Iterator i = values.iterator();
+    int size = values.size();
+
+    while (i.hasNext()) {
+      Object value = i.next();
+      if ("".equals(value)) {
+        i.remove();
+        size--;
+      } else if (value instanceof List || value instanceof Map) {
+        if (sanitize(value) == 0) {
+          i.remove();
+          size--;
+        }
+      }
+    }
+
+    return size;
   }
 }
