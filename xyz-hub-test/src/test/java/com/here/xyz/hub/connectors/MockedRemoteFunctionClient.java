@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.connectors;
 
+import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -27,10 +28,13 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
 public class MockedRemoteFunctionClient extends RemoteFunctionClient {
 
+    private static final Logger logger = LogManager.getLogger();
     ScheduledThreadPoolExecutor threadPool;
     private long minExecutionTime = 0; //ms
     private long maxExecutionTime = 30_000; //ms
@@ -66,9 +70,9 @@ public class MockedRemoteFunctionClient extends RemoteFunctionClient {
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
-                endTime = System.currentTimeMillis();
+                endTime = Service.currentTimeMillis();
                 long eT = this.endTime - this.startTime;
-                System.out.println("Request " + requestId + " was executed with desired executionTime: " + executionTime + "ms and actual eT: " + eT + "ms; relEndTime: " + (endTime - testStart));
+                logger.info("Request " + requestId + " was executed with desired executionTime: " + executionTime + "ms and actual eT: " + eT + "ms; relEndTime: " + (endTime - testStart));
                 callback.handle(Future.succeededFuture());
             }
         };
@@ -80,7 +84,7 @@ public class MockedRemoteFunctionClient extends RemoteFunctionClient {
     public static abstract class MockedRequest implements Runnable {
         Handler<AsyncResult<byte[]>> callback;
         String requestId = UUID.randomUUID().toString();
-        long startTime = System.currentTimeMillis();
+        long startTime = Service.currentTimeMillis();
         long endTime;
         public static long testStart;
 

@@ -141,7 +141,6 @@ public class JsonMappingTest {
     assertEquals(1, p.getParams().get("not_the_real_order"));
     assertNull(p.getId());
 
-    //System.out.println(mapper.writeValueAsString(space));
   }
 
   @Test
@@ -172,7 +171,6 @@ public class JsonMappingTest {
     p = space.getListeners().get("schema-validator").get(0);
     assertEquals(Integer.valueOf(1), p.getOrder());
     assertEquals(1, p.getParams().get("not_the_real_order"));
-    //System.out.println(mapper.writeValueAsString(space));
   }
 
   @Test
@@ -227,7 +225,6 @@ public class JsonMappingTest {
     ObjectMapper mapper = new ObjectMapper().configure(SerializationFeature.INDENT_OUTPUT, true);
     JsonNode node = mapper.readValue(JsonMappingTest.class.getResourceAsStream("test/SpaceWithListenersAsMap.json"), JsonNode.class);
     Space space = mapper.convertValue(node, Space.class);
-    System.out.println(mapper.writeValueAsString(space));
   }
   @Test
   public void testSpaceWithNullListeners() throws Exception {
@@ -238,6 +235,5 @@ public class JsonMappingTest {
     assertTrue(space.getListeners().containsKey("schema-validator"));
     assertNull(space.getListeners().get("schema-validator"));
     assertNull(space.getProcessors());
-    //System.out.println(mapper.writeValueAsString(space));
   }
 }

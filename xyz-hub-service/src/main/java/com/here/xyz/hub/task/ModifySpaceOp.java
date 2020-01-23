@@ -22,7 +22,8 @@ package com.here.xyz.hub.task;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.util.diff.Difference;
@@ -32,6 +33,7 @@ import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class ModifySpaceOp extends ModifyOp<JsonObject, Space, Space> {
 
@@ -97,14 +99,12 @@ public class ModifySpaceOp extends ModifyOp<JsonObject, Space, Space> {
 
   @Override
   public boolean equalStates(Space state1, Space state2) {
-    if (state1 == null && state2 == null) {
+    if (Objects.equals(state1, state2)) {
       return true;
     }
-    if (state1 == null || state2 == null) {
-      return false;
-    }
 
-    Difference diff = Patcher.getDifference(Json.mapper.convertValue(state1, Map.class), Json.mapper.convertValue(state2, Map.class));
+    final ObjectMapper mapper = XyzSerializable.STATIC_MAPPER.get();
+    Difference diff = Patcher.getDifference(mapper.convertValue(state1, Map.class), mapper.convertValue(state2, Map.class));
     return diff == null;
   }
 }

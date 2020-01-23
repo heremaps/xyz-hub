@@ -57,7 +57,7 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
    * Indicates the last time the content of a space was updated.
    */
   @JsonInclude(Include.NON_DEFAULT)
-  @JsonView(Public.class)
+  @JsonView({Public.class, Static.class})
   public long contentUpdatedAt = 0;
 
   /**
@@ -90,7 +90,7 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
 
   @JsonView(Internal.class)
   public double getVolatility() {
-    long now = System.currentTimeMillis();
+    long now = Service.currentTimeMillis();
 
     // if the space existed for a shorter period of time, use this as a sliding window.
     long slidingWindow = Math.min(1 + now - getCreatedAt(), MAX_SLIDING_WINDOW);
@@ -172,7 +172,7 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
     }
 
     double volatility = getVolatility();
-    long timeSinceLastUpdate = System.currentTimeMillis() - getContentUpdatedAt();
+    long timeSinceLastUpdate = Service.currentTimeMillis() - getContentUpdatedAt();
 
     // 0 min to 2 min -> no cache
     if (timeSinceLastUpdate < 2 * CONTENT_UPDATED_AT_INTERVAL_MILLIS) {

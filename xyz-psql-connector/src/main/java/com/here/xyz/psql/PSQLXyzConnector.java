@@ -172,21 +172,22 @@ public class PSQLXyzConnector extends DatabaseHandler {
               .withErrorMessage("ModifyFeaturesEvent is not supported by this storage connector.");
     }
 
-    // Update the  features to insert
+    final long now = System.currentTimeMillis();
+    // Update the features to insert
     final List<Feature> inserts = event.getInsertFeatures();
     if (inserts != null) {
       for (Feature feature : inserts) {
         if (feature.getId() == null) {
           feature.setId(RandomStringUtils.randomAlphanumeric(16));
         }
-        Feature.finalizeFeature(feature, event.getSpace(), event.getEnableUUID() == Boolean.TRUE);
+        Feature.finalizeFeature(feature, event.getSpace(), now, event.getEnableUUID() == Boolean.TRUE);
       }
     }
 
     final List<Feature> updates = event.getUpdateFeatures();
     if (updates != null) {
       for (final Feature feature : updates) {
-        Feature.finalizeFeature(feature, event.getSpace(), event.getEnableUUID() == Boolean.TRUE);
+        Feature.finalizeFeature(feature, event.getSpace(), now, event.getEnableUUID() == Boolean.TRUE);
       }
     }
 

@@ -47,46 +47,46 @@ public class Space {
   /**
    * The unique identifier of the space.
    */
-  @JsonView(Public.class)
+  @JsonView({Public.class, Static.class})
   private String id;
 
   /**
    * A human readable title of the space.
    */
-  @JsonView(Public.class)
+  @JsonView({Public.class, Static.class})
   private String title;
 
   /**
    * A human readable description of the space and it's content.
    */
-  @JsonView(Public.class)
+  @JsonView({Public.class, Static.class})
   private String description;
 
   /**
    * If set to true, every authenticated user can read the features in the space.
    */
   @JsonInclude(Include.NON_DEFAULT)
-  @JsonView(Public.class)
+  @JsonView({Public.class, Static.class})
   private boolean shared = false;
 
   /**
    * Copyright information for the data in the space.
    */
   @JsonInclude(Include.NON_EMPTY)
-  @JsonView(Public.class)
+  @JsonView({Public.class, Static.class})
   private List<Copyright> copyright;
 
   /**
    * Information about the license bound to the data within the space. For valid keywords see {@link License}.
    */
   @JsonInclude(Include.NON_EMPTY)
-  @JsonView(Public.class)
+  @JsonView({Public.class, Static.class})
   private License license;
 
   /**
    * The storage connector configuration.
    */
-  @JsonView(WithConnectors.class)
+  @JsonView({WithConnectors.class, Static.class})
   private ConnectorRef storage;
 
   /**
@@ -94,7 +94,7 @@ public class Space {
    * any response.
    */
   @JsonInclude(Include.NON_NULL)
-  @JsonView(WithConnectors.class)
+  @JsonView({WithConnectors.class, Static.class})
   @JsonDeserialize(using = ConnectorDeserializer.class)
   private Map<String, List<ListenerConnectorRef>> listeners;
 
@@ -103,33 +103,34 @@ public class Space {
    * Hub waits for a response.
    */
   @JsonInclude(Include.NON_NULL)
-  @JsonView(WithConnectors.class)
+  @JsonView({WithConnectors.class, Static.class})
   @JsonDeserialize(using = ConnectorDeserializer.class)
   private Map<String, List<ListenerConnectorRef>> processors;
 
   /**
    * The identifier of the owner of this space, most likely the HERE account ID.
    */
-  @JsonView(Public.class)
+  @JsonView({Public.class, Static.class})
   private String owner;
 
   /**
    * The maximum amount of seconds of how long to hold objects of this Space in a cache.
    */
   @JsonInclude(Include.NON_DEFAULT)
+  @JsonView({Internal.class, Static.class})
   private int cacheTTL = -1;
 
   /**
    * An arbitrary client configuration with hints or settings for the client, for example rendering instructions.
    */
-  @JsonView(Public.class)
+  @JsonView({Public.class, Static.class})
   @JsonInclude(Include.NON_EMPTY)
   private Map<String, Object> client;
 
   /**
    * If true, every state of the feature, will be assigned a UUID value.
    */
-  @JsonView(Public.class)
+  @JsonView({Public.class, Static.class})
   @JsonInclude(Include.NON_DEFAULT)
   private boolean enableUUID = false;
 
@@ -137,50 +138,50 @@ public class Space {
    * List of packages that this space belongs to.
    */
   @JsonInclude(Include.NON_EMPTY)
-  @JsonView(Public.class)
+  @JsonView({Public.class, Static.class})
   private List<String> packages;
 
   /**
    * An additional identifier specifying a context of the owner.
    */
-  @JsonView(Public.class)
+  @JsonView({Public.class, Static.class})
   @JsonInclude(Include.NON_NULL)
   private String cid;
 
   /**
    * The list of tags to describe this Space.
    */
-  @JsonView(Public.class)
+  @JsonView({Public.class, Static.class})
   @JsonInclude(Include.NON_EMPTY)
   private List<String> tags;
 
   /**
    * The creation timestamp.
    */
-  @JsonView(Public.class)
+  @JsonView({Public.class, Static.class})
   private long createdAt = DEFAULT_TIMESTAMP;
 
   /**
    * The last update timestamp.
    */
-  @JsonView(Public.class)
+  @JsonView({Public.class, Static.class})
   private long updatedAt = DEFAULT_TIMESTAMP;
 
   /**
    * Indicates if the space is in a read-only mode.
    */
   @JsonInclude(Include.NON_DEFAULT)
-  @JsonView({Public.class})
+  @JsonView({Public.class, Static.class})
   private boolean readOnly = false;
 
   /**
-   * z A map defined by the user which tells which of the feature-properties to make searchable. The key is the name of the property and the
+   * A map defined by the user which tells which of the feature-properties to make searchable. The key is the name of the property and the
    * value is a boolean flag telling whether the property should be searchable or not. Also nested properties can be referenced by
    * specifying a path with dots (e.g. "my.prop"). Setting the value to {@code false} the property won't be made searchable at all. (even if
    * some auto-indexing algorithm would chose the property to be searchable)
    */
   @JsonInclude(Include.NON_EMPTY)
-  @JsonView(Public.class)
+  @JsonView({Public.class, Static.class})
   private Map<String, Boolean> searchableProperties;
 
   public String getId() {
@@ -454,6 +455,13 @@ public class Space {
   }
 
   public static class Internal extends WithConnectors {
+
+  }
+
+  /**
+   * Used for properties which are intended to be persisted.
+   */
+  public static class Static {
 
   }
 

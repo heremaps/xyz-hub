@@ -36,15 +36,11 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Logger;
 import org.junit.Test;
 
 public class LazyParsedFeatureCollectionTest {
 
-  private static long time(String prefix, long time) {
-    long currTime = System.currentTimeMillis();
-    System.out.println(prefix + ": " + (currTime - time));
-    return currTime;
-  }
 
   @Test
   public void testDeserializeWithPartialView() throws Exception {
@@ -139,10 +135,8 @@ public class LazyParsedFeatureCollectionTest {
 
   @Test
   public void testDeserializeWithSeveralObjects() {
-    long time = System.currentTimeMillis();
     try ( InputStream is = LazyParsedFeatureCollectionTest.class.getResourceAsStream("/com/here/xyz/test/one_feature.json")) {
       final String jsonFeature = inputStreamToString(is);
-      time = time("after convert inputStream into string", time);
 
       final int max = 10;
       List<Feature> features = new ArrayList<>();
@@ -153,26 +147,20 @@ public class LazyParsedFeatureCollectionTest {
         f.getProperties().put("from_loop", i);
         features.add(f);
       }
-      time = time("after creating 100k features", time);
 
       FeatureCollection fc = new FeatureCollection();
       fc.setFeatures(features);
       fc.calculateAndSetBBox(true);
-      time = time("after attach features to featureCollection and calculate bbox", time);
 
       String severalFeaturesIntoFeatureCollection = new ObjectMapper().writeValueAsString(fc);
-      time = time("after serialize from ObjectMapper", time);
 
       //noinspection UnusedAssignment
       FeatureCollection response = new ObjectMapper().readValue(severalFeaturesIntoFeatureCollection, FeatureCollection.class);
-      time = time("after deserialize from ObjectMapper", time);
 
       response = XyzSerializable.deserialize(severalFeaturesIntoFeatureCollection);
-      time = time("after deserialize with partial view (ignoring many properties)", time);
 
       //noinspection unused
       String responseSerialized = response.serialize();
-      time("after serialize with partial view (ignoring many properties)", time);
     } catch (Exception e) {
       e.printStackTrace();
       fail();

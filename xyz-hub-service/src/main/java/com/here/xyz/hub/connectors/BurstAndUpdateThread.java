@@ -134,11 +134,11 @@ public class BurstAndUpdateThread extends Thread {
     // Stay alive as long as the executor (our parent) is alive.
     while (true) {
       try {
-        final long start = System.currentTimeMillis();
+        final long start = Service.currentTimeMillis();
 
         Service.connectorConfigClient.getAll(null, this::onConnectorList);
 
-        final long end = System.currentTimeMillis();
+        final long end = Service.currentTimeMillis();
         final long runtime = end - start;
         if (runtime < WARM_UP_INTERVAL_MILLISECONDS) {
           Thread.sleep(WARM_UP_INTERVAL_MILLISECONDS - runtime);

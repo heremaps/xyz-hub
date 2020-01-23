@@ -168,7 +168,7 @@ public class PSQLXyzConnectorIT {
   public void testIterate() throws Exception {
     final String response = invokeLambdaFromFile("/events/IterateMySpace.json");
     final FeatureCollection features = XyzSerializable.deserialize(response);
-    System.out.println(features.serialize(true));
+    features.serialize(true);
   }
 
   /**
@@ -657,7 +657,6 @@ public class PSQLXyzConnectorIT {
         "    \"deleteFeatures\": {\"" + deleteId + "\":null}\n" +
         "}";
     String deleteResponse = invokeLambda(deleteRequest);
-    System.out.println(deleteResponse);
   }
 
   @Test
@@ -796,8 +795,6 @@ public class PSQLXyzConnectorIT {
       put("propertySearch", true);
     }});
     invokeLambda(health.serialize());
-
-    System.out.println("Test");
   }
 
   @Test
@@ -1116,7 +1113,6 @@ public class PSQLXyzConnectorIT {
 
     // =========== Validate that "geometry":null is serialized ==========
     String response = invokeLambdaFromFile("/events/GetFeaturesByIdEvent.json");
-    System.out.println(response);
     assertTrue(response.indexOf("\"geometry\":null") > 0);
   }
 

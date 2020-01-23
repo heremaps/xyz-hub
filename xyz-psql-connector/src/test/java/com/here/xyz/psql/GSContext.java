@@ -23,8 +23,14 @@ import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import com.here.xyz.connectors.SimulatedContext;
 import java.util.HashMap;
 import java.util.Map;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class GSContext extends SimulatedContext implements LambdaLogger {
+
+  private static final Logger logger = LogManager.getLogger();
+  private static final Level LOG_LEVEL = Level.INFO;
 
   @SuppressWarnings("serial")
   private static final Map<String, String> vars_local = new HashMap<String, String>() {{
@@ -47,6 +53,6 @@ public class GSContext extends SimulatedContext implements LambdaLogger {
 
   @Override
   public void log(String string) {
-    System.out.println(string);
+    logger.log(LOG_LEVEL, string);
   }
 }

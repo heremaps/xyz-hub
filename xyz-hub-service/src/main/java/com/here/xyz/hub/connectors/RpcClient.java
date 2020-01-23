@@ -200,7 +200,7 @@ public class RpcClient {
   private void parseResponse(Marker marker, final byte[] bytes, @SuppressWarnings("rawtypes") Handler<AsyncResult<XyzResponse>> callback) {
     String stringResponse = null;
     if (bytes != null) {
-      stringResponse = new String(bytes, StandardCharsets.UTF_8);
+      stringResponse = new String(bytes);
     }
     if (bytes == null || stringResponse.length() == 0) {
       logger.error(marker, "Received empty response, but expected a JSON response.", new NullPointerException());

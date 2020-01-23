@@ -2,6 +2,7 @@
 ---
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Build Status](https://travis-ci.com/heremaps/xyz-hub.svg?branch=master)](https://travis-ci.com/heremaps/xyz-hub)
 
 XYZ Hub is a RESTful web service for the access and management of geospatial data. 
 
@@ -178,6 +179,6 @@ Your contributions are always welcome! Please have a look at the [contribution g
 # License
 
 
-Copyright (C) 2017-2019 HERE Europe B.V.
+Copyright (C) 2017-2020 HERE Europe B.V.
 
 See the [LICENSE](./LICENSE) file in the root of this project for license details.

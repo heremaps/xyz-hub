@@ -71,7 +71,7 @@ public class HealthApi extends Api {
     //The main health check endpoint
     router.route(HttpMethod.GET, MAIN_HEALTCHECK_ENDPOINT).handler(HealthApi::onHealthStatus);
     router.route(HttpMethod.GET, "/hub").handler(HealthApi::onHealthStatus);
-    router.route(HttpMethod.GET, "/").handler(HealthApi::onHealthStatus); //TODO: Maybe better replace that one by a redirect to /hub/
+    router.route(HttpMethod.GET, "/").handler(HealthApi::onHealthStatus); // TODO: Maybe better replace that one by a redirect to /hub/
     //Legacy:
     router.route(HttpMethod.GET, "/hub/health-status").handler(HealthApi::onHealthStatus);
   }
@@ -86,14 +86,7 @@ public class HealthApi extends Api {
   }
 
   private static URI getPublicServiceEndpoint() {
-    try {
-      return new URI(Service.configuration.XYZ_HUB_PUBLIC_PROTOCOL, null,
-          Service.configuration.XYZ_HUB_PUBLIC_HOST, Service.configuration.XYZ_HUB_PUBLIC_PORT,
-          MAIN_HEALTCHECK_ENDPOINT, null, null);
-    } catch (URISyntaxException e) {
-      logger.error("Wrong format of public service endpoint URI: " + Service.configuration.XYZ_HUB_PUBLIC_HOST, e);
-      return null;
-    }
+    return URI.create(Service.configuration.XYZ_HUB_PUBLIC_ENDPOINT + MAIN_HEALTCHECK_ENDPOINT);
   }
 
   private static URI getNodeHealthCheckEndpoint() {

@@ -125,8 +125,6 @@ public class AbstractConnectorHandlerTest {
       }
     }
 
-//    System.out.println(stringBuilder.toString());
-
     FeatureCollection result = XyzSerializable.deserialize(stringBuilder.toString());
     assertNotNull(result);
   }
