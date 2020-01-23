@@ -38,8 +38,11 @@ import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.json.Json;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -235,13 +238,13 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
             .forEach(p -> p.forEach(i -> {
               authorizedSpaces.add(i.getString("id"));
             }));
-        logger.info(marker, "List of space IDs after addition of shared spaces: {}", authorizedSpaces);
+        logger.info(marker, "Number of space IDs after addition of shared spaces: {}", authorizedSpaces.size());
       }
 
       // filter out the ones not present in the selectedCondition (null or empty represents 'do not filter')
       if (!CollectionUtils.isNullOrEmpty(selectedCondition.spaceIds)) {
         authorizedSpaces.removeIf(i -> !selectedCondition.spaceIds.contains(i));
-        logger.info(marker, "List of space IDs after removal of the ones not selected by ID: {}", authorizedSpaces);
+        logger.info(marker, "Number of space IDs after removal of the ones not selected by ID: {}", authorizedSpaces.size());
       }
 
       // now filter all spaceIds with the ones being selected in the selectedCondition (by checking the space's ownership) (
@@ -253,25 +256,25 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
         // HINT: A ^ TRUE == !A (negateOwnerIds: keep or remove the spaces contained in the owner's spaces list)
         authorizedSpaces.removeIf(i -> !selectedCondition.negateOwnerIds ^ ownersSpaces.contains(i));
-        logger.info(marker, "List of space IDs after removal of the ones not selected by owner: {}", authorizedSpaces);
+        logger.info(marker, "Number of space IDs after removal of the ones not selected by owner: {}", authorizedSpaces.size());
       }
 
       // TODO selection per packages is not yet supported: selectedCondition.packages
 
-      logger.info(marker, "Final list of space IDs to be retrieved from DynamoDB: {}", authorizedSpaces);
+      logger.info(marker, "Final number of space IDs to be retrieved from DynamoDB: {}", authorizedSpaces.size());
       if (!authorizedSpaces.isEmpty()) {
-        final TableKeysAndAttributes keys = new TableKeysAndAttributes(dynamoClient.tableName);
+        int batches = (int) Math.ceil((double) authorizedSpaces.size()/100);
+        for (int i=0; i<batches; i++) {
+          final TableKeysAndAttributes keys = new TableKeysAndAttributes(dynamoClient.tableName);
+          authorizedSpaces.stream().skip(i*100).limit(100).forEach(id -> keys.addHashOnlyPrimaryKey("id", id));
 
-        for (final String spaceId : authorizedSpaces) {
-          keys.addHashOnlyPrimaryKey("id", spaceId);
-        }
-
-        BatchGetItemOutcome outcome = dynamoClient.db.batchGetItem(keys);
-        processOutcome(outcome, result);
-
-        while (!outcome.getUnprocessedKeys().isEmpty()) {
-          outcome = dynamoClient.db.batchGetItemUnprocessed(outcome.getUnprocessedKeys());
+          BatchGetItemOutcome outcome = dynamoClient.db.batchGetItem(keys);
           processOutcome(outcome, result);
+
+          while (!outcome.getUnprocessedKeys().isEmpty()) {
+            outcome = dynamoClient.db.batchGetItemUnprocessed(outcome.getUnprocessedKeys());
+            processOutcome(outcome, result);
+          }
         }
       }
 
@@ -284,15 +287,15 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
   }
 
   private Set<String> getAuthorizedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition) throws AmazonDynamoDBException {
-    final Set<String> authorizedSpaces = new HashSet<>();
+    final Set<String> authorizedSpaces = new LinkedHashSet<>();
 
-    logger.info(marker, "Getting authorized spaces by condition: {}", authorizedCondition);
+    logger.info(marker, "Getting authorized spaces by condition");
 
     try {
       // get the space ids which are authorized by the authorizedCondition
       if (authorizedCondition.spaceIds != null) {
         authorizedSpaces.addAll(authorizedCondition.spaceIds);
-        logger.info(marker, "List of space IDs after addition from authorized condition space IDs: {}", authorizedSpaces);
+        logger.info(marker, "Number of space IDs after addition from authorized condition space IDs: {}", authorizedSpaces.size());
       }
 
       // then get the owners which are authorized by the authorizedCondition
@@ -302,7 +305,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
               authorizedSpaces.add(i.getString("id"));
             }))
         );
-        logger.info(marker, "List of space IDs after addition from owners: {}", authorizedSpaces);
+        logger.info(marker, "Number of space IDs after addition from owners: {}", authorizedSpaces.size());
       }
 
       // then get the packages which are authorized by the authorizedCondition
@@ -312,7 +315,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
               authorizedSpaces.add(i.getString("spaceId"));
             }))
         );
-        logger.info(marker, "List of space IDs after addition from packages: {}", authorizedSpaces);
+        logger.info(marker, "Number of space IDs after addition from packages: {}", authorizedSpaces.size());
       }
 
       // then get the "empty" case, when no spaceIds or ownerIds os packages are provided, meaning select ALL spaces
@@ -327,7 +330,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       throw e;
     }
 
-    logger.info(marker, "Returning the list of authorized spaces: {}", authorizedSpaces);
+    logger.info(marker, "Returning the list of authorized spaces with size of: {}", authorizedSpaces.size());
     return authorizedSpaces;
   }
 
