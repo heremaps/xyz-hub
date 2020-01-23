@@ -34,6 +34,9 @@ import java.util.stream.Collectors;
 
 public class Capabilities {
 
+  /**
+   * Determines if PropertiesQuery can be executed. Check if required Indices are created.
+   */
   public static boolean canSearchFor(String space, PropertiesQuery query, PSQLXyzConnector connector) {
     if (query == null) {
       return true;
@@ -64,7 +67,6 @@ public class Capabilities {
           if (indices == null) {
             return true;
           }
-          // REMOVE TABLE IF <10.000 and idx_manual = {} or null
 
           if (indices.contains(key.substring("properties.".length()))) {
         	  /** Check if all properties are indexed */
@@ -84,9 +86,10 @@ public class Capabilities {
   }
 
   public static class IndexList {
-
+    /** Cache indexList for 3 Minutes  */
     static long CACHE_INTERVAL_MS = TimeUnit.MINUTES.toMillis(3);
 
+    /** Get list of indexed Values from a XYZ-Space */
     static List<String> getIndexList(String space, PSQLXyzConnector connector) throws SQLException {
       IndexList indexList = cachedIndices.get(space);
       if (indexList != null && indexList.expiry >= System.currentTimeMillis()) {
@@ -94,7 +97,8 @@ public class Capabilities {
       }
 
       indexList = connector.executeQuery(new SQLQuery("SELECT idx_available FROM xyz_config.xyz_idxs_status WHERE spaceid=?", space),
-          Capabilities::rsHandler);
+              Capabilities::rsHandler);
+
       cachedIndices.put(space, indexList);
       return indexList.indices;
     }
@@ -120,6 +124,12 @@ public class Capabilities {
       String result = rs.getString("idx_available");
       List<Map<String, Object>> raw = XyzSerializable.deserialize(result, new TypeReference<List<Map<String, Object>>>() {});
       for (Map<String, Object> one : raw) {
+        /**
+         * Indices are marked as:
+         * a = automatically created (auto-indexing)
+         * m = manually created (on-demand)
+         * s = basic system indices
+         */
         if (one.get("src").equals("a") || one.get("src").equals("m")) {
           indices.add((String) one.get("property"));
         }

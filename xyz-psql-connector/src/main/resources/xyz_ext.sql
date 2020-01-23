@@ -1,3 +1,21 @@
+--
+-- Copyright (C) 2017-2019 HERE Europe B.V.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+-- http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+-- SPDX-License-Identifier: Apache-2.0
+-- License-Filename: LICENSE
+--
 -- SET search_path=xyz,h3,public,topology
 -- CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;
 -- CREATE EXTENSION IF NOT EXISTS postgis_topology;
@@ -128,7 +146,7 @@ DROP FUNCTION IF EXISTS xyz_create_idxs_over_dblink(text, integer, integer, text
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 123
+ select 124
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
@@ -205,13 +223,12 @@ $BODY$
 
 		/**
 		* If count is set to 16, whole indexing (auto / on-demand) is deactivated
-		* If count is set to 32, only on-demand indexing is activated. (auto-indexing disabled)
 		*/
 		SELECT count into status
 			from xyz_config.xyz_idxs_status
 				WHERE spaceid='idx_in_progress';
 
-		IF status != 0 THEN
+		IF status = 16 THEN
 			RETURN status;
 		END IF;
 
@@ -244,7 +261,7 @@ CREATE OR REPLACE FUNCTION xyz_create_idxs_over_dblink(
 	lim integer,
 	off integer,
 	mode integer,
-    	owner_list text[],
+    owner_list text[],
 	usr text,
 	pwd text,
 	dbname text,
@@ -259,7 +276,7 @@ CREATE OR REPLACE FUNCTION xyz_create_idxs_over_dblink(
 		*   @schema	- schema in which the xyz-spaces are located
 		*   @lim 	- max amount of spaces to iterate over
 		*   @off 	- offset, required for parallel executions
-		*   @mode 	- 0 = only indexing, 1 = statistics+indexing , 2 = statistic, analyzing, indexing
+		*   @mode 	- 0 = only indexing, 1 = statistics+indexing (on-demand), 2 = statistic, analyzing, indexing (auto-indexing)
 		*   @owner_list	- list of database users which has the tables created (owner). Normally is this only one user.
 		*   @usr 	- database user
 		*   @pwd	- database user password

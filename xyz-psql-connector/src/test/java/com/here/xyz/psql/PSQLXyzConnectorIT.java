@@ -660,6 +660,7 @@ public class PSQLXyzConnectorIT {
     System.out.println(deleteResponse);
   }
 
+  @Test
   public void testGetStatisticsEvent() throws Exception {
 
     // =========== INSERT ==========
@@ -756,7 +757,7 @@ public class PSQLXyzConnectorIT {
     logger.info("Delete space tested successfully - " + deleteSpaceResponse);
   }
 
-  //  @Test
+  @Test
   public void testAutoIndexing() throws Exception {
     // =========== INSERT further 11k ==========
     FeatureCollection collection = new FeatureCollection();

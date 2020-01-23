@@ -1,24 +1,62 @@
-package com.here.xyz.psql;
+/*
+ * Copyright (C) 2017-2019 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
+package com.here.xyz.psql.factory;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.models.geojson.WebMercatorTile;
+import com.here.xyz.psql.Capabilities;
+import com.here.xyz.psql.PSQLXyzConnector;
+import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.responses.XyzError;
 
-public class QuadClustering {
+public class QuadbinSQL {
+
     public static final String QUAD = "quad";
-    private static final String QUADMODE_REAL = "real";
-    private static final String QUADMODE_ESTIMATED = "estimated";
-    private static final String QUADMODE_MIXED = "mixed";
 
-    private static final Integer LIMIT_MIXED_MODE = 6000000;
+    /**
+     * Real live counts via count(*)
+     */
+    private static final String COUNTMODE_REAL = "real";
+    /**
+     * Estimated counts, determined with _postgis_selectivity() or EXPLAIN Plan analyze
+     */
+    private static final String COUNTMODE_ESTIMATED = "estimated";
+    /**
+     * Combination of real and estimated.
+     */
+    private static final String COUNTMODE_MIXED = "mixed";
+    /**
+     * MIXED-mode only supports tables with lower than LIMIT_MIXED_MODE records
+     */
+    private static final Integer LIMIT_COUNTMODE_MIXED = 6000000;
 
-    protected static void checkQuadInput(String quadMode, int resolution, GetFeaturesByBBoxEvent event, String streamId,
+    /**
+     * Check if request parameters are valid. In case of invalidity throw an Exception
+     */
+    public static void checkQuadbinInput(String quadMode, int resolution, GetFeaturesByBBoxEvent event, String streamId,
                                          PSQLXyzConnector connector) throws
             ErrorResponseException{
-        if(quadMode != null && (!quadMode.equalsIgnoreCase(QuadClustering.QUADMODE_REAL) && !quadMode.equalsIgnoreCase(QuadClustering.QUADMODE_ESTIMATED) && !quadMode.equalsIgnoreCase(QuadClustering.QUADMODE_MIXED)) )
+        if(quadMode != null && (!quadMode.equalsIgnoreCase(QuadbinSQL.COUNTMODE_REAL) && !quadMode.equalsIgnoreCase(QuadbinSQL.COUNTMODE_ESTIMATED) && !quadMode.equalsIgnoreCase(QuadbinSQL.COUNTMODE_MIXED)) )
             throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-                    "Invalid request parameters. Unknown clustering.quadmode="+quadMode+". Available are: ["+ QuadClustering.QUADMODE_REAL +","+ QuadClustering.QUADMODE_ESTIMATED+","+ QuadClustering.QUADMODE_MIXED+"]!");
+                    "Invalid request parameters. Unknown clustering.quadmode="+quadMode+". Available are: ["+ QuadbinSQL.COUNTMODE_REAL +","+ QuadbinSQL.COUNTMODE_ESTIMATED +","+ QuadbinSQL.COUNTMODE_MIXED +"]!");
 
         if(resolution > 5)
             throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
@@ -34,7 +72,10 @@ public class QuadClustering {
         }
     }
 
-    public static SQLQuery generateQuadClusteringSQL(String schema, String space, int resolution, String quadMode, String propQuery, WebMercatorTile tile) {
+    /**
+     * Creates the SQLQuery for Quadbin requests.
+     */
+    public static SQLQuery generateQuadbinClusteringSQL(String schema, String space, int resolution, String quadMode, String propQuery, WebMercatorTile tile) {
         SQLQuery query = new SQLQuery("");
 
         String realCountCondition = "";
@@ -42,21 +83,21 @@ public class QuadClustering {
         String estCalc = "cond_est_cnt";
 
         if(quadMode == null)
-            quadMode = QuadClustering.QUADMODE_MIXED;
+            quadMode = QuadbinSQL.COUNTMODE_MIXED;
 
         switch (quadMode) {
-            case QuadClustering.QUADMODE_REAL:
+            case QuadbinSQL.COUNTMODE_REAL:
                 realCountCondition = "TRUE";
                 pureEstimation = "_postgis_selectivity( '"+schema+".\""+space+"\"'::regclass, 'geo',qkbbox)";
                 break;
-            case QuadClustering.QUADMODE_ESTIMATED:
-            case QuadClustering.QUADMODE_MIXED:
+            case QuadbinSQL.COUNTMODE_ESTIMATED:
+            case QuadbinSQL.COUNTMODE_MIXED:
 
-                if(quadMode.equalsIgnoreCase(QuadClustering.QUADMODE_MIXED)) {
+                if(quadMode.equalsIgnoreCase(QuadbinSQL.COUNTMODE_MIXED)) {
                     if (propQuery != null) {
-                        realCountCondition = "cond_est_cnt < 100 AND est_cnt < "+LIMIT_MIXED_MODE;
+                        realCountCondition = "cond_est_cnt < 100 AND est_cnt < "+ LIMIT_COUNTMODE_MIXED;
                     } else {
-                        realCountCondition = "cond_est_cnt < (1000 / est_cnt) AND est_cnt < "+LIMIT_MIXED_MODE;
+                        realCountCondition = "cond_est_cnt < (1000 / est_cnt) AND est_cnt < "+ LIMIT_COUNTMODE_MIXED;
                     }
                 }else
                     realCountCondition = "FALSE";

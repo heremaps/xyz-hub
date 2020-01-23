@@ -19,14 +19,28 @@
 
 package com.here.xyz.psql;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import com.here.xyz.events.*;
+import com.here.xyz.models.geojson.coordinates.BBox;
+
+import javax.sql.DataSource;
+import javax.xml.crypto.Data;
+import java.sql.Array;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * A struct like object that contains the string for a prepared statement and the respective parameters for replacement.
  */
 public class SQLQuery {
+  private StringBuilder statement;
+  private List<Object> parameters;
+
+  private static final String PREFIX = "\\$\\{";
+  private static final String SUFFIX = "\\}";
+  private static final String VAR_SCHEMA = "${schema}";
+  private static final String VAR_TABLE = "${table}";
 
   public SQLQuery() {
     this.statement = new StringBuilder();
@@ -130,6 +144,90 @@ public class SQLQuery {
     this.parameters = parameters;
   }
 
-  private StringBuilder statement;
-  private List<Object> parameters;
+
+  /**
+   * Quote the given string so that it can be inserted into an SQL statement.
+   *
+   * @param text the text to escape.
+   * @return the escaped text surrounded with quotes.
+   */
+  public static String sqlQuote(final String text) {
+    return text == null ? "" : '"' + text.replace("\"", "\"\"") + '"';
+  }
+
+  public static String replaceVars(String query, String schema, String table) {
+    return query
+            .replace(VAR_SCHEMA, sqlQuote(schema))
+            .replace(VAR_TABLE, sqlQuote(table));
+  }
+
+  protected static String replaceVars(String query, Map<String, String> replacements, String schema, String table) {
+    String replaced = replaceVars(query, schema, table);
+    for (String key : replacements.keySet()) {
+      replaced = replaced.replaceAll(PREFIX + key + SUFFIX, sqlQuote(replacements.get(key)));
+    }
+    return replaced;
+  }
+
+  protected static SQLQuery selectJson(List<String> selection, DataSource dataSource) throws SQLException {
+    if (selection == null) {
+      return new SQLQuery("jsondata");
+    }
+    if (selection != null && !selection.contains("type")) {
+      selection.add("type");
+    }
+
+    return new SQLQuery("prj_build(?,jsondata)", createSQLArray(selection.toArray(new String[0]), "text", dataSource));
+  }
+
+  /**
+   * Creates a SQL Array of the given type.
+   */
+  protected static Array createSQLArray(final String[] strings, String type, DataSource dataSource) throws SQLException {
+    try (Connection conn = dataSource.getConnection()) {
+      return conn.createArrayOf(type, strings);
+    }
+  }
+
+  protected static String getOperation(PropertyQuery.QueryOperation op) {
+    if (op == null) {
+      throw new NullPointerException("op is required");
+    }
+
+    switch (op) {
+      case EQUALS:
+        return "=";
+      case NOT_EQUALS:
+        return "<>";
+      case LESS_THAN:
+        return "<";
+      case GREATER_THAN:
+        return ">";
+      case LESS_THAN_OR_EQUALS:
+        return "<=";
+      case GREATER_THAN_OR_EQUALS:
+        return ">=";
+    }
+
+    return "";
+  }
+
+  protected static SQLQuery createKey(String key) {
+    String[] results = key.split("\\.");
+    return new SQLQuery(
+            "jsondata->" + Collections.nCopies(results.length, "?").stream().collect(Collectors.joining("->")), results);
+  }
+
+  protected static String getValue(Object value) {
+    if (value instanceof String) {
+      return "to_jsonb(?::text)";
+    }
+    if (value instanceof Number) {
+      return "to_jsonb(?::numeric)";
+    }
+    if (value instanceof Boolean) {
+      return "to_jsonb(?::boolean)";
+    }
+    return "";
+  }
 }
