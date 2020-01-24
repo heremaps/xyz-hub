@@ -90,6 +90,8 @@ class PSQLConfig {
   private final Map<String, Object> connectorParams;
 
   private Context context;
+  private boolean propertySearch;
+  private boolean autoIndexing;
 
   private Map<String, Object> readECPS(String ecps) {
     if (DEFAULT_ECPS.equals(ecps)) {
@@ -231,6 +233,13 @@ class PSQLConfig {
     this.context = context;
     this.connectorParams = readECPS(getECPS(event));
     this.applicationName = context.getFunctionName();
+
+    if(event.getConnectorParams() != null){
+      if(event.getConnectorParams().get("autoIndexing") == Boolean.TRUE)
+        this.autoIndexing = true;
+      if(event.getConnectorParams().get("propertySearch") == Boolean.TRUE)
+        this.propertySearch = true;
+    }
   }
 
   private String readEnv(String name) {
@@ -284,15 +293,11 @@ class PSQLConfig {
   }
 
   protected boolean isPropertySearchActivated(){
-    if(connectorParams != null && connectorParams.get("propertySearch") == Boolean.TRUE)
-      return true;
-    return false;
+    return propertySearch;
   }
 
   protected boolean isAutoIndexingActivated(){
-    if(connectorParams != null && connectorParams.get("autoIndexing") == Boolean.TRUE)
-      return true;
-    return false;
+    return autoIndexing;
   }
 
   protected Integer onDemandLimit(){

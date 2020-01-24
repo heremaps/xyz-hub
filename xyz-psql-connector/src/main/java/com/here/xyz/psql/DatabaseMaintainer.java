@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
 public class DatabaseMaintainer {
     private static final Logger logger = LogManager.getLogger();
 
-    private static final int XYZ_EXT_VERSION = 124;
+    private static final int XYZ_EXT_VERSION = 125;
     protected final static int ON_DEMAND_IDX_DEFAULT_LIM = 4;
 
     private DataSource dataSource;
@@ -49,8 +49,8 @@ public class DatabaseMaintainer {
     }
 
     public synchronized void run(Event event, String streamId) {
-        boolean hasPropertySearch = config.isPropertySearchActivated();
-        boolean autoIndexing = config.isAutoIndexingActivated();
+        final boolean hasPropertySearch = config.isPropertySearchActivated();
+        final boolean autoIndexing = config.isAutoIndexingActivated();
 
         /** Check if all required extensions, schemas, tables and functions are present  */
         this.initialDBSetup(streamId, autoIndexing, hasPropertySearch);
@@ -212,7 +212,7 @@ public class DatabaseMaintainer {
                 stmt.execute(MaintenanceSQL.generateTimeoutSQL(15 * 60));
 
                 /** Set Mode for statistic,analyze,index creation */
-                int mode = autoIndexing == true ? 2 : 1;
+                int mode = autoIndexing == true ? 2 : 0;
 
                 /** CREATE INDICES */
                 stmt.execute(MaintenanceSQL.generateIDXSQL(config.schema(), config.user(), config.password(), config.database(), config.port(), mode));

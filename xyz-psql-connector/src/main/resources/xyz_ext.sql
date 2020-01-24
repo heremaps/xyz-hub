@@ -146,7 +146,7 @@ DROP FUNCTION IF EXISTS xyz_create_idxs_over_dblink(text, integer, integer, text
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 124
+ select 125
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
@@ -276,7 +276,7 @@ CREATE OR REPLACE FUNCTION xyz_create_idxs_over_dblink(
 		*   @schema	- schema in which the xyz-spaces are located
 		*   @lim 	- max amount of spaces to iterate over
 		*   @off 	- offset, required for parallel executions
-		*   @mode 	- 0 = only indexing, 1 = statistics+indexing (on-demand), 2 = statistic, analyzing, indexing (auto-indexing)
+		*   @mode 	- 0 = only indexing, 1 = statistics+indexing, 2 = statistic, analyzing, indexing (auto-indexing)
 		*   @owner_list	- list of database users which has the tables created (owner). Normally is this only one user.
 		*   @usr 	- database user
 		*   @pwd	- database user password
@@ -508,6 +508,7 @@ $BODY$
 	*   @schema	- schema in which the XYZ-spaces are located
 	*   @space - id of the XYZ-space (tablename)
 	*/
+    DECLARE xyz_space_exists record;
 
 	DECLARE xyz_space_stat record;
 	DECLARE xyz_manual_idx record;
@@ -517,6 +518,17 @@ $BODY$
 	DECLARE idx_false_list TEXT[];
 
 	BEGIN
+		/** Check if table is present */
+		select 1 into xyz_space_exists
+			from pg_tables WHERE tablename =space and schemaname = schema;
+		IF xyz_space_exists IS NULL THEN
+			DELETE FROM xyz_config.xyz_idxs_status
+				WHERE spaceid = space
+					AND schem = schema;
+			RAISE NOTICE 'SPACE DOES NOT EXIST %."%" ', schema, space;
+			RETURN;
+		END IF;
+
 		/** set indication that idx creation is running */
 		UPDATE xyz_config.xyz_idxs_status
 			SET idx_creation_finished = false
@@ -670,13 +682,14 @@ $BODY$
 		END IF;
 
 		FOR xyz_space_stat IN
-			SELECT * FROM xyz_config.xyz_idxs_status
-				WHERE count > 0
-					AND idx_creation_finished = false
-					AND count < 5000000
-					AND schem = schema
-				 ORDER BY count, spaceid
-					LIMIT lim OFFSET off
+			SELECT * FROM xyz_config.xyz_idxs_status A
+				LEFT JOIN pg_tables B ON (B.tablename = A.spaceid)
+			WHERE
+				idx_creation_finished = false
+				AND b.tablename is not null
+				AND schem = schema
+			 ORDER BY count, spaceid
+				LIMIT lim OFFSET off
 		LOOP
 			RAISE NOTICE 'MAINTAIN IDX FOR: % !',xyz_space_stat.spaceid;
 			PERFORM xyz_maintain_idxs_for_space(schema, xyz_space_stat.spaceid);
