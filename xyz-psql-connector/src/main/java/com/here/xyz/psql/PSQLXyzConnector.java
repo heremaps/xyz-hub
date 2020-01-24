@@ -52,7 +52,6 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected XyzResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
-    System.out.println("processGetStatistics with "+config);
     try {
       return executeQueryWithRetry(SQLQueryBuilder.buildGetStatisticsQuery(event,config),
               this::getStatisticsResultSetHandler);
