@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -76,6 +76,8 @@ public abstract class Event<T extends Event> extends Payload {
   private String tid;
   @JsonView(ExcludeFromHash.class)
   private String aid;
+  @JsonView(ExcludeFromHash.class)
+  private String version = "0.1.0";
 
   /**
    * The identifier of the space.
@@ -202,7 +204,7 @@ public abstract class Event<T extends Event> extends Payload {
   public T withMetadata(Map<String, Object> metadata) {
     this.metadata = metadata;
     //noinspection unchecked
-    return (T) metadata;
+    return (T) this;
   }
 
   /**
@@ -267,9 +269,29 @@ public abstract class Event<T extends Event> extends Payload {
     return (T) this;
   }
 
+  /**
+   * The version of the event protocol.
+   *
+   * @return The version
+   */
+  public String getVersion() {
+    return this.version;
+  }
+
+  @SuppressWarnings("unused")
+  public void setVersion(String version) {
+    this.version = version;
+  }
+
+  @SuppressWarnings("unused")
+  public T withVerstion(Map<String, Object> metadata) {
+    this.version = version;
+    //noinspection unchecked
+    return (T) this;
+  }
+
   @Override
   public String toString() {
     return serialize();
   }
-
 }
