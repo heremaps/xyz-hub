@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,9 +26,11 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.google.common.primitives.Longs;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.Service;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
+import io.vertx.core.json.Json;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -63,7 +65,7 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
   /**
    * An indicator, if the data in the space is edited often (value tends to 1) or static (value tends to 0).
    */
-  @JsonIgnore
+  @JsonView({Internal.class, Static.class})
   public double volatilityAtLastContentUpdate = 0;
 
   @JsonIgnore
@@ -251,6 +253,22 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
       this.cdnTTL = Longs.constrainToRange(cdnTTL, 0, MAX_CDN_TTL);
       this.serviceTTL = Longs.constrainToRange(serviceTTL, 0, MAX_SERVICE_TTL);
       this.contentUpdatedAt = contentUpdatedAt;
+    }
+  }
+
+  public Map asMap() {
+    try {
+      return Json.decodeValue(Json.mapper.writerWithView(Static.class).writeValueAsString(this), Map.class);
+    } catch (Exception e) {
+      return Collections.emptyMap();
+    }
+  }
+
+  public Map<String,Object> asMap(Map<String,Object> filter) {
+    try {
+      return XyzSerializable.filter( Json.decodeValue(Json.mapper.writerWithView(Static.class).writeValueAsString(this), Map.class), filter);
+    } catch (Exception e) {
+      return Collections.emptyMap();
     }
   }
 }

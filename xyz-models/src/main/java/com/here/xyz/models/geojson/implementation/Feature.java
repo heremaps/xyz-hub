@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -64,46 +64,17 @@ public class Feature extends Extensible<Feature> implements Typed {
    * @throws NullPointerException if feature, space or the 'id' of the feature are null.
    */
   @SuppressWarnings("WeakerAccess")
-  public static void finalizeFeature(final Feature feature, final String space, final long timestamp, boolean addUUID) throws NullPointerException {
-    if (feature == null) {
-      throw new NullPointerException("feature");
-    }
-    if (space == null) {
-      throw new NullPointerException("space");
-    }
+  public static void finalizeFeature(final Feature feature, final String space, boolean addUUID) throws NullPointerException {
+    final XyzNamespace xyzNamespace = feature.getProperties().getXyzNamespace();
 
-    if (feature.getProperties() == null) {
-      feature.setProperties(new Properties());
-    }
-
-    final Properties props = feature.getProperties();
-    if (props.getXyzNamespace() == null) {
-      props.setXyzNamespace(new XyzNamespace());
-    }
-
-    final XyzNamespace nsXyz = props.getXyzNamespace();
-    nsXyz.setSpace(space);
-
-    final List<String> tags = nsXyz.getTags();
-
-    if (tags != null) {
-      XyzNamespace.normalizeTagsOfFeature(feature);
-    } else {
-      nsXyz.setTags(new ArrayList<>());
-    }
-    if (nsXyz.getCreatedAt() == 0) {
-      nsXyz.setCreatedAt(timestamp);
-    }
-    nsXyz.setUpdatedAt(timestamp);
     if (addUUID) {
-      String puuid = nsXyz.getUuid();
+      String puuid = xyzNamespace.getUuid();
       if (puuid != null) {
-        nsXyz.setPuuid(puuid);
+        xyzNamespace.setPuuid(puuid);
       }
-      nsXyz.setUuid(UUID.randomUUID().toString());
+      xyzNamespace.setUuid(UUID.randomUUID().toString());
     }
-
-    nsXyz.setInputPosition(null);
+    xyzNamespace.setInputPosition(null);
   }
 
   public String getId() {
