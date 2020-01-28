@@ -84,7 +84,6 @@ import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.util.CachedClock;
 import org.postgresql.util.PGobject;
 
 /**
