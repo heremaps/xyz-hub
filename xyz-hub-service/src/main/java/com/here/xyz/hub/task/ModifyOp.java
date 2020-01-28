@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -92,7 +92,8 @@ public abstract class ModifyOp<INPUT, SOURCE, TARGET> {
           }
         }
 
-        entry.isModified = !equalStates(entry.head, entry.result);
+        // Check if the isModified flag is not already set. Compare the objects in case it is not set yet.
+        entry.isModified = entry.isModified || !dataEquals(entry.head, entry.result);
       } catch (ModifyOpError e) {
         if (isTransactional) {
           throw e;
@@ -114,14 +115,13 @@ public abstract class ModifyOp<INPUT, SOURCE, TARGET> {
   public abstract TARGET transform(SOURCE sourceState) throws ModifyOpError, HttpException;
 
   /**
-   * Returns true, if the 2 objects represent the same object in the same state. Modifications that are not relevant should be ignored by
-   * this method, therefore the method is not binary safe.
+   * Returns true, if the 2 objects are equal, apart from any metadata information added by the service, such as timestamps, uuid, etc.
    *
    * @param state1 the source state.
    * @param state2 the target state.
    * @return true when the source and target state are logically equal; false otherwise.
    */
-  public abstract boolean equalStates(SOURCE state1, TARGET state2);
+  public abstract boolean dataEquals(SOURCE state1, TARGET state2);
 
   public enum IfExists {
     RETAIN,

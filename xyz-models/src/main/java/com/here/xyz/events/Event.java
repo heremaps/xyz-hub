@@ -60,6 +60,8 @@ import java.util.Map;
 
 public abstract class Event<T extends Event> extends Payload {
 
+  public static final String VERSION = "0.1.0";
+
   @JsonView(ExcludeFromHash.class)
   private Map<String, Object> connectorParams;
   @JsonView(ExcludeFromHash.class)
@@ -77,7 +79,7 @@ public abstract class Event<T extends Event> extends Payload {
   @JsonView(ExcludeFromHash.class)
   private String aid;
   @JsonView(ExcludeFromHash.class)
-  private String version = "0.1.0";
+  private String version = VERSION;
 
   /**
    * The identifier of the space.

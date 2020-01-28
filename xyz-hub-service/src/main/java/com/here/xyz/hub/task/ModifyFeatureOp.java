@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.task;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.base.Objects;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.util.diff.Difference;
@@ -27,9 +28,7 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import io.vertx.core.json.Json;
 import java.util.List;
 import java.util.Map;
-import javax.annotation.concurrent.ThreadSafe;
 
-@ThreadSafe
 public class ModifyFeatureOp extends ModifyOp<Feature, Feature, Feature> {
 
   public ModifyFeatureOp(List<Feature> inputStates, IfNotExists ifNotExists, IfExists ifExists, boolean isTransactional) {
@@ -38,26 +37,42 @@ public class ModifyFeatureOp extends ModifyOp<Feature, Feature, Feature> {
 
   @Override
   public Feature patch(Feature headState, Feature baseState, Feature inputState) throws ModifyOpError {
-    final Map<String, Object> baseStateMap = baseState.asMap();
+    String inputUUID = getUuid(inputState);
+    final Map<String, Object> base = baseState.asMap(metadataFilter);
+    final Map<String, Object> input = inputState.asMap(metadataFilter);
+    final Difference diff = Patcher.calculateDifferenceOfPartialUpdate(base, input, null, true);
+    if (diff == null) {
+      return headState;
+    }
 
-    final Difference diff = Patcher.calculateDifferenceOfPartialUpdate(baseStateMap, inputState.asMap(), null, true);
-    Patcher.patch(baseStateMap, diff);
-    return merge(headState, baseState, XyzSerializable.fromMap(baseStateMap, Feature.class));
+    Patcher.patch(base, diff);
+    Feature mergeInput = XyzSerializable.fromMap(base, Feature.class);
+    if (inputUUID != null) {
+      mergeInput.getProperties().getXyzNamespace().setUuid(inputUUID);
+    }
+    return merge(headState, baseState, mergeInput);
   }
 
   @Override
   public Feature merge(Feature headState, Feature baseState, Feature inputState) throws ModifyOpError {
-    if (equalStates(baseState, headState)) {
+    // If the latest state is the state, which was updated, execute a replace
+    if (baseState.equals(headState)) {
       return replace(headState, inputState);
     }
 
-    final Map<String, Object> baseStateMap = baseState.asMap();
-    final Difference diffInput = Patcher.getDifference(baseStateMap, inputState.asMap());
-    final Difference diffHead = Patcher.getDifference(baseStateMap, headState.asMap());
+    final Map<String, Object> base = baseState.asMap(metadataFilter);
+    final Map<String, Object> head = headState.asMap(metadataFilter);
+    final Map<String, Object> input = inputState.asMap(metadataFilter);
+
+    final Difference diffInput = Patcher.getDifference(base, input);
+    if (diffInput == null) {
+      return headState;
+    }
+    final Difference diffHead = Patcher.getDifference(base, head);
     try {
       final Difference mergedDiff = Patcher.mergeDifferences(diffInput, diffHead);
-      Patcher.patch(baseStateMap, mergedDiff);
-      return XyzSerializable.fromMap(baseStateMap, Feature.class);
+      Patcher.patch(base, mergedDiff);
+      return XyzSerializable.fromMap(base, Feature.class);
     } catch (Exception e) {
       throw new ModifyOpError(e.getMessage());
     }
@@ -67,14 +82,15 @@ public class ModifyFeatureOp extends ModifyOp<Feature, Feature, Feature> {
   public Feature replace(Feature headState, Feature inputState) throws ModifyOpError {
     if (getUuid(inputState) != null && !Objects.equal(getUuid(inputState), getUuid(headState))) {
       throw new ModifyOpError(
-          "The feature with id " + headState.getId() + " cannot be replaced. The provided UUID doesn't match the UUID of the head state: "+ getUuid(headState));
+          "The feature with id " + headState.getId() + " cannot be replaced. The provided UUID doesn't match the UUID of the head state: "
+              + getUuid(headState));
     }
-    return inputState.copy();
+    return XyzSerializable.fromMap(inputState.asMap(metadataFilter), Feature.class);
   }
 
   @Override
   public Feature create(Feature inputState) {
-    return inputState.copy();
+    return inputState;
   }
 
   @Override
@@ -90,13 +106,26 @@ public class ModifyFeatureOp extends ModifyOp<Feature, Feature, Feature> {
   }
 
   @Override
-  public boolean equalStates(Feature state1, Feature state2) {
-    if( Objects.equal(state1, state2) ) {
+  public boolean dataEquals(Feature feature1, Feature feature2) {
+    if (Objects.equal(feature1, feature2)) {
       return true;
     }
 
-    // TODO: Move to Feature#equals()
-    Difference diff = Patcher.getDifference(Json.mapper.convertValue(state1, Map.class), Json.mapper.convertValue(state2, Map.class));
-    return diff == null;
+    Map<String,Object> map1 = XyzSerializable.filter(Json.mapper.convertValue(feature1, Map.class), metadataFilter);
+    Map<String,Object> map2 = XyzSerializable.filter(Json.mapper.convertValue(feature2, Map.class), metadataFilter);
+
+    return Patcher.getDifference(map1, map2) == null;
+  }
+
+  public static Map<String, Object> metadataFilter;
+
+  static {
+    try {
+      //noinspection unchecked
+      metadataFilter = Json.mapper.readValue(
+          "{\"properties\": {\"@ns:com:here:xyz\": {\"space\": true,\"createdAt\": true,\"updatedAt\": true,\"uuid\": true,\"puuid\": true,\"muuid\": true}}}",
+          Map.class);
+    } catch (JsonProcessingException ignored) {
+    }
   }
 }

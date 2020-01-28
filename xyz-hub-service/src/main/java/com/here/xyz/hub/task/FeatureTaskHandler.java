@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -80,6 +80,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import net.jodah.expiringmap.ExpirationPolicy;
@@ -100,6 +101,8 @@ public class FeatureTaskHandler {
       .build();
   private static final byte JSON_VALUE = 1;
   private static final byte BINARY_VALUE = 2;
+
+  private static final boolean ENABLE_SERVICE_UUID = true;
 
   /**
    * Sends the event to the connector client and write the response as the responseCollection of the task.
@@ -636,10 +639,6 @@ public class FeatureTaskHandler {
         properties.setXyzNamespace(new XyzNamespace());
       }
 
-      final XyzNamespace nsXyz = properties.getXyzNamespace();
-      // Overwrite the space
-      nsXyz.setSpace(task.space.getId());
-
       try {
         input.validateGeometry();
       } catch (InvalidGeometryException e) {
@@ -653,25 +652,69 @@ public class FeatureTaskHandler {
   static void processConditionalOp(ConditionalOperation task, Callback<ConditionalOperation> callback) throws Exception {
     try {
       task.modifyOp.process();
-
       final List<Feature> insert = new ArrayList<>();
       final List<Feature> update = new ArrayList<>();
       final Map<String, String> delete = new HashMap<>();
 
+      long now = Service.currentTimeMillis();
+
       for (int i = 0; i < task.modifyOp.entries.size(); i++) {
         final Entry<Feature, Feature, Feature> entry = task.modifyOp.entries.get(i);
-        if (entry.result != null) {
-          final Properties properties = entry.result.getProperties();
-          XyzNamespace nsXyz = properties.getXyzNamespace() != null ? properties.getXyzNamespace() : new XyzNamespace();
-          properties.setXyzNamespace(nsXyz.withInputPosition((long) i));
+        final Feature result = entry.result;
+
+        // Insert or update
+        if (result != null) {
+          final XyzNamespace nsXyz = result.getProperties().getXyzNamespace();
+
+          // Set the space ID
+          nsXyz.setSpace( task.space.getId() );
+
+          // Normalize the tags
+          final List<String> tags = nsXyz.getTags();
+          if (tags != null) {
+            XyzNamespace.normalizeTagsOfFeature(result);
+          } else {
+            nsXyz.setTags(new ArrayList<>());
+          }
+
+
+          nsXyz.withInputPosition((long) i);
+
+
+
+          // INSERT
+          if (entry.head == null ) {
+            // Timestamps
+            nsXyz.setCreatedAt(now);
+            nsXyz.setUpdatedAt(now);
+
+            // UUID
+            if( task.space.isEnableUUID() && Event.VERSION.compareTo("0.2.0") >= 0 ) {
+              nsXyz.setUuid(UUID.randomUUID().toString());
+            }
+            insert.add(result);
+          }
+          // UPDATE
+          else {
+            // Timestamps
+            nsXyz.setCreatedAt(entry.head.getProperties().getXyzNamespace().getCreatedAt());
+            nsXyz.setUpdatedAt(now);
+
+            // UUID
+            if( task.space.isEnableUUID() && Event.VERSION.compareTo("0.2.0") >= 0 ) {
+              nsXyz.setUuid(UUID.randomUUID().toString());
+              nsXyz.setPuuid(entry.head.getProperties().getXyzNamespace().getUuid());
+              // If the user was updating an older version, set it under the merge uuid
+              if( !entry.base.equals(entry.head) ){
+                nsXyz.setMuuid(entry.base.getProperties().getXyzNamespace().getUuid());
+              }
+            }
+            update.add(result);
+          }
         }
 
-        // INSERT
-        if (entry.head == null && entry.result != null) {
-          insert.add(entry.result);
-        }
         // DELETE
-        else if (entry.head != null && entry.result == null) {
+        else if (entry.head != null) {
           final String id = entry.head.getId();
           String uuid = null;
           final XyzNamespace nsXyz = entry.input.getProperties().getXyzNamespace();
@@ -679,10 +722,6 @@ public class FeatureTaskHandler {
             uuid = nsXyz.getUuid();
           }
           delete.put(id, uuid);
-        }
-        // UPDATE
-        else if (entry.head != null) {
-          update.add(entry.result);
         }
       }
 

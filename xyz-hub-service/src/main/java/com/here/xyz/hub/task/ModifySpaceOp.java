@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,9 +45,15 @@ public class ModifySpaceOp extends ModifyOp<JsonObject, Space, Space> {
   @SuppressWarnings({"rawtypes", "unchecked"})
   @Override
   public Space patch(Space headState, Space baseState, JsonObject inputState) throws ModifyOpError, HttpException {
-    Map baseClone = Json.mapper.convertValue(baseState, Map.class);
-    Map input = inputState.getMap();
+    Map baseClone = baseState.asMap(metadataFilter);
+    Map input = XyzSerializable.filter(inputState.getMap(), metadataFilter);
+
     final Difference difference = Patcher.calculateDifferenceOfPartialUpdate(baseClone, input, null, true);
+
+    // Nothing was changed, return the head state
+    if( difference == null )
+      return headState;
+
     Patcher.patch(baseClone, difference);
     return merge(headState, baseState, new JsonObject(baseClone));
   }
@@ -55,11 +61,18 @@ public class ModifySpaceOp extends ModifyOp<JsonObject, Space, Space> {
   @SuppressWarnings("rawtypes")
   @Override
   public Space merge(Space headState, Space baseState, JsonObject inputState) throws ModifyOpError, HttpException {
-    Map headClone = Json.mapper.convertValue(headState, Map.class);
-    Map baseClone = Json.mapper.convertValue(baseState, Map.class);
-    Map input = inputState.getMap();
+    if( headState.equals(baseState) ){
+      return replace(headState, inputState);
+    }
+    Map headClone = headState.asMap(metadataFilter);
+    Map baseClone = baseState.asMap(metadataFilter);
+    Map input = XyzSerializable.filter(inputState.getMap(), metadataFilter);
 
     final Difference diffInput = Patcher.getDifference(baseClone, input);
+    // Nothing was changed, return the head state
+    if( diffInput == null )
+      return headState;
+
     final Difference diffHead = Patcher.getDifference(baseClone, headClone);
     try {
       final Difference mergedDiff = Patcher.mergeDifferences(diffInput, diffHead);
@@ -67,44 +80,52 @@ public class ModifySpaceOp extends ModifyOp<JsonObject, Space, Space> {
       return Json.mapper.readValue(Json.encode(headClone), Space.class);
     } catch (MergeConflictException e) {
       throw new ModifyOpError(e.getMessage());
-    } catch( JsonProcessingException e ){
+    } catch (JsonProcessingException e) {
       throw new HttpException(BAD_REQUEST, "Invalid space definition: " + e.getMessage(), e);
     }
   }
 
   @Override
-  public Space replace(Space headState, JsonObject inputState) throws ModifyOpError, HttpException {
+  public Space replace(Space headState, JsonObject inputState) throws HttpException {
     try {
       return Json.mapper.readValue(Json.encode(inputState), Space.class);
-    }
-    catch( JsonProcessingException e ){
+    } catch (JsonProcessingException e) {
       throw new HttpException(BAD_REQUEST, "Invalid space definition: " + e.getMessage(), e);
     }
   }
 
   @Override
-  public Space create(JsonObject input) throws ModifyOpError, HttpException {
+  public Space create(JsonObject input) throws HttpException {
     try {
       return Json.mapper.readValue(Json.encode(input), Space.class);
-    }
-    catch( JsonProcessingException e ){
+    } catch (JsonProcessingException e) {
       throw new HttpException(BAD_REQUEST, "Invalid space definition: " + e.getMessage(), e);
     }
   }
 
   @Override
-  public Space transform(Space sourceState) throws ModifyOpError {
-    return Json.decodeValue(Json.encode(sourceState), Space.class);
+  public Space transform(Space sourceState) {
+    return sourceState;
   }
 
   @Override
-  public boolean equalStates(Space state1, Space state2) {
-    if (Objects.equals(state1, state2)) {
+  public boolean dataEquals(Space space1, Space space2) {
+    if (Objects.equals(space1, space2)) {
       return true;
     }
 
     final ObjectMapper mapper = XyzSerializable.STATIC_MAPPER.get();
-    Difference diff = Patcher.getDifference(mapper.convertValue(state1, Map.class), mapper.convertValue(state2, Map.class));
-    return diff == null;
+    Map map1 = XyzSerializable.filter(mapper.convertValue(space1, Map.class), metadataFilter);
+    Map map2 = XyzSerializable.filter(mapper.convertValue(space2, Map.class), metadataFilter);
+    return Patcher.getDifference(map1, map2) == null;
+  }
+
+  public static Map metadataFilter;
+
+  static {
+    try {
+      metadataFilter = Json.mapper.readValue("{\"createdAt\":true, \"updatedAt\":true}", Map.class);
+    } catch (JsonProcessingException ignored) {
+    }
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -366,7 +366,7 @@ public class SpaceTaskHandler {
         JsonObject newInput = JsonObject.mapFrom(query.manipulatedSpaceDefinition);
         //Update the target and the flag if there is a difference between the latest head version and the new target version
         entry.result = task.modifyOp.patch(entry.result, entry.result, newInput);
-        entry.isModified = entry.isModified || !task.modifyOp.equalStates(entry.head, entry.result);
+        entry.isModified = entry.isModified || !task.modifyOp.dataEquals(entry.head, entry.result);
       }
 
       callback.call(task);
@@ -376,7 +376,7 @@ public class SpaceTaskHandler {
     query.execute(onEventProcessed, (t, e) -> callback.exception(e));
   }
 
-  public static void timestamp(ConditionalOperation task, Callback<ConditionalOperation> callback) {
+  public static void postProcess(ConditionalOperation task, Callback<ConditionalOperation> callback) {
     //Executes the timestamping only for create and update operations
     if (task.isCreate() || task.isUpdate()) {
 
@@ -389,6 +389,20 @@ public class SpaceTaskHandler {
       //The same timestamp goes to createdAt when it's a create task
       if (task.isCreate()) {
         entry.result.setCreatedAt(entry.result.getUpdatedAt());
+      }
+      else if( task.isUpdate()){
+        // Do not allow updating the createdAt value
+        entry.result.setCreatedAt(entry.head.getCreatedAt());
+
+        // Do not allow removing the owner property
+        if( entry.result.getOwner()==null){
+          entry.result.setOwner(entry.head.getOwner());
+        }
+
+        // Do not allow removing the cid property
+        if( entry.result.getCid()==null){
+          entry.result.setCid(entry.head.getCid());
+        }
       }
     }
 
