@@ -202,7 +202,7 @@ public abstract class Event<T extends Event> extends Payload {
 
   @SuppressWarnings("unused")
   public T withMetadata(Map<String, Object> metadata) {
-    this.metadata = metadata;
+    setMetadata(metadata);
     //noinspection unchecked
     return (T) this;
   }
@@ -284,8 +284,8 @@ public abstract class Event<T extends Event> extends Payload {
   }
 
   @SuppressWarnings("unused")
-  public T withVerstion(Map<String, Object> metadata) {
-    this.version = version;
+  public T withVersion(String version) {
+    setVersion(version);
     //noinspection unchecked
     return (T) this;
   }
