@@ -320,7 +320,6 @@
         <version>${aws-sdk-version}</version>
       </dependency>
 
-
       <!-- AWS Lambda Core -->
       <dependency>
         <groupId>com.amazonaws</groupId>
@@ -397,6 +396,11 @@
       <dependency>
         <groupId>org.apache.logging.log4j</groupId>
         <artifactId>log4j-api</artifactId>
+        <version>${log4j-version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.logging.log4j</groupId>
+        <artifactId>log4j-jcl</artifactId>
         <version>${log4j-version}</version>
       </dependency>
       <dependency>
