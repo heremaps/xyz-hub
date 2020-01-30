@@ -75,7 +75,7 @@ public abstract class DatabaseHandler extends StorageConnector {
      */
     private DataSource readDataSource;
     /**
-     * The write dbMaintainer for the current event.
+     * The dbMaintainer for the current event.
      */
     private DatabaseMaintainer dbMaintainer;
 
@@ -170,7 +170,6 @@ public abstract class DatabaseHandler extends StorageConnector {
         cpds.setMaxPoolSize(maxPostgreSQLConnections);
 
         cpds.setConnectionCustomizerClassName(DatabaseHandler.XyzConnectionCustomizer.class.getName());
-
         return cpds;
     }
 
@@ -210,6 +209,18 @@ public abstract class DatabaseHandler extends StorageConnector {
         preparedStatement.setQueryTimeout(STATEMENT_TIMEOUT_SECONDS);
         return preparedStatement;
     }
+/** ####################################################################    */
+    protected List<Feature> fetchOldStates(String[] idsToFetch) throws Exception {
+        List<Feature> oldFeatures = null;
+        SQLQuery query = new SQLQuery("SELECT jsondata, geojson FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
+                SQLQuery.createSQLArray(idsToFetch, "text",dataSource));
+        FeatureCollection oldFeaturesCollection = executeQueryWithRetry(query);
+        if (oldFeaturesCollection != null) {
+            oldFeatures = oldFeaturesCollection.getFeatures();
+        }
+
+        return oldFeatures;
+    }
 
     protected FeatureCollection executeModifyFeatures(ModifyFeaturesEvent event) throws Exception {
         boolean includeOldStates = event.getParams() != null && event.getParams().get(PSQLConfig.INCLUDE_OLD_STATES) == Boolean.TRUE;
@@ -219,297 +230,56 @@ public abstract class DatabaseHandler extends StorageConnector {
         List<Feature> updates = Optional.ofNullable(event.getUpdateFeatures()).orElse(new ArrayList<>());
         Map<String, String> deletes = Optional.ofNullable(event.getDeleteFeatures()).orElse(new HashMap<>());
         List<FeatureCollection.ModificationFailure> fails = Optional.ofNullable(event.getFailed()).orElse(new ArrayList<>());
+
         List<String> insertIds = inserts.stream().map(Feature::getId).filter(Objects::nonNull).collect(Collectors.toList());
         List<String> updateIds = updates.stream().map(Feature::getId).filter(Objects::nonNull).collect(Collectors.toList());
         List<String> deleteIds = new ArrayList<>(deletes.keySet());
 
+        final FeatureCollection collection = new FeatureCollection();
+        final boolean transactional = event.getTransaction() == Boolean.TRUE;
+
+        collection.setFeatures(new ArrayList<>());
+
+        /** Include Old states */
         if (includeOldStates) {
             String[] idsToFetch = Stream.of(insertIds, updateIds, deleteIds).flatMap(List::stream).toArray(String[]::new);
-
-            SQLQuery query = new SQLQuery("SELECT jsondata, geojson FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
-                    SQLQuery.createSQLArray(idsToFetch, "text",dataSource));
-            FeatureCollection oldFeaturesCollection = executeQueryWithRetry(query);
-            if (oldFeaturesCollection != null) {
-                oldFeatures = oldFeaturesCollection.getFeatures();
+            oldFeatures = fetchOldStates(idsToFetch);
+            if (oldFeatures != null) {
+                collection.setOldFeatures(oldFeatures);
             }
         }
 
         try (final Connection connection = dataSource.getConnection()) {
-            final FeatureCollection collection = new FeatureCollection();
-            collection.setFeatures(new ArrayList<>());
+            //TODO: Think about shifting into Writer
+            if(transactional)
+                connection.setAutoCommit(false);
+            else
+                connection.setAutoCommit(true);
+
             try {
-                boolean transaction = event.getTransaction() == Boolean.TRUE;
-                connection.setAutoCommit(!transaction);
-                boolean firstConnectionAttempt = true;
-
-                // DELETE
                 if (deletes.size() > 0) {
-                    final ArrayList<String> idsToDelete = new ArrayList<>();
-
-                    String deleteAtomicStmtSQL = "DELETE FROM ${schema}.${table} WHERE jsondata->>'id' = ? AND jsondata->'properties'->'@ns:com:here:xyz'->>'hash' = ?";
-                    deleteAtomicStmtSQL = SQLQuery.replaceVars(deleteAtomicStmtSQL, config.schema(), config.table(event));
-                    boolean batchDeleteAtomic = false;
-
-                    try (final PreparedStatement deleteAtomicStmt = createStatement(connection, deleteAtomicStmtSQL)) {
-                        for (String id : deletes.keySet()) {
-                            final String hash = deletes.get(id);
-                            try {
-                                if (hash == null) {
-                                    idsToDelete.add(id);
-                                } else {
-                                    deleteAtomicStmt.setString(1, id);
-                                    deleteAtomicStmt.setString(2, hash);
-                                    if (transaction) {
-                                        deleteAtomicStmt.addBatch();
-                                        batchDeleteAtomic = true;
-                                    } else {
-                                        deleteAtomicStmt.execute();
-                                    }
-                                }
-                            } catch (Exception e) {
-                                if (!transaction) {
-                                    if (firstConnectionAttempt && !retryAttempted) {
-                                        deleteAtomicStmt.close();
-                                        connection.close();
-                                        canRetryAttempt();
-                                        return executeModifyFeatures(event);
-                                    }
-
-                                    logger.error("{} - Failed to delete object '{}': {}", streamId, id, e);
-                                } else {
-                                    throw e;
-                                }
-                            }
-                            firstConnectionAttempt = false;
-                        }
-                        if (batchDeleteAtomic) {
-                            deleteAtomicStmt.executeBatch();
-                        }
-                    } catch (Exception dex) {
-                        throw dex;
-                    }
-
-                    if (idsToDelete.size() > 0) {
-                        String deleteStmtSQL = "DELETE FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)";
-                        deleteStmtSQL = SQLQuery.replaceVars(deleteStmtSQL, config.schema(), config.table(event));
-                        try (final PreparedStatement deleteStmt = createStatement(connection, deleteStmtSQL)) {
-                            try {
-                                deleteStmt.setArray(1, connection.createArrayOf("text", idsToDelete.toArray(new String[idsToDelete.size()])));
-                                deleteStmt.execute();
-                            } catch (Exception e) {
-                                if (!transaction) {
-                                    if (firstConnectionAttempt && !retryAttempted) {
-                                        deleteStmt.close();
-                                        connection.close();
-                                        canRetryAttempt();
-                                        return executeModifyFeatures(event);
-                                    }
-
-                                    logger.error("{} - Failed to delete objects {}: {}", streamId, idsToDelete, e);
-                                } else {
-                                    throw e;
-                                }
-                            }
-                        }
-                    }
+                    DatabaseWriter.deleteFeatures(deletes, connection, config.schema(), config.table(event), transactional);
                 }
-
-                // INSERT
                 if (inserts.size() > 0) {
-                    String insertStmtSQL = "INSERT INTO ${schema}.${table} (jsondata, geo, geojson) VALUES(?::jsonb, ST_Force3D(ST_GeomFromWKB(?,4326)), ?::jsonb)";
-                    insertStmtSQL = SQLQuery.replaceVars(insertStmtSQL, config.schema(), config.table(event));
-                    boolean batchInsert = false;
-
-                    String insertWithoutGeometryStmtSQL = "INSERT INTO ${schema}.${table} (jsondata, geo, geojson) VALUES(?::jsonb, NULL, NULL)";
-                    insertWithoutGeometryStmtSQL = SQLQuery.replaceVars(insertWithoutGeometryStmtSQL, config.schema(), config.table(event));
-                    boolean batchInsertWithoutGeometry = false;
-
-                    try (
-                            final PreparedStatement insertStmt = createStatement(connection, insertStmtSQL);
-                            final PreparedStatement insertWithoutGeometryStmt = createStatement(connection, insertWithoutGeometryStmtSQL);
-                    ) {
-                        for (int i = 0; i < inserts.size(); i++) {
-
-                            try {
-                                final Feature feature = inserts.get(i);
-                                final Geometry geometry = feature.getGeometry();
-                                feature.setGeometry(null); // Do not serialize the geometry in the JSON object
-
-                                final String json;
-                                final String geojson;
-                                try {
-                                    json = feature.serialize();
-                                    geojson = geometry != null ? geometry.serialize() : null;
-                                } finally {
-                                    feature.setGeometry(geometry);
-                                }
-
-                                final PGobject jsonbObject = new PGobject();
-                                jsonbObject.setType("jsonb");
-                                jsonbObject.setValue(json);
-
-                                final PGobject geojsonbObject = new PGobject();
-                                geojsonbObject.setType("jsonb");
-                                geojsonbObject.setValue(geojson);
-
-                                if (geometry == null) {
-                                    insertWithoutGeometryStmt.setObject(1, jsonbObject);
-                                    if (transaction) {
-                                        insertWithoutGeometryStmt.addBatch();
-                                        batchInsertWithoutGeometry = true;
-                                    } else {
-                                        insertWithoutGeometryStmt.execute();
-                                    }
-                                } else {
-                                    insertStmt.setObject(1, jsonbObject);
-                                    final WKBWriter wkbWriter = new WKBWriter(3);
-                                    insertStmt.setBytes(2, wkbWriter.write(geometry.getJTSGeometry()));
-                                    insertStmt.setObject(3, geojsonbObject);
-
-                                    if (transaction) {
-                                        insertStmt.addBatch();
-                                        batchInsert = true;
-                                    } else {
-                                        insertStmt.execute();
-                                    }
-                                }
-                                collection.getFeatures().add(feature);
-                            } catch (Exception e) {
-                                if (!transaction) {
-                                    if (firstConnectionAttempt && !retryAttempted) {
-                                        insertStmt.close();
-                                        insertWithoutGeometryStmt.close();
-                                        connection.close();
-                                        canRetryAttempt();
-                                        return executeModifyFeatures(event);
-                                    }
-                                    logger.error("{} - Failed to insert object #{}: {}", streamId, i, e);
-                                } else {
-                                    throw e;
-                                }
-                            }
-                            firstConnectionAttempt = false;
-                        }
-                        if (batchInsert) {
-                            insertStmt.executeBatch();
-                        }
-                        if (batchInsertWithoutGeometry) {
-                            insertWithoutGeometryStmt.executeBatch();
-                        }
-                    } catch (Exception iex) {
-                        throw iex;
-                    }
+                    DatabaseWriter.insertFeatures(collection, inserts, connection, config.schema(), config.table(event), transactional);
                 }
-
-                // UPDATE
                 if (updates.size() > 0) {
-                    String updateStmtSQL = "UPDATE ${schema}.${table} SET jsondata = ?::jsonb, geo=ST_Force3D(ST_GeomFromWKB(?,4326)), geojson = ?::jsonb WHERE jsondata->>'id' = ?";
-                    updateStmtSQL = SQLQuery.replaceVars(updateStmtSQL, config.schema(), config.table(event));
-                    boolean batchUpdate = false;
-
-                    String updateWithoutGeometryStmtSQL = "UPDATE ${schema}.${table} SET  jsondata = ?::jsonb, geo=NULL, geojson = NULL WHERE jsondata->>'id' = ?";
-                    updateWithoutGeometryStmtSQL = SQLQuery.replaceVars(updateWithoutGeometryStmtSQL, config.schema(), config.table(event));
-                    boolean batchUpdateWithoutGeometry = false;
-
-                    try (
-                            final PreparedStatement updateStmt = createStatement(connection, updateStmtSQL);
-                            final PreparedStatement updateWithoutGeometryStmt = createStatement(connection, updateWithoutGeometryStmtSQL);
-                    ) {
-                        for (int i = 0; i < updates.size(); i++) {
-                            try {
-                                final Feature feature = updates.get(i);
-                                if (feature.getId() == null) {
-                                    throw new NullPointerException("id");
-                                }
-                                final String id = feature.getId();
-                                final Geometry geometry = feature.getGeometry();
-                                feature.setGeometry(null); // Do not serialize the geometry in the JSON object
-
-                                final String json;
-                                final String geojson;
-                                try {
-                                    json = feature.serialize();
-                                    geojson = geometry != null ? geometry.serialize() : null;
-                                } finally {
-                                    feature.setGeometry(geometry);
-                                }
-                                final PGobject jsonbObject = new PGobject();
-                                jsonbObject.setType("jsonb");
-                                jsonbObject.setValue(json);
-
-                                final PGobject geojsonbObject = new PGobject();
-                                geojsonbObject.setType("jsonb");
-                                geojsonbObject.setValue(geojson);
-
-                                if (geometry == null) {
-                                    updateWithoutGeometryStmt.setObject(1, jsonbObject);
-                                    updateWithoutGeometryStmt.setString(2, id);
-                                    if (transaction) {
-                                        updateWithoutGeometryStmt.addBatch();
-                                        batchUpdateWithoutGeometry = true;
-                                    } else {
-                                        updateWithoutGeometryStmt.execute();
-                                    }
-                                } else {
-                                    updateStmt.setObject(1, jsonbObject);
-                                    final WKBWriter wkbWriter = new WKBWriter(3);
-                                    updateStmt.setBytes(2, wkbWriter.write(geometry.getJTSGeometry()));
-                                    updateStmt.setObject(3, geojsonbObject);
-                                    updateStmt.setString(4, id);
-                                    if (transaction) {
-                                        updateStmt.addBatch();
-                                        batchUpdate = true;
-                                    } else {
-                                        updateStmt.execute();
-                                    }
-                                }
-                                collection.getFeatures().add(feature);
-                            } catch (Exception e) {
-                                if (!transaction) {
-                                    if (firstConnectionAttempt && !retryAttempted) {
-                                        updateStmt.close();
-                                        updateWithoutGeometryStmt.close();
-                                        connection.close();
-                                        canRetryAttempt();
-                                        return executeModifyFeatures(event);
-                                    }
-                                    logger.error("{} - Failed to update object #{}: {}", streamId, i, e);
-                                } else {
-                                    throw e;
-                                }
-                            }
-                            firstConnectionAttempt = false;
-                        }
-                        if (batchUpdate) {
-                            updateStmt.executeBatch();
-                        }
-                        if (batchUpdateWithoutGeometry) {
-                            updateWithoutGeometryStmt.executeBatch();
-                        }
-                    }
+                    DatabaseWriter.updateFeatures(collection, updates, connection, config.schema(), config.table(event), transactional);
                 }
 
-                if (transaction) {
+                if (transactional) {
+                    /** Commit SQLS in one transaction */
                     connection.commit();
                 }
-            } catch (Exception e) {
-                try {
-                    if (event.getTransaction()) {
-                        connection.rollback();
-                        if (!retryAttempted) {
-                            connection.close();
-                            canRetryAttempt();
-                            return executeModifyFeatures(event);
-                        }
-                    }
-                } catch (Exception e2) {
-                    logger.error("{} - Unexpected exception while invoking a rollback: {}", streamId, e2);
+            }catch (Exception e){
+                /** Retry */
+                if(transactional) {
+                    connection.rollback();
                 }
-                logger.error("{} - Failed to execute modify features: {}", streamId, e);
-                if (e instanceof SQLException) {
-                    throw e;
-                } else {
-                    throw new SQLException("Unexpected exception while trying to execute modify features event", e);
+                if (!retryAttempted) {
+                    connection.close();
+                    canRetryAttempt();
+                    return executeModifyFeatures(event);
                 }
             }
 
@@ -534,11 +304,6 @@ public abstract class DatabaseHandler extends StorageConnector {
                     collection.setDeleted(new ArrayList<>());
                 }
                 collection.getDeleted().addAll(deleteIds);
-            }
-
-            if (oldFeatures != null) {
-                collection.setOldFeatures(oldFeatures);
-                ;
             }
 
             return collection;
@@ -602,7 +367,6 @@ public abstract class DatabaseHandler extends StorageConnector {
      * @throws SQLException if the test fails due to any SQL error.
      */
     protected boolean hasTable() throws SQLException {
-        QueryRunner run = new QueryRunner(dataSource);
         if (event instanceof HealthCheckEvent) {
             return true;
         }

@@ -1186,6 +1186,36 @@ public class PSQLXyzConnectorIT {
     testModifyFeatures(true);
   }
 
+  @Test
+  public void testDeleteFeatures() throws Exception {
+    // =========== INSERT ==========
+    String insertJsonFile = "/events/InsertFeaturesEvent.json";
+    String insertResponse = invokeLambdaFromFile(insertJsonFile);
+    logger.info("RAW RESPONSE: " + insertResponse);
+    String insertRequest = IOUtils.toString(GSContext.class.getResourceAsStream(insertJsonFile));
+    assertRead(insertRequest, insertResponse, false);
+    final JsonPath jsonPathFeatures = JsonPath.compile("$.features");
+    List<Map> originalFeatures = jsonPathFeatures.read(insertResponse, jsonPathConf);
+
+    final JsonPath jsonPathFeatureIds = JsonPath.compile("$.features..id");
+    List<String> ids = jsonPathFeatureIds.read(insertResponse, jsonPathConf);
+    logger.info("Preparation: Inserted features {}", ids);
+
+    // =========== DELETE ==========
+    final DocumentContext modifyFeaturesEventDoc = getEventFromResource("/events/InsertFeaturesEvent.json");
+    modifyFeaturesEventDoc.delete("$.insertFeatures");
+
+    Map<String, String> idsMap = new HashMap<>();
+    ids.forEach(id -> idsMap.put(id, null));
+    modifyFeaturesEventDoc.put("$", "deleteFeatures", idsMap);
+
+    String deleteEvent = modifyFeaturesEventDoc.jsonString();
+    String deleteResponse = invokeLambda(deleteEvent);
+    assertNoErrorInResponse(deleteResponse);
+    logger.info("Modify features tested successfully");
+
+  }
+
   @SuppressWarnings({"rawtypes", "unchecked"})
   private void testModifyFeatures(boolean includeOldStates) throws Exception {
     // =========== INSERT ==========

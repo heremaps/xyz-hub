@@ -190,6 +190,7 @@ public class DatabaseMaintainer {
     }
 
     private synchronized void triggerIndexing(String streamId, boolean autoIndexing){
+
         /** Trigger Auto-Indexing and or On-Demand Index Maintenance  */
         try (final Connection connection = dataSource.getConnection()) {
             Statement stmt = connection.createStatement();
