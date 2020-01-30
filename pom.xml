@@ -41,7 +41,7 @@
 
   <groupId>com.here.xyz</groupId>
   <artifactId>xyz-hub</artifactId>
-  <version>1.1.0-SNAPSHOT</version>
+  <version>1.1.1-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -320,7 +320,6 @@
         <version>${aws-sdk-version}</version>
       </dependency>
 
-
       <!-- AWS Lambda Core -->
       <dependency>
         <groupId>com.amazonaws</groupId>
@@ -397,6 +396,11 @@
       <dependency>
         <groupId>org.apache.logging.log4j</groupId>
         <artifactId>log4j-api</artifactId>
+        <version>${log4j-version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.logging.log4j</groupId>
+        <artifactId>log4j-jcl</artifactId>
         <version>${log4j-version}</version>
       </dependency>
       <dependency>

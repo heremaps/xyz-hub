@@ -25,7 +25,7 @@
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
     <relativePath>../</relativePath>
-    <version>1.1.0-SNAPSHOT</version>
+    <version>1.1.1-SNAPSHOT</version>
   </parent>
 
   <licenses>
@@ -105,6 +105,18 @@
                     <exclude>**/Log4j2Plugins.dat</exclude>
                   </excludes>
                 </filter>
+                <filter>
+                  <artifact>org.apache.logging.log4j:log4j-jcl</artifact>
+                  <includes>
+                    <include>**</include>
+                  </includes>
+                </filter>
+                <filter>
+                  <artifact>commons-logging:commons-logging</artifact>
+                  <includes>
+                    <include>**</include>
+                  </includes>
+                </filter>
               </filters>
               <finalName>xyz-hub-service</finalName>
               <transformers>
@@ -179,6 +191,10 @@
     <dependency>
       <artifactId>log4j-core</artifactId>
       <groupId>org.apache.logging.log4j</groupId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-jcl</artifactId>
     </dependency>
     <dependency>
       <artifactId>disruptor</artifactId>
