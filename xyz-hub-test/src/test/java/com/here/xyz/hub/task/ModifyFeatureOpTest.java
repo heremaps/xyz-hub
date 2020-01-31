@@ -22,13 +22,19 @@ package com.here.xyz.hub.task;
 import static org.junit.Assert.*;
 
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.task.ModifyOp.IfNotExists;
 import com.here.xyz.hub.task.ModifyOp.ModifyOpError;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import io.vertx.core.json.Json;
+import io.vertx.core.json.JsonObject;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
 import org.junit.Test;
 
 public class ModifyFeatureOpTest {
@@ -42,23 +48,27 @@ public class ModifyFeatureOpTest {
     try (
         final InputStream is1 = ModifyFeatureOpTest.class.getResourceAsStream("/xyz/hub/task/FeatureSample01.json")
     ) {
-      final Feature baseState = XyzSerializable.deserialize(is1);
-      final Feature headState = baseState.copy();
-      final Feature input = baseState.copy();
+      final Feature base = XyzSerializable.deserialize(is1);
+      final Feature head = base.copy();
+      final Feature input = base.copy();
 
       long now = System.currentTimeMillis();
-      headState.getProperties().put("newProperty", 1);
-      headState.getProperties().getXyzNamespace().setUuid("new-uuid");
-      headState.getProperties().getXyzNamespace().setPuuid(baseState.getProperties().getXyzNamespace().getUuid());
-      headState.getProperties().getXyzNamespace().setUpdatedAt(now);
+      head.getProperties().put("newProperty", 1);
+      head.getProperties().getXyzNamespace().setUuid("new-uuid");
+      head.getProperties().getXyzNamespace().setPuuid(base.getProperties().getXyzNamespace().getUuid());
+      head.getProperties().getXyzNamespace().setUpdatedAt(now);
 
       input.getProperties().put("name", "changed");
       input.getProperties().getXyzNamespace().setCreatedAt(123);
       input.getProperties().getXyzNamespace().getTags().add("tag2");
 
-      ModifyFeatureOp op = new ModifyFeatureOp(null, IfNotExists.CREATE, IfExists.MERGE, true);
-      Feature res = op.merge(headState, baseState, input);
+      ModifyFeatureOp op = new ModifyFeatureOp(Arrays.asList(JsonObject.mapFrom(input).getMap()), IfNotExists.CREATE, IfExists.MERGE, true);
+      final Entry<Feature> entry = op.entries.get(0);
+      entry.head = head;
+      entry.base = base;
+      Feature res = op.merge(entry, entry.head, entry.base, entry.input);
 
+      // Expect to be reset to the default value
       assertNotEquals(res.getProperties().getXyzNamespace().getCreatedAt(), 123);
       assertTrue(res.getProperties().getXyzNamespace().getTags().contains("tag1"));
       assertTrue(res.getProperties().getXyzNamespace().getTags().contains("tag2"));
@@ -73,14 +83,17 @@ public class ModifyFeatureOpTest {
     try (
         final InputStream is1 = ModifyFeatureOpTest.class.getResourceAsStream("/xyz/hub/task/FeatureSample01.json")
     ) {
-      final Feature baseState = XyzSerializable.deserialize(is1);
-      final Feature input = baseState.copy();
+      final Feature base = XyzSerializable.deserialize(is1);
+      final Feature input = base.copy();
       input.getProperties().put("name", "changed");
       input.getProperties().getXyzNamespace().setCreatedAt(123);
       input.getProperties().getXyzNamespace().getTags().add("tag2");
 
-      ModifyFeatureOp op = new ModifyFeatureOp(null, IfNotExists.CREATE, IfExists.MERGE, true);
-      Feature res = op.replace(baseState, input);
+      ModifyFeatureOp op = new ModifyFeatureOp(Collections.singletonList(JsonObject.mapFrom(input).getMap()), IfNotExists.CREATE, IfExists.MERGE, true);
+      final Entry<Feature> entry = op.entries.get(0);
+      entry.head = base;
+      entry.base = base;
+      Feature res = op.replace(entry, entry.base, entry.input);
 
       assertNotEquals(res.getProperties().getXyzNamespace().getCreatedAt(), 123);
       assertTrue(res.getProperties().getXyzNamespace().getTags().contains("tag1"));

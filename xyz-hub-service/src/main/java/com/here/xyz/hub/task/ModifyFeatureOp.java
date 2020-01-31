@@ -20,49 +20,52 @@
 package com.here.xyz.hub.task;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.base.Objects;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.util.diff.Difference;
 import com.here.xyz.hub.util.diff.Patcher;
 import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import io.vertx.core.json.Json;
+import io.vertx.core.json.JsonObject;
 import java.util.List;
 import java.util.Map;
 
-public class ModifyFeatureOp extends ModifyOp<Feature, Feature, Feature> {
+public class ModifyFeatureOp extends ModifyOp<Feature> {
 
-  public ModifyFeatureOp(List<Feature> inputStates, IfNotExists ifNotExists, IfExists ifExists, boolean isTransactional) {
+  public ModifyFeatureOp(List<Map<String,Object>> inputStates, IfNotExists ifNotExists, IfExists ifExists, boolean isTransactional) {
     super(inputStates, ifNotExists, ifExists, isTransactional);
+    for (Entry<Feature> entry : entries) {
+      entry.inputUUID = getUuid(entry.input);
+      entry.input = XyzSerializable.filter(entry.input, metadataFilter);
+    }
   }
 
   @Override
-  public Feature patch(Feature headState, Feature baseState, Feature inputState) throws ModifyOpError {
-    String inputUUID = getUuid(inputState);
+  public Feature patch(Entry<Feature> entry, Feature headState, Feature baseState, Map<String,Object> inputState) throws ModifyOpError {
     final Map<String, Object> base = baseState.asMap(metadataFilter);
-    final Map<String, Object> input = inputState.asMap(metadataFilter);
+    final Map<String, Object> input = inputState;
     final Difference diff = Patcher.calculateDifferenceOfPartialUpdate(base, input, null, true);
     if (diff == null) {
       return headState;
     }
 
     Patcher.patch(base, diff);
-    Feature mergeInput = XyzSerializable.fromMap(base, Feature.class);
-    if (inputUUID != null) {
-      mergeInput.getProperties().getXyzNamespace().setUuid(inputUUID);
-    }
-    return merge(headState, baseState, mergeInput);
+    entry.input = base;
+    return merge(entry, headState, baseState, entry.input);
   }
 
   @Override
-  public Feature merge(Feature headState, Feature baseState, Feature inputState) throws ModifyOpError {
+  public Feature merge(Entry<Feature> entry, Feature headState, Feature baseState, Map<String,Object> inputState) throws ModifyOpError {
     // If the latest state is the state, which was updated, execute a replace
     if (baseState.equals(headState)) {
-      return replace(headState, inputState);
+      return replace(entry, headState, inputState);
     }
 
     final Map<String, Object> base = baseState.asMap(metadataFilter);
     final Map<String, Object> head = headState.asMap(metadataFilter);
-    final Map<String, Object> input = inputState.asMap(metadataFilter);
+    final Map<String, Object> input = inputState;
 
     final Difference diffInput = Patcher.getDifference(base, input);
     if (diffInput == null) {
@@ -79,30 +82,42 @@ public class ModifyFeatureOp extends ModifyOp<Feature, Feature, Feature> {
   }
 
   @Override
-  public Feature replace(Feature headState, Feature inputState) throws ModifyOpError {
-    if (getUuid(inputState) != null && !Objects.equal(getUuid(inputState), getUuid(headState))) {
+  public Feature replace(Entry<Feature> entry, Feature headState, Map<String,Object> inputState) throws ModifyOpError {
+    if (entry.inputUUID != null && !Objects.equal(entry.inputUUID, headState.getProperties().getXyzNamespace().getUuid())) {
       throw new ModifyOpError(
           "The feature with id " + headState.getId() + " cannot be replaced. The provided UUID doesn't match the UUID of the head state: "
-              + getUuid(headState));
+              + headState.getProperties().getXyzNamespace().getUuid());
     }
-    return XyzSerializable.fromMap(inputState.asMap(metadataFilter), Feature.class);
+    return XyzSerializable.fromMap(inputState, Feature.class);
   }
 
   @Override
-  public Feature create(Feature inputState) {
-    return inputState;
+  public Feature delete(Entry<Feature> entry, Feature headState, Map<String,Object> inputState) throws ModifyOpError {
+    if (entry.inputUUID != null && !Objects.equal(entry.inputUUID, headState.getProperties().getXyzNamespace().getUuid())) {
+      throw new ModifyOpError(
+          "The feature with id " + headState.getId() + " cannot be deleted. The provided UUID doesn't match the UUID of the head state: "
+              + headState.getProperties().getXyzNamespace().getUuid());
+
+    }
+    return null;
   }
 
   @Override
-  public Feature transform(Feature sourceState) {
+  public Feature create(Entry<Feature> entry, Map<String,Object> inputState) {
+    return XyzSerializable.fromMap(inputState, Feature.class);
+  }
+
+  @Override
+  public Feature transform(Entry<Feature> entry, Feature sourceState) {
     return sourceState;
   }
 
-  private String getUuid(Feature feature) {
-    if (feature == null || feature.getProperties() == null || feature.getProperties().getXyzNamespace() == null) {
+  private String getUuid(Map<String,Object> feature) {
+    try {
+      return new JsonObject(feature).getJsonObject("properties").getJsonObject(XyzNamespace.XYZ_NAMESPACE).getString("uuid");
+    } catch (Exception e) {
       return null;
     }
-    return feature.getProperties().getXyzNamespace().getUuid();
   }
 
   @Override
@@ -111,8 +126,8 @@ public class ModifyFeatureOp extends ModifyOp<Feature, Feature, Feature> {
       return true;
     }
 
-    Map<String,Object> map1 = XyzSerializable.filter(Json.mapper.convertValue(feature1, Map.class), metadataFilter);
-    Map<String,Object> map2 = XyzSerializable.filter(Json.mapper.convertValue(feature2, Map.class), metadataFilter);
+    Map<String, Object> map1 = XyzSerializable.filter(Json.mapper.convertValue(feature1, Map.class), metadataFilter);
+    Map<String, Object> map2 = XyzSerializable.filter(Json.mapper.convertValue(feature2, Map.class), metadataFilter);
 
     return Patcher.getDifference(map1, map2) == null;
   }

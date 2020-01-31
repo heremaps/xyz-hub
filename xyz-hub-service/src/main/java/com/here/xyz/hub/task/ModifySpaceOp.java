@@ -35,43 +35,48 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class ModifySpaceOp extends ModifyOp<JsonObject, Space, Space> {
+public class ModifySpaceOp extends ModifyOp<Space> {
 
-  public ModifySpaceOp(List<JsonObject> inputStates, IfNotExists ifNotExists, IfExists ifExists,
+  public ModifySpaceOp(List<Map<String,Object>> inputStates, IfNotExists ifNotExists, IfExists ifExists,
       boolean isTransactional) {
     super(inputStates, ifNotExists, ifExists, isTransactional);
+    for (Entry<Space> entry : entries) {
+      entry.input = XyzSerializable.filter(entry.input, metadataFilter);
+    }
   }
 
   @SuppressWarnings({"rawtypes", "unchecked"})
   @Override
-  public Space patch(Space headState, Space baseState, JsonObject inputState) throws ModifyOpError, HttpException {
+  public Space patch(Entry<Space> entry, Space headState, Space baseState, Map<String,Object> inputState) throws ModifyOpError, HttpException {
     Map baseClone = baseState.asMap(metadataFilter);
-    Map input = XyzSerializable.filter(inputState.getMap(), metadataFilter);
+    Map input = XyzSerializable.filter(inputState, metadataFilter);
 
     final Difference difference = Patcher.calculateDifferenceOfPartialUpdate(baseClone, input, null, true);
 
     // Nothing was changed, return the head state
-    if( difference == null )
+    if (difference == null) {
       return headState;
+    }
 
     Patcher.patch(baseClone, difference);
-    return merge(headState, baseState, new JsonObject(baseClone));
+    return merge(entry, headState, baseState, baseClone);
   }
 
   @SuppressWarnings("rawtypes")
   @Override
-  public Space merge(Space headState, Space baseState, JsonObject inputState) throws ModifyOpError, HttpException {
-    if( headState.equals(baseState) ){
-      return replace(headState, inputState);
+  public Space merge(Entry<Space> entry, Space headState, Space baseState, Map<String,Object> inputState) throws ModifyOpError, HttpException {
+    if (headState.equals(baseState)) {
+      return replace(entry, headState, inputState);
     }
     Map headClone = headState.asMap(metadataFilter);
     Map baseClone = baseState.asMap(metadataFilter);
-    Map input = XyzSerializable.filter(inputState.getMap(), metadataFilter);
+    Map input = XyzSerializable.filter(inputState, metadataFilter);
 
     final Difference diffInput = Patcher.getDifference(baseClone, input);
     // Nothing was changed, return the head state
-    if( diffInput == null )
+    if (diffInput == null) {
       return headState;
+    }
 
     final Difference diffHead = Patcher.getDifference(baseClone, headClone);
     try {
@@ -86,7 +91,7 @@ public class ModifySpaceOp extends ModifyOp<JsonObject, Space, Space> {
   }
 
   @Override
-  public Space replace(Space headState, JsonObject inputState) throws HttpException {
+  public Space replace(Entry<Space> entry, Space headState, Map<String,Object> inputState) throws HttpException {
     try {
       return Json.mapper.readValue(Json.encode(inputState), Space.class);
     } catch (JsonProcessingException e) {
@@ -95,7 +100,12 @@ public class ModifySpaceOp extends ModifyOp<JsonObject, Space, Space> {
   }
 
   @Override
-  public Space create(JsonObject input) throws HttpException {
+  public Space delete(Entry<Space> entry, Space headState, Map<String,Object> inputState) throws HttpException {
+    return null;
+  }
+
+  @Override
+  public Space create(Entry<Space> entry, Map<String,Object> input) throws HttpException {
     try {
       return Json.mapper.readValue(Json.encode(input), Space.class);
     } catch (JsonProcessingException e) {
@@ -104,7 +114,7 @@ public class ModifySpaceOp extends ModifyOp<JsonObject, Space, Space> {
   }
 
   @Override
-  public Space transform(Space sourceState) {
+  public Space transform(Entry<Space> entry, Space sourceState) {
     return sourceState;
   }
 

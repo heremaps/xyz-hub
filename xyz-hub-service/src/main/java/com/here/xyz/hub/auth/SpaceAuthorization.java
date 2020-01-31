@@ -32,7 +32,6 @@ import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.HttpException;
-import com.here.xyz.hub.task.ModifyOp;
 import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.task.ModifySpaceOp;
 import com.here.xyz.hub.task.SpaceTask.ConditionalOperation;
@@ -89,8 +88,8 @@ public class SpaceAuthorization extends Authorization {
     final XyzHubActionMatrix tokenRights = task.getJwt().getXyzHubMatrix();
     final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
 
-    final Entry<JsonObject, Space, Space> entry = task.modifyOp.entries.get(0);
-    final JsonObject input = entry.input;
+    final Entry<Space> entry = task.modifyOp.entries.get(0);
+    final Map<String,Object> input = entry.input;
     final Space head = entry.head;
     final Space target = entry.result;
 
@@ -109,8 +108,8 @@ public class SpaceAuthorization extends Authorization {
       final Map inputAsMap = asMap(Json.mapper.convertValue(input, Space.class));
 
       xyzhubFilter = new XyzHubAttributeMap()
-              .withValue(OWNER, input.getString("owner"))
-              .withValue(SPACE, input.getString("id"));
+              .withValue(OWNER, (String)input.get("owner"))
+              .withValue(SPACE, (String)input.get("id"));
       isBasicEdit = isBasicEdit(templateAsMap, inputAsMap);
       isAdminEdit = isAdminEdit(templateAsMap, inputAsMap);
       isStorageEdit = isPropertyEdit(templateAsMap, inputAsMap, STORAGE);
@@ -202,11 +201,11 @@ public class SpaceAuthorization extends Authorization {
 
     // If this is an edit on admin properties.
     if (isAdminEdit) {
-      boolean ownerChanged = !task.isCreate() && input.containsKey("owner") && !input.getString("owner").equals(head.getOwner());
+      boolean ownerChanged = !task.isCreate() && input.containsKey("owner") && !input.get("owner").equals(head.getOwner());
       if (ownerChanged) {
         XyzHubAttributeMap additionalNeededPermission = new XyzHubAttributeMap();
         additionalNeededPermission.withValue(SPACE, head.getId());
-        additionalNeededPermission.withValue(OWNER, input.getString("owner"));
+        additionalNeededPermission.withValue(OWNER, input.get("owner"));
         requestRights.adminSpaces(additionalNeededPermission);
       }
 
@@ -220,8 +219,8 @@ public class SpaceAuthorization extends Authorization {
     evaluateRights(requestRights, tokenRights, task, callback);
   }
 
-  private static Collection<String> getConnectorIds(@Nonnull final JsonObject input, @Nonnull final String field) {
-    final Object connectors = input.getValue(field);
+  private static Collection<String> getConnectorIds(@Nonnull final Map<String,Object> input, @Nonnull final String field) {
+    final Object connectors = new JsonObject(input).getValue(field);
     if (connectors instanceof JsonArray) return getConnectorIdsFromInput((JsonArray) connectors);
     if (connectors instanceof JsonObject) return ((JsonObject) connectors).getMap().keySet();
     return Collections.emptyList();
@@ -273,13 +272,13 @@ public class SpaceAuthorization extends Authorization {
     return !tokenRights.get(XyzHubActionMatrix.ACCESS_CONNECTORS).isEmpty();
   }
 
-  private static String getStorageFromInput(Entry<JsonObject, Space, Space> entry) {
-    return entry.input.getJsonObject("storage").getString("id");
+  private static String getStorageFromInput(Entry<Space> entry) {
+    return new JsonObject(entry.input).getJsonObject("storage").getString("id");
   }
 
-  private static List<String> getPackagesFromInput(Entry<JsonObject, Space, Space> entry) {
+  private static List<String> getPackagesFromInput(Entry<Space> entry) {
     if (entry.input.containsKey("packages")) {
-      return entry.input.getJsonArray("packages").stream().map(Object::toString).collect(Collectors.toList());
+      return new JsonObject(entry.input).getJsonArray("packages").stream().map(Object::toString).collect(Collectors.toList());
     }
     return Collections.emptyList();
   }

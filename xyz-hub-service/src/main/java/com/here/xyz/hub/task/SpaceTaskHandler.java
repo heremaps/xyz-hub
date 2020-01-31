@@ -62,6 +62,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -129,7 +130,7 @@ public class SpaceTaskHandler {
   }
 
   public static void preprocess(ConditionalOperation task, Callback<ConditionalOperation> callback) {
-    JsonObject input = task.modifyOp.entries.get(0).input;
+    JsonObject input = new JsonObject(task.modifyOp.entries.get(0).input);
     input.remove("createdAt");
     input.remove("updatedAt");
 
@@ -209,14 +210,14 @@ public class SpaceTaskHandler {
    * @param callback the callback to be invoked when done.
    */
   static void loadSpace(final ConditionalOperation task, final Callback<ConditionalOperation> callback) {
-    final JsonObject space = task.modifyOp.entries.get(0).input;
-    final String spaceId = space.getString("id");
-    if (spaceId == null) {
+    final Map<String,Object> space = task.modifyOp.entries.get(0).input;
+    final Object spaceId = space.get("id");
+    if (!(spaceId instanceof String)) {
       callback.call(task);
       return;
     }
 
-    Service.spaceConfigClient.get(task.getMarker(), spaceId, (arResult) -> {
+    Service.spaceConfigClient.get(task.getMarker(), (String)spaceId, (arResult) -> {
       if (arResult.failed()) {
         callback.exception(new Exception(arResult.cause()));
         return;
@@ -229,7 +230,7 @@ public class SpaceTaskHandler {
   }
 
   static void modifySpaces(final ConditionalOperation task, final Callback<ConditionalOperation> callback) {
-    final Entry<JsonObject, Space, Space> entry = task.modifyOp.entries.get(0);
+    final Entry<Space> entry = task.modifyOp.entries.get(0);
     if (!entry.isModified) {
       task.responseSpaces = Collections.singletonList(entry.result);
       callback.call(task);
@@ -339,7 +340,7 @@ public class SpaceTaskHandler {
     }
 
     Operation op = task.isCreate() ? Operation.CREATE : task.isUpdate() ? Operation.UPDATE : Operation.DELETE;
-    Entry<JsonObject, Space, Space> entry = task.modifyOp.entries.get(0);
+    Entry<Space> entry = task.modifyOp.entries.get(0);
 
     Space space = task.isDelete() ? entry.head : entry.result;
     final ModifySpaceEvent event = new ModifySpaceEvent()
@@ -365,7 +366,7 @@ public class SpaceTaskHandler {
         //Use the potentially modified spaceDefinition for writing
         JsonObject newInput = JsonObject.mapFrom(query.manipulatedSpaceDefinition);
         //Update the target and the flag if there is a difference between the latest head version and the new target version
-        entry.result = task.modifyOp.patch(entry.result, entry.result, newInput);
+        entry.result = task.modifyOp.patch(entry, entry.result, entry.result, newInput.getMap());
         entry.isModified = entry.isModified || !task.modifyOp.dataEquals(entry.head, entry.result);
       }
 
@@ -377,11 +378,11 @@ public class SpaceTaskHandler {
   }
 
   public static void postProcess(ConditionalOperation task, Callback<ConditionalOperation> callback) {
-    //Executes the timestamping only for create and update operations
+    //Executes the timestamp-ing only for create and update operations
     if (task.isCreate() || task.isUpdate()) {
 
       //Create and update operations, timestamp is always set into updatedAt field.
-      final Entry<JsonObject, Space, Space> entry = task.modifyOp.entries.get(0);
+      final Entry<Space> entry = task.modifyOp.entries.get(0);
 
       //The current UTC timestamp
       entry.result.setUpdatedAt(Service.currentTimeMillis());

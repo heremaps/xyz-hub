@@ -58,7 +58,6 @@ import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
@@ -74,6 +73,8 @@ import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.Json;
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -103,6 +104,10 @@ public class FeatureTaskHandler {
   private static final byte BINARY_VALUE = 2;
 
   private static final boolean ENABLE_SERVICE_UUID = true;
+  public static final String ID = "id";
+  public static final String TYPE = "type";
+  public static final String BBOX = "bbox";
+  public static final String PROPERTIES = "properties";
 
   /**
    * Sends the event to the connector client and write the response as the responseCollection of the task.
@@ -604,47 +609,40 @@ public class FeatureTaskHandler {
   }
 
   static void preprocessConditionalOp(ConditionalOperation task, Callback<ConditionalOperation> callback) throws Exception {
-    task.getEvent().setEnableUUID(task.space.isEnableUUID());
-
-    Map<String, Boolean> ids = new HashMap<>();
-
-    for (Entry<Feature, Feature, Feature> entry : task.modifyOp.entries) {
-      final Feature input = entry.input;
-
-      final String id = input.getId();
-      if (task.prefixId != null) { // Generate IDs here, if a prefixId is required. Add the prefix otherwise.
-        final String baseId = id == null ? RandomStringUtils.randomAlphanumeric(16) : id;
-        input.setId(task.prefixId + baseId);
-      }
-
-      if (id != null) { // Test for duplicate IDs
-        if (ids.containsKey(id)) {
-          logger.info(task.getMarker(), "Objects with the same ID {} are included in the request.", id);
-          throw new HttpException(BAD_REQUEST, "Objects with the same ID " + id + " is included in the request.");
+    try {
+      task.getEvent().setEnableUUID(task.space.isEnableUUID());
+      // Ensure that the ID is a string or null and check for duplicate IDs
+      Map<String, Boolean> ids = new HashMap<>();
+      for (Entry<Feature> entry : task.modifyOp.entries) {
+        final Object objId = entry.input.get(ID);
+        String id = (objId instanceof String || objId instanceof Number) ? String.valueOf(objId) : null;
+        if (task.prefixId != null) { // Generate IDs here, if a prefixId is required. Add the prefix otherwise.
+          id = task.prefixId + ((id == null) ? RandomStringUtils.randomAlphanumeric(16) : id);
         }
-        ids.put(id, true);
-      }
+        entry.input.put(ID, id);
 
-      // bbox is a dynamically calculated property
-      if (input.getBbox() != null) {
-        input.setBbox(null);
-      }
+        if (id != null) { // Test for duplicate IDs
+          if (ids.containsKey(id)) {
+            logger.info(task.getMarker(), "Objects with the same ID {} are included in the request.", id);
+            throw new HttpException(BAD_REQUEST, "Objects with the same ID " + id + " is included in the request.");
+          }
+          ids.put(id, true);
+        }
 
-      if (input.getProperties() == null) {
-        input.setProperties(new Properties());
-      }
+        entry.input.putIfAbsent(TYPE, "Feature");
 
-      final Properties properties = input.getProperties();
-      if (properties.getXyzNamespace() == null) {
-        properties.setXyzNamespace(new XyzNamespace());
-      }
+        // bbox is a dynamically calculated property
+        entry.input.remove(BBOX);
 
-      try {
-        input.validateGeometry();
-      } catch (InvalidGeometryException e) {
-        logger.info(task.getMarker(), "Invalid geometry found in feature: {}", input, e);
-        throw new HttpException(BAD_REQUEST, e.getMessage() + ". Feature: \n" + Json.encode(input));
+        // Add the XYZ namespace if it is not set yet.
+        entry.input.putIfAbsent(PROPERTIES, new HashMap<String, Object>());
+        @SuppressWarnings("unchecked") final Map<String, Object> properties = (Map<String, Object>) entry.input.get("properties");
+        properties.putIfAbsent(XyzNamespace.XYZ_NAMESPACE, new HashMap<String, Object>());
       }
+    } catch (Exception e) {
+      logger.error(e);
+      callback.exception(new HttpException(BAD_REQUEST, "Unable to process the request input."));
+      return;
     }
     callback.call(task);
   }
@@ -659,15 +657,23 @@ public class FeatureTaskHandler {
       long now = Service.currentTimeMillis();
 
       for (int i = 0; i < task.modifyOp.entries.size(); i++) {
-        final Entry<Feature, Feature, Feature> entry = task.modifyOp.entries.get(i);
+        final Entry<Feature> entry = task.modifyOp.entries.get(i);
         final Feature result = entry.result;
 
         // Insert or update
         if (result != null) {
+
+          try {
+            result.validateGeometry();
+          } catch (InvalidGeometryException e) {
+            logger.info(task.getMarker(), "Invalid geometry found in feature: {}", result, e);
+            throw new HttpException(BAD_REQUEST, e.getMessage() + ". Feature: \n" + Json.encode(entry.input));
+          }
+
           final XyzNamespace nsXyz = result.getProperties().getXyzNamespace();
 
           // Set the space ID
-          nsXyz.setSpace( task.space.getId() );
+          nsXyz.setSpace(task.space.getId());
 
           // Normalize the tags
           final List<String> tags = nsXyz.getTags();
@@ -677,19 +683,16 @@ public class FeatureTaskHandler {
             nsXyz.setTags(new ArrayList<>());
           }
 
-
           nsXyz.withInputPosition((long) i);
 
-
-
           // INSERT
-          if (entry.head == null ) {
+          if (entry.head == null) {
             // Timestamps
             nsXyz.setCreatedAt(now);
             nsXyz.setUpdatedAt(now);
 
             // UUID
-            if( task.space.isEnableUUID() && Event.VERSION.compareTo("0.2.0") >= 0 ) {
+            if (task.space.isEnableUUID() && Event.VERSION.compareTo("0.2.0") >= 0) {
               nsXyz.setUuid(UUID.randomUUID().toString());
             }
             insert.add(result);
@@ -701,11 +704,11 @@ public class FeatureTaskHandler {
             nsXyz.setUpdatedAt(now);
 
             // UUID
-            if( task.space.isEnableUUID() && Event.VERSION.compareTo("0.2.0") >= 0 ) {
+            if (task.space.isEnableUUID() && Event.VERSION.compareTo("0.2.0") >= 0) {
               nsXyz.setUuid(UUID.randomUUID().toString());
               nsXyz.setPuuid(entry.head.getProperties().getXyzNamespace().getUuid());
               // If the user was updating an older version, set it under the merge uuid
-              if( !entry.base.equals(entry.head) ){
+              if (!entry.base.equals(entry.head)) {
                 nsXyz.setMuuid(entry.base.getProperties().getXyzNamespace().getUuid());
               }
             }
@@ -716,12 +719,7 @@ public class FeatureTaskHandler {
         // DELETE
         else if (entry.head != null) {
           final String id = entry.head.getId();
-          String uuid = null;
-          final XyzNamespace nsXyz = entry.input.getProperties().getXyzNamespace();
-          if (nsXyz != null) {
-            uuid = nsXyz.getUuid();
-          }
-          delete.put(id, uuid);
+          delete.put(entry.head.getId(), entry.inputUUID);
         }
       }
 
@@ -742,20 +740,25 @@ public class FeatureTaskHandler {
       return;
     }
 
-    for (Entry<Feature, Feature, Feature> entry : task.modifyOp.entries) {
+    for (Entry<Feature> entry : task.modifyOp.entries) {
       // For existing objects: if the input does not contain the tags, copy them from the edited state.
-      final XyzNamespace nsXyz = entry.input.getProperties().getXyzNamespace();
-      if (nsXyz.getTags() == null) {
+      final JsonObject nsXyz = new JsonObject(entry.input).getJsonObject("properties").getJsonObject(XyzNamespace.XYZ_NAMESPACE);
+      if (nsXyz.getJsonArray("tags", null) == null) {
         if (entry.base != null && entry.base.getProperties().getXyzNamespace().getTags() != null) {
-          List<String> editedTags = entry.base.getProperties().getXyzNamespace().getTags();
-          editedTags.forEach(nsXyz::addTag);
+          List<String> baseTags = entry.base.getProperties().getXyzNamespace().getTags();
+          nsXyz.put("tags", new JsonArray(baseTags));
         }
       }
+      final JsonArray tags = nsXyz.getJsonArray("tags");
       if (task.addTags != null) {
-        task.addTags.forEach(nsXyz::addTag);
+        task.addTags.forEach(tag -> {
+          if (!tags.contains(tag)) {
+            tags.add(tag);
+          }
+        });
       }
       if (task.removeTags != null) {
-        task.removeTags.forEach(nsXyz::removeTag);
+        task.removeTags.forEach(tags::remove);
       }
     }
 

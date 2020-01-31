@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -105,7 +105,7 @@ public class FeatureAuthorization extends Authorization {
   }
 
   private static void addAttributeMapForEntry(ConditionalOperation task, XyzHubActionMatrix requestRights,
-      Entry<Feature, Feature, Feature> entry) {
+      Entry<Feature> entry) {
 
     // READ
     if (!requestRights.containsKey(XyzHubActionMatrix.READ_FEATURES) && (entry.head != null && IfExists.RETAIN
