@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,6 +58,7 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.responses.XyzResponse;
 import io.vertx.core.AsyncResult;
+import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import java.nio.charset.Charset;
 import java.util.HashMap;
@@ -547,14 +548,9 @@ public abstract class FeatureTask<T extends Event, X extends FeatureTask<T, ?>> 
       }
 
       final HashMap<String, String> idsMap = new HashMap<>();
-      for (Entry<Feature, Feature, Feature> entry : modifyOp.entries) {
-        if (entry.input.getId() != null) {
-          String uuid = null;
-          final Properties properties = entry.input.getProperties();
-          if (properties != null && properties.getXyzNamespace() != null) {
-            uuid = properties.getXyzNamespace().getUuid();
-          }
-          idsMap.put(entry.input.getId(), uuid);
+      for (Entry<Feature> entry : modifyOp.entries) {
+        if (entry.input.get("id") instanceof String ) {
+          idsMap.put((String)entry.input.get("id"), entry.inputUUID);
         }
       }
       if (idsMap.size() == 0) {
@@ -641,9 +637,9 @@ public abstract class FeatureTask<T extends Event, X extends FeatureTask<T, ?>> 
       if (positionById == null) {
         positionById = new HashMap<>();
         for (int i = 0; i < modifyOp.entries.size(); i++) {
-          final Feature input = modifyOp.entries.get(i).input;
-          if (input != null && input.getId() != null) {
-            positionById.put(input.getId(), i);
+          final Map<String,Object> input = modifyOp.entries.get(i).input;
+          if (input != null && input.get("id") instanceof String) {
+            positionById.put(input.get("id"), i);
           }
         }
       }

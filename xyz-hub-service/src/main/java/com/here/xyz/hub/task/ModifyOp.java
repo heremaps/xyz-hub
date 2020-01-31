@@ -22,29 +22,27 @@ package com.here.xyz.hub.task;
 import com.here.xyz.hub.rest.HttpException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * A modify operation, which transforms an INPUT object to a TARGET object.
+ * A modify operation
  *
- * @param <INPUT> some input, which may be a full state or just some instructions how to modify the current source state to produce a
- * certain target state.
- * @param <SOURCE> the type current state.
- * @param <TARGET> the target state that is the source state modified by the operation described by the input.
+ * @param <T> the record type
  */
-public abstract class ModifyOp<INPUT, SOURCE, TARGET> {
+public abstract class ModifyOp<T> {
 
-  public final List<Entry<INPUT, SOURCE, TARGET>> entries;
+  public final List<Entry<T>> entries;
   public final IfExists ifExists;
   public final IfNotExists ifNotExists;
   public final boolean isTransactional;
 
-  public ModifyOp(List<INPUT> inputStates, IfNotExists ifNotExists, IfExists ifExists, boolean isTransactional) {
+  public ModifyOp(List<Map<String,Object>> inputStates, IfNotExists ifNotExists, IfExists ifExists, boolean isTransactional) {
     this.ifExists = ifExists;
     this.ifNotExists = ifNotExists;
     this.isTransactional = isTransactional;
     this.entries = (inputStates == null) ? Collections.emptyList()
-        : inputStates.stream().map(Entry<INPUT, SOURCE, TARGET>::new).collect(Collectors.toList());
+        : inputStates.stream().map(Entry<T>::new).collect(Collectors.toList());
   }
 
   /**
@@ -54,7 +52,7 @@ public abstract class ModifyOp<INPUT, SOURCE, TARGET> {
    * @throws ModifyOpError when a processing error occurs.
    */
   public void process() throws ModifyOpError, HttpException {
-    for (Entry<INPUT, SOURCE, TARGET> entry : entries) {
+    for (Entry<T> entry : entries) {
       try {
         // IF NOT EXISTS
         if (entry.head == null) {
@@ -63,7 +61,7 @@ public abstract class ModifyOp<INPUT, SOURCE, TARGET> {
               entry.result = null;
               break;
             case CREATE:
-              entry.result = create(entry.input);
+              entry.result = create(entry, entry.input);
               break;
             case ERROR:
               throw new ModifyOpError("The record does not exist.");
@@ -73,19 +71,19 @@ public abstract class ModifyOp<INPUT, SOURCE, TARGET> {
         else {
           switch (ifExists) {
             case RETAIN:
-              entry.result = transform(entry.head);
+              entry.result = transform(entry, entry.head);
               break;
             case MERGE:
-              entry.result = merge(entry.head, entry.base, entry.input);
+              entry.result = merge(entry, entry.head, entry.base, entry.input);
               break;
             case PATCH:
-              entry.result = patch(entry.head, entry.base, entry.input);
+              entry.result = patch(entry, entry.head, entry.base, entry.input);
               break;
             case REPLACE:
-              entry.result = replace(entry.head, entry.input);
+              entry.result = replace(entry, entry.head, entry.input);
               break;
             case DELETE:
-              entry.result = null;
+              entry.result = delete(entry, entry.head, entry.input);
               break;
             case ERROR:
               throw new ModifyOpError("The record exists.");
@@ -104,15 +102,17 @@ public abstract class ModifyOp<INPUT, SOURCE, TARGET> {
     }
   }
 
-  public abstract TARGET patch(SOURCE headState, SOURCE baseState, INPUT inputState) throws ModifyOpError, HttpException;
+  public abstract T patch(Entry<T> entry, T headState, T baseState, Map<String,Object> inputState) throws ModifyOpError, HttpException;
 
-  public abstract TARGET merge(SOURCE headState, SOURCE baseState, INPUT inputState) throws ModifyOpError, HttpException;
+  public abstract T merge(Entry<T> entry, T headState, T baseState, Map<String,Object> inputState) throws ModifyOpError, HttpException;
 
-  public abstract TARGET replace(SOURCE headState, INPUT inputState) throws ModifyOpError, HttpException;
+  public abstract T replace(Entry<T> entry, T headState, Map<String,Object> inputState) throws ModifyOpError, HttpException;
 
-  public abstract TARGET create(INPUT inputState) throws ModifyOpError, HttpException;
+  public abstract T delete(Entry<T> entry, T headState, Map<String,Object> inputState) throws ModifyOpError, HttpException;
 
-  public abstract TARGET transform(SOURCE sourceState) throws ModifyOpError, HttpException;
+  public abstract T create(Entry<T> entry, Map<String,Object> inputState) throws ModifyOpError, HttpException;
+
+  public abstract T transform(Entry<T> entry, T sourceState) throws ModifyOpError, HttpException;
 
   /**
    * Returns true, if the 2 objects are equal, apart from any metadata information added by the service, such as timestamps, uuid, etc.
@@ -121,7 +121,7 @@ public abstract class ModifyOp<INPUT, SOURCE, TARGET> {
    * @param state2 the target state.
    * @return true when the source and target state are logically equal; false otherwise.
    */
-  public abstract boolean dataEquals(SOURCE state1, TARGET state2);
+  public abstract boolean dataEquals(T state1, T state2);
 
   public enum IfExists {
     RETAIN,
@@ -160,32 +160,34 @@ public abstract class ModifyOp<INPUT, SOURCE, TARGET> {
     }
   }
 
-  public static class Entry<INPUT, SOURCE, TARGET> {
+  public static class Entry<T> {
 
     public boolean isModified;
     /**
      * The input as it comes from the caller
      */
-    public INPUT input;
+    public Map<String,Object> input;
 
     /**
      * The latest state the object currently has in the data storage
      */
-    public SOURCE head;
+    public T head;
 
     /**
      * The state onto which the caller made the modifications
      */
-    public SOURCE base;
+    public T base;
 
     /**
      * The resulting target state which should go to the data storage after merging
      */
-    public TARGET result;
+    public T result;
 
     public Exception exception;
+    public String inputId;
+    public String inputUUID;
 
-    public Entry(INPUT input) {
+    public Entry(Map<String,Object> input) {
       this.input = input;
     }
   }
