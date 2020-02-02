@@ -106,8 +106,6 @@ public class FeatureTaskHandler {
   private static final byte JSON_VALUE = 1;
   private static final byte BINARY_VALUE = 2;
 
-  private static final boolean ENABLE_SERVICE_UUID = true;
-
   /**
    * Sends the event to the connector client and write the response as the responseCollection of the task.
    *
@@ -160,7 +158,7 @@ public class FeatureTaskHandler {
             return;
           }
           XyzResponse response = storageResult.result();
-          responseContext.enrichResponse(response);
+          responseContext.enrichResponse(task, response);
 
           //Do the post-processing here before sending back the response and notifying response-listeners
           notifyProcessors(task, eventType, response, postProcessingResult -> {
@@ -657,6 +655,10 @@ public class FeatureTaskHandler {
 
       for (int i = 0; i < task.modifyOp.entries.size(); i++) {
         final Entry<Feature> entry = task.modifyOp.entries.get(i);
+        if (!entry.isModified) {
+          task.hasNonModified = true;
+          continue;
+        }
         final Feature result = entry.result;
 
         // Insert or update
@@ -725,6 +727,19 @@ public class FeatureTaskHandler {
       task.getEvent().setInsertFeatures(insert);
       task.getEvent().setUpdateFeatures(update);
       task.getEvent().setDeleteFeatures(delete);
+
+      // In case nothing was changed, set the response directly to skip calling the storage connector.
+      if (insert.size() == 0 && update.size() == 0 && delete.size() == 0) {
+        FeatureCollection fc = new FeatureCollection();
+        if( task.hasNonModified ){
+          task.modifyOp.entries.stream().filter(e -> !e.isModified).forEach(e -> {
+            try {
+              fc.getFeatures().add(e.result);
+            } catch (JsonProcessingException ignored) {}
+          });
+        }
+        task.setResponse(fc);
+      }
 
       callback.call(task);
     } catch (ModifyOpError e) {
@@ -958,7 +973,14 @@ public class FeatureTaskHandler {
       }
     }
 
-    <R extends XyzResponse> void enrichResponse(R response) {
+    <T extends FeatureTask, R extends XyzResponse> void enrichResponse(T task, R response) {
+      if (task instanceof ConditionalOperation && response instanceof FeatureCollection && ((ConditionalOperation) task).hasNonModified) {
+        ((ConditionalOperation) task).modifyOp.entries.stream().filter(e -> !e.isModified).forEach(e -> {
+          try {
+            ((FeatureCollection) response).getFeatures().add(e.result);
+          } catch (JsonProcessingException ignored) {}
+        });
+      }
       if (eventType.isAssignableFrom(ModifyFeaturesEvent.class) && failedModifications != null && !failedModifications.isEmpty()) {
         //Copy over the failed modifications information to the response
         List<FeatureCollection.ModificationFailure> failed = ((FeatureCollection) response).getFailed();

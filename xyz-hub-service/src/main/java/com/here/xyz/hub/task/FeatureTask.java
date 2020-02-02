@@ -507,6 +507,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public String prefixId;
     private Map<Object, Integer> positionById;
     private LoadFeaturesEvent loadFeaturesEvent;
+    public boolean hasNonModified;
 
     public ConditionalOperation(ModifyFeaturesEvent event, RoutingContext context, ApiResponseType apiResponseTypeType,
         ModifyFeatureOp modifyOp,

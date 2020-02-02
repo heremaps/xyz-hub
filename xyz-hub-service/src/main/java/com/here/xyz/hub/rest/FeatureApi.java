@@ -236,13 +236,14 @@ public class FeatureApi extends Api {
       return getJsonObjects(json, context);
     } catch (DecodeException e) {
       logger.info(logMarker, "Invalid input encoding.", e);
-      // Some types of decoding exceptions could be avoided by reading the entire string.
       try {
+        // Some types of exceptions could be avoided by reading the entire string.
         JsonObject json = new JsonObject(context.getBodyAsString());
         return getJsonObjects(json, context);
-      } catch (Exception ex) {
-        logger.info(logMarker, "Error in the provided content ", e);
-        throw new HttpException(BAD_REQUEST, "Invalid JSON input string.");
+      } catch (DecodeException ex) {
+        ex.getCause();
+        logger.info(logMarker, "Error in the provided content ", ex.getCause());
+        throw new HttpException(BAD_REQUEST, "Invalid JSON input string: " + ex.getMessage());
       }
     } catch (Exception e) {
       logger.info(logMarker, "Error in the provided content ", e);
