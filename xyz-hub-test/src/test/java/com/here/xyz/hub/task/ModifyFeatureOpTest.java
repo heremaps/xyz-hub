@@ -22,6 +22,7 @@ package com.here.xyz.hub.task;
 import static org.junit.Assert.*;
 
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.task.ModifyOp.IfNotExists;
@@ -66,14 +67,14 @@ public class ModifyFeatureOpTest {
       final Entry<Feature> entry = op.entries.get(0);
       entry.head = head;
       entry.base = base;
-      Feature res = op.merge(entry, entry.head, entry.base, entry.input);
+      Feature res = entry.merge();
 
       // Expect to be reset to the default value
       assertNotEquals(res.getProperties().getXyzNamespace().getCreatedAt(), 123);
       assertTrue(res.getProperties().getXyzNamespace().getTags().contains("tag1"));
       assertTrue(res.getProperties().getXyzNamespace().getTags().contains("tag2"));
       assertEquals(res.getProperties().get("name"), "changed");
-    } catch (IOException | ModifyOpError e) {
+    } catch (IOException | ModifyOpError | HttpException e) {
       e.printStackTrace();
     }
   }
@@ -93,13 +94,13 @@ public class ModifyFeatureOpTest {
       final Entry<Feature> entry = op.entries.get(0);
       entry.head = base;
       entry.base = base;
-      Feature res = op.replace(entry, entry.base, entry.input);
+      Feature res = entry.replace();
 
       assertNotEquals(res.getProperties().getXyzNamespace().getCreatedAt(), 123);
       assertTrue(res.getProperties().getXyzNamespace().getTags().contains("tag1"));
       assertTrue(res.getProperties().getXyzNamespace().getTags().contains("tag2"));
       assertEquals(res.getProperties().get("name"), "changed");
-    } catch (IOException | ModifyOpError e) {
+    } catch (IOException | ModifyOpError | HttpException e) {
       e.printStackTrace();
     }
   }

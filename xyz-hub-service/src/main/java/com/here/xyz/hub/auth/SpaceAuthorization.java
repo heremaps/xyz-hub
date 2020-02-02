@@ -29,9 +29,9 @@ import static com.here.xyz.hub.auth.XyzHubAttributeMap.SPACE;
 import static com.here.xyz.hub.auth.XyzHubAttributeMap.STORAGE;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 
-import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.hub.task.ModifyOp;
 import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.task.ModifySpaceOp;
 import com.here.xyz.hub.task.SpaceTask.ConditionalOperation;
@@ -68,8 +68,7 @@ public class SpaceAuthorization extends Authorization {
       callback.exception(new HttpException(FORBIDDEN, "Accessing spaces isn't possible with an anonymous token."));
     } else if (task.getJwt().getXyzHubMatrix() == null) {
       callback.exception(new HttpException(FORBIDDEN, "Insufficient rights to read the requested resource."));
-    }
-    else {
+    } else {
       if (task.canReadConnectorsProperties) {
         final XyzHubActionMatrix connectorsReadMatrix = new XyzHubActionMatrix().accessConnectors(new XyzHubAttributeMap());
         task.canReadConnectorsProperties = task.getJwt().getXyzHubMatrix().matches(connectorsReadMatrix);
@@ -89,7 +88,7 @@ public class SpaceAuthorization extends Authorization {
     final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
 
     final Entry<Space> entry = task.modifyOp.entries.get(0);
-    final Map<String,Object> input = entry.input;
+    final Map<String, Object> input = entry.input;
     final Space head = entry.head;
     final Space target = entry.result;
 
@@ -108,8 +107,8 @@ public class SpaceAuthorization extends Authorization {
       final Map inputAsMap = asMap(Json.mapper.convertValue(input, Space.class));
 
       xyzhubFilter = new XyzHubAttributeMap()
-              .withValue(OWNER, (String)input.get("owner"))
-              .withValue(SPACE, (String)input.get("id"));
+          .withValue(OWNER, (String) input.get("owner"))
+          .withValue(SPACE, (String) input.get("id"));
       isBasicEdit = isBasicEdit(templateAsMap, inputAsMap);
       isAdminEdit = isAdminEdit(templateAsMap, inputAsMap);
       isStorageEdit = isPropertyEdit(templateAsMap, inputAsMap, STORAGE);
@@ -151,7 +150,8 @@ public class SpaceAuthorization extends Authorization {
 
     // On Read operations, any access to the space grants read access, this includes readFeatures, createFeatures, etc.
     if (task.isRead()) {
-      if (tokenRights == null || tokenRights.entrySet().stream().flatMap(e -> e.getValue().stream()).noneMatch(f -> f.matches(xyzhubFilter))) {
+      if (tokenRights == null || tokenRights.entrySet().stream().flatMap(e -> e.getValue().stream())
+          .noneMatch(f -> f.matches(xyzhubFilter))) {
         throw new HttpException(FORBIDDEN, "Insufficient rights to read the requested resource.");
       }
 
@@ -219,10 +219,14 @@ public class SpaceAuthorization extends Authorization {
     evaluateRights(requestRights, tokenRights, task, callback);
   }
 
-  private static Collection<String> getConnectorIds(@Nonnull final Map<String,Object> input, @Nonnull final String field) {
+  private static Collection<String> getConnectorIds(@Nonnull final Map<String, Object> input, @Nonnull final String field) {
     final Object connectors = new JsonObject(input).getValue(field);
-    if (connectors instanceof JsonArray) return getConnectorIdsFromInput((JsonArray) connectors);
-    if (connectors instanceof JsonObject) return ((JsonObject) connectors).getMap().keySet();
+    if (connectors instanceof JsonArray) {
+      return getConnectorIdsFromInput((JsonArray) connectors);
+    }
+    if (connectors instanceof JsonObject) {
+      return ((JsonObject) connectors).getMap().keySet();
+    }
     return Collections.emptyList();
   }
 
@@ -263,11 +267,13 @@ public class SpaceAuthorization extends Authorization {
   }
 
   private static boolean canReadConnectorProperties(XyzHubActionMatrix tokenRights) {
-    if (tokenRights == null)
+    if (tokenRights == null) {
       return false;
+    }
 
-    if (tokenRights.get(XyzHubActionMatrix.ACCESS_CONNECTORS) == null)
+    if (tokenRights.get(XyzHubActionMatrix.ACCESS_CONNECTORS) == null) {
       return false;
+    }
 
     return !tokenRights.get(XyzHubActionMatrix.ACCESS_CONNECTORS).isEmpty();
   }
@@ -286,7 +292,7 @@ public class SpaceAuthorization extends Authorization {
 
   private static Map asMap(Object object) {
     try {
-      return XyzSerializable.filter(
+      return ModifyOp.filter(
           Json.decodeValue(Json.mapper.writerWithView(Static.class).writeValueAsString(object), Map.class), ModifySpaceOp.metadataFilter);
     } catch (Exception e) {
       return Collections.emptyMap();

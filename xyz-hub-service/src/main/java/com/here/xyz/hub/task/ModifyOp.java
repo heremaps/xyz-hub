@@ -20,29 +20,29 @@
 package com.here.xyz.hub.task;
 
 import com.here.xyz.hub.rest.HttpException;
-import java.util.Collections;
+import com.here.xyz.hub.task.ModifyOp.Entry;
+import com.here.xyz.hub.util.diff.Difference;
+import com.here.xyz.hub.util.diff.Patcher;
+import io.vertx.core.json.JsonObject;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Objects;
 
 /**
  * A modify operation
- *
- * @param <T> the record type
  */
-public abstract class ModifyOp<T> {
+public abstract class ModifyOp<T, K extends Entry<T>> {
 
-  public final List<Entry<T>> entries;
+  public final List<K> entries;
   public final IfExists ifExists;
   public final IfNotExists ifNotExists;
   public final boolean isTransactional;
 
-  public ModifyOp(List<Map<String,Object>> inputStates, IfNotExists ifNotExists, IfExists ifExists, boolean isTransactional) {
+  public ModifyOp(List<K> entries, IfNotExists ifNotExists, IfExists ifExists, boolean isTransactional) {
     this.ifExists = ifExists;
     this.ifNotExists = ifNotExists;
     this.isTransactional = isTransactional;
-    this.entries = (inputStates == null) ? Collections.emptyList()
-        : inputStates.stream().map(Entry<T>::new).collect(Collectors.toList());
+    this.entries = entries;
   }
 
   /**
@@ -52,7 +52,7 @@ public abstract class ModifyOp<T> {
    * @throws ModifyOpError when a processing error occurs.
    */
   public void process() throws ModifyOpError, HttpException {
-    for (Entry<T> entry : entries) {
+    for (K entry : entries) {
       try {
         // IF NOT EXISTS
         if (entry.head == null) {
@@ -61,7 +61,7 @@ public abstract class ModifyOp<T> {
               entry.result = null;
               break;
             case CREATE:
-              entry.result = create(entry, entry.input);
+              entry.result = entry.create();
               break;
             case ERROR:
               throw new ModifyOpError("The record does not exist.");
@@ -71,19 +71,19 @@ public abstract class ModifyOp<T> {
         else {
           switch (ifExists) {
             case RETAIN:
-              entry.result = transform(entry, entry.head);
+              entry.result = entry.transform();
               break;
             case MERGE:
-              entry.result = merge(entry, entry.head, entry.base, entry.input);
+              entry.result = entry.merge();
               break;
             case PATCH:
-              entry.result = patch(entry, entry.head, entry.base, entry.input);
+              entry.result = entry.patch();
               break;
             case REPLACE:
-              entry.result = replace(entry, entry.head, entry.input);
+              entry.result = entry.replace();
               break;
             case DELETE:
-              entry.result = delete(entry, entry.head, entry.input);
+              entry.result = entry.delete();
               break;
             case ERROR:
               throw new ModifyOpError("The record exists.");
@@ -91,7 +91,7 @@ public abstract class ModifyOp<T> {
         }
 
         // Check if the isModified flag is not already set. Compare the objects in case it is not set yet.
-        entry.isModified = entry.isModified || !dataEquals(entry.head, entry.result);
+        entry.isModified = entry.isModified || entry.isModified();
       } catch (ModifyOpError e) {
         if (isTransactional) {
           throw e;
@@ -101,27 +101,6 @@ public abstract class ModifyOp<T> {
       }
     }
   }
-
-  public abstract T patch(Entry<T> entry, T headState, T baseState, Map<String,Object> inputState) throws ModifyOpError, HttpException;
-
-  public abstract T merge(Entry<T> entry, T headState, T baseState, Map<String,Object> inputState) throws ModifyOpError, HttpException;
-
-  public abstract T replace(Entry<T> entry, T headState, Map<String,Object> inputState) throws ModifyOpError, HttpException;
-
-  public abstract T delete(Entry<T> entry, T headState, Map<String,Object> inputState) throws ModifyOpError, HttpException;
-
-  public abstract T create(Entry<T> entry, Map<String,Object> inputState) throws ModifyOpError, HttpException;
-
-  public abstract T transform(Entry<T> entry, T sourceState) throws ModifyOpError, HttpException;
-
-  /**
-   * Returns true, if the 2 objects are equal, apart from any metadata information added by the service, such as timestamps, uuid, etc.
-   *
-   * @param state1 the source state.
-   * @param state2 the target state.
-   * @return true when the source and target state are logically equal; false otherwise.
-   */
-  public abstract boolean dataEquals(T state1, T state2);
 
   public enum IfExists {
     RETAIN,
@@ -160,18 +139,27 @@ public abstract class ModifyOp<T> {
     }
   }
 
-  public static class Entry<T> {
+  public static abstract class Entry<T> {
 
     public boolean isModified;
     /**
      * The input as it comes from the caller
      */
-    public Map<String,Object> input;
+    public Map<String, Object> input;
 
     /**
      * The latest state the object currently has in the data storage
      */
     public T head;
+
+    private Map<String, Object> headMap;
+
+    private Map<String, Object> getHeadMap() throws HttpException, ModifyOpError {
+      if( headMap == null && head != null){
+          headMap = toMap(head);
+      }
+      return headMap;
+    }
 
     /**
      * The state onto which the caller made the modifications
@@ -183,12 +171,109 @@ public abstract class ModifyOp<T> {
      */
     public T result;
 
+    private Map<String, Object> resultMap;
+
+    private Map<String, Object> getResultMap() throws HttpException, ModifyOpError {
+      if( resultMap == null && result!=null){
+        resultMap = toMap(result);
+      }
+      return resultMap;
+    };
+
     public Exception exception;
-    public String inputId;
     public String inputUUID;
 
-    public Entry(Map<String,Object> input) {
-      this.input = input;
+    public Entry(Map<String, Object> input) {
+      this.inputUUID = getUuid(input);
+      this.input = filterMetadata(input);
+    }
+
+    protected abstract String getId(T record);
+
+    protected abstract String getUuid(T record);
+
+    protected abstract String getUuid(Map<String, Object> record);
+
+    public T patch() throws ModifyOpError, HttpException {
+      final Map<String, Object> computedInput = toMap(base);
+      final Difference diff = Patcher.calculateDifferenceOfPartialUpdate(computedInput, input, null, true);
+      if (diff == null) {
+        return head;
+      }
+
+      Patcher.patch(computedInput, diff);
+      input = computedInput;
+      return merge();
+    }
+
+    public T merge() throws ModifyOpError, HttpException {
+      if (base.equals(head)) {
+        return replace();
+      }
+
+      final Map<String, Object> resultMap = toMap(base);
+
+      final Difference diffInput = Patcher.getDifference(resultMap, input);
+      if (diffInput == null) {
+        return head;
+      }
+      final Difference diffHead = Patcher.getDifference(resultMap, getHeadMap());
+      try {
+        final Difference mergedDiff = Patcher.mergeDifferences(diffInput, diffHead);
+        Patcher.patch(resultMap, mergedDiff);
+        this.resultMap = resultMap;
+        return fromMap(resultMap);
+      } catch (Exception e) {
+        throw new ModifyOpError(e.getMessage());
+      }
+    }
+
+    public T replace() throws ModifyOpError, HttpException {
+      if (inputUUID != null && !com.google.common.base.Objects.equal(inputUUID, getUuid(head))) {
+        throw new ModifyOpError(
+            "The feature with id " + getId(head) + " cannot be replaced. The provided UUID doesn't match the UUID of the head state: "
+                + getUuid(head));
+      }
+      return fromMap(input);
+    }
+
+    public T delete() throws ModifyOpError, HttpException {
+      if (inputUUID != null && !com.google.common.base.Objects.equal(inputUUID, getUuid(head))) {
+        throw new ModifyOpError(
+            "The feature with id " + getId(head) + " cannot be replaced. The provided UUID doesn't match the UUID of the head state: "
+                + getUuid(head));
+      }
+      if (head != null) {
+        isModified = true;
+      }
+      return null;
+    }
+
+    public T create() throws ModifyOpError, HttpException {
+      isModified = true;
+      return fromMap(input);
+    }
+
+    public T transform() {
+      return head;
+    }
+
+    public abstract Map<String, Object> filterMetadata(Map<String, Object> map);
+
+    public abstract T fromMap(Map<String, Object> map) throws ModifyOpError, HttpException;
+
+    public abstract Map<String, Object> toMap(T record) throws ModifyOpError, HttpException;
+
+    /**
+     * Checks, if the result of the operation is different than the the head state.
+     *
+     * @return true, if the result of the operation is different than the the head state.
+     */
+    public boolean isModified() throws HttpException, ModifyOpError {
+      if (Objects.equals(head, result)) {
+        return false;
+      }
+      return !(new JsonObject(getHeadMap()).equals(new JsonObject(getResultMap())));
     }
   }
 
@@ -197,5 +282,28 @@ public abstract class ModifyOp<T> {
     public ModifyOpError(String msg) {
       super(msg);
     }
+  }
+
+  /**
+   * Filter recursively all properties from the provided filter, where the value is set to 'true'.
+   *
+   * @param map the object to filter
+   * @param filter the filter to apply
+   */
+  public static Map<String, Object> filter(Map<String, Object> map, Map<String, Object> filter) {
+    if (map == null || filter == null) {
+      return map;
+    }
+
+    for (String key : filter.keySet()) {
+      if (filter.get(key) instanceof Map && map.get(key) instanceof Map) {
+        //noinspection unchecked
+        filter((Map<String, Object>) map.get(key), (Map<String, Object>) filter.get(key));
+      }
+      if (filter.get(key) instanceof Boolean && (Boolean) filter.get(key)) {
+        map.remove(key);
+      }
+    }
+    return map;
   }
 }
