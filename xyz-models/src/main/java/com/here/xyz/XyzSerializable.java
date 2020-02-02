@@ -154,32 +154,6 @@ public interface XyzSerializable {
     return DEFAULT_MAPPER.get().convertValue(this, Map.class);
   }
 
-  default Map<String, Object> asMap(Map<String,Object> filter) {
-    //noinspection unchecked
-    return filter( DEFAULT_MAPPER.get().convertValue(this, Map.class), filter);
-  }
-
-  /**
-   * Filter recursively all properties from the provided filter, where the value is set to 'true'.
-   *
-   * @param map the object to filter
-   * @param filter the filter to apply
-   */
-  static Map<String,Object> filter(Map<String,Object>  map, Map<String,Object>  filter) {
-    if( map == null || filter == null )
-      return map;
-
-    for (String key : filter.keySet()) {
-      if (filter.get(key) instanceof Map && map.get(key) instanceof Map) {
-        //noinspection unchecked
-        filter((Map<String,Object> ) map.get(key), (Map<String,Object> ) filter.get(key));
-      }
-      if (filter.get(key) instanceof Boolean && (Boolean) filter.get(key)) {
-        map.remove(key);
-      }
-    }
-    return map;
-  }
   @SuppressWarnings("unused")
   default List<Object> asList() {
     //noinspection unchecked

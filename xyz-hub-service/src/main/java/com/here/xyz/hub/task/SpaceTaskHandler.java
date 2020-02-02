@@ -52,6 +52,8 @@ import com.here.xyz.hub.task.SpaceTask.ReadQuery;
 import com.here.xyz.hub.task.SpaceTask.View;
 import com.here.xyz.hub.task.TaskPipeline.C1;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
+import com.here.xyz.hub.util.diff.Difference;
+import com.here.xyz.hub.util.diff.Patcher;
 import com.here.xyz.models.hub.Space.ConnectorRef;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.json.Json;
@@ -361,13 +363,16 @@ public class SpaceTaskHandler {
       if (query.manipulatedOp != null && query.manipulatedOp != op) {
         throw new HttpException(BAD_GATEWAY, "Connector error.");
       }
-
       if ((task.isCreate() || task.isUpdate()) && query.manipulatedSpaceDefinition != null) {
-        //Use the potentially modified spaceDefinition for writing
-        JsonObject newInput = JsonObject.mapFrom(query.manipulatedSpaceDefinition);
-        //Update the target and the flag if there is a difference between the latest head version and the new target version
-        entry.result = task.modifyOp.patch(entry, entry.result, entry.result, newInput.getMap());
-        entry.isModified = entry.isModified || !task.modifyOp.dataEquals(entry.head, entry.result);
+        // Treat the manipulated space definition as a partial update.
+        Map<String,Object> newInput = JsonObject.mapFrom(query.manipulatedSpaceDefinition).getMap();
+        Map<String,Object> resultClone = entry.result.asMap();
+        final Difference difference = Patcher.calculateDifferenceOfPartialUpdate(resultClone, newInput, null, true);
+        if( difference != null ){
+          entry.isModified = true;
+          Patcher.patch(resultClone,difference);
+          entry.result = Json.mapper.readValue(Json.encode(resultClone), Space.class);
+        }
       }
 
       callback.call(task);

@@ -19,128 +19,84 @@
 
 package com.here.xyz.hub.task;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.google.common.base.Objects;
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.CREATED_AT;
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.MUUID;
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PUUID;
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.SPACE;
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.UPDATED_AT;
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.UUID;
+
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.hub.util.diff.Difference;
-import com.here.xyz.hub.util.diff.Patcher;
+import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
-import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
-public class ModifyFeatureOp extends ModifyOp<Feature> {
+public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
 
-  public ModifyFeatureOp(List<Map<String,Object>> inputStates, IfNotExists ifNotExists, IfExists ifExists, boolean isTransactional) {
-    super(inputStates, ifNotExists, ifExists, isTransactional);
-    for (Entry<Feature> entry : entries) {
-      entry.inputUUID = getUuid(entry.input);
-      entry.input = XyzSerializable.filter(entry.input, metadataFilter);
-    }
+  public ModifyFeatureOp(List<Map<String, Object>> inputStates, IfNotExists ifNotExists, IfExists ifExists, boolean isTransactional) {
+    super((inputStates == null) ? Collections.emptyList() : inputStates.stream().map(FeatureEntry::new).collect(Collectors.toList()),
+        ifNotExists, ifExists, isTransactional);
   }
 
-  @Override
-  public Feature patch(Entry<Feature> entry, Feature headState, Feature baseState, Map<String,Object> inputState) throws ModifyOpError {
-    final Map<String, Object> base = baseState.asMap(metadataFilter);
-    final Map<String, Object> input = inputState;
-    final Difference diff = Patcher.calculateDifferenceOfPartialUpdate(base, input, null, true);
-    if (diff == null) {
-      return headState;
+  public static class FeatureEntry extends ModifyOp.Entry<Feature> {
+
+    public FeatureEntry(Map<String, Object> input) {
+      super(input);
     }
 
-    Patcher.patch(base, diff);
-    entry.input = base;
-    return merge(entry, headState, baseState, entry.input);
-  }
-
-  @Override
-  public Feature merge(Entry<Feature> entry, Feature headState, Feature baseState, Map<String,Object> inputState) throws ModifyOpError {
-    // If the latest state is the state, which was updated, execute a replace
-    if (baseState.equals(headState)) {
-      return replace(entry, headState, inputState);
+    @Override
+    public Feature fromMap(Map<String, Object> map) throws ModifyOpError, HttpException {
+      return XyzSerializable.fromMap(map, Feature.class);
     }
 
-    final Map<String, Object> base = baseState.asMap(metadataFilter);
-    final Map<String, Object> head = headState.asMap(metadataFilter);
-    final Map<String, Object> input = inputState;
-
-    final Difference diffInput = Patcher.getDifference(base, input);
-    if (diffInput == null) {
-      return headState;
-    }
-    final Difference diffHead = Patcher.getDifference(base, head);
-    try {
-      final Difference mergedDiff = Patcher.mergeDifferences(diffInput, diffHead);
-      Patcher.patch(base, mergedDiff);
-      return XyzSerializable.fromMap(base, Feature.class);
-    } catch (Exception e) {
-      throw new ModifyOpError(e.getMessage());
-    }
-  }
-
-  @Override
-  public Feature replace(Entry<Feature> entry, Feature headState, Map<String,Object> inputState) throws ModifyOpError {
-    if (entry.inputUUID != null && !Objects.equal(entry.inputUUID, headState.getProperties().getXyzNamespace().getUuid())) {
-      throw new ModifyOpError(
-          "The feature with id " + headState.getId() + " cannot be replaced. The provided UUID doesn't match the UUID of the head state: "
-              + headState.getProperties().getXyzNamespace().getUuid());
-    }
-    return XyzSerializable.fromMap(inputState, Feature.class);
-  }
-
-  @Override
-  public Feature delete(Entry<Feature> entry, Feature headState, Map<String,Object> inputState) throws ModifyOpError {
-    if (entry.inputUUID != null && !Objects.equal(entry.inputUUID, headState.getProperties().getXyzNamespace().getUuid())) {
-      throw new ModifyOpError(
-          "The feature with id " + headState.getId() + " cannot be deleted. The provided UUID doesn't match the UUID of the head state: "
-              + headState.getProperties().getXyzNamespace().getUuid());
-
-    }
-    return null;
-  }
-
-  @Override
-  public Feature create(Entry<Feature> entry, Map<String,Object> inputState) {
-    return XyzSerializable.fromMap(inputState, Feature.class);
-  }
-
-  @Override
-  public Feature transform(Entry<Feature> entry, Feature sourceState) {
-    return sourceState;
-  }
-
-  private String getUuid(Map<String,Object> feature) {
-    try {
-      return new JsonObject(feature).getJsonObject("properties").getJsonObject(XyzNamespace.XYZ_NAMESPACE).getString("uuid");
-    } catch (Exception e) {
-      return null;
-    }
-  }
-
-  @Override
-  public boolean dataEquals(Feature feature1, Feature feature2) {
-    if (Objects.equal(feature1, feature2)) {
-      return true;
+    @Override
+    public Map<String, Object> toMap(Feature record) throws ModifyOpError, HttpException {
+      return filterMetadata(record.asMap());
     }
 
-    Map<String, Object> map1 = XyzSerializable.filter(Json.mapper.convertValue(feature1, Map.class), metadataFilter);
-    Map<String, Object> map2 = XyzSerializable.filter(Json.mapper.convertValue(feature2, Map.class), metadataFilter);
-
-    return Patcher.getDifference(map1, map2) == null;
-  }
-
-  public static Map<String, Object> metadataFilter;
-
-  static {
-    try {
-      //noinspection unchecked
-      metadataFilter = Json.mapper.readValue(
-          "{\"properties\": {\"@ns:com:here:xyz\": {\"space\": true,\"createdAt\": true,\"updatedAt\": true,\"uuid\": true,\"puuid\": true,\"muuid\": true}}}",
-          Map.class);
-    } catch (JsonProcessingException ignored) {
+    @Override
+    protected String getUuid(Map<String, Object> feature) {
+      try {
+        return new JsonObject(feature).getJsonObject(PROPERTIES).getJsonObject(XyzNamespace.XYZ_NAMESPACE).getString(UUID);
+      } catch (Exception e) {
+        return null;
+      }
     }
+
+    @Override
+    protected String getUuid(Feature input) {
+      try {
+        return input.getProperties().getXyzNamespace().getUuid();
+      } catch (Exception e) {
+        return null;
+      }
+    }
+
+    public String getId(Feature record) {
+      return record == null ? null : record.getId();
+    }
+
+    @Override
+    public Map<String, Object> filterMetadata(Map<String, Object> map) {
+      return filter(map,metadataFilter);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> metadataFilter = new JsonObject()
+        .put(PROPERTIES, new JsonObject()
+            .put(XyzNamespace.XYZ_NAMESPACE, new JsonObject()
+                .put(SPACE, true)
+                .put(CREATED_AT, true)
+                .put(UPDATED_AT, true)
+                .put(UUID, true)
+                .put(PUUID, true)
+                .put(MUUID, true))).mapTo(Map.class);
   }
 }

@@ -256,17 +256,10 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
     }
   }
 
-  public Map asMap() {
+  public Map<String,Object> asMap() {
     try {
+      //noinspection unchecked
       return Json.decodeValue(Json.mapper.writerWithView(Static.class).writeValueAsString(this), Map.class);
-    } catch (Exception e) {
-      return Collections.emptyMap();
-    }
-  }
-
-  public Map<String,Object> asMap(Map<String,Object> filter) {
-    try {
-      return XyzSerializable.filter( Json.decodeValue(Json.mapper.writerWithView(Static.class).writeValueAsString(this), Map.class), filter);
     } catch (Exception e) {
       return Collections.emptyMap();
     }

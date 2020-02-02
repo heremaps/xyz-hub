@@ -19,6 +19,10 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.BBOX;
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.ID;
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.TYPE;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
@@ -81,7 +85,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import net.jodah.expiringmap.ExpirationPolicy;
@@ -104,10 +107,6 @@ public class FeatureTaskHandler {
   private static final byte BINARY_VALUE = 2;
 
   private static final boolean ENABLE_SERVICE_UUID = true;
-  public static final String ID = "id";
-  public static final String TYPE = "type";
-  public static final String BBOX = "bbox";
-  public static final String PROPERTIES = "properties";
 
   /**
    * Sends the event to the connector client and write the response as the responseCollection of the task.
@@ -693,7 +692,7 @@ public class FeatureTaskHandler {
 
             // UUID
             if (task.space.isEnableUUID() && Event.VERSION.compareTo("0.2.0") >= 0) {
-              nsXyz.setUuid(UUID.randomUUID().toString());
+              nsXyz.setUuid(java.util.UUID.randomUUID().toString());
             }
             insert.add(result);
           }
@@ -705,7 +704,7 @@ public class FeatureTaskHandler {
 
             // UUID
             if (task.space.isEnableUUID() && Event.VERSION.compareTo("0.2.0") >= 0) {
-              nsXyz.setUuid(UUID.randomUUID().toString());
+              nsXyz.setUuid(java.util.UUID.randomUUID().toString());
               nsXyz.setPuuid(entry.head.getProperties().getXyzNamespace().getUuid());
               // If the user was updating an older version, set it under the merge uuid
               if (!entry.base.equals(entry.head)) {
