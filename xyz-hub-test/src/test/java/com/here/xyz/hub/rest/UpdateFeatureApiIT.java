@@ -71,6 +71,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         body(content("/xyz/hub/featureWithNumberId.json")).
         when().
         post("/spaces/x-psql-test/features").
+        prettyPeek().
         then().
         statusCode(OK.code()).
         body("features[0].id", equalTo("1234"));
