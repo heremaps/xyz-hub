@@ -241,7 +241,6 @@ public class FeatureApi extends Api {
         JsonObject json = new JsonObject(context.getBodyAsString());
         return getJsonObjects(json, context);
       } catch (DecodeException ex) {
-        ex.getCause();
         logger.info(logMarker, "Error in the provided content ", ex.getCause());
         throw new HttpException(BAD_REQUEST, "Invalid JSON input string: " + ex.getMessage());
       }
