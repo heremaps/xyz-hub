@@ -95,7 +95,7 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
   private SnsMessageBroker() {
     logger.info("Initializing SnsMessageBroker");
 
-    final String initErrorMsg = "WARNING: Environment variable \"ADMIN_MESSAGE_TOPIC_ARN\" not defined. The node could not be subscribed as"
+    final String initWarnMsg = "Environment variable \"ADMIN_MESSAGE_TOPIC_ARN\" not defined. The node could not be subscribed as"
         + " AdminMessage listener. No AdminMessages will be received from SNS by this node.";
     String topicArn = null;
     SnsMessageManager messageManager = null;
@@ -110,13 +110,13 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
             .withRegion(Service.configuration.ADMIN_MESSAGE_TOPIC_ARN.getRegion())
             .build();
       } catch (Exception e) {
-        logger.error(initErrorMsg, e);
+        logger.warn(initWarnMsg, e);
         topicArn = null;
         messageManager = null;
         snsClient = null;
       }
     } else {
-      logger.error(initErrorMsg);
+      logger.warn(initWarnMsg);
     }
 
     TOPIC_ARN = topicArn;
