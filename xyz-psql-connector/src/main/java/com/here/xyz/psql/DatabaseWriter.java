@@ -25,7 +25,7 @@ public class DatabaseWriter {
         connection.setAutoCommit(isActive);
     }
 
-    public static FeatureCollection insertFeatures(FeatureCollection collection,
+    public static FeatureCollection insertFeatures(FeatureCollection collection, List<FeatureCollection.ModificationFailure> fails,
                                                    List<Feature> inserts, Connection connection, String schema, String table,
                                                    boolean transactional)
             throws SQLException, JsonProcessingException {
@@ -34,19 +34,19 @@ public class DatabaseWriter {
             return DatabaseTransactionalWriter.insertFeatures(collection, inserts, connection, schema, table);
         }
         setAutocommit(connection,true);
-        return DatabaseStreamWriter.insertFeatures(collection, inserts, connection, schema, table);
+        return DatabaseStreamWriter.insertFeatures(collection, fails, inserts, connection, schema, table);
     };
 
-    public static FeatureCollection updateFeatures(FeatureCollection collection,
+    public static FeatureCollection updateFeatures(FeatureCollection collection, List<FeatureCollection.ModificationFailure> fails,
                                                    List<Feature> updates, Connection connection, String schema, String table,
-                                                   boolean transactional)
+                                                   boolean transactional, boolean handleUUID)
             throws SQLException, JsonProcessingException {
         if(transactional) {
             setAutocommit(connection,false);
             return DatabaseTransactionalWriter.updateFeatures(collection, updates, connection, schema, table);
         }
         setAutocommit(connection,true);
-        return DatabaseStreamWriter.updateFeatures(collection, updates, connection, schema, table);
+        return DatabaseStreamWriter.updateFeatures(collection, fails, updates, connection, schema, table, handleUUID);
     };
 
     public static void deleteFeatures(Map<String, String> deletes, Connection connection, String schema,

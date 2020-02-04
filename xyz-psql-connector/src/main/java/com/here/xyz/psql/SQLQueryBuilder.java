@@ -27,18 +27,21 @@ import com.here.xyz.psql.factory.H3SQL;
 import com.here.xyz.psql.factory.QuadbinSQL;
 
 import javax.sql.DataSource;
+import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.util.*;
 
 public class SQLQueryBuilder {
     private static final long EQUATOR_LENGTH = 40_075_016;
     private static final long TILE_SIZE = 256;
+    private static final String SQL_STATISTIC_FUNCTION = "xyz_statistic_space";
+    private static final String IDX_STATUS_TABLE = "xyz_config.xyz_idxs_status";
 
     public static SQLQuery buildGetStatisticsQuery(GetStatisticsEvent event, PSQLConfig config) throws Exception {
         final String schema = config.schema();
         final String table = config.table(event);
 
-        return new SQLQuery("SELECT * from " + schema + ".xyz_statistic_space('" + schema + "','" + table + "')");
+        return new SQLQuery("SELECT * from " + schema + "."+SQL_STATISTIC_FUNCTION+"('" + schema + "','" + table + "')");
     }
 
     public static SQLQuery buildGetFeaturesByIdQuery(GetFeaturesByIdEvent event, PSQLConfig config, DataSource dataSource)
@@ -346,7 +349,12 @@ public class SQLQueryBuilder {
                     // The rest are indexed as jsonb
                     else {
                         SQLQuery q = SQLQuery.createKey(propertyQuery.getKey());
-                        q.append(new SQLQuery(SQLQuery.getOperation(propertyQuery.getOperation()) + SQLQuery.getValue(v), v));
+
+                        /** BigDecimal is needed to avoid a 8Byte DOUBLE PRECISION Cast */
+                        if(v instanceof Double)
+                            q.append(new SQLQuery(SQLQuery.getOperation(propertyQuery.getOperation()) + SQLQuery.getValue(v), new BigDecimal(v.toString())));
+                        else
+                            q.append(new SQLQuery(SQLQuery.getOperation(propertyQuery.getOperation()) + SQLQuery.getValue(v), v));
                         keyDisjunctionQueries.add(q);
                     }
                 });
@@ -447,5 +455,9 @@ public class SQLQueryBuilder {
         final SQLQuery tagsQuery = generateTagsQuery(event.getTags(),dataSource);
 
         return SQLQuery.join("AND", propertiesQuery, tagsQuery);
+    }
+
+    protected static SQLQuery generateIDXStatusQuery(final String space){
+        return new SQLQuery("SELECT idx_available FROM "+IDX_STATUS_TABLE+" WHERE spaceid=?", space);
     }
 }

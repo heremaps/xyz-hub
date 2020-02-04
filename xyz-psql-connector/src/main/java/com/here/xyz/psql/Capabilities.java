@@ -96,7 +96,7 @@ public class Capabilities {
         return indexList.indices;
       }
 
-      indexList = connector.executeQuery(new SQLQuery("SELECT idx_available FROM xyz_config.xyz_idxs_status WHERE spaceid=?", space),
+      indexList = connector.executeQuery(SQLQueryBuilder.generateIDXStatusQuery(space),
               Capabilities::rsHandler);
 
       cachedIndices.put(space, indexList);
@@ -134,7 +134,6 @@ public class Capabilities {
           indices.add((String) one.get("property"));
         }
       }
-
       return new IndexList(indices);
     } catch (Exception e) {
       return new IndexList(null);

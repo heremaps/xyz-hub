@@ -26,16 +26,13 @@ import com.here.xyz.events.*;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.responses.*;
 import com.mchange.v2.c3p0.AbstractConnectionCustomizer;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
-import com.vividsolutions.jts.io.WKBWriter;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.postgresql.util.PGobject;
 
 import javax.sql.DataSource;
 import java.sql.*;
@@ -80,6 +77,8 @@ public abstract class DatabaseHandler extends StorageConnector {
     private DatabaseMaintainer dbMaintainer;
 
     private Map<String, String> replacements = new HashMap<>();
+
+    private boolean retryAttempted;
 
     @Override
     protected XyzResponse processHealthCheckEvent(HealthCheckEvent event) {
@@ -174,6 +173,54 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     /**
+     * Executes the given query and returns the processed by the handler result.
+     */
+    protected <T> T executeQuery(SQLQuery query, ResultSetHandler<T> handler) throws SQLException {
+        return executeQuery(query, handler, readDataSource);
+    }
+
+    protected FeatureCollection executeQueryWithRetry(SQLQuery query) throws SQLException {
+        return executeQueryWithRetry(query, this::defaultFeatureResultSetHandler);
+    }
+
+    /**
+     *
+     * Executes the query and reattempt to execute the query, after
+     */
+    protected <T extends XyzResponse> T executeQueryWithRetry(SQLQuery query, ResultSetHandler<T> handler) throws SQLException {
+        try {
+            return executeQuery(query, handler);
+        } catch (Exception e) {
+            try {
+                if (canRetryAttempt()) {
+                    return executeQuery(query, handler);
+                }
+            } catch (Exception e1) {
+                throw e;
+            }
+            throw e;
+        }
+    }
+    protected <T> T executeUpdateWithRetry(SQLQuery query, ResultSetHandler<T> handler) throws SQLException {
+        return executeQuery(query, handler, dataSource);
+    }
+
+    protected int executeUpdateWithRetry(SQLQuery query) throws SQLException {
+        try {
+            return executeUpdate(query);
+        } catch (Exception e) {
+            try {
+                if (canRetryAttempt()) {
+                    return executeUpdate(query);
+                }
+            } catch (Exception e1) {
+                throw e;
+            }
+            throw e;
+        }
+    }
+
+    /**
      * Executes the given query and returns the processed by the handler result using the provided dataSource.
      */
     private <T> T executeQuery(SQLQuery query, ResultSetHandler<T> handler, DataSource dataSource) throws SQLException {
@@ -192,24 +239,33 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     /**
-     * Executes the given query and returns the processed by the handler result.
+     * Executes the given update or delete query and returns the number of deleted or updated records.
+     *
+     * @param query the update or delete query.
+     * @return the amount of updated or deleted records.
+     * @throws SQLException if any error occurred.
      */
-    protected <T> T executeQuery(SQLQuery query, ResultSetHandler<T> handler) throws SQLException {
-        return executeQuery(query, handler, readDataSource);
+    int executeUpdate(SQLQuery query) throws SQLException {
+        final long start = System.currentTimeMillis();
+        try {
+            final QueryRunner run = new QueryRunner(dataSource);
+            query.setText(SQLQuery.replaceVars(query.text(),config.schema(), config.table(event)));
+            final String queryText = query.text();
+            final List<Object> queryParameters = query.parameters();
+            logger.info("{} - executeUpdate: {} - Parameter: {}", streamId, queryText, queryParameters);
+            return run.update(queryText, queryParameters.toArray());
+        } finally {
+            final long end = System.currentTimeMillis();
+            logger.info("{} - query time: {}ms", (end - start));
+        }
     }
 
-    protected FeatureCollection executeQueryWithRetry(SQLQuery query) throws SQLException {
-        return executeQueryWithRetry(query, this::resultSetHandler);
-    }
-
-    //###################################################################################
-
-    private PreparedStatement createStatement(Connection connection, String statement) throws SQLException {
-        final PreparedStatement preparedStatement = connection.prepareStatement(statement);
-        preparedStatement.setQueryTimeout(STATEMENT_TIMEOUT_SECONDS);
-        return preparedStatement;
-    }
-/** ####################################################################    */
+    /**
+     *
+     * @param idsToFetch Ids of objects which should get fetched
+     * @return List of Features which could get fetched
+     * @throws Exception  if any error occurred.
+     */
     protected List<Feature> fetchOldStates(String[] idsToFetch) throws Exception {
         List<Feature> oldFeatures = null;
         SQLQuery query = new SQLQuery("SELECT jsondata, geojson FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
@@ -222,8 +278,9 @@ public abstract class DatabaseHandler extends StorageConnector {
         return oldFeatures;
     }
 
-    protected FeatureCollection executeModifyFeatures(ModifyFeaturesEvent event) throws Exception {
+    protected XyzResponse executeModifyFeatures(ModifyFeaturesEvent event) throws Exception {
         boolean includeOldStates = event.getParams() != null && event.getParams().get(PSQLConfig.INCLUDE_OLD_STATES) == Boolean.TRUE;
+        boolean handleUUID = event.getParams() != null && event.getEnableUUID() == Boolean.TRUE;
         List<Feature> oldFeatures = null;
 
         List<Feature> inserts = Optional.ofNullable(event.getInsertFeatures()).orElse(new ArrayList<>());
@@ -261,10 +318,10 @@ public abstract class DatabaseHandler extends StorageConnector {
                     DatabaseWriter.deleteFeatures(deletes, connection, config.schema(), config.table(event), transactional);
                 }
                 if (inserts.size() > 0) {
-                    DatabaseWriter.insertFeatures(collection, inserts, connection, config.schema(), config.table(event), transactional);
+                    DatabaseWriter.insertFeatures(collection, fails, inserts, connection, config.schema(), config.table(event), transactional);
                 }
                 if (updates.size() > 0) {
-                    DatabaseWriter.updateFeatures(collection, updates, connection, config.schema(), config.table(event), transactional);
+                    DatabaseWriter.updateFeatures(collection, fails,  updates, connection, config.schema(), config.table(event), transactional, handleUUID);
                 }
 
                 if (transactional) {
@@ -277,11 +334,17 @@ public abstract class DatabaseHandler extends StorageConnector {
                     connection.rollback();
                 }
                 if (!retryAttempted) {
+                    /** TODO filter out failed? */
                     connection.close();
                     canRetryAttempt();
                     return executeModifyFeatures(event);
                 }
             }
+
+            /** filter out failed */
+            final List<String> failedIds = fails.stream().map(FeatureCollection.ModificationFailure::getId).filter(Objects::nonNull).collect(Collectors.toList());
+            insertIds = inserts.stream().map(Feature::getId).filter(x -> !failedIds.contains(x)).collect(Collectors.toList());
+            updateIds = updates.stream().map(Feature::getId).filter(x -> !failedIds.contains(x)).collect(Collectors.toList());
 
             collection.setFailed(fails);
 
@@ -289,6 +352,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 if (collection.getInserted() == null) {
                     collection.setInserted(new ArrayList<>());
                 }
+                
                 collection.getInserted().addAll(insertIds);
             }
 
@@ -309,41 +373,6 @@ public abstract class DatabaseHandler extends StorageConnector {
             return collection;
         }
     }
-
-    /**
-     * Executes the query and reattempt to execute the query, after
-     */
-    protected <T extends XyzResponse> T executeQueryWithRetry(SQLQuery query, ResultSetHandler<T> handler) throws SQLException {
-        try {
-            return executeQuery(query, handler);
-        } catch (Exception e) {
-            try {
-                if (canRetryAttempt()) {
-                    return executeQuery(query, handler);
-                }
-            } catch (Exception e1) {
-                throw e;
-            }
-            throw e;
-        }
-    }
-
-    protected int executeUpdateWithRetry(SQLQuery query) throws SQLException {
-        try {
-            return executeUpdate(query);
-        } catch (Exception e) {
-            try {
-                if (canRetryAttempt()) {
-                    return executeUpdate(query);
-                }
-            } catch (Exception e1) {
-                throw e;
-            }
-            throw e;
-        }
-    }
-
-    private boolean retryAttempted;
 
     private boolean canRetryAttempt() throws Exception {
         if (retryAttempted) {
@@ -452,28 +481,6 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
-    /**
-     * Executes the given update or delete query and returns the number of deleted or updated records.
-     *
-     * @param query the update or delete query.
-     * @return the amount of updated or deleted records.
-     * @throws SQLException if any error occurred.
-     */
-    int executeUpdate(SQLQuery query) throws SQLException {
-        final long start = System.currentTimeMillis();
-        try {
-            final QueryRunner run = new QueryRunner(dataSource);
-            query.setText(SQLQuery.replaceVars(query.text(),config.schema(), config.table(event)));
-            final String queryText = query.text();
-            final List<Object> queryParameters = query.parameters();
-            logger.info("{} - executeUpdate: {} - Parameter: {}", streamId, queryText, queryParameters);
-            return run.update(queryText, queryParameters.toArray());
-        } finally {
-            final long end = System.currentTimeMillis();
-            logger.info("{} - query time: {}ms", (end - start));
-        }
-    }
-
 /** #################################### Resultset Handlers #################################### */
     /**
      * The default handler for the most results.
@@ -482,7 +489,7 @@ public abstract class DatabaseHandler extends StorageConnector {
      * @return the generated feature collection from the result set.
      * @throws SQLException when any unexpected error happened.
      */
-    protected FeatureCollection resultSetHandler(ResultSet rs) throws SQLException {
+    protected FeatureCollection defaultFeatureResultSetHandler(ResultSet rs) throws SQLException {
         final boolean isIterate = (event instanceof IterateFeaturesEvent);
         long nextHandle = 0;
         StringBuilder sb = new StringBuilder();
@@ -620,7 +627,6 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
-//    ###############################################################################
     public class XYZDBInstance {
         private DataSource dataSource;
         private DataSource readDataSource;

@@ -149,8 +149,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
     final SQLQuery searchQuery = SQLQueryBuilder.generateSearchQuery(event, dataSource);
     final SQLQuery query = SQLQueryBuilder.buildDeleteFeaturesByTagQuery(event, includeOldStates, searchQuery, dataSource);
 
+    //TODO: check in detail what we want to return
     if (searchQuery != null && includeOldStates)
-      return executeQueryWithRetry(query, this::oldStatesResultSetHandler);
+      return executeUpdateWithRetry(query, this::oldStatesResultSetHandler);
 
     return new FeatureCollection().withCount((long) executeUpdateWithRetry(query));
   }
@@ -214,7 +215,6 @@ public class PSQLXyzConnector extends DatabaseHandler {
             throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
                     "On-Demand-Indexing - Maximum permissible: " + onDemandLimit + " searchable properties per space!");
           }
-
           if (property.contains("'")) {
             throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
                     "On-Demand-Indexing [" + property + "] - Character ['] not allowed!");
@@ -225,7 +225,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
           }
         }
       }
-      executeUpdateWithRetry(  SQLQueryBuilder.buildSearchablePropertiesUpsertQuery(event.getSpaceDefinition().getSearchableProperties(), event.getOperation(),
+      executeUpdateWithRetry(  SQLQueryBuilder.buildSearchablePropertiesUpsertQuery(
+              event.getSpaceDefinition().getSearchableProperties(),
+              event.getOperation(),
               config.schema(), config.table(event)));
     }
 
@@ -271,6 +273,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
     }
 
     SQLQuery query = SQLQueryBuilder.buildFeaturesQuery(event, isIterate, hasHandle, hasSearch, start, dataSource) ;
+
     FeatureCollection collection = executeQueryWithRetry(query);
     if (isIterate && hasSearch && collection.getHandle() != null) {
       collection.setHandle("" + (start + event.getLimit()));
