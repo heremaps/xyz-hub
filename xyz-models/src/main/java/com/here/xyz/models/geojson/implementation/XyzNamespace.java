@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -118,7 +118,7 @@ public class XyzNamespace implements XyzSerializable {
    *
    * @param feature the feature in which to normalize the tags.
    */
-  static void normalizeTagsOfFeature(final Feature feature) {
+  public static void normalizeTagsOfFeature(final Feature feature) {
     if (feature == null) {
       return;
     }
@@ -271,12 +271,10 @@ public class XyzNamespace implements XyzSerializable {
     return this;
   }
 
-  @SuppressWarnings("unused")
   public String getPuuid() {
     return puuid;
   }
 
-  @SuppressWarnings("WeakerAccess")
   public void setPuuid(String puuid) {
     this.puuid = puuid;
   }

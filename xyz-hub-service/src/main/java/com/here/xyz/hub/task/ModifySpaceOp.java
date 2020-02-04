@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,89 +22,71 @@ package com.here.xyz.hub.task;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.HttpException;
-import com.here.xyz.hub.util.diff.Difference;
-import com.here.xyz.hub.util.diff.Patcher;
-import com.here.xyz.hub.util.diff.Patcher.MergeConflictException;
+import com.here.xyz.hub.task.ModifySpaceOp.SpaceEntry;
+import com.here.xyz.models.geojson.implementation.Feature;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.stream.Collectors;
 
-public class ModifySpaceOp extends ModifyOp<JsonObject, Space, Space> {
+public class ModifySpaceOp extends ModifyOp<Space, SpaceEntry> {
 
-  public ModifySpaceOp(List<JsonObject> inputStates, IfNotExists ifNotExists, IfExists ifExists,
-      boolean isTransactional) {
-    super(inputStates, ifNotExists, ifExists, isTransactional);
+  public ModifySpaceOp(List<Map<String, Object>> inputStates, IfNotExists ifNotExists, IfExists ifExists, boolean isTransactional) {
+    super((inputStates == null) ? Collections.emptyList() : inputStates.stream().map(SpaceEntry::new).collect(Collectors.toList()),
+        ifNotExists, ifExists, isTransactional);
   }
 
-  @SuppressWarnings({"rawtypes", "unchecked"})
-  @Override
-  public Space patch(Space headState, Space baseState, JsonObject inputState) throws ModifyOpError, HttpException {
-    Map baseClone = Json.mapper.convertValue(baseState, Map.class);
-    Map input = inputState.getMap();
-    final Difference difference = Patcher.calculateDifferenceOfPartialUpdate(baseClone, input, null, true);
-    Patcher.patch(baseClone, difference);
-    return merge(headState, baseState, new JsonObject(baseClone));
-  }
+  public static class SpaceEntry extends ModifyOp.Entry<Space> {
 
-  @SuppressWarnings("rawtypes")
-  @Override
-  public Space merge(Space headState, Space baseState, JsonObject inputState) throws ModifyOpError, HttpException {
-    Map headClone = Json.mapper.convertValue(headState, Map.class);
-    Map baseClone = Json.mapper.convertValue(baseState, Map.class);
-    Map input = inputState.getMap();
+    public SpaceEntry(Map<String, Object> input) {
+      super(input);
+    }
 
-    final Difference diffInput = Patcher.getDifference(baseClone, input);
-    final Difference diffHead = Patcher.getDifference(baseClone, headClone);
-    try {
-      final Difference mergedDiff = Patcher.mergeDifferences(diffInput, diffHead);
-      Patcher.patch(headClone, mergedDiff);
-      return Json.mapper.readValue(Json.encode(headClone), Space.class);
-    } catch (MergeConflictException e) {
-      throw new ModifyOpError(e.getMessage());
-    } catch( JsonProcessingException e ){
-      throw new HttpException(BAD_REQUEST, "Invalid space definition: " + e.getMessage(), e);
+    @Override
+    protected String getId(Space record) {
+      return record == null ? null : record.getId();
+    }
+
+    @Override
+    protected String getUuid(Space record) {
+      return null;
+    }
+
+    @Override
+    protected String getUuid(Map<String, Object> record) {
+      return null;
+    }
+
+    @Override
+    public Map<String, Object> filterMetadata(Map<String, Object> map) {
+      return filter(map, metadataFilter);
+    }
+
+    @Override
+    public Space fromMap(Map<String, Object> map) throws ModifyOpError, HttpException {
+      try {
+        return Json.mapper.readValue(Json.encode(map), Space.class);
+      } catch (JsonProcessingException e) {
+        throw new HttpException(BAD_REQUEST, "Invalid space definition: " + e.getMessage(), e);
+      }
+    }
+
+    @Override
+    public Map<String, Object> toMap(Space record) throws ModifyOpError, HttpException {
+      return filter(record.asMap(), metadataFilter);
+    }
+
+    public String getId(Feature record) {
+      return record == null ? null : record.getId();
     }
   }
 
-  @Override
-  public Space replace(Space headState, JsonObject inputState) throws ModifyOpError, HttpException {
-    try {
-      return Json.mapper.readValue(Json.encode(inputState), Space.class);
-    }
-    catch( JsonProcessingException e ){
-      throw new HttpException(BAD_REQUEST, "Invalid space definition: " + e.getMessage(), e);
-    }
-  }
 
-  @Override
-  public Space create(JsonObject input) throws ModifyOpError, HttpException {
-    try {
-      return Json.mapper.readValue(Json.encode(input), Space.class);
-    }
-    catch( JsonProcessingException e ){
-      throw new HttpException(BAD_REQUEST, "Invalid space definition: " + e.getMessage(), e);
-    }
-  }
-
-  @Override
-  public Space transform(Space sourceState) throws ModifyOpError {
-    return Json.decodeValue(Json.encode(sourceState), Space.class);
-  }
-
-  @Override
-  public boolean equalStates(Space state1, Space state2) {
-    if (Objects.equals(state1, state2)) {
-      return true;
-    }
-
-    final ObjectMapper mapper = XyzSerializable.STATIC_MAPPER.get();
-    Difference diff = Patcher.getDifference(mapper.convertValue(state1, Map.class), mapper.convertValue(state2, Map.class));
-    return diff == null;
-  }
+  public static Map<String, Object> metadataFilter = new JsonObject()
+      .put("createdAt", true)
+      .put("updatedAt", true).getMap();
 }

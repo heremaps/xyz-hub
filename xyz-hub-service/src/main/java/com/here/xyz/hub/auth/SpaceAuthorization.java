@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,7 +31,9 @@ import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.hub.task.ModifyOp;
 import com.here.xyz.hub.task.ModifyOp.Entry;
+import com.here.xyz.hub.task.ModifySpaceOp;
 import com.here.xyz.hub.task.SpaceTask.ConditionalOperation;
 import com.here.xyz.hub.task.SpaceTask.MatrixReadQuery;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
@@ -66,8 +68,7 @@ public class SpaceAuthorization extends Authorization {
       callback.exception(new HttpException(FORBIDDEN, "Accessing spaces isn't possible with an anonymous token."));
     } else if (task.getJwt().getXyzHubMatrix() == null) {
       callback.exception(new HttpException(FORBIDDEN, "Insufficient rights to read the requested resource."));
-    }
-    else {
+    } else {
       if (task.canReadConnectorsProperties) {
         final XyzHubActionMatrix connectorsReadMatrix = new XyzHubActionMatrix().accessConnectors(new XyzHubAttributeMap());
         task.canReadConnectorsProperties = task.getJwt().getXyzHubMatrix().matches(connectorsReadMatrix);
@@ -86,8 +87,8 @@ public class SpaceAuthorization extends Authorization {
     final XyzHubActionMatrix tokenRights = task.getJwt().getXyzHubMatrix();
     final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
 
-    final Entry<JsonObject, Space, Space> entry = task.modifyOp.entries.get(0);
-    final JsonObject input = entry.input;
+    final Entry<Space> entry = task.modifyOp.entries.get(0);
+    final Map<String, Object> input = entry.input;
     final Space head = entry.head;
     final Space target = entry.result;
 
@@ -106,8 +107,8 @@ public class SpaceAuthorization extends Authorization {
       final Map inputAsMap = asMap(Json.mapper.convertValue(input, Space.class));
 
       xyzhubFilter = new XyzHubAttributeMap()
-              .withValue(OWNER, input.getString("owner"))
-              .withValue(SPACE, input.getString("id"));
+          .withValue(OWNER, (String) input.get("owner"))
+          .withValue(SPACE, (String) input.get("id"));
       isBasicEdit = isBasicEdit(templateAsMap, inputAsMap);
       isAdminEdit = isAdminEdit(templateAsMap, inputAsMap);
       isStorageEdit = isPropertyEdit(templateAsMap, inputAsMap, STORAGE);
@@ -149,7 +150,8 @@ public class SpaceAuthorization extends Authorization {
 
     // On Read operations, any access to the space grants read access, this includes readFeatures, createFeatures, etc.
     if (task.isRead()) {
-      if (tokenRights == null || tokenRights.entrySet().stream().flatMap(e -> e.getValue().stream()).noneMatch(f -> f.matches(xyzhubFilter))) {
+      if (tokenRights == null || tokenRights.entrySet().stream().flatMap(e -> e.getValue().stream())
+          .noneMatch(f -> f.matches(xyzhubFilter))) {
         throw new HttpException(FORBIDDEN, "Insufficient rights to read the requested resource.");
       }
 
@@ -199,11 +201,11 @@ public class SpaceAuthorization extends Authorization {
 
     // If this is an edit on admin properties.
     if (isAdminEdit) {
-      boolean ownerChanged = !task.isCreate() && input.containsKey("owner") && !input.getString("owner").equals(head.getOwner());
+      boolean ownerChanged = !task.isCreate() && input.containsKey("owner") && !input.get("owner").equals(head.getOwner());
       if (ownerChanged) {
         XyzHubAttributeMap additionalNeededPermission = new XyzHubAttributeMap();
         additionalNeededPermission.withValue(SPACE, head.getId());
-        additionalNeededPermission.withValue(OWNER, input.getString("owner"));
+        additionalNeededPermission.withValue(OWNER, input.get("owner"));
         requestRights.adminSpaces(additionalNeededPermission);
       }
 
@@ -217,10 +219,14 @@ public class SpaceAuthorization extends Authorization {
     evaluateRights(requestRights, tokenRights, task, callback);
   }
 
-  private static Collection<String> getConnectorIds(@Nonnull final JsonObject input, @Nonnull final String field) {
-    final Object connectors = input.getValue(field);
-    if (connectors instanceof JsonArray) return getConnectorIdsFromInput((JsonArray) connectors);
-    if (connectors instanceof JsonObject) return ((JsonObject) connectors).getMap().keySet();
+  private static Collection<String> getConnectorIds(@Nonnull final Map<String, Object> input, @Nonnull final String field) {
+    final Object connectors = new JsonObject(input).getValue(field);
+    if (connectors instanceof JsonArray) {
+      return getConnectorIdsFromInput((JsonArray) connectors);
+    }
+    if (connectors instanceof JsonObject) {
+      return ((JsonObject) connectors).getMap().keySet();
+    }
     return Collections.emptyList();
   }
 
@@ -261,22 +267,24 @@ public class SpaceAuthorization extends Authorization {
   }
 
   private static boolean canReadConnectorProperties(XyzHubActionMatrix tokenRights) {
-    if (tokenRights == null)
+    if (tokenRights == null) {
       return false;
+    }
 
-    if (tokenRights.get(XyzHubActionMatrix.ACCESS_CONNECTORS) == null)
+    if (tokenRights.get(XyzHubActionMatrix.ACCESS_CONNECTORS) == null) {
       return false;
+    }
 
     return !tokenRights.get(XyzHubActionMatrix.ACCESS_CONNECTORS).isEmpty();
   }
 
-  private static String getStorageFromInput(Entry<JsonObject, Space, Space> entry) {
-    return entry.input.getJsonObject("storage").getString("id");
+  private static String getStorageFromInput(Entry<Space> entry) {
+    return new JsonObject(entry.input).getJsonObject("storage").getString("id");
   }
 
-  private static List<String> getPackagesFromInput(Entry<JsonObject, Space, Space> entry) {
+  private static List<String> getPackagesFromInput(Entry<Space> entry) {
     if (entry.input.containsKey("packages")) {
-      return entry.input.getJsonArray("packages").stream().map(Object::toString).collect(Collectors.toList());
+      return new JsonObject(entry.input).getJsonArray("packages").stream().map(Object::toString).collect(Collectors.toList());
     }
     return Collections.emptyList();
   }
@@ -284,7 +292,8 @@ public class SpaceAuthorization extends Authorization {
 
   private static Map asMap(Object object) {
     try {
-      return Json.decodeValue(Json.mapper.writerWithView(Static.class).writeValueAsString(object), Map.class);
+      return ModifyOp.filter(
+          Json.decodeValue(Json.mapper.writerWithView(Static.class).writeValueAsString(object), Map.class), ModifySpaceOp.metadataFilter);
     } catch (Exception e) {
       return Collections.emptyMap();
     }

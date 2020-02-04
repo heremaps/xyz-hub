@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,7 +55,6 @@ import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.responses.XyzResponse;
 import io.vertx.core.AsyncResult;
 import io.vertx.ext.web.RoutingContext;
@@ -64,7 +63,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public abstract class FeatureTask<T extends Event, X extends FeatureTask<T, ?>> extends Task<T, X> {
+public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?>> extends Task<T, X> {
 
   /**
    * The space for this operation.
@@ -79,12 +78,27 @@ public abstract class FeatureTask<T extends Event, X extends FeatureTask<T, ?>> 
   /**
    * The response.
    */
+  @SuppressWarnings("rawtypes")
   private XyzResponse response;
 
   /**
    * The calculated cache key.
    */
   private String cacheKey;
+
+  public static final class FeatureKey {
+
+    public static final String ID = "id";
+    public static final String TYPE = "type";
+    public static final String BBOX = "bbox";
+    public static final String PROPERTIES = "properties";
+    public static final String SPACE = "space";
+    public static final String CREATED_AT = "createdAt";
+    public static final String UPDATED_AT = "updatedAt";
+    public static final String UUID = "uuid";
+    public static final String PUUID = "puuid";
+    public static final String MUUID = "muuid";
+  }
 
   private FeatureTask(T event, RoutingContext context, ApiResponseType responseType, boolean skipCache) {
     super(event, context, responseType, skipCache);
@@ -122,7 +136,7 @@ public abstract class FeatureTask<T extends Event, X extends FeatureTask<T, ?>> 
    * The hook which will be called once all pre-processors have been called. The hook will get the pre-processed event as parameter. The
    * hook will *not* be called if no pre-processors have been defined for the space. The hook may be overridden in sub-classes.
    */
-  public void onPreProcessed(Event event) {
+  public void onPreProcessed(T event) {
   }
 
   @Override
@@ -169,7 +183,7 @@ public abstract class FeatureTask<T extends Event, X extends FeatureTask<T, ?>> 
     return null;
   }
 
-  abstract static class ReadQuery<T extends QueryEvent, X extends FeatureTask<T, ?>> extends FeatureTask<T, X> {
+  abstract static class ReadQuery<T extends QueryEvent<?>, X extends FeatureTask<T, ?>> extends FeatureTask<T, X> {
 
     private ReadQuery(T event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
       super(event, context, apiResponseTypeType, skipCache);
@@ -185,6 +199,7 @@ public abstract class FeatureTask<T extends Event, X extends FeatureTask<T, ?>> 
   }
 
   public static class GeometryQuery extends ReadQuery<GetFeaturesByGeometryEvent, GeometryQuery> {
+
     public final String refSpaceId;
     private final String refFeatureId;
     public Space refSpace;
@@ -212,7 +227,7 @@ public abstract class FeatureTask<T extends Event, X extends FeatureTask<T, ?>> 
 
     private void verifyResourceExists(GeometryQuery task, Callback<GeometryQuery> callback) {
       if (this.getEvent().getGeometry() == null) {
-        callback.exception(new HttpException(NOT_FOUND, "The 'refFeatureId' : '"+refFeatureId+"' does not exist."));
+        callback.exception(new HttpException(NOT_FOUND, "The 'refFeatureId' : '" + refFeatureId + "' does not exist."));
       } else {
         callback.call(task);
       }
@@ -220,7 +235,7 @@ public abstract class FeatureTask<T extends Event, X extends FeatureTask<T, ?>> 
 
     private void resolveRefConnector(final GeometryQuery gq, final Callback<GeometryQuery> c) {
       try {
-        if(refSpace == null || (refSpace != null && refSpace.getStorage().getId() == space.getStorage().getId())) {
+        if (refSpace == null || refSpace.getStorage().getId().equals(space.getStorage().getId())) {
           refConnector = storage;
           c.call(gq);
           return;
@@ -247,19 +262,17 @@ public abstract class FeatureTask<T extends Event, X extends FeatureTask<T, ?>> 
         //Load the space definition.
         Service.spaceConfigClient.get(getMarker(), refSpaceId, arSpace -> {
           if (arSpace.failed()) {
-            c.exception(new HttpException(BAD_REQUEST, "'RefSpace' : '"+refSpaceId+"' does not exist!", arSpace.cause()));
+            c.exception(new HttpException(BAD_REQUEST, "'RefSpace' : '" + refSpaceId + "' does not exist!", arSpace.cause()));
             return;
           }
           refSpace = arSpace.result();
 
-          if(refSpace == null) {
-            c.exception(new HttpException(BAD_REQUEST, "RefSpace : '"+refSpaceId+"'  not exist!", arSpace.cause()));
+          if (refSpace == null) {
+            c.exception(new HttpException(BAD_REQUEST, "RefSpace : '" + refSpaceId + "'  not exist!", arSpace.cause()));
             return;
           }
 
-          if (refSpace != null) {
-            gq.getEvent().setParams(gq.space.getStorage().getParams());
-          }
+          gq.getEvent().setParams(gq.space.getStorage().getParams());
           c.call(gq);
         });
       } catch (Exception e) {
@@ -269,7 +282,7 @@ public abstract class FeatureTask<T extends Event, X extends FeatureTask<T, ?>> 
 
     @SuppressWarnings("serial")
     private void loadObject(final GeometryQuery gq, final Callback<GeometryQuery> c) {
-      if(gq.getEvent().getGeometry() != null) {
+      if (gq.getEvent().getGeometry() != null) {
         c.call(this);
         return;
       }
@@ -278,7 +291,7 @@ public abstract class FeatureTask<T extends Event, X extends FeatureTask<T, ?>> 
           .withStreamId(getMarker().getName())
           .withSpace(refSpaceId)
           .withParams(this.refSpace.getStorage().getParams())
-          .withIdsMap(new HashMap<String,String>() {{
+          .withIdsMap(new HashMap<String, String>() {{
             put(refFeatureId, null);
           }});
 
@@ -308,8 +321,9 @@ public abstract class FeatureTask<T extends Event, X extends FeatureTask<T, ?>> 
         final FeatureCollection collection = (FeatureCollection) response;
         final List<Feature> features = collection.getFeatures();
 
-        if(features.size() == 1)
-         this.getEvent().setGeometry(features.get(0).getGeometry());
+        if (features.size() == 1) {
+          this.getEvent().setGeometry(features.get(0).getGeometry());
+        }
 
         callback.call(this);
       } catch (Exception e) {
@@ -318,7 +332,7 @@ public abstract class FeatureTask<T extends Event, X extends FeatureTask<T, ?>> 
     }
   }
 
-  public static class BBoxQuery extends ReadQuery<GetFeaturesByBBoxEvent, BBoxQuery> {
+  public static class BBoxQuery extends ReadQuery<GetFeaturesByBBoxEvent<?>, BBoxQuery> {
 
     public BBoxQuery(GetFeaturesByBBoxEvent event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
       super(event, context, apiResponseTypeType, skipCache);
@@ -337,6 +351,7 @@ public abstract class FeatureTask<T extends Event, X extends FeatureTask<T, ?>> 
   }
 
   public static class TileQuery extends ReadQuery<GetFeaturesByTileEvent, TileQuery> {
+
     public TileQuery(GetFeaturesByTileEvent event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
       super(event, context, apiResponseTypeType, skipCache);
     }
@@ -389,8 +404,9 @@ public abstract class FeatureTask<T extends Event, X extends FeatureTask<T, ?>> 
     }
   }
 
-  public static class SearchQuery extends ReadQuery<SearchForFeaturesEvent, SearchQuery> {
-    public SearchQuery(SearchForFeaturesEvent event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
+  public static class SearchQuery extends ReadQuery<SearchForFeaturesEvent<?>, SearchQuery> {
+
+    public SearchQuery(SearchForFeaturesEvent<?> event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
       super(event, context, apiResponseTypeType, skipCache);
     }
 
@@ -468,10 +484,10 @@ public abstract class FeatureTask<T extends Event, X extends FeatureTask<T, ?>> 
 
     //That hook will be called only if there were pre-processors which have been called and it sets the manipulatedSpaceDefinition value
     @Override
-    public void onPreProcessed(Event event) {
-      manipulatedOp = ((ModifySpaceEvent) event).getOperation();
+    public void onPreProcessed(ModifySpaceEvent event) {
+      manipulatedOp = event.getOperation();
       //FIXME: Don't take the incoming spaceDefinition as is. Instead only merge the non-admin top-level properties and the connector config of the according processor (Processors should NOT be able to manipulate connector registrations of other connections at the space)
-      manipulatedSpaceDefinition = ((ModifySpaceEvent) event).getSpaceDefinition();
+      manipulatedSpaceDefinition = event.getSpaceDefinition();
     }
 
     @Override
@@ -491,6 +507,7 @@ public abstract class FeatureTask<T extends Event, X extends FeatureTask<T, ?>> 
     public String prefixId;
     private Map<Object, Integer> positionById;
     private LoadFeaturesEvent loadFeaturesEvent;
+    public boolean hasNonModified;
 
     public ConditionalOperation(ModifyFeaturesEvent event, RoutingContext context, ApiResponseType apiResponseTypeType,
         ModifyFeatureOp modifyOp,
@@ -547,14 +564,9 @@ public abstract class FeatureTask<T extends Event, X extends FeatureTask<T, ?>> 
       }
 
       final HashMap<String, String> idsMap = new HashMap<>();
-      for (Entry<Feature, Feature, Feature> entry : modifyOp.entries) {
-        if (entry.input.getId() != null) {
-          String uuid = null;
-          final Properties properties = entry.input.getProperties();
-          if (properties != null && properties.getXyzNamespace() != null) {
-            uuid = properties.getXyzNamespace().getUuid();
-          }
-          idsMap.put(entry.input.getId(), uuid);
+      for (Entry<Feature> entry : modifyOp.entries) {
+        if (entry.input.get("id") instanceof String) {
+          idsMap.put((String) entry.input.get("id"), entry.inputUUID);
         }
       }
       if (idsMap.size() == 0) {
@@ -641,9 +653,9 @@ public abstract class FeatureTask<T extends Event, X extends FeatureTask<T, ?>> 
       if (positionById == null) {
         positionById = new HashMap<>();
         for (int i = 0; i < modifyOp.entries.size(); i++) {
-          final Feature input = modifyOp.entries.get(i).input;
-          if (input != null && input.getId() != null) {
-            positionById.put(input.getId(), i);
+          final Map<String, Object> input = modifyOp.entries.get(i).input;
+          if (input != null && input.get("id") instanceof String) {
+            positionById.put(input.get("id"), i);
           }
         }
       }

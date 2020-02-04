@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -173,6 +173,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
     }
 
     final long now = System.currentTimeMillis();
+    final boolean addUUID = event.getEnableUUID() && event.getVersion().compareTo("0.2.0") < 0;
     // Update the features to insert
     final List<Feature> inserts = event.getInsertFeatures();
     if (inserts != null) {
@@ -180,14 +181,14 @@ public class PSQLXyzConnector extends DatabaseHandler {
         if (feature.getId() == null) {
           feature.setId(RandomStringUtils.randomAlphanumeric(16));
         }
-        Feature.finalizeFeature(feature, event.getSpace(), now, event.getEnableUUID() == Boolean.TRUE);
+        Feature.finalizeFeature(feature, event.getSpace(), addUUID);
       }
     }
 
     final List<Feature> updates = event.getUpdateFeatures();
     if (updates != null) {
       for (final Feature feature : updates) {
-        Feature.finalizeFeature(feature, event.getSpace(), now, event.getEnableUUID() == Boolean.TRUE);
+        Feature.finalizeFeature(feature, event.getSpace(), addUUID);
       }
     }
 

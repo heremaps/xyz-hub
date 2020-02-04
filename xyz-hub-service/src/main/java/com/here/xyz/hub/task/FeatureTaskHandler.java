@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,10 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.BBOX;
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.ID;
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.TYPE;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
@@ -58,7 +62,6 @@ import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
@@ -74,6 +77,8 @@ import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.Json;
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -153,7 +158,7 @@ public class FeatureTaskHandler {
             return;
           }
           XyzResponse response = storageResult.result();
-          responseContext.enrichResponse(response);
+          responseContext.enrichResponse(task, response);
 
           //Do the post-processing here before sending back the response and notifying response-listeners
           notifyProcessors(task, eventType, response, postProcessingResult -> {
@@ -601,51 +606,40 @@ public class FeatureTaskHandler {
   }
 
   static void preprocessConditionalOp(ConditionalOperation task, Callback<ConditionalOperation> callback) throws Exception {
-    task.getEvent().setEnableUUID(task.space.isEnableUUID());
-
-    Map<String, Boolean> ids = new HashMap<>();
-
-    for (Entry<Feature, Feature, Feature> entry : task.modifyOp.entries) {
-      final Feature input = entry.input;
-
-      final String id = input.getId();
-      if (task.prefixId != null) { // Generate IDs here, if a prefixId is required. Add the prefix otherwise.
-        final String baseId = id == null ? RandomStringUtils.randomAlphanumeric(16) : id;
-        input.setId(task.prefixId + baseId);
-      }
-
-      if (id != null) { // Test for duplicate IDs
-        if (ids.containsKey(id)) {
-          logger.info(task.getMarker(), "Objects with the same ID {} are included in the request.", id);
-          throw new HttpException(BAD_REQUEST, "Objects with the same ID " + id + " is included in the request.");
+    try {
+      task.getEvent().setEnableUUID(task.space.isEnableUUID());
+      // Ensure that the ID is a string or null and check for duplicate IDs
+      Map<String, Boolean> ids = new HashMap<>();
+      for (Entry<Feature> entry : task.modifyOp.entries) {
+        final Object objId = entry.input.get(ID);
+        String id = (objId instanceof String || objId instanceof Number) ? String.valueOf(objId) : null;
+        if (task.prefixId != null) { // Generate IDs here, if a prefixId is required. Add the prefix otherwise.
+          id = task.prefixId + ((id == null) ? RandomStringUtils.randomAlphanumeric(16) : id);
         }
-        ids.put(id, true);
-      }
+        entry.input.put(ID, id);
 
-      // bbox is a dynamically calculated property
-      if (input.getBbox() != null) {
-        input.setBbox(null);
-      }
+        if (id != null) { // Test for duplicate IDs
+          if (ids.containsKey(id)) {
+            logger.info(task.getMarker(), "Objects with the same ID {} are included in the request.", id);
+            throw new HttpException(BAD_REQUEST, "Objects with the same ID " + id + " is included in the request.");
+          }
+          ids.put(id, true);
+        }
 
-      if (input.getProperties() == null) {
-        input.setProperties(new Properties());
-      }
+        entry.input.putIfAbsent(TYPE, "Feature");
 
-      final Properties properties = input.getProperties();
-      if (properties.getXyzNamespace() == null) {
-        properties.setXyzNamespace(new XyzNamespace());
-      }
+        // bbox is a dynamically calculated property
+        entry.input.remove(BBOX);
 
-      final XyzNamespace nsXyz = properties.getXyzNamespace();
-      // Overwrite the space
-      nsXyz.setSpace(task.space.getId());
-
-      try {
-        input.validateGeometry();
-      } catch (InvalidGeometryException e) {
-        logger.info(task.getMarker(), "Invalid geometry found in feature: {}", input, e);
-        throw new HttpException(BAD_REQUEST, e.getMessage() + ". Feature: \n" + Json.encode(input));
+        // Add the XYZ namespace if it is not set yet.
+        entry.input.putIfAbsent(PROPERTIES, new HashMap<String, Object>());
+        @SuppressWarnings("unchecked") final Map<String, Object> properties = (Map<String, Object>) entry.input.get("properties");
+        properties.putIfAbsent(XyzNamespace.XYZ_NAMESPACE, new HashMap<String, Object>());
       }
+    } catch (Exception e) {
+      logger.error(e);
+      callback.exception(new HttpException(BAD_REQUEST, "Unable to process the request input."));
+      return;
     }
     callback.call(task);
   }
@@ -653,42 +647,99 @@ public class FeatureTaskHandler {
   static void processConditionalOp(ConditionalOperation task, Callback<ConditionalOperation> callback) throws Exception {
     try {
       task.modifyOp.process();
-
       final List<Feature> insert = new ArrayList<>();
       final List<Feature> update = new ArrayList<>();
       final Map<String, String> delete = new HashMap<>();
 
+      long now = Service.currentTimeMillis();
+
       for (int i = 0; i < task.modifyOp.entries.size(); i++) {
-        final Entry<Feature, Feature, Feature> entry = task.modifyOp.entries.get(i);
-        if (entry.result != null) {
-          final Properties properties = entry.result.getProperties();
-          XyzNamespace nsXyz = properties.getXyzNamespace() != null ? properties.getXyzNamespace() : new XyzNamespace();
-          properties.setXyzNamespace(nsXyz.withInputPosition((long) i));
+        final Entry<Feature> entry = task.modifyOp.entries.get(i);
+        if (!entry.isModified) {
+          task.hasNonModified = true;
+          continue;
+        }
+        final Feature result = entry.result;
+
+        // Insert or update
+        if (result != null) {
+
+          try {
+            result.validateGeometry();
+          } catch (InvalidGeometryException e) {
+            logger.info(task.getMarker(), "Invalid geometry found in feature: {}", result, e);
+            throw new HttpException(BAD_REQUEST, e.getMessage() + ". Feature: \n" + Json.encode(entry.input));
+          }
+
+          final XyzNamespace nsXyz = result.getProperties().getXyzNamespace();
+
+          // Set the space ID
+          nsXyz.setSpace(task.space.getId());
+
+          // Normalize the tags
+          final List<String> tags = nsXyz.getTags();
+          if (tags != null) {
+            XyzNamespace.normalizeTagsOfFeature(result);
+          } else {
+            nsXyz.setTags(new ArrayList<>());
+          }
+
+          nsXyz.withInputPosition((long) i);
+
+          // INSERT
+          if (entry.head == null) {
+            // Timestamps
+            nsXyz.setCreatedAt(now);
+            nsXyz.setUpdatedAt(now);
+
+            // UUID
+            if (task.space.isEnableUUID() && Event.VERSION.compareTo("0.2.0") >= 0) {
+              nsXyz.setUuid(java.util.UUID.randomUUID().toString());
+            }
+            insert.add(result);
+          }
+          // UPDATE
+          else {
+            // Timestamps
+            nsXyz.setCreatedAt(entry.head.getProperties().getXyzNamespace().getCreatedAt());
+            nsXyz.setUpdatedAt(now);
+
+            // UUID
+            if (task.space.isEnableUUID() && Event.VERSION.compareTo("0.2.0") >= 0) {
+              nsXyz.setUuid(java.util.UUID.randomUUID().toString());
+              nsXyz.setPuuid(entry.head.getProperties().getXyzNamespace().getUuid());
+              // If the user was updating an older version, set it under the merge uuid
+              if (!entry.base.equals(entry.head)) {
+                nsXyz.setMuuid(entry.base.getProperties().getXyzNamespace().getUuid());
+              }
+            }
+            update.add(result);
+          }
         }
 
-        // INSERT
-        if (entry.head == null && entry.result != null) {
-          insert.add(entry.result);
-        }
         // DELETE
-        else if (entry.head != null && entry.result == null) {
-          final String id = entry.head.getId();
-          String uuid = null;
-          final XyzNamespace nsXyz = entry.input.getProperties().getXyzNamespace();
-          if (nsXyz != null) {
-            uuid = nsXyz.getUuid();
-          }
-          delete.put(id, uuid);
-        }
-        // UPDATE
         else if (entry.head != null) {
-          update.add(entry.result);
+          final String id = entry.head.getId();
+          delete.put(entry.head.getId(), entry.inputUUID);
         }
       }
 
       task.getEvent().setInsertFeatures(insert);
       task.getEvent().setUpdateFeatures(update);
       task.getEvent().setDeleteFeatures(delete);
+
+      // In case nothing was changed, set the response directly to skip calling the storage connector.
+      if (insert.size() == 0 && update.size() == 0 && delete.size() == 0) {
+        FeatureCollection fc = new FeatureCollection();
+        if( task.hasNonModified ){
+          task.modifyOp.entries.stream().filter(e -> !e.isModified).forEach(e -> {
+            try {
+              fc.getFeatures().add(e.result);
+            } catch (JsonProcessingException ignored) {}
+          });
+        }
+        task.setResponse(fc);
+      }
 
       callback.call(task);
     } catch (ModifyOpError e) {
@@ -703,20 +754,25 @@ public class FeatureTaskHandler {
       return;
     }
 
-    for (Entry<Feature, Feature, Feature> entry : task.modifyOp.entries) {
+    for (Entry<Feature> entry : task.modifyOp.entries) {
       // For existing objects: if the input does not contain the tags, copy them from the edited state.
-      final XyzNamespace nsXyz = entry.input.getProperties().getXyzNamespace();
-      if (nsXyz.getTags() == null) {
+      final JsonObject nsXyz = new JsonObject(entry.input).getJsonObject("properties").getJsonObject(XyzNamespace.XYZ_NAMESPACE);
+      if (nsXyz.getJsonArray("tags", null) == null) {
         if (entry.base != null && entry.base.getProperties().getXyzNamespace().getTags() != null) {
-          List<String> editedTags = entry.base.getProperties().getXyzNamespace().getTags();
-          editedTags.forEach(nsXyz::addTag);
+          List<String> baseTags = entry.base.getProperties().getXyzNamespace().getTags();
+          nsXyz.put("tags", new JsonArray(baseTags));
         }
       }
+      final JsonArray tags = nsXyz.getJsonArray("tags");
       if (task.addTags != null) {
-        task.addTags.forEach(nsXyz::addTag);
+        task.addTags.forEach(tag -> {
+          if (!tags.contains(tag)) {
+            tags.add(tag);
+          }
+        });
       }
       if (task.removeTags != null) {
-        task.removeTags.forEach(nsXyz::removeTag);
+        task.removeTags.forEach(tags::remove);
       }
     }
 
@@ -917,7 +973,14 @@ public class FeatureTaskHandler {
       }
     }
 
-    <R extends XyzResponse> void enrichResponse(R response) {
+    <T extends FeatureTask, R extends XyzResponse> void enrichResponse(T task, R response) {
+      if (task instanceof ConditionalOperation && response instanceof FeatureCollection && ((ConditionalOperation) task).hasNonModified) {
+        ((ConditionalOperation) task).modifyOp.entries.stream().filter(e -> !e.isModified).forEach(e -> {
+          try {
+            ((FeatureCollection) response).getFeatures().add(e.result);
+          } catch (JsonProcessingException ignored) {}
+        });
+      }
       if (eventType.isAssignableFrom(ModifyFeaturesEvent.class) && failedModifications != null && !failedModifications.isEmpty()) {
         //Copy over the failed modifications information to the response
         List<FeatureCollection.ModificationFailure> failed = ((FeatureCollection) response).getFailed();

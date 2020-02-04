@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -70,11 +70,9 @@ public class RFCMeasurement {
         ScheduledFuture<?> f = requesterPool.scheduleAtFixedRate(() -> {
             for (int i = 0; i < concurrency; i++) {
                 long now = Service.currentTimeMillis();
-                System.out.println("Submitted at: " + (now - TEST_START));
                 rfc.submit(null, null, r -> {
                     //Nothing to do
                 });
-                System.out.println("Submit took: " + (Service.currentTimeMillis() - now));
             }
         }, offset, interval, TimeUnit.MILLISECONDS);
 
@@ -83,8 +81,6 @@ public class RFCMeasurement {
         double ar = rfc.getArrivalRate();
         double tp = rfc.getThroughput();
 
-        System.out.println("Arrival rate: " + ar);
-        System.out.println("Throughput: " + tp);
 
         assertEquals("arrivalRate should match", expectedArrivalRate, Math.round(ar));
         assertEquals("throughput should match", expectedThroughput, Math.round(tp));

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,84 +19,84 @@
 
 package com.here.xyz.hub.task;
 
-import com.google.common.base.Objects;
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.CREATED_AT;
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.MUUID;
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PUUID;
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.SPACE;
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.UPDATED_AT;
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.UUID;
+
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.hub.util.diff.Difference;
-import com.here.xyz.hub.util.diff.Patcher;
+import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
 import com.here.xyz.models.geojson.implementation.Feature;
-import io.vertx.core.json.Json;
+import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import io.vertx.core.json.JsonObject;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import javax.annotation.concurrent.ThreadSafe;
+import java.util.stream.Collectors;
 
-@ThreadSafe
-public class ModifyFeatureOp extends ModifyOp<Feature, Feature, Feature> {
+public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
 
-  public ModifyFeatureOp(List<Feature> inputStates, IfNotExists ifNotExists, IfExists ifExists, boolean isTransactional) {
-    super(inputStates, ifNotExists, ifExists, isTransactional);
+  public ModifyFeatureOp(List<Map<String, Object>> inputStates, IfNotExists ifNotExists, IfExists ifExists, boolean isTransactional) {
+    super((inputStates == null) ? Collections.emptyList() : inputStates.stream().map(FeatureEntry::new).collect(Collectors.toList()),
+        ifNotExists, ifExists, isTransactional);
   }
 
-  @Override
-  public Feature patch(Feature headState, Feature baseState, Feature inputState) throws ModifyOpError {
-    final Map<String, Object> baseStateMap = baseState.asMap();
+  public static class FeatureEntry extends ModifyOp.Entry<Feature> {
 
-    final Difference diff = Patcher.calculateDifferenceOfPartialUpdate(baseStateMap, inputState.asMap(), null, true);
-    Patcher.patch(baseStateMap, diff);
-    return merge(headState, baseState, XyzSerializable.fromMap(baseStateMap, Feature.class));
-  }
-
-  @Override
-  public Feature merge(Feature headState, Feature baseState, Feature inputState) throws ModifyOpError {
-    if (equalStates(baseState, headState)) {
-      return replace(headState, inputState);
+    public FeatureEntry(Map<String, Object> input) {
+      super(input);
     }
 
-    final Map<String, Object> baseStateMap = baseState.asMap();
-    final Difference diffInput = Patcher.getDifference(baseStateMap, inputState.asMap());
-    final Difference diffHead = Patcher.getDifference(baseStateMap, headState.asMap());
-    try {
-      final Difference mergedDiff = Patcher.mergeDifferences(diffInput, diffHead);
-      Patcher.patch(baseStateMap, mergedDiff);
-      return XyzSerializable.fromMap(baseStateMap, Feature.class);
-    } catch (Exception e) {
-      throw new ModifyOpError(e.getMessage());
-    }
-  }
-
-  @Override
-  public Feature replace(Feature headState, Feature inputState) throws ModifyOpError {
-    if (getUuid(inputState) != null && !Objects.equal(getUuid(inputState), getUuid(headState))) {
-      throw new ModifyOpError(
-          "The feature with id " + headState.getId() + " cannot be replaced. The provided UUID doesn't match the UUID of the head state: "+ getUuid(headState));
-    }
-    return inputState.copy();
-  }
-
-  @Override
-  public Feature create(Feature inputState) {
-    return inputState.copy();
-  }
-
-  @Override
-  public Feature transform(Feature sourceState) {
-    return sourceState;
-  }
-
-  private String getUuid(Feature feature) {
-    if (feature == null || feature.getProperties() == null || feature.getProperties().getXyzNamespace() == null) {
-      return null;
-    }
-    return feature.getProperties().getXyzNamespace().getUuid();
-  }
-
-  @Override
-  public boolean equalStates(Feature state1, Feature state2) {
-    if( Objects.equal(state1, state2) ) {
-      return true;
+    @Override
+    public Feature fromMap(Map<String, Object> map) throws ModifyOpError, HttpException {
+      return XyzSerializable.fromMap(map, Feature.class);
     }
 
-    // TODO: Move to Feature#equals()
-    Difference diff = Patcher.getDifference(Json.mapper.convertValue(state1, Map.class), Json.mapper.convertValue(state2, Map.class));
-    return diff == null;
+    @Override
+    public Map<String, Object> toMap(Feature record) throws ModifyOpError, HttpException {
+      return filterMetadata(record.asMap());
+    }
+
+    @Override
+    protected String getUuid(Map<String, Object> feature) {
+      try {
+        return new JsonObject(feature).getJsonObject(PROPERTIES).getJsonObject(XyzNamespace.XYZ_NAMESPACE).getString(UUID);
+      } catch (Exception e) {
+        return null;
+      }
+    }
+
+    @Override
+    protected String getUuid(Feature input) {
+      try {
+        return input.getProperties().getXyzNamespace().getUuid();
+      } catch (Exception e) {
+        return null;
+      }
+    }
+
+    public String getId(Feature record) {
+      return record == null ? null : record.getId();
+    }
+
+    @Override
+    public Map<String, Object> filterMetadata(Map<String, Object> map) {
+      return filter(map,metadataFilter);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> metadataFilter = new JsonObject()
+        .put(PROPERTIES, new JsonObject()
+            .put(XyzNamespace.XYZ_NAMESPACE, new JsonObject()
+                .put(SPACE, true)
+                .put(CREATED_AT, true)
+                .put(UPDATED_AT, true)
+                .put(UUID, true)
+                .put(PUUID, true)
+                .put(MUUID, true))).mapTo(Map.class);
   }
 }

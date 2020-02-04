@@ -192,7 +192,7 @@ public class RpcClient {
     event.setConnectorParams(connector.params);
     invokeWithRelocation(marker, event.serialize().getBytes(), r -> {
       if (r.failed()) {
-        logger.error(marker, "Failed to send event to remote function {}.", connector.remoteFunction.id);
+        logger.error(marker, "Failed to send event to remote function {}.", connector.remoteFunction.id, r.cause());
       }
     });
   }

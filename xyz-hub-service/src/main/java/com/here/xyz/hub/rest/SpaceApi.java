@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.api.contract.openapi3.OpenAPI3RouterFactory;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 public class SpaceApi extends Api {
 
@@ -58,7 +59,7 @@ public class SpaceApi extends Api {
    * Read a space.
    */
   public void getSpace(final RoutingContext context) {
-    JsonObject input = new JsonObject().put("id", context.pathParam(ApiParam.Path.SPACE_ID));
+    Map<String, Object> input = new JsonObject().put("id", context.pathParam(ApiParam.Path.SPACE_ID)).getMap();
     ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input), IfNotExists.ERROR, IfExists.RETAIN, true);
 
     new ConditionalOperation(context, ApiResponseType.SPACE, modifyOp, true)
@@ -89,8 +90,7 @@ public class SpaceApi extends Api {
       context.fail(new HttpException(BAD_REQUEST, "Invalid JSON string"));
       return;
     }
-    ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input), IfNotExists.CREATE, IfExists.ERROR,
-        true);
+    ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input.getMap()), IfNotExists.CREATE, IfExists.ERROR, true);
 
     new ConditionalOperation(context, ApiResponseType.SPACE, modifyOp, false)
         .execute(this::sendResponse, this::sendErrorResponseOnEdit);
@@ -118,7 +118,7 @@ public class SpaceApi extends Api {
       return;
     }
 
-    ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input), IfNotExists.ERROR, IfExists.PATCH, true);
+    ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input.getMap()), IfNotExists.ERROR, IfExists.PATCH, true);
 
     new ConditionalOperation(context, ApiResponseType.SPACE, modifyOp, true)
         .execute(this::sendResponse, this::sendErrorResponseOnEdit);
@@ -129,7 +129,7 @@ public class SpaceApi extends Api {
    * Delete a space.
    */
   public void deleteSpace(final RoutingContext context) {
-    JsonObject input = new JsonObject().put("id", context.pathParam(Path.SPACE_ID));
+    Map<String,Object> input = new JsonObject().put("id", context.pathParam(Path.SPACE_ID)).getMap();
     ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input), IfNotExists.ERROR, IfExists.DELETE, true);
 
     //Delete the space
@@ -155,6 +155,7 @@ public class SpaceApi extends Api {
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class BasicSpaceView {
+
     public String id;
     public String owner;
     public String title;

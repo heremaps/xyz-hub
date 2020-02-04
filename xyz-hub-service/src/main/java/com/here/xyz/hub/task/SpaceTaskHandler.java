@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,6 +52,8 @@ import com.here.xyz.hub.task.SpaceTask.ReadQuery;
 import com.here.xyz.hub.task.SpaceTask.View;
 import com.here.xyz.hub.task.TaskPipeline.C1;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
+import com.here.xyz.hub.util.diff.Difference;
+import com.here.xyz.hub.util.diff.Patcher;
 import com.here.xyz.models.hub.Space.ConnectorRef;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.json.Json;
@@ -62,6 +64,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -129,7 +132,7 @@ public class SpaceTaskHandler {
   }
 
   public static void preprocess(ConditionalOperation task, Callback<ConditionalOperation> callback) {
-    JsonObject input = task.modifyOp.entries.get(0).input;
+    JsonObject input = new JsonObject(task.modifyOp.entries.get(0).input);
     input.remove("createdAt");
     input.remove("updatedAt");
 
@@ -209,14 +212,14 @@ public class SpaceTaskHandler {
    * @param callback the callback to be invoked when done.
    */
   static void loadSpace(final ConditionalOperation task, final Callback<ConditionalOperation> callback) {
-    final JsonObject space = task.modifyOp.entries.get(0).input;
-    final String spaceId = space.getString("id");
-    if (spaceId == null) {
+    final Map<String,Object> space = task.modifyOp.entries.get(0).input;
+    final Object spaceId = space.get("id");
+    if (!(spaceId instanceof String)) {
       callback.call(task);
       return;
     }
 
-    Service.spaceConfigClient.get(task.getMarker(), spaceId, (arResult) -> {
+    Service.spaceConfigClient.get(task.getMarker(), (String)spaceId, (arResult) -> {
       if (arResult.failed()) {
         callback.exception(new Exception(arResult.cause()));
         return;
@@ -229,7 +232,7 @@ public class SpaceTaskHandler {
   }
 
   static void modifySpaces(final ConditionalOperation task, final Callback<ConditionalOperation> callback) {
-    final Entry<JsonObject, Space, Space> entry = task.modifyOp.entries.get(0);
+    final Entry<Space> entry = task.modifyOp.entries.get(0);
     if (!entry.isModified) {
       task.responseSpaces = Collections.singletonList(entry.result);
       callback.call(task);
@@ -339,7 +342,7 @@ public class SpaceTaskHandler {
     }
 
     Operation op = task.isCreate() ? Operation.CREATE : task.isUpdate() ? Operation.UPDATE : Operation.DELETE;
-    Entry<JsonObject, Space, Space> entry = task.modifyOp.entries.get(0);
+    Entry<Space> entry = task.modifyOp.entries.get(0);
 
     Space space = task.isDelete() ? entry.head : entry.result;
     final ModifySpaceEvent event = new ModifySpaceEvent()
@@ -360,13 +363,16 @@ public class SpaceTaskHandler {
       if (query.manipulatedOp != null && query.manipulatedOp != op) {
         throw new HttpException(BAD_GATEWAY, "Connector error.");
       }
-
       if ((task.isCreate() || task.isUpdate()) && query.manipulatedSpaceDefinition != null) {
-        //Use the potentially modified spaceDefinition for writing
-        JsonObject newInput = JsonObject.mapFrom(query.manipulatedSpaceDefinition);
-        //Update the target and the flag if there is a difference between the latest head version and the new target version
-        entry.result = task.modifyOp.patch(entry.result, entry.result, newInput);
-        entry.isModified = entry.isModified || !task.modifyOp.equalStates(entry.head, entry.result);
+        // Treat the manipulated space definition as a partial update.
+        Map<String,Object> newInput = JsonObject.mapFrom(query.manipulatedSpaceDefinition).getMap();
+        Map<String,Object> resultClone = entry.result.asMap();
+        final Difference difference = Patcher.calculateDifferenceOfPartialUpdate(resultClone, newInput, null, true);
+        if( difference != null ){
+          entry.isModified = true;
+          Patcher.patch(resultClone,difference);
+          entry.result = Json.mapper.readValue(Json.encode(resultClone), Space.class);
+        }
       }
 
       callback.call(task);
@@ -376,12 +382,12 @@ public class SpaceTaskHandler {
     query.execute(onEventProcessed, (t, e) -> callback.exception(e));
   }
 
-  public static void timestamp(ConditionalOperation task, Callback<ConditionalOperation> callback) {
-    //Executes the timestamping only for create and update operations
+  public static void postProcess(ConditionalOperation task, Callback<ConditionalOperation> callback) {
+    //Executes the timestamp-ing only for create and update operations
     if (task.isCreate() || task.isUpdate()) {
 
       //Create and update operations, timestamp is always set into updatedAt field.
-      final Entry<JsonObject, Space, Space> entry = task.modifyOp.entries.get(0);
+      final Entry<Space> entry = task.modifyOp.entries.get(0);
 
       //The current UTC timestamp
       entry.result.setUpdatedAt(Service.currentTimeMillis());
@@ -389,6 +395,20 @@ public class SpaceTaskHandler {
       //The same timestamp goes to createdAt when it's a create task
       if (task.isCreate()) {
         entry.result.setCreatedAt(entry.result.getUpdatedAt());
+      }
+      else if( task.isUpdate()){
+        // Do not allow updating the createdAt value
+        entry.result.setCreatedAt(entry.head.getCreatedAt());
+
+        // Do not allow removing the owner property
+        if( entry.result.getOwner()==null){
+          entry.result.setOwner(entry.head.getOwner());
+        }
+
+        // Do not allow removing the cid property
+        if( entry.result.getCid()==null){
+          entry.result.setCid(entry.head.getCid());
+        }
       }
     }
 

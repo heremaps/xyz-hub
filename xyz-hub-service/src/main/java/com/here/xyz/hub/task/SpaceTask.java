@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -199,10 +199,10 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
           .then(SpaceTaskHandler::preprocess)
           .then(this::verifyResourceExists)
           .then(SpaceTaskHandler::processModifyOp)
+          .then(SpaceTaskHandler::postProcess)
           .then(SpaceTaskHandler::validate)
           .then(SpaceAuthorization::authorizeModifyOp)
           .then(SpaceTaskHandler::enforceUsageQuotas)
-          .then(SpaceTaskHandler::timestamp)
           .then(SpaceTaskHandler::sendEvents)
           .then(SpaceTaskHandler::modifySpaces)
           .then(SpaceTaskHandler::convertResponse);

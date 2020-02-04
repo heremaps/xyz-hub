@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,10 +25,6 @@ import static com.here.xyz.hub.rest.ApiParam.Query.SKIP_CACHE;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.vertx.core.http.HttpHeaders.ACCEPT;
 
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.here.xyz.Typed;
-import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
@@ -41,17 +37,17 @@ import com.here.xyz.hub.task.FeatureTask.IdsQuery;
 import com.here.xyz.hub.task.ModifyFeatureOp;
 import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.task.ModifyOp.IfNotExists;
-import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.http.HttpHeaders;
+import io.vertx.core.json.DecodeException;
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.api.contract.openapi3.OpenAPI3RouterFactory;
-import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -154,7 +150,7 @@ public class FeatureApi extends Api {
    */
   private void deleteFeature(final RoutingContext context) {
     executeConditionalOperationChain(true, context, ApiResponseType.EMPTY, IfExists.DELETE, IfNotExists.RETAIN, true,
-        Collections.singletonList(Feature.createEmptyFeature().withId(context.pathParam(Path.FEATURE_ID))));
+        Collections.singletonList(new JsonObject().put("id", context.pathParam(Path.FEATURE_ID)).getMap()));
   }
 
   /**
@@ -169,15 +165,15 @@ public class FeatureApi extends Api {
 
     //Delete features by IDs
     if (featureIds != null && !featureIds.isEmpty()) {
-      final List<Feature> features = featureIds.stream().distinct()
-          .map(id -> Feature.createEmptyFeature().withId(id))
+      final List<Map<String, Object>> features = featureIds.stream().distinct()
+          .map(id -> new JsonObject().put("id", id).getMap())
           .collect(Collectors.toList());
 
       executeConditionalOperationChain(false, context, responseType, IfExists.DELETE, IfNotExists.RETAIN, true, features);
     }
 
     //Delete features by tags
-    else if (tags != null && !tags.isEmpty()) {
+    else if (!tags.isEmpty()) {
       DeleteFeaturesByTagEvent event = new DeleteFeaturesByTagEvent();
       if (!tags.containsWildcard()) {
         event.setTags(tags);
@@ -197,13 +193,12 @@ public class FeatureApi extends Api {
       ApiResponseType apiResponseTypeType,
       IfExists ifExists, IfNotExists ifNotExists, boolean transactional) {
     try {
-      FeatureCollection fc = getBodyAsFeatureCollection(context);
+      List<Map<String, Object>> features = getObjectsAsList(context);
       if (apiResponseTypeType == ApiResponseType.FEATURE) {
-        fc.getFeatures().get(0).setId(context.pathParam(ApiParam.Path.FEATURE_ID));
+        features.get(0).put("id", context.pathParam(ApiParam.Path.FEATURE_ID));
       }
 
-      executeConditionalOperationChain(requireResourceExists, context, apiResponseTypeType, ifExists, ifNotExists, transactional,
-          fc.getFeatures());
+      executeConditionalOperationChain(requireResourceExists, context, apiResponseTypeType, ifExists, ifNotExists, transactional, features);
     } catch (HttpException e) {
       sendErrorResponse(context, e);
     } catch (Exception e) {
@@ -215,7 +210,8 @@ public class FeatureApi extends Api {
    * Creates and executes a ModifyMapOp
    */
   private void executeConditionalOperationChain(boolean requireResourceExists, final RoutingContext context,
-      ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional, List<Feature> features) {
+      ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional,
+      List<Map<String, Object>> features) {
     ModifyFeaturesEvent event = new ModifyFeaturesEvent();
     ConditionalOperation task = new ConditionalOperation(event, context, apiResponseTypeType,
         new ModifyFeatureOp(features, ifNotExists, ifExists, transactional), requireResourceExists);
@@ -233,38 +229,45 @@ public class FeatureApi extends Api {
   /**
    * Parses the body of the request as a FeatureCollection or a Feature object and returns the features as a list.
    */
-  private FeatureCollection getBodyAsFeatureCollection(final RoutingContext context) throws HttpException {
+  private List<Map<String, Object>> getObjectsAsList(final RoutingContext context) throws HttpException {
     final Marker logMarker = Context.getMarker(context);
     try {
-      final String text = context.getBodyAsString();
-      if (text == null) {
+      JsonObject json = context.getBodyAsJson();
+      return getJsonObjects(json, context);
+    } catch (DecodeException e) {
+      logger.info(logMarker, "Invalid input encoding.", e);
+      try {
+        // Some types of exceptions could be avoided by reading the entire string.
+        JsonObject json = new JsonObject(context.getBodyAsString());
+        return getJsonObjects(json, context);
+      } catch (DecodeException ex) {
+        logger.info(logMarker, "Error in the provided content ", ex.getCause());
+        throw new HttpException(BAD_REQUEST, "Invalid JSON input string: " + ex.getMessage());
+      }
+    } catch (Exception e) {
+      logger.info(logMarker, "Error in the provided content ", e);
+      throw new HttpException(BAD_REQUEST, "Cannot read input JSON string.");
+    }
+  }
+
+  private List<Map<String, Object>> getJsonObjects(JsonObject json, RoutingContext context) throws HttpException {
+    try {
+      if (json == null) {
         throw new HttpException(BAD_REQUEST, "Missing content");
       }
+      if ("FeatureCollection".equals(json.getString("type"))) {
+        //noinspection unchecked
+        return json.getJsonArray("features", new JsonArray()).getList();
+      }
 
-      final Typed input = XyzSerializable.deserialize(text);
-      FeatureCollection featureCollection;
-      if (input instanceof FeatureCollection) {
-        featureCollection = (FeatureCollection) input;
-        if (featureCollection.getFeatures() == null) {
-          featureCollection.setFeatures(new ArrayList<>());
-        }
-      } else if (input instanceof Feature) {
-        featureCollection = new FeatureCollection().withFeatures(Collections.singletonList((Feature) input));
+      if ("Feature".equals(json.getString("type"))) {
+        return Collections.singletonList(json.getMap());
       } else {
         throw new HttpException(BAD_REQUEST,
-            "The provided content is of type '" + input.getClass().getSimpleName() + "'. Expected is a FeatureCollection or a Feature.");
+            "The provided content does not have a type FeatureCollection or a Feature.");
       }
-      Api.Context.getAccessLog(context).reqInfo.numberOfObjects = featureCollection.getFeatures().size();
-      return featureCollection;
-    } catch (JsonMappingException e) {
-      logger.info(logMarker, "Error in the provided content ", e);
-      throw new HttpException(BAD_REQUEST, "Invalid JSON type. Expected is a FeatureCollection or a Feature.");
-    } catch (JsonParseException e) {
-      logger.info(logMarker, "Error in the provided content ", e);
-      throw new HttpException(BAD_REQUEST,
-          "Invalid JSON string. Error at line " + e.getLocation().getLineNr() + ", column " + e.getLocation().getColumnNr() + ".");
-    } catch (IOException e) {
-      logger.info(logMarker, "Error in the provided content ", e);
+    } catch (Exception e) {
+      logger.info(Context.getMarker(context), "Error in the provided content ", e);
       throw new HttpException(BAD_REQUEST, "Cannot read input JSON string.");
     }
   }
