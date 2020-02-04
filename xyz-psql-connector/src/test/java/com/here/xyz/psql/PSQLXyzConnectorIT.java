@@ -46,14 +46,7 @@ import com.here.xyz.models.geojson.coordinates.MultiPolygonCoordinates;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
 import com.here.xyz.models.geojson.coordinates.Position;
-import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.models.geojson.implementation.Geometry;
-import com.here.xyz.models.geojson.implementation.LineString;
-import com.here.xyz.models.geojson.implementation.MultiPolygon;
-import com.here.xyz.models.geojson.implementation.Point;
-import com.here.xyz.models.geojson.implementation.Polygon;
-import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.models.geojson.implementation.*;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse.PropertiesStatistics;
@@ -176,6 +169,7 @@ public class PSQLXyzConnectorIT {
    */
   @Test
   public void testGetFeaturesByGeometryQuery() throws Exception {
+    XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
     FeatureCollection collection = new FeatureCollection();
     List<Feature> featureList = new ArrayList<>();
     // =========== INSERT Point Grid 20x20 ==========
@@ -184,7 +178,7 @@ public class PSQLXyzConnectorIT {
         Feature f = new Feature()
             .withGeometry(
                 new Point().withCoordinates(new PointCoordinates((Math.round(x * 10000.0) / 10000.0), Math.round(y * 10000.0) / 10000.0)))
-            .withProperties(new Properties().with("foo", Math.round(x * 10000.0) / 10000.0).with("foo2", 1));
+            .withProperties(new Properties().with("foo", Math.round(x * 10000.0) / 10000.0).with("foo2", 1).withXyzNamespace(xyzNamespace));
         featureList.add(f);
       }
     }
@@ -201,7 +195,7 @@ public class PSQLXyzConnectorIT {
     Feature f = new Feature()
         .withGeometry(
             new Polygon().withCoordinates(singlePoly))
-        .withProperties(new Properties().with("foo", 999.1));
+        .withProperties(new Properties().with("foo", 999.1).withXyzNamespace(xyzNamespace));
     featureList.add(f);
 
     collection.setFeatures(featureList);
@@ -218,7 +212,7 @@ public class PSQLXyzConnectorIT {
     f = new Feature()
         .withGeometry(
             new Polygon().withCoordinates(singlePoly))
-        .withProperties(new Properties().with("foo", 999.2));
+        .withProperties(new Properties().with("foo", 999.2).withXyzNamespace(xyzNamespace));
     featureList.add(f);
     collection.setFeatures(featureList);
 
@@ -230,7 +224,7 @@ public class PSQLXyzConnectorIT {
     f = new Feature()
         .withGeometry(
             new LineString().withCoordinates(lcCoords))
-        .withProperties(new Properties().with("foo", 999.3));
+        .withProperties(new Properties().with("foo", 999.3).withXyzNamespace(xyzNamespace));
     featureList.add(f);
 
     // =========== INSERT Line ==========
@@ -241,7 +235,7 @@ public class PSQLXyzConnectorIT {
     f = new Feature()
         .withGeometry(
             new LineString().withCoordinates(lcCoords))
-        .withProperties(new Properties().with("foo", 999.4));
+        .withProperties(new Properties().with("foo", 999.4).withXyzNamespace(xyzNamespace));
     featureList.add(f);
 
     collection.setFeatures(featureList);
