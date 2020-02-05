@@ -240,6 +240,24 @@ public class AuthTestsIT extends RestAssuredTest {
   }
 
   @Test
+  public void testCreateSharedSpace() {
+    createSpace("/xyz/hub/auth/createSharedSpace.json", AuthProfile.ACCESS_OWNER_1_ADMIN)
+        .statusCode(OK.code());
+
+    getSpace("x-auth-test-space-shared", AuthProfile.ACCESS_OWNER_1_NO_ADMIN)
+        .body("storage", equalTo(null));
+  }
+
+  @Test
+  public void testCreateSharedSpaceAdminRead() {
+    createSpace("/xyz/hub/auth/createSharedSpace.json", AuthProfile.ACCESS_OWNER_1_ADMIN)
+        .statusCode(OK.code());
+
+    getSpace("x-auth-test-space-shared", AuthProfile.ACCESS_OWNER_1_ADMIN)
+        .body("storage.id", equalTo("psql"));
+  }
+
+  @Test
   public void testSpaceListWithSharedOwnerDefault() {
     testSpaceListWithShared(null)
         .statusCode(OK.code())
