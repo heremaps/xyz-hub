@@ -269,7 +269,7 @@ public class FeatureTaskHandler {
    * @param event The pre-processed event
    * @param callback The callback to be called in case of exception
    * @param <T> the type of the FeatureTask
-   * @return Whether to stop the execution as of an exception occured
+   * @return Whether to stop the execution as of an exception occurred
    */
   private static <T extends FeatureTask> boolean callProcessedHook(T task, Event event, Callback<T> callback) {
     try {
