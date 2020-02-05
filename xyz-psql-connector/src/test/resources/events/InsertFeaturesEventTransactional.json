@@ -17,6 +17,9 @@
       "properties": {
         "name": "Toyota",
         "@ns:com:here:xyz": {
+          "space" : "foo",
+          "createdAt" : 1517504700726,
+          "updatedAt" : 1517504700726,
           "tags": [
             "yellow"
           ]
@@ -35,6 +38,9 @@
       "properties": {
         "name": "Tesla",
         "@ns:com:here:xyz": {
+          "space" : "foo",
+          "createdAt" : 1517504700726,
+          "updatedAt" : 1517504700726,
           "tags": [
             "red"
           ]
@@ -53,6 +59,9 @@
       "properties": {
         "name": "Bar",
         "@ns:com:here:xyz": {
+          "space" : "foo",
+          "createdAt" : 1517504700726,
+          "updatedAt" : 1517504700726,
           "tags": [
             "green"
           ]

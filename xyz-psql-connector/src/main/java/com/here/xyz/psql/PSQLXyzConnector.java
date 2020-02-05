@@ -173,7 +173,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
     }
 
     final long now = System.currentTimeMillis();
-    final boolean addUUID = event.getEnableUUID() && event.getVersion().compareTo("0.2.0") < 0;
+    final boolean addUUID = event.getEnableUUID() == Boolean.TRUE && event.getVersion().compareTo("0.2.0") < 0;
     // Update the features to insert
     final List<Feature> inserts = event.getInsertFeatures();
     if (inserts != null) {

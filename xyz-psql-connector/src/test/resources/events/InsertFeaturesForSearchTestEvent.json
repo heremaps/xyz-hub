@@ -17,6 +17,9 @@
         "size": 8.5,
         "car": true,
         "@ns:com:here:xyz": {
+          "space" : "foo",
+          "createdAt" : 1517504700726,
+          "updatedAt" : 1517504700726,
           "tags": [
             "yellow",
             "red"
@@ -36,6 +39,9 @@
       "properties": {
         "name": "Tesla",
         "@ns:com:here:xyz": {
+          "space" : "foo",
+          "createdAt" : 1517504700726,
+          "updatedAt" : 1517504700726,
           "tags": [
             "red"
           ]
