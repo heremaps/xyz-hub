@@ -83,7 +83,6 @@ public class SpaceAuthorization extends Authorization {
   }
 
   public static void authorizeModifyOp(ConditionalOperation task, Callback<ConditionalOperation> callback) throws Exception {
-
     final XyzHubActionMatrix tokenRights = task.getJwt().getXyzHubMatrix();
     final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
 
@@ -101,7 +100,7 @@ public class SpaceAuthorization extends Authorization {
       return;
     }
 
-    // CREATE
+    //CREATE
     if (task.isCreate()) {
       final Map templateAsMap = asMap(task.template);
       final Map inputAsMap = asMap(Json.mapper.convertValue(input, Space.class));
@@ -117,14 +116,8 @@ public class SpaceAuthorization extends Authorization {
       isPackagesEdit = isPropertyEdit(templateAsMap, inputAsMap, PACKAGES);
       isSearchablePropertiesEdit = isPropertyEdit(templateAsMap, inputAsMap, SEARCHABLE_PROPERTIES);
     }
-    // READ, UPDATE, DELETE
+    //READ, UPDATE, DELETE
     else {
-      if (task.isRead() && head.isShared()) {
-        //User is trying to read a shared space this is allowed for any authenticated user
-        callback.call(task);
-        return;
-      }
-
       final Map targetAsMap = asMap(target);
       final Map headAsMap = asMap(head);
 
@@ -141,15 +134,21 @@ public class SpaceAuthorization extends Authorization {
       isSearchablePropertiesEdit = !task.isDelete() && isPropertyEdit(targetAsMap, headAsMap, SEARCHABLE_PROPERTIES);
     }
 
-    // Mark in the task, if the app is allowed to read the admin properties.
+    //Mark in the task, if the app is allowed to read the admin properties.
     final XyzHubActionMatrix adminMatrix = new XyzHubActionMatrix().adminSpaces(xyzhubFilter);
     task.canReadAdminProperties = tokenRights != null && tokenRights.matches(adminMatrix);
 
-    // Mark in the task, if the user is allowed to read the connectors on READ and WRITE operations.
+    //Mark in the task, if the user is allowed to read the connectors on READ and WRITE operations.
     task.canReadConnectorsProperties = canReadConnectorProperties(tokenRights);
 
-    // On Read operations, any access to the space grants read access, this includes readFeatures, createFeatures, etc.
+    //On Read operations, any access to the space grants read access, this includes readFeatures, createFeatures, etc.
     if (task.isRead()) {
+      if (head.isShared()) {
+        //User is trying to read a shared space this is allowed for any authenticated user
+        callback.call(task);
+        return;
+      }
+
       if (tokenRights == null || tokenRights.entrySet().stream().flatMap(e -> e.getValue().stream())
           .noneMatch(f -> f.matches(xyzhubFilter))) {
         throw new HttpException(FORBIDDEN, "Insufficient rights to read the requested resource.");
@@ -159,7 +158,7 @@ public class SpaceAuthorization extends Authorization {
       return;
     }
 
-    // If this is an edit on storage, listeners or processors properties.
+    //If this is an edit on storage, listeners or processors properties.
     if (isStorageEdit || isListenersEdit || isProcessorsEdit) {
       final XyzHubActionMatrix connectorsRights = new XyzHubActionMatrix();
 
@@ -188,18 +187,18 @@ public class SpaceAuthorization extends Authorization {
       }
     }
 
-    // either for admin or manage spaces, the packages access must be tested
+    //Either for admin or manage spaces, the packages access must be tested
     if (isPackagesEdit) {
       getPackagesFromInput(entry).forEach(packageId -> requestRights.managePackages(
           XyzHubAttributeMap.forIdValues(target.getOwner(), packageId)));
     }
 
-    // checks if the user has useCapabilities: ['searchablePropertiesConfiguration']
+    //Checks if the user has useCapabilities: ['searchablePropertiesConfiguration']
     if (isSearchablePropertiesEdit) {
       requestRights.useCapabilities(new AttributeMap().withValue(ID, "searchablePropertiesConfiguration"));
     }
 
-    // If this is an edit on admin properties.
+    //If this is an edit on admin properties.
     if (isAdminEdit) {
       boolean ownerChanged = !task.isCreate() && input.containsKey("owner") && !input.get("owner").equals(head.getOwner());
       if (ownerChanged) {
