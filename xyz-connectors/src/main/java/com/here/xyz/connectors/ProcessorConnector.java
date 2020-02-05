@@ -139,7 +139,7 @@ public abstract class ProcessorConnector extends AbstractConnectorHandler {
       return wrapResponse(processDeleteFeaturesByTag((FeatureCollection) notification.getEvent(), notificationParams));
     }
 
-    // if any of the events was catched, throws an error.
+    // if any of the events were caught, throws an error.
     throw new ErrorResponseException(streamId, XyzError.NOT_IMPLEMENTED, "Unknown event type '" + eventType + "'");
   }
 
