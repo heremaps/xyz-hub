@@ -297,6 +297,9 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         collection.setFeatures(new ArrayList<>());
 
+        final String schema = config.schema();
+        final String table = config.table(event);
+
         /** Include Old states */
         if (includeOldStates) {
             String[] idsToFetch = Stream.of(insertIds, updateIds, deleteIds).flatMap(List::stream).toArray(String[]::new);
@@ -307,7 +310,6 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
 
         try (final Connection connection = dataSource.getConnection()) {
-            //TODO: Think about shifting into Writer
             if(transactional)
                 connection.setAutoCommit(false);
             else
@@ -315,13 +317,13 @@ public abstract class DatabaseHandler extends StorageConnector {
 
             try {
                 if (deletes.size() > 0) {
-                    DatabaseWriter.deleteFeatures(deletes, connection, config.schema(), config.table(event), transactional);
+                    DatabaseWriter.deleteFeatures(schema, table, streamId, deletes, connection, transactional);
                 }
                 if (inserts.size() > 0) {
-                    DatabaseWriter.insertFeatures(collection, fails, inserts, connection, config.schema(), config.table(event), transactional);
+                    DatabaseWriter.insertFeatures(schema, table, streamId, collection, fails, inserts, connection, transactional);
                 }
                 if (updates.size() > 0) {
-                    DatabaseWriter.updateFeatures(collection, fails,  updates, connection, config.schema(), config.table(event), transactional, handleUUID);
+                    DatabaseWriter.updateFeatures(schema, table, streamId, collection, fails,  updates, connection, transactional, handleUUID);
                 }
 
                 if (transactional) {

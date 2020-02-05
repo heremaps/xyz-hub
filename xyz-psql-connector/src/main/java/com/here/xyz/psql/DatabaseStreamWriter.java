@@ -3,7 +3,6 @@ package com.here.xyz.psql;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.models.geojson.implementation.Geometry;
 import com.vividsolutions.jts.io.WKBWriter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -13,21 +12,19 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.List;
-import java.util.Map;
 
 public class DatabaseStreamWriter extends DatabaseWriter{
     private static final Logger logger = LogManager.getLogger();
 
-    public static FeatureCollection insertFeatures(FeatureCollection collection, List<FeatureCollection.ModificationFailure> fails,
-                                                   List<Feature> inserts, Connection connection, String schema, String table)
+    protected static FeatureCollection insertFeatures( String schema, String table, String streamId, FeatureCollection collection,
+                                                    List<FeatureCollection.ModificationFailure> fails,
+                                                    List<Feature> inserts, Connection connection)
             throws SQLException {
         String insertStmtSQL = "INSERT INTO ${schema}.${table} (jsondata, geo, geojson) VALUES(?::jsonb, ST_Force3D(ST_GeomFromWKB(?,4326)), ?::jsonb)";
         insertStmtSQL = SQLQuery.replaceVars(insertStmtSQL, schema, table);
-        boolean batchInsert = false;
 
         String insertWithoutGeometryStmtSQL = "INSERT INTO ${schema}.${table} (jsondata, geo, geojson) VALUES(?::jsonb, NULL, NULL)";
         insertWithoutGeometryStmtSQL = SQLQuery.replaceVars(insertWithoutGeometryStmtSQL, schema, table);
-        boolean batchInsertWithoutGeometry = false;
 
         final PreparedStatement insertStmt = createStatement(connection, insertStmtSQL);
         final PreparedStatement insertWithoutGeometryStmt = createStatement(connection, insertWithoutGeometryStmtSQL);
@@ -38,40 +35,24 @@ public class DatabaseStreamWriter extends DatabaseWriter{
             try {
                 int rows = 0;
                 final Feature feature = inserts.get(i);
-                final Geometry geometry = feature.getGeometry();
                 fId = feature.getId();
-                feature.setGeometry(null); // Do not serialize the geometry in the JSON object
 
-                final String json;
-                final String geojson;
-                try {
-                    json = feature.serialize();
-                    geojson = geometry != null ? geometry.serialize() : null;
-                } finally {
-                    feature.setGeometry(geometry);
-                }
+                final PGobject jsonbObject= featureToPGobject(feature, true);
+                final PGobject geojsonbObject = featureToPGobject(feature, false);
 
-                final PGobject jsonbObject = new PGobject();
-                jsonbObject.setType("jsonb");
-                jsonbObject.setValue(json);
-
-                final PGobject geojsonbObject = new PGobject();
-                geojsonbObject.setType("jsonb");
-                geojsonbObject.setValue(geojson);
-
-                if (geometry == null) {
+                if (feature.getGeometry() == null) {
                     insertWithoutGeometryStmt.setObject(1, jsonbObject);
                     rows = insertWithoutGeometryStmt.executeUpdate();
                 } else {
                     insertStmt.setObject(1, jsonbObject);
                     final WKBWriter wkbWriter = new WKBWriter(3);
-                    insertStmt.setBytes(2, wkbWriter.write(geometry.getJTSGeometry()));
+                    insertStmt.setBytes(2, wkbWriter.write(feature.getGeometry().getJTSGeometry()));
                     insertStmt.setObject(3, geojsonbObject);
                     rows = insertStmt.executeUpdate();
                 }
 
                 if(rows == 0) {
-                    fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage("Insert Failed"));
+                    fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage("Insert has failed"));
                 }else
                     collection.getFeatures().add(feature);
 
@@ -80,7 +61,8 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                 insertWithoutGeometryStmt.close();
                 connection.close();
 
-                fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage("Insert Failed"));
+                fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage("Insert has failed"));
+                logger.error("{} - Failed to insert object #{}: {}", streamId, i, e);
 
                 throw new SQLException(e);
             }
@@ -88,9 +70,80 @@ public class DatabaseStreamWriter extends DatabaseWriter{
         return collection;
     };
 
-    public static FeatureCollection updateFeatures(FeatureCollection collection, List<FeatureCollection.ModificationFailure> fails,
-                                                   List<Feature> updates, Connection connection, String schema, String table,
-                                                   boolean handleUUID)
+//    protected static FeatureCollection insertFeaturesbak( String schema, String table, String streamId, FeatureCollection collection,
+//                                                       List<FeatureCollection.ModificationFailure> fails,
+//                                                       List<Feature> inserts, Connection connection)
+//            throws SQLException {
+//        String insertStmtSQL = "INSERT INTO ${schema}.${table} (jsondata, geo, geojson) VALUES(?::jsonb, ST_Force3D(ST_GeomFromWKB(?,4326)), ?::jsonb)";
+//        insertStmtSQL = SQLQuery.replaceVars(insertStmtSQL, schema, table);
+//
+//        String insertWithoutGeometryStmtSQL = "INSERT INTO ${schema}.${table} (jsondata, geo, geojson) VALUES(?::jsonb, NULL, NULL)";
+//        insertWithoutGeometryStmtSQL = SQLQuery.replaceVars(insertWithoutGeometryStmtSQL, schema, table);
+//
+//        final PreparedStatement insertStmt = createStatement(connection, insertStmtSQL);
+//        final PreparedStatement insertWithoutGeometryStmt = createStatement(connection, insertWithoutGeometryStmtSQL);
+//
+//        for (int i = 0; i < inserts.size(); i++) {
+//
+//            String fId = "";
+//            try {
+//                int rows = 0;
+//                final Feature feature = inserts.get(i);
+//                final Geometry geometry = feature.getGeometry();
+//                fId = feature.getId();
+//                feature.setGeometry(null); // Do not serialize the geometry in the JSON object
+//
+//                final String json;
+//                final String geojson;
+//                try {
+//                    json = feature.serialize();
+//                    geojson = geometry != null ? geometry.serialize() : null;
+//                } finally {
+//                    feature.setGeometry(geometry);
+//                }
+//
+//                final PGobject jsonbObject = new PGobject();
+//                jsonbObject.setType("jsonb");
+//                jsonbObject.setValue(json);
+//
+//                final PGobject geojsonbObject = new PGobject();
+//                geojsonbObject.setType("jsonb");
+//                geojsonbObject.setValue(geojson);
+//
+//                if (geometry == null) {
+//                    insertWithoutGeometryStmt.setObject(1, jsonbObject);
+//                    rows = insertWithoutGeometryStmt.executeUpdate();
+//                } else {
+//                    insertStmt.setObject(1, jsonbObject);
+//                    final WKBWriter wkbWriter = new WKBWriter(3);
+//                    insertStmt.setBytes(2, wkbWriter.write(geometry.getJTSGeometry()));
+//                    insertStmt.setObject(3, geojsonbObject);
+//                    rows = insertStmt.executeUpdate();
+//                }
+//
+//                if(rows == 0) {
+//                    fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage("Insert has failed"));
+//                }else
+//                    collection.getFeatures().add(feature);
+//
+//            } catch (Exception e) {
+//                insertStmt.close();
+//                insertWithoutGeometryStmt.close();
+//                connection.close();
+//
+//                fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage("Insert has failed"));
+//                logger.error("{} - Failed to insert object #{}: {}", streamId, i, e);
+//
+//                throw new SQLException(e);
+//            }
+//        }
+//        return collection;
+//    };
+
+    protected static FeatureCollection updateFeatures( String schema, String table, String streamId, FeatureCollection collection,
+                                                    List<FeatureCollection.ModificationFailure> fails,
+                                                    List<Feature> updates, Connection connection,
+                                                    boolean handleUUID)
             throws SQLException, JsonProcessingException {
         String updateStmtSQL = "UPDATE ${schema}.${table} SET jsondata = ?::jsonb, geo=ST_Force3D(ST_GeomFromWKB(?,4326)), geojson = ?::jsonb WHERE jsondata->>'id' = ?";
         String updateWithoutGeometryStmtSQL = "UPDATE ${schema}.${table} SET  jsondata = ?::jsonb, geo=NULL, geojson = NULL WHERE jsondata->>'id' = ?";
@@ -106,6 +159,7 @@ public class DatabaseStreamWriter extends DatabaseWriter{
         final PreparedStatement updateWithoutGeometryStmt = createStatement(connection, updateWithoutGeometryStmtSQL);
 
         for (int i = 0; i < updates.size(); i++) {
+            String fId = "";
             try {
                 final Feature feature = updates.get(i);
                 final String puuid = feature.getProperties().getXyzNamespace().getPuuid();
@@ -115,33 +169,19 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                     throw new NullPointerException("id");
                 }
 
-                if (puuid == null && handleUUID){
+                if (handleUUID && puuid == null){
                     throw new NullPointerException("puuid");
                 }
 
-                final String id = feature.getId();
-                final Geometry geometry = feature.getGeometry();
-                feature.setGeometry(null); // Do not serialize the geometry in the JSON object
+                fId = feature.getId();
 
-                final String json;
-                final String geojson;
-                try {
-                    json = feature.serialize();
-                    geojson = geometry != null ? geometry.serialize() : null;
-                } finally {
-                    feature.setGeometry(geometry);
-                }
-                final PGobject jsonbObject = new PGobject();
-                jsonbObject.setType("jsonb");
-                jsonbObject.setValue(json);
+                final PGobject jsonbObject= featureToPGobject(feature, true);
+                final PGobject geojsonbObject = featureToPGobject(feature, false);
 
-                final PGobject geojsonbObject = new PGobject();
-                geojsonbObject.setType("jsonb");
-                geojsonbObject.setValue(geojson);
 
-                if (geometry == null) {
+                if (feature.getGeometry() == null) {
                     updateWithoutGeometryStmt.setObject(1, jsonbObject);
-                    updateWithoutGeometryStmt.setString(2, id);
+                    updateWithoutGeometryStmt.setString(2, fId);
 
                     if(handleUUID)
                         updateWithoutGeometryStmt.setString(3, puuid);
@@ -150,19 +190,18 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                 } else {
                     updateStmt.setObject(1, jsonbObject);
                     final WKBWriter wkbWriter = new WKBWriter(3);
-                    updateStmt.setBytes(2, wkbWriter.write(geometry.getJTSGeometry()));
+                    updateStmt.setBytes(2, wkbWriter.write(feature.getGeometry().getJTSGeometry()));
                     updateStmt.setObject(3, geojsonbObject);
-                    updateStmt.setString(4, id);
+                    updateStmt.setString(4, fId);
 
                     if(handleUUID) {
                         updateStmt.setString(5, puuid);
                     }
                     rows = updateStmt.executeUpdate();
-//                        updateStmt.execute();
                 }
 
                 if(rows == 0) {
-                    fails.add(new FeatureCollection.ModificationFailure().withId(id).withMessage("UUID does not match!"));
+                    fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage("UUID does not match!"));
                 }else
                     collection.getFeatures().add(feature);
 
@@ -170,16 +209,12 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                 updateStmt.close();
                 updateWithoutGeometryStmt.close();
                 connection.close();
+                fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage("Updated has failed"));
 
-                logger.error("{} - Failed to update object #{}: {}", "streamID_TODO", i, e);
+                logger.error("{} - Failed to update object #{}: {}", streamId, i, e);
                 throw new SQLException(e);
             }
         }
         return collection;
-    };
-
-    public static FeatureCollection deleteFeatures(Map<String, String> deletes, Connection connection, String schema, String table)
-            throws SQLException {
-        return null;
     };
 }

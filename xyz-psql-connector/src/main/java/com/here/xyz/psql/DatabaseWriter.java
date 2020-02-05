@@ -3,6 +3,8 @@ package com.here.xyz.psql;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.geojson.implementation.Geometry;
+import org.postgresql.util.PGobject;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -15,6 +17,34 @@ import static com.here.xyz.psql.DatabaseHandler.STATEMENT_TIMEOUT_SECONDS;
 
 public class DatabaseWriter {
 
+    protected static PGobject featureToPGobject(final Feature feature, final boolean jsonObjectMode) throws SQLException {
+        final Geometry geometry = feature.getGeometry();
+        feature.setGeometry(null); // Do not serialize the geometry in the JSON object
+
+        final String json;
+        final String geojson;
+
+        try {
+            json = feature.serialize();
+            geojson = geometry != null ? geometry.serialize() : null;
+        } finally {
+            feature.setGeometry(geometry);
+        }
+
+        if(jsonObjectMode){
+            final PGobject jsonbObject = new PGobject();
+            jsonbObject.setType("jsonb");
+            jsonbObject.setValue(json);
+            return jsonbObject;
+        }
+
+        final PGobject geojsonbObject = new PGobject();
+        geojsonbObject.setType("jsonb");
+        geojsonbObject.setValue(geojson);
+
+        return geojsonbObject;
+    }
+
     protected static PreparedStatement createStatement(Connection connection, String statement) throws SQLException {
         final PreparedStatement preparedStatement = connection.prepareStatement(statement);
         preparedStatement.setQueryTimeout(STATEMENT_TIMEOUT_SECONDS);
@@ -25,32 +55,34 @@ public class DatabaseWriter {
         connection.setAutoCommit(isActive);
     }
 
-    public static FeatureCollection insertFeatures(FeatureCollection collection, List<FeatureCollection.ModificationFailure> fails,
-                                                   List<Feature> inserts, Connection connection, String schema, String table,
+    protected static FeatureCollection insertFeatures(String schema, String table, String streamId, FeatureCollection collection,
+                                                      List<FeatureCollection.ModificationFailure> fails,
+                                                   List<Feature> inserts, Connection connection,
                                                    boolean transactional)
             throws SQLException, JsonProcessingException {
         if(transactional) {
             setAutocommit(connection,false);
-            return DatabaseTransactionalWriter.insertFeatures(collection, inserts, connection, schema, table);
+            return DatabaseTransactionalWriter.insertFeatures(schema, table, streamId, collection, inserts, connection);
         }
         setAutocommit(connection,true);
-        return DatabaseStreamWriter.insertFeatures(collection, fails, inserts, connection, schema, table);
-    };
+        return DatabaseStreamWriter.insertFeatures(schema, table, streamId, collection, fails, inserts, connection);
+    }
 
-    public static FeatureCollection updateFeatures(FeatureCollection collection, List<FeatureCollection.ModificationFailure> fails,
-                                                   List<Feature> updates, Connection connection, String schema, String table,
+    protected static FeatureCollection updateFeatures(String schema, String table, String streamId, FeatureCollection collection,
+                                                   List<FeatureCollection.ModificationFailure> fails,
+                                                   List<Feature> updates, Connection connection,
                                                    boolean transactional, boolean handleUUID)
             throws SQLException, JsonProcessingException {
         if(transactional) {
             setAutocommit(connection,false);
-            return DatabaseTransactionalWriter.updateFeatures(collection, updates, connection, schema, table);
+            return DatabaseTransactionalWriter.updateFeatures(schema, table, streamId, collection, updates, connection);
         }
         setAutocommit(connection,true);
-        return DatabaseStreamWriter.updateFeatures(collection, fails, updates, connection, schema, table, handleUUID);
-    };
+        return DatabaseStreamWriter.updateFeatures(schema, table, streamId, collection, fails, updates, connection, handleUUID);
+    }
 
-    public static void deleteFeatures(Map<String, String> deletes, Connection connection, String schema,
-                                                   String table, boolean transactional)
+    protected static void deleteFeatures( String schema, String table, String streamId,
+                                          Map<String, String> deletes, Connection connection, boolean transactional)
      throws SQLException {
         final Set<String> idsToDelete = deletes.keySet();
 
