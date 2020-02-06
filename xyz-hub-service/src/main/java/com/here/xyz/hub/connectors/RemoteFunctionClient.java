@@ -125,17 +125,21 @@ public abstract class RemoteFunctionClient {
    * @param bytes    the bytes to send.
    * @param callback the callback to notify with the response.
    */
-  public synchronized final void submit(final Marker marker, byte[] bytes, final Handler<AsyncResult<byte[]>> callback) {
+  public final void submit(final Marker marker, byte[] bytes, final Handler<AsyncResult<byte[]>> callback) {
     countSubmit();
     final FunctionCall fc = new FunctionCall(marker, bytes, callback);
-    // Note: We synchronized this method to avoid that a context switch between this size check and the later adding of the connection
-    //       can result in a too big number of concurrent connections.
-    if (usedConnections.size() >= getMaxConnectionsPerInstance()) {
+    final boolean queue;
+    synchronized (usedConnections) {
+      queue = usedConnections.size() >= getMaxConnectionsPerInstance();
+      if (!queue) {
+        usedConnections.put(fc.id, fc);
+      }
+    }
+    if (queue) {
       // Send timeout for discarded (old) calls
       final HttpException httpException = new HttpException(TOO_MANY_REQUESTS, "Remote function is busy or cannot be invoked.");
-      queue.add(fc).forEach(timeoutFc -> timeoutFc.callback.handle(Future.failedFuture(httpException)));
+      this.queue.add(fc).forEach(timeoutFc -> timeoutFc.callback.handle(Future.failedFuture(httpException)));
     } else {
-      usedConnections.put(fc.id, fc);
       fc.invoke();
     }
   }
