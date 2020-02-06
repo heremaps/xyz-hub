@@ -77,7 +77,6 @@ import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.Json;
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -756,14 +755,16 @@ public class FeatureTaskHandler {
 
     for (Entry<Feature> entry : task.modifyOp.entries) {
       // For existing objects: if the input does not contain the tags, copy them from the edited state.
-      final JsonObject nsXyz = new JsonObject(entry.input).getJsonObject("properties").getJsonObject(XyzNamespace.XYZ_NAMESPACE);
-      if (nsXyz.getJsonArray("tags", null) == null) {
+      final Map<String, Object> nsXyz = new JsonObject(entry.input).getJsonObject("properties").getJsonObject(XyzNamespace.XYZ_NAMESPACE)
+          .getMap();
+      if (!(nsXyz.get("tags") instanceof List)) {
+        ArrayList<String> inputTags = new ArrayList<>();
         if (entry.base != null && entry.base.getProperties().getXyzNamespace().getTags() != null) {
-          List<String> baseTags = entry.base.getProperties().getXyzNamespace().getTags();
-          nsXyz.put("tags", new JsonArray(baseTags));
+          inputTags.addAll(entry.base.getProperties().getXyzNamespace().getTags());
         }
+        nsXyz.put("tags", inputTags);
       }
-      final JsonArray tags = nsXyz.getJsonArray("tags");
+      final List<String> tags = (List<String>) nsXyz.get("tags");
       if (task.addTags != null) {
         task.addTags.forEach(tag -> {
           if (!tags.contains(tag)) {
