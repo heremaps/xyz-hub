@@ -193,7 +193,7 @@ public final class RpcClient {
 
       parseResponse(marker, bytesResult.result(), r -> {
         if (r.failed()) {
-          logger.error(marker, "Unable to decode the response.", r.cause());
+          logger.error(marker, "Error while handling the connector response.", r.cause());
           callback.handle(Future.failedFuture(r.cause()));
           return;
         }
