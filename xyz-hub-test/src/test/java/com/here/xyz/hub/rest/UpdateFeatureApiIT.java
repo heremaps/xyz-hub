@@ -232,14 +232,27 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void updateFeatureById_put_WithAllAccess() {
+  public void updateFeatureById_put_WithAccessAll() {
     given().
         accept(APPLICATION_GEO_JSON).
         contentType(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         body(content("/xyz/hub/updateFeature.json")).
         when().
-        put("/spaces/x-psql-test/features/Q2838923?addTags=baseball&removeTags=soccer").
+        patch("/spaces/x-psql-test/features/Q2838923?addTags=baseball&removeTags=soccer").
+        then().
+        statusCode(OK.code());
+  }
+
+  @Test
+  public void updateFeatureById_patch_WithAllAccess() {
+    given().
+        accept(APPLICATION_GEO_JSON).
+        contentType(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+        body(content("/xyz/hub/patchFeature.json")).
+        when().
+        patch("/spaces/x-psql-test/features/Q2838923?addTags=baseball&removeTags=soccer").
         then().
         statusCode(OK.code());
   }
