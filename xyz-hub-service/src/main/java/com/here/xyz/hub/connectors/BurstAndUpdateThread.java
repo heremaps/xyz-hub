@@ -44,65 +44,78 @@ public class BurstAndUpdateThread extends Thread {
    */
   private static final long WARM_UP_INTERVAL_MILLISECONDS = TimeUnit.MINUTES.toMillis(2);
   private static final long CONNECTOR_UPDATE_INTERVAL = TimeUnit.SECONDS.toMillis(10);
-  private static BurstAndUpdateThread instance;
+  @SuppressWarnings("unused")
+  private static final BurstAndUpdateThread instance = new BurstAndUpdateThread();
 
   private BurstAndUpdateThread() throws NullPointerException {
     super(name);
-    if (instance != null) {
-      throw new IllegalStateException("Singleton warm-up thread has already been instantiated.");
-    }
-    BurstAndUpdateThread.instance = this;
     this.setDaemon(true);
     this.start();
     logger.info("Starting thread {}", name);
   }
 
   public static void initialize() {
-    if (instance == null) {
-      instance = new BurstAndUpdateThread();
-    }
+    // It is better to use the static constructor for the singleton, the compile knows now that it is a singleton.
   }
 
-  private synchronized void onConnectorList(AsyncResult<List<Connector>> ar) {
+  private synchronized void onConnectorList(final AsyncResult<List<Connector>> ar) {
     if (ar.failed()) {
       //TODO: Handle errors, but for now we may as well ignore errors.
       logger.error("Failed to receive connector list", ar.cause());
       return;
     }
-    final List<Connector> connectorList = ar.result();
-    final HashMap<String, Connector> connectorMap = new HashMap<>();
+    final List<Connector> newConnectorList = ar.result();
 
-    for (final Connector connector : connectorList) {
-      connectorMap.put(connector.id, connector);
+    final HashMap<String, Connector> newConnectorConfigMap = new HashMap<>();
+    for (final Connector connectorConfig : newConnectorList) {
+      if (connectorConfig == null || connectorConfig.id == null) {
+        logger.error("Found null entry (or without ID) in connector list, see stack trace", new IllegalStateException());
+        continue;
+      }
+      newConnectorConfigMap.put(connectorConfig.id, connectorConfig);
       try { //Try to initialize the connector client
-        RpcClient.getInstanceFor(connector);
+        RpcClient.getInstanceFor(connectorConfig);
       } catch (Exception ignored) {
       }
     }
 
-    //Run the warm-up for the lambda connectors which have a warmUpCount > 0 and do some updates
+    // Run the warm-up for the lambda connectors which have a warmUpCount > 0 and do some updates
     for (final RpcClient client : RpcClient.getAllInstances()) {
-      final String connectorId = client.connector.id;
-      if (!connectorMap.containsKey(connectorId)) {
-        //This will shutdown all lambda clients for that connector!
-        RpcClient.destroyInstance(client);
+      Connector connectorConfig = client.getConnectorConfig();
+      if (connectorConfig == null) {
+        // The client is already destroyed.
         continue;
       }
-      Connector connector = connectorMap.get(connectorId);
-      if (!client.connector.equalTo(connector)) {
-        //Update the connector configuration of the client
-        client.updateConnectorConfig(connector);
-      } else {
-        //Take the existing connector configuration instance
-        connector = client.connector;
+
+      // Client needs to be destroyed, the connector configuration with the given ID has been removed.
+      if (!newConnectorConfigMap.containsKey(connectorConfig.id)) {
+        try {
+          client.destroy();
+        } catch (Exception e) {
+          logger.error("Unexpected exception while destroying RPC client", e);
+        }
+        continue;
       }
 
-      if (connector.remoteFunction.warmUp > 0) {
-        final int minInstances = connector.remoteFunction.warmUp;
+      {
+        final Connector newConnectorConfig = newConnectorConfigMap.get(connectorConfig.id);
+        if (!connectorConfig.equalTo(newConnectorConfig)) {
+          try {
+            client.setConnectorConfig(newConnectorConfig);
+          } catch (Exception e) {
+            logger.error("Unexpected exception while trying to update connector configuration", e);
+            // TODO: Should we destroy the client? I should be re-created anyway later when RpcClient.getInstanceFor is called?
+            continue;
+          }
+          connectorConfig = newConnectorConfig;
+        }
+      }
 
+      if (connectorConfig.remoteFunction.warmUp > 0) {
+        final int minInstances = connectorConfig.remoteFunction.warmUp;
         try {
           final AtomicInteger requestCount = new AtomicInteger(minInstances);
-          logger.info("Send {} health status requests to connector '{}'", requestCount, connector.id);
+          logger.info("Send {} health status requests to connector '{}'", requestCount, connectorConfig.id);
           synchronized (requestCount) {
             for (int i = 0; i < minInstances; i++) {
               HealthCheckEvent healthCheck = new HealthCheckEvent()
@@ -135,9 +148,7 @@ public class BurstAndUpdateThread extends Thread {
     while (true) {
       try {
         final long start = Service.currentTimeMillis();
-
         Service.connectorConfigClient.getAll(null, this::onConnectorList);
-
         final long end = Service.currentTimeMillis();
         final long runtime = end - start;
         if (runtime < WARM_UP_INTERVAL_MILLISECONDS) {

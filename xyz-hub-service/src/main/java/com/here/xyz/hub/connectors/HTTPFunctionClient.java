@@ -23,6 +23,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
 
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
+import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.AsyncResult;
@@ -37,39 +38,51 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
-public class HTTPFunctionClient extends QueueingRemoteFunctionClient {
+public final class HTTPFunctionClient extends RemoteFunctionClient {
 
   private static final Logger logger = LogManager.getLogger();
 
   private volatile WebClient webClient;
   private static volatile String url;
 
-  public HTTPFunctionClient(Connector connectorConfig) {
+  HTTPFunctionClient(Connector connectorConfig) {
     super(connectorConfig);
+  }
+
+  @Override
+  synchronized void initialize() {
     createClient();
   }
 
   @Override
-  protected void onConnectorConfigUpdate() {
-    shutdownWebClient(webClient);
+  synchronized void setConnectorConfig(final Connector newConnectorConfig) throws NullPointerException, IllegalArgumentException {
+    super.setConnectorConfig(newConnectorConfig);
+    if (webClient != null) {
+      shutdownWebClient(webClient);
+    }
     createClient();
   }
 
   private void createClient() {
+    final Connector connectorConfig = getConnectorConfig();
+    final RemoteFunctionConfig remoteFunction = connectorConfig.remoteFunction;
     if (!(remoteFunction instanceof Http)) {
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of HTTP");
     }
-    Http remoteFunctionConfig = (Http) remoteFunction;
+    final Http remoteFunctionConfig = (Http) remoteFunction;
     url = remoteFunctionConfig.url.toString();
     webClient = WebClient.create(Service.vertx, new WebClientOptions()
         .setUserAgent(Service.XYZ_HUB_USER_AGENT)
-        .setMaxPoolSize(getMaxConnections()));
+        .setMaxPoolSize(getMaxConnectionsPerInstance()));
   }
 
   @Override
-  void close() {
-    super.close();
-    shutdownWebClient(webClient);
+  synchronized void destroy() {
+    super.destroy();
+    if (webClient != null) {
+      shutdownWebClient(webClient);
+      webClient = null;
+    }
   }
 
   private static void shutdownWebClient(WebClient webClient) {
@@ -78,16 +91,17 @@ public class HTTPFunctionClient extends QueueingRemoteFunctionClient {
     new Thread(() -> {
       try {
         Thread.sleep(REQUEST_TIMEOUT);
+      } catch (InterruptedException ignored) {
       }
-      catch (InterruptedException ignored) {}
       webClient.close();
     }).start();
   }
 
   @Override
   protected void invoke(Marker marker, byte[] bytes, Handler<AsyncResult<byte[]>> callback) {
+    final Connector connectorConfig = getConnectorConfig();
+    final RemoteFunctionConfig remoteFunction = connectorConfig.remoteFunction;
     logger.debug(marker, "Invoke http remote function '{}' Event size is: {}", remoteFunction.id, bytes.length);
-
     webClient.postAbs(url)
         .timeout(REQUEST_TIMEOUT)
         .sendBuffer(Buffer.buffer(bytes), ar -> {

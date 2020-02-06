@@ -39,6 +39,7 @@ import com.here.xyz.events.Event;
 import com.here.xyz.events.RelocatedEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
+import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzResponse;
@@ -47,7 +48,6 @@ import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
@@ -55,42 +55,57 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
-public class RpcClient {
+public final class RpcClient {
 
   private static final Logger logger = LogManager.getLogger();
 
   private static final ConcurrentHashMap<String, RpcClient> storageIdToClient = new ConcurrentHashMap<>();
   private static final RelocationClient relocationClient = new RelocationClient(Service.configuration.XYZ_HUB_S3_BUCKET);
 
-  /**
-   * The connector this client is currently bound to.
-   */
-  protected volatile Connector connector;
   private RemoteFunctionClient functionClient;
 
   /**
    * Creates a new connector client.
    *
-   * @param connector the connector for which this client should be created
+   * @param connectorConfig the connector configuration for which this client should be created.
+   * @throws NullPointerException  if the given connector configuration is null.
+   * @throws IllegalStateException if the given connector configuration refers to an unknown remote function type.
    */
-  private RpcClient(Connector connector) throws NullPointerException {
-    if (connector == null) {
+  private RpcClient(Connector connectorConfig) throws NullPointerException, IllegalStateException {
+    if (connectorConfig == null) {
       throw new NullPointerException("connector");
     }
-    this.functionClient = RemoteFunctionClient.getInstanceFor(connector);
-    this.connector = connector;
+    if (connectorConfig.remoteFunction instanceof Connector.RemoteFunctionConfig.AWSLambda) {
+      this.functionClient = new LambdaFunctionClient(connectorConfig);
+    } else if (connectorConfig.remoteFunction instanceof Connector.RemoteFunctionConfig.Embedded) {
+      this.functionClient = new EmbeddedFunctionClient(connectorConfig);
+    } else if (connectorConfig.remoteFunction instanceof Http) {
+      this.functionClient = new HTTPFunctionClient(connectorConfig);
+    } else {
+      throw new IllegalArgumentException("Unknown remote function type: " + connectorConfig.getClass().getSimpleName());
+    }
   }
 
-  public static RpcClient getInstanceFor(Connector connector) {
-    if (connector == null) {
+  /**
+   * Returns the RPC client singleton for the configuration with the ID of the given one. In other words, there will be only one instance
+   * per configuration ID.
+   *
+   * @param connectorConfig the configuration for which to return the RPC client.
+   * @return the RPC client.
+   */
+  public static RpcClient getInstanceFor(Connector connectorConfig) {
+    if (connectorConfig == null) {
       throw new NullPointerException("connector");
     }
-    RpcClient client = storageIdToClient.get(connector.id);
+    RpcClient client = storageIdToClient.get(connectorConfig.id);
     if (client == null) {
-      client = new RpcClient(connector);
-      final RpcClient existing = storageIdToClient.putIfAbsent(connector.id, client);
-      if (existing != null) {
-        client = existing; //Another thread was faster.
+      client = new RpcClient(connectorConfig);
+      final RpcClient existing = storageIdToClient.putIfAbsent(connectorConfig.id, client);
+      if (existing == null) {
+        client.functionClient.initialize();
+      } else {
+        // Another thread was faster, we have to release the reference our own instance.
+        client = existing;
       }
     }
     return client;
@@ -100,14 +115,19 @@ public class RpcClient {
     return Collections.unmodifiableCollection(storageIdToClient.values());
   }
 
-  public static void destroyInstance(@SuppressWarnings("unused") RpcClient client) {
-    //Close the functionClient (which then closes all its connections aso.)
-    client.functionClient.close();
-    client.functionClient = null;
+  public synchronized void destroy() throws IllegalStateException {
+    if (this.functionClient == null) {
+      throw new IllegalStateException("The RpcClient is already destroyed");
+    }
+    final Connector connectorConfig = this.functionClient.getConnectorConfig();
+    if (connectorConfig != null) {
+      storageIdToClient.remove(connectorConfig.id, this);
+    }
+    this.functionClient.destroy();
+    this.functionClient = null;
   }
 
-  public final void updateConnectorConfig(Connector connectorConfig) {
-    this.connector = connectorConfig;
+  public final void setConnectorConfig(Connector connectorConfig) throws NullPointerException, IllegalArgumentException {
     this.functionClient.setConnectorConfig(connectorConfig);
   }
 
@@ -116,15 +136,21 @@ public class RpcClient {
    *
    * @return the connector configuration
    */
-  public Connector storage() {
-    return connector;
+  public Connector getConnectorConfig() {
+    // Note: We copy the reference to the stack by intention, everything else would not be thread safe!
+    final RemoteFunctionClient functionClient = this.functionClient;
+    if (functionClient != null) {
+      return functionClient.getConnectorConfig();
+    }
+    return null;
   }
 
   private void invokeWithRelocation(final Marker marker, byte[] bytes, final Handler<AsyncResult<byte[]>> callback) {
     try {
-      if (bytes.length > connector.capabilities.maxPayloadSize) { // If the payload is too large to send directly to the connector
+      final Connector connectorConfig = this.functionClient.getConnectorConfig();
+      if (bytes.length > connectorConfig.capabilities.maxPayloadSize) { // If the payload is too large to send directly to the connector
         // If relocation is supported, use the relocation client to transfer the event to the connector
-        if (connector.capabilities.relocationSupport) {
+        if (connectorConfig.capabilities.relocationSupport) {
           logger.info(marker, "Relocating event. Total event byte size: {}", bytes.length);
           //TODO: Execute blocking
           bytes = relocationClient.relocate(marker.getName(), bytes);
@@ -136,7 +162,7 @@ public class RpcClient {
         }
       }
       functionClient.submit(marker, bytes, callback);
-    } catch (Exception e) {
+    } catch (final Exception e) {
       callback.handle(Future.failedFuture(e));
     }
   }
@@ -144,16 +170,19 @@ public class RpcClient {
   /**
    * Executes an event and returns the parsed FeatureCollection response.
    *
-   * @param marker the log marker
-   * @param event the event
+   * @param marker   the log marker
+   * @param event    the event
    * @param callback the callback handler
+   * @throws NullPointerException if this RPC client is closed or the bound function client is shutdown.
    */
   @SuppressWarnings("rawtypes")
-  public void execute(final Marker marker, final Event event, final Handler<AsyncResult<XyzResponse>> callback) {
-    event.setConnectorParams(connector.params);
+  public void execute(final Marker marker, final Event event, final Handler<AsyncResult<XyzResponse>> callback)
+      throws NullPointerException {
+    event.setConnectorParams(functionClient.getConnectorConfig().params);
     final String eventJson = event.serialize();
     final byte[] bytes = eventJson.getBytes();
-    logger.info(marker, "Invoking remote function \"{}\". Total uncompressed event size: {}, Event: {}", this.storage().id, bytes.length,
+    logger.info(marker, "Invoking remote function \"{}\". Total uncompressed event size: {}, Event: {}", this.getConnectorConfig().id,
+        bytes.length,
         preview(eventJson, 4092));
 
     invokeWithRelocation(marker, bytes, bytesResult -> {
@@ -182,17 +211,19 @@ public class RpcClient {
 
   /**
    * Sends an event to the connector without returning anything. Every connector client implements this class.
-   *
+   * <p>
    * This method should only be used to "inform" a connector about an event rather then "calling" it.
    *
    * @param marker the log marker
-   * @param event the event
+   * @param event  the event
+   * @throws NullPointerException if this RPC client is closed or the function client it is bound to is closed.
    */
-  public void send(final Marker marker, @SuppressWarnings("rawtypes") final Event event) {
-    event.setConnectorParams(connector.params);
+  public void send(final Marker marker, @SuppressWarnings("rawtypes") final Event event) throws NullPointerException {
+    final Connector connectorConfig = functionClient.getConnectorConfig();
+    event.setConnectorParams(connectorConfig.params);
     invokeWithRelocation(marker, event.serialize().getBytes(), r -> {
       if (r.failed()) {
-        logger.error(marker, "Failed to send event to remote function {}.", connector.remoteFunction.id, r.cause());
+        logger.error(marker, "Failed to send event to remote function {}.", connectorConfig.remoteFunction.id, r.cause());
       }
     });
   }
@@ -227,14 +258,22 @@ public class RpcClient {
             errorResponse.getErrorMessage());
 
         switch (errorResponse.getError()) {
-          case NOT_IMPLEMENTED: throw new HttpException(NOT_IMPLEMENTED, "The connector is unable to process this request.");
-          case CONFLICT: throw new HttpException(CONFLICT, "A conflict occurred when updating a feature: " + errorResponse.getErrorMessage());
-          case FORBIDDEN: throw new HttpException(FORBIDDEN, "The user is not authorized.");
-          case TOO_MANY_REQUESTS: throw new HttpException(TOO_MANY_REQUESTS, "The connector cannot process the message due to a limitation in an upstream service or a database.");
-          case ILLEGAL_ARGUMENT: throw new HttpException(BAD_REQUEST, errorResponse.getErrorMessage());
-          case TIMEOUT: throw new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.");
+          case NOT_IMPLEMENTED:
+            throw new HttpException(NOT_IMPLEMENTED, "The connector is unable to process this request.");
+          case CONFLICT:
+            throw new HttpException(CONFLICT, "A conflict occurred when updating a feature: " + errorResponse.getErrorMessage());
+          case FORBIDDEN:
+            throw new HttpException(FORBIDDEN, "The user is not authorized.");
+          case TOO_MANY_REQUESTS:
+            throw new HttpException(TOO_MANY_REQUESTS,
+                "The connector cannot process the message due to a limitation in an upstream service or a database.");
+          case ILLEGAL_ARGUMENT:
+            throw new HttpException(BAD_REQUEST, errorResponse.getErrorMessage());
+          case TIMEOUT:
+            throw new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.");
           case EXCEPTION:
-          case BAD_GATEWAY: throw new HttpException(BAD_GATEWAY, "Connector error.");
+          case BAD_GATEWAY:
+            throw new HttpException(BAD_GATEWAY, "Connector error.");
         }
       }
       if (payload instanceof XyzResponse) {

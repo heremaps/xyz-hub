@@ -22,7 +22,8 @@ package com.here.xyz.hub.util.health.checks;
 import static com.here.xyz.hub.util.health.schema.Status.Result.ERROR;
 import static com.here.xyz.hub.util.health.schema.Status.Result.OK;
 
-import com.here.xyz.hub.connectors.QueueingRemoteFunctionClient;
+import com.here.xyz.hub.connectors.RemoteFunctionClient;
+import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLambda;
 import com.here.xyz.hub.util.health.schema.Response;
@@ -47,12 +48,12 @@ public class RemoteFunctionHealthChecks extends ExecutableCheck {
 
     try {
       populateRfcData();
-      r.setAdditionalProperty("globalMaxQueueByteSize", QueueingRemoteFunctionClient.GLOBAL_MAX_QUEUE_BYTE_SIZE);
-      r.setAdditionalProperty("globalQueueByteSize", QueueingRemoteFunctionClient.getGlobalUsedQueueMemory());
-      r.setAdditionalProperty("globalArrivalRate", QueueingRemoteFunctionClient.getGlobalArrivalRate());
-      r.setAdditionalProperty("globalThroughput", QueueingRemoteFunctionClient.getGlobalThroughput());
-      r.setAdditionalProperty("globalMaxConnections", QueueingRemoteFunctionClient.getGlobalMaxConnections());
-      r.setAdditionalProperty("globalUsedConnections", QueueingRemoteFunctionClient.getGlobalUsedConnections());
+      r.setAdditionalProperty("globalMaxQueueByteSize", RemoteFunctionClient.GLOBAL_MAX_QUEUE_BYTE_SIZE);
+      r.setAdditionalProperty("globalQueueByteSize", RemoteFunctionClient.getGlobalUsedQueueMemory());
+      r.setAdditionalProperty("globalArrivalRate", RemoteFunctionClient.getGlobalArrivalRate());
+      r.setAdditionalProperty("globalThroughput", RemoteFunctionClient.getGlobalThroughput());
+      r.setAdditionalProperty("globalMaxConnections", RemoteFunctionClient.getGlobalMaxConnections());
+      r.setAdditionalProperty("globalUsedConnections", RemoteFunctionClient.getGlobalUsedConnections());
       r.setAdditionalProperty("connectors", rfcData);
       setResponse(r);
       return s.withResult(OK);
@@ -63,24 +64,31 @@ public class RemoteFunctionHealthChecks extends ExecutableCheck {
   }
 
   private void populateRfcData() {
-    QueueingRemoteFunctionClient.getInstances().stream().forEach(rfc -> {
-      String connectorId = rfc.getConnectorConfig().id;
+    RemoteFunctionClient.getStream().forEach(rfc -> {
+      final Connector connectorConfig = rfc.getConnectorConfig();
+      if (connectorConfig == null) {
+        return;
+      }
+      final RemoteFunctionConfig remoteFunction = connectorConfig.remoteFunction;
+      if (remoteFunction == null) {
+        return;
+      }
+      final String connectorId = rfc.getConnectorConfig().id;
       Map<String, Object> d = rfcData.get(connectorId);
       if (d == null) {
         rfcData.put(connectorId, d = new HashMap<>());
-        RemoteFunctionConfig function = rfc.getConnectorConfig().remoteFunction;
-        String type = function.getClass().getSimpleName();
+        String type = remoteFunction.getClass().getSimpleName();
         d.put("type", type);
-        if (function instanceof AWSLambda) {
-          d.put("lambdaARN", ((AWSLambda) function).lambdaARN);
+        if (remoteFunction instanceof AWSLambda) {
+          d.put("lambdaARN", ((AWSLambda) remoteFunction).lambdaARN);
         }
       }
       d.put("maxQueueSize", rfc.getMaxQueueSize());
       d.put("queueSize", rfc.getQueueSize());
       d.put("maxQueueByteSize", rfc.getMaxQueueByteSize());
       d.put("queueByteSize", rfc.getQueueByteSize());
-      d.put("minConnections", rfc.getMinConnections());
-      d.put("maxConnections", rfc.getMaxConnections());
+      d.put("minConnections", rfc.getMinConnectionsPerInstance());
+      d.put("maxConnections", rfc.getMaxConnectionsPerInstance());
       d.put("usedConnections", rfc.getUsedConnections());
       d.put("rateOfService", rfc.getRateOfService());
       d.put("arrivalRate", rfc.getArrivalRate());

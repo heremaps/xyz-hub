@@ -39,7 +39,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
-public class EmbeddedFunctionClient extends QueueingRemoteFunctionClient {
+public final class EmbeddedFunctionClient extends RemoteFunctionClient {
 
   private static final Logger logger = LogManager.getLogger();
   /**
@@ -49,28 +49,39 @@ public class EmbeddedFunctionClient extends QueueingRemoteFunctionClient {
 
   EmbeddedFunctionClient(Connector connectorConfig) {
     super(connectorConfig);
+  }
+
+  @Override
+  synchronized void setConnectorConfig(final Connector newConnectorConfig) throws NullPointerException, IllegalArgumentException {
+    super.setConnectorConfig(newConnectorConfig);
+    if (embeddedExecutor != null) {
+      shutdown(embeddedExecutor);
+    }
     createExecutorService();
   }
 
   @Override
-  protected void onConnectorConfigUpdate() {
-    shutdown(embeddedExecutor);
+  synchronized void initialize() {
+    super.initialize();
     createExecutorService();
   }
 
   private void createExecutorService() {
-    if (!(remoteFunction instanceof RemoteFunctionConfig.Embedded)) {
+    final Connector connectorConfig = getConnectorConfig();
+    if (!(connectorConfig.remoteFunction instanceof RemoteFunctionConfig.Embedded)) {
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of Embedded");
     }
     int maxConnections = connectorConfig.getMaxConnectionsPerInstance();
-    embeddedExecutor = new ThreadPoolExecutor(8, maxConnections, 10, TimeUnit.MINUTES,
-        new SynchronousQueue<>());
+    embeddedExecutor = new ThreadPoolExecutor(8, maxConnections, 10, TimeUnit.MINUTES, new SynchronousQueue<>());
   }
 
   @Override
-  void close() {
-    super.close();
-    shutdown(embeddedExecutor);
+  synchronized void destroy() {
+    super.destroy();
+    if (embeddedExecutor != null) {
+      shutdown(embeddedExecutor);
+      embeddedExecutor = null;
+    }
   }
 
   private static void shutdown(ExecutorService execService) {
@@ -79,14 +90,16 @@ public class EmbeddedFunctionClient extends QueueingRemoteFunctionClient {
     new Thread(() -> {
       try {
         Thread.sleep(REQUEST_TIMEOUT);
+      } catch (InterruptedException ignored) {
       }
-      catch (InterruptedException ignored) {}
       execService.shutdownNow();
     }).start();
   }
 
-  protected void invoke(Marker marker, byte[] bytes, Handler<AsyncResult<byte[]>> callback) {
-    logger.info(marker, "Invoke embedded lambda '{}' for event: {}", remoteFunction.id,
+  protected void invoke(final Marker marker, final byte[] bytes, final Handler<AsyncResult<byte[]>> callback) {
+    final Connector connectorConfig = getConnectorConfig();
+    final RemoteFunctionConfig remoteFunction = connectorConfig.remoteFunction;
+    logger.info(marker, "Invoke embedded lambda '{}' for event: {}", connectorConfig.remoteFunction.id,
         new String(bytes, StandardCharsets.UTF_8));
     embeddedExecutor.execute(() -> {
       String className = null;

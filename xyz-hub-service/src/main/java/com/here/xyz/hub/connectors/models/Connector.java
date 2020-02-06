@@ -105,7 +105,7 @@ public class Connector {
 
   @JsonIgnore
   public int getMaxConnectionsPerInstance() {
-    return connectionSettings.maxConnections / Service.configuration.INSTANCE_COUNT;
+     return connectionSettings.maxConnections / Service.configuration.INSTANCE_COUNT;
   }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
@@ -154,8 +154,12 @@ public class Connector {
 
     @Override
     public boolean equals(Object o) {
-      if (this == o) return true;
-      if (o == null || getClass() != o.getClass()) return false;
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
       StorageCapabilities that = (StorageCapabilities) o;
       return preserializedResponseSupport == that.preserializedResponseSupport &&
           relocationSupport == that.relocationSupport &&
@@ -176,8 +180,12 @@ public class Connector {
 
     @Override
     public boolean equals(Object o) {
-      if (this == o) return true;
-      if (o == null || getClass() != o.getClass()) return false;
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
       ConnectionSettings that = (ConnectionSettings) o;
       return minConnections == that.minConnections &&
           maxConnections == that.maxConnections;
@@ -211,8 +219,12 @@ public class Connector {
 
     @Override
     public boolean equals(Object o) {
-      if (this == o) return true;
-      if (o == null || getClass() != o.getClass()) return false;
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
       RemoteFunctionConfig that = (RemoteFunctionConfig) o;
       return warmUp == that.warmUp &&
           id.equals(that.id);
@@ -229,16 +241,22 @@ public class Connector {
       /**
        * The ARN of an AWS IAM Role granting the permission to call the lambda function specified in {@link #lambdaARN}. The referenced role
        * needs to allow this service to assume it by adding this service' role ARN as principle into its trust policy.
-       *
+       * <p>
        * See: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_terms-and-concepts.html#delegation
        */
       public String roleARN;
 
       @Override
       public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (this == o) {
+          return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+          return false;
+        }
+        if (!super.equals(o)) {
+          return false;
+        }
         AWSLambda awsLambda = (AWSLambda) o;
         return lambdaARN.equals(awsLambda.lambdaARN) &&
             Objects.equals(roleARN, awsLambda.roleARN);
