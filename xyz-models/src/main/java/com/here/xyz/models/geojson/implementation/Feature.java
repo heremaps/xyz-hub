@@ -161,6 +161,9 @@ public class Feature extends Extensible<Feature> implements Typed {
       return;
     }
 
+    if(geometry instanceof GeometryCollection)
+      throw new InvalidGeometryException("GeometryCollection is not supported.");
+
     geometry.validate();
   }
 }
