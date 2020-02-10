@@ -39,7 +39,7 @@ public class ConfigDecryptor {
   private static final String SYMMETRIC_ALGORITHM = "AES/CTR/NoPadding";
 
   public static String decryptSecret(String secretValue) throws CryptoException {
-    if (secretValue == null || secretValue == "") {
+    if (secretValue == null || secretValue.equals("")) {
       return null;
     }
 

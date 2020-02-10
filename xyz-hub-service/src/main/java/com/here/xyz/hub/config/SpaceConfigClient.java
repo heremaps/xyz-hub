@@ -26,7 +26,6 @@ import com.here.xyz.hub.rest.admin.AdminMessage;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
-import io.vertx.core.json.Json;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;

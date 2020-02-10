@@ -34,6 +34,7 @@ public class XyzNamespace implements XyzSerializable {
   public static final String XYZ_NAMESPACE = "@ns:com:here:xyz";
 
   @JsonProperty("_inputPosition")
+  @JsonInclude(Include.NON_NULL)
   private Long inputPosition;
   private String space;
   /**
