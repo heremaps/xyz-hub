@@ -317,7 +317,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
             try {
                 if (deletes.size() > 0) {
-                    DatabaseWriter.deleteFeatures(schema, table, streamId, deletes, connection, transactional);
+                    DatabaseWriter.deleteFeatures(schema, table, streamId, fails, deletes, connection, transactional, handleUUID);
                 }
                 if (inserts.size() > 0) {
                     DatabaseWriter.insertFeatures(schema, table, streamId, collection, fails, inserts, connection, transactional);
@@ -334,6 +334,28 @@ public abstract class DatabaseHandler extends StorageConnector {
                 /** Retry */
                 if(transactional) {
                     connection.rollback();
+
+                    /** Objects which are responsible for the failed transaction*/
+                    final List<String> failedIds = fails.stream().map(FeatureCollection.ModificationFailure::getId).filter(Objects::nonNull).collect(Collectors.toList());
+
+                    /** Add all other Objects to failed list */
+                    final List<String> failedIdsTotal = new LinkedList<>();
+                    failedIdsTotal.addAll(insertIds.stream().filter(x -> !failedIds.contains(x)).collect(Collectors.toList()));
+                    failedIdsTotal.addAll(updateIds.stream().filter(x -> !failedIds.contains(x)).collect(Collectors.toList()));
+                    failedIdsTotal.addAll(deleteIds.stream().filter(x -> !failedIds.contains(x)).collect(Collectors.toList()));
+
+                    for (String id: failedIdsTotal) {
+                        fails.add(new FeatureCollection.ModificationFailure().withId(id).withMessage("Transaction has failed"));
+                    }
+                    failedIdsTotal.addAll(failedIds);
+
+                    /** Reset the rest */
+                    collection.setFeatures(new ArrayList<>());
+                    collection.setFailed(fails);
+                    if(e.getMessage() != null && e.getMessage().contains("relation ") && e.getMessage().contains("does not exist"))
+                        ;//Table does not exist yet - create it!
+                    else
+                        return collection;
                 }
                 if (!retryAttempted) {
                     /** TODO filter out failed? */
@@ -347,6 +369,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             final List<String> failedIds = fails.stream().map(FeatureCollection.ModificationFailure::getId).filter(Objects::nonNull).collect(Collectors.toList());
             insertIds = inserts.stream().map(Feature::getId).filter(x -> !failedIds.contains(x)).collect(Collectors.toList());
             updateIds = updates.stream().map(Feature::getId).filter(x -> !failedIds.contains(x)).collect(Collectors.toList());
+            deleteIds = deletes.keySet().stream().filter(x -> !failedIds.contains(x)).collect(Collectors.toList());
 
             collection.setFailed(fails);
 

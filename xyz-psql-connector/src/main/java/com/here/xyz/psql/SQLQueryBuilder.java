@@ -350,11 +350,7 @@ public class SQLQueryBuilder {
                     else {
                         SQLQuery q = SQLQuery.createKey(propertyQuery.getKey());
 
-                        /** BigDecimal is needed to avoid a 8Byte DOUBLE PRECISION Cast */
-                        if(v instanceof Double)
-                            q.append(new SQLQuery(SQLQuery.getOperation(propertyQuery.getOperation()) + SQLQuery.getValue(v), new BigDecimal(v.toString())));
-                        else
-                            q.append(new SQLQuery(SQLQuery.getOperation(propertyQuery.getOperation()) + SQLQuery.getValue(v), v));
+                        q.append(new SQLQuery(SQLQuery.getOperation(propertyQuery.getOperation()) + SQLQuery.getValue(v), v));
                         keyDisjunctionQueries.add(q);
                     }
                 });
@@ -459,5 +455,47 @@ public class SQLQueryBuilder {
 
     protected static SQLQuery generateIDXStatusQuery(final String space){
         return new SQLQuery("SELECT idx_available FROM "+IDX_STATUS_TABLE+" WHERE spaceid=?", space);
+    }
+
+    protected static String insertStmtSQL(final String schema, final String table){
+        String instertStmtSQL ="INSERT INTO ${schema}.${table} (jsondata, geo, geojson) VALUES(?::jsonb, ST_Force3D(ST_GeomFromWKB(?,4326)), ?::jsonb)";
+        return SQLQuery.replaceVars(instertStmtSQL, schema, table);
+    }
+
+    protected static String insertWithoutGeometryStmtSQL(final String schema, final String table){
+        String instertWithoutGeometryStmtSQL = "INSERT INTO ${schema}.${table} (jsondata, geo, geojson) VALUES(?::jsonb, NULL, NULL)";
+        return SQLQuery.replaceVars(instertWithoutGeometryStmtSQL, schema, table);
+    }
+
+    protected static String updateStmtSQL(final String schema, final String table, final boolean handleUUID){
+        String updateStmtSQL = "UPDATE ${schema}.${table} SET jsondata = ?::jsonb, geo=ST_Force3D(ST_GeomFromWKB(?,4326)), geojson = ?::jsonb WHERE jsondata->>'id' = ?";
+        if(handleUUID) {
+            updateStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ?";
+        }
+        return SQLQuery.replaceVars(updateStmtSQL, schema, table);
+    }
+
+    protected static String updateWithoutGeometryStmtSQL(final String schema, final String table, final boolean handleUUID){
+        String updateWithoutGeometryStmtSQL = "UPDATE ${schema}.${table} SET  jsondata = ?::jsonb, geo=NULL, geojson = NULL WHERE jsondata->>'id' = ?";
+        if(handleUUID) {
+            updateWithoutGeometryStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ?";
+        }
+        return SQLQuery.replaceVars(updateWithoutGeometryStmtSQL, schema, table);
+    }
+
+    protected static String deleteStmtSQL(final String schema, final String table, final boolean handleUUID){
+        String deleteStmtSQL = "DELETE FROM ${schema}.${table} WHERE jsondata->>'id' = ?";
+        if(handleUUID) {
+            deleteStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ?";
+        }
+        return SQLQuery.replaceVars(deleteStmtSQL, schema, table);
+    }
+
+    protected static String deleteIdArrayStmtSQL(final String schema, final String table, final boolean handleUUID){
+        String deleteIdArrayStmtSQL = "DELETE FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?) ";
+        if(handleUUID) {
+            deleteIdArrayStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ANY(?)";
+        }
+        return SQLQuery.replaceVars(deleteIdArrayStmtSQL, schema, table);
     }
 }

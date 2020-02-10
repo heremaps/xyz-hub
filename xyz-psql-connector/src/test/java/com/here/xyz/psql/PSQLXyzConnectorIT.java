@@ -61,6 +61,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -572,11 +573,6 @@ public class PSQLXyzConnectorIT {
     features = featureCollection.getFeatures();
     assertNotNull(features);
     assertEquals(1, features.size());
-
-    // =========== DELETE SPACE ==========
-    String deleteSpaceResponse = invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
-    assertDeleteSpaceResponse(deleteSpaceResponse);
-    logger.info("Delete space tested successfully - " + deleteSpaceResponse);
   }
 
 
@@ -657,6 +653,7 @@ public class PSQLXyzConnectorIT {
   public void testGetStatisticsEvent() throws Exception {
 
     // =========== INSERT ==========
+    XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
     String insertJsonFile = "/events/InsertFeaturesEventTransactional.json";
     String insertResponse = invokeLambdaFromFile(insertJsonFile);
     String insertRequest = IOUtils.toString(GSContext.class.getResourceAsStream(insertJsonFile));
@@ -708,7 +705,7 @@ public class PSQLXyzConnectorIT {
           Feature f = new Feature()
               .withGeometry(
                   new Point().withCoordinates(new PointCoordinates(360d * random.nextDouble() - 180d, 180d * random.nextDouble() - 90d)))
-              .withProperties(new Properties());
+              .withProperties(new Properties().withXyzNamespace(xyzNamespace));
           pKeys.forEach(p -> f.getProperties().put(p, RandomStringUtils.randomAlphanumeric(8)));
           return f;
         }).limit(11000).collect(Collectors.toList()));
@@ -742,17 +739,14 @@ public class PSQLXyzConnectorIT {
 
     for (PropertyStatistics prop : response.getProperties().getValue()) {
       assertTrue(pKeys.contains(prop.getKey()));
-      assertEquals(prop.getCount(), 11003);
+      assertEquals(prop.getCount() > 10000, true);
     }
-    // =========== DELETE SPACE ==========
-    String deleteSpaceResponse = invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
-    assertDeleteSpaceResponse(deleteSpaceResponse);
-    logger.info("Delete space tested successfully - " + deleteSpaceResponse);
   }
 
   @Test
   public void testAutoIndexing() throws Exception {
     // =========== INSERT further 11k ==========
+    XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
     FeatureCollection collection = new FeatureCollection();
     Random random = new Random();
 
@@ -765,7 +759,7 @@ public class PSQLXyzConnectorIT {
           Feature f = new Feature()
               .withGeometry(
                   new Point().withCoordinates(new PointCoordinates(360d * random.nextDouble() - 180d, 180d * random.nextDouble() - 90d)))
-              .withProperties(new Properties());
+              .withProperties(new Properties().withXyzNamespace(xyzNamespace));
           pKeys.forEach(p -> f.getProperties().put(p, RandomStringUtils.randomAlphanumeric(3)));
           return f;
         }).limit(11000).collect(Collectors.toList()));
@@ -857,11 +851,6 @@ public class PSQLXyzConnectorIT {
     // =========== DELETE FEATURES ==========
     invokeLambdaFromFile("/events/DeleteFeaturesByTagEvent.json");
     logger.info("Delete feature tested successfully");
-
-    // =========== DELETE SPACE ==========
-    String deleteSpaceResponse = invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
-    assertDeleteSpaceResponse(deleteSpaceResponse);
-    logger.info("Delete space tested successfully - " + deleteSpaceResponse);
   }
 
   @Test
