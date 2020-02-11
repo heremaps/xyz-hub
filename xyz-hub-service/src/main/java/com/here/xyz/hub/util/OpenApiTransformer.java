@@ -145,16 +145,33 @@ public class OpenApiTransformer {
   }
 
   private static void cleanupEmptyObjects() {
+    final List<String> securitySchemes = securitySchemes();
+
     traverse(root, node -> {
       for (Entry<Object, JsonNode> entry : elements(node).entrySet()) {
         String fieldname = String.valueOf(entry.getKey());
         JsonNode child = entry.getValue();
+
+        // skip empty security schemes
+        if (child.isArray() && child.isEmpty() && securitySchemes.contains(fieldname)) {
+          continue;
+        }
 
         if (child.isContainerNode() && child.isEmpty()) {
           remove(node, fieldname);
         }
       }
     });
+  }
+
+  private static List<String> securitySchemes() {
+    try {
+      final List<String> result = new ArrayList<>();
+      root.get("components").get("securitySchemes").fieldNames().forEachRemaining(result::add);
+      return result;
+    } catch (Exception e) {
+      return Collections.emptyList();
+    }
   }
 
   private static void remove(JsonNode node, String key) {
