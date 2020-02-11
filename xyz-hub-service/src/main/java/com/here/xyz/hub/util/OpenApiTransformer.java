@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.swagger.v3.parser.ObjectMapperFactory;
+import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,9 +48,8 @@ public class OpenApiTransformer {
       execute();
       write();
     } catch (Exception e) {
-      e.printStackTrace();
       System.out.println("OpenAPI tools:\n" +
-          "Usage: java -jar opentools.jar src <dest|STDOUT> " + VALID_OPTIONS);
+          "Arguments: src <dest|STDOUT> " + VALID_OPTIONS);
     }
   }
 
@@ -73,7 +73,7 @@ public class OpenApiTransformer {
 
   private static void read() throws Exception {
     // read the source in YAML format
-    root = YAML_MAPPER.readTree(OpenApiTransformer.class.getResourceAsStream(src));
+    root = YAML_MAPPER.readTree(new File(src));
   }
 
   private static void execute() {
