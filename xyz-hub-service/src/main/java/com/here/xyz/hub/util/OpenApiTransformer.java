@@ -5,9 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.swagger.v3.parser.ObjectMapperFactory;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -32,51 +33,30 @@ public class OpenApiTransformer {
   private static final List<String> VALID_TAGS = VALID_OPTIONS.stream().map(v->X+v).collect(Collectors.toList());
   private static final List<String> VALID_FIELDNAMES = VALID_TAGS.stream().map(v->v+DASH).collect(Collectors.toList());
 
-  private static final List<String> removalTags = new ArrayList<>();
+  private JsonNode root;
 
-  private static String[] args;
-  private static String src;
-  private static String dest;
-  private static JsonNode root;
+  private final InputStream in;
+  private final OutputStream out;
+  private final List<String> removalTags = new ArrayList<>();
 
-  public static void main(String... arguments) {
-    args = arguments;
-
-    try {
-      prepare();
-      read();
-      execute();
-      write();
-    } catch (Exception e) {
-      System.out.println("OpenAPI tools:\n" +
-          "Arguments: src <dest|STDOUT> " + VALID_OPTIONS);
-    }
+  public OpenApiTransformer(InputStream in, OutputStream out, String... tags) {
+    this.in = in;
+    this.out = out;
+    this.removalTags.addAll(Arrays.asList(tags));
   }
 
-  private static void prepare() throws Exception {
-    src = args[0];
-    dest = args[1];
-
-    if (args.length > 2) {
-      for (int i=2; i<args.length; i++) {
-        final String stage = args[i];
-        if (VALID_OPTIONS.contains(stage)) {
-          removalTags.add(X + stage);
-        }
-      }
-    }
-
-    if (removalTags.isEmpty()) {
-      throw new Exception();
-    }
+  public void transform() throws Exception {
+    read();
+    execute();
+    write();
   }
 
-  private static void read() throws Exception {
+  private void read() throws Exception {
     // read the source in YAML format
-    root = YAML_MAPPER.readTree(new File(src));
+    root = YAML_MAPPER.readTree(in);
   }
 
-  private static void execute() {
+  private void execute() {
     removeTaggedObjects();
     replaceTaggedFieldnames();
     cleanupTaggedFieldnames();
@@ -84,7 +64,7 @@ public class OpenApiTransformer {
     cleanupEmptyObjects();
   }
 
-  private static void traverse(JsonNode node, Consumer<JsonNode> c) {
+  private void traverse(JsonNode node, Consumer<JsonNode> c) {
     if (node == null) return;
     c.accept(node);
     if (node.isContainerNode()) {
@@ -94,7 +74,7 @@ public class OpenApiTransformer {
     }
   }
 
-  private static void removeTaggedObjects() {
+  private void removeTaggedObjects() {
     traverse(root, node -> {
       for (Iterator<JsonNode> it = node.iterator(); it.hasNext();) {
         JsonNode child = it.next();
@@ -105,7 +85,7 @@ public class OpenApiTransformer {
     });
   }
 
-  private static void replaceTaggedFieldnames() {
+  private void replaceTaggedFieldnames() {
     traverse(root, node -> {
       for (Entry<Object, JsonNode> entry : elements(node).entrySet()) {
         String fieldname = String.valueOf(entry.getKey());
@@ -119,7 +99,7 @@ public class OpenApiTransformer {
     });
   }
 
-  private static void cleanupTaggedFieldnames() {
+  private void cleanupTaggedFieldnames() {
     traverse(root, node -> {
       for (Iterator<String> it = node.fieldNames(); it.hasNext();) {
         String fieldname = it.next();
@@ -130,7 +110,7 @@ public class OpenApiTransformer {
     });
   }
 
-  private static void cleanupReferences() {
+  private void cleanupReferences() {
     root.findParents(REF).forEach(parent -> {
       String[] ref = parent.get(REF).textValue().replace(REF_START, "").split("/");
       JsonNode curr = root;
@@ -144,7 +124,7 @@ public class OpenApiTransformer {
     });
   }
 
-  private static void cleanupEmptyObjects() {
+  private void cleanupEmptyObjects() {
     final List<String> securitySchemes = securitySchemes();
 
     traverse(root, node -> {
@@ -164,7 +144,7 @@ public class OpenApiTransformer {
     });
   }
 
-  private static List<String> securitySchemes() {
+  private List<String> securitySchemes() {
     try {
       final List<String> result = new ArrayList<>();
       root.get("components").get("securitySchemes").fieldNames().forEachRemaining(result::add);
@@ -174,7 +154,7 @@ public class OpenApiTransformer {
     }
   }
 
-  private static void remove(JsonNode node, String key) {
+  private void remove(JsonNode node, String key) {
     if (node.isObject()) {
       ((ObjectNode) node).remove(key);
     } else if (node.isArray()) {
@@ -182,7 +162,7 @@ public class OpenApiTransformer {
     }
   }
 
-  private static Map<Object, JsonNode> elements(JsonNode node) {
+  private Map<Object, JsonNode> elements(JsonNode node) {
     if (node == null) return Collections.emptyMap();
 
     final Map<Object, JsonNode> map = new HashMap<>();
@@ -199,17 +179,38 @@ public class OpenApiTransformer {
     return map;
   }
 
-  private static void write() throws Exception {
+  private void write() throws Exception {
     // write the results in YAML format
     String result = YAML_MAPPER.writeValueAsString(root);
-    if (STDOUT.equals(dest)) {
-      System.out.println(result);
-    } else {
-      try (FileWriter w = new FileWriter(dest)) {
-        w.write(result);
-      } catch (IOException e) {
-        System.out.println(e.getMessage());
+    out.write(result.getBytes());
+  }
+
+  public static void main(String... args) {
+    try {
+      OpenApiTransformer OpenApiTransformer = prepare(args);
+      OpenApiTransformer.transform();
+    } catch (Exception e) {
+      System.out.println("OpenAPI tools:\n" +
+          "Arguments: src dest " + VALID_OPTIONS);
+    }
+  }
+
+  private static OpenApiTransformer prepare(String... args) throws Exception {
+    String src = args[0];
+    String dest = args[1];
+
+    String[] tags = new String[args.length-2];
+    if (args.length > 2) {
+      for (int i=2; i<args.length; i++) {
+        final String stage = args[i];
+        if (VALID_OPTIONS.contains(stage)) {
+          tags[i-2] = X + stage;
+        }
       }
+    }
+
+    try (FileInputStream fin = new FileInputStream(src); FileOutputStream fout = new FileOutputStream(dest)) {
+      return new OpenApiTransformer(fin, fout, tags);
     }
   }
 }
