@@ -137,21 +137,29 @@ public class DatabaseStreamWriter extends DatabaseWriter{
             throws SQLException {
 
         final PreparedStatement deleteStmt = deleteStmtSQLStatement(connection,schema,table,handleUUID);
+        final PreparedStatement deleteStmtWithoutUUID = deleteStmtSQLStatement(connection,schema,table,false);
 
         for (String deleteId : deletes.keySet()) {
             try {
                 final String puuid = deletes.get(deleteId);
                 int rows = 0;
 
-                deleteStmt.setString(1, deleteId);
-                if(handleUUID) {
-                    deleteStmt.setString(2, puuid);
+                if(handleUUID && puuid == null){
+                    deleteStmtWithoutUUID.setString(1, deleteId);
+                    rows += deleteStmtWithoutUUID.executeUpdate();
+                }else{
+                    deleteStmt.setString(1, deleteId);
+                    if(handleUUID) {
+                        deleteStmt.setString(2, puuid);
+                    }
+                    rows += deleteStmt.executeUpdate();
                 }
-                rows = deleteStmt.executeUpdate();
+
                 if(rows == 0) {
                     fails.add(new FeatureCollection.ModificationFailure().withId(deleteId).withMessage("Object does not exist"+
                             (handleUUID ? " or UUID mismatch" : "" )));
                 }
+
             } catch (Exception e) {
                 deleteStmt.close();
                 connection.close();

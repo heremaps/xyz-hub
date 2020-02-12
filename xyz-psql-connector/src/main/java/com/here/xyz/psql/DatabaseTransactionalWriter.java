@@ -133,22 +133,35 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
             throws SQLException {
 
         final PreparedStatement batchDeleteStmt = deleteStmtSQLStatement(connection,schema,table,handleUUID);
+        final PreparedStatement batchDeleteStmtWithoutUUID = deleteStmtSQLStatement(connection,schema,table,false);
         Set<String> idsToDelete = deletes.keySet();
+
+        List<String> deleteIdList = new ArrayList<>();
+        List<String> deleteIdListWithoutUUID = new ArrayList<>();
 
         for (String deleteId : idsToDelete) {
             final String puuid = deletes.get(deleteId);
-            int rows = 0;
 
-            batchDeleteStmt.setString(1, deleteId);
-            if(handleUUID) {
-                batchDeleteStmt.setString(2, puuid);
+            if(handleUUID && puuid == null){
+                batchDeleteStmtWithoutUUID.setString(1, deleteId);
+                batchDeleteStmtWithoutUUID.addBatch();
+                deleteIdListWithoutUUID.add(deleteId);
             }
-            batchDeleteStmt.addBatch();
+            else {
+                batchDeleteStmt.setString(1, deleteId);
+                if(handleUUID) {
+                    batchDeleteStmt.setString(2, puuid);
+                }
+                deleteIdList.add(deleteId);
+                batchDeleteStmt.addBatch();
+            }
         }
 
         int[] batchDeleteStmtResult = batchDeleteStmt.executeBatch();
+        int[] batchDeleteStmtWithoutUUIDResult = batchDeleteStmtWithoutUUID.executeBatch();
 
-        fillFailList(batchDeleteStmtResult, fails, new ArrayList<>(idsToDelete), handleUUID);
+        fillFailList(batchDeleteStmtResult, fails, deleteIdList, handleUUID);
+        fillFailList(batchDeleteStmtWithoutUUIDResult, fails, deleteIdListWithoutUUID, handleUUID);
 
         if(fails.size() > 0)
             throw new SQLException("Delete has failed!");
