@@ -37,7 +37,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 public class PSQLXyzConnector extends DatabaseHandler {
 
@@ -47,8 +46,6 @@ public class PSQLXyzConnector extends DatabaseHandler {
    */
   @SuppressWarnings("WeakerAccess")
   protected Context context;
-
-  private static Pattern pattern = Pattern.compile("^BOX\\(([-\\d\\.]*)\\s([-\\d\\.]*),([-\\d\\.]*)\\s([-\\d\\.]*)\\)$");
 
   @Override
   protected XyzResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
@@ -226,6 +223,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
           }
         }
       }
+      //TODO: Check if config entry exists and idx_manual=null -> update it (erase on demand)
       executeUpdateWithRetry(  SQLQueryBuilder.buildSearchablePropertiesUpsertQuery(
               event.getSpaceDefinition().getSearchableProperties(),
               event.getOperation(),

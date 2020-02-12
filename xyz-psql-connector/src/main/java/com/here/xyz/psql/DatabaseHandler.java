@@ -280,7 +280,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     protected XyzResponse executeModifyFeatures(ModifyFeaturesEvent event) throws Exception {
         boolean includeOldStates = event.getParams() != null && event.getParams().get(PSQLConfig.INCLUDE_OLD_STATES) == Boolean.TRUE;
-        boolean handleUUID = event.getParams() != null && event.getEnableUUID() == Boolean.TRUE;
+        boolean handleUUID = event.getEnableUUID() == Boolean.TRUE;
         List<Feature> oldFeatures = null;
 
         List<Feature> inserts = Optional.ofNullable(event.getInsertFeatures()).orElse(new ArrayList<>());

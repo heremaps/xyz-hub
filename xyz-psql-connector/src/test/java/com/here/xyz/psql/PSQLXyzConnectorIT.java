@@ -31,15 +31,10 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.Payload;
+import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.events.GetFeaturesByGeometryEvent;
-import com.here.xyz.events.GetStatisticsEvent;
-import com.here.xyz.events.HealthCheckEvent;
-import com.here.xyz.events.ModifyFeaturesEvent;
-import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.events.PropertyQuery;
+import com.here.xyz.events.*;
 import com.here.xyz.events.PropertyQuery.QueryOperation;
-import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.models.geojson.coordinates.LineStringCoordinates;
 import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
 import com.here.xyz.models.geojson.coordinates.MultiPolygonCoordinates;
@@ -362,9 +357,271 @@ public class PSQLXyzConnectorIT {
     logger.info("Area Query with MULTIPOLYGON + SELECTION tested successfully");
   }
 
-  /**
-   * Test all branches of the BBox query.
-   */
+  @Test
+  public void testTransactionalUUIDCases() throws Exception {
+    XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
+
+    // =========== INSERT ==========
+    String insertJsonFile = "/events/InsertFeaturesEventTransactional.json";
+    String insertResponse = invokeLambdaFromFile(insertJsonFile);
+    String insertRequest = IOUtils.toString(GSContext.class.getResourceAsStream(insertJsonFile));
+    assertRead(insertRequest, insertResponse, true);
+    logger.info("Insert feature tested successfully");
+
+    // =========== UPDATE With wrong UUID ==========
+    FeatureCollection featureCollection = XyzSerializable.deserialize(insertResponse);
+    for (Feature feature : featureCollection.getFeatures()) {
+      feature.getProperties().put("foo","bar");
+    }
+
+    String modifiedFeatureId = featureCollection.getFeatures().get(1).getId();
+    featureCollection.getFeatures().get(1).getProperties().getXyzNamespace().setUuid("wrong");
+
+    Feature newFeature = new Feature().withId("test2").withProperties(new Properties().withXyzNamespace(xyzNamespace));
+    List<Feature> insertFeatureList = new ArrayList<>();
+    insertFeatureList.add(newFeature);
+
+    List<String> idList = featureCollection.getFeatures().stream().map(Feature::getId).collect(Collectors.toList());
+    idList.add("test2");
+
+    ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
+    mfevent.setSpace("foo");
+    mfevent.setTransaction(true);
+    mfevent.setEnableUUID(true);
+    mfevent.setUpdateFeatures(featureCollection.getFeatures());
+    mfevent.setInsertFeatures(insertFeatureList);
+    String response = invokeLambda(mfevent.serialize());
+    FeatureCollection responseCollection = XyzSerializable.deserialize(response);
+
+    assertEquals(0, responseCollection.getFeatures().size());
+    assertEquals(4, responseCollection.getFailed().size());
+
+    // Transaction should have failed
+    for (FeatureCollection.ModificationFailure failure : responseCollection.getFailed()) {
+      if(failure.getId().equalsIgnoreCase(modifiedFeatureId))
+        assertEquals("Object does not exist or UUID mismatch",failure.getMessage());
+      else
+        assertEquals("Transaction has failed",failure.getMessage());
+      // Check if Id correct
+      assertTrue(idList.contains(failure.getId()));
+    }
+
+    //Check if nothing got written
+    SearchForFeaturesEvent searchEvent = new SearchForFeaturesEvent();
+    searchEvent.setSpace("foo");
+    searchEvent.setStreamId(RandomStringUtils.randomAlphanumeric(10));
+    String eventJson = searchEvent.serialize();
+    String searchResponse = invokeLambda(eventJson);
+    responseCollection = XyzSerializable.deserialize(searchResponse);
+
+    for (Feature feature : responseCollection.getFeatures()) {
+      assertNull(feature.getProperties().get("foo"));
+    }
+
+    // =========== UPDATE With correct UUID ==========
+    for (Feature feature : responseCollection.getFeatures()) {
+      feature.getProperties().put("foo","bar");
+    }
+
+    mfevent.setUpdateFeatures(responseCollection.getFeatures());
+    mfevent.setInsertFeatures(new ArrayList<>());
+
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+    assertEquals(3, responseCollection.getFeatures().size());
+    assertEquals(3, responseCollection.getUpdated().size());
+    assertNull(responseCollection.getFailed());
+
+    // Check returned FeatureCollection
+    for (Feature feature : responseCollection.getFeatures()) {
+      assertEquals("bar",feature.getProperties().get("foo"));
+    }
+
+    // Check if updates got performed
+    searchResponse = invokeLambda(eventJson);
+    responseCollection = XyzSerializable.deserialize(searchResponse);
+    assertEquals(3, responseCollection.getFeatures().size());
+
+    for (Feature feature : responseCollection.getFeatures()) {
+      assertEquals("bar",feature.getProperties().get("foo"));
+    }
+
+    // =========== Delete With wrong UUID ==========
+    Map<String,String> idUUIDMap = new HashMap<>();
+    Map<String,String> idMap = new HashMap<>();
+    //get current UUIDS
+    for (Feature feature : responseCollection.getFeatures()) {
+      idUUIDMap.put(feature.getId(),feature.getProperties().getXyzNamespace().getUuid());
+      idMap.put(feature.getId(),null);
+    }
+
+    idUUIDMap.put(modifiedFeatureId, "wrong");
+    mfevent.setUpdateFeatures(new ArrayList<>());
+    mfevent.setDeleteFeatures(idUUIDMap);
+
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+
+    assertEquals(0, responseCollection.getFeatures().size());
+    assertEquals(3, responseCollection.getFailed().size());
+
+    // Transaction should have failed
+    for (FeatureCollection.ModificationFailure failure : responseCollection.getFailed()) {
+      if(failure.getId().equalsIgnoreCase(modifiedFeatureId))
+        assertEquals("Object does not exist or UUID mismatch",failure.getMessage());
+      else
+        assertEquals("Transaction has failed",failure.getMessage());
+      // Check if Id correct
+      assertTrue(idList.contains(failure.getId()));
+    }
+
+    // Check if deletes has failed
+    searchResponse = invokeLambda(eventJson);
+    responseCollection = XyzSerializable.deserialize(searchResponse);
+    assertEquals(3, responseCollection.getFeatures().size());
+
+    // =========== Delete without UUID ==========
+    mfevent.setDeleteFeatures(idMap);
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+
+    assertEquals(0, responseCollection.getFeatures().size());
+    assertNull(responseCollection.getFailed());
+
+    // Check if deletes are got performed
+    searchResponse = invokeLambda(eventJson);
+    responseCollection = XyzSerializable.deserialize(searchResponse);
+    assertEquals(0, responseCollection.getFeatures().size());
+  }
+
+  @Test
+  public void testStreamUUIDCases() throws Exception {
+    XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
+
+    // =========== INSERT ==========
+    String insertJsonFile = "/events/InsertFeaturesEventTransactional.json";
+    String insertResponse = invokeLambdaFromFile(insertJsonFile);
+    String insertRequest = IOUtils.toString(GSContext.class.getResourceAsStream(insertJsonFile));
+    assertRead(insertRequest, insertResponse, true);
+    logger.info("Insert feature tested successfully");
+
+    // =========== UPDATE With wrong UUID ==========
+    FeatureCollection featureCollection = XyzSerializable.deserialize(insertResponse);
+    for (Feature feature : featureCollection.getFeatures()) {
+      feature.getProperties().put("foo", "bar");
+    }
+
+    String modifiedFeatureId = featureCollection.getFeatures().get(1).getId();
+    featureCollection.getFeatures().get(1).getProperties().getXyzNamespace().setUuid("wrong");
+
+    Feature newFeature = new Feature().withId("test2").withProperties(new Properties().withXyzNamespace(xyzNamespace));
+    List<Feature> insertFeatureList = new ArrayList<>();
+    insertFeatureList.add(newFeature);
+
+    List<String> idList = featureCollection.getFeatures().stream().map(Feature::getId).collect(Collectors.toList());
+    idList.add("test2");
+
+    ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
+    mfevent.setSpace("foo");
+    mfevent.setTransaction(false);
+    mfevent.setEnableUUID(true);
+    mfevent.setUpdateFeatures(featureCollection.getFeatures());
+    mfevent.setInsertFeatures(insertFeatureList);
+    String response = invokeLambda(mfevent.serialize());
+    FeatureCollection responseCollection = XyzSerializable.deserialize(response);
+
+    assertEquals(3, responseCollection.getFeatures().size());
+    assertEquals(1, responseCollection.getFailed().size());
+    assertTrue(responseCollection.getFailed().get(0).getId().equalsIgnoreCase(modifiedFeatureId));
+
+    List<String> inserted = responseCollection.getInserted();
+
+    FeatureCollection.ModificationFailure failure = responseCollection.getFailed().get(0);
+    assertEquals("Object does not exist or UUID mismatch",failure.getMessage());
+    assertEquals(modifiedFeatureId,failure.getId());
+
+    //Check if updates got written (correct UUID)
+    SearchForFeaturesEvent searchEvent = new SearchForFeaturesEvent();
+    searchEvent.setSpace("foo");
+    searchEvent.setStreamId(RandomStringUtils.randomAlphanumeric(10));
+    String eventJson = searchEvent.serialize();
+    String searchResponse = invokeLambda(eventJson);
+    responseCollection = XyzSerializable.deserialize(searchResponse);
+
+    for (Feature feature : responseCollection.getFeatures()) {
+      // The new Feature and the failed updated one should not have the property foo
+      if(feature.getId().equalsIgnoreCase(modifiedFeatureId) || feature.getId().equalsIgnoreCase(inserted.get(0)))
+        assertNull(feature.getProperties().get("foo"));
+      else
+        assertEquals("bar",feature.getProperties().get("foo"));
+      assertTrue(idList.contains(failure.getId()));
+    }
+
+    // =========== UPDATE With correct UUID ==========
+    for (Feature feature : responseCollection.getFeatures()) {
+      feature.getProperties().put("foo","bar2");
+    }
+
+    mfevent.setUpdateFeatures(responseCollection.getFeatures());
+    mfevent.setInsertFeatures(new ArrayList<>());
+
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+    assertEquals(4, responseCollection.getFeatures().size());
+    assertEquals(4, responseCollection.getUpdated().size());
+    assertNull(responseCollection.getFailed());
+
+    for (Feature feature : responseCollection.getFeatures()) {
+      assertEquals("bar2",feature.getProperties().get("foo"));
+    }
+
+    // =========== Delete With wrong UUID ==========
+    Map<String,String> idUUIDMap = new HashMap<>();
+    Map<String,String> idMap = new HashMap<>();
+    //get current UUIDS
+    for (Feature feature : responseCollection.getFeatures()) {
+      idUUIDMap.put(feature.getId(),feature.getProperties().getXyzNamespace().getUuid());
+      idMap.put(feature.getId(),null);
+    }
+
+    idUUIDMap.put(modifiedFeatureId, "wrong");
+    mfevent.setUpdateFeatures(new ArrayList<>());
+    mfevent.setDeleteFeatures(idUUIDMap);
+
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+
+    assertEquals(0, responseCollection.getFeatures().size());
+    assertEquals(3, responseCollection.getDeleted().size());
+    assertEquals(1, responseCollection.getFailed().size());
+
+    // Only the feature with wrong UUID should have failed
+    failure = responseCollection.getFailed().get(0);
+    assertEquals("Object does not exist or UUID mismatch",failure.getMessage());
+    assertEquals(modifiedFeatureId, failure.getId());
+
+    // Check if deletes are got performed
+    searchResponse = invokeLambda(eventJson);
+    responseCollection = XyzSerializable.deserialize(searchResponse);
+    assertEquals(1, responseCollection.getFeatures().size());
+
+    // =========== Delete without UUID ==========
+    mfevent.setDeleteFeatures(idMap);
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+
+    assertEquals(0, responseCollection.getFeatures().size());
+    assertEquals(1, responseCollection.getDeleted().size());
+    assertEquals(modifiedFeatureId, (responseCollection.getDeleted().get(0)));
+    // Check if deletes are got performed
+    searchResponse = invokeLambda(eventJson);
+    responseCollection = XyzSerializable.deserialize(searchResponse);
+    assertEquals(0, responseCollection.getFeatures().size());
+  }
+
+    /**
+     * Test all branches of the BBox query.
+     */
   @Test
   public void testBBoxQuery() throws Exception {
     // =========== INSERT ==========

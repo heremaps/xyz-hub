@@ -114,7 +114,8 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                 }
 
                 if(rows == 0) {
-                    fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage("UUID does not match!"));
+                    fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage("Object does not exist"+
+                            (handleUUID ? " or UUID mismatch" : "" )));
                 }else
                     collection.getFeatures().add(feature);
 
