@@ -51,6 +51,13 @@ public class OpenApiTransformer {
     write();
   }
 
+  public void contract(Consumer<JsonNode> c) throws Exception {
+    read();
+    execute();
+    patch(c);
+    write();
+  }
+
   private void read() throws Exception {
     // read the source in YAML format
     root = YAML_MAPPER.readTree(in);
@@ -62,6 +69,10 @@ public class OpenApiTransformer {
     cleanupTaggedFieldnames();
     cleanupReferences();
     cleanupEmptyObjects();
+  }
+
+  private void patch(Consumer<JsonNode> c) {
+    c.accept(root);
   }
 
   private void traverse(JsonNode node, Consumer<JsonNode> c) {
