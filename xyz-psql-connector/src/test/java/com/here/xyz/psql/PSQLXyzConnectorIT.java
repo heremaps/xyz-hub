@@ -995,6 +995,8 @@ public class PSQLXyzConnectorIT {
     assertEquals(PropertiesStatistics.Searchable.PARTIAL, response.getProperties().getSearchable());
 
     for (PropertyStatistics prop : response.getProperties().getValue()) {
+      if(prop.getKey().equalsIgnoreCase("name"))
+        continue;
       assertTrue(pKeys.contains(prop.getKey()));
       assertEquals(prop.getCount() > 10000, true);
     }
