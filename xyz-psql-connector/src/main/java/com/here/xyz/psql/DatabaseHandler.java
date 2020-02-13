@@ -279,9 +279,17 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     protected XyzResponse executeModifyFeatures(ModifyFeaturesEvent event) throws Exception {
-        boolean includeOldStates = event.getParams() != null && event.getParams().get(PSQLConfig.INCLUDE_OLD_STATES) == Boolean.TRUE;
-        boolean handleUUID = event.getEnableUUID() == Boolean.TRUE;
-        List<Feature> oldFeatures = null;
+        final boolean includeOldStates = event.getParams() != null && event.getParams().get(PSQLConfig.INCLUDE_OLD_STATES) == Boolean.TRUE;
+        final boolean handleUUID = event.getEnableUUID() == Boolean.TRUE;
+        final boolean transactional = event.getTransaction() == Boolean.TRUE;
+
+        final String schema = config.schema();
+        final String table = config.table(event);
+
+        final FeatureCollection collection = new FeatureCollection();
+        collection.setFeatures(new ArrayList<>());
+
+        List<Feature> oldFeatures;
 
         List<Feature> inserts = Optional.ofNullable(event.getInsertFeatures()).orElse(new ArrayList<>());
         List<Feature> updates = Optional.ofNullable(event.getUpdateFeatures()).orElse(new ArrayList<>());
@@ -291,14 +299,6 @@ public abstract class DatabaseHandler extends StorageConnector {
         List<String> insertIds = inserts.stream().map(Feature::getId).filter(Objects::nonNull).collect(Collectors.toList());
         List<String> updateIds = updates.stream().map(Feature::getId).filter(Objects::nonNull).collect(Collectors.toList());
         List<String> deleteIds = new ArrayList<>(deletes.keySet());
-
-        final FeatureCollection collection = new FeatureCollection();
-        final boolean transactional = event.getTransaction() == Boolean.TRUE;
-
-        collection.setFeatures(new ArrayList<>());
-
-        final String schema = config.schema();
-        final String table = config.table(event);
 
         /** Include Old states */
         if (includeOldStates) {
@@ -331,12 +331,11 @@ public abstract class DatabaseHandler extends StorageConnector {
                     connection.commit();
                 }
             }catch (Exception e){
-                /** Retry */
+                /** Objects which are responsible for the failed operation */
+                final List<String> failedIds = fails.stream().map(FeatureCollection.ModificationFailure::getId).filter(Objects::nonNull).collect(Collectors.toList());
+
                 if(transactional) {
                     connection.rollback();
-
-                    /** Objects which are responsible for the failed transaction*/
-                    final List<String> failedIds = fails.stream().map(FeatureCollection.ModificationFailure::getId).filter(Objects::nonNull).collect(Collectors.toList());
 
                     /** Add all other Objects to failed list */
                     final List<String> failedIdsTotal = new LinkedList<>();
@@ -345,7 +344,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                     failedIdsTotal.addAll(deleteIds.stream().filter(x -> !failedIds.contains(x)).collect(Collectors.toList()));
 
                     for (String id: failedIdsTotal) {
-                        fails.add(new FeatureCollection.ModificationFailure().withId(id).withMessage("Transaction has failed"));
+                        fails.add(new FeatureCollection.ModificationFailure().withId(id).withMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL));
                     }
                     failedIdsTotal.addAll(failedIds);
 
@@ -358,14 +357,16 @@ public abstract class DatabaseHandler extends StorageConnector {
                         return collection;
                 }
                 if (!retryAttempted) {
-                    /** TODO filter out failed? */
+                    /** Retry */
                     connection.close();
                     canRetryAttempt();
+
+                    event.setFailed(fails);
                     return executeModifyFeatures(event);
                 }
             }
 
-            /** filter out failed */
+            /** filter out failed ids */
             final List<String> failedIds = fails.stream().map(FeatureCollection.ModificationFailure::getId).filter(Objects::nonNull).collect(Collectors.toList());
             insertIds = inserts.stream().map(Feature::getId).filter(x -> !failedIds.contains(x)).collect(Collectors.toList());
             updateIds = updates.stream().map(Feature::getId).filter(x -> !failedIds.contains(x)).collect(Collectors.toList());

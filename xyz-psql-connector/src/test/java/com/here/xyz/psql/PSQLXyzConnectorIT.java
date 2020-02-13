@@ -537,7 +537,7 @@ public class PSQLXyzConnectorIT {
     List<String> inserted = responseCollection.getInserted();
 
     FeatureCollection.ModificationFailure failure = responseCollection.getFailed().get(0);
-    assertEquals("Object does not exist or UUID mismatch",failure.getMessage());
+    assertEquals(DatabaseWriter.UPDATE_ERROR_UUID,failure.getMessage());
     assertEquals(modifiedFeatureId,failure.getId());
 
     //Check if updates got written (correct UUID)
@@ -597,7 +597,7 @@ public class PSQLXyzConnectorIT {
 
     // Only the feature with wrong UUID should have failed
     failure = responseCollection.getFailed().get(0);
-    assertEquals("Object does not exist or UUID mismatch",failure.getMessage());
+    assertEquals(DatabaseWriter.UPDATE_ERROR_UUID,failure.getMessage());
     assertEquals(modifiedFeatureId, failure.getId());
 
     // Check if deletes are got performed
@@ -617,6 +617,17 @@ public class PSQLXyzConnectorIT {
     searchResponse = invokeLambda(eventJson);
     responseCollection = XyzSerializable.deserialize(searchResponse);
     assertEquals(0, responseCollection.getFeatures().size());
+  }
+
+
+  @Test
+  public void testModifyFeatureFailuresWithUUID() throws Exception {
+    testModifyFeatureFailures(true);
+  }
+
+  @Test
+  public void testModifyFeatureFailuresWithoutUUID() throws Exception {
+    testModifyFeatureFailures(false);
   }
 
     /**
@@ -1456,6 +1467,116 @@ public class PSQLXyzConnectorIT {
     assertNoErrorInResponse(deleteResponse);
     logger.info("Modify features tested successfully");
 
+  }
+
+  private void testModifyFeatureFailures(boolean withUUID) throws Exception {
+    XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
+
+    // =========== INSERT ==========
+    String insertJsonFile = withUUID ? "/events/InsertFeaturesEventTransactional.json" : "/events/InsertFeaturesEvent.json";
+    final String insertResponse = invokeLambdaFromFile(insertJsonFile);
+    final String insertRequest = IOUtils.toString(GSContext.class.getResourceAsStream(insertJsonFile));
+    final FeatureCollection insertRequestCollection = XyzSerializable.deserialize(insertResponse);
+    assertRead(insertRequest, insertResponse, withUUID);
+    logger.info("Insert feature tested successfully");
+
+    // =========== DELETE NOT EXISTING FEATURE ==========
+    //Stream
+    ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
+    if(withUUID)
+      mfevent.setEnableUUID(true);
+
+    mfevent.setSpace("foo");
+    mfevent.setTransaction(false);
+    mfevent.setDeleteFeatures(Collections.singletonMap("doesnotexist", null));
+    String response = invokeLambda(mfevent.serialize());
+    FeatureCollection responseCollection = XyzSerializable.deserialize(response);
+    assertEquals("doesnotexist", responseCollection.getFailed().get(0).getId());
+    assertEquals(0,responseCollection.getFeatures().size());
+    assertNull(responseCollection.getUpdated());
+    assertNull(responseCollection.getInserted());
+    assertNull(responseCollection.getDeleted());
+
+    if(withUUID)
+      assertEquals(DatabaseWriter.DELETE_ERROR_UUID, responseCollection.getFailed().get(0).getMessage());
+    else
+      assertEquals(DatabaseWriter.DELETE_ERROR_NOT_EXISTS, responseCollection.getFailed().get(0).getMessage());
+
+    //Transactional
+    mfevent.setTransaction(true);
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+    assertEquals("doesnotexist", responseCollection.getFailed().get(0).getId());
+    assertEquals(0,responseCollection.getFeatures().size());
+    assertNull(responseCollection.getUpdated());
+    assertNull(responseCollection.getInserted());
+    assertNull(responseCollection.getDeleted());
+
+    if(withUUID)
+      assertEquals(DatabaseWriter.DELETE_ERROR_UUID, responseCollection.getFailed().get(0).getMessage());
+    else
+      assertEquals(DatabaseWriter.DELETE_ERROR_NOT_EXISTS, responseCollection.getFailed().get(0).getMessage());
+
+    // =========== INSERT EXISTING FEATURE ==========
+    //Stream
+    Feature existing = insertRequestCollection.getFeatures().get(0);
+    mfevent.setInsertFeatures(new ArrayList<Feature>(){{add(existing);}});
+    mfevent.setDeleteFeatures(new HashMap<>());
+    mfevent.setTransaction(false);
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+    assertEquals(existing.getId(), responseCollection.getFailed().get(0).getId());
+    assertEquals(DatabaseWriter.INSERT_ERROR_GENERAL, responseCollection.getFailed().get(0).getMessage());
+    assertEquals(0,responseCollection.getFeatures().size());
+    assertNull(responseCollection.getUpdated());
+    assertNull(responseCollection.getInserted());
+    assertNull(responseCollection.getDeleted());
+
+    //Transactional
+    mfevent.setTransaction(true);
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+    assertEquals(existing.getId(), responseCollection.getFailed().get(0).getId());
+    assertEquals(DatabaseWriter.TRANSACTION_ERROR_GENERAL, responseCollection.getFailed().get(0).getMessage());
+    assertEquals(0,responseCollection.getFeatures().size());
+    assertNull(responseCollection.getUpdated());
+    assertNull(responseCollection.getInserted());
+    assertNull(responseCollection.getDeleted());
+
+    // =========== UPDATE NOT EXISTING FEATURE ==========
+    //Stream
+    //Change ID to not existing one
+    existing.setId("doesnotexist");
+    mfevent.setInsertFeatures(new ArrayList<>());
+    mfevent.setUpdateFeatures(new ArrayList<Feature>(){{add(existing);}});
+    mfevent.setTransaction(false);
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+    assertEquals(existing.getId(), responseCollection.getFailed().get(0).getId());
+    assertEquals(0,responseCollection.getFeatures().size());
+    assertNull(responseCollection.getUpdated());
+    assertNull(responseCollection.getInserted());
+    assertNull(responseCollection.getDeleted());
+
+    if(withUUID)
+      assertEquals(DatabaseWriter.UPDATE_ERROR_UUID, responseCollection.getFailed().get(0).getMessage());
+    else
+      assertEquals(DatabaseWriter.UPDATE_ERROR_NOT_EXISTS, responseCollection.getFailed().get(0).getMessage());
+
+    //Transactional
+    mfevent.setTransaction(true);
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+    assertEquals(existing.getId(), responseCollection.getFailed().get(0).getId());
+    assertEquals(0,responseCollection.getFeatures().size());
+    assertNull(responseCollection.getUpdated());
+    assertNull(responseCollection.getInserted());
+    assertNull(responseCollection.getDeleted());
+
+    if(withUUID)
+      assertEquals(DatabaseWriter.UPDATE_ERROR_UUID, responseCollection.getFailed().get(0).getMessage());
+    else
+      assertEquals(DatabaseWriter.UPDATE_ERROR_NOT_EXISTS, responseCollection.getFailed().get(0).getMessage());
   }
 
   @SuppressWarnings({"rawtypes", "unchecked"})

@@ -1,10 +1,8 @@
 package com.here.xyz.psql;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.google.common.collect.ObjectArrays;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.models.geojson.implementation.Geometry;
 import com.vividsolutions.jts.io.WKBWriter;
 import org.postgresql.util.PGobject;
 
@@ -12,8 +10,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class DatabaseTransactionalWriter extends  DatabaseWriter{
 
@@ -110,19 +106,15 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
 
         if (updateIdList.size() > 0) {
             batchUpdateResult = updateStmt.executeBatch();
-            if(batchUpdateResult.length != updateIdList.size())
-                throw new SQLException("Couldn't update all Objects");
             fillFailList(batchUpdateResult, fails, updateIdList, handleUUID);
         }
         if (updateWithoutGeometryIdList.size() > 0) {
             batchUpdateWithoutGeometryResult = updateWithoutGeometryStmt.executeBatch();
-            if(batchUpdateWithoutGeometryResult.length != updateWithoutGeometryIdList.size())
-                throw new SQLException("Couldn't update all Objects");
             fillFailList(batchUpdateWithoutGeometryResult, fails, updateWithoutGeometryIdList, handleUUID);
         }
 
         if(fails.size() > 0)
-            throw new SQLException("Updated has failed!");
+            throw new SQLException(UPDATE_ERROR_GENERAL);
 
         return collection;
     }
@@ -164,14 +156,14 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         fillFailList(batchDeleteStmtWithoutUUIDResult, fails, deleteIdListWithoutUUID, handleUUID);
 
         if(fails.size() > 0)
-            throw new SQLException("Delete has failed!");
+            throw new SQLException(DELETE_ERROR_GENERAL);
     }
 
     private static void fillFailList(int[] batchResult, List<FeatureCollection.ModificationFailure> fails,  List<String> idList, boolean handleUUID){
         for (int i= 0; i < batchResult.length; i++) {
             if(batchResult[i] == 0 ) {
-                fails.add(new FeatureCollection.ModificationFailure().withId(idList.get(i)).withMessage("Object does not exist"+
-                    (handleUUID ? " or UUID mismatch" : "" )));
+                fails.add(new FeatureCollection.ModificationFailure().withId(idList.get(i)).withMessage(
+                    (handleUUID ? UPDATE_ERROR_UUID : UPDATE_ERROR_NOT_EXISTS)));
             }
         }
     }

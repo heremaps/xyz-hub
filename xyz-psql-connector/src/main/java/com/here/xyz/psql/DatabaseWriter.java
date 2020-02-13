@@ -19,6 +19,24 @@ import static com.here.xyz.psql.DatabaseHandler.STATEMENT_TIMEOUT_SECONDS;
 public class DatabaseWriter {
     private static final Logger logger = LogManager.getLogger();
 
+    public static final String UPDATE_ERROR_GENERAL = "Update has failed";
+    public static final String UPDATE_ERROR_NOT_EXISTS = "Object does not exist";
+    public static final String UPDATE_ERROR_UUID = "Object does not exist or UUID mismatch";
+    public static final String UPDATE_ERROR_ID_MISSING = "Feature Id is missing";
+    public static final String UPDATE_ERROR_PUUID_MISSING = "Feature puuid is missing";
+
+    public static final String DELETE_ERROR_GENERAL = "Delete has failed";
+    public static final String DELETE_ERROR_NOT_EXISTS = "Object does not exist";
+    public static final String DELETE_ERROR_UUID = "Object does not exist or UUID mismatch";
+
+    public static final String INSERT_ERROR_GENERAL = "Insert has failed";
+
+    protected static final String TRANSACTION_ERROR_GENERAL = "Transaction has failed";
+
+    public static final String LOG_EXCEPTION_INSERT = "insert";
+    public static final String LOG_EXCEPTION_UPDATE = "update";
+    public static final String LOG_EXCEPTION_DELETE = "delete";
+
     protected static PGobject featureToPGobject(final Feature feature, final boolean jsonObjectMode) throws SQLException {
         final Geometry geometry = feature.getGeometry();
         feature.setGeometry(null); // Do not serialize the geometry in the JSON object
@@ -126,21 +144,6 @@ public class DatabaseWriter {
         setAutocommit(connection,true);
         DatabaseStreamWriter.deleteFeatures(schema, table, streamId, fails, deletes, connection, handleUUID);
     }
-
-//    protected static void deleteFeatures( String schema, String table, String streamId,
-//                                          Map<String, String> deletes, Connection connection, boolean transactional)
-//     throws SQLException {
-//        final Set<String> idsToDelete = deletes.keySet();
-//
-//        if (idsToDelete.size() > 0) {
-//            String deleteStmtSQL = "DELETE FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)";
-//            deleteStmtSQL = SQLQuery.replaceVars(deleteStmtSQL, schema, table);
-//            try (final PreparedStatement deleteStmt = createStatement(connection, deleteStmtSQL)) {
-//                deleteStmt.setArray(1, connection.createArrayOf("text", idsToDelete.toArray(new String[idsToDelete.size()])));
-//                deleteStmt.execute();
-//            }
-//        }
-//    }
 
     protected static void logException(Exception e, String streamId, int i, String action){
         if(e.getMessage() != null && e.getMessage().contains("does not exist")) {

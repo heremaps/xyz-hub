@@ -44,21 +44,23 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                 }
 
                 if(rows == 0) {
-                    fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage("Insert has failed"));
+                    fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage(INSERT_ERROR_GENERAL));
                 }else
                     collection.getFeatures().add(feature);
 
             } catch (Exception e) {
-                insertStmt.close();
-                insertWithoutGeometryStmt.close();
-                connection.close();
+                if(e.getMessage() != null && e.getMessage().contains("relation ") && e.getMessage().contains("does not exist")){
+                    insertStmt.close();
+                    insertWithoutGeometryStmt.close();
+                    connection.close();
+                    throw new SQLException(e);
+                }
 
-                fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage("Insert has failed"));
-                logException(e,streamId,i,"insert");
-
-                throw new SQLException(e);
+                fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage(INSERT_ERROR_GENERAL));
+                logException(e,streamId,i, LOG_EXCEPTION_INSERT);
             }
         }
+
         return collection;
     };
 
@@ -79,18 +81,19 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                 int rows = 0;
 
                 if (feature.getId() == null) {
-                    throw new NullPointerException("id");
+                    fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage(UPDATE_ERROR_ID_MISSING));
+                    continue;
                 }
 
                 fId = feature.getId();
 
                 if (handleUUID && puuid == null){
-                    throw new NullPointerException("puuid");
+                    fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage(UPDATE_ERROR_PUUID_MISSING));
+                    continue;
                 }
 
                 final PGobject jsonbObject= featureToPGobject(feature, true);
                 final PGobject geojsonbObject = featureToPGobject(feature, false);
-
 
                 if (feature.getGeometry() == null) {
                     updateWithoutGeometryStmt.setObject(1, jsonbObject);
@@ -114,21 +117,20 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                 }
 
                 if(rows == 0) {
-                    fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage("Object does not exist"+
-                            (handleUUID ? " or UUID mismatch" : "" )));
+                    fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage((handleUUID ? UPDATE_ERROR_UUID : UPDATE_ERROR_NOT_EXISTS)));
                 }else
                     collection.getFeatures().add(feature);
 
             } catch (Exception e) {
-                updateStmt.close();
-                updateWithoutGeometryStmt.close();
-                connection.close();
-                fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage("Update has failed"));
-
-                logException(e,streamId,i,"update");
-                throw new SQLException(e);
+                fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage(UPDATE_ERROR_GENERAL));
+                logException(e,streamId,i, LOG_EXCEPTION_UPDATE);
             }
         }
+
+        updateStmt.close();
+        updateWithoutGeometryStmt.close();
+        connection.close();
+
         return collection;
     };
 
@@ -157,16 +159,15 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                 }
 
                 if(rows == 0) {
-                    fails.add(new FeatureCollection.ModificationFailure().withId(deleteId).withMessage("Object does not exist"+
-                            (handleUUID ? " or UUID mismatch" : "" )));
+                    fails.add(new FeatureCollection.ModificationFailure().withId(deleteId).withMessage((handleUUID ? DELETE_ERROR_UUID : DELETE_ERROR_NOT_EXISTS)));
                 }
 
             } catch (Exception e) {
                 deleteStmt.close();
                 connection.close();
 
-                fails.add(new FeatureCollection.ModificationFailure().withId(deleteId).withMessage("Deletion has failed"));
-                logException(e,streamId,0,"delete");
+                fails.add(new FeatureCollection.ModificationFailure().withId(deleteId).withMessage(DELETE_ERROR_GENERAL));
+                logException(e,streamId,0, LOG_EXCEPTION_DELETE);
                 throw new SQLException(e);
             }
         }
