@@ -86,15 +86,8 @@ public final class RpcClient {
     }
   }
 
-  /**
-   * Returns the RPC client singleton for the configuration with the ID of the given one. In other words, there will be only one instance
-   * per configuration ID.
-   *
-   * @param connectorConfig the configuration for which to return the RPC client.
-   * @return the RPC client.
-   */
-  public static RpcClient getInstanceFor(Connector connectorConfig) {
-    if (connectorConfig == null) {
+  static RpcClient getInstanceFor(Connector connector, boolean createIfNotExists) {
+    if (connector == null) {
       throw new NullPointerException("connector");
     }
     RpcClient client = storageIdToClient.get(connectorConfig.id);
@@ -111,6 +104,17 @@ public final class RpcClient {
     return client;
   }
 
+  /**
+   * Returns the RPC client singleton for the configuration with the ID of the given one. In other words, there will be only one instance
+   * per configuration ID.
+   *
+   * @param connector the configuration for which to return the RPC client.
+   * @return the RPC client.
+   */
+  public static RpcClient getInstanceFor(Connector connector) {
+    return getInstanceFor(connector, false);
+  }
+
   public static Collection<RpcClient> getAllInstances() {
     return Collections.unmodifiableCollection(storageIdToClient.values());
   }
@@ -119,7 +123,7 @@ public final class RpcClient {
     if (this.functionClient == null) {
       throw new IllegalStateException("The RpcClient is already destroyed");
     }
-    final Connector connectorConfig = this.functionClient.getConnectorConfig();
+    final Connector connectorConfig = functionClient.getConnectorConfig();
     if (connectorConfig != null) {
       storageIdToClient.remove(connectorConfig.id, this);
     }

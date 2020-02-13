@@ -33,12 +33,13 @@ import io.vertx.core.buffer.Buffer;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.WebClientOptions;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.concurrent.TimeoutException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
-public final class HTTPFunctionClient extends RemoteFunctionClient {
+public class HTTPFunctionClient extends RemoteFunctionClient {
 
   private static final Logger logger = LogManager.getLogger();
 
@@ -50,60 +51,51 @@ public final class HTTPFunctionClient extends RemoteFunctionClient {
   }
 
   @Override
-  synchronized void initialize() {
-    createClient();
-  }
-
-  @Override
   synchronized void setConnectorConfig(final Connector newConnectorConfig) throws NullPointerException, IllegalArgumentException {
     super.setConnectorConfig(newConnectorConfig);
-    if (webClient != null) {
-      shutdownWebClient(webClient);
-    }
+    shutdownWebClient(webClient);
     createClient();
   }
 
   private void createClient() {
-    final Connector connectorConfig = getConnectorConfig();
-    final RemoteFunctionConfig remoteFunction = connectorConfig.remoteFunction;
+    final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
     if (!(remoteFunction instanceof Http)) {
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of HTTP");
     }
-    final Http remoteFunctionConfig = (Http) remoteFunction;
-    url = remoteFunctionConfig.url.toString();
+    Http httpRemoteFunction = (Http) remoteFunction;
+    url = httpRemoteFunction.url.toString();
     webClient = WebClient.create(Service.vertx, new WebClientOptions()
         .setUserAgent(Service.XYZ_HUB_USER_AGENT)
-        .setMaxPoolSize(getMaxConnectionsPerInstance()));
+        .setMaxPoolSize(getMaxConnections()));
   }
 
   @Override
-  synchronized void destroy() {
+  void destroy() {
     super.destroy();
-    if (webClient != null) {
-      shutdownWebClient(webClient);
-      webClient = null;
-    }
+    shutdownWebClient(webClient);
   }
 
   private static void shutdownWebClient(WebClient webClient) {
+    if (webClient == null) return;
     //Shutdown the web client after the request timeout
     //TODO: Use CompletableFuture.delayedExecutor() after switching to Java 9
     new Thread(() -> {
       try {
         Thread.sleep(REQUEST_TIMEOUT);
-      } catch (InterruptedException ignored) {
       }
+      catch (InterruptedException ignored) {}
       webClient.close();
     }).start();
   }
 
   @Override
   protected void invoke(Marker marker, byte[] bytes, Handler<AsyncResult<byte[]>> callback) {
-    final Connector connectorConfig = getConnectorConfig();
-    final RemoteFunctionConfig remoteFunction = connectorConfig.remoteFunction;
+    final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
     logger.debug(marker, "Invoke http remote function '{}' Event size is: {}", remoteFunction.id, bytes.length);
+
     webClient.postAbs(url)
         .timeout(REQUEST_TIMEOUT)
+        .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
         .sendBuffer(Buffer.buffer(bytes), ar -> {
           if (ar.failed()) {
             if (ar.cause() instanceof TimeoutException) {

@@ -32,6 +32,7 @@ import com.here.xyz.hub.util.LimitedQueue;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.impl.ConcurrentHashSet;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -52,7 +53,7 @@ public abstract class RemoteFunctionClient {
   public static final long REQUEST_TIMEOUT = TimeUnit.SECONDS.toMillis(Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT);
   private static int MEASUREMENT_INTERVAL = 1000; //1s
 
-  private Connector connectorConfig;
+  protected Connector connectorConfig;
 
   private final LongAdder requestsSinceLastArrivalRateMeasurement = new LongAdder();
   private final AtomicLong lastArrivalRateMeasurement = new AtomicLong(Service.currentTimeMillis());
@@ -70,12 +71,48 @@ public abstract class RemoteFunctionClient {
    */
   private volatile double arrivalRate;
 
+  /**
+   * The global maximum byte size that is available for allocation by all of the queues.
+   */
+  public static final long GLOBAL_MAX_QUEUE_BYTE_SIZE = (long) Service.configuration.GLOBAL_MAX_QUEUE_SIZE * 1024 * 1024;
+
+//  /**
+//   * Tweaking constant for the percentage that the connection slots relevance should be used. The rest is the rateOfService relevance.
+//   */
+//  public static final float CONNECTION_SLOTS_RELEVANCE = 0.5f;
+//  public static final float REQUEST_RELEVANCE_FACTOR = 100;
+//  private static final int SIZE_ADJUSTMENT_INTERVAL = 3000; //3 seconds
+
+  /**
+   * All instances that were created and are active.
+   */
+  private static Set<RemoteFunctionClient> clientInstances = new ConcurrentHashSet<>();
+  private static LongAdder globalMinConnectionSum = new LongAdder();
+  private static AtomicLong lastSizeAdjustment;
+  AtomicInteger usedConnections = new AtomicInteger(0);
+
+//  /**
+//   * Sliding average request execution time in seconds.
+//   */
+//  private double SARET = 1d; // 1 second initial value
+  /**
+   * An approximation for the maximum number of requests per second which can be executed based on the performance of the remote function.
+   */
+  private double rateOfService;
+  private LimitedQueue<FunctionCall> queue = new LimitedQueue<>(0, 0);
+
   RemoteFunctionClient(Connector connectorConfig) {
+    if (connectorConfig == null) {
+      throw new NullPointerException();
+    }
     setConnectorConfig(connectorConfig);
   }
 
   /**
-   * This method was split from the constructor to ensure that we're not adding this {@link #clientInstances} until we're really used.
+   * This method does further initialization for this client.
+   * It's guaranteed to be called before an instance will be actually used by not adding it to the internal {@link #clientInstances} map
+   * before initialization.
+   * Sub-classes should override that method to do further initialization rather than doing that in their constructor.
    *
    * @throws NullPointerException if the connector configuration is null.
    */
@@ -229,6 +266,7 @@ public abstract class RemoteFunctionClient {
   /**
    * Should be called when the connector configuration changed during the runtime in order to inform this function client to do necessary
    * update steps.
+   * Should be overridden in sub-classes to implement refreshing steps. (e.g. creating client / connections)
    *
    * @param newConnectorConfig the connector configuration
    * @throws NullPointerException     if the given connector configuration is null.
@@ -311,7 +349,12 @@ public abstract class RemoteFunctionClient {
    * requests in the queues this could result in discards of those requests.
    */
   private static void adjustQueueByteSizes() {
-    //NOTE: For simplicity the queues will only get a fix maxByteSize which is dependent by their priority
+    /*
+    NOTE: For simplicity the queues will only get a fix maxByteSize which is dependent by their
+    priority (minConnection-ratio) so now we're just doing the queue size (re-)adjustment for all queues once whenever a
+    new RemoteFunctionClient get's created.
+    However, this behavior will be optimized in the future.
+     */
     //TODO: Improve the calculation with respect to the throughput and do the adjustments when necessary at run-time
     clientInstances.forEach(c -> c.queue.setMaxByteSize((long) (c.getPriority() * GLOBAL_MAX_QUEUE_BYTE_SIZE)));
   }

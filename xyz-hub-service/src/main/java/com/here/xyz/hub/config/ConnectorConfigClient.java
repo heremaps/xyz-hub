@@ -140,7 +140,7 @@ public abstract class ConnectorConfigClient implements Initializable {
     });
   }
 
-  public void insertLocalConnectors() {
+  public void insertLocalConnectors(Handler<AsyncResult<Void>> handler) {
     InputStream input = ConnectorConfigClient.class.getResourceAsStream("/connectors.json");
     try (BufferedReader buffer = new BufferedReader(new InputStreamReader(input))) {
       String connectorsFile = buffer.lines().collect(Collectors.joining("\n"));
@@ -151,7 +151,10 @@ public abstract class ConnectorConfigClient implements Initializable {
 
         storeConnectorIfNotExists(null, c, r -> {
           if (r.failed()) {
-            logger.info(r.toString());
+            handler.handle(Future.failedFuture(r.cause()));
+          }
+          else {
+            handler.handle(Future.succeededFuture());
           }
         });
       });
@@ -197,8 +200,11 @@ public abstract class ConnectorConfigClient implements Initializable {
       if (r.failed()) {
         logger.info("Connector with ID {} does not exist. Creating it ...", connector.id);
         store(marker, connector, handler, false);
-      } else {
-        handler.handle(Future.failedFuture("Connector with ID " + connector.id + " already exists."));
+      }
+      else {
+        //Do nothing, just succeed
+        logger.info("Connector with ID " + connector.id + " already exists. Not creating it.");
+        handler.handle(Future.succeededFuture(r.result()));
       }
     });
   }

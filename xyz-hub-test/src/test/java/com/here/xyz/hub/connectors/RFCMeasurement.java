@@ -51,6 +51,7 @@ public class RFCMeasurement {
         s.connectionSettings.maxConnections = RFC_MAX_CONNECTIONS;
         Service.configuration = new Config();
         Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT = 20;
+        Service.configuration.INSTANCE_COUNT = 1;
         rfc = new MockedRemoteFunctionClient(s, 10);
 
         requesterPool = new ScheduledThreadPoolExecutor(20);

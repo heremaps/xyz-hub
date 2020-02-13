@@ -46,7 +46,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
-public final class LambdaFunctionClient extends RemoteFunctionClient {
+public class LambdaFunctionClient extends RemoteFunctionClient {
 
   private static final Logger logger = LogManager.getLogger();
 
@@ -64,16 +64,9 @@ public final class LambdaFunctionClient extends RemoteFunctionClient {
   }
 
   @Override
-  synchronized void initialize() {
-    createClient();
-  }
-
-  @Override
   synchronized void setConnectorConfig(final Connector newConnectorConfig) throws NullPointerException, IllegalArgumentException {
     super.setConnectorConfig(newConnectorConfig);
-    if (asyncClient != null) {
-      shutdownLambdaClient(asyncClient);
-    }
+    shutdownLambdaClient(asyncClient);
     createClient();
   }
 
@@ -83,7 +76,7 @@ public final class LambdaFunctionClient extends RemoteFunctionClient {
     if (!(remoteFunction instanceof AWSLambda)) {
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of AWSLambda");
     }
-    final int maxConnections = connectorConfig.getMaxConnectionsPerInstance();
+    int maxConnections = connectorConfig.getMaxConnectionsPerInstance();
     asyncClient = AWSLambdaAsyncClientBuilder
         .standard()
         .withRegion(extractRegionFromArn(((AWSLambda) remoteFunction).lambdaARN))
@@ -93,13 +86,14 @@ public final class LambdaFunctionClient extends RemoteFunctionClient {
   }
 
   private static void shutdownLambdaClient(AWSLambdaAsync lambdaClient) {
+    if (lambdaClient == null) return;
     //Shutdown the lambda client after the request timeout
     //TODO: Use CompletableFuture.delayedExecutor() after switching to Java 9
     new Thread(() -> {
       try {
         Thread.sleep(REQUEST_TIMEOUT);
-      } catch (InterruptedException ignored) {
       }
+      catch (InterruptedException ignored) {}
       lambdaClient.shutdown();
     }).start();
   }
@@ -107,24 +101,20 @@ public final class LambdaFunctionClient extends RemoteFunctionClient {
   @Override
   synchronized void destroy() {
     super.destroy();
-    if (asyncClient != null) {
-      shutdownLambdaClient(asyncClient);
-      asyncClient = null;
-    }
+    shutdownLambdaClient(asyncClient);
   }
 
   /**
    * Invokes the remote lambda function and returns the decompressed response as bytes.
    */
   @Override
-  protected void invoke(final Marker marker, final byte[] bytes, final Handler<AsyncResult<byte[]>> callback) {
-    final Connector connectorConfig = getConnectorConfig();
-    final RemoteFunctionConfig remoteFunction = connectorConfig.remoteFunction;
+  protected void invoke(final Marker marker, byte[] bytes, final Handler<AsyncResult<byte[]>> callback) {
+    final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
     logger.debug(marker, "Invoking remote lambda function with id '{}' Event size is: {}", remoteFunction.id, bytes.length);
 
-    final InvokeRequest invokeReq = new InvokeRequest().
-        withFunctionName(((AWSLambda) remoteFunction).lambdaARN).
-        withPayload(ByteBuffer.wrap(bytes));
+    InvokeRequest invokeReq = new InvokeRequest()
+        .withFunctionName(((AWSLambda) remoteFunction).lambdaARN)
+        .withPayload(ByteBuffer.wrap(bytes));
 
     asyncClient.invokeAsync(invokeReq, new AsyncHandler<InvokeRequest, InvokeResult>() {
       @Override
@@ -136,7 +126,7 @@ public final class LambdaFunctionClient extends RemoteFunctionClient {
       public void onSuccess(InvokeRequest request, InvokeResult result) {
         try {
           //TODO: Refactor to move decompression into the base-class RemoteFunctionClient as it's not Lambda specific
-          final byte[] responseBytes = new byte[result.getPayload().remaining()];
+          byte[] responseBytes = new byte[result.getPayload().remaining()];
           result.getPayload().get(responseBytes);
           checkResponseSize(responseBytes);
           callback.handle(Future.succeededFuture(getDecompressed(responseBytes)));
@@ -162,8 +152,7 @@ public final class LambdaFunctionClient extends RemoteFunctionClient {
    * @return the AWS credentials provider.
    */
   private AWSCredentialsProvider getAWSCredentialsProvider() {
-    final Connector connectorConfig = getConnectorConfig();
-    final RemoteFunctionConfig remoteFunction = connectorConfig.remoteFunction;
+    final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
     if (awsCredentialsProvider == null) {
       if (((AWSLambda) remoteFunction).roleARN != null) {
         awsCredentialsProvider = new STSAssumeRoleSessionCredentialsProvider.Builder(((AWSLambda) remoteFunction).roleARN,

@@ -29,7 +29,6 @@ import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.SynchronousQueue;
@@ -39,7 +38,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
-public final class EmbeddedFunctionClient extends RemoteFunctionClient {
+public class EmbeddedFunctionClient extends RemoteFunctionClient {
 
   private static final Logger logger = LogManager.getLogger();
   /**
@@ -52,55 +51,43 @@ public final class EmbeddedFunctionClient extends RemoteFunctionClient {
   }
 
   @Override
-  synchronized void setConnectorConfig(final Connector newConnectorConfig) throws NullPointerException, IllegalArgumentException {
+  synchronized protected void setConnectorConfig(final Connector newConnectorConfig) throws NullPointerException, IllegalArgumentException {
     super.setConnectorConfig(newConnectorConfig);
-    if (embeddedExecutor != null) {
-      shutdown(embeddedExecutor);
-    }
-    createExecutorService();
-  }
-
-  @Override
-  synchronized void initialize() {
-    super.initialize();
+    shutdown(embeddedExecutor);
     createExecutorService();
   }
 
   private void createExecutorService() {
-    final Connector connectorConfig = getConnectorConfig();
-    if (!(connectorConfig.remoteFunction instanceof RemoteFunctionConfig.Embedded)) {
+    if (!(getConnectorConfig().remoteFunction instanceof RemoteFunctionConfig.Embedded)) {
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of Embedded");
     }
     int maxConnections = connectorConfig.getMaxConnectionsPerInstance();
-    embeddedExecutor = new ThreadPoolExecutor(8, maxConnections, 10, TimeUnit.MINUTES, new SynchronousQueue<>());
+    embeddedExecutor = new ThreadPoolExecutor(8, maxConnections, 10, TimeUnit.MINUTES,
+        new SynchronousQueue<>());
   }
 
   @Override
-  synchronized void destroy() {
+  void destroy() {
     super.destroy();
-    if (embeddedExecutor != null) {
-      shutdown(embeddedExecutor);
-      embeddedExecutor = null;
-    }
+    shutdown(embeddedExecutor);
   }
 
   private static void shutdown(ExecutorService execService) {
+    if (execService == null) return;
     //Shutdown the executor service after the request timeout
     //TODO: Use CompletableFuture.delayedExecutor() after switching to Java 9
     new Thread(() -> {
       try {
         Thread.sleep(REQUEST_TIMEOUT);
-      } catch (InterruptedException ignored) {
       }
+      catch (InterruptedException ignored) {}
       execService.shutdownNow();
     }).start();
   }
 
-  protected void invoke(final Marker marker, final byte[] bytes, final Handler<AsyncResult<byte[]>> callback) {
-    final Connector connectorConfig = getConnectorConfig();
-    final RemoteFunctionConfig remoteFunction = connectorConfig.remoteFunction;
-    logger.info(marker, "Invoke embedded lambda '{}' for event: {}", connectorConfig.remoteFunction.id,
-        new String(bytes, StandardCharsets.UTF_8));
+  protected void invoke(Marker marker, byte[] bytes, Handler<AsyncResult<byte[]>> callback) {
+    final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
+    logger.info(marker, "Invoke embedded lambda '{}' for event: {}", remoteFunction.id, new String(bytes));
     embeddedExecutor.execute(() -> {
       String className = null;
       try {
