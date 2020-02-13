@@ -33,6 +33,7 @@ import io.vertx.config.ConfigRetrieverOptions;
 import io.vertx.config.ConfigStoreOptions;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.DeploymentOptions;
+import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
 import io.vertx.core.json.JsonObject;
@@ -168,25 +169,43 @@ public class Service {
         connectorConfigClient.init(connectorConfigReady -> {
           if (connectorConfigReady.succeeded()) {
             if (Service.configuration.INSERT_LOCAL_CONNECTORS) {
-              connectorConfigClient.insertLocalConnectors();
+              connectorConfigClient.insertLocalConnectors(result -> onLocalConnectorsInserted(result, config));
             }
-
-            BurstAndUpdateThread.initialize();
-
-            vertx.deployVerticle(XYZHubRESTVerticle.class, new DeploymentOptions().setConfig(config).setWorker(true).setInstances(8));
-
-            logger.info("XYZ Hub " + BUILD_VERSION + " was started at " + new Date().toString());
-
-            Thread.setDefaultUncaughtExceptionHandler((thread, t) -> logger.error("Uncaught exception: ", t));
-
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-              //This may fail, if we are OOM, but lets at least try.
-              logger.info("XYZ Service is going down at " + new Date().toString());
-            }));
+            else {
+              onLocalConnectorsInserted(Future.succeededFuture(), config);
+            }
           }
         });
       }
     });
+  }
+
+  private static void onLocalConnectorsInserted(AsyncResult<Void> result, JsonObject config)  {
+    if (result.failed()) {
+      logger.error("Failed to insert local connectors.", result.cause());
+    }
+    else {
+      BurstAndUpdateThread.initialize(initializeAr -> onServiceInitialized(initializeAr, config));
+    }
+  }
+
+  private static void onServiceInitialized(AsyncResult<Void> result, JsonObject config) {
+    if (result.failed()) {
+      logger.error("Failed to initialize Connectors. Service can't be started.", result.cause());
+    }
+    else {
+      //Start / Deploy the service including all endpoints and listeners
+      vertx.deployVerticle(XYZHubRESTVerticle.class, new DeploymentOptions().setConfig(config).setWorker(true).setInstances(8));
+
+      logger.info("XYZ Hub " + BUILD_VERSION + " was started at " + new Date().toString());
+
+      Thread.setDefaultUncaughtExceptionHandler((thread, t) -> logger.error("Uncaught exception: ", t));
+
+      Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+        //This may fail, if we are OOM, but lets at least try.
+        logger.info("XYZ Service is going down at " + new Date().toString());
+      }));
+    }
   }
 
   private static void decryptSecrets() {

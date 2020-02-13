@@ -23,6 +23,8 @@ import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import io.vertx.core.AsyncResult;
+import io.vertx.core.Future;
+import io.vertx.core.Handler;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
@@ -42,30 +44,30 @@ public class BurstAndUpdateThread extends Thread {
   /**
    * The warm up interval
    */
-  private static final long WARM_UP_INTERVAL_MILLISECONDS = TimeUnit.MINUTES.toMillis(2);
-  private static final long CONNECTOR_UPDATE_INTERVAL = TimeUnit.SECONDS.toMillis(10);
+  private static final long CONNECTOR_UPDATE_INTERVAL = TimeUnit.MINUTES.toMillis(2);
   private static BurstAndUpdateThread instance;
+  private volatile Handler<AsyncResult<Void>> initializeHandler;
 
-  private BurstAndUpdateThread() throws NullPointerException {
+  private BurstAndUpdateThread(Handler<AsyncResult<Void>> handler) throws NullPointerException {
     super(name);
     if (instance != null) {
       throw new IllegalStateException("Singleton warm-up thread has already been instantiated.");
     }
+    initializeHandler = handler;
     BurstAndUpdateThread.instance = this;
     this.setDaemon(true);
     this.start();
-    logger.info("Starting thread {}", name);
+    logger.info("Started thread {}", name);
   }
 
-  public static void initialize() {
+  public static void initialize(Handler<AsyncResult<Void>> handler) {
     if (instance == null) {
-      instance = new BurstAndUpdateThread();
+      instance = new BurstAndUpdateThread(handler);
     }
   }
 
   private synchronized void onConnectorList(AsyncResult<List<Connector>> ar) {
     if (ar.failed()) {
-      //TODO: Handle errors, but for now we may as well ignore errors.
       logger.error("Failed to receive connector list", ar.cause());
       return;
     }
@@ -73,44 +75,65 @@ public class BurstAndUpdateThread extends Thread {
     final HashMap<String, Connector> connectorMap = new HashMap<>();
 
     for (final Connector connector : connectorList) {
+      if (connector == null || connector.id == null) {
+        logger.error("Found null entry (or without ID) in connector list, see stack trace");
+        continue;
+      }
       connectorMap.put(connector.id, connector);
       try { //Try to initialize the connector client
-        RpcClient.getInstanceFor(connector);
-      } catch (Exception ignored) {
+        RpcClient.getInstanceFor(connector, true);
+      } catch (Exception e) {
+        logger.error("Error while trying to get RpcClient for connector with ID " + connector.id);
       }
     }
 
     //Run the warm-up for the lambda connectors which have a warmUpCount > 0 and do some updates
     for (final RpcClient client : RpcClient.getAllInstances()) {
-      final String connectorId = client.connector.id;
-      if (!connectorMap.containsKey(connectorId)) {
-        //This will shutdown all lambda clients for that connector!
-        RpcClient.destroyInstance(client);
+      Connector oldConnector = client.getConnector();
+      if (oldConnector == null) {
+        //The client is already destroyed.
         continue;
       }
-      Connector connector = connectorMap.get(connectorId);
-      if (!client.connector.equalTo(connector)) {
-        //Update the connector configuration of the client
-        client.updateConnectorConfig(connector);
-      } else {
-        //Take the existing connector configuration instance
-        connector = client.connector;
+
+      if (!connectorMap.containsKey(oldConnector.id)) {
+        //Client needs to be destroyed, the connector configuration with the given ID has been removed.
+        try {
+          client.destroy();
+        } catch (Exception e) {
+          logger.error("Unexpected exception while destroying RPC client", e);
+        }
+        continue;
       }
 
-      if (connector.remoteFunction.warmUp > 0) {
-        final int minInstances = connector.remoteFunction.warmUp;
+      Connector newConnector = connectorMap.get(oldConnector.id);
+      if (!oldConnector.equalTo(newConnector)) {
+        try {
+          //Update the connector configuration of the client
+          client.setConnectorConfig(newConnector);
+        }
+        catch (Exception e) {
+          logger.error("Unexpected exception while trying to update connector configuration", e);
+          continue;
+        }
+      }
+      else {
+        //Use the existing connector configuration instance
+        newConnector = oldConnector;
+      }
 
+      if (newConnector.remoteFunction.warmUp > 0) {
+        final int minInstances = newConnector.remoteFunction.warmUp;
         try {
           final AtomicInteger requestCount = new AtomicInteger(minInstances);
-          logger.info("Send {} health status requests to connector '{}'", requestCount, connector.id);
+          logger.info("Send {} health status requests to connector '{}'", requestCount, newConnector.id);
           synchronized (requestCount) {
             for (int i = 0; i < minInstances; i++) {
               HealthCheckEvent healthCheck = new HealthCheckEvent()
                   .withMinResponseTime(200);
-              // Just generate a stream ID here as the stream actually "begins" here
-              final String pseudoStreamId = UUID.randomUUID().toString();
-              healthCheck.setStreamId(pseudoStreamId);
-              client.execute(MarkerManager.getMarker(pseudoStreamId), healthCheck, r -> {
+              //Just generate a stream ID here as the stream actually "begins" here
+              final String healthCheckStreamId = UUID.randomUUID().toString();
+              healthCheck.setStreamId(healthCheckStreamId);
+              client.execute(MarkerManager.getMarker(healthCheckStreamId), healthCheck, r -> {
                 synchronized (requestCount) {
                   requestCount.decrementAndGet();
                   requestCount.notifyAll();
@@ -123,30 +146,30 @@ public class BurstAndUpdateThread extends Thread {
         }
       }
     }
+
+    //Call the service initialization handler in the first run
+    if (initializeHandler != null) {
+      initializeHandler.handle(Future.succeededFuture());
+      initializeHandler = null;
+    }
   }
 
   @Override
   public void run() {
-    try {
-      Thread.sleep(CONNECTOR_UPDATE_INTERVAL);
-    } catch (InterruptedException ignored) {
-    }
-    // Stay alive as long as the executor (our parent) is alive.
+    //Stay alive as long as the executor (our parent) is alive.
     while (true) {
       try {
         final long start = Service.currentTimeMillis();
-
         Service.connectorConfigClient.getAll(null, this::onConnectorList);
-
         final long end = Service.currentTimeMillis();
         final long runtime = end - start;
-        if (runtime < WARM_UP_INTERVAL_MILLISECONDS) {
-          Thread.sleep(WARM_UP_INTERVAL_MILLISECONDS - runtime);
+        if (runtime < CONNECTOR_UPDATE_INTERVAL) {
+          Thread.sleep(CONNECTOR_UPDATE_INTERVAL - runtime);
         }
       } catch (InterruptedException e) {
-        // We expect that this may happen and ignore it.
+        //We expect that this may happen and ignore it.
       } catch (Exception e) {
-        logger.error("Unexpected error in lambda executor background thread", e);
+        logger.error("Unexpected error in BurstAndUpdateThread", e);
       }
     }
   }

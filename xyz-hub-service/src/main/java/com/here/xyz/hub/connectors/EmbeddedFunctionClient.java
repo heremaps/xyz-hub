@@ -29,7 +29,6 @@ import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.SynchronousQueue;
@@ -39,7 +38,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
-public class EmbeddedFunctionClient extends QueueingRemoteFunctionClient {
+public class EmbeddedFunctionClient extends RemoteFunctionClient {
 
   private static final Logger logger = LogManager.getLogger();
   /**
@@ -49,17 +48,17 @@ public class EmbeddedFunctionClient extends QueueingRemoteFunctionClient {
 
   EmbeddedFunctionClient(Connector connectorConfig) {
     super(connectorConfig);
-    createExecutorService();
   }
 
   @Override
-  protected void onConnectorConfigUpdate() {
+  synchronized protected void setConnectorConfig(final Connector newConnectorConfig) throws NullPointerException, IllegalArgumentException {
+    super.setConnectorConfig(newConnectorConfig);
     shutdown(embeddedExecutor);
     createExecutorService();
   }
 
   private void createExecutorService() {
-    if (!(remoteFunction instanceof RemoteFunctionConfig.Embedded)) {
+    if (!(getConnectorConfig().remoteFunction instanceof RemoteFunctionConfig.Embedded)) {
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of Embedded");
     }
     int maxConnections = connectorConfig.getMaxConnectionsPerInstance();
@@ -68,12 +67,13 @@ public class EmbeddedFunctionClient extends QueueingRemoteFunctionClient {
   }
 
   @Override
-  void close() {
-    super.close();
+  void destroy() {
+    super.destroy();
     shutdown(embeddedExecutor);
   }
 
   private static void shutdown(ExecutorService execService) {
+    if (execService == null) return;
     //Shutdown the executor service after the request timeout
     //TODO: Use CompletableFuture.delayedExecutor() after switching to Java 9
     new Thread(() -> {
@@ -86,8 +86,8 @@ public class EmbeddedFunctionClient extends QueueingRemoteFunctionClient {
   }
 
   protected void invoke(Marker marker, byte[] bytes, Handler<AsyncResult<byte[]>> callback) {
-    logger.info(marker, "Invoke embedded lambda '{}' for event: {}", remoteFunction.id,
-        new String(bytes, StandardCharsets.UTF_8));
+    final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
+    logger.info(marker, "Invoke embedded lambda '{}' for event: {}", remoteFunction.id, new String(bytes));
     embeddedExecutor.execute(() -> {
       String className = null;
       try {
