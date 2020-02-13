@@ -400,6 +400,20 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
+    protected XyzResponse executeDeleteFeaturesByTag(DeleteFeaturesByTagEvent event) throws Exception {
+        boolean includeOldStates = event.getParams() != null
+                && event.getParams().get(PSQLConfig.INCLUDE_OLD_STATES) == Boolean.TRUE;
+
+        final SQLQuery searchQuery = SQLQueryBuilder.generateSearchQuery(event, dataSource);
+        final SQLQuery query = SQLQueryBuilder.buildDeleteFeaturesByTagQuery(includeOldStates, searchQuery);
+
+        //TODO: check in detail what we want to return
+        if (searchQuery != null && includeOldStates)
+            return executeUpdateWithRetry(query, this::oldStatesResultSetHandler);
+
+        return new FeatureCollection().withCount((long) executeUpdateWithRetry(query));
+    }
+
     private boolean canRetryAttempt() throws Exception {
         if (retryAttempted) {
             return false;

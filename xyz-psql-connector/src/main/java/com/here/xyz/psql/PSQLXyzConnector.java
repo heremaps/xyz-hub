@@ -140,17 +140,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       return new ErrorResponse().withStreamId(streamId).withError(XyzError.NOT_IMPLEMENTED)
               .withErrorMessage("ModifyFeaturesEvent is not supported by this storage connector.");
     }
-    boolean includeOldStates = event.getParams() != null
-            && event.getParams().get(PSQLConfig.INCLUDE_OLD_STATES) == Boolean.TRUE;
-
-    final SQLQuery searchQuery = SQLQueryBuilder.generateSearchQuery(event, dataSource);
-    final SQLQuery query = SQLQueryBuilder.buildDeleteFeaturesByTagQuery(event, includeOldStates, searchQuery, dataSource);
-
-    //TODO: check in detail what we want to return
-    if (searchQuery != null && includeOldStates)
-      return executeUpdateWithRetry(query, this::oldStatesResultSetHandler);
-
-    return new FeatureCollection().withCount((long) executeUpdateWithRetry(query));
+    return executeDeleteFeaturesByTag(event);
   }
 
   @Override
@@ -159,7 +149,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
     if (idMap == null || idMap.size() == 0) {
       return new FeatureCollection();
     }
-    return executeQueryWithRetry(SQLQueryBuilder.buildLoadFeaturesQuery(event,idMap,dataSource));
+    return executeQueryWithRetry(SQLQueryBuilder.buildLoadFeaturesQuery(idMap, dataSource));
   }
 
   @Override

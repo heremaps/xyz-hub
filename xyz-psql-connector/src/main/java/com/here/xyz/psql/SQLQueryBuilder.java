@@ -27,7 +27,6 @@ import com.here.xyz.psql.factory.H3SQL;
 import com.here.xyz.psql.factory.QuadbinSQL;
 
 import javax.sql.DataSource;
-import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.util.*;
 
@@ -264,9 +263,7 @@ public class SQLQueryBuilder {
         return query;
     }
 
-    public static SQLQuery buildDeleteFeaturesByTagQuery(DeleteFeaturesByTagEvent event, boolean includeOldStates,
-                                                            SQLQuery searchQuery, DataSource dataSource)
-        throws SQLException{
+    public static SQLQuery buildDeleteFeaturesByTagQuery(boolean includeOldStates, SQLQuery searchQuery){
 
         final SQLQuery query;
 
@@ -283,7 +280,7 @@ public class SQLQueryBuilder {
         return query;
     }
 
-    public static SQLQuery buildLoadFeaturesQuery(Event event, final Map<String, String> idMap, DataSource dataSource)
+    public static SQLQuery buildLoadFeaturesQuery(final Map<String, String> idMap, DataSource dataSource)
             throws SQLException{
 
         final ArrayList<String> ids = new ArrayList<>(idMap.size());
@@ -298,10 +295,7 @@ public class SQLQueryBuilder {
         String searchablePropertiesJson = "";
         final SQLQuery query = new SQLQuery("");
 
-        if (searchableProperties == null) {
-            /** Received an empty map */
-            searchableProperties = new HashMap<String, Boolean>();
-        } else {
+        if (searchableProperties != null) {
             for (String property : searchableProperties.keySet()) {
                 searchablePropertiesJson += "\"" + property + "\":" + searchableProperties.get(property) + ",";
             }
@@ -383,7 +377,6 @@ public class SQLQueryBuilder {
             for (int i = 0; i < tags.size(); i++) {
                 orList[i] = tags.get(i).get(0);
             }
-
             query = new SQLQuery(" (jsondata->'properties'->'@ns:com:here:xyz'->'tags' ??| ?)", SQLQuery.createSQLArray(orList, "text",dataSource));
         } else {
             query = new SQLQuery("(" + andQuery + ")");

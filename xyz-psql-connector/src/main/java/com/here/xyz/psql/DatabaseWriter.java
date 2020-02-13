@@ -135,7 +135,7 @@ public class DatabaseWriter {
                                                       List<FeatureCollection.ModificationFailure> fails,
                                                       Map<String, String> deletes, Connection connection,
                                                       boolean transactional, boolean handleUUID)
-            throws SQLException, JsonProcessingException {
+            throws SQLException {
         if(transactional) {
             setAutocommit(connection,false);
             DatabaseTransactionalWriter.deleteFeatures(schema, table, streamId, fails, deletes, connection ,handleUUID);

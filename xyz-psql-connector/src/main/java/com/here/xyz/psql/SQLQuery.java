@@ -19,11 +19,9 @@
 
 package com.here.xyz.psql;
 
-import com.here.xyz.events.*;
-import com.here.xyz.models.geojson.coordinates.BBox;
+import com.here.xyz.events.PropertyQuery;
 
 import javax.sql.DataSource;
-import javax.xml.crypto.Data;
 import java.sql.Array;
 import java.sql.Connection;
 import java.sql.SQLException;
