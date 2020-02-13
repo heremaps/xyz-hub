@@ -55,7 +55,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
-public final class RpcClient {
+public class RpcClient {
 
   private static final Logger logger = LogManager.getLogger();
 
@@ -67,22 +67,24 @@ public final class RpcClient {
   /**
    * Creates a new connector client.
    *
-   * @param connectorConfig the connector configuration for which this client should be created.
-   * @throws NullPointerException  if the given connector configuration is null.
-   * @throws IllegalStateException if the given connector configuration refers to an unknown remote function type.
+   * @param connector the connector for which this client should be created
    */
-  private RpcClient(Connector connectorConfig) throws NullPointerException, IllegalStateException {
-    if (connectorConfig == null) {
-      throw new NullPointerException("connector");
+  private RpcClient(Connector connector) throws NullPointerException {
+    if (connector == null) {
+      throw new NullPointerException("Can not create RpcClient without connector configuration.");
     }
-    if (connectorConfig.remoteFunction instanceof Connector.RemoteFunctionConfig.AWSLambda) {
-      this.functionClient = new LambdaFunctionClient(connectorConfig);
-    } else if (connectorConfig.remoteFunction instanceof Connector.RemoteFunctionConfig.Embedded) {
-      this.functionClient = new EmbeddedFunctionClient(connectorConfig);
-    } else if (connectorConfig.remoteFunction instanceof Http) {
-      this.functionClient = new HTTPFunctionClient(connectorConfig);
-    } else {
-      throw new IllegalArgumentException("Unknown remote function type: " + connectorConfig.getClass().getSimpleName());
+
+    if (connector.remoteFunction instanceof Connector.RemoteFunctionConfig.AWSLambda) {
+      this.functionClient = new LambdaFunctionClient(connector);
+    }
+    else if (connector.remoteFunction instanceof Connector.RemoteFunctionConfig.Embedded) {
+      this.functionClient = new EmbeddedFunctionClient(connector);
+    }
+    else if (connector.remoteFunction instanceof Http) {
+      this.functionClient = new HTTPFunctionClient(connector);
+    }
+    else {
+      throw new IllegalArgumentException("Unknown remote function type: " + connector.getClass().getSimpleName());
     }
   }
 
@@ -90,16 +92,11 @@ public final class RpcClient {
     if (connector == null) {
       throw new NullPointerException("connector");
     }
-    RpcClient client = storageIdToClient.get(connectorConfig.id);
+    RpcClient client = storageIdToClient.get(connector.id);
     if (client == null) {
-      client = new RpcClient(connectorConfig);
-      final RpcClient existing = storageIdToClient.putIfAbsent(connectorConfig.id, client);
-      if (existing == null) {
-        client.functionClient.initialize();
-      } else {
-        // Another thread was faster, we have to release the reference our own instance.
-        client = existing;
-      }
+      if (!createIfNotExists) throw new IllegalStateException("No RpcClient is ready for the given connector with ID " + connector.id);
+      client = new RpcClient(connector);
+      storageIdToClient.put(connector.id, client);
     }
     return client;
   }
@@ -119,16 +116,17 @@ public final class RpcClient {
     return Collections.unmodifiableCollection(storageIdToClient.values());
   }
 
-  public synchronized void destroy() throws IllegalStateException {
-    if (this.functionClient == null) {
+  synchronized void destroy() throws IllegalStateException {
+    if (functionClient == null) {
       throw new IllegalStateException("The RpcClient is already destroyed");
     }
     final Connector connectorConfig = functionClient.getConnectorConfig();
     if (connectorConfig != null) {
       storageIdToClient.remove(connectorConfig.id, this);
     }
-    this.functionClient.destroy();
-    this.functionClient = null;
+    //Destroy the functionClient (which then closes all its connections aso.)
+    functionClient.destroy();
+    functionClient = null;
   }
 
   public final void setConnectorConfig(Connector connectorConfig) throws NullPointerException, IllegalArgumentException {
@@ -140,8 +138,7 @@ public final class RpcClient {
    *
    * @return the connector configuration
    */
-  public Connector getConnectorConfig() {
-    // Note: We copy the reference to the stack by intention, everything else would not be thread safe!
+  public Connector getConnector() {
     final RemoteFunctionClient functionClient = this.functionClient;
     if (functionClient != null) {
       return functionClient.getConnectorConfig();
@@ -151,10 +148,10 @@ public final class RpcClient {
 
   private void invokeWithRelocation(final Marker marker, byte[] bytes, final Handler<AsyncResult<byte[]>> callback) {
     try {
-      final Connector connectorConfig = this.functionClient.getConnectorConfig();
-      if (bytes.length > connectorConfig.capabilities.maxPayloadSize) { // If the payload is too large to send directly to the connector
+      final Connector connector = getConnector();
+      if (bytes.length > connector.capabilities.maxPayloadSize) { // If the payload is too large to send directly to the connector
         // If relocation is supported, use the relocation client to transfer the event to the connector
-        if (connectorConfig.capabilities.relocationSupport) {
+        if (connector.capabilities.relocationSupport) {
           logger.info(marker, "Relocating event. Total event byte size: {}", bytes.length);
           //TODO: Execute blocking
           bytes = relocationClient.relocate(marker.getName(), bytes);
@@ -166,7 +163,7 @@ public final class RpcClient {
         }
       }
       functionClient.submit(marker, bytes, callback);
-    } catch (final Exception e) {
+    } catch (Exception e) {
       callback.handle(Future.failedFuture(e));
     }
   }
@@ -174,19 +171,17 @@ public final class RpcClient {
   /**
    * Executes an event and returns the parsed FeatureCollection response.
    *
-   * @param marker   the log marker
-   * @param event    the event
+   * @param marker the log marker
+   * @param event the event
    * @param callback the callback handler
-   * @throws NullPointerException if this RPC client is closed or the bound function client is shutdown.
    */
   @SuppressWarnings("rawtypes")
-  public void execute(final Marker marker, final Event event, final Handler<AsyncResult<XyzResponse>> callback)
-      throws NullPointerException {
-    event.setConnectorParams(functionClient.getConnectorConfig().params);
+  public void execute(final Marker marker, final Event event, final Handler<AsyncResult<XyzResponse>> callback) {
+    final Connector connector = getConnector();
+    event.setConnectorParams(connector.params);
     final String eventJson = event.serialize();
     final byte[] bytes = eventJson.getBytes();
-    logger.info(marker, "Invoking remote function \"{}\". Total uncompressed event size: {}, Event: {}", this.getConnectorConfig().id,
-        bytes.length,
+    logger.info(marker, "Invoking remote function \"{}\". Total uncompressed event size: {}, Event: {}", connector.id, bytes.length,
         preview(eventJson, 4092));
 
     invokeWithRelocation(marker, bytes, bytesResult -> {
@@ -215,7 +210,7 @@ public final class RpcClient {
 
   /**
    * Sends an event to the connector without returning anything. Every connector client implements this class.
-   * <p>
+   *
    * This method should only be used to "inform" a connector about an event rather then "calling" it.
    *
    * @param marker the log marker
@@ -223,11 +218,11 @@ public final class RpcClient {
    * @throws NullPointerException if this RPC client is closed or the function client it is bound to is closed.
    */
   public void send(final Marker marker, @SuppressWarnings("rawtypes") final Event event) throws NullPointerException {
-    final Connector connectorConfig = functionClient.getConnectorConfig();
-    event.setConnectorParams(connectorConfig.params);
+    final Connector connector = getConnector();
+    event.setConnectorParams(connector.params);
     invokeWithRelocation(marker, event.serialize().getBytes(), r -> {
       if (r.failed()) {
-        logger.error(marker, "Failed to send event to remote function {}.", connectorConfig.remoteFunction.id, r.cause());
+        logger.error(marker, "Failed to send event to remote function {}.", connector.remoteFunction.id, r.cause());
       }
     });
   }
