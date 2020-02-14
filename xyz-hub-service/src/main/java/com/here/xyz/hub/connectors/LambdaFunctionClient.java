@@ -34,6 +34,7 @@ import com.amazonaws.services.lambda.model.InvokeRequest;
 import com.amazonaws.services.lambda.model.InvokeResult;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
 import com.here.xyz.hub.connectors.models.Connector;
+import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLambda;
 import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.AsyncResult;
@@ -45,7 +46,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
-public class LambdaFunctionClient extends QueueingRemoteFunctionClient {
+public class LambdaFunctionClient extends RemoteFunctionClient {
 
   private static final Logger logger = LogManager.getLogger();
 
@@ -60,16 +61,18 @@ public class LambdaFunctionClient extends QueueingRemoteFunctionClient {
    */
   LambdaFunctionClient(final Connector connectorConfig) {
     super(connectorConfig);
-    createClient();
   }
 
   @Override
-  protected void onConnectorConfigUpdate() {
+  synchronized void setConnectorConfig(final Connector newConnectorConfig) throws NullPointerException, IllegalArgumentException {
+    super.setConnectorConfig(newConnectorConfig);
     shutdownLambdaClient(asyncClient);
     createClient();
   }
 
   private void createClient() {
+    final Connector connectorConfig = getConnectorConfig();
+    final RemoteFunctionConfig remoteFunction = connectorConfig.remoteFunction;
     if (!(remoteFunction instanceof AWSLambda)) {
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of AWSLambda");
     }
@@ -83,6 +86,7 @@ public class LambdaFunctionClient extends QueueingRemoteFunctionClient {
   }
 
   private static void shutdownLambdaClient(AWSLambdaAsync lambdaClient) {
+    if (lambdaClient == null) return;
     //Shutdown the lambda client after the request timeout
     //TODO: Use CompletableFuture.delayedExecutor() after switching to Java 9
     new Thread(() -> {
@@ -95,8 +99,8 @@ public class LambdaFunctionClient extends QueueingRemoteFunctionClient {
   }
 
   @Override
-  void close() {
-    super.close();
+  synchronized void destroy() {
+    super.destroy();
     shutdownLambdaClient(asyncClient);
   }
 
@@ -105,12 +109,12 @@ public class LambdaFunctionClient extends QueueingRemoteFunctionClient {
    */
   @Override
   protected void invoke(final Marker marker, byte[] bytes, final Handler<AsyncResult<byte[]>> callback) {
-    logger
-        .debug(marker, "Invoking remote lambda function with id '{}' Event size is: {}", remoteFunction.id, bytes.length);
+    final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
+    logger.debug(marker, "Invoking remote lambda function with id '{}' Event size is: {}", remoteFunction.id, bytes.length);
 
-    InvokeRequest invokeReq = new InvokeRequest().
-        withFunctionName(((AWSLambda) remoteFunction).lambdaARN).
-        withPayload(ByteBuffer.wrap(bytes));
+    InvokeRequest invokeReq = new InvokeRequest()
+        .withFunctionName(((AWSLambda) remoteFunction).lambdaARN)
+        .withPayload(ByteBuffer.wrap(bytes));
 
     asyncClient.invokeAsync(invokeReq, new AsyncHandler<InvokeRequest, InvokeResult>() {
       @Override
@@ -148,6 +152,7 @@ public class LambdaFunctionClient extends QueueingRemoteFunctionClient {
    * @return the AWS credentials provider.
    */
   private AWSCredentialsProvider getAWSCredentialsProvider() {
+    final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
     if (awsCredentialsProvider == null) {
       if (((AWSLambda) remoteFunction).roleARN != null) {
         awsCredentialsProvider = new STSAssumeRoleSessionCredentialsProvider.Builder(((AWSLambda) remoteFunction).roleARN,
