@@ -20,7 +20,6 @@
 package com.here.xyz.hub.config;
 
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.config.tmp.MigratingSpaceConfigClient;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.admin.AdminMessage;
 import io.vertx.core.AsyncResult;
@@ -54,15 +53,10 @@ public abstract class SpaceConfigClient implements Initializable {
 
   public static SpaceConfigClient getInstance() {
     if (Service.configuration.SPACES_DYNAMODB_TABLE_ARN != null) {
-      if (Service.configuration.STORAGE_DB_URL != null) {
-        //We're in the migration phase
-        return MigratingSpaceConfigClient.getInstance();
-      }
-      else
-          return new DynamoSpaceConfigClient(Service.configuration.SPACES_DYNAMODB_TABLE_ARN);
-    }
-    else
+      return new DynamoSpaceConfigClient(Service.configuration.SPACES_DYNAMODB_TABLE_ARN);
+    } else {
       return JDBCSpaceConfigClient.getInstance();
+    }
   }
 
   public void get(Marker marker, String spaceId, Handler<AsyncResult<Space>> handler) {

@@ -21,7 +21,6 @@ package com.here.xyz.hub.config;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.config.tmp.MigratingConnectorConfigClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
 import com.here.xyz.hub.rest.admin.AdminMessage;
@@ -58,12 +57,7 @@ public abstract class ConnectorConfigClient implements Initializable {
 
   public static ConnectorConfigClient getInstance() {
     if (Service.configuration.CONNECTORS_DYNAMODB_TABLE_ARN != null) {
-      if (Service.configuration.STORAGE_DB_URL != null) {
-        //We're in the migration phase
-        return MigratingConnectorConfigClient.getInstance();
-      } else {
-        return new DynamoConnectorConfigClient(Service.configuration.CONNECTORS_DYNAMODB_TABLE_ARN);
-      }
+      return new DynamoConnectorConfigClient(Service.configuration.CONNECTORS_DYNAMODB_TABLE_ARN);
     } else {
       return JDBCConnectorConfigClient.getInstance();
     }

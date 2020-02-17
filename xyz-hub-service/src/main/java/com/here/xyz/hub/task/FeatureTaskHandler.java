@@ -692,7 +692,7 @@ public class FeatureTaskHandler {
             nsXyz.setUpdatedAt(now);
 
             // UUID
-            if (task.space.isEnableUUID() && Event.VERSION.compareTo("0.2.0") >= 0) {
+            if (task.space.isEnableUUID()) {
               nsXyz.setUuid(java.util.UUID.randomUUID().toString());
             }
             insert.add(result);
@@ -704,7 +704,7 @@ public class FeatureTaskHandler {
             nsXyz.setUpdatedAt(now);
 
             // UUID
-            if (task.space.isEnableUUID() && Event.VERSION.compareTo("0.2.0") >= 0) {
+            if (task.space.isEnableUUID()) {
               nsXyz.setUuid(java.util.UUID.randomUUID().toString());
               nsXyz.setPuuid(entry.head.getProperties().getXyzNamespace().getUuid());
               // If the user was updating an older version, set it under the merge uuid
