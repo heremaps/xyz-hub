@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -69,6 +69,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -618,8 +619,13 @@ public class PSQLXyzConnectorIT {
 
     // =========== UPDATE ==========
     FeatureCollection featureCollection = XyzSerializable.deserialize(insertResponse);
-    String featuresList = XyzSerializable.serialize(featureCollection.getFeatures(), new TypeReference<List<Feature>>() {
+    featureCollection.getFeatures().forEach(f->{
+      f.getProperties().getXyzNamespace().setPuuid(f.getProperties().getXyzNamespace().getUuid());
+      f.getProperties().getXyzNamespace().setUuid(UUID.randomUUID().toString());
     });
+
+    String featuresList = XyzSerializable.serialize(featureCollection.getFeatures(), new TypeReference<List<Feature>>() {});
+
     String updateRequest = "{\n" +
         "    \"type\": \"ModifyFeaturesEvent\",\n" +
         "    \"space\": \"foo\",\n" +
@@ -1310,8 +1316,7 @@ public class PSQLXyzConnectorIT {
       assertNotEquals("Check createdAt", 0L, actualFeature.getProperties().getXyzNamespace().getCreatedAt());
       assertNotEquals("Check updatedAt", 0L, actualFeature.getProperties().getXyzNamespace().getUpdatedAt());
       if (checkGuid) {
-        assertEquals("Check parent", expectedFeature.getProperties().getXyzNamespace().getUuid(),
-            actualFeature.getProperties().getXyzNamespace().getPuuid());
+        assertNotNull("Check uuid", actualFeature.getProperties().getXyzNamespace().getUuid()); // After version 0.2.0
         assertNotNull("Check uuid", actualFeature.getProperties().getXyzNamespace().getUuid());
       } else {
         assertNull("Check parent", actualFeature.getProperties().getXyzNamespace().getPuuid());
