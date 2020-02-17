@@ -20,6 +20,7 @@
           "space" : "foo",
           "createdAt" : 1517504700726,
           "updatedAt" : 1517504700726,
+          "uuid": "f0a76613-7343-41a1-8607-5420cda214c7",
           "tags": [
             "yellow"
           ]
@@ -41,6 +42,7 @@
           "space" : "foo",
           "createdAt" : 1517504700726,
           "updatedAt" : 1517504700726,
+          "uuid": "d7be0c03-0e8c-472c-9d14-3140c3a8fe1a",
           "tags": [
             "red"
           ]
@@ -62,6 +64,7 @@
           "space" : "foo",
           "createdAt" : 1517504700726,
           "updatedAt" : 1517504700726,
+          "uuid": "2f851970-4c2b-4a9f-94cd-eb9969eb7711",
           "tags": [
             "green"
           ]
