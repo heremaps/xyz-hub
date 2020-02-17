@@ -58,14 +58,8 @@ public class HealthApi extends Api {
               .withUpSince(Service.START_TIME)
               .withEndpoint(getPublicServiceEndpoint())
       )
-      .add(
-          (ExecutableCheck) new JDBCHealthCheck(getStorageDbUri(), Service.configuration.STORAGE_DB_USER,
-              Service.configuration.STORAGE_DB_PASSWORD)
-              .withEssential(true)
-      )
       .add(new RedisHealthCheck(Service.configuration.XYZ_HUB_REDIS_HOST, Service.configuration.XYZ_HUB_REDIS_PORT))
       .add(new RemoteFunctionHealthChecks());
-  //To be continued ...
 
   public HealthApi(Vertx vertx, Router router) {
     //The main health check endpoint
@@ -74,6 +68,14 @@ public class HealthApi extends Api {
     router.route(HttpMethod.GET, "/").handler(HealthApi::onHealthStatus); // TODO: Maybe better replace that one by a redirect to /hub/
     //Legacy:
     router.route(HttpMethod.GET, "/hub/health-status").handler(HealthApi::onHealthStatus);
+
+    if (Service.configuration.STORAGE_DB_URL != null) {
+      healthCheck.add(
+          (ExecutableCheck) new JDBCHealthCheck(getStorageDbUri(), Service.configuration.STORAGE_DB_USER,
+              Service.configuration.STORAGE_DB_PASSWORD)
+              .withEssential(true)
+      );
+    }
   }
 
   private static URI getStorageDbUri() {
