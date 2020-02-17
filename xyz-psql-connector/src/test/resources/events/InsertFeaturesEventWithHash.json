@@ -19,6 +19,7 @@
           "space" : "foo",
           "createdAt" : 1517504700726,
           "updatedAt" : 1517504700726,
+          "uuid": "d73c276d-079c-44fb-a960-64de9b81c2ab",
           "tags": [
             "yellow"
           ]
@@ -38,6 +39,7 @@
         "name": "Tesla",
         "@ns:com:here:xyz": {
           "space" : "foo",
+          "uuid": "d73c276d-079c-44fb-a960-64de9b81c2ab",
           "createdAt" : 1517504700726,
           "updatedAt" : 1517504700726,
           "tags": [
