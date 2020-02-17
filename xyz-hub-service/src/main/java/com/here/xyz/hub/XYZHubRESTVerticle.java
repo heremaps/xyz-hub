@@ -38,8 +38,6 @@ import static io.vertx.core.http.HttpMethod.PATCH;
 import static io.vertx.core.http.HttpMethod.POST;
 import static io.vertx.core.http.HttpMethod.PUT;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.here.xyz.hub.auth.Authorization.AuthorizationType;
 import com.here.xyz.hub.auth.CompressedJWTAuthProvider;
 import com.here.xyz.hub.auth.JWTURIHandler;
@@ -72,18 +70,9 @@ import io.vertx.ext.web.handler.ChainAuthHandler;
 import io.vertx.ext.web.handler.CorsHandler;
 import io.vertx.ext.web.handler.JWTAuthHandler;
 import io.vertx.ext.web.handler.StaticHandler;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -105,51 +94,14 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
   private static String CONTRACT_LOCATION;
 
   static {
-    try (
-        InputStream fin = XYZHubRESTVerticle.class.getResourceAsStream("/openapi.yaml");
-        InputStream bin = new ByteArrayInputStream(IOUtils.toByteArray(fin));
-        OutputStream contract = new ByteArrayOutputStream();
-        OutputStream stable = new ByteArrayOutputStream();
-        OutputStream experimental = new ByteArrayOutputStream()
-    ) {
-      // generate contract api
-      new OpenApiTransformer(bin, contract).contract(root -> {
-        // fix the server url
-        ((ObjectNode) root.get("servers").get(0)).put("url", "/");
-
-        // fix the paths
-        Map<String, JsonNode> paths = new LinkedHashMap<>();
-        root.get("paths").fields().forEachRemaining(entry -> paths.put(entry.getKey(), entry.getValue()));
-        ((ObjectNode) root.get("paths")).removeAll();
-        paths.forEach((k, n) -> ((ObjectNode) root.get("paths")).set("/hub" + k, n));
-
-        // fix the x-schema
-        List<JsonNode> parents = root.get("components").get("requestBodies").findParents("schema");
-        parents.forEach(parent -> {
-          ObjectNode oParent = (ObjectNode) parent;
-          oParent.set("x-schema", parent.get("schema"));
-          oParent.remove("schema");
-        });
-      });
-
-      // generate stable api
-      bin.reset();
-      new OpenApiTransformer(bin, stable, "x-experimental", "x-deprecated").transform();
-
-      // generate experimental api
-      bin.reset();
-      new OpenApiTransformer(bin, experimental, "x-deprecated").transform();
-
-      // store the string flavours in memory
-      CONTRACT_API = contract.toString();
-      STABLE_API = stable.toString();
-      EXPERIMENTAL_API = experimental.toString();
-
-      // store the contract location to be reused
-      CONTRACT_LOCATION = getContractLocation();
+    try {
+      final OpenApiTransformer openApi = OpenApiTransformer.generateAll();
+      STABLE_API = openApi.stableApi;
+      EXPERIMENTAL_API = openApi.experimentalApi;
+      CONTRACT_API = openApi.contractApi;
+      CONTRACT_LOCATION = openApi.contractLocation;
     } catch (Exception e) {
-      e.printStackTrace();
-      logger.warn("Unable to transform openapi.yaml", e);
+      logger.error("Unable to generate OpenApi specs.", e);
     }
   }
 
@@ -175,20 +127,6 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
   private SpaceApi spaceApi;
   private HealthApi healthApi;
   private AdminApi adminApi;
-
-  private static String getContractLocation() {
-    String result = null;
-
-    try {
-      File tempFile = File.createTempFile("contract-", ".yaml");
-      FileUtils.writeByteArrayToFile(tempFile, CONTRACT_API.getBytes());
-      result = tempFile.toURI().toString();
-    } catch (IOException e) {
-      logger.error("Unable to create the Open API Spec contract", e);
-    }
-
-    return result;
-  }
 
   /**
    * The final response handler.
@@ -307,6 +245,7 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
         router.route("/hub/static/*").handler(StaticHandler.create().setIndexPage("index.html")).handler(createCorsHandler());
         if (Service.configuration.FS_WEB_ROOT != null) {
           logger.debug("Serving extra web-root folder in file-system with location: {}", Service.configuration.FS_WEB_ROOT);
+          //noinspection ResultOfMethodCallIgnored
           new File(Service.configuration.FS_WEB_ROOT).mkdirs();
           router.route("/hub/static/*")
               .handler(StaticHandler.create(Service.configuration.FS_WEB_ROOT).setIndexPage("index.html"));
