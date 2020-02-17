@@ -88,6 +88,7 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
       .setHandle100ContinueAutomatically(true)
       .setMaxInitialLineLength(16 * 1024);
 
+  private static String FULL_API;
   private static String STABLE_API;
   private static String EXPERIMENTAL_API;
   private static String CONTRACT_API;
@@ -96,6 +97,7 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
   static {
     try {
       final OpenApiTransformer openApi = OpenApiTransformer.generateAll();
+      FULL_API = openApi.fullApi;
       STABLE_API = openApi.stableApi;
       EXPERIMENTAL_API = openApi.experimentalApi;
       CONTRACT_API = openApi.contractApi;
@@ -225,7 +227,10 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
         router.route("/hub/static/openapi/*").handler(createCorsHandler()).handler((routingContext -> {
           final HttpServerResponse res = routingContext.response();
           final String path = routingContext.request().path();
-          if (path.endsWith("stable.yaml")) {
+          if (path.endsWith("full.yaml")) {
+            res.headers().add(CONTENT_LENGTH, String.valueOf(FULL_API.getBytes().length));
+            res.write(FULL_API);
+          } else if (path.endsWith("stable.yaml")) {
             res.headers().add(CONTENT_LENGTH, String.valueOf(STABLE_API.getBytes().length));
             res.write(STABLE_API);
           } else if (path.endsWith("experimental.yaml")) {
