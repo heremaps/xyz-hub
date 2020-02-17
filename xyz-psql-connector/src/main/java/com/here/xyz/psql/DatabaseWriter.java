@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Geometry;
+import com.vividsolutions.jts.geom.Coordinate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.postgresql.util.PGobject;
@@ -135,6 +136,13 @@ public class DatabaseWriter {
         }
         setAutocommit(connection,true);
         DatabaseStreamWriter.deleteFeatures(schema, table, streamId, fails, deletes, connection, handleUUID);
+    }
+
+    protected static void assure3d(Coordinate[] coords){
+        for (Coordinate coord : coords){
+            if(Double.valueOf(coord.z).isNaN())
+                coord.z= 0;
+        }
     }
 
     protected static void logException(Exception e, String streamId, int i, String action){

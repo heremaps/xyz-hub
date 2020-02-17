@@ -3,6 +3,7 @@ package com.here.xyz.psql;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.io.WKBWriter;
 import org.postgresql.util.PGobject;
@@ -40,7 +41,10 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
                 insertStmt.setObject(1, jsonbObject);
 
                 final WKBWriter wkbWriter = new WKBWriter(3);
-                insertStmt.setBytes(2, wkbWriter.write(feature.getGeometry().getJTSGeometry()));
+                Geometry jtsGeometry = feature.getGeometry().getJTSGeometry();
+                //Avoid NAN values
+                assure3d(jtsGeometry.getCoordinates());
+                insertStmt.setBytes(2, wkbWriter.write(jtsGeometry));
 
                 insertStmt.addBatch();
                 batchInsert = true;
@@ -92,8 +96,13 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
                 updateWithoutGeometryIdList.add(feature.getId());
             } else {
                 updateStmt.setObject(1, jsonbObject);
+
                 final WKBWriter wkbWriter = new WKBWriter(3);
-                updateStmt.setBytes(2, wkbWriter.write(feature.getGeometry().getJTSGeometry()));
+                Geometry jtsGeometry = feature.getGeometry().getJTSGeometry();
+                //Avoid NAN values
+                assure3d(jtsGeometry.getCoordinates());
+                updateStmt.setBytes(2, wkbWriter.write(jtsGeometry));
+
                 updateStmt.setString(3, feature.getId());
                 if(handleUUID) {
                     updateStmt.setString(4, puuid);

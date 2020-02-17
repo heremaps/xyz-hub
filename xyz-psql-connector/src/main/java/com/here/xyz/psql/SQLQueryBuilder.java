@@ -31,6 +31,7 @@ import java.sql.SQLException;
 import java.util.*;
 
 public class SQLQueryBuilder {
+    private static final long GEOMETRY_DECIMAL_DIGITS = 6;
     private static final long EQUATOR_LENGTH = 40_075_016;
     private static final long TILE_SIZE = 256;
     private static final String SQL_STATISTIC_FUNCTION = "xyz_statistic_space";
@@ -48,7 +49,7 @@ public class SQLQueryBuilder {
 
         SQLQuery query = new SQLQuery("SELECT");
         query.append(SQLQuery.selectJson(event.getSelection(),dataSource));
-        query.append(", ST_AsGeojson(ST_Force3D(ST_MakeValid(geo))) FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
+        query.append(", ST_AsGeojson(ST_Force3D(ST_MakeValid(geo)),"+GEOMETRY_DECIMAL_DIGITS+") FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
                 SQLQuery.createSQLArray(event.getIds().toArray(new String[event.getIds().size()]), "text",dataSource));
        return query;
     }
@@ -69,7 +70,7 @@ public class SQLQueryBuilder {
             query = new SQLQuery("SELECT");
             query.append(SQLQuery.selectJson(event.getSelection(), dataSource));
             /** No clipping or simplification needed*/
-            query.append(",ST_AsGeojson(ST_Force3D(ST_MakeValid(geo)))");
+            query.append(",ST_AsGeojson(ST_Force3D(ST_MakeValid(geo)),"+GEOMETRY_DECIMAL_DIGITS+")");
             query.append("FROM ${schema}.${table} WHERE");
             query.append(geoQuery);
             query.append("LIMIT ?", event.getLimit());
@@ -237,7 +238,7 @@ public class SQLQueryBuilder {
 
         final SQLQuery query = new SQLQuery("SELECT");
         query.append(SQLQuery.selectJson(event.getSelection(), dataSource));
-        query.append(", ST_AsGeojson(ST_Force3D(ST_MakeValid(geo))), i FROM ${schema}.${table}");
+        query.append(", ST_AsGeojson(ST_Force3D(ST_MakeValid(geo)),"+GEOMETRY_DECIMAL_DIGITS+"), i FROM ${schema}.${table}");
         final SQLQuery searchQuery = generateSearchQuery(event, dataSource);
 
         if (hasSearch || hasHandle) {
@@ -287,7 +288,7 @@ public class SQLQueryBuilder {
         final ArrayList<String> ids = new ArrayList<>(idMap.size());
         ids.addAll(idMap.keySet());
 
-        return new SQLQuery("SELECT jsondata, ST_AsGeojson(ST_Force3D(ST_MakeValid(geo))) FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
+        return new SQLQuery("SELECT jsondata, ST_AsGeojson(ST_Force3D(ST_MakeValid(geo)),"+GEOMETRY_DECIMAL_DIGITS+") FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
                 SQLQuery.createSQLArray(ids.toArray(new String[ids.size()]), "text" ,dataSource));
     }
 
@@ -404,7 +405,7 @@ public class SQLQueryBuilder {
             query.append(",");
             query.append(geometrySelectorForEvent((GetFeaturesByBBoxEvent) event));
         } else {
-            query.append(",ST_AsGeojson(ST_Force3D(ST_MakeValid(geo)))");
+            query.append(",ST_AsGeojson(ST_Force3D(ST_MakeValid(geo)),"+GEOMETRY_DECIMAL_DIGITS+")");
         }
 
         query.append("FROM features WHERE");
@@ -422,20 +423,20 @@ public class SQLQueryBuilder {
 
         if (!event.getClip()) {
             if (simplificationLevel <= 0) {
-                return new SQLQuery("ST_AsGeojson(ST_Force3D(ST_MakeValid(geo)))");
+                return new SQLQuery("ST_AsGeojson(ST_Force3D(ST_MakeValid(geo)),"+GEOMETRY_DECIMAL_DIGITS+")");
 
             }
-            return new SQLQuery("ST_AsGeoJson(ST_Transform(ST_MakeValid(ST_SnapToGrid(ST_Force2D(ST_Transform(geo,3857)),?)),4326))", pixelSize);
+            return new SQLQuery("ST_AsGeoJson(ST_Transform(ST_MakeValid(ST_SnapToGrid(ST_Force2D(ST_Transform(geo,3857)),?)),4326),"+GEOMETRY_DECIMAL_DIGITS+")", pixelSize);
         }
 
         final BBox bbox = event.getBbox();
         if (simplificationLevel <= 0) {
-            return new SQLQuery("ST_AsGeoJson(ST_Intersection(ST_MakeValid(geo),ST_MakeEnvelope(?,?,?,?,4326)))",
+            return new SQLQuery("ST_AsGeoJson(ST_Intersection(ST_MakeValid(geo),ST_MakeEnvelope(?,?,?,?,4326)),"+GEOMETRY_DECIMAL_DIGITS+")",
                     bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
         }
 
         return new SQLQuery(
-                "ST_AsGeoJson(ST_Intersection(ST_Transform(ST_MakeValid(ST_SnapToGrid(ST_Force2D(ST_Transform(geo,3857)),?)),4326),ST_MakeEnvelope(?,?,?,?,4326)))",
+                "ST_AsGeoJson(ST_Intersection(ST_Transform(ST_MakeValid(ST_SnapToGrid(ST_Force2D(ST_Transform(geo,3857)),?)),4326),ST_MakeEnvelope(?,?,?,?,4326)),"+GEOMETRY_DECIMAL_DIGITS+")",
                 pixelSize, bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
     }
 
