@@ -29,8 +29,7 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                 final Feature feature = inserts.get(i);
                 fId = feature.getId();
 
-                final PGobject jsonbObject= featureToPGobject(feature, true);
-                final PGobject geojsonbObject = featureToPGobject(feature, false);
+                final PGobject jsonbObject= featureToPGobject(feature);
 
                 if (feature.getGeometry() == null) {
                     insertWithoutGeometryStmt.setObject(1, jsonbObject);
@@ -39,7 +38,6 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                     insertStmt.setObject(1, jsonbObject);
                     final WKBWriter wkbWriter = new WKBWriter(3);
                     insertStmt.setBytes(2, wkbWriter.write(feature.getGeometry().getJTSGeometry()));
-                    insertStmt.setObject(3, geojsonbObject);
                     rows = insertStmt.executeUpdate();
                 }
 
@@ -62,7 +60,7 @@ public class DatabaseStreamWriter extends DatabaseWriter{
         }
 
         return collection;
-    };
+    }
 
     protected static FeatureCollection updateFeatures( String schema, String table, String streamId, FeatureCollection collection,
                                                     List<FeatureCollection.ModificationFailure> fails,
@@ -92,8 +90,7 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                     continue;
                 }
 
-                final PGobject jsonbObject= featureToPGobject(feature, true);
-                final PGobject geojsonbObject = featureToPGobject(feature, false);
+                final PGobject jsonbObject= featureToPGobject(feature);
 
                 if (feature.getGeometry() == null) {
                     updateWithoutGeometryStmt.setObject(1, jsonbObject);
@@ -107,11 +104,10 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                     updateStmt.setObject(1, jsonbObject);
                     final WKBWriter wkbWriter = new WKBWriter(3);
                     updateStmt.setBytes(2, wkbWriter.write(feature.getGeometry().getJTSGeometry()));
-                    updateStmt.setObject(3, geojsonbObject);
-                    updateStmt.setString(4, fId);
+                    updateStmt.setString(3, fId);
 
                     if(handleUUID) {
-                        updateStmt.setString(5, puuid);
+                        updateStmt.setString(4, puuid);
                     }
                     rows = updateStmt.executeUpdate();
                 }
@@ -132,7 +128,7 @@ public class DatabaseStreamWriter extends DatabaseWriter{
         connection.close();
 
         return collection;
-    };
+    }
 
     protected static void deleteFeatures(String schema, String table, String streamId,
                                          List<FeatureCollection.ModificationFailure> fails, Map<String, String> deletes,

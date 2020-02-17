@@ -45,9 +45,10 @@ public class SQLQueryBuilder {
 
     public static SQLQuery buildGetFeaturesByIdQuery(GetFeaturesByIdEvent event, PSQLConfig config, DataSource dataSource)
         throws SQLException{
+
         SQLQuery query = new SQLQuery("SELECT");
         query.append(SQLQuery.selectJson(event.getSelection(),dataSource));
-        query.append(", geojson FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
+        query.append(", ST_AsGeojson(ST_Force3D(ST_MakeValid(geo))) FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
                 SQLQuery.createSQLArray(event.getIds().toArray(new String[event.getIds().size()]), "text",dataSource));
        return query;
     }
@@ -68,7 +69,7 @@ public class SQLQueryBuilder {
             query = new SQLQuery("SELECT");
             query.append(SQLQuery.selectJson(event.getSelection(), dataSource));
             /** No clipping or simplification needed*/
-            query.append(",geojson");
+            query.append(",ST_AsGeojson(ST_Force3D(ST_MakeValid(geo)))");
             query.append("FROM ${schema}.${table} WHERE");
             query.append(geoQuery);
             query.append("LIMIT ?", event.getLimit());
@@ -236,7 +237,7 @@ public class SQLQueryBuilder {
 
         final SQLQuery query = new SQLQuery("SELECT");
         query.append(SQLQuery.selectJson(event.getSelection(), dataSource));
-        query.append(", geojson, i FROM ${schema}.${table}");
+        query.append(", ST_AsGeojson(ST_Force3D(ST_MakeValid(geo))), i FROM ${schema}.${table}");
         final SQLQuery searchQuery = generateSearchQuery(event, dataSource);
 
         if (hasSearch || hasHandle) {
@@ -275,7 +276,7 @@ public class SQLQueryBuilder {
         }
 
         if (searchQuery != null && includeOldStates)
-            query.append(" RETURNING jsondata->'id' as id, geojson as geometry");
+            query.append(" RETURNING jsondata->'id' as id, ST_AsGeojson(ST_Force3D(ST_MakeValid(geo))) as geometry");
 
         return query;
     }
@@ -286,7 +287,7 @@ public class SQLQueryBuilder {
         final ArrayList<String> ids = new ArrayList<>(idMap.size());
         ids.addAll(idMap.keySet());
 
-        return new SQLQuery("SELECT jsondata, geojson FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
+        return new SQLQuery("SELECT jsondata, ST_AsGeojson(ST_Force3D(ST_MakeValid(geo))) FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
                 SQLQuery.createSQLArray(ids.toArray(new String[ids.size()]), "text" ,dataSource));
     }
 
@@ -392,8 +393,8 @@ public class SQLQueryBuilder {
                                                     SQLQuery secondaryQuery, DataSource dataSource)
             throws SQLException {
         final SQLQuery query = new SQLQuery();
-        query.append("WITH features(jsondata, geojson, geo) AS (");
-        query.append("SELECT jsondata, geojson, geo FROM ${schema}.${table} WHERE");
+        query.append("WITH features(jsondata, geo) AS (");
+        query.append("SELECT jsondata, geo FROM ${schema}.${table} WHERE");
         query.append(indexedQuery);
         query.append(")");
         query.append("SELECT");
@@ -403,7 +404,7 @@ public class SQLQueryBuilder {
             query.append(",");
             query.append(geometrySelectorForEvent((GetFeaturesByBBoxEvent) event));
         } else {
-            query.append(",geojson");
+            query.append(",ST_AsGeojson(ST_Force3D(ST_MakeValid(geo)))");
         }
 
         query.append("FROM features WHERE");
@@ -421,7 +422,7 @@ public class SQLQueryBuilder {
 
         if (!event.getClip()) {
             if (simplificationLevel <= 0) {
-                return new SQLQuery("geojson");
+                return new SQLQuery("ST_AsGeojson(ST_Force3D(ST_MakeValid(geo)))");
 
             }
             return new SQLQuery("ST_AsGeoJson(ST_Transform(ST_MakeValid(ST_SnapToGrid(ST_Force2D(ST_Transform(geo,3857)),?)),4326))", pixelSize);
@@ -451,17 +452,17 @@ public class SQLQueryBuilder {
     }
 
     protected static String insertStmtSQL(final String schema, final String table){
-        String instertStmtSQL ="INSERT INTO ${schema}.${table} (jsondata, geo, geojson) VALUES(?::jsonb, ST_Force3D(ST_GeomFromWKB(?,4326)), ?::jsonb)";
+        String instertStmtSQL ="INSERT INTO ${schema}.${table} (jsondata, geo) VALUES(?::jsonb, ST_Force3D(ST_GeomFromWKB(?,4326)))";
         return SQLQuery.replaceVars(instertStmtSQL, schema, table);
     }
 
     protected static String insertWithoutGeometryStmtSQL(final String schema, final String table){
-        String instertWithoutGeometryStmtSQL = "INSERT INTO ${schema}.${table} (jsondata, geo, geojson) VALUES(?::jsonb, NULL, NULL)";
+        String instertWithoutGeometryStmtSQL = "INSERT INTO ${schema}.${table} (jsondata, geo) VALUES(?::jsonb, NULL)";
         return SQLQuery.replaceVars(instertWithoutGeometryStmtSQL, schema, table);
     }
 
     protected static String updateStmtSQL(final String schema, final String table, final boolean handleUUID){
-        String updateStmtSQL = "UPDATE ${schema}.${table} SET jsondata = ?::jsonb, geo=ST_Force3D(ST_GeomFromWKB(?,4326)), geojson = ?::jsonb WHERE jsondata->>'id' = ?";
+        String updateStmtSQL = "UPDATE ${schema}.${table} SET jsondata = ?::jsonb, geo=ST_Force3D(ST_GeomFromWKB(?,4326)) WHERE jsondata->>'id' = ?";
         if(handleUUID) {
             updateStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ?";
         }
@@ -469,7 +470,7 @@ public class SQLQueryBuilder {
     }
 
     protected static String updateWithoutGeometryStmtSQL(final String schema, final String table, final boolean handleUUID){
-        String updateWithoutGeometryStmtSQL = "UPDATE ${schema}.${table} SET  jsondata = ?::jsonb, geo=NULL, geojson = NULL WHERE jsondata->>'id' = ?";
+        String updateWithoutGeometryStmtSQL = "UPDATE ${schema}.${table} SET  jsondata = ?::jsonb, geo=NULL WHERE jsondata->>'id' = ?";
         if(handleUUID) {
             updateWithoutGeometryStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ?";
         }
