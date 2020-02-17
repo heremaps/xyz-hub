@@ -111,11 +111,7 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
     SQLQuery query = new SQLQuery(String.format("DELETE FROM %s WHERE id = ?", SPACE_TABLE), spaceId);
     get(marker, spaceId, ar -> {
       if (ar.succeeded()) {
-        Space space = ar.result();
-        if (space == null) {
-          handler.handle(Future.failedFuture(new Exception("The space doesn't exist.")));
-        }
-        updateWithParams(space, query, handler);
+        updateWithParams(ar.result(), query, handler);
       } else {
         handler.handle(Future.failedFuture(ar.cause()));
       }
