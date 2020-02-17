@@ -138,7 +138,7 @@ public class MaintenanceSQL {
             "  count bigint, " +
             "  prop_stat jsonb, " +
             "  idx_manual jsonb, " +
-            "  CONSTRAINT "+XYZ_CONFIG_IDX_TABLE+" PRIMARY KEY (spaceid) " +
+            "  CONSTRAINT "+XYZ_CONFIG_IDX_TABLE+"_pkey PRIMARY KEY (spaceid) " +
             "); " +
             "INSERT INTO xyz_config."+XYZ_CONFIG_IDX_TABLE+" (spaceid,count) " +
             "   VALUES ('idx_in_progress','0') " +
