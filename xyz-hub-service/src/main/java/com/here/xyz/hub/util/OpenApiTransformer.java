@@ -4,7 +4,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.here.xyz.hub.XYZHubRESTVerticle;
 import io.swagger.v3.parser.ObjectMapperFactory;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -14,19 +18,23 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class OpenApiTransformer {
-
+  private static final Logger logger = LogManager.getLogger();
   private static final ObjectMapper YAML_MAPPER = ObjectMapperFactory.createYaml();
 
   private static final String X = "x";
   private static final String DASH = "-";
-  private static final String STDOUT = "STDOUT";
   private static final String REF = "$ref";
   private static final String REF_START = "#/";
   private static final List<String> VALID_OPTIONS = Arrays.asList("-experimental","-deprecated");
@@ -36,8 +44,13 @@ public class OpenApiTransformer {
   private JsonNode root;
 
   private final InputStream in;
-  private final OutputStream out;
   private final List<String> removalTags = new ArrayList<>();
+  private final OutputStream out;
+
+  public String stableApi;
+  public String experimentalApi;
+  public String contractApi;
+  public String contractLocation;
 
   public OpenApiTransformer(InputStream in, OutputStream out, String... tags) {
     this.in = in;
@@ -194,6 +207,62 @@ public class OpenApiTransformer {
     // write the results in YAML format
     String result = YAML_MAPPER.writeValueAsString(root);
     out.write(result.getBytes());
+  }
+
+  public static OpenApiTransformer generateAll() throws Exception {
+    try (
+        InputStream fin = XYZHubRESTVerticle.class.getResourceAsStream("/openapi.yaml");
+        InputStream bin = new ByteArrayInputStream(IOUtils.toByteArray(fin));
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+    ) {
+      final OpenApiTransformer transformer = new OpenApiTransformer(bin, bout);
+
+      // generate contract api
+      transformer.contract(root -> {
+        // fix the server url
+        ((ObjectNode) root.get("servers").get(0)).put("url", "/");
+
+        // fix the paths
+        Map<String, JsonNode> paths = new LinkedHashMap<>();
+        root.get("paths").fields().forEachRemaining(entry -> paths.put(entry.getKey(), entry.getValue()));
+        ((ObjectNode) root.get("paths")).removeAll();
+        paths.forEach((k, n) -> ((ObjectNode) root.get("paths")).set("/hub" + k, n));
+
+        // fix the x-schema
+        List<JsonNode> parents = root.get("components").get("requestBodies").findParents("schema");
+        parents.forEach(parent -> {
+          ObjectNode oParent = (ObjectNode) parent;
+          oParent.set("x-schema", parent.get("schema"));
+          oParent.remove("schema");
+        });
+      });
+      transformer.contractApi = transformer.out.toString();
+
+      // generate stable api
+      bin.reset();
+      bout.reset();
+      transformer.removalTags.addAll(Arrays.asList("x-experimental", "x-deprecated"));
+      transformer.transform();
+      transformer.stableApi = transformer.out.toString();
+
+      // generate experimental api
+      bin.reset();
+      bout.reset();
+      transformer.removalTags.clear();
+      transformer.removalTags.add("x-deprecated");
+      transformer.transform();
+      transformer.experimentalApi = transformer.out.toString();
+
+      // store the contract location to be reused
+      File tempFile = File.createTempFile("contract-", ".yaml");
+      FileUtils.writeByteArrayToFile(tempFile, transformer.contractApi.getBytes());
+      transformer.contractLocation = tempFile.toURI().toString();
+
+      return transformer;
+    } catch (Exception e) {
+      logger.warn("Unable to transform openapi.yaml", e);
+      throw new Exception("OpenApiTransformer failed to generate the api docs in memory.", e);
+    }
   }
 
   public static void main(String... args) {
