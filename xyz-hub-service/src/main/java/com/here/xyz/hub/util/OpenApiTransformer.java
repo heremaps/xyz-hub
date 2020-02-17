@@ -47,6 +47,7 @@ public class OpenApiTransformer {
   private final List<String> removalTags = new ArrayList<>();
   private final OutputStream out;
 
+  public String fullApi;
   public String stableApi;
   public String experimentalApi;
   public String contractApi;
@@ -216,8 +217,11 @@ public class OpenApiTransformer {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
     ) {
       final OpenApiTransformer transformer = new OpenApiTransformer(bin, bout);
+      // put the original openapi.yaml in memory
+      transformer.fullApi = IOUtils.toString(bin);
 
       // generate contract api
+      bin.reset();
       transformer.contract(root -> {
         // fix the server url
         ((ObjectNode) root.get("servers").get(0)).put("url", "/");
