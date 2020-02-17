@@ -25,6 +25,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERR
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.vertx.core.http.HttpHeaders.AUTHORIZATION;
 import static io.vertx.core.http.HttpHeaders.CACHE_CONTROL;
+import static io.vertx.core.http.HttpHeaders.CONTENT_LENGTH;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 import static io.vertx.core.http.HttpHeaders.ETAG;
 import static io.vertx.core.http.HttpHeaders.IF_MODIFIED_SINCE;
@@ -37,6 +38,8 @@ import static io.vertx.core.http.HttpMethod.PATCH;
 import static io.vertx.core.http.HttpMethod.POST;
 import static io.vertx.core.http.HttpMethod.PUT;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.here.xyz.hub.auth.Authorization.AuthorizationType;
 import com.here.xyz.hub.auth.CompressedJWTAuthProvider;
 import com.here.xyz.hub.auth.JWTURIHandler;
@@ -48,12 +51,14 @@ import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.rest.SpaceApi;
 import com.here.xyz.hub.rest.admin.AdminApi;
 import com.here.xyz.hub.rest.health.HealthApi;
+import com.here.xyz.hub.util.OpenApiTransformer;
 import com.here.xyz.hub.util.logging.LogUtil;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerOptions;
+import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.Json;
 import io.vertx.ext.auth.PubSecKeyOptions;
 import io.vertx.ext.auth.jwt.JWTAuth;
@@ -67,9 +72,18 @@ import io.vertx.ext.web.handler.ChainAuthHandler;
 import io.vertx.ext.web.handler.CorsHandler;
 import io.vertx.ext.web.handler.JWTAuthHandler;
 import io.vertx.ext.web.handler.StaticHandler;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -84,6 +98,60 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
       .setDecompressionSupported(true)
       .setHandle100ContinueAutomatically(true)
       .setMaxInitialLineLength(16 * 1024);
+
+  private static String STABLE_API;
+  private static String EXPERIMENTAL_API;
+  private static String CONTRACT_API;
+  private static String CONTRACT_LOCATION;
+
+  static {
+    try (
+        InputStream fin = XYZHubRESTVerticle.class.getResourceAsStream("/openapi.yaml");
+        InputStream bin = new ByteArrayInputStream(IOUtils.toByteArray(fin));
+        OutputStream contract = new ByteArrayOutputStream();
+        OutputStream stable = new ByteArrayOutputStream();
+        OutputStream experimental = new ByteArrayOutputStream()
+    ) {
+      // generate contract api
+      new OpenApiTransformer(bin, contract).contract(root -> {
+        // fix the server url
+        ((ObjectNode) root.get("servers").get(0)).put("url", "/");
+
+        // fix the paths
+        Map<String, JsonNode> paths = new LinkedHashMap<>();
+        root.get("paths").fields().forEachRemaining(entry -> paths.put(entry.getKey(), entry.getValue()));
+        ((ObjectNode) root.get("paths")).removeAll();
+        paths.forEach((k, n) -> ((ObjectNode) root.get("paths")).set("/hub" + k, n));
+
+        // fix the x-schema
+        List<JsonNode> parents = root.get("components").get("requestBodies").findParents("schema");
+        parents.forEach(parent -> {
+          ObjectNode oParent = (ObjectNode) parent;
+          oParent.set("x-schema", parent.get("schema"));
+          oParent.remove("schema");
+        });
+      });
+
+      // generate stable api
+      bin.reset();
+      new OpenApiTransformer(bin, stable, "x-experimental", "x-deprecated").transform();
+
+      // generate experimental api
+      bin.reset();
+      new OpenApiTransformer(bin, experimental, "x-deprecated").transform();
+
+      // store the string flavours in memory
+      CONTRACT_API = contract.toString();
+      STABLE_API = stable.toString();
+      EXPERIMENTAL_API = experimental.toString();
+
+      // store the contract location to be reused
+      CONTRACT_LOCATION = getContractLocation();
+    } catch (Exception e) {
+      e.printStackTrace();
+      logger.warn("Unable to transform openapi.yaml", e);
+    }
+  }
 
   /**
    * The methods the client is allowed to use.
@@ -107,6 +175,20 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
   private SpaceApi spaceApi;
   private HealthApi healthApi;
   private AdminApi adminApi;
+
+  private static String getContractLocation() {
+    String result = null;
+
+    try {
+      File tempFile = File.createTempFile("contract-", ".yaml");
+      FileUtils.writeByteArrayToFile(tempFile, CONTRACT_API.getBytes());
+      result = tempFile.toURI().toString();
+    } catch (IOException e) {
+      logger.error("Unable to create the Open API Spec contract", e);
+    }
+
+    return result;
+  }
 
   /**
    * The final response handler.
@@ -178,9 +260,8 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
   }
 
   @Override
-  public void start(Future<Void> fut) throws Exception {
-    // URL uri = XYZHubRESTVerticle.class.getResource();
-    OpenAPI3RouterFactory.create(vertx, "/openapi/contract-openapi3.yaml", ar -> {
+  public void start(Future<Void> fut) {
+    OpenAPI3RouterFactory.create(vertx, CONTRACT_LOCATION, ar -> {
       if (ar.succeeded()) {
         //Add the handlers
         final OpenAPI3RouterFactory routerFactory = ar.result();
@@ -201,6 +282,26 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
 
         this.healthApi = new HealthApi(vertx, router);
         this.adminApi = new AdminApi(vertx, router, jwtHandler);
+
+        //OpenAPI resources
+        router.route("/hub/static/openapi/*").handler(createCorsHandler()).handler((routingContext -> {
+          final HttpServerResponse res = routingContext.response();
+          final String path = routingContext.request().path();
+          if (path.endsWith("stable.yaml")) {
+            res.headers().add(CONTENT_LENGTH, String.valueOf(STABLE_API.getBytes().length));
+            res.write(STABLE_API);
+          } else if (path.endsWith("experimental.yaml")) {
+            res.headers().add(CONTENT_LENGTH, String.valueOf(EXPERIMENTAL_API.getBytes().length));
+            res.write(EXPERIMENTAL_API);
+          } else if (path.endsWith("contract.yaml")) {
+            res.headers().add(CONTENT_LENGTH, String.valueOf(CONTRACT_API.getBytes().length));
+            res.write(CONTRACT_API);
+          } else {
+            res.setStatusCode(HttpResponseStatus.NOT_FOUND.code());
+          }
+
+          res.end();
+        }));
 
         //Static resources
         router.route("/hub/static/*").handler(StaticHandler.create().setIndexPage("index.html")).handler(createCorsHandler());

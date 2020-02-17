@@ -1,18 +1,18 @@
 openapi: 3.0.1
 info:
-  description: |
-    HERE XYZ Hub is a REST API for simple access to geo data.
+  description: HERE XYZ Hub is a REST API for simple access to geo data.
   title: HERE XYZ Hub
   version: 1.0.0
 servers:
   - url: /hub
 paths:
-  /spaces:
+  '/spaces':
     get:
       tags:
         - Read Spaces
       summary: List spaces
-      description: 'Lists the spaces, which the current authenticated user has access to.'
+      description: >-
+        Lists the spaces, which the current authenticated user has access to.
       operationId: getSpaces
       parameters:
         - name: includeRights
@@ -25,10 +25,11 @@ paths:
             type: boolean
             default: false
         - name: includeConnectors
+          x-experimental: true
           in: query
           description: >-
-            If set to _true_, the connectors for each space are included in the
-            response.
+            If set to _true_, the connectors for each space are included in
+            the response.
           required: false
           schema:
             type: boolean
@@ -214,7 +215,8 @@ paths:
       tags:
         - Edit Features
       summary: Modify features in the space.
-      description: >
+      description: Create or patch features.
+      x-experimental-description: >
         This method allows to create, update and delete features. The behavior
         of the POST handler is controlled by three query parameters described in
         detail below. The name of the parameter reflects a condition to be
@@ -319,9 +321,13 @@ paths:
         - $ref: '#/components/parameters/AddTags'
         - $ref: '#/components/parameters/RemoveTags'
         - $ref: '#/components/parameters/IfExists'
+          x-experimental: true
         - $ref: '#/components/parameters/IfNotExists'
+          x-experimental: true
         - $ref: '#/components/parameters/Transactional'
+          x-experimental: true
         - $ref: '#/components/parameters/PrefixId'
+          x-experimental: true
       requestBody:
         $ref: '#/components/requestBodies/FeatureCollection'
       responses:
@@ -539,6 +545,16 @@ paths:
       tags:
         - Read Features
       summary: Get features in tile
+      x-experimental-description: |
+        List the features selected by tile type and tile id.
+
+        One of the tile types can be used:
+          * quadkey
+          * web
+          * tms
+          * here
+
+
       operationId: getFeaturesByTile
       parameters:
         - $ref: '#/components/parameters/SpaceId'
@@ -593,14 +609,6 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '513':
           $ref: '#/components/responses/ErrorResponse513'
-      description: |
-        List the features selected by tile type and tile id.
-
-        One of the tile types can be used:
-          * quadkey
-          * web
-          * tms
-          * here
   '/spaces/{spaceId}/spatial':
     get:
       tags:
@@ -612,39 +620,33 @@ paths:
         - name: lat
           in: query
           description: >-
-            The latitude in WGS'84 decimal degree (-90 to +90) of the center
-            Point.
+            The latitude in WGS'84 decimal degree (-90 to +90) of the center Point.
           schema:
             type: number
             format: double
         - name: lon
           in: query
           description: >-
-            The longitude in WGS'84 decimal degree (-180 to +180) of the center
-            Point.
+            The longitude in WGS'84 decimal degree (-180 to +180) of the center Point.
           schema:
             type: number
             format: double
         - name: refSpaceId
           in: query
           description: >-
-            As alternative for defining center coordinates, it is possible to
-            reference a geometry in a space. Therefore it is needed to provide
-            the Id of space where the referenced feature is stored. Always to
-            use in combination with refFeatureId.
+            As alternative for defining center coordinates, it is possible to reference a geometry in a space. Therefore it is needed to provide the Id of space where the referenced feature is stored. Always to use in combination with refFeatureId.
           schema:
             type: string
         - name: refFeatureId
           in: query
           description: >-
-            The unique identifier of a feature in the referenced space. The
-            geometry of that feature gets used for the spatial query. Always to
-            use in combination with refSpaceId.
+            The unique identifier of a feature in the referenced space. The geometry of that feature gets used for the spatial query. Always to use in combination with refSpaceId.
           schema:
             type: string
         - name: radius
           in: query
-          description: Radius in meter which defines the diameter of the search request.
+          description: >-
+            Radius in meter which defines the diameter of the search request.
           schema:
             type: integer
         - $ref: '#/components/parameters/TagList'
@@ -672,7 +674,8 @@ paths:
         - $ref: '#/components/parameters/SpaceId'
         - name: radius
           in: query
-          description: Radius in meter to thicken input geometry.
+          description: >-
+            Radius in meter to thicken input geometry.
           required: false
           schema:
             type: integer
@@ -735,8 +738,8 @@ paths:
         Iterates all of the features in the space. The features in the response
         are ordered so that no feature is returned twice. If there are more
         features, which could be loaded, the response FeatureCollection will
-        contain the root attribute _handle_. The value of this attribute can be
-        passed as a query parameter for the following request in order to
+        contain the root attribute _handle_. The value of this attribute can
+        be passed as a query parameter for the following request in order to
         continue the iteration from the marked position.
       operationId: iterateFeatures
       parameters:
@@ -762,6 +765,7 @@ paths:
         '513':
           $ref: '#/components/responses/ErrorResponse513'
   '/spaces/{spaceId}/count':
+    x-deprecated: true
     get:
       tags:
         - Read Features
@@ -807,8 +811,7 @@ components:
       name: skipCache
       in: query
       description: >-
-        If set to _true_ the response is not returned from cache. Default is
-        _false_.
+        If set to _true_ the response is not returned from cache. Default is _false_.
       required: false
       schema:
         type: boolean
@@ -828,6 +831,37 @@ components:
         type: array
         items:
           type: string
+    IfExists:
+      x-experimental: true
+      name: e
+      in: query
+      description: >-
+        The action to execute, when a feature with the provided ID exists.
+        Default is _patch_
+      required: false
+      schema:
+        type: string
+        enum:
+          - patch
+          - replace
+          - merge
+          - delete
+          - retain
+          - error
+    IfNotExists:
+      x-experimental: true
+      name: ne
+      in: query
+      description: >-
+        The action to execute, when a feature with the provided ID does not
+        exist or the feature contains no ID. Default is _create_
+      required: false
+      schema:
+        type: string
+        enum:
+          - retain
+          - error
+          - create
     Limit:
       name: limit
       in: query
@@ -840,13 +874,12 @@ components:
       in: query
       description: >-
         The clustering algorithm to apply to the data within the result.
-        Providing this query parameter the data will be returned in a clustered
-        way. This means the data won't necessarily be returned in its original
-        shape or with its original properties.
+        Providing this query parameter the data will be returned in a clustered way.
+        This means the data won't necessarily be returned in its original shape or with its
+        original properties.
 
-        Depending on the chosen clustering algorithm there could be different
-        mandatory and/or optional parameters to specify the behavior of the
-        algorithm.
+        Depending on the chosen clustering algorithm there could be different mandatory and/or
+        optional parameters to specify the behavior of the algorithm.
 
         Possible values are:
 
@@ -855,12 +888,12 @@ components:
             The hexbin algorithm divides the world in hexagonal "bins" on a specified resolution.
             Each hexagon has an address being described by the H3 addressing scheme.
             For more information on that topic see: https://eng.uber.com/h3/
-          
-          * "quad"
 
-            The quad algorithm takes the geometry input from the request (e.g. quadkey / bbox..) 
-            and count the features in it. This clustering mode works also for very big spaces and it
-            can be used for getting an overview where data is present in a given space. Furthermore, 
+          * "quadbin"
+
+            The quadbin algorithm takes the geometry input from the request (e.g. quadkey / bbox..)
+            and count the features in it. This clustering mode works also for very large spaces and
+            can be used for getting an overview where data is present in a given space. Furthermore,
             a property filter on one property is applicable.
       required: false
       schema:
@@ -872,16 +905,62 @@ components:
       name: clusteringParams
       in: query
       required: false
-      description: "Some parameters for the chosen clustering algorithm.\n\nDepending on the chosen clustering algorithm there could be different mandatory and/or\noptional parameters to specify the behavior of the algorithm.\n\n### Clustering-Parameter reference\n\nNOTE: The actual query parameters in the URL are looking like: `?clustering.aParameterName=aValue`\n\n**Clustering-type: \"hexbin\":**\n\nThere are several parameters needed by the H3 based hexbin algorithm.\nFor more information on that topic see: https://eng.uber.com/h3/\n\n| Parameter   | Type    | Mandatory | Meaning                                                               |\n|-------------|---------|-----------|-----------------------------------------------------------------------|\n| resolution  | Number  | NO        | The H3 hexagon resolution                                             |\n| property    | String  | NO        | A property of the original features for which to calculate statistics |\n| pointmode   | Boolean | NO        | retuns the centroid of hexagons as geojson feature                    |\n\n\n**Clustering-type: \"quad\":**\n\nThere are several parameters needed by the quad algorithm. You can use one property filter in combination.\n\n| Parameter   | Type    | Mandatory | Meaning                                                               |\n|-------------|---------|-----------|-----------------------------------------------------------------------|\n| resolution  | Number  | NO        | The quad resolution [0-4]\t                                            |\n| quadmode    | String  | NO        | [real,estimated,mixed]\t\t\t\t\t\t                                    |\n|             |         |           | real = real feature counts. Best accuracy, but slow.                  |\n|             |         |           | \t\tNot recommended for big result sets \t\t\t                        |\n|             |         |           |                                                                       |\n|             |         |           | estimated = estimated feature counts. Low accuracy, but very fast\t    |\n|             |         |           | \t\tRecommended for big result sets \t\t\t                            |\n|             |         |           |                                                                       |\n|             |         |           | mixed = estimated feature counts combined with real ones. If the \t    |\n|             |         |           | \t\testimation is low a real count gets applied. Fits to the    |\n|             |         |           | \t\tmost use cases\t\t\t\t\t\t    |\n"
+      description: |
+        Some parameters for the chosen clustering algorithm.
+
+        Depending on the chosen clustering algorithm there could be different mandatory and/or
+        optional parameters to specify the behavior of the algorithm.
+
+        ### Clustering-Parameter reference
+
+        NOTE: The actual query parameters in the URL are looking like: `?clustering.aParameterName=aValue`
+
+        **Clustering-type: "hexbin":**
+
+        There are several parameters needed by the H3 based hexbin algorithm.
+        For more information on that topic see: https://eng.uber.com/h3/
+
+        | Parameter   | Type    | Mandatory | Meaning                                                               |
+        |-------------|---------|-----------|-----------------------------------------------------------------------|
+        | resolution  | Number  | NO        | The H3 hexagon resolution                                             |
+        | property    | String  | NO        | A property of the original features for which to calculate statistics |
+        | pointmode   | Boolean | NO        | retuns the centroid of hexagons as geojson feature                    |
+
+
+        **Clustering-type: "quadbin":**
+
+        There are several parameters needed by the quadbin algorithm. You can use one property filter in combination.
+
+        | Parameter   | Type    | Mandatory | Meaning                                                               |
+        |-------------|---------|-----------|-----------------------------------------------------------------------|
+        | resolution  | Number  | NO        | The quad resolution [0-4]                                             |
+        | countmode   | String  | NO        | [real, estimated, mixed]						                        |
+        |             |         |           | real = real feature counts. Best accuracy, but slow.                  |
+        |             |         |           | 		Not recommended for big result sets 			                |
+        |             |         |           |                                                                       |
+        |             |         |           | estimated = estimated feature counts. Low accuracy, but very fast	    |
+        |             |         |           | 		Recommended for big result sets 			                    |
+        |             |         |           |                                                                       |
+        |             |         |           | mixed = estimated feature counts combined with real ones. If the 	    |
+        |             |         |           | 		estimation is low a real count gets applied. Fits to the        |
+        |             |         |           | 		most use cases						                            |
       style: form
       explode: true
       schema:
         type: object
         example:
           clustering.resolution: 3
-          clustering.property: a.nested.property
+          clustering.property: "a.nested.property"
         additionalProperties:
           type: string
+    PrefixId:
+      x-experimental: true
+      name: prefixId
+      in: query
+      description: If set all feature IDs are prefixed with the provided string
+      required: false
+      schema:
+        type: string
     RemoveTags:
       name: removeTags
       in: query
@@ -925,13 +1004,13 @@ components:
       name: params
       in: query
       description: >
-        Additional feature filters which compares the feature's property's value
-        with the one specified in the query, resulting in a subset of features.
+        Additional feature filters which compares the feature's property's value with the one
+        specified in the query, resulting in a subset of features.
 
 
-        The usage of multiple property names represents an AND operation. The
-        usage of a comma (,) separating the properties values, represents an OR
-        operation.
+        The usage of multiple property names represents an AND operation.
+        The usage of a comma (,) separating the properties values, represents
+        an OR operation.
 
 
         The format should follow the specification below
@@ -946,8 +1025,7 @@ components:
           * ?p.property_name_1=value_1,value_2
 
 
-        The resulting Features list will contain all elements having value_1 OR
-        value_2
+        The resulting Features list will contain all elements having value_1 OR value_2
 
         The available operators are:
           - "=" - equals
@@ -961,7 +1039,7 @@ components:
       schema:
         type: object
         example:
-          p.myProperty: someValue
+          p.myProperty: "someValue"
           p.otherProperty: 5
         additionalProperties:
           type: string
@@ -969,59 +1047,30 @@ components:
       name: selection
       in: query
       description: >
-        A list of properties to be returned in the features result list.
-        Multiple attributes can be specified by using comma(,). Example:
-        ?selection=p.name,p.capacity,p.color
+        A list of properties to be returned in the features result list. Multiple attributes can be
+        specified by using comma(,). Example: ?selection=p.name,p.capacity,p.color
       style: form
       explode: false
       schema:
         type: array
         items:
           type: string
-    IfExists:
-      name: e
-      in: query
-      description: >-
-        The action to execute, when a feature with the provided ID exists.
-        Default is _patch_
-      required: false
-      schema:
-        type: string
-        enum:
-          - patch
-          - replace
-          - merge
-          - delete
-          - retain
-          - error
-    IfNotExists:
-      name: ne
-      in: query
-      description: >-
-        The action to execute, when a feature with the provided ID does not
-        exist or the feature contains no ID. Default is _create_
-      required: false
-      schema:
-        type: string
-        enum:
-          - retain
-          - error
-          - create
-    PrefixId:
-      name: prefixId
-      in: query
-      description: If set all feature IDs are prefixed with the provided string
-      required: false
-      schema:
-        type: string
     Transactional:
+      x-experimental: true
       name: transactional
       in: query
-      description: 'Defines, if this is a transactional operation. Default is _true_.'
+      description: Defines, if this is a transactional operation. Default is _true_.
       required: false
       schema:
         type: boolean
   responses:
+    CountFeaturesResponse:
+      x-deprecated: true
+      description: The number of features in a spaces, optionally counted by tag(s).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CountResponse'
     ErrorResponse400:
       description: Malformed or Bad Request
       content:
@@ -1088,22 +1137,20 @@ components:
             type: ErrorResponse
             streamId: 7480e28a-e273-11e8-9af8-7508bbe361d9
             error: Exception
-            errorMessage: >-
-              The response payload was too large. Please try to reduce the
-              expected amount of data.
+            errorMessage: The response payload was too large. Please try to reduce the expected amount of data.
     EmptyResponse:
       description: >-
-        An empty response (as a result of a user-request with accepted MIME type
-        application/x-empty).
+        An empty response (as a result of a user-request with accepted MIME type application/x-empty).
       content:
         application/x-empty:
           schema:
             type: string
           example: ''
     NoContentResponse:
-      description: An empty response (no content).
+      description: >-
+        An empty response (no content).
     ModifyFCResponse:
-      description: 'A FeatureCollection, containing all modified features.'
+      description: A FeatureCollection, containing all modified features.
       content:
         application/geo+json:
           schema:
@@ -1149,13 +1196,13 @@ components:
             $ref: '#/components/schemas/FeatureCollection'
     TileResponse:
       description: >-
-        A FeatureCollection, containing all features found for the provided
-        parameters.
+        A FeatureCollection, containing all features found for the provided parameters.
       content:
         application/geo+json:
           schema:
             $ref: '#/components/schemas/FeatureCollection'
         application/vnd.mapbox-vector-tile:
+          x-experimental: true
           schema:
             type: string
             format: binary
@@ -1183,6 +1230,7 @@ components:
                 createdAt: 1560417151751
                 updatedAt: 1561480482869
         application/geo+json:
+          x-experimental: true
           schema:
             $ref: '#/components/schemas/Space'
     SpacesResponse:
@@ -1209,12 +1257,6 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/StatisticsResponse'
-    CountFeaturesResponse:
-      description: 'The number of features in a spaces, optionally counted by tag(s).'
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/CountResponse'
   requestBodies:
     Feature:
       description: A Feature object.
@@ -1340,9 +1382,7 @@ components:
           example: Description as markdown.
           type: string
         owner:
-          description: >-
-            The identifier of the owner of this space, most likely the HERE
-            account ID.
+          description: The identifier of the owner of this space, most likely the HERE account ID.
           type: string
         shared:
           description: >
@@ -1353,9 +1393,7 @@ components:
             __copyright__ & __license__.
           type: boolean
         readOnly:
-          description: >-
-            A flag indicating whether the space allows write operations (false)
-            or not (true).
+          description: A flag indicating whether the space allows write operations (false) or not (true).
           type: boolean
         copyright:
           items:
@@ -1396,6 +1434,17 @@ components:
             - Zlib
             - ODbL-1.0
           type: string
+        storage:
+          $ref: '#/components/schemas/SpaceStorage'
+        client:
+          $ref: '#/components/schemas/SpaceClient'
+        enableUUID:
+          x-experimental: true
+          default: false
+          description: >-
+            Whether the uuid should be added to the response or not.
+          example: true
+          type: boolean
         packages:
           description: List of packages that this space belongs to.
           items:
@@ -1404,6 +1453,12 @@ components:
         cid:
           description: An additional identifier specifying a context of the owner.
           type: string
+        tags:
+          x-experimental: true
+          description: The tags for this objects.
+          items:
+            type: string
+          type: array
         createdAt:
           default: 1538352000000
           description: >-
@@ -1424,48 +1479,64 @@ components:
           type: integer
         contentUpdatedAt:
           default: 1538352000000
-          description: Indicates the last time the content of a space was updated.
+          description: >-
+            The UNIX Epoch time of when the content of this space has been last updated (in
+            milliseconds since 01.01.1970). Defaults to October 1st, 2018.
           example: 1538352000000
           format: int64
           readOnly: true
           type: integer
         searchableProperties:
           $ref: '#/components/schemas/SearchableProperties'
-        storage:
-          $ref: '#/components/schemas/SpaceStorage'
-        client:
-          $ref: '#/components/schemas/SpaceClient'
-        enableUUID:
-          default: false
-          description: Whether the uuid should be added to the response or not.
-          example: true
-          type: boolean
-        tags:
-          description: The tags for this objects.
-          items:
-            type: string
-          type: array
         volatilityAtLastContentUpdate:
+          x-experimental: true
           description: >-
-            An indicator, if the data in the space is edited often ( value tends
-            to 1 ) or static ( value tends to 0 ).
+            An indicator, if the data in the space is edited often ( value tends to 1 ) or static ( value tends to 0 ).
           type: integer
           format: double
       example:
         title: My Demo Space
         description: Description as markdown
+    SpaceClient:
+      x-experimental: true
+      type: object
+      additionalProperties:
+        type: object
+      description: >-
+        An arbitrary client configuration with hints or settings for the client,
+        for example rendering instructions.
+      example:
+        key: value
     SearchableProperties:
       description: >-
-        A map defined by the user that indicates, which of the feature's
-        properties to be searchable. The key is the name of the property (nested
-        properties can be specified using the dot-notation e.g.:
-        some.nested.property) and the value is a boolean telling whether the
-        property should be searchable or not. Setting the value to `false` the
-        property won't be searchable at all. (Even if the  property was chosen
-        to be searchable by the automated property-search algorithm before)
+        A map defined by the user that indicates, which of the feature's properties to be searchable.
+        The key is the name of the property (nested properties can be specified using the
+        dot-notation e.g.: some.nested.property) and the value is a boolean telling whether the
+        property should be searchable or not.
+        Setting the value to `false` the property won't be searchable at all. (Even if the  property
+        was chosen to be searchable by the automated property-search algorithm before)
       type: object
       additionalProperties:
         type: boolean
+    SpaceStorage:
+      x-experimental: true
+      type: object
+      description: >-
+        The configuration of the space storage provider to be contacted by the
+        space API.
+      properties:
+        id:
+          description: The unique identifier of the connector to contact.
+          example: psql
+          type: string
+        params:
+          $ref: '#/components/schemas/SpaceStorageParams'
+    SpaceStorageParams:
+      x-experimental: true
+      type: object
+      description: >-
+        The storage provider configuration, which contains optional parameters
+        to be forwarded to the storage provider.
     GeoJSONObject:
       type: object
       description: |
@@ -1516,8 +1587,8 @@ components:
         - $ref: '#/components/schemas/GeoJSONObject'
         - type: object
           description: >-
-            A Geometry object represents points, curves, and surfaces in
-            coordinate space.
+            A Geometry object represents points, curves, and surfaces in coordinate
+            space.
           example:
             type: Point
             coordinates:
@@ -1594,14 +1665,35 @@ components:
     XyzResponse:
       type: object
       description: The base type for all possible responses returned by the XYZ Hub.
+    CountResponse:
+      x-deprecated: true
+      allOf:
+        - $ref: '#/components/schemas/XyzResponse'
+        - type: object
+          description: >-
+            The response returned when successfully requesting the feature count of
+            a space.
+          properties:
+            count:
+              description: The feature count.
+              format: int64
+              minimum: 0
+              readOnly: true
+              type: integer
+            estimated:
+              $ref: '#/components/schemas/Estimated'
+          example:
+            type: CountResponse
+            count: 100
+            estimated: false
     ErrorResponse:
       allOf:
         - $ref: '#/components/schemas/XyzResponse'
         - type: object
           description: >-
-            The response send when the request failed. This response may be send
-            for certain HTTP error codes like 403 Forbidden or 502 Bad Gateway
-            and should hold more details about the error reason.
+            The response send when the request failed. This response may be send for
+            certain HTTP error codes like 403 Forbidden or 502 Bad Gateway and
+            should hold more details about the error reason.
           properties:
             streamId:
               description: >-
@@ -1663,7 +1755,8 @@ components:
                   $ref: '#/components/schemas/Estimated'
             geometryTypes:
               type: object
-              description: The types of geometries part of the space.
+              description: >-
+                The types of geometries part of the space.
               readOnly: true
               properties:
                 value:
@@ -1677,7 +1770,8 @@ components:
                   $ref: '#/components/schemas/Estimated'
             properties:
               type: object
-              description: The properties of the features of the space.
+              description: >-
+                The properties of the features of the space.
               readOnly: true
               properties:
                 value:
@@ -1701,9 +1795,7 @@ components:
                   $ref: '#/components/schemas/Estimated'
                 searchable:
                   type: string
-                  description: >-
-                    Specifies the scope of searchability of the properties. One
-                    of NONE, PARTIAL, ALL.
+                  description: Specifies the scope of searchability of the properties. One of NONE, PARTIAL, ALL.
                   example: PARTIAL
             tags:
               type: object
@@ -1725,9 +1817,7 @@ components:
                   $ref: '#/components/schemas/Estimated'
             searchable:
               type: string
-              description: >-
-                Specifies the scope of searchability of the properties. One of
-                NONE, PARTIAL, ALL.
+              description: Specifies the scope of searchability of the properties. One of NONE, PARTIAL, ALL.
               example: PARTIAL
             etag:
               type: string
@@ -1811,52 +1901,6 @@ components:
                   amenity: Football Stadium
                   capacity: 54074
                   description: Home of Liverpool Football Club
-    SpaceClient:
-      type: object
-      additionalProperties:
-        type: object
-      description: >-
-        An arbitrary client configuration with hints or settings for the client,
-        for example rendering instructions.
-      example:
-        key: value
-    SpaceStorage:
-      type: object
-      description: >-
-        The configuration of the space storage provider to be contacted by the
-        space API.
-      properties:
-        id:
-          description: The unique identifier of the connector to contact.
-          example: psql
-          type: string
-        params:
-          $ref: '#/components/schemas/SpaceStorageParams'
-    SpaceStorageParams:
-      type: object
-      description: >-
-        The storage provider configuration, which contains optional parameters
-        to be forwarded to the storage provider.
-    CountResponse:
-      allOf:
-        - $ref: '#/components/schemas/XyzResponse'
-        - type: object
-          description: >-
-            The response returned when successfully requesting the feature count
-            of a space.
-          properties:
-            count:
-              description: The feature count.
-              format: int64
-              minimum: 0
-              readOnly: true
-              type: integer
-            estimated:
-              $ref: '#/components/schemas/Estimated'
-          example:
-            type: CountResponse
-            count: 100
-            estimated: false
   securitySchemes:
     authToken:
       bearerFormat: JWTPayload
