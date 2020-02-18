@@ -59,7 +59,7 @@ public class MainHealthCheck extends ExecutableCheck {
    * @param c The check to be added and checked from then on
    * @return This check for chaining
    */
-  public MainHealthCheck add(ExecutableCheck c) {
+  public final MainHealthCheck add(ExecutableCheck c) {
     checks.add(c);
 		if (commenced) {
 			c.commence();
@@ -67,7 +67,7 @@ public class MainHealthCheck extends ExecutableCheck {
     return this;
   }
 
-  public void initialize() {
+  public final void initialize() {
     if (isGracePeriodActivated()) {
       if (autoCommence) {
         System.err.println("WARNING: \"autoCommencing\" is activated in combination with "
@@ -119,7 +119,7 @@ public class MainHealthCheck extends ExecutableCheck {
    * {@inheritDoc}
    */
   @Override
-  public Status execute() {
+  public final Status execute() {
     Status status = new Status();
     Response response = new Response();
 
@@ -160,7 +160,7 @@ public class MainHealthCheck extends ExecutableCheck {
    * {@inheritDoc}
    */
   @Override
-  public Response getResponse() {
+  public final Response getResponse() {
     /*
      * Directly do the execution of this MainHealthCheck here on-demand
      * as it's only about collecting the sub-results.
@@ -190,7 +190,7 @@ public class MainHealthCheck extends ExecutableCheck {
    * {@inheritDoc}
    */
   @Override
-  public MainHealthCheck commence() {
+  public final MainHealthCheck commence() {
     commenced = true;
     checks.forEach(ExecutableCheck::commence);
     return this;
