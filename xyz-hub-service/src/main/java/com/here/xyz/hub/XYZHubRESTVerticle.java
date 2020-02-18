@@ -25,6 +25,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERR
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.vertx.core.http.HttpHeaders.AUTHORIZATION;
 import static io.vertx.core.http.HttpHeaders.CACHE_CONTROL;
+import static io.vertx.core.http.HttpHeaders.CONTENT_LENGTH;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 import static io.vertx.core.http.HttpHeaders.ETAG;
 import static io.vertx.core.http.HttpHeaders.IF_MODIFIED_SINCE;
@@ -48,12 +49,14 @@ import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.rest.SpaceApi;
 import com.here.xyz.hub.rest.admin.AdminApi;
 import com.here.xyz.hub.rest.health.HealthApi;
+import com.here.xyz.hub.util.OpenApiTransformer;
 import com.here.xyz.hub.util.logging.LogUtil;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerOptions;
+import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.Json;
 import io.vertx.ext.auth.PubSecKeyOptions;
 import io.vertx.ext.auth.jwt.JWTAuth;
@@ -84,6 +87,25 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
       .setDecompressionSupported(true)
       .setHandle100ContinueAutomatically(true)
       .setMaxInitialLineLength(16 * 1024);
+
+  private static String FULL_API;
+  private static String STABLE_API;
+  private static String EXPERIMENTAL_API;
+  private static String CONTRACT_API;
+  private static String CONTRACT_LOCATION;
+
+  static {
+    try {
+      final OpenApiTransformer openApi = OpenApiTransformer.generateAll();
+      FULL_API = openApi.fullApi;
+      STABLE_API = openApi.stableApi;
+      EXPERIMENTAL_API = openApi.experimentalApi;
+      CONTRACT_API = openApi.contractApi;
+      CONTRACT_LOCATION = openApi.contractLocation;
+    } catch (Exception e) {
+      logger.error("Unable to generate OpenApi specs.", e);
+    }
+  }
 
   /**
    * The methods the client is allowed to use.
@@ -178,9 +200,8 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
   }
 
   @Override
-  public void start(Future<Void> fut) throws Exception {
-    // URL uri = XYZHubRESTVerticle.class.getResource();
-    OpenAPI3RouterFactory.create(vertx, "/openapi/contract-openapi3.yaml", ar -> {
+  public void start(Future<Void> fut) {
+    OpenAPI3RouterFactory.create(vertx, CONTRACT_LOCATION, ar -> {
       if (ar.succeeded()) {
         //Add the handlers
         final OpenAPI3RouterFactory routerFactory = ar.result();
@@ -202,10 +223,34 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
         this.healthApi = new HealthApi(vertx, router);
         this.adminApi = new AdminApi(vertx, router, jwtHandler);
 
+        //OpenAPI resources
+        router.route("/hub/static/openapi/*").handler(createCorsHandler()).handler((routingContext -> {
+          final HttpServerResponse res = routingContext.response();
+          final String path = routingContext.request().path();
+          if (path.endsWith("full.yaml")) {
+            res.headers().add(CONTENT_LENGTH, String.valueOf(FULL_API.getBytes().length));
+            res.write(FULL_API);
+          } else if (path.endsWith("stable.yaml")) {
+            res.headers().add(CONTENT_LENGTH, String.valueOf(STABLE_API.getBytes().length));
+            res.write(STABLE_API);
+          } else if (path.endsWith("experimental.yaml")) {
+            res.headers().add(CONTENT_LENGTH, String.valueOf(EXPERIMENTAL_API.getBytes().length));
+            res.write(EXPERIMENTAL_API);
+          } else if (path.endsWith("contract.yaml")) {
+            res.headers().add(CONTENT_LENGTH, String.valueOf(CONTRACT_API.getBytes().length));
+            res.write(CONTRACT_API);
+          } else {
+            res.setStatusCode(HttpResponseStatus.NOT_FOUND.code());
+          }
+
+          res.end();
+        }));
+
         //Static resources
         router.route("/hub/static/*").handler(StaticHandler.create().setIndexPage("index.html")).handler(createCorsHandler());
         if (Service.configuration.FS_WEB_ROOT != null) {
           logger.debug("Serving extra web-root folder in file-system with location: {}", Service.configuration.FS_WEB_ROOT);
+          //noinspection ResultOfMethodCallIgnored
           new File(Service.configuration.FS_WEB_ROOT).mkdirs();
           router.route("/hub/static/*")
               .handler(StaticHandler.create(Service.configuration.FS_WEB_ROOT).setIndexPage("index.html"));

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,31 +19,18 @@
 
 package com.here.xyz.psql;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
 import com.amazonaws.util.IOUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.Payload;
-import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.*;
 import com.here.xyz.events.PropertyQuery.QueryOperation;
-import com.here.xyz.models.geojson.coordinates.LineStringCoordinates;
-import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
-import com.here.xyz.models.geojson.coordinates.MultiPolygonCoordinates;
-import com.here.xyz.models.geojson.coordinates.PointCoordinates;
-import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
-import com.here.xyz.models.geojson.coordinates.Position;
-import com.here.xyz.models.geojson.implementation.*;
+import com.here.xyz.models.geojson.coordinates.*;
 import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.models.geojson.implementation.*;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse.PropertiesStatistics;
@@ -52,17 +39,6 @@ import com.jayway.jsonpath.Configuration;
 import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.Option;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.Statement;
-import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -70,6 +46,26 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static org.junit.Assert.*;
 
 @SuppressWarnings("unused")
 public class PSQLXyzConnectorIT {
@@ -95,7 +91,8 @@ public class PSQLXyzConnectorIT {
     logger.info("Setup...");
 
     // DELETE EXISTING FEATURES TO START FRESH
-    invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
+    String response = invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
+    assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
 
     logger.info("Setup Completed.");
   }
@@ -105,12 +102,6 @@ public class PSQLXyzConnectorIT {
     logger.info("Shutdown...");
     invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
     logger.info("Shutdown Completed.");
-  }
-
-  @Test
-  public void testHealthCheck() throws Exception {
-    String response = invokeLambdaFromFile("/events/HealthCheckEvent.json");
-    assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
   }
 
   @Test
@@ -948,7 +939,6 @@ public class PSQLXyzConnectorIT {
     logger.info("Insert feature tested successfully");
 
     // =========== GetStatistics ==========
-    invokeLambdaFromFile("/events/HealthCheckEvent.json");
     GetStatisticsEvent event = new GetStatisticsEvent();
     event.setSpace("foo");
     event.setStreamId(RandomStringUtils.randomAlphanumeric(10));
@@ -1034,7 +1024,7 @@ public class PSQLXyzConnectorIT {
 
   @Test
   public void testAutoIndexing() throws Exception {
-    // =========== INSERT further 11k ==========
+
     XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
     FeatureCollection collection = new FeatureCollection();
     Random random = new Random();
@@ -1053,25 +1043,60 @@ public class PSQLXyzConnectorIT {
           return f;
         }).limit(11000).collect(Collectors.toList()));
 
+    /** This property does not get auto-indexed */
+    for (int i = 0; i < 11000 ; i++) {
+      if(i % 5 == 0)
+        collection.getFeatures().get(i).getProperties().with("test",1);
+    }
+
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
     mfevent.setSpace("foo");
     mfevent.setTransaction(true);
-    mfevent.setEnableUUID(true);
     mfevent.setInsertFeatures(collection.getFeatures());
     invokeLambda(mfevent.serialize());
 
-    /* Needed to trigger update on pg_stat*/
+    /** Needed to trigger update on pg_stat */
     try (final Connection connection = lambda.dataSource.getConnection()) {
       Statement stmt = connection.createStatement();
       stmt.execute("DELETE FROM xyz_config.xyz_idxs_status WHERE spaceid='foo';");
       stmt.execute("ANALYZE public.\"foo\";");
     }
 
-    HealthCheckEvent health = new HealthCheckEvent();
-    health.setConnectorParams(new HashMap<String, Object>() {{
-      put("propertySearch", true);
-    }});
-    invokeLambda(health.serialize());
+    //Triggers dbMaintenance
+    invokeLambdaFromFile("/events/HealthCheckEvent.json");
+
+    // =========== GetStatistics ==========
+    GetStatisticsEvent event = new GetStatisticsEvent();
+    event.setSpace("foo");
+    event.setStreamId(RandomStringUtils.randomAlphanumeric(10));
+    String eventJson = event.serialize();
+    String statisticsJson = invokeLambda(eventJson);
+    StatisticsResponse response = XyzSerializable.deserialize(statisticsJson);
+
+    assertNotNull(response);
+
+    assertEquals(new Long(11000), response.getCount().getValue());
+    assertEquals(true,  response.getCount().getEstimated());
+    assertEquals(PropertiesStatistics.Searchable.PARTIAL, response.getProperties().getSearchable());
+
+    List<PropertyStatistics> propStatistics = response.getProperties().getValue();
+    for (PropertyStatistics propStat: propStatistics ) {
+      if(propStat.getKey().equalsIgnoreCase("test")){
+        assertEquals("number", propStat.getDatatype());
+        assertEquals(false, propStat.isSearchable());
+        assertTrue(propStat.getCount() < 11000);
+      }else{
+        assertEquals("string", propStat.getDatatype());
+        assertEquals(true, propStat.isSearchable());
+        assertEquals(11000 , propStat.getCount());
+      }
+    }
+
+    /* Clean-up maintenance entry */
+    try (final Connection connection = lambda.dataSource.getConnection()) {
+      Statement stmt = connection.createStatement();
+      stmt.execute("DELETE FROM xyz_config.xyz_idxs_status WHERE spaceid='foo';");
+    }
   }
 
   @Test
@@ -1731,14 +1756,13 @@ public class PSQLXyzConnectorIT {
       assertEquals("Check space", gsModifyFeaturesEvent.getSpace(), actualFeature.getProperties().getXyzNamespace().getSpace());
       assertNotEquals("Check createdAt", 0L, actualFeature.getProperties().getXyzNamespace().getCreatedAt());
       assertNotEquals("Check updatedAt", 0L, actualFeature.getProperties().getXyzNamespace().getUpdatedAt());
-//      if (checkGuid) {
-//        assertEquals("Check parent", expectedFeature.getProperties().getXyzNamespace().getUuid(),
-//            actualFeature.getProperties().getXyzNamespace().getPuuid());
-//        assertNotNull("Check uuid", actualFeature.getProperties().getXyzNamespace().getUuid());
-//      } else {
-//        assertNull("Check parent", actualFeature.getProperties().getXyzNamespace().getPuuid());
-//        assertNull("Check uuid", actualFeature.getProperties().getXyzNamespace().getUuid());
-//      }
+      if (checkGuid) {
+        assertNotNull("Check uuid", actualFeature.getProperties().getXyzNamespace().getUuid()); // After version 0.2.0
+        assertNotNull("Check uuid", actualFeature.getProperties().getXyzNamespace().getUuid());
+      } else {
+        assertNull("Check parent", actualFeature.getProperties().getXyzNamespace().getPuuid());
+        assertNull("Check uuid", actualFeature.getProperties().getXyzNamespace().getUuid());
+      }
     }
   }
 

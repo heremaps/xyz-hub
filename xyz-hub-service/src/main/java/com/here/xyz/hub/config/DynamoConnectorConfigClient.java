@@ -86,10 +86,15 @@ public class DynamoConnectorConfigClient extends ConnectorConfigClient {
   @Override
   protected void getAllConnectors(Marker marker, Handler<AsyncResult<List<Connector>>> handler) {
     final List<Connector> result = new ArrayList<>();
-    connectors.scan().pages().forEach(p -> p.forEach(i -> {
-      final Connector connector = Json.decodeValue(i.toJSON(), Connector.class);
-      result.add(connector);
-    }));
-    handler.handle(Future.succeededFuture(result));
+    try {
+      connectors.scan().pages().forEach(p -> p.forEach(i -> {
+        final Connector connector = Json.decodeValue(i.toJSON(), Connector.class);
+        result.add(connector);
+      }));
+      handler.handle(Future.succeededFuture(result));
+    }
+    catch (Exception e) {
+      handler.handle(Future.failedFuture(new RuntimeException("Error retrieving all connectors.", e)));
+    }
   }
 }

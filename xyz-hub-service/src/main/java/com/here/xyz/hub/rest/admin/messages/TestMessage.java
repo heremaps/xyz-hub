@@ -71,7 +71,9 @@ public class TestMessage extends RelayedMessage {
   @Override
   protected void handleAtDestination() {
     try {
-      File f = new File(getWebrootFolder() + File.separator + temporaryFileName);
+      File parent = new File(getWebrootFolder());
+      parent.mkdirs();
+      File f = new File(parent, temporaryFileName);
       BufferedWriter writer = new BufferedWriter(new FileWriter(f));
       writer.write(generateFileContent());
       writer.close();
