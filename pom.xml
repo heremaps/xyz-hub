@@ -499,6 +499,18 @@
       </releases>
       <url>http://maven.geomajas.org/</url>
     </repository>
+
+    <repository>
+      <id>mvnapache</id>
+      <layout>default</layout>
+      <name>maven-apache-repo</name>
+      <releases>
+        <checksumPolicy>warn</checksumPolicy>
+        <enabled>true</enabled>
+      </releases>
+      <url>https://repo.maven.apache.org/maven2/</url>
+    </repository>
+
   </repositories>
 
 </project>
