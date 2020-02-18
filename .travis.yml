@@ -1,1 +1,19 @@
-language: java
+sudo: required
+
+services:
+  - docker
+
+before_install:
+  - sudo rm /usr/local/bin/docker-compose
+  - curl -L https://github.com/docker/compose/releases/latest/download/docker-compose-`uname -s`-`uname -m` > docker-compose
+  - chmod +x docker-compose
+  - sudo mv docker-compose /usr/local/bin
+
+before_script:
+  - mvn clean install -Pdocker -DskipTests=true -DdockerComposeFile=docker-compose-dynamodb.yml
+
+script:
+  - mvn verify -DskipTests=false
+
+after_script:
+  - docker-compose --file docker-compose-dynamodb.yml down
