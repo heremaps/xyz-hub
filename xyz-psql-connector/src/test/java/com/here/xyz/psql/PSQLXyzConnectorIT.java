@@ -1018,19 +1018,6 @@ public class PSQLXyzConnectorIT {
   @Test
   public void testAutoIndexing() throws Exception {
 
-    HealthCheckEvent health = new HealthCheckEvent();
-    health.setConnectorParams(new HashMap<String, Object>() {{
-      put("propertySearch", true);
-      put("autoIndexing", true);
-    }});
-    health.setParams(new HashMap<String, Object>() {{
-      put("propertySearch", true);
-    }});    health.setParams(new HashMap<String, Object>() {{
-      put("propertySearch", true);
-    }});
-
-    invokeLambda(health.serialize());
-
     XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
     FeatureCollection collection = new FeatureCollection();
     Random random = new Random();
@@ -1049,22 +1036,60 @@ public class PSQLXyzConnectorIT {
           return f;
         }).limit(11000).collect(Collectors.toList()));
 
+    /** This property does not get auto-indexed */
+    for (int i = 0; i < 11000 ; i++) {
+      if(i % 5 == 0)
+        collection.getFeatures().get(i).getProperties().with("test",1);
+    }
+
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
     mfevent.setSpace("foo");
     mfevent.setTransaction(true);
-    mfevent.setEnableUUID(true);
     mfevent.setInsertFeatures(collection.getFeatures());
     invokeLambda(mfevent.serialize());
 
-    /* Needed to trigger update on pg_stat*/
+    /** Needed to trigger update on pg_stat */
     try (final Connection connection = lambda.dataSource.getConnection()) {
       Statement stmt = connection.createStatement();
       stmt.execute("DELETE FROM xyz_config.xyz_idxs_status WHERE spaceid='foo';");
       stmt.execute("ANALYZE public.\"foo\";");
     }
 
-    invokeLambda(health.serialize());
-    System.out.println("--");
+    //Triggers dbMaintenance
+    invokeLambdaFromFile("/events/HealthCheckEvent.json");
+
+    // =========== GetStatistics ==========
+    GetStatisticsEvent event = new GetStatisticsEvent();
+    event.setSpace("foo");
+    event.setStreamId(RandomStringUtils.randomAlphanumeric(10));
+    String eventJson = event.serialize();
+    String statisticsJson = invokeLambda(eventJson);
+    StatisticsResponse response = XyzSerializable.deserialize(statisticsJson);
+
+    assertNotNull(response);
+
+    assertEquals(new Long(11000), response.getCount().getValue());
+    assertEquals(true,  response.getCount().getEstimated());
+    assertEquals(PropertiesStatistics.Searchable.PARTIAL, response.getProperties().getSearchable());
+
+    List<PropertyStatistics> propStatistics = response.getProperties().getValue();
+    for (PropertyStatistics propStat: propStatistics ) {
+      if(propStat.getKey().equalsIgnoreCase("test")){
+        assertEquals("number", propStat.getDatatype());
+        assertEquals(false, propStat.isSearchable());
+        assertTrue(propStat.getCount() < 11000);
+      }else{
+        assertEquals("string", propStat.getDatatype());
+        assertEquals(true, propStat.isSearchable());
+        assertEquals(11000 , propStat.getCount());
+      }
+    }
+
+    /* Clean-up maintenance entry */
+    try (final Connection connection = lambda.dataSource.getConnection()) {
+      Statement stmt = connection.createStatement();
+      stmt.execute("DELETE FROM xyz_config.xyz_idxs_status WHERE spaceid='foo';");
+    }
   }
 
   @Test
