@@ -89,7 +89,7 @@ public class BurstAndUpdateThread extends Thread {
 
     //Run the warm-up for the lambda connectors which have a warmUpCount > 0 and do some updates
     for (final RpcClient client : RpcClient.getAllInstances()) {
-      Connector oldConnector = client.getConnector();
+      final Connector oldConnector = client.getConnector();
       if (oldConnector == null) {
         //The client is already destroyed.
         continue;
@@ -134,6 +134,9 @@ public class BurstAndUpdateThread extends Thread {
               final String healthCheckStreamId = UUID.randomUUID().toString();
               healthCheck.setStreamId(healthCheckStreamId);
               client.execute(MarkerManager.getMarker(healthCheckStreamId), healthCheck, r -> {
+                if (r.failed()) {
+                  logger.error("Warmup-healtcheck failed for connector with ID " + oldConnector.id, r.cause());
+                }
                 synchronized (requestCount) {
                   requestCount.decrementAndGet();
                   requestCount.notifyAll();
@@ -141,7 +144,8 @@ public class BurstAndUpdateThread extends Thread {
               });
             }
           }
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
           logger.error("Unexpected exception while trying to send lambda warm-up requests", e);
         }
       }

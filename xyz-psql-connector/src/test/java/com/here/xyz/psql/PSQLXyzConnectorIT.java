@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,7 +54,14 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.Statement;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -1749,14 +1756,13 @@ public class PSQLXyzConnectorIT {
       assertEquals("Check space", gsModifyFeaturesEvent.getSpace(), actualFeature.getProperties().getXyzNamespace().getSpace());
       assertNotEquals("Check createdAt", 0L, actualFeature.getProperties().getXyzNamespace().getCreatedAt());
       assertNotEquals("Check updatedAt", 0L, actualFeature.getProperties().getXyzNamespace().getUpdatedAt());
-//      if (checkGuid) {
-//        assertEquals("Check parent", expectedFeature.getProperties().getXyzNamespace().getUuid(),
-//            actualFeature.getProperties().getXyzNamespace().getPuuid());
-//        assertNotNull("Check uuid", actualFeature.getProperties().getXyzNamespace().getUuid());
-//      } else {
-//        assertNull("Check parent", actualFeature.getProperties().getXyzNamespace().getPuuid());
-//        assertNull("Check uuid", actualFeature.getProperties().getXyzNamespace().getUuid());
-//      }
+      if (checkGuid) {
+        assertNotNull("Check uuid", actualFeature.getProperties().getXyzNamespace().getUuid()); // After version 0.2.0
+        assertNotNull("Check uuid", actualFeature.getProperties().getXyzNamespace().getUuid());
+      } else {
+        assertNull("Check parent", actualFeature.getProperties().getXyzNamespace().getPuuid());
+        assertNull("Check uuid", actualFeature.getProperties().getXyzNamespace().getUuid());
+      }
     }
   }
 
