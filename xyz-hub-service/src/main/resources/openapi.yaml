@@ -993,7 +993,8 @@ components:
       in: query
       description: >-
         A comma separated list of tags or combination of tags concatenated with
-        a plus sign (+).
+        a plus sign (+). A comma separated list of tags means any tag may be 
+        found. A plus sign concatenated list means every tag is required.
       allowEmptyValue: true
       style: form
       schema:
