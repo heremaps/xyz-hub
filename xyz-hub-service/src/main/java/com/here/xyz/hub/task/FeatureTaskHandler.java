@@ -176,6 +176,7 @@ public class FeatureTaskHandler {
         });
       } catch (Exception e) {
         callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to create an instance for the provided storage definition", e));
+        return;
       }
 
       // update the contentUpdatedAt timestamp to indicate that the data in this space was modified
