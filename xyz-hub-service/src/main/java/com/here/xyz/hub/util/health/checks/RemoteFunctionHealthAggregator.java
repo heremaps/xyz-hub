@@ -30,11 +30,12 @@ import com.here.xyz.hub.util.health.schema.Status;
 import java.util.HashMap;
 import java.util.Map;
 
-public class RemoteFunctionHealthChecks extends ExecutableCheck {
+public class RemoteFunctionHealthAggregator extends ExecutableCheck {
 
   private Map<String, Map<String, Object>> rfcData = new HashMap<>();
 
-  public RemoteFunctionHealthChecks() {
+
+  public RemoteFunctionHealthAggregator() {
     setName("Connectors");
     setRole(Role.CUSTOM);
     setTarget(Target.LOCAL);
