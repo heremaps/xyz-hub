@@ -49,6 +49,9 @@ import org.apache.logging.log4j.Marker;
 public class LambdaFunctionClient extends RemoteFunctionClient {
 
   private static final Logger logger = LogManager.getLogger();
+  private static final int CONNECTION_ESTABLISH_TIMEOUT = 5_000;
+  private static final int CLIENT_REQUEST_TIMEOUT = 28_000;
+  private static final int CONNECTION_TTL = 60_000;
 
   /**
    * The maximal response size in bytes that can be sent back without relocating the response.
@@ -81,7 +84,12 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
         .standard()
         .withRegion(extractRegionFromArn(((AWSLambda) remoteFunction).lambdaARN))
         .withCredentials(getAWSCredentialsProvider())
-        .withClientConfiguration(new ClientConfiguration().withMaxConnections(maxConnections))
+        .withClientConfiguration(new ClientConfiguration()
+            .withMaxConnections(maxConnections)
+            .withConnectionTimeout(CONNECTION_ESTABLISH_TIMEOUT)
+            .withRequestTimeout((int) REQUEST_TIMEOUT)
+            .withClientExecutionTimeout(CLIENT_REQUEST_TIMEOUT)
+            .withConnectionTTL(CONNECTION_TTL))
         .build();
   }
 
@@ -179,6 +187,6 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
       }
     }
 
-    return new HttpException(BAD_GATEWAY, "Unable to parse the response of the connector.");
+    return new HttpException(BAD_GATEWAY, "Unable to parse the response of the connector.", e);
   }
 }
