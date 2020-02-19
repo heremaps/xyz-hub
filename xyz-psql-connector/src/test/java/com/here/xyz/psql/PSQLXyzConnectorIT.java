@@ -19,33 +19,17 @@
 
 package com.here.xyz.psql;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
 import com.amazonaws.util.IOUtils;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.events.GetFeaturesByGeometryEvent;
-import com.here.xyz.events.GetStatisticsEvent;
-import com.here.xyz.events.HealthCheckEvent;
-import com.here.xyz.events.ModifyFeaturesEvent;
-import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.events.PropertyQuery;
+import com.here.xyz.events.*;
 import com.here.xyz.events.PropertyQuery.QueryOperation;
-import com.here.xyz.events.PropertyQueryList;
-import com.here.xyz.models.geojson.coordinates.LineStringCoordinates;
-import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
-import com.here.xyz.models.geojson.coordinates.MultiPolygonCoordinates;
-import com.here.xyz.models.geojson.coordinates.PointCoordinates;
-import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
-import com.here.xyz.models.geojson.coordinates.Position;
+import com.here.xyz.models.geojson.coordinates.*;
+import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.*;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
@@ -55,6 +39,14 @@ import com.jayway.jsonpath.Configuration;
 import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.Option;
+import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -72,13 +64,8 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.commons.lang3.RandomStringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+
+import static org.junit.Assert.*;
 
 @SuppressWarnings("unused")
 public class PSQLXyzConnectorIT {
@@ -104,7 +91,8 @@ public class PSQLXyzConnectorIT {
     logger.info("Setup...");
 
     // DELETE EXISTING FEATURES TO START FRESH
-    invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
+    String response = invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
+    assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
 
     logger.info("Setup Completed.");
   }
@@ -114,12 +102,6 @@ public class PSQLXyzConnectorIT {
     logger.info("Shutdown...");
     invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
     logger.info("Shutdown Completed.");
-  }
-
-  @Test
-  public void testHealthCheck() throws Exception {
-    String response = invokeLambdaFromFile("/events/HealthCheckEvent.json");
-    assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
   }
 
   @Test
@@ -362,9 +344,296 @@ public class PSQLXyzConnectorIT {
     logger.info("Area Query with MULTIPOLYGON + SELECTION tested successfully");
   }
 
-  /**
-   * Test all branches of the BBox query.
-   */
+  @Test
+  public void testTransactionalUUIDCases() throws Exception {
+    XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
+
+    // =========== INSERT ==========
+    String insertJsonFile = "/events/InsertFeaturesEventTransactional.json";
+    String insertResponse = invokeLambdaFromFile(insertJsonFile);
+    String insertRequest = IOUtils.toString(GSContext.class.getResourceAsStream(insertJsonFile));
+    assertRead(insertRequest, insertResponse, true);
+    logger.info("Insert feature tested successfully");
+
+    // =========== UPDATE With wrong UUID ==========
+    FeatureCollection featureCollection = XyzSerializable.deserialize(insertResponse);
+    for (Feature feature : featureCollection.getFeatures()) {
+      feature.getProperties().put("foo","bar");
+    }
+
+    String modifiedFeatureId = featureCollection.getFeatures().get(1).getId();
+    featureCollection.getFeatures().get(1).getProperties().getXyzNamespace().setUuid("wrong");
+
+    Feature newFeature = new Feature().withId("test2").withProperties(new Properties().withXyzNamespace(xyzNamespace));
+    List<Feature> insertFeatureList = new ArrayList<>();
+    insertFeatureList.add(newFeature);
+
+    List<String> idList = featureCollection.getFeatures().stream().map(Feature::getId).collect(Collectors.toList());
+    idList.add("test2");
+
+    setPUUID(featureCollection);
+
+    ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
+    mfevent.setSpace("foo");
+    mfevent.setTransaction(true);
+    mfevent.setEnableUUID(true);
+    mfevent.setUpdateFeatures(featureCollection.getFeatures());
+    mfevent.setInsertFeatures(insertFeatureList);
+    String response = invokeLambda(mfevent.serialize());
+    FeatureCollection responseCollection = XyzSerializable.deserialize(response);
+
+    assertEquals(0, responseCollection.getFeatures().size());
+    assertEquals(4, responseCollection.getFailed().size());
+
+    // Transaction should have failed
+    for (FeatureCollection.ModificationFailure failure : responseCollection.getFailed()) {
+      if(failure.getId().equalsIgnoreCase(modifiedFeatureId))
+        assertEquals("Object does not exist or UUID mismatch",failure.getMessage());
+      else
+        assertEquals("Transaction has failed",failure.getMessage());
+      // Check if Id correct
+      assertTrue(idList.contains(failure.getId()));
+    }
+
+    //Check if nothing got written
+    SearchForFeaturesEvent searchEvent = new SearchForFeaturesEvent();
+    searchEvent.setSpace("foo");
+    searchEvent.setStreamId(RandomStringUtils.randomAlphanumeric(10));
+    String eventJson = searchEvent.serialize();
+    String searchResponse = invokeLambda(eventJson);
+    responseCollection = XyzSerializable.deserialize(searchResponse);
+
+    for (Feature feature : responseCollection.getFeatures()) {
+      assertNull(feature.getProperties().get("foo"));
+    }
+
+    // =========== UPDATE With correct UUID ==========
+    for (Feature feature : responseCollection.getFeatures()) {
+      feature.getProperties().put("foo","bar");
+    }
+
+    setPUUID(responseCollection);
+
+    mfevent.setUpdateFeatures(responseCollection.getFeatures());
+    mfevent.setInsertFeatures(new ArrayList<>());
+
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+    assertEquals(3, responseCollection.getFeatures().size());
+    assertEquals(3, responseCollection.getUpdated().size());
+    assertNull(responseCollection.getFailed());
+
+    // Check returned FeatureCollection
+    for (Feature feature : responseCollection.getFeatures()) {
+      assertEquals("bar",feature.getProperties().get("foo"));
+    }
+
+    // Check if updates got performed
+    searchResponse = invokeLambda(eventJson);
+    responseCollection = XyzSerializable.deserialize(searchResponse);
+    assertEquals(3, responseCollection.getFeatures().size());
+
+    for (Feature feature : responseCollection.getFeatures()) {
+      assertEquals("bar",feature.getProperties().get("foo"));
+    }
+
+    // =========== Delete With wrong UUID ==========
+    Map<String,String> idUUIDMap = new HashMap<>();
+    Map<String,String> idMap = new HashMap<>();
+    //get current UUIDS
+    for (Feature feature : responseCollection.getFeatures()) {
+      idUUIDMap.put(feature.getId(),feature.getProperties().getXyzNamespace().getUuid());
+      idMap.put(feature.getId(),null);
+    }
+
+    idUUIDMap.put(modifiedFeatureId, "wrong");
+    mfevent.setUpdateFeatures(new ArrayList<>());
+    mfevent.setDeleteFeatures(idUUIDMap);
+
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+
+    assertEquals(0, responseCollection.getFeatures().size());
+    assertEquals(3, responseCollection.getFailed().size());
+
+    // Transaction should have failed
+    for (FeatureCollection.ModificationFailure failure : responseCollection.getFailed()) {
+      if(failure.getId().equalsIgnoreCase(modifiedFeatureId))
+        assertEquals("Object does not exist or UUID mismatch",failure.getMessage());
+      else
+        assertEquals("Transaction has failed",failure.getMessage());
+      // Check if Id correct
+      assertTrue(idList.contains(failure.getId()));
+    }
+
+    // Check if deletes has failed
+    searchResponse = invokeLambda(eventJson);
+    responseCollection = XyzSerializable.deserialize(searchResponse);
+    assertEquals(3, responseCollection.getFeatures().size());
+
+    // =========== Delete without UUID ==========
+    mfevent.setDeleteFeatures(idMap);
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+
+    assertEquals(0, responseCollection.getFeatures().size());
+    assertNull(responseCollection.getFailed());
+
+    // Check if deletes are got performed
+    searchResponse = invokeLambda(eventJson);
+    responseCollection = XyzSerializable.deserialize(searchResponse);
+    assertEquals(0, responseCollection.getFeatures().size());
+  }
+
+  @Test
+  public void testStreamUUIDCases() throws Exception {
+    XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L).withUuid("4e16d729-e4f7-4ea9-b0da-4af4ac53c5c4");
+
+    // =========== INSERT ==========
+    String insertJsonFile = "/events/InsertFeaturesEventTransactional.json";
+    String insertResponse = invokeLambdaFromFile(insertJsonFile);
+    String insertRequest = IOUtils.toString(GSContext.class.getResourceAsStream(insertJsonFile));
+    assertRead(insertRequest, insertResponse, true);
+    logger.info("Insert feature tested successfully");
+
+    // =========== UPDATE With wrong UUID ==========
+    FeatureCollection featureCollection = XyzSerializable.deserialize(insertResponse);
+    for (Feature feature : featureCollection.getFeatures()) {
+      feature.getProperties().put("foo", "bar");
+    }
+
+    String modifiedFeatureId = featureCollection.getFeatures().get(1).getId();
+    featureCollection.getFeatures().get(1).getProperties().getXyzNamespace().setUuid("wrong");
+
+    Feature newFeature = new Feature().withId("test2").withProperties(new Properties().withXyzNamespace(xyzNamespace));
+    List<Feature> insertFeatureList = new ArrayList<>();
+    insertFeatureList.add(newFeature);
+
+    List<String> idList = featureCollection.getFeatures().stream().map(Feature::getId).collect(Collectors.toList());
+    idList.add("test2");
+
+    setPUUID(featureCollection);
+
+    ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
+    mfevent.setSpace("foo");
+    mfevent.setTransaction(false);
+    mfevent.setEnableUUID(true);
+    mfevent.setUpdateFeatures(featureCollection.getFeatures());
+    mfevent.setInsertFeatures(insertFeatureList);
+    String response = invokeLambda(mfevent.serialize());
+    FeatureCollection responseCollection = XyzSerializable.deserialize(response);
+
+    assertEquals(3, responseCollection.getFeatures().size());
+    assertEquals(1, responseCollection.getFailed().size());
+    assertTrue(responseCollection.getFailed().get(0).getId().equalsIgnoreCase(modifiedFeatureId));
+
+    List<String> inserted = responseCollection.getInserted();
+
+    FeatureCollection.ModificationFailure failure = responseCollection.getFailed().get(0);
+    assertEquals(DatabaseWriter.UPDATE_ERROR_UUID,failure.getMessage());
+    assertEquals(modifiedFeatureId,failure.getId());
+
+    //Check if updates got written (correct UUID)
+    SearchForFeaturesEvent searchEvent = new SearchForFeaturesEvent();
+    searchEvent.setSpace("foo");
+    searchEvent.setStreamId(RandomStringUtils.randomAlphanumeric(10));
+    String eventJson = searchEvent.serialize();
+    String searchResponse = invokeLambda(eventJson);
+    responseCollection = XyzSerializable.deserialize(searchResponse);
+
+    for (Feature feature : responseCollection.getFeatures()) {
+      // The new Feature and the failed updated one should not have the property foo
+      if(feature.getId().equalsIgnoreCase(modifiedFeatureId) || feature.getId().equalsIgnoreCase(inserted.get(0)))
+        assertNull(feature.getProperties().get("foo"));
+      else
+        assertEquals("bar",feature.getProperties().get("foo"));
+      assertTrue(idList.contains(failure.getId()));
+    }
+
+    // =========== UPDATE With correct UUID ==========
+    for (Feature feature : responseCollection.getFeatures()) {
+      feature.getProperties().put("foo","bar2");
+    }
+
+    setPUUID(responseCollection);
+
+    mfevent.setUpdateFeatures(responseCollection.getFeatures());
+    mfevent.setInsertFeatures(new ArrayList<>());
+
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+    assertEquals(4, responseCollection.getFeatures().size());
+    assertEquals(4, responseCollection.getUpdated().size());
+    assertNull(responseCollection.getFailed());
+
+    for (Feature feature : responseCollection.getFeatures()) {
+      assertEquals("bar2",feature.getProperties().get("foo"));
+    }
+
+    // =========== Delete With wrong UUID ==========
+    Map<String,String> idUUIDMap = new HashMap<>();
+    Map<String,String> idMap = new HashMap<>();
+    //get current UUIDS
+    for (Feature feature : responseCollection.getFeatures()) {
+      idUUIDMap.put(feature.getId(),feature.getProperties().getXyzNamespace().getUuid());
+      idMap.put(feature.getId(),null);
+    }
+
+    idUUIDMap.put(modifiedFeatureId, "wrong");
+    mfevent.setUpdateFeatures(new ArrayList<>());
+    mfevent.setDeleteFeatures(idUUIDMap);
+
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+
+    assertEquals(0, responseCollection.getFeatures().size());
+    assertEquals(3, responseCollection.getDeleted().size());
+    assertEquals(1, responseCollection.getFailed().size());
+
+    // Only the feature with wrong UUID should have failed
+    failure = responseCollection.getFailed().get(0);
+    assertEquals(DatabaseWriter.UPDATE_ERROR_UUID,failure.getMessage());
+    assertEquals(modifiedFeatureId, failure.getId());
+
+    // Check if deletes are got performed
+    searchResponse = invokeLambda(eventJson);
+    responseCollection = XyzSerializable.deserialize(searchResponse);
+    assertEquals(1, responseCollection.getFeatures().size());
+
+    // =========== Delete without UUID ==========
+    mfevent.setDeleteFeatures(idMap);
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+
+    assertEquals(0, responseCollection.getFeatures().size());
+    assertEquals(1, responseCollection.getDeleted().size());
+    assertEquals(modifiedFeatureId, (responseCollection.getDeleted().get(0)));
+    // Check if deletes are got performed
+    searchResponse = invokeLambda(eventJson);
+    responseCollection = XyzSerializable.deserialize(searchResponse);
+    assertEquals(0, responseCollection.getFeatures().size());
+  }
+
+  private void setPUUID(FeatureCollection featureCollection) throws JsonProcessingException {
+    for (Feature feature : featureCollection.getFeatures()){
+      feature.getProperties().getXyzNamespace().setPuuid(feature.getProperties().getXyzNamespace().getUuid());
+      feature.getProperties().getXyzNamespace().setUuid(UUID.randomUUID().toString());
+    }
+  }
+
+  @Test
+  public void testModifyFeatureFailuresWithUUID() throws Exception {
+    testModifyFeatureFailures(true);
+  }
+
+  @Test
+  public void testModifyFeatureFailuresWithoutUUID() throws Exception {
+    testModifyFeatureFailures(false);
+  }
+
+    /**
+     * Test all branches of the BBox query.
+     */
   @Test
   public void testBBoxQuery() throws Exception {
     // =========== INSERT ==========
@@ -573,11 +842,6 @@ public class PSQLXyzConnectorIT {
     features = featureCollection.getFeatures();
     assertNotNull(features);
     assertEquals(1, features.size());
-
-    // =========== DELETE SPACE ==========
-    String deleteSpaceResponse = invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
-    assertDeleteSpaceResponse(deleteSpaceResponse);
-    logger.info("Delete space tested successfully - " + deleteSpaceResponse);
   }
 
 
@@ -592,6 +856,7 @@ public class PSQLXyzConnectorIT {
 
     // =========== UPDATE ==========
     FeatureCollection featureCollection = XyzSerializable.deserialize(insertResponse);
+    setPUUID(featureCollection);
     String featuresList = XyzSerializable.serialize(featureCollection.getFeatures(), new TypeReference<List<Feature>>() {
     });
     String updateRequest = "{\n" +
@@ -603,6 +868,10 @@ public class PSQLXyzConnectorIT {
         "}";
     updateRequest = updateRequest.replaceAll("Tesla", "Honda");
     String updateResponse = invokeLambda(updateRequest);
+
+    FeatureCollection responseCollection = XyzSerializable.deserialize(updateResponse);
+    setPUUID(responseCollection);
+
     assertUpdate(updateRequest, updateResponse, true);
     assertUpdate(updateRequest, updateResponse, true);
     logger.info("Update feature tested successfully");
@@ -619,13 +888,9 @@ public class PSQLXyzConnectorIT {
 
     // =========== UPDATE ==========
     FeatureCollection featureCollection = XyzSerializable.deserialize(insertResponse);
-    featureCollection.getFeatures().forEach(f->{
-      f.getProperties().getXyzNamespace().setPuuid(f.getProperties().getXyzNamespace().getUuid());
-      f.getProperties().getXyzNamespace().setUuid(UUID.randomUUID().toString());
+    setPUUID(featureCollection);
+    String featuresList = XyzSerializable.serialize(featureCollection.getFeatures(), new TypeReference<List<Feature>>() {
     });
-
-    String featuresList = XyzSerializable.serialize(featureCollection.getFeatures(), new TypeReference<List<Feature>>() {});
-
     String updateRequest = "{\n" +
         "    \"type\": \"ModifyFeaturesEvent\",\n" +
         "    \"space\": \"foo\",\n" +
@@ -634,7 +899,10 @@ public class PSQLXyzConnectorIT {
         "    \"updateFeatures\": " + featuresList + "\n" +
         "}";
     updateRequest = updateRequest.replaceAll("Tesla", "Honda");
+
     String updateResponse = invokeLambda(updateRequest);
+    FeatureCollection responseCollection = XyzSerializable.deserialize(updateResponse);
+
     assertUpdate(updateRequest, updateResponse, true);
     logger.info("Update feature tested successfully");
 
@@ -659,9 +927,11 @@ public class PSQLXyzConnectorIT {
     String deleteResponse = invokeLambda(deleteRequest);
   }
 
+  @Test
   public void testGetStatisticsEvent() throws Exception {
 
     // =========== INSERT ==========
+    XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
     String insertJsonFile = "/events/InsertFeaturesEventTransactional.json";
     String insertResponse = invokeLambdaFromFile(insertJsonFile);
     String insertRequest = IOUtils.toString(GSContext.class.getResourceAsStream(insertJsonFile));
@@ -669,7 +939,6 @@ public class PSQLXyzConnectorIT {
     logger.info("Insert feature tested successfully");
 
     // =========== GetStatistics ==========
-    invokeLambdaFromFile("/events/HealthCheckEvent.json");
     GetStatisticsEvent event = new GetStatisticsEvent();
     event.setSpace("foo");
     event.setStreamId(RandomStringUtils.randomAlphanumeric(10));
@@ -713,7 +982,7 @@ public class PSQLXyzConnectorIT {
           Feature f = new Feature()
               .withGeometry(
                   new Point().withCoordinates(new PointCoordinates(360d * random.nextDouble() - 180d, 180d * random.nextDouble() - 90d)))
-              .withProperties(new Properties());
+              .withProperties(new Properties().withXyzNamespace(xyzNamespace));
           pKeys.forEach(p -> f.getProperties().put(p, RandomStringUtils.randomAlphanumeric(8)));
           return f;
         }).limit(11000).collect(Collectors.toList()));
@@ -746,18 +1015,17 @@ public class PSQLXyzConnectorIT {
     assertEquals(PropertiesStatistics.Searchable.PARTIAL, response.getProperties().getSearchable());
 
     for (PropertyStatistics prop : response.getProperties().getValue()) {
+      if(prop.getKey().equalsIgnoreCase("name"))
+        continue;
       assertTrue(pKeys.contains(prop.getKey()));
-      assertEquals(prop.getCount(), 11003);
+      assertEquals(prop.getCount() > 10000, true);
     }
-    // =========== DELETE SPACE ==========
-    String deleteSpaceResponse = invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
-    assertDeleteSpaceResponse(deleteSpaceResponse);
-    logger.info("Delete space tested successfully - " + deleteSpaceResponse);
   }
 
-  //  @Test
+  @Test
   public void testAutoIndexing() throws Exception {
-    // =========== INSERT further 11k ==========
+
+    XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
     FeatureCollection collection = new FeatureCollection();
     Random random = new Random();
 
@@ -770,30 +1038,65 @@ public class PSQLXyzConnectorIT {
           Feature f = new Feature()
               .withGeometry(
                   new Point().withCoordinates(new PointCoordinates(360d * random.nextDouble() - 180d, 180d * random.nextDouble() - 90d)))
-              .withProperties(new Properties());
+              .withProperties(new Properties().withXyzNamespace(xyzNamespace));
           pKeys.forEach(p -> f.getProperties().put(p, RandomStringUtils.randomAlphanumeric(3)));
           return f;
         }).limit(11000).collect(Collectors.toList()));
 
+    /** This property does not get auto-indexed */
+    for (int i = 0; i < 11000 ; i++) {
+      if(i % 5 == 0)
+        collection.getFeatures().get(i).getProperties().with("test",1);
+    }
+
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
     mfevent.setSpace("foo");
     mfevent.setTransaction(true);
-    mfevent.setEnableUUID(true);
     mfevent.setInsertFeatures(collection.getFeatures());
     invokeLambda(mfevent.serialize());
 
-    /* Needed to trigger update on pg_stat*/
+    /** Needed to trigger update on pg_stat */
     try (final Connection connection = lambda.dataSource.getConnection()) {
       Statement stmt = connection.createStatement();
       stmt.execute("DELETE FROM xyz_config.xyz_idxs_status WHERE spaceid='foo';");
       stmt.execute("ANALYZE public.\"foo\";");
     }
 
-    HealthCheckEvent health = new HealthCheckEvent();
-    health.setConnectorParams(new HashMap<String, Object>() {{
-      put("propertySearch", true);
-    }});
-    invokeLambda(health.serialize());
+    //Triggers dbMaintenance
+    invokeLambdaFromFile("/events/HealthCheckEvent.json");
+
+    // =========== GetStatistics ==========
+    GetStatisticsEvent event = new GetStatisticsEvent();
+    event.setSpace("foo");
+    event.setStreamId(RandomStringUtils.randomAlphanumeric(10));
+    String eventJson = event.serialize();
+    String statisticsJson = invokeLambda(eventJson);
+    StatisticsResponse response = XyzSerializable.deserialize(statisticsJson);
+
+    assertNotNull(response);
+
+    assertEquals(new Long(11000), response.getCount().getValue());
+    assertEquals(true,  response.getCount().getEstimated());
+    assertEquals(PropertiesStatistics.Searchable.PARTIAL, response.getProperties().getSearchable());
+
+    List<PropertyStatistics> propStatistics = response.getProperties().getValue();
+    for (PropertyStatistics propStat: propStatistics ) {
+      if(propStat.getKey().equalsIgnoreCase("test")){
+        assertEquals("number", propStat.getDatatype());
+        assertEquals(false, propStat.isSearchable());
+        assertTrue(propStat.getCount() < 11000);
+      }else{
+        assertEquals("string", propStat.getDatatype());
+        assertEquals(true, propStat.isSearchable());
+        assertEquals(11000 , propStat.getCount());
+      }
+    }
+
+    /* Clean-up maintenance entry */
+    try (final Connection connection = lambda.dataSource.getConnection()) {
+      Statement stmt = connection.createStatement();
+      stmt.execute("DELETE FROM xyz_config.xyz_idxs_status WHERE spaceid='foo';");
+    }
   }
 
   @Test
@@ -862,11 +1165,6 @@ public class PSQLXyzConnectorIT {
     // =========== DELETE FEATURES ==========
     invokeLambdaFromFile("/events/DeleteFeaturesByTagEvent.json");
     logger.info("Delete feature tested successfully");
-
-    // =========== DELETE SPACE ==========
-    String deleteSpaceResponse = invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
-    assertDeleteSpaceResponse(deleteSpaceResponse);
-    logger.info("Delete space tested successfully - " + deleteSpaceResponse);
   }
 
   @Test
@@ -1183,6 +1481,149 @@ public class PSQLXyzConnectorIT {
   @Test
   public void testModifyFeaturesWithOldStates() throws Exception {
     testModifyFeatures(true);
+  }
+
+  @Test
+  public void testDeleteFeatures() throws Exception {
+    // =========== INSERT ==========
+    String insertJsonFile = "/events/InsertFeaturesEvent.json";
+    String insertResponse = invokeLambdaFromFile(insertJsonFile);
+    logger.info("RAW RESPONSE: " + insertResponse);
+    String insertRequest = IOUtils.toString(GSContext.class.getResourceAsStream(insertJsonFile));
+    assertRead(insertRequest, insertResponse, false);
+    final JsonPath jsonPathFeatures = JsonPath.compile("$.features");
+    List<Map> originalFeatures = jsonPathFeatures.read(insertResponse, jsonPathConf);
+
+    final JsonPath jsonPathFeatureIds = JsonPath.compile("$.features..id");
+    List<String> ids = jsonPathFeatureIds.read(insertResponse, jsonPathConf);
+    logger.info("Preparation: Inserted features {}", ids);
+
+    // =========== DELETE ==========
+    final DocumentContext modifyFeaturesEventDoc = getEventFromResource("/events/InsertFeaturesEvent.json");
+    modifyFeaturesEventDoc.delete("$.insertFeatures");
+
+    Map<String, String> idsMap = new HashMap<>();
+    ids.forEach(id -> idsMap.put(id, null));
+    modifyFeaturesEventDoc.put("$", "deleteFeatures", idsMap);
+
+    String deleteEvent = modifyFeaturesEventDoc.jsonString();
+    String deleteResponse = invokeLambda(deleteEvent);
+    assertNoErrorInResponse(deleteResponse);
+    logger.info("Modify features tested successfully");
+
+  }
+
+  private void testModifyFeatureFailures(boolean withUUID) throws Exception {
+    XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
+
+    // =========== INSERT ==========
+    String insertJsonFile = withUUID ? "/events/InsertFeaturesEventTransactional.json" : "/events/InsertFeaturesEvent.json";
+    final String insertResponse = invokeLambdaFromFile(insertJsonFile);
+    final String insertRequest = IOUtils.toString(GSContext.class.getResourceAsStream(insertJsonFile));
+    final FeatureCollection insertRequestCollection = XyzSerializable.deserialize(insertResponse);
+    assertRead(insertRequest, insertResponse, withUUID);
+    logger.info("Insert feature tested successfully");
+
+    // =========== DELETE NOT EXISTING FEATURE ==========
+    //Stream
+    ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
+    if(withUUID)
+      mfevent.setEnableUUID(true);
+
+    mfevent.setSpace("foo");
+    mfevent.setTransaction(false);
+    mfevent.setDeleteFeatures(Collections.singletonMap("doesnotexist", null));
+    String response = invokeLambda(mfevent.serialize());
+    FeatureCollection responseCollection = XyzSerializable.deserialize(response);
+    assertEquals("doesnotexist", responseCollection.getFailed().get(0).getId());
+    assertEquals(0,responseCollection.getFeatures().size());
+    assertNull(responseCollection.getUpdated());
+    assertNull(responseCollection.getInserted());
+    assertNull(responseCollection.getDeleted());
+
+    if(withUUID)
+      assertEquals(DatabaseWriter.DELETE_ERROR_UUID, responseCollection.getFailed().get(0).getMessage());
+    else
+      assertEquals(DatabaseWriter.DELETE_ERROR_NOT_EXISTS, responseCollection.getFailed().get(0).getMessage());
+
+    //Transactional
+    mfevent.setTransaction(true);
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+    assertEquals("doesnotexist", responseCollection.getFailed().get(0).getId());
+    assertEquals(0,responseCollection.getFeatures().size());
+    assertNull(responseCollection.getUpdated());
+    assertNull(responseCollection.getInserted());
+    assertNull(responseCollection.getDeleted());
+
+    if(withUUID)
+      assertEquals(DatabaseWriter.DELETE_ERROR_UUID, responseCollection.getFailed().get(0).getMessage());
+    else
+      assertEquals(DatabaseWriter.DELETE_ERROR_NOT_EXISTS, responseCollection.getFailed().get(0).getMessage());
+
+    // =========== INSERT EXISTING FEATURE ==========
+    //Stream
+    Feature existing = insertRequestCollection.getFeatures().get(0);
+    existing.getProperties().getXyzNamespace().setPuuid(existing.getProperties().getXyzNamespace().getUuid());
+
+    mfevent.setInsertFeatures(new ArrayList<Feature>(){{add(existing);}});
+    mfevent.setDeleteFeatures(new HashMap<>());
+    mfevent.setTransaction(false);
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+    assertEquals(existing.getId(), responseCollection.getFailed().get(0).getId());
+    assertEquals(DatabaseWriter.INSERT_ERROR_GENERAL, responseCollection.getFailed().get(0).getMessage());
+    assertEquals(0,responseCollection.getFeatures().size());
+    assertNull(responseCollection.getUpdated());
+    assertNull(responseCollection.getInserted());
+    assertNull(responseCollection.getDeleted());
+
+    //Transactional
+    mfevent.setTransaction(true);
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+    assertEquals(existing.getId(), responseCollection.getFailed().get(0).getId());
+    assertEquals(DatabaseWriter.TRANSACTION_ERROR_GENERAL, responseCollection.getFailed().get(0).getMessage());
+    assertEquals(0,responseCollection.getFeatures().size());
+    assertNull(responseCollection.getUpdated());
+    assertNull(responseCollection.getInserted());
+    assertNull(responseCollection.getDeleted());
+
+    // =========== UPDATE NOT EXISTING FEATURE ==========
+    //Stream
+    //Change ID to not existing one
+    existing.setId("doesnotexist");
+    mfevent.setInsertFeatures(new ArrayList<>());
+    mfevent.setUpdateFeatures(new ArrayList<Feature>(){{add(existing);}});
+    mfevent.setTransaction(false);
+
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+    assertEquals(existing.getId(), responseCollection.getFailed().get(0).getId());
+    assertEquals(0,responseCollection.getFeatures().size());
+    assertNull(responseCollection.getUpdated());
+    assertNull(responseCollection.getInserted());
+    assertNull(responseCollection.getDeleted());
+
+    if(withUUID)
+      assertEquals(DatabaseWriter.UPDATE_ERROR_UUID, responseCollection.getFailed().get(0).getMessage());
+    else
+      assertEquals(DatabaseWriter.UPDATE_ERROR_NOT_EXISTS, responseCollection.getFailed().get(0).getMessage());
+
+    //Transactional
+    mfevent.setTransaction(true);
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+    assertEquals(existing.getId(), responseCollection.getFailed().get(0).getId());
+    assertEquals(0,responseCollection.getFeatures().size());
+    assertNull(responseCollection.getUpdated());
+    assertNull(responseCollection.getInserted());
+    assertNull(responseCollection.getDeleted());
+
+    if(withUUID)
+      assertEquals(DatabaseWriter.UPDATE_ERROR_UUID, responseCollection.getFailed().get(0).getMessage());
+    else
+      assertEquals(DatabaseWriter.UPDATE_ERROR_NOT_EXISTS, responseCollection.getFailed().get(0).getMessage());
   }
 
   @SuppressWarnings({"rawtypes", "unchecked"})

@@ -1,4 +1,11 @@
 {
 	"type": "HealthCheckEvent",
-	"minResponseTime": 100
+	"minResponseTime": 100,
+	"connectorParams": {
+		"propertySearch": true,
+		"autoIndexing" : true
+	},
+	"params": {
+		"propertySearch": true
+	}
 }

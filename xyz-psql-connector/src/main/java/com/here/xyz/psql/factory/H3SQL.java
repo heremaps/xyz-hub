@@ -17,20 +17,18 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.psql;
+package com.here.xyz.psql.factory;
 
 import com.here.xyz.models.geojson.coordinates.BBox;
 
-class H3
+public class H3SQL
 {
-//Clustering constants
-  static final String HEXBIN = "hexbin";
-  static final String HEXBIN_RESOLUTION = "resolution";
-  static final String HEXBIN_PROPERTY = "property";
-  static final String HEXBIN_POINTMODE = "pointmode";
-    /**** Begin - HEXBIN related section ******/
+  public static final String HEXBIN = "hexbin";
+  public static final String HEXBIN_RESOLUTION = "resolution";
+  public static final String HEXBIN_PROPERTY = "property";
+  public static final String HEXBIN_POINTMODE = "pointmode";
 
-  static String h3sqlBegin =
+  public static String h3sqlBegin =
       "  select "
           + "  ( "
           + "   select row_to_json(ftr) from "
@@ -123,20 +121,17 @@ class H3
           + "  ) outer_v ";
 
 
-  static int[] MaxResForZoom = {2, 2, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8, 9, 9, 10, 11, 11, 12, 13, 14, 14, 15, 15};
+  public static int[] MaxResForZoom = {2, 2, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8, 9, 9, 10, 11, 11, 12, 13, 14, 14, 15, 15};
 
-  static int zoom2resolution(int zoom) {
+  public static int zoom2resolution(int zoom) {
     return (MaxResForZoom[zoom]);
   }
 
-  static int bbox2zoom(BBox bbox) {
+  public static int bbox2zoom(BBox bbox) {
     return ((int) Math.round((5.88610403145016 - Math.log(bbox.maxLon() - bbox.minLon())) / 0.693147180559945));
   }
 
-  static int pxSize = 64;
-
-  /**** End - HEXBIN related section ******/
-
+  public static int pxSize = 64;
 }
 
 
