@@ -33,9 +33,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import net.jodah.expiringmap.ExpirationPolicy;
@@ -135,25 +137,39 @@ public abstract class ConnectorConfigClient implements Initializable {
   }
 
   public void insertLocalConnectors(Handler<AsyncResult<Void>> handler) {
-    InputStream input = ConnectorConfigClient.class.getResourceAsStream("/connectors.json");
+    final InputStream input = ConnectorConfigClient.class.getResourceAsStream("/connectors.json");
     try (BufferedReader buffer = new BufferedReader(new InputStreamReader(input))) {
-      String connectorsFile = buffer.lines().collect(Collectors.joining("\n"));
-      List<Connector> connectors = Json.decodeValue(connectorsFile, new TypeReference<List<Connector>>() {
-      });
+      final String connectorsFile = buffer.lines().collect(Collectors.joining("\n"));
+      final List<Connector> connectors = Json.decodeValue(connectorsFile, new TypeReference<List<Connector>>() {});
+      final List<CompletableFuture<Void>> futures = new ArrayList<>();
+
       connectors.forEach(c -> {
         replaceEnvVars(c);
 
+        final CompletableFuture<Void> future = new CompletableFuture<>();
+        futures.add(future);
+
         storeConnectorIfNotExists(null, c, r -> {
           if (r.failed()) {
-            handler.handle(Future.failedFuture(r.cause()));
-          }
-          else {
-            handler.handle(Future.succeededFuture());
+            future.completeExceptionally(r.cause());
+          } else {
+            future.complete(null);
           }
         });
       });
+
+      CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).handle((res, e) -> {
+        if (e != null) {
+          handler.handle(Future.failedFuture(e));
+        } else {
+          handler.handle(Future.succeededFuture());
+        }
+
+        return null;
+      });
     } catch (IOException e) {
       logger.info("Unable to insert the local connectors.");
+      handler.handle(Future.failedFuture(e));
     }
   }
 

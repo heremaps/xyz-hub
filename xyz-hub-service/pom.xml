@@ -45,6 +45,7 @@
   <properties>
     <startHub>false</startHub>
     <pathToConfig>deployment/local/config.json</pathToConfig>
+    <dockerComposeFile>docker-compose.yml</dockerComposeFile>
   </properties>
 
   <build>
@@ -150,6 +151,8 @@
               <execution>
                 <configuration>
                   <arguments>
+                    <argument>--file</argument>
+                    <argument>../${dockerComposeFile}</argument>
                     <argument>up</argument>
                     <argument>--detach</argument>
                     <argument>--build</argument>
