@@ -1,4 +1,4 @@
-FROM openjdk:8-alpine
+FROM openjdk:8
 
 MAINTAINER Benjamin Rögner "benjamin.roegner@here.com"
 MAINTAINER Lucas Ceni "lucas.ceni@here.com"
