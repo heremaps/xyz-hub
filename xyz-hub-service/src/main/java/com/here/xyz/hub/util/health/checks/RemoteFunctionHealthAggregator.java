@@ -23,17 +23,18 @@ import static com.here.xyz.hub.util.health.schema.Status.Result.ERROR;
 import static com.here.xyz.hub.util.health.schema.Status.Result.OK;
 
 import com.here.xyz.hub.connectors.RemoteFunctionClient;
-import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
-import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLambda;
+import com.here.xyz.hub.connectors.models.Connector;
+import com.here.xyz.hub.util.health.GroupedHealthCheck;
 import com.here.xyz.hub.util.health.schema.Response;
 import com.here.xyz.hub.util.health.schema.Status;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
-public class RemoteFunctionHealthAggregator extends ExecutableCheck {
+public class RemoteFunctionHealthAggregator extends GroupedHealthCheck {
 
-  private Map<String, Map<String, Object>> rfcData = new HashMap<>();
-
+  private Set<String> connectorIds = new HashSet<>();
 
   public RemoteFunctionHealthAggregator() {
     setName("Connectors");
@@ -41,51 +42,71 @@ public class RemoteFunctionHealthAggregator extends ExecutableCheck {
     setTarget(Target.LOCAL);
   }
 
+  private void addRfcHc(Connector connector) {
+    connectorIds.add(connector.id);
+    add(new RemoteFunctionHealthCheck(connector));
+  }
+
+  private void removeRfcHc(String connectorId) {
+    checks.forEach(hc -> {
+      RemoteFunctionHealthCheck rfcHc = (RemoteFunctionHealthCheck) hc;
+      if (rfcHc.getConnectorId().equals(connectorId)) {
+        connectorIds.remove(connectorId);
+        remove(rfcHc);
+      }
+    });
+  }
+
   @Override
   public Status execute() {
-    Status s = new Status();
-    Response r = new Response();
+    Status s = super.execute();
+    Response r = getResponse();
 
     try {
-      populateRfcData();
+      List<Connector> activeConnectors = RemoteFunctionClient.getInstances()
+          .stream()
+          .map(rfc -> rfc.getConnectorConfig())
+          .collect(Collectors.toList());
+
+      Set<String> activeConnectorIds = activeConnectors.stream().map(c -> c.id).collect(Collectors.toSet());
+      Set<String> toDelete = new HashSet<>();
+      Set<Connector> toAdd = new HashSet<>();
+
+      connectorIds.forEach(connectorId -> {
+        if (!activeConnectorIds.contains(connectorId)) {
+          toDelete.add(connectorId);
+        }
+      });
+
+      activeConnectors.forEach(connector -> {
+        if (!connectorIds.contains(connector.id)) {
+          toAdd.add(connector);
+        }
+      });
+
+
+      toDelete.forEach(connectorId -> removeRfcHc(connectorId));
+      toAdd.forEach(connector -> addRfcHc(connector));
+    }
+    catch (Exception e) {
+      r = r.withMessage("Error when trying to gather remote functions info: " + e.getMessage());
+      s.setResult(ERROR);
+    }
+
+    //Gather further global statistics
+    try {
       r.setAdditionalProperty("globalMaxQueueByteSize", RemoteFunctionClient.GLOBAL_MAX_QUEUE_BYTE_SIZE);
       r.setAdditionalProperty("globalQueueByteSize", RemoteFunctionClient.getGlobalUsedQueueMemory());
       r.setAdditionalProperty("globalArrivalRate", RemoteFunctionClient.getGlobalArrivalRate());
       r.setAdditionalProperty("globalThroughput", RemoteFunctionClient.getGlobalThroughput());
       r.setAdditionalProperty("globalMaxConnections", RemoteFunctionClient.getGlobalMaxConnections());
       r.setAdditionalProperty("globalUsedConnections", RemoteFunctionClient.getGlobalUsedConnections());
-      r.setAdditionalProperty("connectors", rfcData);
       setResponse(r);
-      return s.withResult(OK);
-    } catch (Exception e) {
-      setResponse(r.withMessage("Error when trying to gather remote functions info: " + e.getMessage()));
+      return s.withResult(getWorseResult(OK, s.getResult()));
+    }
+    catch (Exception e) {
+      setResponse(r.withMessage("Error when trying to gather global remote functions info: " + e.getMessage()));
       return s.withResult(ERROR);
     }
-  }
-
-  private void populateRfcData() {
-    RemoteFunctionClient.getInstances().stream().forEach(rfc -> {
-      String connectorId = rfc.getConnectorConfig().id;
-      Map<String, Object> d = rfcData.get(connectorId);
-      if (d == null) {
-        rfcData.put(connectorId, d = new HashMap<>());
-        RemoteFunctionConfig function = rfc.getConnectorConfig().remoteFunction;
-        String type = function.getClass().getSimpleName();
-        d.put("type", type);
-        if (function instanceof AWSLambda) {
-          d.put("lambdaARN", ((AWSLambda) function).lambdaARN);
-        }
-      }
-      d.put("maxQueueSize", rfc.getMaxQueueSize());
-      d.put("queueSize", rfc.getQueueSize());
-      d.put("maxQueueByteSize", rfc.getMaxQueueByteSize());
-      d.put("queueByteSize", rfc.getQueueByteSize());
-      d.put("minConnections", rfc.getMinConnections());
-      d.put("maxConnections", rfc.getMaxConnections());
-      d.put("usedConnections", rfc.getUsedConnections());
-      d.put("rateOfService", rfc.getRateOfService());
-      d.put("arrivalRate", rfc.getArrivalRate());
-      d.put("throughput", rfc.getThroughput());
-    });
   }
 }
