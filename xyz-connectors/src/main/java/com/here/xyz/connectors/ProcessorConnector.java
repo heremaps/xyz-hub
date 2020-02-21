@@ -34,13 +34,12 @@ import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.ErrorResponse;
-import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.ModifiedEventResponse;
 import com.here.xyz.responses.ModifiedResponseResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.SuccessResponse;
+import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 
 /**
@@ -155,16 +154,6 @@ public abstract class ProcessorConnector extends AbstractConnectorHandler {
   @SuppressWarnings("RedundantThrows")
   @Override
   protected void initialize(Event event) throws Exception {
-  }
-
-  protected XyzResponse processHealthCheckEvent(HealthCheckEvent event) {
-    if (event.getMinResponseTime() != 0) {
-      try {
-        Thread.sleep(event.getMinResponseTime());
-      } catch (InterruptedException ignored) {
-      }
-    }
-    return new HealthStatus();
   }
 
   protected GetFeaturesByIdEvent processGetFeaturesById(GetFeaturesByIdEvent event, NotificationParams notificationParams)

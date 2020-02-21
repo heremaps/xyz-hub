@@ -45,6 +45,8 @@ public class Connector {
    */
   public String id;
 
+  public boolean active = true;
+
   /**
    * Whether the connector is a trusted connector. Trusted connectors will receive more information than normal connectors. This might be
    * confidential information about the incoming query.
@@ -89,13 +91,14 @@ public class Connector {
 
   public <T extends Connector> boolean equalTo(T other) {
     return (other != null
-        && Objects.equals(remoteFunction.id, other.remoteFunction.id)
-        && Objects.equals(connectionSettings, other.connectionSettings)
-        && Objects.equals(remoteFunction, other.remoteFunction)
+        && Objects.equals(id, other.id)
+        && active == other.active
+        && trusted == other.trusted)
         && Objects.equals(params, other.params)
         && Objects.equals(capabilities, other.capabilities)
-        && Objects.equals(defaultEventTypes, other.defaultEventTypes)
-        && trusted == other.trusted);
+        && Objects.equals(remoteFunction, other.remoteFunction)
+        && Objects.equals(connectionSettings, other.connectionSettings)
+        && Objects.equals(defaultEventTypes, other.defaultEventTypes);
   }
 
   @JsonIgnore
@@ -160,7 +163,11 @@ public class Connector {
       return preserializedResponseSupport == that.preserializedResponseSupport &&
           relocationSupport == that.relocationSupport &&
           maxUncompressedSize == that.maxUncompressedSize &&
-          maxPayloadSize == that.maxPayloadSize;
+          maxPayloadSize == that.maxPayloadSize &&
+          propertySearch == that.propertySearch &&
+          searchablePropertiesConfiguration == that.searchablePropertiesConfiguration &&
+          enableAutoCache == that.enableAutoCache &&
+          Objects.equals(clusteringTypes, that.clusteringTypes);
     }
 
   }
@@ -215,7 +222,8 @@ public class Connector {
       if (o == null || getClass() != o.getClass()) return false;
       RemoteFunctionConfig that = (RemoteFunctionConfig) o;
       return warmUp == that.warmUp &&
-          id.equals(that.id);
+          Objects.equals(id, that.id) &&
+          warmUp == that.warmUp;
     }
 
     @JsonTypeName(value = "AWSLambda")
@@ -255,6 +263,21 @@ public class Connector {
 
       public String className;
       public Map<String, String> env;
+
+      @Override
+      public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Embedded)) return false;
+        if (!super.equals(o)) return false;
+        Embedded embedded = (Embedded) o;
+        return className.equals(embedded.className) &&
+            Objects.equals(env, embedded.env);
+      }
+
+      @Override
+      public int hashCode() {
+        return Objects.hash(className, env);
+      }
     }
 
     @JsonTypeName(value = "Http")
@@ -264,6 +287,20 @@ public class Connector {
        * The URL of the endpoint to POST events to.
        */
       public URL url;
+
+      @Override
+      public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Http)) return false;
+        if (!super.equals(o)) return false;
+        Http http = (Http) o;
+        return url.equals(http.url);
+      }
+
+      @Override
+      public int hashCode() {
+        return Objects.hash(url);
+      }
     }
   }
 

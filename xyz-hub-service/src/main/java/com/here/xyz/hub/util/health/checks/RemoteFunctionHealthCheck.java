@@ -23,11 +23,13 @@ import static com.here.xyz.hub.util.health.schema.Status.Result.ERROR;
 import static com.here.xyz.hub.util.health.schema.Status.Result.OK;
 import static com.here.xyz.hub.util.health.schema.Status.Result.UNKNOWN;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.hub.connectors.RemoteFunctionClient;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLambda;
+import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.util.health.schema.Response;
 import com.here.xyz.hub.util.health.schema.Status;
@@ -45,7 +47,12 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
     this.connector = connector;
     setName(connector.id);
     setRole(Role.CUSTOM);
-    setTarget(Target.REMOTE);
+    setTarget(connector.remoteFunction instanceof Embedded ? Target.LOCAL : Target.REMOTE);
+  }
+
+  @JsonIgnore
+  public String getConnectorId() {
+    return connector.id;
   }
 
   @Override
@@ -67,12 +74,16 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
           setResponse(generateResponse());
           s.setResult(OK);
         }
-        s.notify();
+        synchronized (s) {
+          s.notify();
+        }
       });
 
       while (s.getResult() == UNKNOWN) {
         try {
-          s.wait();
+          synchronized (s) {
+            s.wait();
+          }
           Thread.sleep(1000);
         }
         catch (InterruptedException ignored) {}
