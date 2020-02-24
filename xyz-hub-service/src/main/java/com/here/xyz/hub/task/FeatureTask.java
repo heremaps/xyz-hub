@@ -140,7 +140,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
   }
 
   @Override
-  public String etag() {
+  public String getEtag() {
     if (response == null) {
       return null;
     }
@@ -352,8 +352,17 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
 
   public static class TileQuery extends ReadQuery<GetFeaturesByTileEvent, TileQuery> {
 
+    /**
+     * A local copy of some transformation-relevant properties from the event object.
+     * NOTE: The event object is not in memory in the response-phase anymore.
+     *
+     * @see Task#consumeEvent()
+     */
+    TransformationContext transformationContext;
+
     public TileQuery(GetFeaturesByTileEvent event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
       super(event, context, apiResponseTypeType, skipCache);
+      transformationContext = new TransformationContext(event.getX(), event.getY(), event.getLevel(), event.getMargin());
     }
 
     @Override
@@ -366,6 +375,20 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::invoke)
           .then(FeatureTaskHandler::transformResponse)
           .then(FeatureTaskHandler::writeCache);
+    }
+
+    static class TransformationContext {
+      TransformationContext(int x, int y, int level, int margin) {
+        this.x = x;
+        this.y = y;
+        this.level = level;
+        this.margin = margin;
+      }
+
+      int x;
+      int y;
+      int level;
+      int margin;
     }
   }
 

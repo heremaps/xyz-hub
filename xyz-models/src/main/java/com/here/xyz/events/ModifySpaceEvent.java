@@ -28,7 +28,7 @@ import com.here.xyz.models.hub.Space;
 public class ModifySpaceEvent extends Event<ModifySpaceEvent> {
 
   private Operation operation;
-  private Space space;
+  private Space spaceDefinition;
 
   @SuppressWarnings("unused")
   public Operation getOperation() {
@@ -48,11 +48,11 @@ public class ModifySpaceEvent extends Event<ModifySpaceEvent> {
 
   @SuppressWarnings("unused")
   public Space getSpaceDefinition() {
-    return this.space;
+    return this.spaceDefinition;
   }
 
-  public void setSpaceDefinition(Space space) {
-    this.space = space;
+  public void setSpaceDefinition(Space spaceDefinition) {
+    this.spaceDefinition = spaceDefinition;
   }
 
   @SuppressWarnings("unused")

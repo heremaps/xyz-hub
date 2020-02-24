@@ -355,14 +355,13 @@ public class SpaceTaskHandler {
         .withOperation(op)
         .withSpaceDefinition(space)
         .withStreamId(task.getMarker().getName())
-        .withSpace(space.getId())
         .withParams(space.getStorage().getParams())
-        .withIfNoneMatch(task.context.request().headers().get("If-None-Match"));
+        .withIfNoneMatch(task.context.request().headers().get("If-None-Match"))
+        .withSpace(space.getId());
 
     ModifySpaceQuery query = new ModifySpaceQuery(event, task.context, ApiResponseType.EMPTY);
-
-    query.space = task.isDelete() ? entry.head : entry.result;
-    query.getEvent().setSpace(query.space.getId());
+    query.space = space;
+    event.setSpace(space.getId());
 
     C1<ModifySpaceQuery> onEventProcessed = (t) -> {
       //Currently it's not supported that the connector changes the space modification operation
@@ -370,13 +369,13 @@ public class SpaceTaskHandler {
         throw new HttpException(BAD_GATEWAY, "Connector error.");
       }
       if ((task.isCreate() || task.isUpdate()) && query.manipulatedSpaceDefinition != null) {
-        // Treat the manipulated space definition as a partial update.
+        //Treat the manipulated space definition as a partial update.
         Map<String,Object> newInput = JsonObject.mapFrom(query.manipulatedSpaceDefinition).getMap();
         Map<String,Object> resultClone = entry.result.asMap();
         final Difference difference = Patcher.calculateDifferenceOfPartialUpdate(resultClone, newInput, null, true);
-        if( difference != null ){
+        if (difference != null) {
           entry.isModified = true;
-          Patcher.patch(resultClone,difference);
+          Patcher.patch(resultClone, difference);
           entry.result = Json.mapper.readValue(Json.encode(resultClone), Space.class);
         }
       }
