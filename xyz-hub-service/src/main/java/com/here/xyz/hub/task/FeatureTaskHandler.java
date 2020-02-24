@@ -233,10 +233,10 @@ public class FeatureTaskHandler {
           logger.info(task.getMarker(), "Cache MISS for cache key {}", cacheKey);
         } else {
           //Cache HIT: Set the response for the task to the result from the cache so invoke (in the task pipeline) won't have anything to do
-          task.setCacheHit(true);
-          logger.info(task.getMarker(), "Cache HIT for cache key {}", cacheKey);
           try {
             task.setResponse(transform(cacheResult));
+            task.setCacheHit(true);
+            logger.info(task.getMarker(), "Cache HIT for cache key {}", cacheKey);
           } catch (JsonProcessingException e) {
             //Actually, this should never happen as we're controlling how the data is written to the cache, but you never know ;-)
             //Treating an error as a Cache MISS
@@ -259,6 +259,11 @@ public class FeatureTaskHandler {
     if (cacheProfile.serviceTTL > 0 && response != null && !task.isCacheHit()
         && !(response instanceof NotModifiedResponse) && !(response instanceof ErrorResponse)) {
       String cacheKey = task.getCacheKey();
+      if (cacheKey == null) {
+        String npe = "cacheKey is null. Couldn't write cache.";
+        logger.error(task.getMarker(), npe);
+        throw new NullPointerException(npe);
+      }
       logger.debug(task.getMarker(), "Writing entry with cache key {} to cache", cacheKey);
       Service.cacheClient.setBinary(cacheKey, transform(response), cacheProfile.serviceTTL);
     }
