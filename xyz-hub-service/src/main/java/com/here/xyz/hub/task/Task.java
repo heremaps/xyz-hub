@@ -59,6 +59,13 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
   private T event;
 
   /**
+   * Whether the event was finally consumed.
+   * After having been consumed the event get's deleted from memory and neither {@link #getEvent()} nor {@link #consumeEvent()} may
+   * be called anymore. Otherwise an {@link IllegalStateException} will be thrown.
+   */
+  private boolean eventConsumed;
+
+  /**
    * Indicates, if the task was executed.
    */
   private boolean executed = false;
@@ -83,6 +90,14 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
   }
 
   public T getEvent() {
+    if (eventConsumed) throw new IllegalStateException("Event was already consumed.");
+    return event;
+  }
+
+  public T consumeEvent() {
+    T event = getEvent();
+    eventConsumed = true;
+    this.event = null;
     return event;
   }
 
