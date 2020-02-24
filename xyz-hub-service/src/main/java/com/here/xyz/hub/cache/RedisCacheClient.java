@@ -38,11 +38,7 @@ public class RedisCacheClient implements CacheClient {
       RedisOptions config = new RedisOptions()
           .setHost(Service.configuration.XYZ_HUB_REDIS_HOST)
           .setPort(Service.configuration.XYZ_HUB_REDIS_PORT);
-      config.setConnectTimeout(2000);
-
-      config = new RedisOptions()
-          .setHost(Service.configuration.XYZ_HUB_REDIS_HOST)
-          .setPort(Service.configuration.XYZ_HUB_REDIS_PORT);
+      config.setTcpKeepAlive(true);
       config.setConnectTimeout(2000);
       return RedisClient.create(Service.vertx, config);
     });
