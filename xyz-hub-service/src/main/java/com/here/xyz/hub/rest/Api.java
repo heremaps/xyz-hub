@@ -138,15 +138,15 @@ public abstract class Api {
   private boolean sendNotModifiedResponseIfNoneMatch(final Task task) {
     //If the task has an ETag, set it in the HTTP header.
     //Set the ETag header
-    if (task.etag() != null) {
+    if (task.getEtag() != null) {
       final RoutingContext context = task.context;
       final HttpServerResponse httpResponse = context.response();
       final MultiMap httpHeaders = httpResponse.headers();
 
-      httpHeaders.add(HttpHeaders.ETAG, task.etag());
+      httpHeaders.add(HttpHeaders.ETAG, task.getEtag());
 
       //If the ETag didn't change, return "Not Modified"
-      if (task.etagMatch()) {
+      if (task.etagMatches()) {
         sendResponse(task, NOT_MODIFIED, null, null);
         return true;
       }
