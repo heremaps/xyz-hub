@@ -212,7 +212,7 @@ public class FeatureApi extends Api {
   private void executeConditionalOperationChain(boolean requireResourceExists, final RoutingContext context,
       ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional,
       List<Map<String, Object>> features) {
-    ModifyFeaturesEvent event = new ModifyFeaturesEvent();
+    ModifyFeaturesEvent event = new ModifyFeaturesEvent().withTransaction(transactional);
     ConditionalOperation task = new ConditionalOperation(event, context, apiResponseTypeType,
         new ModifyFeatureOp(features, ifNotExists, ifExists, transactional), requireResourceExists);
     final List<String> addTags = Query.queryParam(Query.ADD_TAGS, context);
@@ -222,7 +222,6 @@ public class FeatureApi extends Api {
     XyzNamespace.fixNormalizedTags(task.addTags);
     XyzNamespace.fixNormalizedTags(task.removeTags);
     task.prefixId = Query.getString(context, Query.PREFIX_ID, null);
-    task.getEvent().setTransaction(transactional);
     task.execute(this::sendResponse, this::sendErrorResponse);
   }
 

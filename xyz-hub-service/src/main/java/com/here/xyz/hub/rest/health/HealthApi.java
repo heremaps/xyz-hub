@@ -30,7 +30,7 @@ import com.here.xyz.hub.util.health.MainHealthCheck;
 import com.here.xyz.hub.util.health.checks.ExecutableCheck;
 import com.here.xyz.hub.util.health.checks.JDBCHealthCheck;
 import com.here.xyz.hub.util.health.checks.RedisHealthCheck;
-import com.here.xyz.hub.util.health.checks.RemoteFunctionHealthChecks;
+import com.here.xyz.hub.util.health.checks.RemoteFunctionHealthAggregator;
 import com.here.xyz.hub.util.health.schema.Reporter;
 import com.here.xyz.hub.util.health.schema.Response;
 import io.vertx.core.Vertx;
@@ -59,16 +59,9 @@ public class HealthApi extends Api {
               .withEndpoint(getPublicServiceEndpoint())
       )
       .add(new RedisHealthCheck(Service.configuration.XYZ_HUB_REDIS_HOST, Service.configuration.XYZ_HUB_REDIS_PORT))
-      .add(new RemoteFunctionHealthChecks());
+      .add(new RemoteFunctionHealthAggregator());
 
-  public HealthApi(Vertx vertx, Router router) {
-    //The main health check endpoint
-    router.route(HttpMethod.GET, MAIN_HEALTCHECK_ENDPOINT).handler(HealthApi::onHealthStatus);
-    router.route(HttpMethod.GET, "/hub").handler(HealthApi::onHealthStatus);
-    router.route(HttpMethod.GET, "/").handler(HealthApi::onHealthStatus); // TODO: Maybe better replace that one by a redirect to /hub/
-    //Legacy:
-    router.route(HttpMethod.GET, "/hub/health-status").handler(HealthApi::onHealthStatus);
-
+  static {
     if (Service.configuration.STORAGE_DB_URL != null) {
       healthCheck.add(
           (ExecutableCheck) new JDBCHealthCheck(getStorageDbUri(), Service.configuration.STORAGE_DB_USER,
@@ -76,6 +69,15 @@ public class HealthApi extends Api {
               .withEssential(true)
       );
     }
+  }
+
+  public HealthApi(Vertx vertx, Router router) {
+    //The main health check endpoint
+    router.route(HttpMethod.GET, MAIN_HEALTCHECK_ENDPOINT).handler(HealthApi::onHealthStatus);
+    router.route(HttpMethod.GET, "/hub").handler(HealthApi::onHealthStatus);
+    router.route(HttpMethod.GET, "/").handler(HealthApi::onHealthStatus); //TODO: Maybe better replace that one by a redirect to /hub/
+    //Legacy:
+    router.route(HttpMethod.GET, "/hub/health-status").handler(HealthApi::onHealthStatus);
   }
 
   private static URI getStorageDbUri() {
