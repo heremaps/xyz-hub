@@ -993,7 +993,7 @@ components:
       in: query
       description: >-
         A comma separated list of tags or combination of tags concatenated with
-        a plus sign (+). A comma separated list of tags means any tag may be 
+        a plus sign (+). A comma separated list of tags means any tag may be
         found. A plus sign concatenated list means every tag is required.
       allowEmptyValue: true
       style: form
@@ -1546,6 +1546,8 @@ components:
         url: 'https://tools.ietf.org/html/rfc7946'
       required:
         - type
+      discriminator:
+        propertyName: type
       properties:
         type:
           type: string
@@ -1666,6 +1668,16 @@ components:
     XyzResponse:
       type: object
       description: The base type for all possible responses returned by the XYZ Hub.
+      required:
+        - type
+      properties:
+        etag:
+          description: The HTTP entity tag ID.
+          type: string
+        type:
+          type: string
+      discriminator:
+        propertyName: type
     CountResponse:
       x-deprecated: true
       allOf:
@@ -1820,9 +1832,6 @@ components:
               type: string
               description: Specifies the scope of searchability of the properties. One of NONE, PARTIAL, ALL.
               example: PARTIAL
-            etag:
-              type: string
-              description: The HTTP entity tag ID.
           example:
             type: StatisticsResponse
             count:
@@ -1865,15 +1874,16 @@ components:
           required:
             - features
           properties:
-            etag:
-              type: string
-              description: The HTTP entity tag ID.
             inserted:
-              type: string
+              type: array
               description: List of inserted feature IDs.
+              items:
+                type: string
             updated:
-              type: string
+              type: array
               description: List of updated features IDs.
+              items:
+                type: string
             features:
               type: array
               description: Features included in the collection.
