@@ -155,6 +155,12 @@ public class SpaceTaskHandler {
 
   static void processModifyOp(ConditionalOperation task, Callback<ConditionalOperation> callback) throws Exception {
     try {
+      if(task.isUpdate()){
+        /** UUID is immutable and it is only allowed to set it during the space creation */
+        Space spaceHead = task.modifyOp.entries.get(0).head;
+        if(spaceHead != null && task.modifyOp.entries.get(0).input.get("enableUUID") != null )
+          throw new HttpException(BAD_REQUEST, "Validation failed. The property 'enableUUID' can only get set on space creation!");
+      }
       task.modifyOp.process();
       callback.call(task);
     } catch (ModifyOpError e) {
@@ -186,11 +192,6 @@ public class SpaceTaskHandler {
     if (space.getClient() != null && Json.encode(space.getClient()).getBytes().length > CLIENT_VALUE_MAX_SIZE) {
       throw new HttpException(
           BAD_REQUEST, "The property client is over the allowed limit of " + CLIENT_VALUE_MAX_SIZE + " bytes.");
-    }
-    if(space.isEnableUUID() == false){
-      Space spaceHead = task.modifyOp.entries.get(0).head;
-      if(spaceHead != null && spaceHead.isEnableUUID())
-        throw new HttpException(BAD_REQUEST, "Validation failed. The property 'enableUUID' is immutable!");
     }
     if (space.getSearchableProperties() != null && !space.getSearchableProperties().isEmpty()) {
       Space.resolveConnector(task.getMarker(), space.getStorage().getId(), arConnector -> {
