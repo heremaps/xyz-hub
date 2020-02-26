@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
 public class DatabaseMaintainer {
     private static final Logger logger = LogManager.getLogger();
 
-    private static final int XYZ_EXT_VERSION = 125;
+    private static final int XYZ_EXT_VERSION = 126;
     protected final static int ON_DEMAND_IDX_DEFAULT_LIM = 4;
 
     private DataSource dataSource;

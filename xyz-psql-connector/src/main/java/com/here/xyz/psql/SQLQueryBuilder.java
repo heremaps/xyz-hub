@@ -493,4 +493,18 @@ public class SQLQueryBuilder {
         }
         return SQLQuery.replaceVars(deleteIdArrayStmtSQL, schema, table);
     }
+
+    protected static String deleteHistoryTriggerSQL(final String schema, final String table){
+        String deleteHistoryTriggerSQL = "DROP TRIGGER IF EXISTS TR_"+table.replaceAll("-","_")+"_HISTORY_WRITER ON  ${schema}.${table};";
+
+        return SQLQuery.replaceVars(deleteHistoryTriggerSQL, schema, table);
+    }
+    protected static String addHistoryTriggerSQL(final String schema, final String table, final Integer maxVersionCount){
+        String historyTriggerSQL = "CREATE TRIGGER TR_"+table.replaceAll("-","_")+"_HISTORY_WRITER " +
+                "BEFORE UPDATE OR DELETE ON ${schema}.${table} " +
+                " FOR EACH ROW " +
+                "EXECUTE PROCEDURE xyz_trigger_historywriter("+(maxVersionCount == null ? "" : maxVersionCount)+"); ";
+        return SQLQuery.replaceVars(historyTriggerSQL, schema, table);
+    }
+
 }

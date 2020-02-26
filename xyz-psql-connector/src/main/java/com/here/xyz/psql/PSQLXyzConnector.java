@@ -185,6 +185,20 @@ public class PSQLXyzConnector extends DatabaseHandler {
   @Override
   protected SuccessResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception {
 
+    if(event.getSpaceDefinition() != null && event.getSpaceDefinition().isEnableUUID()){
+      Integer maxVersionCount = null;
+
+      if(event.getParams() != null)
+        maxVersionCount = (Integer)event.getParams().get("maxVersionCount");
+
+      if(ModifySpaceEvent.Operation.CREATE == event.getOperation()){
+        ensureHistorySpace(maxVersionCount);
+      }else if(ModifySpaceEvent.Operation.UPDATE == event.getOperation()){
+        //TODO: ONLY update Trigger
+        ensureHistorySpace(maxVersionCount);
+      }
+    }
+
     if ((ModifySpaceEvent.Operation.UPDATE == event.getOperation()
             || ModifySpaceEvent.Operation.CREATE == event.getOperation())
             && event.getConnectorParams().get("propertySearch") == Boolean.TRUE) {
@@ -213,6 +227,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
           }
         }
       }
+
       //TODO: Check if config entry exists and idx_manual=null -> update it (erase on demand)
       executeUpdateWithRetry(  SQLQueryBuilder.buildSearchablePropertiesUpsertQuery(
               event.getSpaceDefinition().getSearchableProperties(),
@@ -226,6 +241,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
           try (Statement stmt = connection.createStatement()) {
             String query = "DROP TABLE ${schema}.${table}";
             query = SQLQuery.replaceVars(query, config.schema(), config.table(event));
+            stmt.executeUpdate(query);
+
+            query = "DROP TABLE IF EXISTS ${schema}.${table}";
+            query = SQLQuery.replaceVars(query, config.schema(), config.table(event)+"_hst");
             stmt.executeUpdate(query);
 
             logger.info("{} - Successfully deleted table for space '{}'", streamId, event.getSpace());
