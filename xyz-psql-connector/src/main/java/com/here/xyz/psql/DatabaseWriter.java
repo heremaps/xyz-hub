@@ -38,24 +38,32 @@ public class DatabaseWriter {
     public static final String LOG_EXCEPTION_UPDATE = "update";
     public static final String LOG_EXCEPTION_DELETE = "delete";
 
-    protected static PGobject featureToPGobject(final Feature feature) throws SQLException {
+    protected static PGobject featureToPGobject(final Feature feature, final boolean jsonObjectMode) throws SQLException {
         final Geometry geometry = feature.getGeometry();
-        final String json;
-
         feature.setGeometry(null); // Do not serialize the geometry in the JSON object
+
+        final String json;
+        final String geojson;
 
         try {
             json = feature.serialize();
+            geojson = geometry != null ? geometry.serialize() : null;
         } finally {
             feature.setGeometry(geometry);
         }
 
-        final PGobject jsonbObject = new PGobject();
+        if(jsonObjectMode){
+            final PGobject jsonbObject = new PGobject();
+            jsonbObject.setType("jsonb");
+            jsonbObject.setValue(json);
+            return jsonbObject;
+        }
 
-        jsonbObject.setType("jsonb");
-        jsonbObject.setValue(json);
+        final PGobject geojsonbObject = new PGobject();
+        geojsonbObject.setType("jsonb");
+        geojsonbObject.setValue(geojson);
 
-        return jsonbObject;
+        return geojsonbObject;
     }
 
     protected static PreparedStatement createStatement(Connection connection, String statement) throws SQLException {

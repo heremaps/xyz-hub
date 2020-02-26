@@ -30,7 +30,8 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                 final Feature feature = inserts.get(i);
                 fId = feature.getId();
 
-                final PGobject jsonbObject= featureToPGobject(feature);
+                final PGobject jsonbObject= featureToPGobject(feature, true);
+                final PGobject geojsonbObject = featureToPGobject(feature, false);
 
                 if (feature.getGeometry() == null) {
                     insertWithoutGeometryStmt.setObject(1, jsonbObject);
@@ -42,6 +43,7 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                     //Avoid NAN values
                     assure3d(jtsGeometry.getCoordinates());
                     insertStmt.setBytes(2, wkbWriter.write(jtsGeometry));
+                    insertStmt.setObject(3, geojsonbObject);
 
                     rows = insertStmt.executeUpdate();
                 }
@@ -95,7 +97,8 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                     continue;
                 }
 
-                final PGobject jsonbObject= featureToPGobject(feature);
+                final PGobject jsonbObject= featureToPGobject(feature, true);
+                final PGobject geojsonbObject = featureToPGobject(feature, false);
 
                 if (feature.getGeometry() == null) {
                     updateWithoutGeometryStmt.setObject(1, jsonbObject);
@@ -112,10 +115,11 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                     //Avoid NAN values
                     assure3d(jtsGeometry.getCoordinates());
                     updateStmt.setBytes(2, wkbWriter.write(jtsGeometry));
-                    updateStmt.setString(3, fId);
+                    updateStmt.setObject(3, geojsonbObject);
+                    updateStmt.setString(4, fId);
 
                     if(handleUUID) {
-                        updateStmt.setString(4, puuid);
+                        updateStmt.setString(5, puuid);
                     }
                     rows = updateStmt.executeUpdate();
                 }

@@ -33,6 +33,7 @@ import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.postgresql.util.PSQLException;
 
 import javax.sql.DataSource;
 import java.sql.*;
@@ -345,7 +346,10 @@ public abstract class DatabaseHandler extends StorageConnector {
                 if(transactional) {
                     connection.rollback();
 
-                    if (e.getMessage() != null && e.getMessage().contains("relation ") && e.getMessage().contains("does not exist"))
+//                    if (e.getMessage() != null && e.getMessage().contains("relation ") && e.getMessage().contains("does not exist"))
+
+                    if((e instanceof BatchUpdateException && ((BatchUpdateException)e).getSQLState().equalsIgnoreCase("42P01"))
+                            || (e instanceof PSQLException && ((PSQLException)(e).getCause()).getSQLState().equalsIgnoreCase(("42P01"))))
                         ;//Table does not exist yet - create it!
                     else{
                         /** Add all other Objects to failed list */
@@ -532,7 +536,8 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     private void createSpaceStatement(Statement stmt, String tableName) throws SQLException {
-        String query = "CREATE TABLE IF NOT EXISTS ${schema}.${table} (jsondata jsonb, geo geometry(GeometryZ,4326), i SERIAL)";
+        String query = "CREATE TABLE IF NOT EXISTS ${schema}.${table} (jsondata jsonb, geo geometry(GeometryZ,4326), i SERIAL, geojson jsonb)";
+//        String query = "CREATE TABLE IF NOT EXISTS ${schema}.${table} (jsondata jsonb, geo geometry(GeometryZ,4326), i SERIAL)";
         query = SQLQuery.replaceVars(query, config.schema(), tableName);
         stmt.addBatch(query);
 

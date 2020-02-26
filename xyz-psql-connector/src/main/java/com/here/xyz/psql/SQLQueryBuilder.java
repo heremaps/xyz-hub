@@ -453,17 +453,26 @@ public class SQLQueryBuilder {
     }
 
     protected static String insertStmtSQL(final String schema, final String table){
-        String instertStmtSQL ="INSERT INTO ${schema}.${table} (jsondata, geo) VALUES(?::jsonb, ST_Force3D(ST_GeomFromWKB(?,4326)))";
+        String instertStmtSQL ="INSERT INTO ${schema}.${table} (jsondata, geo, geojson) VALUES(?::jsonb, ST_Force3D(ST_GeomFromWKB(?,4326)), ?::jsonb)";
+
+        /** Prepared for removal of geojson column */
+//        String instertStmtSQL ="INSERT INTO ${schema}.${table} (jsondata, geo) VALUES(?::jsonb, ST_Force3D(ST_GeomFromWKB(?,4326)))";
         return SQLQuery.replaceVars(instertStmtSQL, schema, table);
     }
 
     protected static String insertWithoutGeometryStmtSQL(final String schema, final String table){
-        String instertWithoutGeometryStmtSQL = "INSERT INTO ${schema}.${table} (jsondata, geo) VALUES(?::jsonb, NULL)";
+        String instertWithoutGeometryStmtSQL = "INSERT INTO ${schema}.${table} (jsondata, geo, geojson) VALUES(?::jsonb, NULL, NULL)";
+
+        /** Prepared for removal of geojson column */
+//        String instertWithoutGeometryStmtSQL = "INSERT INTO ${schema}.${table} (jsondata, geo) VALUES(?::jsonb, NULL)";
         return SQLQuery.replaceVars(instertWithoutGeometryStmtSQL, schema, table);
     }
 
     protected static String updateStmtSQL(final String schema, final String table, final boolean handleUUID){
-        String updateStmtSQL = "UPDATE ${schema}.${table} SET jsondata = ?::jsonb, geo=ST_Force3D(ST_GeomFromWKB(?,4326)) WHERE jsondata->>'id' = ?";
+        String updateStmtSQL = "UPDATE ${schema}.${table} SET jsondata = ?::jsonb, geo=ST_Force3D(ST_GeomFromWKB(?,4326)), geojson = ?::jsonb WHERE jsondata->>'id' = ?";
+
+        /** Prepared for removal of geojson column */
+//        String updateStmtSQL = "UPDATE ${schema}.${table} SET jsondata = ?::jsonb, geo=ST_Force3D(ST_GeomFromWKB(?,4326)) WHERE jsondata->>'id' = ?";
         if(handleUUID) {
             updateStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ?";
         }
@@ -471,7 +480,10 @@ public class SQLQueryBuilder {
     }
 
     protected static String updateWithoutGeometryStmtSQL(final String schema, final String table, final boolean handleUUID){
-        String updateWithoutGeometryStmtSQL = "UPDATE ${schema}.${table} SET  jsondata = ?::jsonb, geo=NULL WHERE jsondata->>'id' = ?";
+        String updateWithoutGeometryStmtSQL = "UPDATE ${schema}.${table} SET  jsondata = ?::jsonb, geo=NULL, geojson = NULL WHERE jsondata->>'id' = ?";
+
+        /** Prepared for removal of geojson column */
+//        String updateWithoutGeometryStmtSQL = "UPDATE ${schema}.${table} SET  jsondata = ?::jsonb, geo=NULL WHERE jsondata->>'id' = ?";
         if(handleUUID) {
             updateWithoutGeometryStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ?";
         }
