@@ -47,7 +47,7 @@ public final class HealthCheckEvent extends Event<HealthCheckEvent> {
   }
 
   public HealthCheckEvent withMinResponseTime(long timeInMilliseconds) {
-    setMinResponseTime(minResponseTime);
+    setMinResponseTime(timeInMilliseconds);
     return this;
   }
 }
