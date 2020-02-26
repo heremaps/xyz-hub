@@ -134,6 +134,7 @@ public class Service {
     boolean debug = Arrays.asList(arguments).contains("--debug");
 
     final VertxOptions vertxOptions = new VertxOptions();
+    vertxOptions.setWorkerPoolSize(64);
 
     if (debug) {
       vertxOptions
@@ -154,6 +155,12 @@ public class Service {
    */
   private static void onConfigLoaded(AsyncResult<JsonObject> ar) {
     final JsonObject config = ar.result();
+    //Convert empty string values to null
+    config.forEach(e -> {
+      if (e.getValue() != null && e.getValue().equals("")) {
+        config.put(e.getKey(), (String) null);
+      }
+    });
     configuration = config.mapTo(Config.class);
 
     initializeLogger(configuration);

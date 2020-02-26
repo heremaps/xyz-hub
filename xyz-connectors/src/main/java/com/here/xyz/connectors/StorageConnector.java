@@ -33,9 +33,8 @@ import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
-import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.ErrorResponse;
-import com.here.xyz.responses.HealthStatus;
+import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 
 public abstract class StorageConnector extends AbstractConnectorHandler {
@@ -102,25 +101,6 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
         .withStreamId(streamId)
         .withError(XyzError.NOT_IMPLEMENTED)
         .withErrorMessage("Unknown event type '" + event.getClass().getSimpleName() + "'");
-  }
-
-  /**
-   * Processes a HealthCheckEvent event.
-   *
-   * This type of events are sent in regular intervals to the lambda handler and could be used to keep the handler's container active and
-   * the connection to the database open.
-   */
-  @SuppressWarnings("WeakerAccess")
-  protected XyzResponse processHealthCheckEvent(HealthCheckEvent event) {
-    try {
-      long targetResponseTime = event.getMinResponseTime() + System.currentTimeMillis();
-      long now = System.currentTimeMillis();
-      if (now < targetResponseTime) {
-        Thread.sleep(targetResponseTime - now);
-      }
-    } catch (Exception ignored) {
-    }
-    return new HealthStatus();
   }
 
   /**

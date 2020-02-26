@@ -79,11 +79,14 @@ public class BurstAndUpdateThread extends Thread {
         logger.error("Found null entry (or without ID) in connector list, see stack trace");
         continue;
       }
-      connectorMap.put(connector.id, connector);
-      try { //Try to initialize the connector client
-        RpcClient.getInstanceFor(connector, true);
-      } catch (Exception e) {
-        logger.error("Error while trying to get RpcClient for connector with ID " + connector.id);
+      if (connector.active) {
+        connectorMap.put(connector.id, connector);
+        try { //Try to initialize the connector client
+          RpcClient.getInstanceFor(connector, true);
+        }
+        catch (Exception e) {
+          logger.error("Error while trying to get / create RpcClient for connector with ID " + connector.id);
+        }
       }
     }
 
@@ -98,6 +101,7 @@ public class BurstAndUpdateThread extends Thread {
       if (!connectorMap.containsKey(oldConnector.id)) {
         //Client needs to be destroyed, the connector configuration with the given ID has been removed.
         try {
+          logger.info("Connector with ID {} was removed or deactivated. Destroying the according client.", oldConnector.id);
           client.destroy();
         } catch (Exception e) {
           logger.error("Unexpected exception while destroying RPC client", e);

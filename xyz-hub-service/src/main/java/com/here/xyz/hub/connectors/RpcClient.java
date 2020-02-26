@@ -146,6 +146,10 @@ public class RpcClient {
     return null;
   }
 
+  public RemoteFunctionClient getFunctionClient() {
+    return functionClient;
+  }
+
   private void invokeWithRelocation(final Marker marker, byte[] bytes, final Handler<AsyncResult<byte[]>> callback) {
     try {
       final Connector connector = getConnector();

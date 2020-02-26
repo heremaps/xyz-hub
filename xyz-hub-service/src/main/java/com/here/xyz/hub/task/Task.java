@@ -59,6 +59,18 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
   private T event;
 
   /**
+   * A local copy of {@link Event#getIfNoneMatch()}.
+   */
+  private String ifNoneMatch;
+
+  /**
+   * Whether the event was finally consumed.
+   * After having been consumed the event get's deleted from memory and neither {@link #getEvent()} nor {@link #consumeEvent()} may
+   * be called anymore. Otherwise an {@link IllegalStateException} will be thrown.
+   */
+  private boolean eventConsumed;
+
+  /**
    * Indicates, if the task was executed.
    */
   private boolean executed = false;
@@ -77,12 +89,28 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
     }
     event.setIfNoneMatch(context.request().headers().get("If-None-Match"));
     this.event = event;
+    this.ifNoneMatch = event.getIfNoneMatch();
     this.context = context;
     this.responseType = responseType;
     this.skipCache = skipCache;
   }
 
-  public T getEvent() {
+  public T getEvent() throws IllegalStateException {
+    if (eventConsumed) throw new IllegalStateException("Event was already consumed.");
+    return event;
+  }
+
+  /**
+   * Finally consumes the event. Calling this method the event being bound to this task will be returned and all internal references are
+   * deleted. After the event has been been consumed neither {@link #getEvent()} nor {@link #consumeEvent()} may be called anymore.
+   * Otherwise an {@link IllegalStateException} will be thrown.
+   *
+   * @throws IllegalStateException In case the event was consumed already
+   */
+  public T consumeEvent() throws IllegalStateException {
+    T event = getEvent();
+    eventConsumed = true;
+    this.event = null;
     return event;
   }
 
@@ -90,8 +118,8 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
     return null;
   }
 
-  public boolean etagMatch() {
-    return event.getIfNoneMatch() != null && event.getIfNoneMatch().equals(etag());
+  public boolean etagMatches() {
+    return ifNoneMatch != null && ifNoneMatch.equals(getEtag());
   }
 
   public void execute(C1<X> onSuccess, C2<X, Exception> onException) {
@@ -142,7 +170,7 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
    *
    * @return the e-tag value.
    */
-  public String etag() {
+  public String getEtag() {
     return null;
   }
 
