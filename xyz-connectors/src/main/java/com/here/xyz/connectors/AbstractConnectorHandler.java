@@ -26,10 +26,13 @@ import com.here.xyz.Payload;
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.Event;
+import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.RelocatedEvent;
+import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.NotModifiedResponse;
+import com.here.xyz.responses.XyzResponse;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -220,6 +223,22 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    * @return the result of the processing operation.
    */
   protected abstract Typed processEvent(Event event) throws Exception;
+
+  /**
+   * Processes a HealthCheckEvent event.
+   *
+   * This type of events are sent in regular intervals to the lambda handler and could be used to keep the handler's container active and
+   * the connection to the database open.
+   */
+  protected XyzResponse processHealthCheckEvent(HealthCheckEvent event) {
+    if (event.getMinResponseTime() > 0) {
+      try {
+        Thread.sleep(event.getMinResponseTime());
+      }
+      catch (InterruptedException ignored) {}
+    }
+    return new HealthStatus();
+  }
 
   /**
    * Initializes this handler.

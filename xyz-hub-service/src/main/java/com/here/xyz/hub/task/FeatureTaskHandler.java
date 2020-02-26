@@ -53,6 +53,7 @@ import com.here.xyz.hub.task.FeatureTask.ConditionalOperation;
 import com.here.xyz.hub.task.FeatureTask.DeleteOperation;
 import com.here.xyz.hub.task.FeatureTask.ReadQuery;
 import com.here.xyz.hub.task.FeatureTask.TileQuery;
+import com.here.xyz.hub.task.FeatureTask.TileQuery.TransformationContext;
 import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.task.ModifyOp.ModifyOpError;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
@@ -113,7 +114,13 @@ public class FeatureTaskHandler {
    * @param <T> the type of the FeatureTask
    */
   public static <T extends FeatureTask> void invoke(T task, Callback<T> callback) {
-    Event event = task.getEvent();
+    /**
+     * NOTE: The event may only be consumed once. Once it was consumed it should only be referenced in the request-phase. Referencing it in the
+     *     response-phase will keep the whole event-data in the memory and could cause many major GCs to because of large request-payloads.
+     *
+     * @see Task#consumeEvent()
+     */
+    Event event = task.consumeEvent();
     /*
     In case there is already, nothing has to be done here (happens if the response was set by an earlier process in the task pipeline
     e.g. when having a cache hit)
@@ -148,9 +155,8 @@ public class FeatureTaskHandler {
         ((ModifyFeaturesEvent) eventToExecute).setFailed(null);
       }
       //Do the actual storage call
-      setAdditionalEventProps(task, task.storage, eventToExecute);
-
       try {
+        setAdditionalEventProps(task, task.storage, eventToExecute);
         RpcClient.getInstanceFor(task.storage).execute(task.getMarker(), eventToExecute, storageResult -> {
           if (storageResult.failed()) {
             handleFailure(task.getMarker(), storageResult.cause(), callback);
@@ -174,8 +180,9 @@ public class FeatureTaskHandler {
             notifyListeners(task, eventType, responseToSend);
           });
         });
-      } catch (Exception e) {
-        callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to create an instance for the provided storage definition", e));
+      }
+      catch (Exception e) {
+        callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Error executing the storage event.", e));
         return;
       }
 
@@ -186,7 +193,7 @@ public class FeatureTaskHandler {
           task.space.contentUpdatedAt = Service.currentTimeMillis();
           task.space.volatilityAtLastContentUpdate = task.space.getVolatility();
           Service.spaceConfigClient.store(task.getMarker(), task.space,
-              (ar) -> logger.info(task.getMarker(), "Updated contentUpdatedAt for space {}", task.getEvent().getSpace()));
+              (ar) -> logger.info(task.getMarker(), "Updated contentUpdatedAt for space {}", task.space.getId()));
         }
       }
       //Send event to potentially registered request-listeners
@@ -233,10 +240,10 @@ public class FeatureTaskHandler {
           logger.info(task.getMarker(), "Cache MISS for cache key {}", cacheKey);
         } else {
           //Cache HIT: Set the response for the task to the result from the cache so invoke (in the task pipeline) won't have anything to do
-          task.setCacheHit(true);
-          logger.info(task.getMarker(), "Cache HIT for cache key {}", cacheKey);
           try {
             task.setResponse(transform(cacheResult));
+            task.setCacheHit(true);
+            logger.info(task.getMarker(), "Cache HIT for cache key {}", cacheKey);
           } catch (JsonProcessingException e) {
             //Actually, this should never happen as we're controlling how the data is written to the cache, but you never know ;-)
             //Treating an error as a Cache MISS
@@ -259,6 +266,11 @@ public class FeatureTaskHandler {
     if (cacheProfile.serviceTTL > 0 && response != null && !task.isCacheHit()
         && !(response instanceof NotModifiedResponse) && !(response instanceof ErrorResponse)) {
       String cacheKey = task.getCacheKey();
+      if (cacheKey == null) {
+        String npe = "cacheKey is null. Couldn't write cache.";
+        logger.error(task.getMarker(), npe);
+        throw new NullPointerException(npe);
+      }
       logger.debug(task.getMarker(), "Writing entry with cache key {} to cache", cacheKey);
       Service.cacheClient.setBinary(cacheKey, transform(response), cacheProfile.serviceTTL);
     }
@@ -868,19 +880,20 @@ public class FeatureTaskHandler {
 
     BinaryResponse binaryResponse = new BinaryResponse();
     binaryResponse.setEtag(task.getResponse().getEtag());
+    TransformationContext tc = task.transformationContext;
 
-    // The mvt transformation is not executed, if the source feature collection is the same.
-    if (task.getEvent().getIfNoneMatch() == null || !task.getEvent().getIfNoneMatch().equals(task.getResponse().getEtag())) {
+    //The mvt transformation is not executed, if the source feature collection is the same.
+    if (!task.etagMatches()) {
       try {
         byte[] mvt;
         if (ApiResponseType.MVT == task.responseType) {
           mvt = new MapBoxVectorTileBuilder()
-              .build(WebMercatorTile.forWeb(task.getEvent().getLevel(), task.getEvent().getX(), task.getEvent().getY()),
-                  task.getEvent().getMargin(), task.space.getId(), ((FeatureCollection) task.getResponse()).getFeatures());
+              .build(WebMercatorTile.forWeb(tc.level, tc.x, tc.y), tc.margin, task.space.getId(),
+                  ((FeatureCollection) task.getResponse()).getFeatures());
         } else {
           mvt = new MapBoxVectorTileFlattenedBuilder()
-              .build(WebMercatorTile.forWeb(task.getEvent().getLevel(), task.getEvent().getX(), task.getEvent().getY()),
-                  task.getEvent().getMargin(), task.space.getId(), ((FeatureCollection) task.getResponse()).getFeatures());
+              .build(WebMercatorTile.forWeb(tc.level, tc.x, tc.y), tc.margin, task.space.getId(),
+                  ((FeatureCollection) task.getResponse()).getFeatures());
         }
         binaryResponse.setBytes(mvt);
       } catch (Exception e) {

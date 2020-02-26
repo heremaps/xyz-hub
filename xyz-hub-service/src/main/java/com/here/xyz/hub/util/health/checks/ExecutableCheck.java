@@ -21,6 +21,7 @@ package com.here.xyz.hub.util.health.checks;
 import static com.here.xyz.hub.util.health.Config.Setting.CHECK_DEFAULT_INTERVAL;
 import static com.here.xyz.hub.util.health.Config.Setting.CHECK_DEFAULT_TIMEOUT;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.here.xyz.hub.Service;
@@ -33,6 +34,7 @@ import com.here.xyz.hub.util.health.schema.Status.Result;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.apache.logging.log4j.LogManager;
@@ -54,15 +56,16 @@ public abstract class ExecutableCheck extends Check implements Runnable {
 	
 	protected int checkInterval = Config.getInt(CHECK_DEFAULT_INTERVAL);
 	protected int timeout = Config.getInt(CHECK_DEFAULT_TIMEOUT);
-	
-	private boolean commenced = false;
+	protected ScheduledFuture<?> executionHandle;
+
+	protected boolean commenced = false;
 	
 	private String id = UUID.randomUUID().toString();
 	
 	public ExecutableCheck() {
 		setStatus(new Status());
 	}
-	
+
 	/**
 	 * Begins executing this check periodically and asynchronously.
 	 * Will only be called once by {@link MainHealthCheck#commence()},
@@ -73,7 +76,21 @@ public abstract class ExecutableCheck extends Check implements Runnable {
 	public ExecutableCheck commence() {
 		if (!commenced) {
 			commenced = true;
-			executorService.scheduleWithFixedDelay(this, 0, checkInterval, TimeUnit.MILLISECONDS);
+			executionHandle = executorService.scheduleWithFixedDelay(this, 0, checkInterval, TimeUnit.MILLISECONDS);
+		}
+		return this;
+	}
+
+	/**
+	 * Stops the periodic execution of this check.
+	 * Once it has been calls subsequent calls won't have an effect before {@link #commence()} has been called.
+	 *
+	 * @return This check for chaining
+	 */
+	public ExecutableCheck quit() {
+		if (commenced) {
+			executionHandle.cancel(false);
+			commenced = false;
 		}
 		return this;
 	}
@@ -156,7 +173,7 @@ public abstract class ExecutableCheck extends Check implements Runnable {
 	public void setTimeout(int timeout) {
 		this.timeout = timeout;
 	}
-	
+
 	private static class CheckIntervalValueFilter {
 		@Override
 		public boolean equals(Object obj) {
