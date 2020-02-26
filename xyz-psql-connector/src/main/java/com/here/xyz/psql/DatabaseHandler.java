@@ -88,7 +88,8 @@ public abstract class DatabaseHandler extends StorageConnector {
         SQLQuery query = new SQLQuery("SELECT 1");
         try {
             /** run DB-Maintenance */
-            dbMaintainer.run(event, streamId);
+            if(event.getMinResponseTime() !=  0)
+                dbMaintainer.run(event, streamId);
 
             executeQuery(query, (rs) -> null, dataSource);
             // establish a connection to the replica, if such is set.
