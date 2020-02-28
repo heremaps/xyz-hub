@@ -57,25 +57,13 @@ public class SQLQueryBuilder {
         final int radius = event.getRadius();
         final Geometry geometry = event.getGeometry();
 
-        final SQLQuery query;
         final SQLQuery searchQuery = generateSearchQuery(event, dataSource);
 
         final SQLQuery geoQuery = radius != 0 ? new SQLQuery("ST_Intersects(geo, ST_Buffer(ST_GeomFromText('"
                 + WKTHelper.geometryToWKB(geometry) + "')::geography, ? )::geometry)", radius) : new SQLQuery("ST_Intersects(geo, ST_GeomFromText('"
                 + WKTHelper.geometryToWKB(geometry) + "',4326))");
 
-        if (searchQuery == null) {
-            query = new SQLQuery("SELECT");
-            query.append(SQLQuery.selectJson(event.getSelection(), dataSource));
-            /** No clipping or simplification needed*/
-            query.append(",geojson");
-            query.append("FROM ${schema}.${table} WHERE");
-            query.append(geoQuery);
-            query.append("LIMIT ?", event.getLimit());
-        } else {
-            query = generateCombinedQuery(event, geoQuery, searchQuery, dataSource);
-        }
-        return query;
+        return generateCombinedQuery(event, geoQuery, searchQuery, dataSource);
     }
 
     public static SQLQuery buildGetFeaturesByBBoxQuery(final GetFeaturesByBBoxEvent event, boolean isBigQuery,
@@ -87,23 +75,7 @@ public class SQLQueryBuilder {
         final SQLQuery geoQuery = new SQLQuery("ST_Intersects(geo, ST_MakeEnvelope(?, ?, ?, ?, 4326))",
                 bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
 
-        final SQLQuery query;
-        if (searchQuery == null) {
-            query = new SQLQuery("SELECT");
-            query.append(SQLQuery.selectJson(event.getSelection(), dataSource));
-            query.append(",");
-            query.append(geometrySelectorForEvent(event));
-            query.append("FROM ${schema}.${table} WHERE");
-            query.append(geoQuery);
-            query.append("LIMIT ?", event.getLimit());
-
-        } else if (isBigQuery) {
-            query = generateCombinedQuery(event, searchQuery, geoQuery,dataSource);
-        } else {
-            query = generateCombinedQuery(event, geoQuery, searchQuery,dataSource);
-        }
-
-        return query;
+        return generateCombinedQuery(event, geoQuery, searchQuery,dataSource);
     }
 
     protected static SQLQuery buildCountFeaturesQuery(CountFeaturesEvent event, DataSource dataSource, String schema, String table)
@@ -388,14 +360,10 @@ public class SQLQueryBuilder {
         return query;
     }
 
-    private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery,
-                                                    SQLQuery secondaryQuery, DataSource dataSource)
+    private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, DataSource dataSource)
             throws SQLException {
         final SQLQuery query = new SQLQuery();
-        query.append("WITH features(jsondata, geojson, geo) AS (");
-        query.append("SELECT jsondata, geojson, geo FROM ${schema}.${table} WHERE");
-        query.append(indexedQuery);
-        query.append(")");
+
         query.append("SELECT");
         query.append(SQLQuery.selectJson(event.getSelection(),dataSource));
 
@@ -406,8 +374,14 @@ public class SQLQueryBuilder {
             query.append(",geojson");
         }
 
-        query.append("FROM features WHERE");
-        query.append(secondaryQuery);
+        query.append("FROM ${schema}.${table} WHERE");
+        query.append(indexedQuery);
+
+        if( secondaryQuery != null )
+        { query.append(" and ");
+          query.append(secondaryQuery);
+        }  
+
         query.append("LIMIT ?", event.getLimit());
         return query;
     }
