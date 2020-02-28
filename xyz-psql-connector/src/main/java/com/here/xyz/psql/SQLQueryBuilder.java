@@ -285,11 +285,29 @@ public class SQLQueryBuilder {
     public static SQLQuery buildLoadFeaturesQuery(final Map<String, String> idMap, DataSource dataSource)
             throws SQLException{
 
+        boolean uuidRequested = false;
+
         final ArrayList<String> ids = new ArrayList<>(idMap.size());
         ids.addAll(idMap.keySet());
 
-        return new SQLQuery("SELECT jsondata, ST_AsGeojson(ST_Force3D(ST_MakeValid(geo)),"+GEOMETRY_DECIMAL_DIGITS+") FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
-                SQLQuery.createSQLArray(ids.toArray(new String[ids.size()]), "text" ,dataSource));
+        final ArrayList<String> values = new ArrayList<>(idMap.size());
+        values.addAll(idMap.values());
+
+        if(idMap.values().toArray()[0] != null)
+            uuidRequested = true;
+
+        if(!uuidRequested) {
+            return new SQLQuery("SELECT jsondata, ST_AsGeojson(ST_Force3D(ST_MakeValid(geo))," + GEOMETRY_DECIMAL_DIGITS + ") FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
+                    SQLQuery.createSQLArray(ids.toArray(new String[ids.size()]), "text", dataSource));
+        }else{
+            final SQLQuery query;
+            query = new SQLQuery("SELECT jsondata, ST_AsGeojson(ST_Force3D(ST_MakeValid(geo))," + GEOMETRY_DECIMAL_DIGITS + ") FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?) ");
+            query.append("UNION ");
+            query.append("SELECT jsondata, ST_AsGeojson(ST_Force3D(ST_MakeValid(geo))," + GEOMETRY_DECIMAL_DIGITS + ") FROM ${schema}.${hsttable} WHERE uuid = ANY(?) ");
+            query.addParameter( SQLQuery.createSQLArray(ids.toArray(new String[ids.size()]), "text", dataSource));
+            query.addParameter( SQLQuery.createSQLArray(values.toArray(new String[values.size()]), "text", dataSource));
+            return query;
+        }
     }
 
     public static SQLQuery buildSearchablePropertiesUpsertQuery(Map<String, Boolean> searchableProperties, ModifySpaceEvent.Operation operation,
@@ -518,5 +536,4 @@ public class SQLQueryBuilder {
                 "EXECUTE PROCEDURE xyz_trigger_historywriter("+(maxVersionCount == null ? "" : maxVersionCount)+"); ";
         return SQLQuery.replaceVars(historyTriggerSQL, schema, table);
     }
-
 }

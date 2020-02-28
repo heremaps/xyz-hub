@@ -49,7 +49,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     private static final Pattern pattern = Pattern.compile("^BOX\\(([-\\d\\.]*)\\s([-\\d\\.]*),([-\\d\\.]*)\\s([-\\d\\.]*)\\)$");
     private static final int MAX_PRECISE_STATS_COUNT = 10_000;
     private static final String C3P0EXT_CONFIG_SCHEMA = "config.schema()";
-    private static final String HISTORY_TABLE_SUFFIX = "_hst";
+    protected static final String HISTORY_TABLE_SUFFIX = "_hst";
     protected static final int STATEMENT_TIMEOUT_SECONDS = 24;
 
     /**
@@ -149,7 +149,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         retryAttempted = false;
 
         String table = config.table(event);
-        String hstTable = config.table(event)+"_hst";
+        String hstTable = config.table(event)+HISTORY_TABLE_SUFFIX;
 
         replacements.put("idx_serial", "idx_" + table + "_serial");
         replacements.put("idx_id", "idx_" + table + "_id");
@@ -490,33 +490,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 }
 
                 try (Statement stmt = connection.createStatement()) {
-//                    String query = "CREATE TABLE ${schema}.${table} (jsondata jsonb, geo geometry(GeometryZ,4326), i SERIAL)";
-//                    query = SQLQuery.replaceVars(query, config.schema(), tableName);
-//                    stmt.addBatch(query);
-//
-//                    query = "CREATE UNIQUE INDEX ${idx_id} ON ${schema}.${table} ((jsondata->>'id'))";
-//                    query = SQLQuery.replaceVars(query, replacements, config.schema(), tableName);
-//                    stmt.addBatch(query);
-//
-//                    query = "CREATE INDEX ${idx_tags} ON ${schema}.${table} USING gin ((jsondata->'properties'->'@ns:com:here:xyz'->'tags') jsonb_ops)";
-//                    query = SQLQuery.replaceVars(query, replacements, config.schema(), tableName);
-//                    stmt.addBatch(query);
-//
-//                    query = "CREATE INDEX ${idx_geo} ON ${schema}.${table} USING gist ((geo))";
-//                    query = SQLQuery.replaceVars(query, replacements, config.schema(), tableName);
-//                    stmt.addBatch(query);
-//
-//                    query = "CREATE INDEX ${idx_serial} ON ${schema}.${table}  USING btree ((i))";
-//                    query = SQLQuery.replaceVars(query, replacements, config.schema(), tableName);
-//                    stmt.addBatch(query);
-//
-//                    query = "CREATE INDEX ${idx_updatedAt} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt'))";
-//                    query = SQLQuery.replaceVars(query, replacements, config.schema(), tableName);
-//                    stmt.addBatch(query);
-//
-//                    query = "CREATE INDEX ${idx_createdAt} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'createdAt'))";
-//                    query = SQLQuery.replaceVars(query, replacements, config.schema(), tableName);
-//                    stmt.addBatch(query);
+
                     createSpaceStatement(stmt,tableName);
 
                     stmt.executeBatch();
@@ -568,19 +542,11 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     protected void ensureHistorySpace(Integer maxVersionCount) throws SQLException {
-        final String tableName = config.table(event)+HISTORY_TABLE_SUFFIX;
+        final String tableName = config.table(event);
+        final String hstTableName = config.table(event)+HISTORY_TABLE_SUFFIX;
 
         try (final Connection connection = dataSource.getConnection()) {
             try {
-
-//                try (final ResultSet rs = connection.getMetaData()
-//                        .getTables(null, config.schema(), tableName, new String[]{"TABLE", "VIEW"})) {
-//                    if (rs.next()) {
-//                        // Table present
-//                        return;
-//                    }
-//                }
-
                 if (connection.getAutoCommit()) {
                     connection.setAutoCommit(false);
                 }
@@ -589,19 +555,19 @@ public abstract class DatabaseHandler extends StorageConnector {
                     /** Create Space-Table */
                     createSpaceStatement(stmt, config.table(event));
 
-                    String query = "CREATE TABLE IF NOT EXISTS ${schema}.${table} (uuid text NOT NULL, jsondata jsonb, geo geometry(GeometryZ,4326), CONSTRAINT \""+tableName+"_pkey\" PRIMARY KEY (uuid))";
+                    String query = "CREATE TABLE IF NOT EXISTS ${schema}.${hsttable} (uuid text NOT NULL, jsondata jsonb, geo geometry(GeometryZ,4326), CONSTRAINT \""+tableName+"_pkey\" PRIMARY KEY (uuid))";
                     query = SQLQuery.replaceVars(query, config.schema(), tableName);
                     stmt.addBatch(query);
 
-                    query = "CREATE INDEX IF NOT EXISTS ${idx_hst_uuid} ON ${schema}.${table} USING btree (uuid)";
+                    query = "CREATE INDEX IF NOT EXISTS ${idx_hst_uuid} ON ${schema}.${hsttable} USING btree (uuid)";
                     query = SQLQuery.replaceVars(query, replacements, config.schema(), tableName);
                     stmt.addBatch(query);
 
-                    query = "CREATE INDEX IF NOT EXISTS ${idx_hst_id} ON ${schema}.${table} ((jsondata->>'id'))";
+                    query = "CREATE INDEX IF NOT EXISTS ${idx_hst_id} ON ${schema}.${hsttable} ((jsondata->>'id'))";
                     query = SQLQuery.replaceVars(query, replacements, config.schema(), tableName);
                     stmt.addBatch(query);
 
-                    query = "CREATE INDEX IF NOT EXISTS ${idx_hst_updatedAt} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt'))";
+                    query = "CREATE INDEX IF NOT EXISTS ${idx_hst_updatedAt} ON ${schema}.${hsttable} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt'))";
                     query = SQLQuery.replaceVars(query, replacements, config.schema(), tableName);
                     stmt.addBatch(query);
 
@@ -616,7 +582,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                     logger.info("{} - Successfully created history table for space '{}'", streamId, event.getSpace());
                 }
             } catch (Exception e) {
-                throw new SQLException("History table " + SQLQuery.sqlQuote(tableName) + "  creation failed: " + e.getMessage(), e);
+                throw new SQLException("Creation of history table for " + SQLQuery.sqlQuote(tableName) + "  has failed: " + e.getMessage(), e);
             }
         }
     }

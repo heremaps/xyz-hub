@@ -146,6 +146,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   @Override
   protected XyzResponse processLoadFeaturesEvent(LoadFeaturesEvent event) throws Exception {
     final Map<String, String> idMap = event.getIdsMap();
+
     if (idMap == null || idMap.size() == 0) {
       return new FeatureCollection();
     }
@@ -243,8 +244,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
             query = SQLQuery.replaceVars(query, config.schema(), config.table(event));
             stmt.executeUpdate(query);
 
-            query = "DROP TABLE IF EXISTS ${schema}.${table}";
-            query = SQLQuery.replaceVars(query, config.schema(), config.table(event)+"_hst");
+            query = "DROP TABLE IF EXISTS ${schema}.${hsttable}";
+            query = SQLQuery.replaceVars(query, config.schema(), config.table(event));
             stmt.executeUpdate(query);
 
             logger.info("{} - Successfully deleted table for space '{}'", streamId, event.getSpace());

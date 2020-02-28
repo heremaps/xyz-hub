@@ -28,6 +28,8 @@ import java.sql.SQLException;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static com.here.xyz.psql.DatabaseHandler.HISTORY_TABLE_SUFFIX;
+
 /**
  * A struct like object that contains the string for a prepared statement and the respective parameters for replacement.
  */
@@ -39,6 +41,7 @@ public class SQLQuery {
   private static final String SUFFIX = "\\}";
   private static final String VAR_SCHEMA = "${schema}";
   private static final String VAR_TABLE = "${table}";
+  private static final String VAR_HST_TABLE = "${hsttable}";
 
   public SQLQuery() {
     this.statement = new StringBuilder();
@@ -156,7 +159,8 @@ public class SQLQuery {
   public static String replaceVars(String query, String schema, String table) {
     return query
             .replace(VAR_SCHEMA, sqlQuote(schema))
-            .replace(VAR_TABLE, sqlQuote(table));
+            .replace(VAR_TABLE, sqlQuote(table))
+            .replace(VAR_HST_TABLE, sqlQuote(table+HISTORY_TABLE_SUFFIX));
   }
 
   protected static String replaceVars(String query, Map<String, String> replacements, String schema, String table) {
