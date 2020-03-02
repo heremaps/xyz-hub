@@ -25,7 +25,7 @@
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
     <relativePath>../</relativePath>
-    <version>1.4.1-SNAPSHOT</version>
+    <version>1.4.2-SNAPSHOT</version>
   </parent>
 
   <licenses>
@@ -143,13 +143,13 @@
               </includes>
             </filter>
             <filter>
-              <artifact>c3p0:mchange-commons-java</artifact>
+              <artifact>com.mchange:mchange-commons-java</artifact>
               <includes>
                 <include>**</include>
               </includes>
             </filter>
             <filter>
-              <artifact>c3p0:c3p0</artifact>
+              <artifact>com.mchange:c3p0</artifact>
               <includes>
                 <include>**</include>
               </includes>
