@@ -145,12 +145,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected XyzResponse processLoadFeaturesEvent(LoadFeaturesEvent event) throws Exception {
-    final Map<String, String> idMap = event.getIdsMap();
-
-    if (idMap == null || idMap.size() == 0) {
-      return new FeatureCollection();
-    }
-    return executeQueryWithRetry(SQLQueryBuilder.buildLoadFeaturesQuery(idMap, dataSource));
+    return executeLoadFeatures(event);
   }
 
   @Override

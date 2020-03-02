@@ -31,6 +31,7 @@ import com.mchange.v2.c3p0.AbstractConnectionCustomizer;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.postgresql.util.PSQLException;
@@ -270,6 +271,28 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
+    protected XyzResponse executeLoadFeatures(LoadFeaturesEvent event) throws Exception {
+        final Map<String, String> idMap = event.getIdsMap();
+        final Boolean enabledUUID = event.getEnableUUID() == Boolean.TRUE;
+
+        if (idMap == null || idMap.size() == 0) {
+            return new FeatureCollection();
+        }
+
+        try {
+            return executeQueryWithRetry(SQLQueryBuilder.buildLoadFeaturesQuery(idMap, enabledUUID, dataSource));
+        }catch (Exception e){
+            if(event.getEnableUUID() &&
+                    (e instanceof SQLException  && ((SQLException)e).getSQLState() != null
+                            && ((SQLException)e).getSQLState().equalsIgnoreCase("42P01"))
+                            && e.getMessage() != null && e.getMessage().indexOf("_hst") != 0){
+                logger.log(Level.WARN,"{} History Table for space {} is missing! Try to create it! ",streamId,event.getSpace());
+                ensureHistorySpace(null);
+            }
+            return new ErrorResponse().withStreamId(streamId).withError(XyzError.EXCEPTION).withErrorMessage(e.getMessage());
+        }
+    }
+
     /**
      *
      * @param idsToFetch Ids of objects which should get fetched
@@ -346,11 +369,8 @@ public abstract class DatabaseHandler extends StorageConnector {
 
                 if(transactional) {
                     connection.rollback();
-
-//                    if (e.getMessage() != null && e.getMessage().contains("relation ") && e.getMessage().contains("does not exist"))
-
-                    if((e instanceof BatchUpdateException && ((BatchUpdateException)e).getSQLState().equalsIgnoreCase("42P01"))
-                            || (e instanceof PSQLException && ((PSQLException)(e).getCause()).getSQLState().equalsIgnoreCase(("42P01"))))
+                    if((e instanceof SQLException && ((SQLException)e).getSQLState() != null
+                        && ((SQLException)e).getSQLState().equalsIgnoreCase("42P01")))
                         ;//Table does not exist yet - create it!
                     else{
                         /** Add all other Objects to failed list */
@@ -543,7 +563,6 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     protected void ensureHistorySpace(Integer maxVersionCount) throws SQLException {
         final String tableName = config.table(event);
-        final String hstTableName = config.table(event)+HISTORY_TABLE_SUFFIX;
 
         try (final Connection connection = dataSource.getConnection()) {
             try {

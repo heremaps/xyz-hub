@@ -282,10 +282,8 @@ public class SQLQueryBuilder {
         return query;
     }
 
-    public static SQLQuery buildLoadFeaturesQuery(final Map<String, String> idMap, DataSource dataSource)
+    public static SQLQuery buildLoadFeaturesQuery(final Map<String, String> idMap, boolean handleUUID, DataSource dataSource)
             throws SQLException{
-
-        boolean uuidRequested = false;
 
         final ArrayList<String> ids = new ArrayList<>(idMap.size());
         ids.addAll(idMap.keySet());
@@ -293,10 +291,7 @@ public class SQLQueryBuilder {
         final ArrayList<String> values = new ArrayList<>(idMap.size());
         values.addAll(idMap.values());
 
-        if(idMap.values().toArray()[0] != null)
-            uuidRequested = true;
-
-        if(!uuidRequested) {
+        if(!handleUUID) {
             return new SQLQuery("SELECT jsondata, ST_AsGeojson(ST_Force3D(ST_MakeValid(geo))," + GEOMETRY_DECIMAL_DIGITS + ") FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
                     SQLQuery.createSQLArray(ids.toArray(new String[ids.size()]), "text", dataSource));
         }else{
