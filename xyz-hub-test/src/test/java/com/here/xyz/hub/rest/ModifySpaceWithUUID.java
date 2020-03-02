@@ -193,7 +193,7 @@ public class ModifySpaceWithUUID extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testPatchConflictWithHistory() throws JsonProcessingException {
+  public void testMergeWithHistory() throws JsonProcessingException {
     /** Keep 5 versions of objects */
     patchSpaceWithMaxVersionCount(5,AuthProfile.ACCESS_ALL);
     String body = createRequest(generateRandomFeatures(1, 2))
@@ -205,7 +205,31 @@ public class ModifySpaceWithUUID extends TestSpaceWithFeature {
     countFeatures(1);
 
     /** Take 5th version of Object for doing an update on */
-    Feature headVersion = featureHistory.get(10).get(0);
+    Feature oldVersion = featureHistory.get(5).get(0);
+
+    XyzNamespace xyzNamespace = oldVersion.getProperties().getXyzNamespace();
+    /** try to add a new property on the oldVersion */
+    oldVersion.withProperties(new Properties().with("foo_new" , "bar" ).with("foo",5).withXyzNamespace(xyzNamespace));
+
+    final ValidatableResponse response = createRequest(new FeatureCollection().withFeatures(new ArrayList<Feature>(){{add(oldVersion);}}))
+            .when().post("/spaces/x-psql-test/features?e=merge")
+            .then();
+
+    /** Check the merged response */
+    response.statusCode(OK.code());
+  }
+
+  @Test
+  public void testPatchConflictWithHistory() throws JsonProcessingException {
+    /** Keep 5 versions of objects */
+    patchSpaceWithMaxVersionCount(5,AuthProfile.ACCESS_ALL);
+    String body = createRequest(generateRandomFeatures(1, 2))
+            .post("/spaces/x-psql-test/features")
+            .getBody().asString();
+    FeatureCollection fc = XyzSerializable.deserialize(body);
+
+    Map<Integer, List<Feature>> featureHistory = produceUpdates(fc,10);
+    countFeatures(1);
 
     /** Take 5th version of Object for doing an update on */
     Feature oldVersion = featureHistory.get(5).get(0);
