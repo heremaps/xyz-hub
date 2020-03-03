@@ -30,18 +30,15 @@ import static org.hamcrest.Matchers.notNullValue;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
-import com.here.xyz.models.hub.Space;
 import com.jayway.restassured.response.ValidatableResponse;
 import com.jayway.restassured.specification.RequestSpecification;
 
 import java.util.*;
 
-import groovy.json.JsonBuilder;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
