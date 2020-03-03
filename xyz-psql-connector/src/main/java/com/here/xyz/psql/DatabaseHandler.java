@@ -374,15 +374,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                         ;//Table does not exist yet - create it!
                     else{
                         /** Add all other Objects to failed list */
-                        final List<String> failedIdsTotal = new LinkedList<>();
-                        failedIdsTotal.addAll(insertIds.stream().filter(x -> !failedIds.contains(x)).collect(Collectors.toList()));
-                        failedIdsTotal.addAll(updateIds.stream().filter(x -> !failedIds.contains(x)).collect(Collectors.toList()));
-                        failedIdsTotal.addAll(deleteIds.stream().filter(x -> !failedIds.contains(x)).collect(Collectors.toList()));
-
-                        for (String id: failedIdsTotal) {
-                            fails.add(new FeatureCollection.ModificationFailure().withId(id).withMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL));
-                        }
-                        failedIdsTotal.addAll(failedIds);
+                        addAllToFailedList(failedIds, fails, insertIds, updateIds, deleteIds);
 
                         /** Reset the rest */
                         collection.setFeatures(new ArrayList<>());
@@ -431,6 +423,21 @@ public abstract class DatabaseHandler extends StorageConnector {
             }
 
             return collection;
+        }
+    }
+
+    private void addAllToFailedList(
+            final List<String> failedIds, List<FeatureCollection.ModificationFailure> fails,
+            List<String> insertIds,List<String> updateIds ,List<String> deleteIds ){
+
+        final List<String> failedIdsTotal = new LinkedList<>();
+
+        failedIdsTotal.addAll(insertIds.stream().filter(x -> !failedIds.contains(x)).collect(Collectors.toList()));
+        failedIdsTotal.addAll(updateIds.stream().filter(x -> !failedIds.contains(x)).collect(Collectors.toList()));
+        failedIdsTotal.addAll(deleteIds.stream().filter(x -> !failedIds.contains(x)).collect(Collectors.toList()));
+
+        for (String id: failedIdsTotal) {
+            fails.add(new FeatureCollection.ModificationFailure().withId(id).withMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL));
         }
     }
 

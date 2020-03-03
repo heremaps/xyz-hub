@@ -197,6 +197,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
     if ((ModifySpaceEvent.Operation.UPDATE == event.getOperation()
             || ModifySpaceEvent.Operation.CREATE == event.getOperation())
+            && event.getConnectorParams() != null
             && event.getConnectorParams().get("propertySearch") == Boolean.TRUE) {
 
       if (event.getSpaceDefinition().getSearchableProperties() != null) {
