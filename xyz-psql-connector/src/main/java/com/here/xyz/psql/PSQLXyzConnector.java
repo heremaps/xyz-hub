@@ -83,7 +83,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
     } else if (clusteringType != null && QuadbinSQL.QUAD.equalsIgnoreCase(clusteringType)) {
       /** Check if input is valid */
       final int resolution = clusteringParams.get("resolution") != null ? (int) clusteringParams.get("resolution") : 0;
-      final String quadMode = clusteringParams.get("quadmode") != null ? (String) clusteringParams.get("quadmode") : null;
+      final String quadMode = clusteringParams.get("countmode") != null ? (String) clusteringParams.get("countmode") : null;
+
       QuadbinSQL.checkQuadbinInput(quadMode, resolution, event, streamId, this);
       return executeQueryWithRetry(SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, resolution, quadMode, config));
     }
