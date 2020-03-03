@@ -127,81 +127,78 @@ public class SQLQueryBuilder {
         return query;
     }
 
-    /***************************************** CLUSTERING ******************************************************/
-    public static SQLQuery buildHexbinClusteringQuery(
-            GetFeaturesByBBoxEvent event, BBox bbox,
-            Map<String, Object> clusteringParams, DataSource dataSource) throws Exception {
+/***************************************** CLUSTERING ******************************************************/
+/**** Begin - HEXBIN related section ******/
 
+    public static SQLQuery buildHexbinClusteringQuery( GetFeaturesByBBoxEvent event, BBox bbox, Map<String, Object> clusteringParams, DataSource dataSource) throws Exception 
+    {
         int zLevel = (event instanceof GetFeaturesByTileEvent ? (int) ((GetFeaturesByTileEvent) event).getLevel() : H3SQL.bbox2zoom(bbox)),
-                maxResForLevel = H3SQL.zoom2resolution(zLevel),
-                h3res = (clusteringParams != null && clusteringParams.get(H3SQL.HEXBIN_RESOLUTION) != null
-                        ? Math.min((Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION), maxResForLevel)
-                        : maxResForLevel);
+        maxResForLevel = H3SQL.zoom2resolution(zLevel),
+        h3res = (clusteringParams != null && clusteringParams.get(H3SQL.HEXBIN_RESOLUTION) != null
+            ? Math.min((Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION), maxResForLevel)
+            : maxResForLevel);
 
-        String statisticalProperty = (String) clusteringParams.get(H3SQL.HEXBIN_PROPERTY);
-        boolean statisticalPropertyProvided = (statisticalProperty != null && statisticalProperty.length() > 0),
-                h3cflip = (clusteringParams.get(H3SQL.HEXBIN_POINTMODE) == Boolean.TRUE);
+    String statisticalProperty = (String) clusteringParams.get(H3SQL.HEXBIN_PROPERTY);
+    boolean statisticalPropertyProvided = (statisticalProperty != null && statisticalProperty.length() > 0),
+        h3cflip = (clusteringParams.get(H3SQL.HEXBIN_POINTMODE) == Boolean.TRUE);
 
-        final String expBboxSql = String
-                .format("st_envelope( st_buffer( ST_MakeEnvelope(%f,%f,%f,%f, 4326)::geography, ( 2.5 * edgeLengthM( %d )) )::geometry )",
-                        bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat(), h3res);
+    final String expBboxSql = String.format("st_envelope( st_buffer( ST_MakeEnvelope(%f,%f,%f,%f, 4326)::geography, ( 2.5 * edgeLengthM( %d )) )::geometry )", bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat(), h3res);
 
-        /*clippedGeo - passed bbox is extended by "margin" on service level */
-        String clippedGeo = (!event.getClip() ? "geo" : String
-                .format("ST_Intersection(geo,ST_MakeEnvelope(%f,%f,%f,%f,4326) )", bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat())),
-                fid = (!event.getClip() ? "h3" : String.format("h3 || %f || %f", bbox.minLon(), bbox.minLat())),
-                filterEmptyGeo = (!event.getClip() ? "" : String.format(" and not st_isempty( %s ) ", clippedGeo));
+        /*clippedGeo - passed bbox is extended by "margin" on service level */                        
+    String clippedGeo = ( !event.getClip() ? "geo" : String.format("ST_Intersection(geo,ST_MakeEnvelope(%f,%f,%f,%f,4326) )", bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() ) ),
+           fid = ( !event.getClip() ? "h3" : String.format("h3 || %f || %f",bbox.minLon(), bbox.minLat() ) ),
+           filterEmptyGeo = ( !event.getClip() ? "" : String.format(" and not st_isempty( %s ) ", clippedGeo ) );
 
-        final SQLQuery searchQuery = generateSearchQuery(event, dataSource);
+    final SQLQuery searchQuery = generateSearchQuery(event,dataSource);
 
-        String aggField = (statisticalPropertyProvided ? "jsonb_set('{}'::jsonb, ? , agg::jsonb)::json" : "agg");
+    String aggField = ( statisticalPropertyProvided ? "jsonb_set('{}'::jsonb, ? , agg::jsonb)::json" : "agg" );
 
-        final SQLQuery query = new SQLQuery(String.format(H3SQL.h3sqlBegin, h3res,
-                !h3cflip ? "st_centroid(geo)" : "geo",
-                h3cflip ? "st_centroid(geo)" : clippedGeo,
-                statisticalPropertyProvided ? ", min, max, sum, avg, median" : "",
-                zLevel,
-                !h3cflip ? "centroid" : "hexagon",
-                aggField,
-                fid));
+    final SQLQuery query = new SQLQuery(String.format(H3SQL.h3sqlBegin, h3res, 
+                                                       !h3cflip ? "st_centroid(geo)" : "geo", 
+                                                        h3cflip ? "st_centroid(geo)" : clippedGeo,
+                                                       statisticalPropertyProvided ? ", min, max, sum, avg, median" : "", 
+                                                       zLevel, 
+                                                       !h3cflip ? "centroid" : "hexagon",
+                                                       aggField,
+                                                       fid ));
 
-        if (statisticalPropertyProvided) {
-            ArrayList<String> jpath = new ArrayList<>();
-            jpath.add(statisticalProperty);
-            query.addParameter(SQLQuery.createSQLArray(jpath.toArray(new String[]{}), "text", dataSource));
-        }
-
-        query.append(expBboxSql);
-
-        if (!statisticalPropertyProvided) {
-            query.append(new SQLQuery(String.format(H3SQL.h3sqlMid, h3res, "(0.0)::numeric", zLevel, H3SQL.pxSize)));
-        } else {
-            ArrayList<String> jpath = new ArrayList<>();
-            jpath.add("properties");
-            jpath.addAll(Arrays.asList(statisticalProperty.split("\\.")));
-
-            query.append(new SQLQuery(String.format(H3SQL.h3sqlMid, h3res, "(jsondata#>> ?)::numeric", zLevel, H3SQL.pxSize)));
-            query.addParameter(SQLQuery.createSQLArray(jpath.toArray(new String[]{}), "text", dataSource));
-        }
-
-        //query.append(" case st_geometrytype(geo) when 'ST_Point' then geo else st_intersection( geo ," ); query.append( expBboxSql ); query.append(" ) end as geo ");
-        query.append(" case st_geometrytype(geo) when 'ST_Point' then geo else st_closestpoint( geo, geo ) end as refpt ");
-        query.append(" from ${schema}.${table} v where 1 = 1 and geo && ");
-        query.append(expBboxSql);
-        query.append(" and st_intersects( geo ,");
-        query.append(expBboxSql);
-        query.append(" ) ");
-
-        if (searchQuery != null) {
-            query.append(" and ");
-            query.append(searchQuery);
-        }
-
-        query.append(String.format(H3SQL.h3sqlEnd, filterEmptyGeo));
-        query.append("LIMIT ?", event.getLimit());
-
-        return query;
+    if(statisticalPropertyProvided)
+    { ArrayList<String> jpath = new ArrayList<>();
+      jpath.add( statisticalProperty );
+      query.addParameter(SQLQuery.createSQLArray(jpath.toArray(new String[]{}), "text",dataSource));
     }
+
+    query.append(expBboxSql);
+
+    query.append(H3SQL.h3sqlMid1);
+    query.append(expBboxSql); query.append(" as tile, ");
+
+    if (!statisticalPropertyProvided) {
+      query.append( String.format(H3SQL.h3sqlMid2, "(0.0)::numeric", zLevel, H3SQL.pxSize));
+    } else {
+      ArrayList<String> jpath = new ArrayList<>();
+      jpath.add("properties");
+      jpath.addAll(Arrays.asList(statisticalProperty.split("\\.")));
+
+      query.append(String.format(H3SQL.h3sqlMid2, "(jsondata#>> ?)::numeric", zLevel, H3SQL.pxSize));
+      query.addParameter(SQLQuery.createSQLArray(jpath.toArray(new String[]{}), "text",dataSource));
+    }
+
+    if (searchQuery != null) {
+      query.append(" and ");
+      query.append(searchQuery);
+    }
+
+
+    query.append( String.format(H3SQL.h3sqlEnd, h3res, filterEmptyGeo) );
+    query.append("LIMIT ?", event.getLimit());
+
+    return query;
+  }
+
+ /**** End - HEXBIN related section ******/
+
+
 
     public static SQLQuery buildQuadbinClusteringQuery(GetFeaturesByBBoxEvent event,
                                                           BBox bbox, int resolution, String quadMode,
