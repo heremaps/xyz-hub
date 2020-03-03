@@ -29,7 +29,7 @@ import com.here.xyz.responses.XyzError;
 
 public class QuadbinSQL {
 
-    public static final String QUAD = "quad";
+    public static final String QUAD = "quadbin";
 
     /**
      * Real live counts via count(*)
@@ -56,7 +56,7 @@ public class QuadbinSQL {
             ErrorResponseException{
         if(quadMode != null && (!quadMode.equalsIgnoreCase(QuadbinSQL.COUNTMODE_REAL) && !quadMode.equalsIgnoreCase(QuadbinSQL.COUNTMODE_ESTIMATED) && !quadMode.equalsIgnoreCase(QuadbinSQL.COUNTMODE_MIXED)) )
             throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-                    "Invalid request parameters. Unknown clustering.quadmode="+quadMode+". Available are: ["+ QuadbinSQL.COUNTMODE_REAL +","+ QuadbinSQL.COUNTMODE_ESTIMATED +","+ QuadbinSQL.COUNTMODE_MIXED +"]!");
+                    "Invalid request parameters. Unknown clustering.countmode="+quadMode+". Available are: ["+ QuadbinSQL.COUNTMODE_REAL +","+ QuadbinSQL.COUNTMODE_ESTIMATED +","+ QuadbinSQL.COUNTMODE_MIXED +"]!");
 
         if(resolution > 5)
             throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
