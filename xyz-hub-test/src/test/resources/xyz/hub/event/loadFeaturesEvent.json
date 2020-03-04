@@ -1,0 +1,10 @@
+{
+  "type": "LoadFeaturesEvent",
+  "streamId": "WSUa5knf1n",
+  "preferPrimaryDataSource": true,
+  "space": "x-psql-test",
+  "version": "0.2.0",
+  "idsMap": {
+    "Q3495887": null
+  }
+}
