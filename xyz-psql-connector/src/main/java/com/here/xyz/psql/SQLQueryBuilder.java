@@ -49,7 +49,7 @@ public class SQLQueryBuilder {
 
         SQLQuery query = new SQLQuery("SELECT");
         query.append(SQLQuery.selectJson(event.getSelection(),dataSource));
-        query.append(", ST_AsGeojson(ST_Force3D(ST_MakeValid(geo)),"+GEOMETRY_DECIMAL_DIGITS+") FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
+        query.append(", replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
                 SQLQuery.createSQLArray(event.getIds().toArray(new String[event.getIds().size()]), "text",dataSource));
        return query;
     }
@@ -70,7 +70,7 @@ public class SQLQueryBuilder {
             query = new SQLQuery("SELECT");
             query.append(SQLQuery.selectJson(event.getSelection(), dataSource));
             /** No clipping or simplification needed*/
-            query.append(",ST_AsGeojson(ST_Force3D(ST_MakeValid(geo)),"+GEOMETRY_DECIMAL_DIGITS+")");
+            query.append(",replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0')");
             query.append("FROM ${schema}.${table} WHERE");
             query.append(geoQuery);
             query.append("LIMIT ?", event.getLimit());
@@ -235,7 +235,7 @@ public class SQLQueryBuilder {
 
         final SQLQuery query = new SQLQuery("SELECT");
         query.append(SQLQuery.selectJson(event.getSelection(), dataSource));
-        query.append(", ST_AsGeojson(ST_Force3D(ST_MakeValid(geo)),"+GEOMETRY_DECIMAL_DIGITS+"), i FROM ${schema}.${table}");
+        query.append(", replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0'), i FROM ${schema}.${table}");
         final SQLQuery searchQuery = generateSearchQuery(event, dataSource);
 
         if (hasSearch || hasHandle) {
@@ -274,7 +274,7 @@ public class SQLQueryBuilder {
         }
 
         if (searchQuery != null && includeOldStates)
-            query.append(" RETURNING jsondata->'id' as id, ST_AsGeojson(ST_Force3D(ST_MakeValid(geo))) as geometry");
+            query.append(" RETURNING jsondata->'id' as id, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') as geometry");
 
         return query;
     }
@@ -289,13 +289,13 @@ public class SQLQueryBuilder {
         values.addAll(idMap.values());
 
         if(!handleUUID) {
-            return new SQLQuery("SELECT jsondata, ST_AsGeojson(ST_Force3D(ST_MakeValid(geo))," + GEOMETRY_DECIMAL_DIGITS + ") FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
+            return new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
                     SQLQuery.createSQLArray(ids.toArray(new String[ids.size()]), "text", dataSource));
         }else{
             final SQLQuery query;
-            query = new SQLQuery("SELECT jsondata, ST_AsGeojson(ST_Force3D(ST_MakeValid(geo))," + GEOMETRY_DECIMAL_DIGITS + ") FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?) ");
+            query = new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?) ");
             query.append("UNION ");
-            query.append("SELECT jsondata, ST_AsGeojson(ST_Force3D(ST_MakeValid(geo))," + GEOMETRY_DECIMAL_DIGITS + ") FROM ${schema}.${hsttable} WHERE uuid = ANY(?) ");
+            query.append("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${hsttable} WHERE uuid = ANY(?) ");
             query.addParameter( SQLQuery.createSQLArray(ids.toArray(new String[ids.size()]), "text", dataSource));
             query.addParameter( SQLQuery.createSQLArray(values.toArray(new String[values.size()]), "text", dataSource));
             return query;
@@ -415,7 +415,7 @@ public class SQLQueryBuilder {
             query.append(",");
             query.append(geometrySelectorForEvent((GetFeaturesByBBoxEvent) event));
         } else {
-            query.append(",ST_AsGeojson(ST_Force3D(ST_MakeValid(geo)),"+GEOMETRY_DECIMAL_DIGITS+")");
+            query.append(",replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0')");
         }
 
         query.append("FROM features WHERE");
@@ -433,20 +433,20 @@ public class SQLQueryBuilder {
 
         if (!event.getClip()) {
             if (simplificationLevel <= 0) {
-                return new SQLQuery("ST_AsGeojson(ST_Force3D(ST_MakeValid(geo)),"+GEOMETRY_DECIMAL_DIGITS+")");
+                return new SQLQuery("replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0')");
 
             }
-            return new SQLQuery("ST_AsGeoJson(ST_Transform(ST_MakeValid(ST_SnapToGrid(ST_Force2D(ST_Transform(geo,3857)),?)),4326),"+GEOMETRY_DECIMAL_DIGITS+")", pixelSize);
+            return new SQLQuery("replace(ST_AsGeoJson(ST_Transform(ST_MakeValid(ST_SnapToGrid(ST_Force2D(ST_Transform(geo,3857)),?)),4326),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0')", pixelSize);
         }
 
         final BBox bbox = event.getBbox();
         if (simplificationLevel <= 0) {
-            return new SQLQuery("ST_AsGeoJson(ST_Intersection(ST_MakeValid(geo),ST_MakeEnvelope(?,?,?,?,4326)),"+GEOMETRY_DECIMAL_DIGITS+")",
+            return new SQLQuery("replace(ST_AsGeoJson(ST_Intersection(ST_MakeValid(geo),ST_MakeEnvelope(?,?,?,?,4326)),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0')",
                     bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
         }
 
         return new SQLQuery(
-                "ST_AsGeoJson(ST_Intersection(ST_Transform(ST_MakeValid(ST_SnapToGrid(ST_Force2D(ST_Transform(geo,3857)),?)),4326),ST_MakeEnvelope(?,?,?,?,4326)),"+GEOMETRY_DECIMAL_DIGITS+")",
+                "replace(ST_AsGeoJson(ST_Intersection(ST_Transform(ST_MakeValid(ST_SnapToGrid(ST_Force2D(ST_Transform(geo,3857)),?)),4326),ST_MakeEnvelope(?,?,?,?,4326)),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0')",
                 pixelSize, bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
     }
 
