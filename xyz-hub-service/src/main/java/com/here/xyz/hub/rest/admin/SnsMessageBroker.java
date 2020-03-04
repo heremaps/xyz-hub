@@ -37,7 +37,6 @@ import com.amazonaws.services.sns.model.UnsubscribeResult;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.rest.AdminApi;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -76,7 +75,7 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
       ownNodeUrl = null;
     } else {
       try {
-        ownNodeUrl = Node.OWN_INSTANCE.getUrl() != null ? new URL(Node.OWN_INSTANCE.getUrl(), AdminApi.ADMIN_MESSAGES_ENDPOINT
+        ownNodeUrl = Node.OWN_INSTANCE.getUrl() != null ? new URL(Node.OWN_INSTANCE.getUrl(), AdminApi.ADMIN_MESSAGE_ENDPOINT
             + "?" + Query.ACCESS_TOKEN + "=" + Service.configuration.ADMIN_MESSAGE_JWT).toString() : null;
       } catch (MalformedURLException e) {
         logger.error("Error creating the Node URL", e);
@@ -246,11 +245,11 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
 
           @Override
           public void onSuccess(ListSubscriptionsByTopicRequest request, ListSubscriptionsByTopicResult result) {
-            List<Subscription> subscriptions = result.getSubscriptions()
+            List<Subscription> subscriptions = new LinkedList<>(result.getSubscriptions()
                 .stream()
                 .filter(subscription -> SNS_HTTP_PROTOCOL.equals(subscription.getProtocol())
-                    && subscription.getEndpoint().contains(AdminApi.ADMIN_MESSAGES_ENDPOINT))
-                .collect(Collectors.toCollection(LinkedList::new));
+                    && subscription.getEndpoint().contains(AdminApi.ADMIN_MESSAGE_ENDPOINT))
+                .collect(Collectors.toList()));
             if (result.getNextToken() != null) {
               loadSubscriptions(result.getNextToken(), subscriptionsResult -> {
                 if (subscriptionsResult.succeeded()) {
