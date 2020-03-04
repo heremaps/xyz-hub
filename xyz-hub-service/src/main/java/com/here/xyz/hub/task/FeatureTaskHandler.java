@@ -685,8 +685,10 @@ public class FeatureTaskHandler {
 
           final XyzNamespace nsXyz = result.getProperties().getXyzNamespace();
 
-          // Set the space ID
-          nsXyz.setSpace(task.space.getId());
+          // Set the space ID only when it's not set yet, the connector then is free to decide if override it or not
+          if (nsXyz.getSpace() == null) {
+            nsXyz.setSpace(task.space.getId());
+          }
 
           // Normalize the tags
           final List<String> tags = nsXyz.getTags();
