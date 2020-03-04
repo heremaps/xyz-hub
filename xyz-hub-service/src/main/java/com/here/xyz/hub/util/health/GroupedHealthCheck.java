@@ -70,7 +70,6 @@ public abstract class GroupedHealthCheck extends ExecutableCheck {
 
     //Collect all checks & their responses and report the new response
     response.getChecks().addAll(checks);
-    response.setStatus(status);
     setResponse(response);
 
     return status;

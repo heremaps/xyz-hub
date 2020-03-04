@@ -66,6 +66,7 @@ public class HealthApi extends Api {
       healthCheck.add(
           (ExecutableCheck) new JDBCHealthCheck(getStorageDbUri(), Service.configuration.STORAGE_DB_USER,
               Service.configuration.STORAGE_DB_PASSWORD)
+              .withName("Configuration DB Postgres")
               .withEssential(true)
       );
     }

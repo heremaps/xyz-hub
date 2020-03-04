@@ -23,6 +23,7 @@ import java.net.URI;
 public abstract class DBHealthCheck extends ExecutableCheck {
 	
 	public DBHealthCheck(URI connectionString) {
+		super();
 		this.connectionString = connectionString;
 		setTarget(Target.REMOTE);
 		setRole(Role.DATABASE);
