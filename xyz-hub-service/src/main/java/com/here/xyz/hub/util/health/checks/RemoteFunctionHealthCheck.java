@@ -36,6 +36,7 @@ import com.here.xyz.hub.util.health.schema.Status;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import org.apache.logging.log4j.MarkerManager;
 
 public class RemoteFunctionHealthCheck extends ExecutableCheck {
@@ -44,6 +45,7 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
   private Connector connector;
 
   RemoteFunctionHealthCheck(Connector connector) {
+    super();
     this.connector = connector;
     setName(connector.id);
     setRole(Role.CUSTOM);
@@ -56,7 +58,7 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
   }
 
   @Override
-  public Status execute() {
+  public Status execute() throws InterruptedException {
     Response r = new Response();
     Status s = new Status();
     HealthCheckEvent healthCheck = new HealthCheckEvent();
@@ -65,6 +67,7 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
     healthCheck.setStreamId(healthCheckStreamId);
     try {
       RpcClient client = getClient();
+      long t1 = System.currentTimeMillis();
       client.execute(MarkerManager.getMarker(healthCheckStreamId), healthCheck, ar -> {
         if (ar.failed()) {
           setResponse(generateResponse().withMessage("Error in connector health-check: " + ar.cause().getMessage()));
@@ -80,14 +83,17 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
       });
 
       while (s.getResult() == UNKNOWN) {
-        try {
-          synchronized (s) {
-            s.wait();
-          }
-          Thread.sleep(1000);
+        synchronized (s) {
+          s.wait();
         }
-        catch (InterruptedException ignored) {}
+        long t2 = System.currentTimeMillis();
+        long execTime = t2 - t1;
+        Thread.sleep(100);
       }
+    }
+    catch (InterruptedException interruption) {
+      setResponse(generateResponse());
+      throw interruption;
     }
     catch (Exception e) {
       setResponse(generateResponse().withMessage("Error trying to execute health-check event: " + e.getMessage()));

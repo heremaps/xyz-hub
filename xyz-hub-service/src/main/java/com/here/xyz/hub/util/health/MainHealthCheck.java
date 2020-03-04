@@ -128,6 +128,7 @@ public class MainHealthCheck extends GroupedHealthCheck {
         .withTimestamp(CachedClock.instance().currentTimeMillis());
     setStatus(s);
     Response r = super.getResponse();
+    r.setStatus(s);
     r.setReporter(reporter);
     return r;
   }
