@@ -199,7 +199,7 @@ public class SQLQueryBuilder {
 
 
     public static SQLQuery buildQuadbinClusteringQuery(GetFeaturesByBBoxEvent event,
-                                                          BBox bbox, int resolution, String quadMode,
+                                                          BBox bbox, int resolution, String countMode,
                                                           PSQLConfig config) {
         /** Quadkey calc */
         final int lev = WebMercatorTile.getZoomFromBBOX(bbox);
@@ -223,7 +223,7 @@ public class SQLQueryBuilder {
                 }
             }
         }
-        return QuadbinSQL.generateQuadbinClusteringSQL(config.schema(), config.table(event), resolution, quadMode, propQuerySQL, tile);
+        return QuadbinSQL.generateQuadbinClusteringSQL(config.schema(), config.table(event), resolution, countMode, propQuerySQL, tile);
     }
     /***************************************** CLUSTERING END **************************************************/
 
