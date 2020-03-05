@@ -900,7 +900,7 @@ components:
         type: string
         enum:
           - hexbin
-          - quad
+          - quadbin
     ClusteringParams:
       name: clusteringParams
       in: query
@@ -941,8 +941,8 @@ components:
         |             |         |           | estimated = estimated feature counts. Low accuracy, but very fast	    |
         |             |         |           | 		Recommended for big result sets 			                    |
         |             |         |           |                                                                       |
-        |             |         |           | mixed = estimated feature counts combined with real ones. If the 	    |
-        |             |         |           | 		estimation is low a real count gets applied. Fits to the        |
+        |             |         |           | mixed (default) = estimated feature counts combined with real ones. 	|
+        |             |         |           | 		If the estimation is low a real count gets applied. Fits to the |
         |             |         |           | 		most use cases						                            |
       style: form
       explode: true

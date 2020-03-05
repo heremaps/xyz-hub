@@ -28,7 +28,6 @@ import io.vertx.ext.auth.jwt.JWTAuth;
 import io.vertx.ext.auth.jwt.JWTAuthOptions;
 import io.vertx.ext.jwt.JWTOptions;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import org.apache.commons.io.IOUtils;
 
@@ -56,6 +55,8 @@ public class JwtGenerator {
       -----BEGIN PRIVATE KEY----- #<--- remove this
       ...
       -----END PRIVATE KEY----- #<--- remove this
+    4. In case you want to generate a jwt token using jwt.io, transform your private key into PEM first, by running:
+      openssl rsa -in jwt.key -outform pem -out filekey.pem
 
   */
 
