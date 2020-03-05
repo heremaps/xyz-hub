@@ -31,7 +31,6 @@ public class FunctionCheck extends ExecutableCheck {
 	BooleanSupplier checkImpl;
 	
 	public FunctionCheck(BooleanSupplier impl) {
-		super();
 		this.checkImpl = impl;
 	}
 	

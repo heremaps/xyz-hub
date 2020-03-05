@@ -38,7 +38,6 @@ public class RedisHealthCheck extends ExecutableCheck {
 	private volatile String lastReceivedValue;
 
 	public RedisHealthCheck(String host, int port) {
-		super();
 		this.host = host;
 		this.port = port;
 		setName("Redis");

@@ -45,7 +45,6 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
   private Connector connector;
 
   RemoteFunctionHealthCheck(Connector connector) {
-    super();
     this.connector = connector;
     setName(connector.id);
     setRole(Role.CUSTOM);
@@ -59,7 +58,6 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
 
   @Override
   public Status execute() throws InterruptedException {
-    Response r = new Response();
     Status s = new Status();
     HealthCheckEvent healthCheck = new HealthCheckEvent();
     //Just generate a stream ID here as the stream actually "begins" here
@@ -67,7 +65,6 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
     healthCheck.setStreamId(healthCheckStreamId);
     try {
       RpcClient client = getClient();
-      long t1 = System.currentTimeMillis();
       client.execute(MarkerManager.getMarker(healthCheckStreamId), healthCheck, ar -> {
         if (ar.failed()) {
           setResponse(generateResponse().withMessage("Error in connector health-check: " + ar.cause().getMessage()));
@@ -86,8 +83,6 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
         synchronized (s) {
           s.wait();
         }
-        long t2 = System.currentTimeMillis();
-        long execTime = t2 - t1;
         Thread.sleep(100);
       }
     }
