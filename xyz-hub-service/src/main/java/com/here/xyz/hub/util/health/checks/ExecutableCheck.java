@@ -21,7 +21,6 @@ package com.here.xyz.hub.util.health.checks;
 import static com.here.xyz.hub.util.health.Config.Setting.CHECK_DEFAULT_INTERVAL;
 import static com.here.xyz.hub.util.health.Config.Setting.CHECK_DEFAULT_TIMEOUT;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.here.xyz.hub.Service;
@@ -34,7 +33,6 @@ import com.here.xyz.hub.util.health.schema.Status.Result;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -54,10 +52,11 @@ import org.apache.logging.log4j.Logger;
 public abstract class ExecutableCheck extends Check implements Runnable {
 	private static final Logger logger = LogManager.getLogger();
 
-	protected static ScheduledExecutorService executorService = Executors.newScheduledThreadPool(10);
+	protected static final int MIN_EXEC_POOL_SIZE = 10;
+	protected static ScheduledThreadPoolExecutor executorService = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(MIN_EXEC_POOL_SIZE);
 
 	static {
-		ScheduledThreadPoolExecutor executor = ((ScheduledThreadPoolExecutor) executorService);
+		ScheduledThreadPoolExecutor executor = executorService;
 		executor.setRemoveOnCancelPolicy(true);
 		executor.setKeepAliveTime(Config.getInt(CHECK_DEFAULT_INTERVAL) + Config.getInt(CHECK_DEFAULT_TIMEOUT), TimeUnit.MILLISECONDS);
 	}
