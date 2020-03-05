@@ -19,9 +19,25 @@
 
 package com.here.xyz.hub.rest;
 
+import com.vividsolutions.jts.geom.Coordinate;
+import com.vividsolutions.jts.geom.Geometry;
+import com.vividsolutions.jts.geom.GeometryFactory;
+import com.wdtinc.mapbox_vector_tile.adapt.jts.MvtReader;
+import com.wdtinc.mapbox_vector_tile.adapt.jts.TagKeyValueMapConverter;
+import com.wdtinc.mapbox_vector_tile.adapt.jts.model.JtsLayer;
+import com.wdtinc.mapbox_vector_tile.adapt.jts.model.JtsMvt;
+import io.vertx.core.json.JsonObject;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+
 import static com.google.common.net.HttpHeaders.ACCEPT_ENCODING;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.hub.rest.Api.HeaderValues.*;
 import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
@@ -38,13 +54,8 @@ import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-
-import io.vertx.core.json.JsonObject;
-import java.io.IOException;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 public class ReadFeatureApiIT extends TestSpaceWithFeature {
 
@@ -756,6 +767,41 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         get("/spaces/" + cleanUpId + "/tile/quadkey/0").
         then().
         statusCode(OK.code());
+  }
+
+  @Test
+  public void testMTVResponse() throws IOException {
+    InputStream inputStream = given()
+            .contentType(APPLICATION_VND_MAPBOX_VECTOR_TILE)
+            .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+            .when()
+            .get("/spaces/x-psql-test/tile/quadkey/120203302032.mvt")
+            .getBody().asInputStream();
+    ;
+    GeometryFactory geomFactory = new GeometryFactory();
+    JtsMvt jtsMvt = MvtReader.loadMvt(
+            inputStream,
+            geomFactory,
+            new TagKeyValueMapConverter());
+
+    JtsLayer layer = jtsMvt.getLayer("x-psql-test");
+    ArrayList<Geometry> geometries = (ArrayList<Geometry>) layer.getGeometries();
+    Geometry geom = geometries.get(0).getGeometryN(0);
+    Object userData = geometries.get(0).getUserData();
+    LinkedHashMap<String,Object> t = (LinkedHashMap<String,Object>)userData;
+
+    assertEquals("Commerzbank-Arena",t.get("name"));
+    assertEquals("association football",t.get("sport"));
+    assertEquals(51500l,t.get("capacity"));
+    assertEquals("Eintracht Frankfurt",t.get("occupant"));
+    assertNotNull(t.get("@ns:com:here:xyz"));
+
+    Coordinate[] coordinates = geom.getCoordinates();
+
+    assertEquals(1491, coordinates[0].x, 0);
+    assertEquals(3775, coordinates[0].y, 0);
+    //Todo: check z after NaN fix
+//    assertEquals("NaN", coordinates[0].z);
   }
 
   private void createSpaceWithSize(int s) {
