@@ -237,7 +237,6 @@ public class FeatureQueryApi extends Api {
           .withPropertiesQuery(Query.getPropertiesQuery(context))
           .withSelection(Query.getSelection(context));
 
-      final TileQuery task = new TileQuery(event, context, responseType, skipCache);
       String tileType = context.pathParam(Path.TILE_TYPE);
 
       try {
@@ -283,6 +282,7 @@ public class FeatureQueryApi extends Api {
         throw new HttpException(BAD_REQUEST, "Invalid argument tileId.");
       }
 
+      final TileQuery task = new TileQuery(event, context, responseType, skipCache);
       task.execute(this::sendResponse, this::sendErrorResponse);
 
     } catch (HttpException e) {
