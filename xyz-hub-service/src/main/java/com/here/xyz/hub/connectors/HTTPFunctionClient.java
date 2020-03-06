@@ -89,7 +89,8 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
   }
 
   @Override
-  protected void invoke(Marker marker, byte[] bytes, Handler<AsyncResult<byte[]>> callback) {
+  protected void invoke(Marker marker, byte[] bytes, boolean fireAndForget, Handler<AsyncResult<byte[]>> callback) {
+    //TODO: respect fireAndForget parameter
     final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
     logger.debug(marker, "Invoke http remote function '{}' Event size is: {}", remoteFunction.id, bytes.length);
 
@@ -104,14 +105,8 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
               callback.handle(Future.failedFuture(ar.cause()));
             }
           } else {
-            try {
-              //TODO: Refactor to move decompression into the base-class RemoteFunctionClient as it's not HTTP specific
-              byte[] responseBytes = ar.result().body().getBytes();
-              checkResponseSize(responseBytes);
-              callback.handle(Future.succeededFuture(getDecompressed(responseBytes)));
-            } catch (IOException | HttpException e) {
-              callback.handle(Future.failedFuture(e));
-            }
+            byte[] responseBytes = ar.result().body().getBytes();
+            callback.handle(Future.succeededFuture(responseBytes));
           }
         });
   }
