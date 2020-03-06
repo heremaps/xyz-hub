@@ -36,6 +36,7 @@ import com.here.xyz.hub.util.health.schema.Status;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import org.apache.logging.log4j.MarkerManager;
 
 public class RemoteFunctionHealthCheck extends ExecutableCheck {
@@ -56,8 +57,7 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
   }
 
   @Override
-  public Status execute() {
-    Response r = new Response();
+  public Status execute() throws InterruptedException {
     Status s = new Status();
     HealthCheckEvent healthCheck = new HealthCheckEvent();
     //Just generate a stream ID here as the stream actually "begins" here
@@ -80,14 +80,15 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
       });
 
       while (s.getResult() == UNKNOWN) {
-        try {
-          synchronized (s) {
-            s.wait();
-          }
-          Thread.sleep(1000);
+        synchronized (s) {
+          s.wait();
         }
-        catch (InterruptedException ignored) {}
+        Thread.sleep(100);
       }
+    }
+    catch (InterruptedException interruption) {
+      setResponse(generateResponse());
+      throw interruption;
     }
     catch (Exception e) {
       setResponse(generateResponse().withMessage("Error trying to execute health-check event: " + e.getMessage()));
