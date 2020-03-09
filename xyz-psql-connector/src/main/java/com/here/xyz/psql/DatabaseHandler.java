@@ -197,6 +197,20 @@ public abstract class DatabaseHandler extends StorageConnector {
                     return executeQuery(query, handler);
                 }
             } catch (Exception e1) {
+                if(e instanceof SQLException  && ((SQLException)e).getSQLState() != null
+                        && context.getRemainingTimeInMillis() > 20000 &&
+                        ( ((SQLException)e).getSQLState().equalsIgnoreCase("57014") ||
+                            ((SQLException)e).getSQLState().equalsIgnoreCase("57P01")
+                        )) {
+                    /** If there happens a timeout directly after the invocation it could rely
+                     * on serverless aurora scaling. There we retry again.
+                     * 57014 - query_canceled
+                     * 57P01 - admin_shutdown
+                     * */
+                    if (!retryAttempted) {
+                        return executeQuery(query, handler);
+                    }
+                }
                 throw e;
             }
             throw e;
@@ -420,14 +434,11 @@ public abstract class DatabaseHandler extends StorageConnector {
         if (retryAttempted) {
             return false;
         }
-        if (hasTable()) {
-            retryAttempted = true; // the table is there, do not retry
-            return false;
-        }
 
         ensureSpace();
+
         retryAttempted = true;
-        logger.info("{} - The table was created. Retry the execution.", streamId);
+        logger.info("{} - Retry the execution.", streamId);
         return true;
     }
 
@@ -478,31 +489,31 @@ public abstract class DatabaseHandler extends StorageConnector {
                 }
 
                 try (Statement stmt = connection.createStatement()) {
-                    String query = "CREATE TABLE ${schema}.${table} (jsondata jsonb, geo geometry(GeometryZ,4326), i SERIAL, geojson jsonb)";
+                    String query = "CREATE TABLE IF NOT EXISTS  ${schema}.${table} (jsondata jsonb, geo geometry(GeometryZ,4326), i SERIAL, geojson jsonb)";
                     query = SQLQuery.replaceVars(query, config.schema(), tableName);
                     stmt.addBatch(query);
 
-                    query = "CREATE UNIQUE INDEX ${idx_id} ON ${schema}.${table} ((jsondata->>'id'))";
+                    query = "CREATE UNIQUE INDEX IF NOT EXISTS  ${idx_id} ON ${schema}.${table} ((jsondata->>'id'))";
                     query = SQLQuery.replaceVars(query, replacements, config.schema(), tableName);
                     stmt.addBatch(query);
 
-                    query = "CREATE INDEX ${idx_tags} ON ${schema}.${table} USING gin ((jsondata->'properties'->'@ns:com:here:xyz'->'tags') jsonb_ops)";
+                    query = "CREATE INDEX IF NOT EXISTS  ${idx_tags} ON ${schema}.${table} USING gin ((jsondata->'properties'->'@ns:com:here:xyz'->'tags') jsonb_ops)";
                     query = SQLQuery.replaceVars(query, replacements, config.schema(), tableName);
                     stmt.addBatch(query);
 
-                    query = "CREATE INDEX ${idx_geo} ON ${schema}.${table} USING gist ((geo))";
+                    query = "CREATE INDEX IF NOT EXISTS  ${idx_geo} ON ${schema}.${table} USING gist ((geo))";
                     query = SQLQuery.replaceVars(query, replacements, config.schema(), tableName);
                     stmt.addBatch(query);
 
-                    query = "CREATE INDEX ${idx_serial} ON ${schema}.${table}  USING btree ((i))";
+                    query = "CREATE INDEX IF NOT EXISTS  ${idx_serial} ON ${schema}.${table}  USING btree ((i))";
                     query = SQLQuery.replaceVars(query, replacements, config.schema(), tableName);
                     stmt.addBatch(query);
 
-                    query = "CREATE INDEX ${idx_updatedAt} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt'))";
+                    query = "CREATE INDEX IF NOT EXISTS  ${idx_updatedAt} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt'))";
                     query = SQLQuery.replaceVars(query, replacements, config.schema(), tableName);
                     stmt.addBatch(query);
 
-                    query = "CREATE INDEX ${idx_createdAt} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'createdAt'))";
+                    query = "CREATE INDEX IF NOT EXISTS  ${idx_createdAt} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'createdAt'))";
                     query = SQLQuery.replaceVars(query, replacements, config.schema(), tableName);
                     stmt.addBatch(query);
 

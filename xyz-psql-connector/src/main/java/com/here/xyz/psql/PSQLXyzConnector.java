@@ -52,53 +52,64 @@ public class PSQLXyzConnector extends DatabaseHandler {
     try {
       return executeQueryWithRetry(SQLQueryBuilder.buildGetStatisticsQuery(event,config),
               this::getStatisticsResultSetHandler);
-
-    } catch (SQLException e) {
-      throw new SQLException(e);
+    }catch (SQLException e){
+      return checkSQLException(e, config.table(event));
     }
   }
 
   @Override
   protected XyzResponse processGetFeaturesByIdEvent(GetFeaturesByIdEvent event) throws Exception {
-    final List<String> ids = event.getIds();
-    if (ids == null || ids.size() == 0) {
-      return new FeatureCollection();
+    try {
+      final List<String> ids = event.getIds();
+      if (ids == null || ids.size() == 0) {
+        return new FeatureCollection();
+      }
+      return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByIdQuery(event, config, dataSource));
+    }catch (SQLException e){
+      return checkSQLException(e, config.table(event));
     }
-    return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByIdQuery(event, config, dataSource));
   }
 
   @Override
   protected XyzResponse processGetFeaturesByGeometryEvent(GetFeaturesByGeometryEvent event) throws Exception {
-    return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByGeometryQuery(event,dataSource));
+    try {
+      return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByGeometryQuery(event,dataSource));
+    }catch (SQLException e){
+      return checkSQLException(e, config.table(event));
+    }
   }
 
   @Override
   protected XyzResponse processGetFeaturesByBBoxEvent(GetFeaturesByBBoxEvent event) throws Exception {
-    final BBox bbox = event.getBbox();
-    final String clusteringType = event.getClusteringType();
-    final Map<String, Object> clusteringParams = event.getClusteringParams();
+    try{
+      final BBox bbox = event.getBbox();
+      final String clusteringType = event.getClusteringType();
+      final Map<String, Object> clusteringParams = event.getClusteringParams();
 
-    if (clusteringType != null && H3SQL.HEXBIN.equalsIgnoreCase(clusteringType)) {
-      return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource));
-    } else if (clusteringType != null && QuadbinSQL.QUAD.equalsIgnoreCase(clusteringType)) {
-      /** Check if input is valid */
-      final int resolution = clusteringParams.get("resolution") != null ? (int) clusteringParams.get("resolution") : 0;
-      final String countMode = clusteringParams.get("countmode") != null ? (String) clusteringParams.get("countmode") : null;
+      if (clusteringType != null && H3SQL.HEXBIN.equalsIgnoreCase(clusteringType)) {
+        return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource));
+      } else if (clusteringType != null && QuadbinSQL.QUAD.equalsIgnoreCase(clusteringType)) {
+        /** Check if input is valid */
+        final int resolution = clusteringParams.get("resolution") != null ? (int) clusteringParams.get("resolution") : 0;
+        final String countMode = clusteringParams.get("countmode") != null ? (String) clusteringParams.get("countmode") : null;
 
-      QuadbinSQL.checkQuadbinInput(countMode, resolution, event, streamId, this);
-      return executeQueryWithRetry(SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, resolution, countMode, config));
-    }
-
-    final boolean isBigQuery = (bbox.widthInDegree(false) >= (360d / 4d) || (bbox.heightInDegree() >= (180d / 4d)));
-
-    if(isBigQuery){
-      /** Check if Properties are indexed */
-      if (!Capabilities.canSearchFor(event.getSpace(), event.getPropertiesQuery(), this)) {
-        throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-                "Invalid request parameters. Search for the provided properties is not supported for this space.");
+        QuadbinSQL.checkQuadbinInput(countMode, resolution, event, streamId, this);
+        return executeQueryWithRetry(SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, resolution, countMode, config));
       }
+
+      final boolean isBigQuery = (bbox.widthInDegree(false) >= (360d / 4d) || (bbox.heightInDegree() >= (180d / 4d)));
+
+      if(isBigQuery){
+        /** Check if Properties are indexed */
+        if (!Capabilities.canSearchFor(event.getSpace(), event.getPropertiesQuery(), this)) {
+          throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
+                  "Invalid request parameters. Search for the provided properties is not supported for this space.");
+        }
+      }
+      return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource));
+    }catch (SQLException e){
+      return checkSQLException(e, config.table(event));
     }
-    return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource));
   }
 
   @Override
@@ -137,139 +148,173 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected XyzResponse processDeleteFeaturesByTagEvent(DeleteFeaturesByTagEvent event) throws Exception {
-    if (config.isReadOnly()) {
-      return new ErrorResponse().withStreamId(streamId).withError(XyzError.NOT_IMPLEMENTED)
-              .withErrorMessage("ModifyFeaturesEvent is not supported by this storage connector.");
+    try{
+      if (config.isReadOnly()) {
+        return new ErrorResponse().withStreamId(streamId).withError(XyzError.NOT_IMPLEMENTED)
+                .withErrorMessage("ModifyFeaturesEvent is not supported by this storage connector.");
+      }
+      return executeDeleteFeaturesByTag(event);
+    }catch (SQLException e){
+      return checkSQLException(e, config.table(event));
     }
-    return executeDeleteFeaturesByTag(event);
   }
 
   @Override
   protected XyzResponse processLoadFeaturesEvent(LoadFeaturesEvent event) throws Exception {
-    final Map<String, String> idMap = event.getIdsMap();
-    if (idMap == null || idMap.size() == 0) {
-      return new FeatureCollection();
+    try{
+      final Map<String, String> idMap = event.getIdsMap();
+      if (idMap == null || idMap.size() == 0) {
+        return new FeatureCollection();
+      }
+      return executeQueryWithRetry(SQLQueryBuilder.buildLoadFeaturesQuery(idMap, dataSource));
+    }catch (SQLException e){
+      return checkSQLException(e, config.table(event));
     }
-    return executeQueryWithRetry(SQLQueryBuilder.buildLoadFeaturesQuery(idMap, dataSource));
   }
 
   @Override
   protected XyzResponse processModifyFeaturesEvent(ModifyFeaturesEvent event) throws Exception {
-    if (config.isReadOnly()) {
-      return new ErrorResponse().withStreamId(streamId).withError(XyzError.NOT_IMPLEMENTED)
-              .withErrorMessage("ModifyFeaturesEvent is not supported by this storage connector.");
-    }
+    try{
+      if (config.isReadOnly()) {
+        return new ErrorResponse().withStreamId(streamId).withError(XyzError.NOT_IMPLEMENTED)
+                .withErrorMessage("ModifyFeaturesEvent is not supported by this storage connector.");
+      }
 
-    final long now = System.currentTimeMillis();
-    final boolean addUUID = event.getEnableUUID() == Boolean.TRUE && event.getVersion().compareTo("0.2.0") < 0;
-    // Update the features to insert
-    final List<Feature> inserts = event.getInsertFeatures();
-    if (inserts != null) {
-      for (Feature feature : inserts) {
-        if (feature.getId() == null) {
-          feature.setId(RandomStringUtils.randomAlphanumeric(16));
+      final long now = System.currentTimeMillis();
+      final boolean addUUID = event.getEnableUUID() == Boolean.TRUE && event.getVersion().compareTo("0.2.0") < 0;
+      // Update the features to insert
+      final List<Feature> inserts = event.getInsertFeatures();
+      if (inserts != null) {
+        for (Feature feature : inserts) {
+          if (feature.getId() == null) {
+            feature.setId(RandomStringUtils.randomAlphanumeric(16));
+          }
+          Feature.finalizeFeature(feature, event.getSpace(), addUUID);
         }
-        Feature.finalizeFeature(feature, event.getSpace(), addUUID);
       }
-    }
 
-    final List<Feature> updates = event.getUpdateFeatures();
-    if (updates != null) {
-      for (final Feature feature : updates) {
-        Feature.finalizeFeature(feature, event.getSpace(), addUUID);
+      final List<Feature> updates = event.getUpdateFeatures();
+      if (updates != null) {
+        for (final Feature feature : updates) {
+          Feature.finalizeFeature(feature, event.getSpace(), addUUID);
+        }
       }
-    }
 
-    return executeModifyFeatures(event);
+      return executeModifyFeatures(event);
+    }catch (SQLException e){
+      return checkSQLException(e, config.table(event));
+    }
   }
 
   @Override
-  protected SuccessResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception {
+  protected XyzResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception {
+    try{
+      if ((ModifySpaceEvent.Operation.UPDATE == event.getOperation()
+              || ModifySpaceEvent.Operation.CREATE == event.getOperation())
+              && event.getConnectorParams() != null
+              && event.getConnectorParams().get("propertySearch") == Boolean.TRUE) {
 
-    if ((ModifySpaceEvent.Operation.UPDATE == event.getOperation()
-            || ModifySpaceEvent.Operation.CREATE == event.getOperation())
-            && event.getConnectorParams() != null
-            && event.getConnectorParams().get("propertySearch") == Boolean.TRUE) {
+        if (event.getSpaceDefinition().getSearchableProperties() != null) {
+          int onDemandLimit = (event.getConnectorParams() != null && event.getConnectorParams().get("onDemandIdxLimit") != null) ?
+                  (Integer) event.getConnectorParams().get("onDemandIdxLimit") : DatabaseMaintainer.ON_DEMAND_IDX_DEFAULT_LIM;
 
-      if (event.getSpaceDefinition().getSearchableProperties() != null) {
-        int onDemandLimit = (event.getConnectorParams() != null && event.getConnectorParams().get("onDemandIdxLimit") != null) ?
-                (Integer) event.getConnectorParams().get("onDemandIdxLimit") : DatabaseMaintainer.ON_DEMAND_IDX_DEFAULT_LIM;
-
-        int cnt = 0;
-        for (String property : event.getSpaceDefinition().getSearchableProperties().keySet()) {
-          if (event.getSpaceDefinition().getSearchableProperties().get(property) != null
-                  && event.getSpaceDefinition().getSearchableProperties().get(property) == Boolean.TRUE) {
-            cnt++;
-          }
-          if (cnt > onDemandLimit) {
-            throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-                    "On-Demand-Indexing - Maximum permissible: " + onDemandLimit + " searchable properties per space!");
-          }
-          if (property.contains("'")) {
-            throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-                    "On-Demand-Indexing [" + property + "] - Character ['] not allowed!");
-          }
-          if (property.contains("\\")) {
-            throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-                    "On-Demand-Indexing [" + property + "] - Character [\\] not allowed!");
-          }
-        }
-      }
-      //TODO: Check if config entry exists and idx_manual=null -> update it (erase on demand)
-      executeUpdateWithRetry(  SQLQueryBuilder.buildSearchablePropertiesUpsertQuery(
-              event.getSpaceDefinition().getSearchableProperties(),
-              event.getOperation(),
-              config.schema(), config.table(event)));
-    }
-
-    if (ModifySpaceEvent.Operation.DELETE == event.getOperation()) {
-      if (hasTable()) {
-        try (final Connection connection = dataSource.getConnection()) {
-          try (Statement stmt = connection.createStatement()) {
-            String query = "DROP TABLE ${schema}.${table}";
-            query = SQLQuery.replaceVars(query, config.schema(), config.table(event));
-            stmt.executeUpdate(query);
-
-            logger.info("{} - Successfully deleted table for space '{}'", streamId, event.getSpace());
-          } catch (Exception e) {
-            final String tableName = config.table(event);
-            logger.error("{} - Failed to delete table '{}': {}", streamId, tableName, e);
-            throw new SQLException("Failed to delete table: " + tableName, e);
+          int cnt = 0;
+          for (String property : event.getSpaceDefinition().getSearchableProperties().keySet()) {
+            if (event.getSpaceDefinition().getSearchableProperties().get(property) != null
+                    && event.getSpaceDefinition().getSearchableProperties().get(property) == Boolean.TRUE) {
+              cnt++;
+            }
+            if (cnt > onDemandLimit) {
+              throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
+                      "On-Demand-Indexing - Maximum permissible: " + onDemandLimit + " searchable properties per space!");
+            }
+            if (property.contains("'")) {
+              throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
+                      "On-Demand-Indexing [" + property + "] - Character ['] not allowed!");
+            }
+            if (property.contains("\\")) {
+              throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
+                      "On-Demand-Indexing [" + property + "] - Character [\\] not allowed!");
+            }
           }
         }
-      } else {
-        logger.info("{} - Table not found '{}'", streamId, event.getSpace());
+        //TODO: Check if config entry exists and idx_manual=null -> update it (erase on demand)
+        executeUpdateWithRetry(  SQLQueryBuilder.buildSearchablePropertiesUpsertQuery(
+                event.getSpaceDefinition().getSearchableProperties(),
+                event.getOperation(),
+                config.schema(), config.table(event)));
       }
+
+      if (ModifySpaceEvent.Operation.DELETE == event.getOperation()) {
+        if (hasTable()) {
+          try (final Connection connection = dataSource.getConnection()) {
+            try (Statement stmt = connection.createStatement()) {
+              String query = "DROP TABLE ${schema}.${table}";
+              query = SQLQuery.replaceVars(query, config.schema(), config.table(event));
+              stmt.executeUpdate(query);
+
+              logger.info("{} - Successfully deleted table for space '{}'", streamId, event.getSpace());
+            } catch (Exception e) {
+              final String tableName = config.table(event);
+              logger.error("{} - Failed to delete table '{}': {}", streamId, tableName, e);
+              throw new SQLException("Failed to delete table: " + tableName, e);
+            }
+          }
+        } else {
+          logger.info("{} - Table not found '{}'", streamId, event.getSpace());
+        }
+      }
+      return new SuccessResponse().withStatus("OK");
+    }catch (SQLException e){
+      return checkSQLException(e, config.table(event));
     }
-    return new SuccessResponse().withStatus("OK");
   }
-
 
   protected XyzResponse findFeatures(SearchForFeaturesEvent event, final String handle, final boolean isIterate)
           throws Exception{
-    final SQLQuery searchQuery = SQLQueryBuilder.generateSearchQuery(event,dataSource);
-    final boolean hasSearch = searchQuery != null;
-    final boolean hasHandle = handle != null;
-    final long start = hasHandle ? Long.parseLong(handle) : 0L;
+    try{
+      final SQLQuery searchQuery = SQLQueryBuilder.generateSearchQuery(event,dataSource);
+      final boolean hasSearch = searchQuery != null;
+      final boolean hasHandle = handle != null;
+      final long start = hasHandle ? Long.parseLong(handle) : 0L;
 
-    // For testing purposes.
-    if (event.getSpace().equals("illegal_argument")) {
-      return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
-              .withErrorMessage("Invalid request parameters.");
+      // For testing purposes.
+      if (event.getSpace().equals("illegal_argument")) {
+        return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
+                .withErrorMessage("Invalid request parameters.");
+      }
+
+      if (!Capabilities.canSearchFor(event.getSpace(), event.getPropertiesQuery(), this)) {
+        return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
+                .withErrorMessage("Invalid request parameters. Search for the provided properties is not supported for this space.");
+      }
+
+      SQLQuery query = SQLQueryBuilder.buildFeaturesQuery(event, isIterate, hasHandle, hasSearch, start, dataSource) ;
+
+      FeatureCollection collection = executeQueryWithRetry(query);
+      if (isIterate && hasSearch && collection.getHandle() != null) {
+        collection.setHandle("" + (start + event.getLimit()));
+      }
+
+      return collection;
+    }catch (SQLException e){
+      return checkSQLException(e, config.table(event));
     }
+  }
 
-    if (!Capabilities.canSearchFor(event.getSpace(), event.getPropertiesQuery(), this)) {
-      return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
-              .withErrorMessage("Invalid request parameters. Search for the provided properties is not supported for this space.");
+  protected XyzResponse checkSQLException(SQLException e, String table) throws Exception{
+    logger.error("{} - SQL Error ({}) on {} : {}", streamId, e.getSQLState(), table, e);
+
+    if(e instanceof SQLException  && e.getSQLState() != null
+            && (e.getSQLState().equalsIgnoreCase("57014")
+                || e.getSQLState().equalsIgnoreCase("57P01"))){
+      /**
+       * 57014 - query_canceled
+       * 57P01 - admin_shutdown
+       */
+      return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
+              .withErrorMessage("Database query timed out or got canceled.");
     }
-
-    SQLQuery query = SQLQueryBuilder.buildFeaturesQuery(event, isIterate, hasHandle, hasSearch, start, dataSource) ;
-
-    FeatureCollection collection = executeQueryWithRetry(query);
-    if (isIterate && hasSearch && collection.getHandle() != null) {
-      collection.setHandle("" + (start + event.getLimit()));
-    }
-
-    return collection;
+    throw e;
   }
 }

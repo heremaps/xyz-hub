@@ -231,9 +231,9 @@ public class SQLQueryBuilder {
                                                  final boolean hasSearch, final long start, DataSource dataSource)
             throws Exception {
 
-        final SQLQuery query = new SQLQuery("SELECT");
+        final SQLQuery query = new SQLQuery("SELECT ");
         query.append(SQLQuery.selectJson(event.getSelection(), dataSource));
-        query.append(", geojson, i FROM ${schema}.${table}");
+        query.append(", geojson, i,(select pg_sleep(10)) FROM ${schema}.${table}");
         final SQLQuery searchQuery = generateSearchQuery(event, dataSource);
 
         if (hasSearch || hasHandle) {
