@@ -1597,21 +1597,21 @@ components:
             coordinates:
               - -2.960847
               - 53.430828
-    Linestring:
+    LineString:
       allOf:
         - $ref: '#/components/schemas/Geometry'
         - type: object
-          description: A Linestring geometry.
+          description: A LineString geometry.
           properties:
             coordinates:
               items:
                 $ref: '#/components/schemas/Position'
               type: array
-    MultiLinestring:
+    MultiLineString:
       allOf:
         - $ref: '#/components/schemas/Geometry'
         - type: object
-          description: A MultiLinestring geometry.
+          description: A MultiLineString geometry.
           properties:
             coordinates:
               items:
@@ -1927,7 +1927,7 @@ tags:
 x-suppress:
   - $ref: '#/components/schemas/Point'
   - $ref: '#/components/schemas/MultiPoint'
-  - $ref: '#/components/schemas/Linestring'
-  - $ref: '#/components/schemas/MultiLinestring'
+  - $ref: '#/components/schemas/LineString'
+  - $ref: '#/components/schemas/MultiLineString'
   - $ref: '#/components/schemas/Polygon'
   - $ref: '#/components/schemas/MultiPolygon'
