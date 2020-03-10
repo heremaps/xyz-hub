@@ -88,6 +88,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
             .withMaxConnections(maxConnections)
             .withConnectionTimeout(CONNECTION_ESTABLISH_TIMEOUT)
             .withRequestTimeout((int) REQUEST_TIMEOUT)
+            .withMaxErrorRetry(0)
             .withClientExecutionTimeout(CLIENT_REQUEST_TIMEOUT)
             .withConnectionTTL(CONNECTION_TTL))
         .build();
