@@ -37,6 +37,7 @@ import com.here.xyz.hub.task.FeatureTask.IdsQuery;
 import com.here.xyz.hub.task.ModifyFeatureOp;
 import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.task.ModifyOp.IfNotExists;
+import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.http.HttpHeaders;
@@ -114,7 +115,7 @@ public class FeatureApi extends Api {
    * Creates or replaces a feature.
    */
   private void putFeature(final RoutingContext context) {
-    executeConditionalOperationChain(false, context, ApiResponseType.FEATURE, IfExists.REPLACE, IfNotExists.CREATE, true);
+    executeConditionalOperationChain(false, context, ApiResponseType.FEATURE, IfExists.REPLACE, IfNotExists.CREATE, true, ConflictResolution.ERROR);
   }
 
   /**
@@ -124,14 +125,14 @@ public class FeatureApi extends Api {
    */
   private void putFeatures(final RoutingContext context) {
     executeConditionalOperationChain(false, context, getEmptyResponseTypeOr(context, ApiResponseType.FEATURE_COLLECTION), IfExists.REPLACE,
-        IfNotExists.CREATE, true);
+        IfNotExists.CREATE, true, ConflictResolution.ERROR);
   }
 
   /**
    * Patches a feature
    */
   private void patchFeature(final RoutingContext context) {
-    executeConditionalOperationChain(true, context, ApiResponseType.FEATURE, IfExists.PATCH, IfNotExists.RETAIN, true);
+    executeConditionalOperationChain(true, context, ApiResponseType.FEATURE, IfExists.PATCH, IfNotExists.RETAIN, true, ConflictResolution.ERROR);
   }
 
   /**
@@ -140,16 +141,17 @@ public class FeatureApi extends Api {
   private void postFeatures(final RoutingContext context) {
     final IfNotExists ifNotExists = IfNotExists.of(Query.getString(context, Query.IF_NOT_EXISTS, "create"));
     final IfExists ifExists = IfExists.of(Query.getString(context, Query.IF_EXISTS, "patch"));
+    final ConflictResolution conflictResolution = ConflictResolution.of(Query.getString(context, Query.CONFLICT_RESOLUTION, "error"));
     boolean transactional = Query.getBoolean(context, Query.TRANSACTIONAL, true);
     executeConditionalOperationChain(false, context, getEmptyResponseTypeOr(context, ApiResponseType.FEATURE_COLLECTION), ifExists,
-        ifNotExists, transactional);
+        ifNotExists, transactional, conflictResolution);
   }
 
   /**
    * Deletes a feature by ID.
    */
   private void deleteFeature(final RoutingContext context) {
-    executeConditionalOperationChain(true, context, ApiResponseType.EMPTY, IfExists.DELETE, IfNotExists.RETAIN, true,
+    executeConditionalOperationChain(true, context, ApiResponseType.EMPTY, IfExists.DELETE, IfNotExists.RETAIN, true, ConflictResolution.ERROR,
         Collections.singletonList(new JsonObject().put("id", context.pathParam(Path.FEATURE_ID)).getMap()));
   }
 
@@ -169,7 +171,7 @@ public class FeatureApi extends Api {
           .map(id -> new JsonObject().put("id", id).getMap())
           .collect(Collectors.toList());
 
-      executeConditionalOperationChain(false, context, responseType, IfExists.DELETE, IfNotExists.RETAIN, true, features);
+      executeConditionalOperationChain(false, context, responseType, IfExists.DELETE, IfNotExists.RETAIN, true, ConflictResolution.ERROR, features);
     }
 
     //Delete features by tags
@@ -191,14 +193,14 @@ public class FeatureApi extends Api {
    */
   private void executeConditionalOperationChain(boolean requireResourceExists, final RoutingContext context,
       ApiResponseType apiResponseTypeType,
-      IfExists ifExists, IfNotExists ifNotExists, boolean transactional) {
+      IfExists ifExists, IfNotExists ifNotExists, boolean transactional, ConflictResolution cr) {
     try {
       List<Map<String, Object>> features = getObjectsAsList(context);
       if (apiResponseTypeType == ApiResponseType.FEATURE) {
         features.get(0).put("id", context.pathParam(ApiParam.Path.FEATURE_ID));
       }
 
-      executeConditionalOperationChain(requireResourceExists, context, apiResponseTypeType, ifExists, ifNotExists, transactional, features);
+      executeConditionalOperationChain(requireResourceExists, context, apiResponseTypeType, ifExists, ifNotExists, transactional, cr, features);
     } catch (HttpException e) {
       sendErrorResponse(context, e);
     } catch (Exception e) {
@@ -210,11 +212,11 @@ public class FeatureApi extends Api {
    * Creates and executes a ModifyMapOp
    */
   private void executeConditionalOperationChain(boolean requireResourceExists, final RoutingContext context,
-      ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional,
+      ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional, ConflictResolution cr,
       List<Map<String, Object>> features) {
     ModifyFeaturesEvent event = new ModifyFeaturesEvent().withTransaction(transactional);
     ConditionalOperation task = new ConditionalOperation(event, context, apiResponseTypeType,
-        new ModifyFeatureOp(features, ifNotExists, ifExists, transactional), requireResourceExists);
+        new ModifyFeatureOp(features, ifNotExists, ifExists, transactional, cr ), requireResourceExists);
     final List<String> addTags = Query.queryParam(Query.ADD_TAGS, context);
     final List<String> removeTags = Query.queryParam(Query.REMOVE_TAGS, context);
     task.addTags = XyzNamespace.normalizeTags(addTags);
