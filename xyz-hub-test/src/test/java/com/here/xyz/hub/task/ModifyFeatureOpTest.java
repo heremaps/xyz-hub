@@ -27,6 +27,7 @@ import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.task.ModifyOp.IfNotExists;
 import com.here.xyz.hub.task.ModifyOp.ModifyOpError;
+import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import io.vertx.core.json.Json;
@@ -63,7 +64,8 @@ public class ModifyFeatureOpTest {
       input.getProperties().getXyzNamespace().setCreatedAt(123);
       input.getProperties().getXyzNamespace().getTags().add("tag2");
 
-      ModifyFeatureOp op = new ModifyFeatureOp(Arrays.asList(JsonObject.mapFrom(input).getMap()), IfNotExists.CREATE, IfExists.MERGE, true);
+      ModifyFeatureOp op = new ModifyFeatureOp(Arrays.asList(JsonObject.mapFrom(input).getMap()), IfNotExists.CREATE, IfExists.MERGE, true,
+          ConflictResolution.ERROR);
       final Entry<Feature> entry = op.entries.get(0);
       entry.head = head;
       entry.base = base;
@@ -90,7 +92,7 @@ public class ModifyFeatureOpTest {
       input.getProperties().getXyzNamespace().setCreatedAt(123);
       input.getProperties().getXyzNamespace().getTags().add("tag2");
 
-      ModifyFeatureOp op = new ModifyFeatureOp(Collections.singletonList(JsonObject.mapFrom(input).getMap()), IfNotExists.CREATE, IfExists.MERGE, true);
+      ModifyFeatureOp op = new ModifyFeatureOp(Collections.singletonList(JsonObject.mapFrom(input).getMap()), IfNotExists.CREATE, IfExists.MERGE, true, ConflictResolution.ERROR);
       final Entry<Feature> entry = op.entries.get(0);
       entry.head = base;
       entry.base = base;

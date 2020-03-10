@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -105,6 +105,7 @@ public class ApiParam {
     static final String IF_EXISTS = "e";
     static final String IF_NOT_EXISTS = "ne";
     static final String TRANSACTIONAL = "transactional";
+    static final String CONFLICT_RESOLUTION = "cr";
     static final String PREFIX_ID = "prefixId";
     static final String SIMPLIFICATION_LEVEL = "simplificationLevel";
     static final String CLIP = "clip";
