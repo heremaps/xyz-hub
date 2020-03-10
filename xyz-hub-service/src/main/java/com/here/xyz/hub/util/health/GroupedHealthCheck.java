@@ -65,7 +65,7 @@ public abstract class GroupedHealthCheck extends ExecutableCheck {
 					r = getWorseResult(r, checkStatus.getResult());
 				}
       } else if (checkStatus.getResult() != OK) {
-        r = getWorseResult(r, WARNING);
+        r = getWorseResult(r, OK/*WARNING*/); //TODO: Remove this workaround once the hc-tool was fixed.
       }
     }
 
