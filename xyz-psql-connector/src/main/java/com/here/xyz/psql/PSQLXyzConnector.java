@@ -303,9 +303,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
   }
 
   protected XyzResponse checkSQLException(SQLException e, String table) throws Exception{
-    logger.error("{} - SQL Error ({}) on {} : {}", streamId, e.getSQLState(), table, e);
+    logger.warn("{} - SQL Error ({}) on {} : {}", streamId, e.getSQLState(), table, e);
 
-    if(e instanceof SQLException  && e.getSQLState() != null
+    if(e.getSQLState() != null
             && (e.getSQLState().equalsIgnoreCase("57014")
                 || e.getSQLState().equalsIgnoreCase("57P01"))){
       /**

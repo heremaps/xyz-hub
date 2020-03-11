@@ -48,6 +48,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     private static final Pattern pattern = Pattern.compile("^BOX\\(([-\\d\\.]*)\\s([-\\d\\.]*),([-\\d\\.]*)\\s([-\\d\\.]*)\\)$");
     private static final int MAX_PRECISE_STATS_COUNT = 10_000;
     private static final String C3P0EXT_CONFIG_SCHEMA = "config.schema()";
+    private static final int MIN_REMAINING_TIME_FOR_RETRY_SECONDS = 2;
     protected static final int STATEMENT_TIMEOUT_SECONDS = 24;
 
     /**
@@ -193,29 +194,21 @@ public abstract class DatabaseHandler extends StorageConnector {
             return executeQuery(query, handler);
         } catch (Exception e) {
             try {
-                if (canRetryAttempt()) {
+                if (retryCausedOnTimeout(e) || canRetryAttempt()) {
+                    logger.info("{} - Retry Query permitted.", streamId);
                     return executeQuery(query, handler);
                 }
             } catch (Exception e1) {
-                if(e instanceof SQLException  && ((SQLException)e).getSQLState() != null
-                        && context.getRemainingTimeInMillis() > 20000 &&
-                        ( ((SQLException)e).getSQLState().equalsIgnoreCase("57014") ||
-                            ((SQLException)e).getSQLState().equalsIgnoreCase("57P01")
-                        )) {
-                    /** If there happens a timeout directly after the invocation it could rely
-                     * on serverless aurora scaling. There we retry again.
-                     * 57014 - query_canceled
-                     * 57P01 - admin_shutdown
-                     * */
-                    if (!retryAttempted) {
-                        return executeQuery(query, handler);
-                    }
+                if(retryCausedOnTimeout(e1)) {
+                    logger.info("{} - Retry Query permitted.", streamId);
+                    return executeQuery(query, handler);
                 }
                 throw e;
             }
             throw e;
         }
     }
+
     protected <T> T executeUpdateWithRetry(SQLQuery query, ResultSetHandler<T> handler) throws SQLException {
         return executeQuery(query, handler, dataSource);
     }
@@ -225,14 +218,40 @@ public abstract class DatabaseHandler extends StorageConnector {
             return executeUpdate(query);
         } catch (Exception e) {
             try {
-                if (canRetryAttempt()) {
+                if (retryCausedOnTimeout(e) || canRetryAttempt()) {
+                    logger.info("{} - Retry Update permitted.", streamId);
                     return executeUpdate(query);
                 }
             } catch (Exception e1) {
+                if (retryCausedOnTimeout(e)) {
+                    logger.info("{} - Retry Update permitted.", streamId);
+                    return executeUpdate(query);
+                }
                 throw e;
             }
             throw e;
         }
+    }
+
+
+    protected boolean retryCausedOnTimeout(Exception e) {
+        /** If a timeout comes directly after the invocation it could rely
+         * on serverless aurora scaling. Then we should retry again.
+         * 57014 - query_canceled
+         * 57P01 - admin_shutdown
+         * */
+        if(e instanceof SQLException
+                && ((SQLException)e).getSQLState() != null
+                &&  context.getRemainingTimeInMillis() > (MIN_REMAINING_TIME_FOR_RETRY_SECONDS * 1000)
+                && (((SQLException)e).getSQLState().equalsIgnoreCase("57014") ||
+                ((SQLException)e).getSQLState().equalsIgnoreCase("57P01"))
+        ) {
+            if (!retryAttempted) {
+                logger.warn("{} - Retry based on timeout detected! RemainingTime: {} {}", streamId, context.getRemainingTimeInMillis(), e);
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -349,6 +368,12 @@ public abstract class DatabaseHandler extends StorageConnector {
                 /** Objects which are responsible for the failed operation */
                 final List<String> failedIds = fails.stream().map(FeatureCollection.ModificationFailure::getId).filter(Objects::nonNull).collect(Collectors.toList());
 
+                if (retryCausedOnTimeout(e) || canRetryAttempt()) {
+                    connection.close();
+                    event.setFailed(fails);
+                    return executeModifyFeatures(event);
+                }
+
                 if(transactional) {
                     connection.rollback();
 
@@ -432,6 +457,11 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private boolean canRetryAttempt() throws Exception {
         if (retryAttempted) {
+            return false;
+        }
+
+        if (hasTable()) {
+            retryAttempted = true; // the table is there, do not retry
             return false;
         }
 
