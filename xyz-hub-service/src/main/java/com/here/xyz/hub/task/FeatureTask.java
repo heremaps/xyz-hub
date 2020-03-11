@@ -102,8 +102,11 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
 
   private FeatureTask(T event, RoutingContext context, ApiResponseType responseType, boolean skipCache) {
     super(event, context, responseType, skipCache);
-    event.withStreamId(getMarker().getName())
-        .withSpace(context.pathParam(ApiParam.Path.SPACE_ID));
+    event.setStreamId(getMarker().getName());
+
+    if (context.pathParam(ApiParam.Path.SPACE_ID) != null) {
+      event.setSpace(context.pathParam(ApiParam.Path.SPACE_ID));
+    }
   }
 
   public CacheProfile getCacheProfile() {
@@ -399,6 +402,23 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
 
     public TaskPipeline<IdsQuery> getPipeline() {
+      return TaskPipeline.create(this)
+          .then(FeatureTaskHandler::resolveSpace)
+          .then(FeatureAuthorization::authorize)
+          .then(FeatureTaskHandler::readCache)
+          .then(FeatureTaskHandler::invoke)
+          .then(FeatureTaskHandler::convertResponse)
+          .then(FeatureTaskHandler::writeCache);
+    }
+  }
+
+  public static class LoadFeaturesQuery extends FeatureTask<LoadFeaturesEvent, LoadFeaturesQuery> {
+
+    public LoadFeaturesQuery(LoadFeaturesEvent event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
+      super(event, context, apiResponseTypeType, skipCache);
+    }
+
+    public TaskPipeline<LoadFeaturesQuery> getPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureAuthorization::authorize)

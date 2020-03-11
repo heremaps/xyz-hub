@@ -17,37 +17,52 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.rest.admin;
+package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable;
+import com.here.xyz.events.Event;
+import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.hub.auth.ActionMatrix;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.auth.XyzHubActionMatrix;
 import com.here.xyz.hub.auth.XyzHubAttributeMap;
-import com.here.xyz.hub.rest.Api;
-import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.hub.rest.admin.MessageBroker;
+import com.here.xyz.hub.task.FeatureTask.LoadFeaturesQuery;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.AuthHandler;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
 public class AdminApi extends Api {
+  private static final Logger logger = LogManager.getLogger();
 
   public static final String MAIN_ADMIN_ENDPOINT = "/hub/admin/";
-  public static final String ADMIN_MESSAGE_ENDPOINT = MAIN_ADMIN_ENDPOINT + "messages";
+  public static final String ADMIN_MESSAGES_ENDPOINT = MAIN_ADMIN_ENDPOINT + "messages";
+  public static final String ADMIN_EVENTS_ENDPOINT = MAIN_ADMIN_ENDPOINT + "events";
   private static final MessageBroker messageBroker = MessageBroker.getInstance();
 
   private static final String ADMIN_CAPABILITY_MESSAGING = "messaging";
 
   public AdminApi(Vertx vertx, Router router, AuthHandler auth) {
-    router.route(HttpMethod.POST, ADMIN_MESSAGE_ENDPOINT)
+    router.route(HttpMethod.POST, ADMIN_MESSAGES_ENDPOINT)
         .handler(auth)
         .handler(this::onMessage);
+
+    router.route(HttpMethod.POST, ADMIN_EVENTS_ENDPOINT)
+        .handler(auth)
+        .handler(this::onEvent);
   }
 
   private void onMessage(final RoutingContext context) {
@@ -60,6 +75,32 @@ public class AdminApi extends Api {
     }
     catch (HttpException e) {
       sendErrorResponse(context, e);
+    }
+  }
+
+  /**
+   * Posts a event directly to the tasks handlers
+   */
+  private void onEvent(final RoutingContext context) {
+    final Marker marker = Context.getMarker(context);
+    final String body = context.getBodyAsString();
+
+    try {
+      final Event event = XyzSerializable.deserialize(context.getBodyAsString());
+      if (event instanceof LoadFeaturesEvent) {
+        logger.info("Event is LoadFeaturesEvent");
+        new LoadFeaturesQuery((LoadFeaturesEvent) event, context, ApiResponseType.FEATURE_COLLECTION, false)
+            .execute(this::sendResponse, this::sendErrorResponse);
+      } else {
+        logger.info("Event cannot be handled: " + body);
+        sendErrorResponse(context, new HttpException(HttpResponseStatus.BAD_REQUEST, "Event cannot be handled"));
+      }
+    } catch (JsonProcessingException e) {
+      logger.error(marker, "Error processing the event payload", e);
+      sendErrorResponse(context, new HttpException(BAD_REQUEST, "Error processing the event payload", e));
+    } catch (Exception e) {
+      logger.error(marker, "General error processing the event", e);
+      context.fail(e);
     }
   }
 
