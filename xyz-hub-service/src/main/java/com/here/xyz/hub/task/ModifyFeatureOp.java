@@ -23,6 +23,7 @@ import static com.here.xyz.hub.task.FeatureTask.FeatureKey.CREATED_AT;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.MUUID;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PUUID;
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.SPACE;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.UPDATED_AT;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.UUID;
 
@@ -91,6 +92,7 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
     public static Map<String, Object> metadataFilter = new JsonObject()
         .put(PROPERTIES, new JsonObject()
             .put(XyzNamespace.XYZ_NAMESPACE, new JsonObject()
+                .put(SPACE, true)
                 .put(CREATED_AT, true)
                 .put(UPDATED_AT, true)
                 .put(UUID, true)
