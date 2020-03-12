@@ -182,7 +182,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   @Override
   protected SuccessResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception {
 
-    if(event.getSpaceDefinition() != null && event.getSpaceDefinition().isEnableUUID()){
+    if(event.getSpaceDefinition() != null && event.getSpaceDefinition().isEnableHistory()){
       Integer maxVersionCount = null;
 
       if(event.getParams() != null)

@@ -44,7 +44,7 @@ public final class LoadFeaturesEvent extends Event<LoadFeaturesEvent> {
 
   @JsonInclude(Include.ALWAYS)
   private Map<String, String> idsMap;
-  private Boolean enableUUID;
+  private Boolean enableHistory;
 
   /**
    * Returns the IDs map, that is a map where the key contains the unique ID of the feature to be loaded. The value is the state hash or
@@ -78,23 +78,23 @@ public final class LoadFeaturesEvent extends Event<LoadFeaturesEvent> {
    * @return true if the hash should be maintained, false otherwise.
    */
   @SuppressWarnings("unused")
-  public Boolean getEnableUUID() {
-    return this.enableUUID;
+  public Boolean getEnableHistory() {
+    return this.enableHistory;
   }
 
   /**
    * Sets the enabler for uuid.
    *
-   * @param enableUUID if true, then set an uuid for each feature state
+   * @param enableHistory if true, then set an uuid for each feature state
    */
   @SuppressWarnings("WeakerAccess")
-  public void setEnableUUID(Boolean enableUUID) {
-    this.enableUUID = enableUUID;
+  public void setEnableHistory(Boolean enableHistory) {
+    this.enableHistory = enableHistory;
   }
 
   @SuppressWarnings("unused")
-  public LoadFeaturesEvent withEnableUUID(Boolean enableUUID) {
-    setEnableUUID(enableUUID);
+  public LoadFeaturesEvent withEnableUUID(Boolean enableHistory) {
+    setEnableHistory(enableHistory);
     return this;
   }
 }
