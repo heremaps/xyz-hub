@@ -71,7 +71,7 @@ public class RFCMeasurement {
         ScheduledFuture<?> f = requesterPool.scheduleAtFixedRate(() -> {
             for (int i = 0; i < concurrency; i++) {
                 long now = Service.currentTimeMillis();
-                rfc.submit(null, null, r -> {
+                rfc.submit(null, null, false, r -> {
                     //Nothing to do
                 });
             }

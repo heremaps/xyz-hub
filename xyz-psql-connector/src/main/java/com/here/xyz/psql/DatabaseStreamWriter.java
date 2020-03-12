@@ -2,6 +2,7 @@ package com.here.xyz.psql;
 
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.io.WKBWriter;
 import org.postgresql.util.PGobject;
 
@@ -38,8 +39,12 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                 } else {
                     insertStmt.setObject(1, jsonbObject);
                     final WKBWriter wkbWriter = new WKBWriter(3);
-                    insertStmt.setBytes(2, wkbWriter.write(feature.getGeometry().getJTSGeometry()));
+                    Geometry jtsGeometry = feature.getGeometry().getJTSGeometry();
+                    //Avoid NAN values
+                    assure3d(jtsGeometry.getCoordinates());
+                    insertStmt.setBytes(2, wkbWriter.write(jtsGeometry));
                     insertStmt.setObject(3, geojsonbObject);
+
                     rows = insertStmt.executeUpdate();
                 }
 
@@ -62,7 +67,7 @@ public class DatabaseStreamWriter extends DatabaseWriter{
         }
 
         return collection;
-    };
+    }
 
     protected static FeatureCollection updateFeatures( String schema, String table, String streamId, FeatureCollection collection,
                                                     List<FeatureCollection.ModificationFailure> fails,
@@ -106,7 +111,10 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                 } else {
                     updateStmt.setObject(1, jsonbObject);
                     final WKBWriter wkbWriter = new WKBWriter(3);
-                    updateStmt.setBytes(2, wkbWriter.write(feature.getGeometry().getJTSGeometry()));
+                    Geometry jtsGeometry = feature.getGeometry().getJTSGeometry();
+                    //Avoid NAN values
+                    assure3d(jtsGeometry.getCoordinates());
+                    updateStmt.setBytes(2, wkbWriter.write(jtsGeometry));
                     updateStmt.setObject(3, geojsonbObject);
                     updateStmt.setString(4, fId);
 
@@ -132,7 +140,7 @@ public class DatabaseStreamWriter extends DatabaseWriter{
         connection.close();
 
         return collection;
-    };
+    }
 
     protected static void deleteFeatures(String schema, String table, String streamId,
                                          List<FeatureCollection.ModificationFailure> fails, Map<String, String> deletes,

@@ -150,7 +150,7 @@ public class RpcClient {
     return functionClient;
   }
 
-  private void invokeWithRelocation(final Marker marker, byte[] bytes, final Handler<AsyncResult<byte[]>> callback) {
+  private void invokeWithRelocation(final Marker marker, byte[] bytes, boolean fireAndForget, final Handler<AsyncResult<byte[]>> callback) {
     try {
       final Connector connector = getConnector();
       if (bytes.length > connector.capabilities.maxPayloadSize) { // If the payload is too large to send directly to the connector
@@ -166,7 +166,7 @@ public class RpcClient {
           return;
         }
       }
-      functionClient.submit(marker, bytes, callback);
+      functionClient.submit(marker, bytes, fireAndForget, callback);
     } catch (Exception e) {
       callback.handle(Future.failedFuture(e));
     }
@@ -188,7 +188,7 @@ public class RpcClient {
     logger.info(marker, "Invoking remote function \"{}\". Total uncompressed event size: {}, Event: {}", connector.id, bytes.length,
         preview(eventJson, 4092));
 
-    invokeWithRelocation(marker, bytes, bytesResult -> {
+    invokeWithRelocation(marker, bytes, false, bytesResult -> {
       if (bytesResult.failed()) {
         callback.handle(Future.failedFuture(bytesResult.cause()));
         return;
@@ -224,7 +224,7 @@ public class RpcClient {
   public void send(final Marker marker, @SuppressWarnings("rawtypes") final Event event) throws NullPointerException {
     final Connector connector = getConnector();
     event.setConnectorParams(connector.params);
-    invokeWithRelocation(marker, event.serialize().getBytes(), r -> {
+    invokeWithRelocation(marker, event.serialize().getBytes(), true, r -> {
       if (r.failed()) {
         logger.error(marker, "Failed to send event to remote function {}.", connector.remoteFunction.id, r.cause());
       }

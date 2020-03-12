@@ -79,6 +79,7 @@ import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -662,11 +663,20 @@ public class FeatureTaskHandler {
       final List<Feature> insert = new ArrayList<>();
       final List<Feature> update = new ArrayList<>();
       final Map<String, String> delete = new HashMap<>();
+      List<FeatureCollection.ModificationFailure> fails = new ArrayList<>();
 
       long now = Service.currentTimeMillis();
 
       for (int i = 0; i < task.modifyOp.entries.size(); i++) {
         final Entry<Feature> entry = task.modifyOp.entries.get(i);
+
+        if(entry.exception != null){
+          fails.add(new FeatureCollection.ModificationFailure()
+                  .withMessage(entry.exception.getMessage())
+                  .withId(entry.head.getId()));
+          continue;
+        }
+
         if (!entry.isModified) {
           task.hasNonModified = true;
           continue;
@@ -685,10 +695,8 @@ public class FeatureTaskHandler {
 
           final XyzNamespace nsXyz = result.getProperties().getXyzNamespace();
 
-          // Set the space ID only when it's not set yet, the connector then is free to decide if override it or not
-          if (nsXyz.getSpace() == null) {
-            nsXyz.setSpace(task.space.getId());
-          }
+          // Set the space ID
+          nsXyz.setSpace(task.space.getId());
 
           // Normalize the tags
           final List<String> tags = nsXyz.getTags();
@@ -741,6 +749,7 @@ public class FeatureTaskHandler {
       task.getEvent().setInsertFeatures(insert);
       task.getEvent().setUpdateFeatures(update);
       task.getEvent().setDeleteFeatures(delete);
+      task.getEvent().setFailed(fails);
 
       // In case nothing was changed, set the response directly to skip calling the storage connector.
       if (insert.size() == 0 && update.size() == 0 && delete.size() == 0) {
@@ -752,6 +761,8 @@ public class FeatureTaskHandler {
             } catch (JsonProcessingException ignored) {}
           });
         }
+        if(fails.size() > 0)
+          fc.setFailed(fails);
         task.setResponse(fc);
       }
 

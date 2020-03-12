@@ -13,6 +13,7 @@
   "LOG_CONFIG": "log4j2-console-plain.json",
 
   "DEFAULT_STORAGE_ID": "psql",
+  "LAMBDA_REMOTE_FUNCTION_EXECUTORS": 256,
 
   "STORAGE_DB_URL": "jdbc:postgresql://localhost/postgres",
   "STORAGE_DB_USER": "postgres",

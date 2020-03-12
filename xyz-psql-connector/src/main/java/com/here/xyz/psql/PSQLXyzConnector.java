@@ -161,15 +161,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected XyzResponse processLoadFeaturesEvent(LoadFeaturesEvent event) throws Exception {
-    try{
-      final Map<String, String> idMap = event.getIdsMap();
-      if (idMap == null || idMap.size() == 0) {
-        return new FeatureCollection();
-      }
-      return executeQueryWithRetry(SQLQueryBuilder.buildLoadFeaturesQuery(idMap, dataSource));
-    }catch (SQLException e){
-      return checkSQLException(e, config.table(event));
-    }
+    return executeLoadFeatures(event);
   }
 
   @Override
@@ -209,6 +201,20 @@ public class PSQLXyzConnector extends DatabaseHandler {
   @Override
   protected XyzResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception {
     try{
+      if(event.getSpaceDefinition() != null && event.getSpaceDefinition().isEnableUUID()){
+        Integer maxVersionCount = null;
+
+        if(event.getParams() != null)
+          maxVersionCount = (Integer)event.getParams().get("maxVersionCount");
+
+        if(ModifySpaceEvent.Operation.CREATE == event.getOperation()){
+          ensureHistorySpace(maxVersionCount);
+        }else if(ModifySpaceEvent.Operation.UPDATE == event.getOperation()){
+          //TODO: ONLY update Trigger
+          ensureHistorySpace(maxVersionCount);
+        }
+      }
+
       if ((ModifySpaceEvent.Operation.UPDATE == event.getOperation()
               || ModifySpaceEvent.Operation.CREATE == event.getOperation())
               && event.getConnectorParams() != null
@@ -238,6 +244,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
             }
           }
         }
+
         //TODO: Check if config entry exists and idx_manual=null -> update it (erase on demand)
         executeUpdateWithRetry(  SQLQueryBuilder.buildSearchablePropertiesUpsertQuery(
                 event.getSpaceDefinition().getSearchableProperties(),
@@ -250,6 +257,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
           try (final Connection connection = dataSource.getConnection()) {
             try (Statement stmt = connection.createStatement()) {
               String query = "DROP TABLE ${schema}.${table}";
+              query = SQLQuery.replaceVars(query, config.schema(), config.table(event));
+              stmt.executeUpdate(query);
+
+              query = "DROP TABLE IF EXISTS ${schema}.${hsttable}";
               query = SQLQuery.replaceVars(query, config.schema(), config.table(event));
               stmt.executeUpdate(query);
 
