@@ -279,7 +279,7 @@ public class SQLQueryBuilder {
         return query;
     }
 
-    public static SQLQuery buildLoadFeaturesQuery(final Map<String, String> idMap, boolean handleUUID, DataSource dataSource)
+    public static SQLQuery buildLoadFeaturesQuery(final Map<String, String> idMap, boolean enabledHistory, DataSource dataSource)
             throws SQLException{
 
         final ArrayList<String> ids = new ArrayList<>(idMap.size());
@@ -288,7 +288,7 @@ public class SQLQueryBuilder {
         final ArrayList<String> values = new ArrayList<>(idMap.size());
         values.addAll(idMap.values());
 
-        if(!handleUUID) {
+        if(!enabledHistory) {
             return new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
                     SQLQuery.createSQLArray(ids.toArray(new String[ids.size()]), "text", dataSource));
         }else{
@@ -521,6 +521,7 @@ public class SQLQueryBuilder {
 
         return SQLQuery.replaceVars(deleteHistoryTriggerSQL, schema, table);
     }
+
     protected static String addHistoryTriggerSQL(final String schema, final String table, final Integer maxVersionCount){
         String historyTriggerSQL = "CREATE TRIGGER TR_"+table.replaceAll("-","_")+"_HISTORY_WRITER " +
                 "BEFORE UPDATE OR DELETE ON ${schema}.${table} " +

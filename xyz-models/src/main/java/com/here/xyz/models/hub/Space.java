@@ -135,6 +135,14 @@ public class Space {
   private boolean enableUUID = false;
 
   /**
+   * If true, history get created
+   */
+  @JsonView({Public.class, Static.class})
+  @JsonInclude(Include.NON_DEFAULT)
+  private boolean enableHistory = false;
+
+
+  /**
    * List of packages that this space belongs to.
    */
   @JsonInclude(Include.NON_EMPTY)
@@ -350,6 +358,19 @@ public class Space {
 
   public Space withEnableUUID(final boolean enableUUID) {
     this.enableUUID = enableUUID;
+    return this;
+  }
+
+  public boolean isEnableHistory() {
+    return enableHistory;
+  }
+
+  public void setEnableHistory(final boolean enableHistory) {
+    this.enableHistory = enableHistory;
+  }
+
+  public Space withEnableHistory(final boolean enableHistory) {
+    this.enableHistory = enableHistory;
     return this;
   }
 
