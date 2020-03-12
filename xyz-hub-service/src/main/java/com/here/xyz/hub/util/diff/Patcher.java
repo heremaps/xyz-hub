@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.util.diff;
 
+import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.util.diff.Difference.DiffList;
 import com.here.xyz.hub.util.diff.Difference.DiffMap;
 import com.here.xyz.hub.util.diff.Difference.Insert;
@@ -226,7 +227,7 @@ public class Patcher {
    * @return a merged difference.
    * @throws MergeConflictException if a conflict that is not automatically solvable occurred.
    */
-  public static <T extends Difference> Difference mergeDifferences(final T diffA, final T diffB) throws MergeConflictException {
+  public static <T extends Difference> Difference mergeDifferences(final T diffA, final T diffB, ConflictResolution cr ) throws MergeConflictException {
     if (diffA == null) {
       return diffB;
     }
@@ -240,11 +241,11 @@ public class Patcher {
     }
 
     if (diffA instanceof DiffList) {
-      return mergeListDifferences((DiffList) diffA, (DiffList) diffB);
+      return mergeListDifferences((DiffList) diffA, (DiffList) diffB, cr);
     }
 
     if (diffA instanceof DiffMap) {
-      return mergeMapDifferences((DiffMap) diffA, (DiffMap) diffB);
+      return mergeMapDifferences((DiffMap) diffA, (DiffMap) diffB, cr);
     }
 
     if (diffA instanceof Update) {
@@ -252,13 +253,18 @@ public class Patcher {
       final Object valueB = ((Update) diffB).newValue();
       if (valueA != valueB) {
         if (valueA == null || valueB == null || valueA.getClass() != valueB.getClass() || !valueA.equals(valueB)) {
-          throw new MergeConflictException("Conflict while merging " + diffA + " with " + diffB);
+          switch(cr) {
+            case ERROR:
+              throw new MergeConflictException("Conflict while merging " + diffA + " with " + diffB);
+            case RETAIN:
+              return diffA;
+            case REPLACE:
+              return diffB;
+          }
         }
       }
     }
 
-    // if( diffA instanceof Remove) {
-    // }
     return diffA;
   }
 
@@ -267,16 +273,17 @@ public class Patcher {
    *
    * @param diffA an object difference.
    * @param diffB another object difference.
+   * @param cr
    * @return the merged object difference.
    * @throws MergeConflictException if a conflict that is not automatically solvable occurred.
    * @throws MergeConflictException if any error related to JSON occurred.
    */
-  private static DiffMap mergeMapDifferences(DiffMap diffA, DiffMap diffB) throws MergeConflictException {
+  private static DiffMap mergeMapDifferences(DiffMap diffA, DiffMap diffB, ConflictResolution cr) throws MergeConflictException {
     final DiffMap mergedDiff = new DiffMap();
 
     Set<Object> diffAKeys = diffA.keySet();
     for (Object key : diffAKeys) {
-      mergedDiff.put(key, mergeDifferences(diffA.get(key), diffB.get(key)));
+      mergedDiff.put(key, mergeDifferences(diffA.get(key), diffB.get(key), cr));
     }
 
     Set<Object> diffBKeys = diffB.keySet();
@@ -294,11 +301,12 @@ public class Patcher {
    *
    * @param diffA a list difference.
    * @param diffB another list difference.
+   * @param cr
    * @return the merged list difference.
    * @throws MergeConflictException if a conflict that is not automatically solvable occurred.
    * @throws NullPointerException if either diffA or diffB are null.
    */
-  private static DiffList mergeListDifferences(DiffList diffA, DiffList diffB) throws MergeConflictException {
+  private static DiffList mergeListDifferences(DiffList diffA, DiffList diffB, ConflictResolution cr) throws MergeConflictException {
     final int aLength = diffA.size();
     final int bLength = diffB.size();
     final int MAX = Math.max(aLength, bLength);
@@ -405,7 +413,7 @@ public class Patcher {
           if (!(b instanceof DiffMap)) {
             throw new MergeConflictException("Conflict while merging " + a + " with " + b + ", collision on index " + i + ".");
           }
-          mergeDiff.add(mergeMapDifferences((DiffMap) a, (DiffMap) b));
+          mergeDiff.add(mergeMapDifferences((DiffMap) a, (DiffMap) b, cr));
           continue;
         }
 
@@ -414,7 +422,7 @@ public class Patcher {
           if (!(b instanceof DiffList)) {
             throw new MergeConflictException("Conflict while merging " + a + " with " + b + ", collision on index " + i + ".");
           }
-          mergeDiff.add(mergeListDifferences((DiffList) a, (DiffList) b));
+          mergeDiff.add(mergeListDifferences((DiffList) a, (DiffList) b, cr));
           continue;
         }
 
@@ -575,17 +583,34 @@ public class Patcher {
         diff.put(key, new Update(sourceObjectVal, partialUpdateVal));
       }
     }
-
     return diff.size() == 0 ? null : diff;
   }
 
   /**
    * An exception thrown if applying a patch fails, the creation of a difference fails or any other merge error occurrs.
    */
-  public static class MergeConflictException extends Exception {
+  public static class
+  MergeConflictException extends Exception {
 
     MergeConflictException(String msg) {
       super(msg);
+    }
+  }
+
+  public enum ConflictResolution{
+    ERROR,
+    RETAIN,
+    REPLACE;
+
+    public static ConflictResolution of(String value) {
+      if (value == null) {
+        return null;
+      }
+      try {
+        return valueOf(value.toUpperCase());
+      } catch (IllegalArgumentException e) {
+        return null;
+      }
     }
   }
 }

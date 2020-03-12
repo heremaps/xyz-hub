@@ -324,6 +324,8 @@ paths:
           x-experimental: true
         - $ref: '#/components/parameters/IfNotExists'
           x-experimental: true
+        - $ref: '#/components/parameters/ConflictResolution'
+          x-experimental: true
         - $ref: '#/components/parameters/Transactional'
           x-experimental: true
         - $ref: '#/components/parameters/PrefixId'
@@ -862,6 +864,22 @@ components:
           - retain
           - error
           - create
+    ConflictResolution:
+      x-experimental: true
+      name: cr
+      in: query
+      description: >-
+        The resolution strategy when a conflicting update of the same attribute occurs.
+        To keep the value of the head state select _retain_.
+        To overwrite the value of the head state select _replace_.
+        To abort the entry update select _error_.
+      required: false
+      schema:
+        type: string
+        enum:
+          - error
+          - retain
+          - replace
     Limit:
       name: limit
       in: query

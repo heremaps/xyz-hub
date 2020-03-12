@@ -30,6 +30,7 @@ import static com.here.xyz.hub.task.FeatureTask.FeatureKey.UUID;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
+import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import io.vertx.core.json.JsonObject;
@@ -40,15 +41,15 @@ import java.util.stream.Collectors;
 
 public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
 
-  public ModifyFeatureOp(List<Map<String, Object>> inputStates, IfNotExists ifNotExists, IfExists ifExists, boolean isTransactional) {
-    super((inputStates == null) ? Collections.emptyList() : inputStates.stream().map(FeatureEntry::new).collect(Collectors.toList()),
+  public ModifyFeatureOp(List<Map<String, Object>> inputStates, IfNotExists ifNotExists, IfExists ifExists, boolean isTransactional, ConflictResolution cr) {
+    super((inputStates == null) ? Collections.emptyList() : inputStates.stream().map(m-> new FeatureEntry(m,cr)).collect(Collectors.toList()),
         ifNotExists, ifExists, isTransactional);
   }
 
   public static class FeatureEntry extends ModifyOp.Entry<Feature> {
 
-    public FeatureEntry(Map<String, Object> input) {
-      super(input);
+    public FeatureEntry(Map<String, Object> input, ConflictResolution cr) {
+      super(input, cr);
     }
 
     @Override

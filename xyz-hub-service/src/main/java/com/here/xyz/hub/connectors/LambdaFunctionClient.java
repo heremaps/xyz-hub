@@ -26,13 +26,16 @@ import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.auth.STSAssumeRoleSessionCredentialsProvider;
+import com.amazonaws.client.builder.ExecutorFactory;
 import com.amazonaws.handlers.AsyncHandler;
 import com.amazonaws.services.lambda.AWSLambdaAsync;
 import com.amazonaws.services.lambda.AWSLambdaAsyncClientBuilder;
 import com.amazonaws.services.lambda.model.AWSLambdaException;
+import com.amazonaws.services.lambda.model.InvocationType;
 import com.amazonaws.services.lambda.model.InvokeRequest;
 import com.amazonaws.services.lambda.model.InvokeResult;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
+import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLambda;
@@ -42,6 +45,8 @@ import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -50,8 +55,9 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
 
   private static final Logger logger = LogManager.getLogger();
   private static final int CONNECTION_ESTABLISH_TIMEOUT = 5_000;
-  private static final int CLIENT_REQUEST_TIMEOUT = 28_000;
+  //private static final int CLIENT_REQUEST_TIMEOUT = REQUEST_TIMEOUT + 3_000;
   private static final int CONNECTION_TTL = 60_000;
+  private static ExecutorFactory clientExecutorFactory;
 
   /**
    * The maximal response size in bytes that can be sent back without relocating the response.
@@ -87,10 +93,11 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
         .withClientConfiguration(new ClientConfiguration()
             .withMaxConnections(maxConnections)
             .withConnectionTimeout(CONNECTION_ESTABLISH_TIMEOUT)
-            .withRequestTimeout((int) REQUEST_TIMEOUT)
+            .withRequestTimeout(REQUEST_TIMEOUT)
             .withMaxErrorRetry(0)
-            .withClientExecutionTimeout(CLIENT_REQUEST_TIMEOUT)
+            //.withClientExecutionTimeout(CLIENT_REQUEST_TIMEOUT)
             .withConnectionTTL(CONNECTION_TTL))
+        .withExecutorFactory(getClientExecutorFactory())
         .build();
   }
 
@@ -117,31 +124,31 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
    * Invokes the remote lambda function and returns the decompressed response as bytes.
    */
   @Override
-  protected void invoke(final Marker marker, byte[] bytes, final Handler<AsyncResult<byte[]>> callback) {
+  protected void invoke(final Marker marker, byte[] bytes, boolean fireAndForget, final Handler<AsyncResult<byte[]>> callback) {
     final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
     logger.debug(marker, "Invoking remote lambda function with id '{}' Event size is: {}", remoteFunction.id, bytes.length);
 
     InvokeRequest invokeReq = new InvokeRequest()
         .withFunctionName(((AWSLambda) remoteFunction).lambdaARN)
-        .withPayload(ByteBuffer.wrap(bytes));
+        .withPayload(ByteBuffer.wrap(bytes))
+        .withInvocationType(fireAndForget ? InvocationType.Event : InvocationType.RequestResponse);
 
     asyncClient.invokeAsync(invokeReq, new AsyncHandler<InvokeRequest, InvokeResult>() {
       @Override
       public void onError(Exception exception) {
-        callback.handle(Future.failedFuture(getWHttpException(marker, exception)));
+        if (callback == null) {
+          logger.error(marker, "Error sending event to remote lambda function", exception);
+        }
+        else {
+          callback.handle(Future.failedFuture(getWHttpException(marker, exception)));
+        }
       }
 
       @Override
       public void onSuccess(InvokeRequest request, InvokeResult result) {
-        try {
-          //TODO: Refactor to move decompression into the base-class RemoteFunctionClient as it's not Lambda specific
-          byte[] responseBytes = new byte[result.getPayload().remaining()];
-          result.getPayload().get(responseBytes);
-          checkResponseSize(responseBytes);
-          callback.handle(Future.succeededFuture(getDecompressed(responseBytes)));
-        } catch (IOException | HttpException e) {
-          callback.handle(Future.failedFuture(e));
-        }
+        byte[] responseBytes = new byte[result.getPayload().remaining()];
+        result.getPayload().get(responseBytes);
+        callback.handle(Future.succeededFuture(responseBytes));
       }
     });
   }
@@ -189,5 +196,19 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
     }
 
     return new HttpException(BAD_GATEWAY, "Unable to parse the response of the connector.", e);
+  }
+
+  private static ExecutorFactory getClientExecutorFactory() {
+    if (clientExecutorFactory == null) {
+      return clientExecutorFactory = new ExecutorFactory() {
+        private ExecutorService executorService = Executors.newFixedThreadPool(Service.configuration.LAMBDA_REMOTE_FUNCTION_EXECUTORS);
+
+        @Override
+        public ExecutorService newExecutor() {
+          return executorService;
+        }
+      };
+    }
+    else return clientExecutorFactory;
   }
 }

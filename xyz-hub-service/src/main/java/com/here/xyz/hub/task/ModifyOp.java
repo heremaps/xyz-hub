@@ -23,6 +23,7 @@ import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.util.diff.Difference;
 import com.here.xyz.hub.util.diff.Patcher;
+import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
 import io.vertx.core.json.JsonObject;
 import java.util.List;
 import java.util.Map;
@@ -141,6 +142,8 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
 
   public static abstract class Entry<T> {
 
+    private final ConflictResolution cr;
+
     public boolean isModified;
     /**
      * The input as it comes from the caller
@@ -183,9 +186,10 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
     public Exception exception;
     public String inputUUID;
 
-    public Entry(Map<String, Object> input) {
+    public Entry(Map<String, Object> input, ConflictResolution cr) {
       this.inputUUID = getUuid(input);
       this.input = filterMetadata(input);
+      this.cr = cr;
     }
 
     protected abstract String getId(T record);
@@ -219,7 +223,7 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
       }
       final Difference diffHead = Patcher.getDifference(resultMap, getHeadMap());
       try {
-        final Difference mergedDiff = Patcher.mergeDifferences(diffInput, diffHead);
+        final Difference mergedDiff = Patcher.mergeDifferences(diffHead, diffInput, cr );
         Patcher.patch(resultMap, mergedDiff);
         this.resultMap = resultMap;
         return fromMap(resultMap);
