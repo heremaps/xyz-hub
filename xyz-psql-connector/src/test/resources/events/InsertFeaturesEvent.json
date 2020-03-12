@@ -8,7 +8,8 @@
         "type": "Point",
         "coordinates": [
           14.3222,
-          -2.32506
+          -2.32506,
+          0
         ]
       },
       "type": "Feature",
@@ -31,7 +32,8 @@
         "type": "Point",
         "coordinates": [
           14.3222,
-          -2.32506
+          -2.32506,
+          0
         ]
       },
       "type": "Feature",

@@ -31,6 +31,7 @@ import java.sql.SQLException;
 import java.util.*;
 
 public class SQLQueryBuilder {
+    private static final long GEOMETRY_DECIMAL_DIGITS = 6;
     private static final long EQUATOR_LENGTH = 40_075_016;
     private static final long TILE_SIZE = 256;
     private static final String SQL_STATISTIC_FUNCTION = "xyz_statistic_space";
@@ -45,9 +46,10 @@ public class SQLQueryBuilder {
 
     public static SQLQuery buildGetFeaturesByIdQuery(GetFeaturesByIdEvent event, PSQLConfig config, DataSource dataSource)
         throws SQLException{
+
         SQLQuery query = new SQLQuery("SELECT");
         query.append(SQLQuery.selectJson(event.getSelection(),dataSource));
-        query.append(", geojson FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
+        query.append(", replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
                 SQLQuery.createSQLArray(event.getIds().toArray(new String[event.getIds().size()]), "text",dataSource));
        return query;
     }
@@ -68,7 +70,7 @@ public class SQLQueryBuilder {
             query = new SQLQuery("SELECT");
             query.append(SQLQuery.selectJson(event.getSelection(), dataSource));
             /** No clipping or simplification needed*/
-            query.append(",geojson");
+            query.append(",replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0')");
             query.append("FROM ${schema}.${table} WHERE");
             query.append(geoQuery);
             query.append("LIMIT ?", event.getLimit());
@@ -233,7 +235,7 @@ public class SQLQueryBuilder {
 
         final SQLQuery query = new SQLQuery("SELECT");
         query.append(SQLQuery.selectJson(event.getSelection(), dataSource));
-        query.append(", geojson, i FROM ${schema}.${table}");
+        query.append(", replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0'), i FROM ${schema}.${table}");
         final SQLQuery searchQuery = generateSearchQuery(event, dataSource);
 
         if (hasSearch || hasHandle) {
@@ -272,19 +274,32 @@ public class SQLQueryBuilder {
         }
 
         if (searchQuery != null && includeOldStates)
-            query.append(" RETURNING jsondata->'id' as id, geojson as geometry");
+            query.append(" RETURNING jsondata->'id' as id, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') as geometry");
 
         return query;
     }
 
-    public static SQLQuery buildLoadFeaturesQuery(final Map<String, String> idMap, DataSource dataSource)
+    public static SQLQuery buildLoadFeaturesQuery(final Map<String, String> idMap, boolean handleUUID, DataSource dataSource)
             throws SQLException{
 
         final ArrayList<String> ids = new ArrayList<>(idMap.size());
         ids.addAll(idMap.keySet());
 
-        return new SQLQuery("SELECT jsondata, geojson FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
-                SQLQuery.createSQLArray(ids.toArray(new String[ids.size()]), "text" ,dataSource));
+        final ArrayList<String> values = new ArrayList<>(idMap.size());
+        values.addAll(idMap.values());
+
+        if(!handleUUID) {
+            return new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
+                    SQLQuery.createSQLArray(ids.toArray(new String[ids.size()]), "text", dataSource));
+        }else{
+            final SQLQuery query;
+            query = new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?) ");
+            query.append("UNION ");
+            query.append("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${hsttable} WHERE uuid = ANY(?) ");
+            query.addParameter( SQLQuery.createSQLArray(ids.toArray(new String[ids.size()]), "text", dataSource));
+            query.addParameter( SQLQuery.createSQLArray(values.toArray(new String[values.size()]), "text", dataSource));
+            return query;
+        }
     }
 
     public static SQLQuery buildSearchablePropertiesUpsertQuery(Map<String, Boolean> searchableProperties, ModifySpaceEvent.Operation operation,
@@ -389,8 +404,8 @@ public class SQLQueryBuilder {
                                                     SQLQuery secondaryQuery, DataSource dataSource)
             throws SQLException {
         final SQLQuery query = new SQLQuery();
-        query.append("WITH features(jsondata, geojson, geo) AS (");
-        query.append("SELECT jsondata, geojson, geo FROM ${schema}.${table} WHERE");
+        query.append("WITH features(jsondata, geo) AS (");
+        query.append("SELECT jsondata, geo FROM ${schema}.${table} WHERE");
         query.append(indexedQuery);
         query.append(")");
         query.append("SELECT");
@@ -400,7 +415,7 @@ public class SQLQueryBuilder {
             query.append(",");
             query.append(geometrySelectorForEvent((GetFeaturesByBBoxEvent) event));
         } else {
-            query.append(",geojson");
+            query.append(",replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0')");
         }
 
         query.append("FROM features WHERE");
@@ -418,20 +433,20 @@ public class SQLQueryBuilder {
 
         if (!event.getClip()) {
             if (simplificationLevel <= 0) {
-                return new SQLQuery("geojson");
+                return new SQLQuery("replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0')");
 
             }
-            return new SQLQuery("ST_AsGeoJson(ST_Transform(ST_MakeValid(ST_SnapToGrid(ST_Force2D(ST_Transform(geo,3857)),?)),4326))", pixelSize);
+            return new SQLQuery("replace(ST_AsGeoJson(ST_Transform(ST_MakeValid(ST_SnapToGrid(ST_Force2D(ST_Transform(geo,3857)),?)),4326),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0')", pixelSize);
         }
 
         final BBox bbox = event.getBbox();
         if (simplificationLevel <= 0) {
-            return new SQLQuery("ST_AsGeoJson(ST_Intersection(ST_MakeValid(geo),ST_MakeEnvelope(?,?,?,?,4326)))",
+            return new SQLQuery("replace(ST_AsGeoJson(ST_Intersection(ST_MakeValid(geo),ST_MakeEnvelope(?,?,?,?,4326)),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0')",
                     bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
         }
 
         return new SQLQuery(
-                "ST_AsGeoJson(ST_Intersection(ST_Transform(ST_MakeValid(ST_SnapToGrid(ST_Force2D(ST_Transform(geo,3857)),?)),4326),ST_MakeEnvelope(?,?,?,?,4326)))",
+                "replace(ST_AsGeoJson(ST_Intersection(ST_Transform(ST_MakeValid(ST_SnapToGrid(ST_Force2D(ST_Transform(geo,3857)),?)),4326),ST_MakeEnvelope(?,?,?,?,4326)),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0')",
                 pixelSize, bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
     }
 
@@ -449,16 +464,25 @@ public class SQLQueryBuilder {
 
     protected static String insertStmtSQL(final String schema, final String table){
         String instertStmtSQL ="INSERT INTO ${schema}.${table} (jsondata, geo, geojson) VALUES(?::jsonb, ST_Force3D(ST_GeomFromWKB(?,4326)), ?::jsonb)";
+
+        /** Prepared for removal of geojson column */
+//        String instertStmtSQL ="INSERT INTO ${schema}.${table} (jsondata, geo) VALUES(?::jsonb, ST_Force3D(ST_GeomFromWKB(?,4326)))";
         return SQLQuery.replaceVars(instertStmtSQL, schema, table);
     }
 
     protected static String insertWithoutGeometryStmtSQL(final String schema, final String table){
         String instertWithoutGeometryStmtSQL = "INSERT INTO ${schema}.${table} (jsondata, geo, geojson) VALUES(?::jsonb, NULL, NULL)";
+
+        /** Prepared for removal of geojson column */
+//        String instertWithoutGeometryStmtSQL = "INSERT INTO ${schema}.${table} (jsondata, geo) VALUES(?::jsonb, NULL)";
         return SQLQuery.replaceVars(instertWithoutGeometryStmtSQL, schema, table);
     }
 
     protected static String updateStmtSQL(final String schema, final String table, final boolean handleUUID){
         String updateStmtSQL = "UPDATE ${schema}.${table} SET jsondata = ?::jsonb, geo=ST_Force3D(ST_GeomFromWKB(?,4326)), geojson = ?::jsonb WHERE jsondata->>'id' = ?";
+
+        /** Prepared for removal of geojson column */
+//        String updateStmtSQL = "UPDATE ${schema}.${table} SET jsondata = ?::jsonb, geo=ST_Force3D(ST_GeomFromWKB(?,4326)) WHERE jsondata->>'id' = ?";
         if(handleUUID) {
             updateStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ?";
         }
@@ -467,6 +491,9 @@ public class SQLQueryBuilder {
 
     protected static String updateWithoutGeometryStmtSQL(final String schema, final String table, final boolean handleUUID){
         String updateWithoutGeometryStmtSQL = "UPDATE ${schema}.${table} SET  jsondata = ?::jsonb, geo=NULL, geojson = NULL WHERE jsondata->>'id' = ?";
+
+        /** Prepared for removal of geojson column */
+//        String updateWithoutGeometryStmtSQL = "UPDATE ${schema}.${table} SET  jsondata = ?::jsonb, geo=NULL WHERE jsondata->>'id' = ?";
         if(handleUUID) {
             updateWithoutGeometryStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ?";
         }
@@ -487,5 +514,18 @@ public class SQLQueryBuilder {
             deleteIdArrayStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ANY(?)";
         }
         return SQLQuery.replaceVars(deleteIdArrayStmtSQL, schema, table);
+    }
+
+    protected static String deleteHistoryTriggerSQL(final String schema, final String table){
+        String deleteHistoryTriggerSQL = "DROP TRIGGER IF EXISTS TR_"+table.replaceAll("-","_")+"_HISTORY_WRITER ON  ${schema}.${table};";
+
+        return SQLQuery.replaceVars(deleteHistoryTriggerSQL, schema, table);
+    }
+    protected static String addHistoryTriggerSQL(final String schema, final String table, final Integer maxVersionCount){
+        String historyTriggerSQL = "CREATE TRIGGER TR_"+table.replaceAll("-","_")+"_HISTORY_WRITER " +
+                "BEFORE UPDATE OR DELETE ON ${schema}.${table} " +
+                " FOR EACH ROW " +
+                "EXECUTE PROCEDURE xyz_trigger_historywriter("+(maxVersionCount == null ? "" : maxVersionCount)+"); ";
+        return SQLQuery.replaceVars(historyTriggerSQL, schema, table);
     }
 }
