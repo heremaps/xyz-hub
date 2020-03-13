@@ -620,7 +620,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .withStreamId(getMarker().getName())
           .withSpace(space.getId())
           .withParams(space.getStorage().getParams())
-          .withEnableUUID(space.isEnableHistory())
+          .withEnableHistory(space.isEnableHistory())
           .withIdsMap(idsMap);
 
       loadFeaturesEvent = event;
