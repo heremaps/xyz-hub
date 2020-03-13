@@ -53,6 +53,7 @@ public abstract class RemoteFunctionClient {
 
   public static final int REQUEST_TIMEOUT = (int) TimeUnit.SECONDS.toMillis(Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT);
   private static int MEASUREMENT_INTERVAL = 1000; //1s
+  private static final int MIN_CONNECTIONS_PER_NODE = 4;
 
   protected Connector connectorConfig;
 
@@ -391,7 +392,7 @@ public abstract class RemoteFunctionClient {
   }
 
   public int getMaxConnections() {
-    return connectorConfig == null ? 0 : connectorConfig.getMaxConnectionsPerInstance();
+    return connectorConfig == null ? MIN_CONNECTIONS_PER_NODE : Math.max(MIN_CONNECTIONS_PER_NODE, connectorConfig.getMaxConnectionsPerInstance());
   }
 
   public int getUsedConnections() {
