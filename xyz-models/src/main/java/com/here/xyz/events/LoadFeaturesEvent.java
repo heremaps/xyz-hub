@@ -93,7 +93,7 @@ public final class LoadFeaturesEvent extends Event<LoadFeaturesEvent> {
   }
 
   @SuppressWarnings("unused")
-  public LoadFeaturesEvent withEnableUUID(Boolean enableHistory) {
+  public LoadFeaturesEvent withEnableHistory(Boolean enableHistory) {
     setEnableHistory(enableHistory);
     return this;
   }
