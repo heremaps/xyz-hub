@@ -34,7 +34,6 @@ import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.postgresql.util.PSQLException;
 
 import javax.sql.DataSource;
 import java.sql.*;
@@ -306,16 +305,16 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     protected XyzResponse executeLoadFeatures(LoadFeaturesEvent event) throws Exception {
         final Map<String, String> idMap = event.getIdsMap();
-        final Boolean enabledUUID = event.getEnableUUID() == Boolean.TRUE;
+        final Boolean enabledHistory = event.getEnableHistory() == Boolean.TRUE;
 
         if (idMap == null || idMap.size() == 0) {
             return new FeatureCollection();
         }
 
         try {
-            return executeQueryWithRetry(SQLQueryBuilder.buildLoadFeaturesQuery(idMap, enabledUUID, dataSource));
+            return executeQueryWithRetry(SQLQueryBuilder.buildLoadFeaturesQuery(idMap, enabledHistory, dataSource));
         }catch (Exception e){
-            if(event.getEnableUUID() &&
+            if(event.getEnableHistory() &&
                     (e instanceof SQLException  && ((SQLException)e).getSQLState() != null
                             && ((SQLException)e).getSQLState().equalsIgnoreCase("42P01"))
                             && e.getMessage() != null && e.getMessage().indexOf("_hst") != 0){

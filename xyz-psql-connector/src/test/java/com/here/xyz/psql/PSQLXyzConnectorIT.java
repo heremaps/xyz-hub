@@ -352,7 +352,9 @@ public class PSQLXyzConnectorIT {
     ModifySpaceEvent mse = new ModifySpaceEvent()
             .withSpace("foo")
             .withOperation(ModifySpaceEvent.Operation.CREATE)
-            .withSpaceDefinition(new Space().withId("foo").withEnableUUID(true));
+            .withSpaceDefinition(new Space().withId("foo")
+                    .withEnableUUID(true)
+                    .withEnableHistory(true));
     String response = invokeLambda(mse.serialize());
 
     try (final Connection connection = lambda.dataSource.getConnection()) {
@@ -381,7 +383,8 @@ public class PSQLXyzConnectorIT {
             .withParams(new HashMap<String,Object>(){{put("maxVersionCount", maxVersionCount);}})
             .withSpaceDefinition(new Space()
                     .withId("foo")
-                    .withEnableUUID(true));
+                    .withEnableUUID(true)
+                    .withEnableHistory(true));
 
     String response = invokeLambda(mse.serialize());
 
@@ -442,7 +445,8 @@ public class PSQLXyzConnectorIT {
             .withParams(new HashMap<String,Object>(){{put("maxVersionCount", maxVersionCount);}})
             .withSpaceDefinition(new Space()
                     .withId("foo")
-                    .withEnableUUID(true));
+                    .withEnableUUID(true)
+                    .withEnableHistory(true));
 
     String response = invokeLambda(mse.serialize());
 
@@ -493,7 +497,8 @@ public class PSQLXyzConnectorIT {
             .withParams(new HashMap<String,Object>(){{put("maxVersionCount", maxVersionCount);}})
             .withSpaceDefinition(new Space()
                     .withId("foo")
-                    .withEnableUUID(true));
+                    .withEnableUUID(true)
+                    .withEnableHistory(true));
 
     String response = invokeLambda(mse.serialize());
 

@@ -156,10 +156,14 @@ public class SpaceTaskHandler {
   static void processModifyOp(ConditionalOperation task, Callback<ConditionalOperation> callback) throws Exception {
     try {
       if(task.isUpdate()){
-        /** UUID is immutable and it is only allowed to set it during the space creation */
+        /** enableUUID is immutable and it is only allowed to set it during the space creation */
         Space spaceHead = task.modifyOp.entries.get(0).head;
         if(spaceHead != null && task.modifyOp.entries.get(0).input.get("enableUUID") != null )
           throw new HttpException(BAD_REQUEST, "Validation failed. The property 'enableUUID' can only get set on space creation!");
+
+        /** enableHistory is immutable and it is only allowed to set it during the space creation */
+        if(spaceHead != null && task.modifyOp.entries.get(0).input.get("enableHistory") != null )
+          throw new HttpException(BAD_REQUEST, "Validation failed. The property 'enableHistory' can only get set on space creation!");
       }
       task.modifyOp.process();
       callback.call(task);
@@ -176,6 +180,11 @@ public class SpaceTaskHandler {
     }
 
     Space space = task.modifyOp.entries.get(0).result;
+
+    if (task.isCreate() && space.isEnableHistory()) {
+      if(!space.isEnableUUID())
+        task.modifyOp.entries.get(0).result.setEnableUUID(true);
+    }
 
     if (space.getId() == null) {
       throw new HttpException(BAD_REQUEST, "Validation failed. The property 'id' cannot be empty.");
