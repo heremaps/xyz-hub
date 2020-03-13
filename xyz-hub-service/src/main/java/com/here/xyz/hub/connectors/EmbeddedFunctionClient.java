@@ -61,7 +61,7 @@ public class EmbeddedFunctionClient extends RemoteFunctionClient {
     if (!(getConnectorConfig().remoteFunction instanceof RemoteFunctionConfig.Embedded)) {
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of Embedded");
     }
-    int maxConnections = connectorConfig.getMaxConnectionsPerInstance();
+    int maxConnections = getMaxConnections();
     embeddedExecutor = new ThreadPoolExecutor(8, maxConnections, 10, TimeUnit.MINUTES,
         new SynchronousQueue<>());
   }

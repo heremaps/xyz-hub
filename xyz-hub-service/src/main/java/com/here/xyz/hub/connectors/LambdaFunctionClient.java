@@ -85,7 +85,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
     if (!(remoteFunction instanceof AWSLambda)) {
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of AWSLambda");
     }
-    int maxConnections = connectorConfig.getMaxConnectionsPerInstance();
+    int maxConnections = getMaxConnections();
     asyncClient = AWSLambdaAsyncClientBuilder
         .standard()
         .withRegion(extractRegionFromArn(((AWSLambda) remoteFunction).lambdaARN))
