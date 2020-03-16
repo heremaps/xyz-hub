@@ -88,7 +88,7 @@
     <maven.compiler.target>1.8</maven.compiler.target>
 
     <!-- Dependencies versions -->
-    <aws-sdk-version>1.11.517</aws-sdk-version>
+    <aws-sdk-version>1.11.712</aws-sdk-version>
     <vertx-version>3.6.3</vertx-version>
     <geo-tools-version>19.1</geo-tools-version>
     <jts-version>1.14.0</jts-version>
@@ -134,7 +134,6 @@
     </profile>
   </profiles>
 
-
   <build>
     <pluginManagement>
       <plugins>
@@ -142,28 +141,31 @@
         <!-- Plugin versions -->
         <plugin>
           <artifactId>maven-failsafe-plugin</artifactId>
-          <groupId>org.apache.maven.plugins</groupId>
           <version>2.15</version>
         </plugin>
         <plugin>
           <artifactId>maven-surefire-plugin</artifactId>
-          <groupId>org.apache.maven.plugins</groupId>
           <version>2.22.1</version>
         </plugin>
         <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-source-plugin</artifactId>
           <version>3.2.0</version>
         </plugin>
         <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <version>3.8.1</version>
+        </plugin>
+        <plugin>
           <artifactId>maven-javadoc-plugin</artifactId>
           <version>3.1.1</version>
         </plugin>
         <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-shade-plugin</artifactId>
           <version>3.1.0</version>
+        </plugin>
+        <plugin>
+          <artifactId>maven-release-plugin</artifactId>
+          <version>2.5.3</version>
         </plugin>
         <plugin>
           <groupId>org.codehaus.mojo</groupId>
@@ -174,8 +176,13 @@
     </pluginManagement>
     <plugins>
       <plugin>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <useIncrementalCompilation>false</useIncrementalCompilation>
+        </configuration>
+      </plugin>
+      <plugin>
         <artifactId>maven-release-plugin</artifactId>
-        <version>2.5.3</version>
         <configuration>
           <autoVersionSubmodules>true</autoVersionSubmodules>
           <tagNameFormat>@{project.version}</tagNameFormat>
@@ -438,6 +445,12 @@
         <groupId>com.jayway.restassured</groupId>
         <scope>test</scope>
         <version>2.9.0</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+          </exclusion>
+        </exclusions>
       </dependency>
       <dependency>
         <artifactId>assertj-core</artifactId>

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -69,8 +69,11 @@ public abstract class ListenerConnector extends AbstractConnectorHandler {
       throw new ErrorResponseException(streamId, XyzError.NOT_IMPLEMENTED, "Unknown event type");
     }
 
-    final NotificationParams notificationParams = new NotificationParams(notification.getParams(), notification.getConnectorParams(),
-        notification.getMetadata(), notification.getTid());
+    final NotificationParams notificationParams = new NotificationParams(
+        eventDecryptor.decodeParams(notification.getParams()),
+        eventDecryptor.decodeParams(notification.getConnectorParams()),
+        eventDecryptor.decodeParams(notification.getMetadata()),
+        notification.getTid());
 
     if (notification.getEvent() instanceof ErrorResponse) {
       processErrorResponse((ErrorResponse) notification.getEvent(), notification.getEventType(), notificationParams);
