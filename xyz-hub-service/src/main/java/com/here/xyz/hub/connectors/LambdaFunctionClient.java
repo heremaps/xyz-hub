@@ -43,7 +43,6 @@ import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -55,7 +54,6 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
 
   private static final Logger logger = LogManager.getLogger();
   private static final int CONNECTION_ESTABLISH_TIMEOUT = 5_000;
-  //private static final int CLIENT_REQUEST_TIMEOUT = REQUEST_TIMEOUT + 3_000;
   private static final int CONNECTION_TTL = 60_000;
   private static ExecutorFactory clientExecutorFactory;
 
@@ -95,7 +93,6 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
             .withConnectionTimeout(CONNECTION_ESTABLISH_TIMEOUT)
             .withRequestTimeout(REQUEST_TIMEOUT)
             .withMaxErrorRetry(0)
-            //.withClientExecutionTimeout(CLIENT_REQUEST_TIMEOUT)
             .withConnectionTTL(CONNECTION_TTL))
         .withExecutorFactory(getClientExecutorFactory())
         .build();
