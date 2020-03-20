@@ -36,7 +36,6 @@ import io.vertx.core.impl.ConcurrentHashSet;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -388,7 +387,7 @@ public abstract class RemoteFunctionClient {
   }
 
   public int getMinConnections() {
-    return connectorConfig == null ? 0 : connectorConfig.getMinConnectionsPerInstance();
+    return connectorConfig == null ? MIN_CONNECTIONS_PER_NODE : Math.max(MIN_CONNECTIONS_PER_NODE, connectorConfig.getMinConnectionsPerInstance());
   }
 
   public int getMaxConnections() {
