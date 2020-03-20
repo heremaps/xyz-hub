@@ -326,6 +326,10 @@ public abstract class RemoteFunctionClient {
     return clientInstances.stream().mapToDouble(RemoteFunctionClient::getArrivalRate).sum();
   }
 
+  public static long getGlobalMinConnections() {
+    return globalMinConnectionSum.longValue();
+  }
+
   public static long getGlobalMaxConnections() {
     return clientInstances.stream().mapToLong(RemoteFunctionClient::getMaxConnections).sum();
   }
