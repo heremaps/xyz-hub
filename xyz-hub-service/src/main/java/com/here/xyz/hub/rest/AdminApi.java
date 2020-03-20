@@ -20,20 +20,28 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.hub.rest.ApiParam.Query.SKIP_CACHE;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.Event;
+import com.here.xyz.events.GetFeaturesByBBoxEvent;
+import com.here.xyz.events.GetFeaturesByIdEvent;
+import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.hub.auth.ActionMatrix;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.auth.XyzHubActionMatrix;
 import com.here.xyz.hub.auth.XyzHubAttributeMap;
+import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.rest.admin.MessageBroker;
+import com.here.xyz.hub.task.FeatureTask;
+import com.here.xyz.hub.task.FeatureTask.IdsQuery;
 import com.here.xyz.hub.task.FeatureTask.LoadFeaturesQuery;
+import com.here.xyz.hub.task.FeatureTask.TileQuery;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpHeaders;
@@ -84,12 +92,22 @@ public class AdminApi extends Api {
   private void onEvent(final RoutingContext context) {
     final Marker marker = Context.getMarker(context);
     final String body = context.getBodyAsString();
+    final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
 
     try {
       final Event event = XyzSerializable.deserialize(context.getBodyAsString());
+      logger.info("Event is " + event.getClass().getSimpleName());
       if (event instanceof LoadFeaturesEvent) {
-        logger.info("Event is LoadFeaturesEvent");
-        new LoadFeaturesQuery((LoadFeaturesEvent) event, context, ApiResponseType.FEATURE_COLLECTION, false)
+        new LoadFeaturesQuery((LoadFeaturesEvent) event, context, ApiResponseType.FEATURE_COLLECTION, skipCache)
+            .execute(this::sendResponse, this::sendErrorResponse);
+      } else if (event instanceof GetFeaturesByIdEvent) {
+        new IdsQuery((GetFeaturesByIdEvent) event, context, ApiResponseType.FEATURE_COLLECTION, skipCache)
+            .execute(this::sendResponse, this::sendErrorResponse);
+      } else if (event instanceof GetFeaturesByTileEvent) {
+        new TileQuery((GetFeaturesByTileEvent) event, context, ApiResponseType.FEATURE_COLLECTION, skipCache)
+            .execute(this::sendResponse, this::sendErrorResponse);
+      } else if (event instanceof GetFeaturesByBBoxEvent) {
+        new FeatureTask.BBoxQuery((GetFeaturesByBBoxEvent) event, context, ApiResponseType.FEATURE_COLLECTION, skipCache)
             .execute(this::sendResponse, this::sendErrorResponse);
       } else {
         logger.info("Event cannot be handled: " + body);
