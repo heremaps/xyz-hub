@@ -315,7 +315,7 @@ public abstract class RemoteFunctionClient {
     However, this behavior will be optimized in the future.
      */
     //TODO: Improve the calculation with respect to the throughput and do the adjustments when necessary at run-time
-    clientInstances.forEach(c -> c.queue.setMaxByteSize((long) (c.getQueuePriority() * GLOBAL_MAX_QUEUE_BYTE_SIZE)));
+    clientInstances.forEach(c -> c.queue.setMaxByteSize((long) (c.getPriority() * GLOBAL_MAX_QUEUE_BYTE_SIZE)));
   }
 
   public static long getGlobalUsedQueueMemory() {
@@ -407,12 +407,8 @@ public abstract class RemoteFunctionClient {
     return usedConnections.intValue();
   }
 
-  public double getQueuePriority() {
+  public double getPriority() {
     return (double) getMinConnections() / globalMinConnectionSum.doubleValue();
-  }
-
-  public double getThreadPriority() {
-    return (double) getMaxConnections() / globalMaxConnectionSum.doubleValue();
   }
 
   public long getMaxQueueSize() {
