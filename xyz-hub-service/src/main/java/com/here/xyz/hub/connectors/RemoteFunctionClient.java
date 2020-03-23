@@ -89,6 +89,7 @@ public abstract class RemoteFunctionClient {
    */
   private static Set<RemoteFunctionClient> clientInstances = new ConcurrentHashSet<>();
   private static LongAdder globalMinConnectionSum = new LongAdder();
+  private static LongAdder globalMaxConnectionSum = new LongAdder();
   private static AtomicLong lastSizeAdjustment;
 
   private final LimitedQueue<FunctionCall> queue = new LimitedQueue<>(0, 0);
@@ -150,6 +151,7 @@ public abstract class RemoteFunctionClient {
     if (connectorConfig != null) {
       clientInstances.remove(this);
       globalMinConnectionSum.add(-getMinConnections());
+      globalMaxConnectionSum.add(-getMaxConnections());
       adjustQueueByteSizes();
     }
   }
@@ -266,8 +268,10 @@ public abstract class RemoteFunctionClient {
             + connectorConfig.id + " vs. old ID: " + this.connectorConfig.id);
 
     final int oldMinConnections = getMinConnections();
+    final int oldMaxConnections = getMaxConnections();
     this.connectorConfig = connectorConfig;
     globalMinConnectionSum.add(getMinConnections() - oldMinConnections);
+    globalMaxConnectionSum.add(getMaxConnections() - oldMaxConnections);
     adjustQueueByteSizes();
   }
 
@@ -311,7 +315,7 @@ public abstract class RemoteFunctionClient {
     However, this behavior will be optimized in the future.
      */
     //TODO: Improve the calculation with respect to the throughput and do the adjustments when necessary at run-time
-    clientInstances.forEach(c -> c.queue.setMaxByteSize((long) (c.getPriority() * GLOBAL_MAX_QUEUE_BYTE_SIZE)));
+    clientInstances.forEach(c -> c.queue.setMaxByteSize((long) (c.getQueuePriority() * GLOBAL_MAX_QUEUE_BYTE_SIZE)));
   }
 
   public static long getGlobalUsedQueueMemory() {
@@ -403,8 +407,12 @@ public abstract class RemoteFunctionClient {
     return usedConnections.intValue();
   }
 
-  public double getPriority() {
+  public double getQueuePriority() {
     return (double) getMinConnections() / globalMinConnectionSum.doubleValue();
+  }
+
+  public double getThreadPriority() {
+    return (double) getMaxConnections() / globalMaxConnectionSum.doubleValue();
   }
 
   public long getMaxQueueSize() {
