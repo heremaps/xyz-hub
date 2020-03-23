@@ -52,7 +52,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
 
   private static final Logger logger = LogManager.getLogger();
   private static final int CONNECTION_ESTABLISH_TIMEOUT = 5_000;
-  private static final int CLIENT_REQUEST_TIMEOUT = REQUEST_TIMEOUT + 3_000;
+//  private static final int CLIENT_REQUEST_TIMEOUT = REQUEST_TIMEOUT + 3_000;
   private static final int CONNECTION_TTL = 60_000;
   private static final int MIN_THREADS_PER_CLIENT = 5;
 
@@ -85,14 +85,14 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
     }
 
     int maxConnections = getMaxConnections();
-    double threadPriority = getThreadPriority();
-    int desiredNumberOfThreads = Math.max(MIN_THREADS_PER_CLIENT, (int) (threadPriority * Service.configuration.LAMBDA_REMOTE_FUNCTION_EXECUTORS));
+    double priority = getPriority();
+    int desiredNumberOfThreads = Math.max(MIN_THREADS_PER_CLIENT, (int) (priority * Service.configuration.LAMBDA_REMOTE_FUNCTION_EXECUTORS));
     int numberOfThreads = Math.min(desiredNumberOfThreads, maxConnections);
 
-    logger.info("Creating Lambda Function Client: {}. CONNECTION_ESTABLISH_TIMEOUT: {}, REQUEST_TIMEOUT: {}, CLIENT_REQUEST_TIMEOUT: {}, "
-        + "CONNECTION_TTL: {}, MIN_THREADS_PER_CLIENT: {}, maxConnections: {}, threadPriority: {}, desiredNumberOfThreads: {}, numberOfThreads: {}",
-        connectorConfig.id, CONNECTION_ESTABLISH_TIMEOUT, REQUEST_TIMEOUT, CLIENT_REQUEST_TIMEOUT, CONNECTION_TTL, MIN_THREADS_PER_CLIENT,
-        maxConnections, threadPriority, desiredNumberOfThreads, numberOfThreads);
+    logger.info("Creating Lambda Function Client: {}. CONNECTION_ESTABLISH_TIMEOUT: {}, REQUEST_TIMEOUT: {}, CONNECTION_TTL: {}, "
+        + "MIN_THREADS_PER_CLIENT: {}, maxConnections: {}, priority: {}, desiredNumberOfThreads: {}, numberOfThreads: {}",
+        connectorConfig.id, CONNECTION_ESTABLISH_TIMEOUT, REQUEST_TIMEOUT, CONNECTION_TTL, MIN_THREADS_PER_CLIENT,
+        maxConnections, priority, desiredNumberOfThreads, numberOfThreads);
 
     asyncClient = AWSLambdaAsyncClientBuilder
         .standard()
@@ -103,7 +103,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
             .withConnectionTimeout(CONNECTION_ESTABLISH_TIMEOUT)
             .withRequestTimeout(REQUEST_TIMEOUT)
             .withMaxErrorRetry(0)
-            .withClientExecutionTimeout(CLIENT_REQUEST_TIMEOUT)
+//            .withClientExecutionTimeout(CLIENT_REQUEST_TIMEOUT)
             .withConnectionTTL(CONNECTION_TTL))
         .withExecutorFactory(() -> Executors.newFixedThreadPool(numberOfThreads))
         .build();
