@@ -335,7 +335,7 @@ public abstract class RemoteFunctionClient {
   }
 
   public static long getGlobalMaxConnections() {
-    return clientInstances.stream().mapToLong(RemoteFunctionClient::getMaxConnections).sum();
+    return globalMaxConnectionSum.longValue();
   }
 
   public static long getGlobalUsedConnections() {
