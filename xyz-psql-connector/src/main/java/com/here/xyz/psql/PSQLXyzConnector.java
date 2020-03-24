@@ -319,16 +319,20 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse checkSQLException(SQLException e, String table) throws Exception{
     logger.warn("{} - SQL Error ({}) on {} : {}", streamId, e.getSQLState(), table, e);
 
-    if(e.getSQLState() != null
-            && (e.getSQLState().equalsIgnoreCase("57014")
-                || e.getSQLState().equalsIgnoreCase("57P01"))){
-      /**
-       * 57014 - query_canceled
-       * 57P01 - admin_shutdown
-       */
-      return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
-              .withErrorMessage("Database query timed out or got canceled.");
+    if(e.getSQLState() != null){
+      if ((e.getSQLState().equalsIgnoreCase("57014")
+              || e.getSQLState().equalsIgnoreCase("57P01"))) {
+        /**
+         * 57014 - query_canceled
+         * 57P01 - admin_shutdown
+         */
+        return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
+                .withErrorMessage("Database query timed out or got canceled.");
+      }else if (e.getSQLState().equalsIgnoreCase("54000")){
+        return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
+                .withErrorMessage("No time for retry left for database query.");
+      }
     }
-    throw e;
+    return new ErrorResponse().withStreamId(streamId).withError(XyzError.EXCEPTION).withErrorMessage(e.getMessage());
   }
 }

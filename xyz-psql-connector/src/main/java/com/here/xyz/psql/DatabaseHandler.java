@@ -329,7 +329,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 logger.log(Level.WARN,"{} History Table for space {} is missing! Try to create it! ",streamId,event.getSpace());
                 ensureHistorySpace(null);
             }
-            return new ErrorResponse().withStreamId(streamId).withError(XyzError.EXCEPTION).withErrorMessage(e.getMessage());
+            throw e;
         }
     }
 
@@ -406,6 +406,11 @@ public abstract class DatabaseHandler extends StorageConnector {
                     connection.commit();
                 }
             }catch (Exception e){
+                /** No time left for processing */
+                if(e instanceof SQLException && ((SQLException)e).getSQLState() !=null
+                        &&((SQLException)e).getSQLState().equalsIgnoreCase("54000"))
+                    throw e;
+
                 /** Objects which are responsible for the failed operation */
                 final List<String> failedIds = fails.stream().map(FeatureCollection.ModificationFailure::getId).filter(Objects::nonNull).collect(Collectors.toList());
                 event.setFailed(fails);
@@ -753,10 +758,17 @@ public abstract class DatabaseHandler extends StorageConnector {
         return new CountResponse().withCount(count).withEstimated(count > MAX_PRECISE_STATS_COUNT);
     }
 
-    protected int calculateTimeout(){
+    protected int calculateTimeout() throws SQLException{
         int remainingSeconds = context.getRemainingTimeInMillis() / 1000;
+
+        if(remainingSeconds < MIN_REMAINING_TIME_FOR_RETRY_SECONDS) {
+            logger.info("{} - No time left to execute query '{}' s", streamId, remainingSeconds);
+            throw new SQLException("No time left to execute query.","54000");
+        }
+
         int timeout = remainingSeconds > STATEMENT_TIMEOUT_SECONDS ? STATEMENT_TIMEOUT_SECONDS :
                 (remainingSeconds - MIN_REMAINING_TIME_FOR_RETRY_SECONDS);
+
         logger.info("{} - New timeout for query set to '{}'", streamId, timeout);
         return timeout;
     }
