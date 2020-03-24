@@ -35,11 +35,11 @@ public class MaintenanceSQL {
     /**
      * Check if all required database extensions are installed
      */
-    public static String generateCheckExtensionsSQL(boolean hasPropertySearch){
+    public static String generateCheckExtensionsSQL(boolean hasPropertySearch, String user, String db){
         return "SELECT COALESCE(array_agg(extname) @> '{postgis,postgis_topology,tsm_system_rows"
                 + (hasPropertySearch ? ",dblink" : "") + "}', false) as all_ext_av,"
                 + "COALESCE(array_agg(extname)) as ext_av, "
-                + "(select current_setting('is_superuser')) as is_su "
+                + "(select has_database_privilege('"+user+"', '"+db+"', 'CREATE')) as has_create_permissions "
                 + "FROM ("
                 + "	SELECT extname FROM pg_extension"
                 + "		WHERE extname in('postgis','postgis_topology','tsm_system_rows','dblink')"

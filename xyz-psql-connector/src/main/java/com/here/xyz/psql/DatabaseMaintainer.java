@@ -62,20 +62,23 @@ public class DatabaseMaintainer {
     }
 
     private synchronized void initialDBSetup(String streamId, boolean autoIndexing, boolean hasPropertySearch){
+        boolean userHasCreatePermissions = false;
+
         try (final Connection connection = dataSource.getConnection()) {
             boolean functionsUpToDate = false;
 
             /** Check if database is prepared to work with PSQL Connector. Therefore its needed to check Extensions, Schemas, Tables and Functions.*/
             Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery(MaintenanceSQL.generateCheckExtensionsSQL(hasPropertySearch));
+            ResultSet rs = stmt.executeQuery(MaintenanceSQL.generateCheckExtensionsSQL(hasPropertySearch, config.user(), config.database()));
 
             if (rs.next()) {
+                userHasCreatePermissions = rs.getBoolean("has_create_permissions");
                 if (!rs.getBoolean("all_ext_av")) {
                     /** Create Missing IDX_Maintenance Table */
-                    if (rs.getString("is_su").equalsIgnoreCase("on")) {
+                    if (userHasCreatePermissions) {
                         stmt.execute(MaintenanceSQL.generateMandatoryExtensionSQL(hasPropertySearch));
                     } else {
-                        logger.error("{} - Not allowed to create missing extentions on database': {}@{}. Currently installed are: {}",
+                        logger.error("{} - User permissions missing! Not able to create missing Extensions on database: {}@{}. Installed Extension are: {}",
                                 streamId, config.user(), config.database(), rs.getString("ext_av"));
                         /** Cannot proceed without extensions!
                          * postgis,postgis_topology -> provides all GIS functions which are essential!
@@ -113,7 +116,7 @@ public class DatabaseMaintainer {
                         stmt.execute(MaintenanceSQL.createIDXTableSQL);
                     }
                 } catch (Exception e) {
-                    logger.warn("{} - Failed to create missing Schema(s) on database': {} {}", streamId, config.database(), e);
+                    logger.warn("{} - Failed to create missing Schema(s) on database: {} {}", streamId, config.database(), e);
                 }
             }
 
@@ -147,7 +150,10 @@ public class DatabaseMaintainer {
         }
 
         /** Check if all required H3 related stuff is present */
-        this.setupH3( streamId);
+        if(userHasCreatePermissions)
+            this.setupH3( streamId);
+        else
+            logger.warn("{} - User permissions missing! Can not update/install H3 related functions on database': {}@{} ", streamId, config.user(), config.database());
     }
 
     private synchronized void setupH3(String streamId){
