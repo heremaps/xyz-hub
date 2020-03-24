@@ -38,7 +38,7 @@ public class DatabaseMaintainer {
     private static final Logger logger = LogManager.getLogger();
 
     /** Is used to check against xyz_ext_version() */
-    private static final int XYZ_EXT_VERSION = 126;
+    private static final int XYZ_EXT_VERSION = 127;
     /** Can get configured dynamically with storageParam onDemandIdxLimit */
     protected final static int ON_DEMAND_IDX_DEFAULT_LIM = 4;
 
