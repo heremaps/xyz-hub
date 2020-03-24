@@ -20,7 +20,6 @@
 package com.here.xyz.hub.connectors;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
-import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
@@ -33,6 +32,7 @@ import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.WebClientOptions;
+import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.LinkedList;
 import java.util.List;
@@ -46,6 +46,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
   private static final Logger logger = LogManager.getLogger();
 
   private volatile ThreadLocal<WebClient> webClient;
+  private volatile String url;
   private static volatile List<DestroyableWebClient> webClientsToDestroy = new LinkedList<>();
 
   HTTPFunctionClient(Connector connectorConfig) {
@@ -65,6 +66,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of HTTP");
     }
     Http httpRemoteFunction = (Http) remoteFunction;
+    url = httpRemoteFunction.url.toString();
     webClient = ThreadLocal.withInitial(() -> WebClient.create(Service.vertx, new WebClientOptions()
         .setUserAgent(Service.XYZ_HUB_USER_AGENT)
         .setMaxPoolSize(getMaxConnections())));
@@ -81,36 +83,24 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
   }
 
   private void shutdownWebClient() {
-    if (webClient == null) {
-      return;
-    }
+    if (webClient == null) return;
     //Shutdown the web client after the request timeout
     //TODO: Use CompletableFuture.delayedExecutor() after switching to Java 9
     new Thread(() -> {
       try {
         Thread.sleep(REQUEST_TIMEOUT);
-      } catch (InterruptedException ignored) {
       }
+      catch (InterruptedException ignored) {}
       webClientsToDestroy.forEach(wc -> wc.destroy());
       webClientsToDestroy = new LinkedList<>();
     }).start();
   }
 
   @Override
-  protected void invoke(Marker marker, byte[] bytes, boolean fireAndForget, Handler<AsyncResult<byte[]>> callback)
-      throws NullPointerException {
+  protected void invoke(Marker marker, byte[] bytes, boolean fireAndForget, Handler<AsyncResult<byte[]>> callback) {
     //TODO: respect fireAndForget parameter
     final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
-    if (!(remoteFunction instanceof Http)) {
-      logger.error(marker, "Invocation of not HTTP remote function in HTTPFunctionClient: {}, Stack-Trace: {}", remoteFunction.id,
-          new Exception());
-      callback.handle(Future.failedFuture(
-          new HttpException(INTERNAL_SERVER_ERROR, "Invocation of not HTTP remote function in HTTPFunctionClient: " + remoteFunction.id)));
-      return;
-    }
-    final Http httpFn = (Http) remoteFunction;
-    final String url = httpFn.url.toString();
-    logger.info(marker, "Invoke http remote function '{}' URL is: {} Event size is: {}", httpFn.id, url, bytes.length);
+    logger.info(marker, "Invoke http remote function '{}' URL is: {} Event size is: {}", remoteFunction.id, url, bytes.length);
 
     getWebClient().postAbs(url)
         .timeout(REQUEST_TIMEOUT)
@@ -130,7 +120,6 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
   }
 
   private static class DestroyableWebClient {
-
     private WebClient webClient;
 
     DestroyableWebClient(WebClient webClient) {
