@@ -46,7 +46,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
   private static final Logger logger = LogManager.getLogger();
 
   private volatile ThreadLocal<WebClient> webClient;
-  private static volatile String url;
+  private volatile String url;
   private static volatile List<DestroyableWebClient> webClientsToDestroy = new LinkedList<>();
 
   HTTPFunctionClient(Connector connectorConfig) {
