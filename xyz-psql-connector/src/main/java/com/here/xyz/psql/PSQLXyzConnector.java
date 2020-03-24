@@ -161,7 +161,11 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected XyzResponse processLoadFeaturesEvent(LoadFeaturesEvent event) throws Exception {
-    return executeLoadFeatures(event);
+    try{
+      return executeLoadFeatures(event);
+    }catch (SQLException e){
+      return checkSQLException(e, config.table(event));
+    }
   }
 
   @Override
@@ -172,7 +176,6 @@ public class PSQLXyzConnector extends DatabaseHandler {
                 .withErrorMessage("ModifyFeaturesEvent is not supported by this storage connector.");
       }
 
-      final long now = System.currentTimeMillis();
       final boolean addUUID = event.getEnableUUID() == Boolean.TRUE && event.getVersion().compareTo("0.2.0") < 0;
       // Update the features to insert
       final List<Feature> inserts = event.getInsertFeatures();

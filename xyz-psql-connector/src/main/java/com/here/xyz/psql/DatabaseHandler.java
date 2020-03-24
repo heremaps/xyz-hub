@@ -31,6 +31,7 @@ import com.mchange.v2.c3p0.AbstractConnectionCustomizer;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
+import org.apache.commons.dbutils.StatementConfiguration;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -50,6 +51,11 @@ public abstract class DatabaseHandler extends StorageConnector {
     private static final int MAX_PRECISE_STATS_COUNT = 10_000;
     private static final String C3P0EXT_CONFIG_SCHEMA = "config.schema()";
     protected static final String HISTORY_TABLE_SUFFIX = "_hst";
+    /**
+     * Lambda Execution Time = 25s. We are actively canceling queries after STATEMENT_TIMEOUT_SECONDS
+     * So if we receive a timeout prior 25s-STATEMENT_TIMEOUT_SECONDS the cancellation comes from
+     * outside.
+     **/
     private static final int MIN_REMAINING_TIME_FOR_RETRY_SECONDS = 2;
     protected static final int STATEMENT_TIMEOUT_SECONDS = 24;
 
@@ -242,7 +248,6 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
-
     protected boolean retryCausedOnTimeout(Exception e) {
         /** If a timeout comes directly after the invocation it could rely
          * on serverless aurora scaling. Then we should retry again.
@@ -266,10 +271,12 @@ public abstract class DatabaseHandler extends StorageConnector {
     /**
      * Executes the given query and returns the processed by the handler result using the provided dataSource.
      */
+
     private <T> T executeQuery(SQLQuery query, ResultSetHandler<T> handler, DataSource dataSource) throws SQLException {
         final long start = System.currentTimeMillis();
         try {
-            final QueryRunner run = new QueryRunner(dataSource);
+            final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null,calculateTimeout()));
+
             query.setText(SQLQuery.replaceVars(query.text(), config.schema(), config.table(event)));
             final String queryText = query.text();
             final List<Object> queryParameters = query.parameters();
@@ -291,7 +298,8 @@ public abstract class DatabaseHandler extends StorageConnector {
     int executeUpdate(SQLQuery query) throws SQLException {
         final long start = System.currentTimeMillis();
         try {
-            final QueryRunner run = new QueryRunner(dataSource);
+            final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null,calculateTimeout()));
+
             query.setText(SQLQuery.replaceVars(query.text(),config.schema(), config.table(event)));
             final String queryText = query.text();
             final List<Object> queryParameters = query.parameters();
@@ -381,6 +389,8 @@ public abstract class DatabaseHandler extends StorageConnector {
                 connection.setAutoCommit(true);
 
             try {
+                DatabaseWriter.TIMEOUT = calculateTimeout();
+
                 if (deletes.size() > 0) {
                     DatabaseWriter.deleteFeatures(schema, table, streamId, fails, deletes, connection, transactional, handleUUID);
                 }
@@ -398,17 +408,19 @@ public abstract class DatabaseHandler extends StorageConnector {
             }catch (Exception e){
                 /** Objects which are responsible for the failed operation */
                 final List<String> failedIds = fails.stream().map(FeatureCollection.ModificationFailure::getId).filter(Objects::nonNull).collect(Collectors.toList());
+                event.setFailed(fails);
 
-                if (retryCausedOnTimeout(e) || canRetryAttempt()) {
+                if (retryCausedOnTimeout(e) && !retryAttempted) {
+                    retryAttempted = true;
+
                     connection.close();
-                    event.setFailed(fails);
                     return executeModifyFeatures(event);
                 }
 
                 if(transactional) {
                     connection.rollback();
                     if((e instanceof SQLException && ((SQLException)e).getSQLState() != null
-                        && ((SQLException)e).getSQLState().equalsIgnoreCase("42P01")))
+                            && ((SQLException)e).getSQLState().equalsIgnoreCase("42P01")))
                         ;//Table does not exist yet - create it!
                     else{
                         /** Add all other Objects to failed list */
@@ -425,7 +437,6 @@ public abstract class DatabaseHandler extends StorageConnector {
                     connection.close();
                     canRetryAttempt();
 
-                    event.setFailed(fails);
                     return executeModifyFeatures(event);
                 }
             }
@@ -557,7 +568,6 @@ public abstract class DatabaseHandler extends StorageConnector {
                 }
 
                 try (Statement stmt = connection.createStatement()) {
-
                     createSpaceStatement(stmt,tableName);
 
                     stmt.executeBatch();
@@ -741,6 +751,14 @@ public abstract class DatabaseHandler extends StorageConnector {
         rs.next();
         long count = rs.getLong(1);
         return new CountResponse().withCount(count).withEstimated(count > MAX_PRECISE_STATS_COUNT);
+    }
+
+    protected int calculateTimeout(){
+        int remainingSeconds = context.getRemainingTimeInMillis() / 1000;
+        int timeout = remainingSeconds > STATEMENT_TIMEOUT_SECONDS ? STATEMENT_TIMEOUT_SECONDS :
+                (remainingSeconds - MIN_REMAINING_TIME_FOR_RETRY_SECONDS);
+        logger.info("{} - New timeout for query set to '{}'", streamId, timeout);
+        return timeout;
     }
 
     /**

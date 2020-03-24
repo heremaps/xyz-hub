@@ -22,6 +22,9 @@ public class DatabaseStreamWriter extends DatabaseWriter{
         final PreparedStatement insertStmt = createInsertStatement(connection,schema,table);
         final PreparedStatement insertWithoutGeometryStmt = createInsertWithoutGeometryStatement(connection,schema,table);
 
+        insertStmt.setQueryTimeout(TIMEOUT);
+        insertWithoutGeometryStmt.setQueryTimeout(TIMEOUT);
+
         for (int i = 0; i < inserts.size(); i++) {
 
             String fId = "";
@@ -54,7 +57,8 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                     collection.getFeatures().add(feature);
 
             } catch (Exception e) {
-                if(e.getMessage() != null && e.getMessage().contains("relation ") && e.getMessage().contains("does not exist")){
+                if((e instanceof SQLException && ((SQLException)e).getSQLState() != null
+                        && ((SQLException)e).getSQLState().equalsIgnoreCase("42P01"))){
                     insertStmt.close();
                     insertWithoutGeometryStmt.close();
                     connection.close();
@@ -77,6 +81,9 @@ public class DatabaseStreamWriter extends DatabaseWriter{
 
         final PreparedStatement updateStmt = createUpdateStatement(connection, schema, table, handleUUID);
         final PreparedStatement updateWithoutGeometryStmt = createUpdateWithoutGeometryStatement(connection,schema,table,handleUUID);
+
+        updateStmt.setQueryTimeout(TIMEOUT);
+        updateWithoutGeometryStmt.setQueryTimeout(TIMEOUT);
 
         for (int i = 0; i < updates.size(); i++) {
             String fId = "";
@@ -149,6 +156,9 @@ public class DatabaseStreamWriter extends DatabaseWriter{
 
         final PreparedStatement deleteStmt = deleteStmtSQLStatement(connection,schema,table,handleUUID);
         final PreparedStatement deleteStmtWithoutUUID = deleteStmtSQLStatement(connection,schema,table,false);
+
+        deleteStmt.setQueryTimeout(TIMEOUT);
+        deleteStmtWithoutUUID.setQueryTimeout(TIMEOUT);
 
         for (String deleteId : deletes.keySet()) {
             try {

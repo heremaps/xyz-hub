@@ -37,7 +37,9 @@ import java.util.stream.Collectors;
 public class DatabaseMaintainer {
     private static final Logger logger = LogManager.getLogger();
 
+    /** Is used to check against xyz_ext_version() */
     private static final int XYZ_EXT_VERSION = 126;
+    /** Can get configured dynamically with storageParam onDemandIdxLimit */
     protected final static int ON_DEMAND_IDX_DEFAULT_LIM = 4;
 
     private DataSource dataSource;
@@ -210,14 +212,11 @@ public class DatabaseMaintainer {
 
             if (progress == 0) {
                 /** no process is running */
-                stmt.execute(MaintenanceSQL.generateTimeoutSQL(15 * 60));
-
                 /** Set Mode for statistic,analyze,index creation */
                 int mode = autoIndexing == true ? 2 : 0;
 
-                /** CREATE INDICES */
+                /** Maintain INDICES */
                 stmt.execute(MaintenanceSQL.generateIDXSQL(config.schema(), config.user(), config.password(), config.database(), config.port(), mode));
-                stmt.execute(MaintenanceSQL.generateTimeoutSQL(DatabaseHandler.STATEMENT_TIMEOUT_SECONDS));
             }
         } catch (Exception e) {
             logger.error("{} - Failed run auto-indexing on database {} : {}", streamId, config.database(), e);

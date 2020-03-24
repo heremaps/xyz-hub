@@ -480,8 +480,7 @@ public class SQLQueryBuilder {
 
     protected static String updateStmtSQL(final String schema, final String table, final boolean handleUUID){
         String updateStmtSQL = "UPDATE ${schema}.${table} SET jsondata = ?::jsonb, geo=ST_Force3D(ST_GeomFromWKB(?,4326)), geojson = ?::jsonb WHERE jsondata->>'id' = ?";
-
-        /** Prepared for removal of geojson column */
+//        /** Prepared for removal of geojson column */
 //        String updateStmtSQL = "UPDATE ${schema}.${table} SET jsondata = ?::jsonb, geo=ST_Force3D(ST_GeomFromWKB(?,4326)) WHERE jsondata->>'id' = ?";
         if(handleUUID) {
             updateStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ?";

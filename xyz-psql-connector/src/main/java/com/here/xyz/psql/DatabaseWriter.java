@@ -38,6 +38,8 @@ public class DatabaseWriter {
     public static final String LOG_EXCEPTION_UPDATE = "update";
     public static final String LOG_EXCEPTION_DELETE = "delete";
 
+    protected static int TIMEOUT;
+
     protected static PGobject featureToPGobject(final Feature feature, final boolean jsonObjectMode) throws SQLException {
         final Geometry geometry = feature.getGeometry();
         feature.setGeometry(null); // Do not serialize the geometry in the JSON object
