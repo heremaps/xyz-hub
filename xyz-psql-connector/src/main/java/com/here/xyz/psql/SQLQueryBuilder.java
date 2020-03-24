@@ -461,6 +461,12 @@ public class SQLQueryBuilder {
         return SQLQuery.join("AND", propertiesQuery, tagsQuery);
     }
 
+    protected static SQLQuery generateLoadOldFeaturesQuery(final String[] idsToFetch, final DataSource dataSource)
+            throws SQLException {
+        return new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
+            SQLQuery.createSQLArray(idsToFetch, "text",dataSource));
+    }
+
     protected static SQLQuery generateIDXStatusQuery(final String space){
         return new SQLQuery("SELECT idx_available FROM "+IDX_STATUS_TABLE+" WHERE spaceid=?", space);
     }

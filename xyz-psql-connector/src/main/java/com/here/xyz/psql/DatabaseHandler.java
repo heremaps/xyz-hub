@@ -300,9 +300,8 @@ public abstract class DatabaseHandler extends StorageConnector {
      */
     protected List<Feature> fetchOldStates(String[] idsToFetch) throws Exception {
         List<Feature> oldFeatures = null;
-        SQLQuery query = new SQLQuery("SELECT jsondata, ST_AsGeojson(ST_Force3D(ST_MakeValid(geo))) FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
-                SQLQuery.createSQLArray(idsToFetch, "text",dataSource));
-        FeatureCollection oldFeaturesCollection = executeQueryWithRetry(query);
+        FeatureCollection oldFeaturesCollection = executeQueryWithRetry(SQLQueryBuilder.generateLoadOldFeaturesQuery(idsToFetch, dataSource));
+
         if (oldFeaturesCollection != null) {
             oldFeatures = oldFeaturesCollection.getFeatures();
         }
