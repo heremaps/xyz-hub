@@ -158,11 +158,16 @@ public class SpaceTaskHandler {
       if(task.isUpdate()){
         /** enableUUID is immutable and it is only allowed to set it during the space creation */
         Space spaceHead = task.modifyOp.entries.get(0).head;
-        if(spaceHead != null && task.modifyOp.entries.get(0).input.get("enableUUID") != null )
+
+        if(spaceHead != null && spaceHead.isEnableUUID() == Boolean.TRUE && task.modifyOp.entries.get(0).input.get("enableUUID") == Boolean.TRUE )
+          task.modifyOp.entries.get(0).input.put("enableUUID",true);
+        else if(spaceHead != null && task.modifyOp.entries.get(0).input.get("enableUUID") != null )
           throw new HttpException(BAD_REQUEST, "Validation failed. The property 'enableUUID' can only get set on space creation!");
 
         /** enableHistory is immutable and it is only allowed to set it during the space creation */
-        if(spaceHead != null && task.modifyOp.entries.get(0).input.get("enableHistory") != null )
+        if(spaceHead != null && spaceHead.isEnableHistory() == Boolean.TRUE && task.modifyOp.entries.get(0).input.get("enableHistory") == Boolean.TRUE )
+          task.modifyOp.entries.get(0).input.put("enableHistory",true);
+        else if(spaceHead != null && task.modifyOp.entries.get(0).input.get("enableHistory") != null )
           throw new HttpException(BAD_REQUEST, "Validation failed. The property 'enableHistory' can only get set on space creation!");
       }
       task.modifyOp.process();
