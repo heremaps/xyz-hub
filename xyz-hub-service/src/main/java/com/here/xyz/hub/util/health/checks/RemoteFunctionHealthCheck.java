@@ -100,28 +100,33 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
 
   private Response generateResponse() {
     Response r = new Response();
-    RemoteFunctionClient rfc = getClient().getFunctionClient();
+    try {
+      RemoteFunctionClient rfc = getClient().getFunctionClient();
 
-    rfcData.put("id", connector.remoteFunction.id);
-    rfcData.put("type", connector.remoteFunction.getClass().getSimpleName());
-    if (connector.remoteFunction instanceof AWSLambda) {
-      rfcData.put("lambdaARN", ((AWSLambda) connector.remoteFunction).lambdaARN);
-    }
-    else if (connector.remoteFunction instanceof Http) {
-      rfcData.put("url", ((Http) connector.remoteFunction).url);
-    }
-    rfcData.put("maxQueueSize", rfc.getMaxQueueSize());
-    rfcData.put("queueSize", rfc.getQueueSize());
-    rfcData.put("maxQueueByteSize", rfc.getMaxQueueByteSize());
-    rfcData.put("queueByteSize", rfc.getQueueByteSize());
-    rfcData.put("minConnections", rfc.getMinConnections());
-    rfcData.put("maxConnections", rfc.getMaxConnections());
-    rfcData.put("usedConnections", rfc.getUsedConnections());
-    rfcData.put("rateOfService", rfc.getRateOfService());
-    rfcData.put("arrivalRate", rfc.getArrivalRate());
-    rfcData.put("throughput", rfc.getThroughput());
+      rfcData.put("id", connector.remoteFunction.id);
+      rfcData.put("type", connector.remoteFunction.getClass().getSimpleName());
+      if (connector.remoteFunction instanceof AWSLambda) {
+        rfcData.put("lambdaARN", ((AWSLambda) connector.remoteFunction).lambdaARN);
+      }
+      else if (connector.remoteFunction instanceof Http) {
+        rfcData.put("url", ((Http) connector.remoteFunction).url);
+      }
+      rfcData.put("maxQueueSize", rfc.getMaxQueueSize());
+      rfcData.put("queueSize", rfc.getQueueSize());
+      rfcData.put("maxQueueByteSize", rfc.getMaxQueueByteSize());
+      rfcData.put("queueByteSize", rfc.getQueueByteSize());
+      rfcData.put("minConnections", rfc.getMinConnections());
+      rfcData.put("maxConnections", rfc.getMaxConnections());
+      rfcData.put("usedConnections", rfc.getUsedConnections());
+      rfcData.put("rateOfService", rfc.getRateOfService());
+      rfcData.put("arrivalRate", rfc.getArrivalRate());
+      rfcData.put("throughput", rfc.getThroughput());
 
-    return r.withAdditionalProperty("statistics", rfcData);
+      return r.withAdditionalProperty("statistics", rfcData);
+    }
+    catch (Exception e) {
+      return r.withMessage("Error when trying to gather remote function info: " + e.getMessage());
+    }
   }
 
   private RpcClient getClient() {

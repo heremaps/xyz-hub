@@ -36,6 +36,7 @@ import com.here.xyz.hub.util.health.schema.Response;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpMethod;
+import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import java.net.URI;
@@ -104,19 +105,27 @@ public class HealthApi extends Api {
   }
 
   private static void onHealthStatus(final RoutingContext context) {
-    Response r = healthCheck.getResponse();
-    r.setEndpoint(NODE_HEALTHCHECK_ENDPOINT);
-    r.setNode(Node.OWN_INSTANCE.id);
+    try {
+      Response r = healthCheck.getResponse();
+      r.setEndpoint(NODE_HEALTHCHECK_ENDPOINT);
+      r.setNode(Node.OWN_INSTANCE.id);
 
-    String secretHeaderValue = context.request().getHeader(Config.getHealthCheckHeaderName());
+      String secretHeaderValue = context.request().getHeader(Config.getHealthCheckHeaderName());
 
-    //Always respond with 200 for public HC requests for now
-    int statusCode = r.isPublicRequest(secretHeaderValue) ?
-        OK.code() : r.getStatus().getSuggestedHTTPStatusCode();
-    String responseString = r.toResponseString(secretHeaderValue);
+      //Always respond with 200 for public HC requests for now
+      int statusCode = r.isPublicRequest(secretHeaderValue) ?
+          OK.code() : r.getStatus().getSuggestedHTTPStatusCode();
+      String responseString = r.toResponseString(secretHeaderValue);
 
-    context.response().setStatusCode(statusCode)
-        .putHeader(HttpHeaders.CONTENT_TYPE, APPLICATION_JSON)
-        .end(responseString);
+      context.response().setStatusCode(statusCode)
+          .putHeader(HttpHeaders.CONTENT_TYPE, APPLICATION_JSON)
+          .end(responseString);
+    }
+    catch (Exception e) {
+      logger.error(Context.getMarker(context), "Error while doing the health-check: ", e);
+      context.response().setStatusCode(OK.code())
+          .putHeader(HttpHeaders.CONTENT_TYPE, APPLICATION_JSON)
+          .end(new JsonObject().put("status", new JsonObject().put("result", "WARNING")).encode());
+    }
   }
 }
