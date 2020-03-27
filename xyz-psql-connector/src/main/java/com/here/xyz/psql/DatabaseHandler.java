@@ -51,6 +51,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     private static final String C3P0EXT_CONFIG_SCHEMA = "config.schema()";
     protected static final String HISTORY_TABLE_SUFFIX = "_hst";
     protected static final int STATEMENT_TIMEOUT_SECONDS = 24;
+    private static final int CONNECTION_CHECKOUT_TIMEOUT_SECONDS = 7;
 
     /**
      * The data source connections factory.
@@ -177,7 +178,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         cpds.setMinPoolSize(1);
         cpds.setAcquireIncrement(1);
         cpds.setMaxPoolSize(maxPostgreSQLConnections);
-
+        cpds.setCheckoutTimeout( CONNECTION_CHECKOUT_TIMEOUT_SECONDS * 1000 );
         cpds.setConnectionCustomizerClassName(DatabaseHandler.XyzConnectionCustomizer.class.getName());
         return cpds;
     }
