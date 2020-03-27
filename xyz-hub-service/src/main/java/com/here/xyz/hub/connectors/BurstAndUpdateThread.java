@@ -85,7 +85,7 @@ public class BurstAndUpdateThread extends Thread {
           RpcClient.getInstanceFor(connector, true);
         }
         catch (Exception e) {
-          logger.error("Error while trying to get / create RpcClient for connector with ID " + connector.id);
+          logger.error("Error while trying to get / create RpcClient for connector with ID " + connector.id, e);
         }
       }
     }
@@ -165,6 +165,7 @@ public class BurstAndUpdateThread extends Thread {
   @Override
   public void run() {
     //Stay alive as long as the executor (our parent) is alive.
+    //noinspection InfiniteLoopStatement
     while (true) {
       try {
         final long start = Service.currentTimeMillis();

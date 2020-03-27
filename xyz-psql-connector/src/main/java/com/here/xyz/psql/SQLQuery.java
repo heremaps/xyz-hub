@@ -26,7 +26,11 @@ import java.sql.Array;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import static com.here.xyz.psql.DatabaseHandler.HISTORY_TABLE_SUFFIX;
 
 /**
  * A struct like object that contains the string for a prepared statement and the respective parameters for replacement.
@@ -39,6 +43,7 @@ public class SQLQuery {
   private static final String SUFFIX = "\\}";
   private static final String VAR_SCHEMA = "${schema}";
   private static final String VAR_TABLE = "${table}";
+  private static final String VAR_HST_TABLE = "${hsttable}";
 
   public SQLQuery() {
     this.statement = new StringBuilder();
@@ -83,6 +88,24 @@ public class SQLQuery {
 
   public static SQLQuery join(String delimiter, SQLQuery... queries) {
     return join(Arrays.asList(queries), delimiter, false);
+  }
+
+  public static SQLQuery replaceNamedParameters( String query, Map<String, Object> namedParameters )
+  {  // replace #{namedVar} in query with ? and appends correspondig paramter from map namedParameters
+   Pattern p = Pattern.compile("#\\{\\s*([^\\s\\}]+)\\s*\\}");
+   SQLQuery qry = new SQLQuery();
+   Matcher m = p.matcher( query );
+
+   while( m.find() )
+   { String nParam = m.group(1);
+     if( !namedParameters.containsKey(nParam) )
+      throw new IllegalArgumentException("sql: named Parameter ["+ nParam +"] missing");
+     qry.addParameter( namedParameters.get(nParam) );
+   }
+
+   qry.append( m.replaceAll("?") );
+
+   return qry;
   }
 
   public void append(String text, Object... parameters) {
@@ -156,7 +179,8 @@ public class SQLQuery {
   public static String replaceVars(String query, String schema, String table) {
     return query
             .replace(VAR_SCHEMA, sqlQuote(schema))
-            .replace(VAR_TABLE, sqlQuote(table));
+            .replace(VAR_TABLE, sqlQuote(table))
+            .replace(VAR_HST_TABLE, sqlQuote(table+HISTORY_TABLE_SUFFIX));
   }
 
   protected static String replaceVars(String query, Map<String, String> replacements, String schema, String table) {

@@ -36,7 +36,6 @@ import io.vertx.core.impl.ConcurrentHashSet;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -51,8 +50,9 @@ public abstract class RemoteFunctionClient {
 
   private static final Logger logger = LogManager.getLogger();
 
-  public static final long REQUEST_TIMEOUT = TimeUnit.SECONDS.toMillis(Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT);
+  public static final int REQUEST_TIMEOUT = (int) TimeUnit.SECONDS.toMillis(Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT);
   private static int MEASUREMENT_INTERVAL = 1000; //1s
+  private static final int MIN_CONNECTIONS_PER_NODE = 4;
 
   protected Connector connectorConfig;
 
@@ -89,8 +89,11 @@ public abstract class RemoteFunctionClient {
    */
   private static Set<RemoteFunctionClient> clientInstances = new ConcurrentHashSet<>();
   private static LongAdder globalMinConnectionSum = new LongAdder();
+  private static LongAdder globalMaxConnectionSum = new LongAdder();
   private static AtomicLong lastSizeAdjustment;
-  AtomicInteger usedConnections = new AtomicInteger(0);
+
+  private final LimitedQueue<FunctionCall> queue = new LimitedQueue<>(0, 0);
+  private final AtomicInteger usedConnections = new AtomicInteger(0);
 
 //  /**
 //   * Sliding average request execution time in seconds.
@@ -100,7 +103,6 @@ public abstract class RemoteFunctionClient {
    * An approximation for the maximum number of requests per second which can be executed based on the performance of the remote function.
    */
   private double rateOfService;
-  private LimitedQueue<FunctionCall> queue = new LimitedQueue<>(0, 0);
 
   RemoteFunctionClient(Connector connectorConfig) {
     if (connectorConfig == null) {
@@ -148,26 +150,37 @@ public abstract class RemoteFunctionClient {
   void destroy() {
     if (connectorConfig != null) {
       clientInstances.remove(this);
-      globalMinConnectionSum.add(getMinConnections());
+      globalMinConnectionSum.add(-getMinConnections());
+      globalMaxConnectionSum.add(-getMaxConnections());
       adjustQueueByteSizes();
     }
   }
 
-  protected void submit(final Marker marker, byte[] bytes, final Handler<AsyncResult<byte[]>> callback) {
+  protected void submit(final Marker marker, byte[] bytes, boolean fireAndForget, final Handler<AsyncResult<byte[]>> callback) {
     Handler<AsyncResult<byte[]>> cb = r -> {
       //This is the point where the request's response came back so measure the throughput
       invokeCompleted();
-      callback.handle(r);
+      if (r.succeeded()) {
+        try {
+          callback.handle(Future.succeededFuture(handleByteResponse(r.result())));
+        }
+        catch (HttpException | IOException e) {
+          callback.handle(Future.failedFuture(e));
+        }
+      }
+      else {
+        callback.handle(r);
+      }
     };
 
     //This is the point where new requests arrive so measure the arrival time
     invokeStarted();
 
     if (!compareAndIncrementUpTo(getMaxConnections(), usedConnections)) {
-      enqueue(marker, bytes, cb);
+      enqueue(marker, bytes, fireAndForget, cb);
       return;
     }
-    _invoke(marker, bytes, cb);
+    _invoke(marker, bytes, fireAndForget, cb);
   }
 
   /**
@@ -220,7 +233,7 @@ public abstract class RemoteFunctionClient {
     }
   }
 
-  protected abstract void invoke(final Marker marker, byte[] bytes, final Handler<AsyncResult<byte[]>> callback);
+  protected abstract void invoke(final Marker marker, byte[] bytes, boolean fireAndForget, final Handler<AsyncResult<byte[]>> callback);
 
   public double getThroughput() {
     measureThroughput();
@@ -255,8 +268,10 @@ public abstract class RemoteFunctionClient {
             + connectorConfig.id + " vs. old ID: " + this.connectorConfig.id);
 
     final int oldMinConnections = getMinConnections();
+    final int oldMaxConnections = getMaxConnections();
     this.connectorConfig = connectorConfig;
     globalMinConnectionSum.add(getMinConnections() - oldMinConnections);
+    globalMaxConnectionSum.add(getMaxConnections() - oldMaxConnections);
     adjustQueueByteSizes();
   }
 
@@ -273,7 +288,7 @@ public abstract class RemoteFunctionClient {
 //    return currentValue * (1d - slideInRelevance) + slideInValue * slideInRelevance;
 //  }
 
-  protected byte[] getDecompressed(final byte[] bytes) throws IOException {
+  private static byte[] getDecompressed(final byte[] bytes) throws IOException {
     return ByteStreams.toByteArray(Payload.prepareInputStream(new ByteArrayInputStream(bytes)));
   }
 
@@ -315,8 +330,12 @@ public abstract class RemoteFunctionClient {
     return clientInstances.stream().mapToDouble(RemoteFunctionClient::getArrivalRate).sum();
   }
 
+  public static long getGlobalMinConnections() {
+    return globalMinConnectionSum.longValue();
+  }
+
   public static long getGlobalMaxConnections() {
-    return clientInstances.stream().mapToLong(RemoteFunctionClient::getMaxConnections).sum();
+    return globalMaxConnectionSum.longValue();
   }
 
   public static long getGlobalUsedConnections() {
@@ -327,9 +346,9 @@ public abstract class RemoteFunctionClient {
     return Collections.unmodifiableSet(clientInstances);
   }
 
-  private void _invoke(final Marker marker, byte[] bytes, final Handler<AsyncResult<byte[]>> callback) {
+  private void _invoke(final Marker marker, byte[] bytes, boolean fireAndForget, final Handler<AsyncResult<byte[]>> callback) {
     //long start = System.nanoTime();
-    invoke(marker, bytes, r -> {
+    invoke(marker, bytes, fireAndForget, r -> {
       //long end = System.nanoTime();
       //TODO: Activate performance calculation once it's implemented completely
       //recalculatePerformance(end - start, TimeUnit.NANOSECONDS);
@@ -340,14 +359,20 @@ public abstract class RemoteFunctionClient {
       }
       try {
         callback.handle(r);
-      } catch (Exception e) {
+      }
+      catch (Exception e) {
         logger.error(marker, "Error while calling response handler", e);
       }
       //In case there has been an enqueued element invoke the it
       if (fc != null) {
-        _invoke(fc.marker, fc.bytes, fc.callback);
+        _invoke(fc.marker, fc.bytes, fc.fireAndForget, fc.callback);
       }
     });
+  }
+
+  private static byte[] handleByteResponse(byte[] responseBytes) throws HttpException, IOException {
+    checkResponseSize(responseBytes);
+    return getDecompressed(responseBytes);
   }
 
 //  private void recalculatePerformance(long executionTime, TimeUnit timeUnit) {
@@ -375,7 +400,7 @@ public abstract class RemoteFunctionClient {
   }
 
   public int getMaxConnections() {
-    return connectorConfig == null ? 0 : connectorConfig.getMaxConnectionsPerInstance();
+    return connectorConfig == null ? MIN_CONNECTIONS_PER_NODE : Math.max(MIN_CONNECTIONS_PER_NODE, connectorConfig.getMaxConnectionsPerInstance());
   }
 
   public int getUsedConnections() {
@@ -411,8 +436,8 @@ public abstract class RemoteFunctionClient {
 //    queue.setMaxSize(maxFeasibleElements);
 //  }
 
-  private void enqueue(final Marker marker, byte[] bytes, final Handler<AsyncResult<byte[]>> callback) {
-    FunctionCall fc = new FunctionCall(marker, bytes, callback);
+  private void enqueue(final Marker marker, byte[] bytes, boolean fireAndForget, final Handler<AsyncResult<byte[]>> callback) {
+    FunctionCall fc = new FunctionCall(marker, bytes, fireAndForget, callback);
 
     /*if (Service.currentTimeMillis() > lastSizeAdjustment.get() + SIZE_ADJUSTMENT_INTERVAL
         && fc.getByteSize() + queue.getByteSize() > queue.getMaxByteSize()) {
@@ -432,12 +457,14 @@ public abstract class RemoteFunctionClient {
 
     final Marker marker;
     final byte[] bytes;
+    final boolean fireAndForget;
     final Handler<AsyncResult<byte[]>> callback;
 
-    public FunctionCall(Marker marker, byte[] bytes, Handler<AsyncResult<byte[]>> callback) {
+    public FunctionCall(Marker marker, byte[] bytes, boolean fireAndForget, Handler<AsyncResult<byte[]>> callback) {
       this.marker = marker;
       this.bytes = bytes;
       this.callback = callback;
+      this.fireAndForget = fireAndForget;
     }
 
     @Override

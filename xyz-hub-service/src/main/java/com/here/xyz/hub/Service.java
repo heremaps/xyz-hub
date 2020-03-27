@@ -407,6 +407,11 @@ public class Service {
     public int REMOTE_FUNCTION_REQUEST_TIMEOUT; //seconds
 
     /**
+     * The amount of executor threads of the pool being shared by all LambdaFunctionClients.
+     */
+    public int LAMBDA_REMOTE_FUNCTION_EXECUTORS;
+
+    /**
      * The web root for serving static resources from the file system.
      */
     public String FS_WEB_ROOT;

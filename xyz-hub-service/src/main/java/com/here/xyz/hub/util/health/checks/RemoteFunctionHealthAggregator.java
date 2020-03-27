@@ -60,12 +60,12 @@ public class RemoteFunctionHealthAggregator extends GroupedHealthCheck {
   @Override
   public Status execute() {
     Status s = super.execute();
-    Response r = getResponse();
+    Response res = getResponse();
 
     try {
       List<Connector> activeConnectors = RemoteFunctionClient.getInstances()
           .stream()
-          .map(rfc -> rfc.getConnectorConfig())
+          .map(RemoteFunctionClient::getConnectorConfig)
           .collect(Collectors.toList());
 
       Set<String> activeConnectorIds = activeConnectors.stream().map(c -> c.id).collect(Collectors.toSet());
@@ -85,27 +85,28 @@ public class RemoteFunctionHealthAggregator extends GroupedHealthCheck {
       });
 
 
-      toDelete.forEach(connectorId -> removeRfcHc(connectorId));
-      toAdd.forEach(connector -> addRfcHc(connector));
+      toDelete.forEach(this::removeRfcHc);
+      toAdd.forEach(this::addRfcHc);
     }
     catch (Exception e) {
-      r = r.withMessage("Error when trying to gather remote functions info: " + e.getMessage());
+      res = res.withMessage("Error when trying to gather remote functions info: " + e.getMessage());
       s.setResult(ERROR);
     }
 
     //Gather further global statistics
     try {
-      r.setAdditionalProperty("globalMaxQueueByteSize", RemoteFunctionClient.GLOBAL_MAX_QUEUE_BYTE_SIZE);
-      r.setAdditionalProperty("globalQueueByteSize", RemoteFunctionClient.getGlobalUsedQueueMemory());
-      r.setAdditionalProperty("globalArrivalRate", RemoteFunctionClient.getGlobalArrivalRate());
-      r.setAdditionalProperty("globalThroughput", RemoteFunctionClient.getGlobalThroughput());
-      r.setAdditionalProperty("globalMaxConnections", RemoteFunctionClient.getGlobalMaxConnections());
-      r.setAdditionalProperty("globalUsedConnections", RemoteFunctionClient.getGlobalUsedConnections());
-      setResponse(r);
+      res.setAdditionalProperty("globalMaxQueueByteSize", RemoteFunctionClient.GLOBAL_MAX_QUEUE_BYTE_SIZE);
+      res.setAdditionalProperty("globalQueueByteSize", RemoteFunctionClient.getGlobalUsedQueueMemory());
+      res.setAdditionalProperty("globalArrivalRate", RemoteFunctionClient.getGlobalArrivalRate());
+      res.setAdditionalProperty("globalThroughput", RemoteFunctionClient.getGlobalThroughput());
+      res.setAdditionalProperty("globalMinConnections", RemoteFunctionClient.getGlobalMinConnections());
+      res.setAdditionalProperty("globalMaxConnections", RemoteFunctionClient.getGlobalMaxConnections());
+      res.setAdditionalProperty("globalUsedConnections", RemoteFunctionClient.getGlobalUsedConnections());
+      setResponse(res);
       return s.withResult(getWorseResult(OK, s.getResult()));
     }
     catch (Exception e) {
-      setResponse(r.withMessage("Error when trying to gather global remote functions info: " + e.getMessage()));
+      setResponse(res.withMessage("Error when trying to gather global remote functions info: " + e.getMessage()));
       return s.withResult(ERROR);
     }
   }

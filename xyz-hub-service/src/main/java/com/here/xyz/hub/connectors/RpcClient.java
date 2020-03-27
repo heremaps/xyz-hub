@@ -59,7 +59,7 @@ public class RpcClient {
 
   private static final Logger logger = LogManager.getLogger();
 
-  private static final ConcurrentHashMap<String, RpcClient> storageIdToClient = new ConcurrentHashMap<>();
+  private static final ConcurrentHashMap<String, RpcClient> connectorIdToClient = new ConcurrentHashMap<>();
   private static final RelocationClient relocationClient = new RelocationClient(Service.configuration.XYZ_HUB_S3_BUCKET);
 
   private RemoteFunctionClient functionClient;
@@ -92,11 +92,13 @@ public class RpcClient {
     if (connector == null) {
       throw new NullPointerException("connector");
     }
-    RpcClient client = storageIdToClient.get(connector.id);
+    RpcClient client = connectorIdToClient.get(connector.id);
     if (client == null) {
       if (!createIfNotExists) throw new IllegalStateException("No RpcClient is ready for the given connector with ID " + connector.id);
       client = new RpcClient(connector);
-      storageIdToClient.put(connector.id, client);
+      synchronized (connectorIdToClient) {
+        connectorIdToClient.put(connector.id, client);
+      }
     }
     return client;
   }
@@ -113,7 +115,7 @@ public class RpcClient {
   }
 
   public static Collection<RpcClient> getAllInstances() {
-    return Collections.unmodifiableCollection(storageIdToClient.values());
+    return Collections.unmodifiableCollection(connectorIdToClient.values());
   }
 
   synchronized void destroy() throws IllegalStateException {
@@ -122,7 +124,9 @@ public class RpcClient {
     }
     final Connector connectorConfig = functionClient.getConnectorConfig();
     if (connectorConfig != null) {
-      storageIdToClient.remove(connectorConfig.id, this);
+      synchronized (connectorIdToClient) {
+        connectorIdToClient.remove(connectorConfig.id, this);
+      }
     }
     //Destroy the functionClient (which then closes all its connections aso.)
     functionClient.destroy();
@@ -150,7 +154,7 @@ public class RpcClient {
     return functionClient;
   }
 
-  private void invokeWithRelocation(final Marker marker, byte[] bytes, final Handler<AsyncResult<byte[]>> callback) {
+  private void invokeWithRelocation(final Marker marker, byte[] bytes, boolean fireAndForget, final Handler<AsyncResult<byte[]>> callback) {
     try {
       final Connector connector = getConnector();
       if (bytes.length > connector.capabilities.maxPayloadSize) { // If the payload is too large to send directly to the connector
@@ -166,7 +170,7 @@ public class RpcClient {
           return;
         }
       }
-      functionClient.submit(marker, bytes, callback);
+      functionClient.submit(marker, bytes, fireAndForget, callback);
     } catch (Exception e) {
       callback.handle(Future.failedFuture(e));
     }
@@ -188,7 +192,7 @@ public class RpcClient {
     logger.info(marker, "Invoking remote function \"{}\". Total uncompressed event size: {}, Event: {}", connector.id, bytes.length,
         preview(eventJson, 4092));
 
-    invokeWithRelocation(marker, bytes, bytesResult -> {
+    invokeWithRelocation(marker, bytes, false, bytesResult -> {
       if (bytesResult.failed()) {
         callback.handle(Future.failedFuture(bytesResult.cause()));
         return;
@@ -224,7 +228,7 @@ public class RpcClient {
   public void send(final Marker marker, @SuppressWarnings("rawtypes") final Event event) throws NullPointerException {
     final Connector connector = getConnector();
     event.setConnectorParams(connector.params);
-    invokeWithRelocation(marker, event.serialize().getBytes(), r -> {
+    invokeWithRelocation(marker, event.serialize().getBytes(), true, r -> {
       if (r.failed()) {
         logger.error(marker, "Failed to send event to remote function {}.", connector.remoteFunction.id, r.cause());
       }
@@ -238,7 +242,7 @@ public class RpcClient {
     }
     if (bytes == null || stringResponse.length() == 0) {
       logger.error(marker, "Received empty response, but expected a JSON response.", new NullPointerException());
-      callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Received an empty response from the storage connector.")));
+      callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Received an empty response from the connector.")));
       return;
     }
 
@@ -289,7 +293,7 @@ public class RpcClient {
       callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "The connector responded with unexpected response type.")));
     } catch (NullPointerException e) {
       logger.error(marker, "Received empty response, but expected a JSON response.", new NullPointerException());
-      callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Received an empty response from the storage connector.")));
+      callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Received an empty response from the connector.")));
     } catch (JsonMappingException e) {
       logger.error(marker, "Error in the provided content {}", stringResponse, e);
       HttpException parsedError = getErrorMessage(stringResponse);

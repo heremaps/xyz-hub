@@ -61,7 +61,7 @@ public class EmbeddedFunctionClient extends RemoteFunctionClient {
     if (!(getConnectorConfig().remoteFunction instanceof RemoteFunctionConfig.Embedded)) {
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of Embedded");
     }
-    int maxConnections = connectorConfig.getMaxConnectionsPerInstance();
+    int maxConnections = getMaxConnections();
     embeddedExecutor = new ThreadPoolExecutor(8, maxConnections, 10, TimeUnit.MINUTES,
         new SynchronousQueue<>());
   }
@@ -85,7 +85,8 @@ public class EmbeddedFunctionClient extends RemoteFunctionClient {
     }).start();
   }
 
-  protected void invoke(Marker marker, byte[] bytes, Handler<AsyncResult<byte[]>> callback) {
+  @Override
+  protected void invoke(Marker marker, byte[] bytes, boolean fireAndForget, Handler<AsyncResult<byte[]>> callback) {
     final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
     logger.info(marker, "Invoke embedded lambda '{}' for event: {}", remoteFunction.id, new String(bytes));
     embeddedExecutor.execute(() -> {
@@ -103,8 +104,7 @@ public class EmbeddedFunctionClient extends RemoteFunctionClient {
                 ((Connector.RemoteFunctionConfig.Embedded) remoteFunction).env));
         logger.info(marker, "Handling response of embedded lambda call to '{}'.", remoteFunction.id);
         byte[] responseBytes = output.toByteArray();
-        checkResponseSize(responseBytes);
-        callback.handle(Future.succeededFuture(getDecompressed(responseBytes)));
+        callback.handle(Future.succeededFuture(responseBytes));
       } catch (ClassNotFoundException e) {
         logger.error(marker, "Configuration error, the specified class '{}' was not found {}", className, e);
         callback.handle(Future.failedFuture(e));

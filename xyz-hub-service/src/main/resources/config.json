@@ -13,6 +13,7 @@
   "LOG_CONFIG": "log4j2-console-plain.json",
 
   "DEFAULT_STORAGE_ID": "psql",
+  "LAMBDA_REMOTE_FUNCTION_EXECUTORS": 256,
 
   "STORAGE_DB_URL": "jdbc:postgresql://localhost/postgres",
   "STORAGE_DB_USER": "postgres",
@@ -25,5 +26,5 @@
   "XYZ_HUB_PUBLIC_PORT": 8080,
 
   "GLOBAL_MAX_QUEUE_SIZE": 1024,
-  "REMOTE_FUNCTION_REQUEST_TIMEOUT": 20
+  "REMOTE_FUNCTION_REQUEST_TIMEOUT": 25
 }

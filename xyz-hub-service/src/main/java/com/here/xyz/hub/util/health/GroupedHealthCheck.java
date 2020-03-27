@@ -11,6 +11,7 @@ import com.here.xyz.hub.util.health.schema.Status;
 import com.here.xyz.hub.util.health.schema.Status.Result;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 public abstract class GroupedHealthCheck extends ExecutableCheck {
 
@@ -24,6 +25,7 @@ public abstract class GroupedHealthCheck extends ExecutableCheck {
    * @return This check for chaining
    */
   public GroupedHealthCheck add(ExecutableCheck c) {
+    executorService.setCorePoolSize(executorService.getCorePoolSize() + 1);
     checks.add(c);
     if (commenced) {
       c.commence();
@@ -32,6 +34,7 @@ public abstract class GroupedHealthCheck extends ExecutableCheck {
   }
 
   public GroupedHealthCheck remove(ExecutableCheck c) {
+    executorService.setCorePoolSize(Math.max(executorService.getCorePoolSize() + 1, MIN_EXEC_POOL_SIZE));
     if (checks.contains(c)) {
       c.quit();
       checks.remove(c);
@@ -57,11 +60,12 @@ public abstract class GroupedHealthCheck extends ExecutableCheck {
       if (check.getEssential()) {
 				if (checkStatus.getResult().compareTo(UNKNOWN) >= 0) {
 					r = CRITICAL;
+					break;
 				} else {
 					r = getWorseResult(r, checkStatus.getResult());
 				}
       } else if (checkStatus.getResult() != OK) {
-        r = getWorseResult(r, WARNING);
+        r = getWorseResult(r, OK/*WARNING*/); //TODO: Remove this workaround once the hc-tool was fixed.
       }
     }
 
@@ -70,7 +74,6 @@ public abstract class GroupedHealthCheck extends ExecutableCheck {
 
     //Collect all checks & their responses and report the new response
     response.getChecks().addAll(checks);
-    response.setStatus(status);
     setResponse(response);
 
     return status;

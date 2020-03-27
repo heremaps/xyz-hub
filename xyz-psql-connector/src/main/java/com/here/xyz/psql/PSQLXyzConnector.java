@@ -83,9 +83,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
     } else if (clusteringType != null && QuadbinSQL.QUAD.equalsIgnoreCase(clusteringType)) {
       /** Check if input is valid */
       final int resolution = clusteringParams.get("resolution") != null ? (int) clusteringParams.get("resolution") : 0;
-      final String quadMode = clusteringParams.get("quadmode") != null ? (String) clusteringParams.get("quadmode") : null;
-      QuadbinSQL.checkQuadbinInput(quadMode, resolution, event, streamId, this);
-      return executeQueryWithRetry(SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, resolution, quadMode, config));
+      final String countMode = clusteringParams.get("countmode") != null ? (String) clusteringParams.get("countmode") : null;
+
+      QuadbinSQL.checkQuadbinInput(countMode, resolution, event, streamId, this);
+      return executeQueryWithRetry(SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, resolution, countMode, config));
     }
 
     final boolean isBigQuery = (bbox.widthInDegree(false) >= (360d / 4d) || (bbox.heightInDegree() >= (180d / 4d)));
@@ -145,11 +146,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected XyzResponse processLoadFeaturesEvent(LoadFeaturesEvent event) throws Exception {
-    final Map<String, String> idMap = event.getIdsMap();
-    if (idMap == null || idMap.size() == 0) {
-      return new FeatureCollection();
-    }
-    return executeQueryWithRetry(SQLQueryBuilder.buildLoadFeaturesQuery(idMap, dataSource));
+    return executeLoadFeatures(event);
   }
 
   @Override
@@ -185,8 +182,23 @@ public class PSQLXyzConnector extends DatabaseHandler {
   @Override
   protected SuccessResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception {
 
+    if(event.getSpaceDefinition() != null && event.getSpaceDefinition().isEnableHistory()){
+      Integer maxVersionCount = null;
+
+      if(event.getParams() != null)
+        maxVersionCount = (Integer)event.getParams().get("maxVersionCount");
+
+      if(ModifySpaceEvent.Operation.CREATE == event.getOperation()){
+        ensureHistorySpace(maxVersionCount);
+      }else if(ModifySpaceEvent.Operation.UPDATE == event.getOperation()){
+        //TODO: ONLY update Trigger
+        ensureHistorySpace(maxVersionCount);
+      }
+    }
+
     if ((ModifySpaceEvent.Operation.UPDATE == event.getOperation()
             || ModifySpaceEvent.Operation.CREATE == event.getOperation())
+            && event.getConnectorParams() != null
             && event.getConnectorParams().get("propertySearch") == Boolean.TRUE) {
 
       if (event.getSpaceDefinition().getSearchableProperties() != null) {
@@ -213,6 +225,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
           }
         }
       }
+
       //TODO: Check if config entry exists and idx_manual=null -> update it (erase on demand)
       executeUpdateWithRetry(  SQLQueryBuilder.buildSearchablePropertiesUpsertQuery(
               event.getSpaceDefinition().getSearchableProperties(),
@@ -225,6 +238,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
         try (final Connection connection = dataSource.getConnection()) {
           try (Statement stmt = connection.createStatement()) {
             String query = "DROP TABLE ${schema}.${table}";
+            query = SQLQuery.replaceVars(query, config.schema(), config.table(event));
+            stmt.executeUpdate(query);
+
+            query = "DROP TABLE IF EXISTS ${schema}.${hsttable}";
             query = SQLQuery.replaceVars(query, config.schema(), config.table(event));
             stmt.executeUpdate(query);
 

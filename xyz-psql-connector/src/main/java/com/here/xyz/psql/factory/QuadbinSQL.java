@@ -29,7 +29,7 @@ import com.here.xyz.responses.XyzError;
 
 public class QuadbinSQL {
 
-    public static final String QUAD = "quad";
+    public static final String QUAD = "quadbin";
 
     /**
      * Real live counts via count(*)
@@ -51,12 +51,12 @@ public class QuadbinSQL {
     /**
      * Check if request parameters are valid. In case of invalidity throw an Exception
      */
-    public static void checkQuadbinInput(String quadMode, int resolution, GetFeaturesByBBoxEvent event, String streamId,
+    public static void checkQuadbinInput(String countMode, int resolution, GetFeaturesByBBoxEvent event, String streamId,
                                          PSQLXyzConnector connector) throws
             ErrorResponseException{
-        if(quadMode != null && (!quadMode.equalsIgnoreCase(QuadbinSQL.COUNTMODE_REAL) && !quadMode.equalsIgnoreCase(QuadbinSQL.COUNTMODE_ESTIMATED) && !quadMode.equalsIgnoreCase(QuadbinSQL.COUNTMODE_MIXED)) )
+        if(countMode != null && (!countMode.equalsIgnoreCase(QuadbinSQL.COUNTMODE_REAL) && !countMode.equalsIgnoreCase(QuadbinSQL.COUNTMODE_ESTIMATED) && !countMode.equalsIgnoreCase(QuadbinSQL.COUNTMODE_MIXED)) )
             throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-                    "Invalid request parameters. Unknown clustering.quadmode="+quadMode+". Available are: ["+ QuadbinSQL.COUNTMODE_REAL +","+ QuadbinSQL.COUNTMODE_ESTIMATED +","+ QuadbinSQL.COUNTMODE_MIXED +"]!");
+                    "Invalid request parameters. Unknown clustering.countmode="+countMode+". Available are: ["+ QuadbinSQL.COUNTMODE_REAL +","+ QuadbinSQL.COUNTMODE_ESTIMATED +","+ QuadbinSQL.COUNTMODE_MIXED +"]!");
 
         if(resolution > 5)
             throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,

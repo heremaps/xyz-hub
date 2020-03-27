@@ -34,6 +34,8 @@ import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.WebClientOptions;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.TimeoutException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -43,8 +45,9 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
 
   private static final Logger logger = LogManager.getLogger();
 
-  private volatile WebClient webClient;
-  private static volatile String url;
+  private volatile ThreadLocal<WebClient> webClient;
+  private volatile String url;
+  private static volatile List<DestroyableWebClient> webClientsToDestroy = new LinkedList<>();
 
   HTTPFunctionClient(Connector connectorConfig) {
     super(connectorConfig);
@@ -53,7 +56,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
   @Override
   synchronized void setConnectorConfig(final Connector newConnectorConfig) throws NullPointerException, IllegalArgumentException {
     super.setConnectorConfig(newConnectorConfig);
-    shutdownWebClient(webClient);
+    shutdownWebClient();
     createClient();
   }
 
@@ -64,18 +67,22 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
     }
     Http httpRemoteFunction = (Http) remoteFunction;
     url = httpRemoteFunction.url.toString();
-    webClient = WebClient.create(Service.vertx, new WebClientOptions()
+    webClient = ThreadLocal.withInitial(() -> WebClient.create(Service.vertx, new WebClientOptions()
         .setUserAgent(Service.XYZ_HUB_USER_AGENT)
-        .setMaxPoolSize(getMaxConnections()));
+        .setMaxPoolSize(getMaxConnections())));
+  }
+
+  private WebClient getWebClient() {
+    return webClient.get();
   }
 
   @Override
   void destroy() {
     super.destroy();
-    shutdownWebClient(webClient);
+    shutdownWebClient();
   }
 
-  private static void shutdownWebClient(WebClient webClient) {
+  private void shutdownWebClient() {
     if (webClient == null) return;
     //Shutdown the web client after the request timeout
     //TODO: Use CompletableFuture.delayedExecutor() after switching to Java 9
@@ -84,16 +91,18 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
         Thread.sleep(REQUEST_TIMEOUT);
       }
       catch (InterruptedException ignored) {}
-      webClient.close();
+      webClientsToDestroy.forEach(wc -> wc.destroy());
+      webClientsToDestroy = new LinkedList<>();
     }).start();
   }
 
   @Override
-  protected void invoke(Marker marker, byte[] bytes, Handler<AsyncResult<byte[]>> callback) {
+  protected void invoke(Marker marker, byte[] bytes, boolean fireAndForget, Handler<AsyncResult<byte[]>> callback) {
+    //TODO: respect fireAndForget parameter
     final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
-    logger.debug(marker, "Invoke http remote function '{}' Event size is: {}", remoteFunction.id, bytes.length);
+    logger.info(marker, "Invoke http remote function '{}' URL is: {} Event size is: {}", remoteFunction.id, url, bytes.length);
 
-    webClient.postAbs(url)
+    getWebClient().postAbs(url)
         .timeout(REQUEST_TIMEOUT)
         .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
         .sendBuffer(Buffer.buffer(bytes), ar -> {
@@ -104,15 +113,21 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
               callback.handle(Future.failedFuture(ar.cause()));
             }
           } else {
-            try {
-              //TODO: Refactor to move decompression into the base-class RemoteFunctionClient as it's not HTTP specific
-              byte[] responseBytes = ar.result().body().getBytes();
-              checkResponseSize(responseBytes);
-              callback.handle(Future.succeededFuture(getDecompressed(responseBytes)));
-            } catch (IOException | HttpException e) {
-              callback.handle(Future.failedFuture(e));
-            }
+            byte[] responseBytes = ar.result().body().getBytes();
+            callback.handle(Future.succeededFuture(responseBytes));
           }
         });
+  }
+
+  private static class DestroyableWebClient {
+    private WebClient webClient;
+
+    DestroyableWebClient(WebClient webClient) {
+      this.webClient = webClient;
+    }
+
+    public void destroy() {
+      webClient.close();
+    }
   }
 }

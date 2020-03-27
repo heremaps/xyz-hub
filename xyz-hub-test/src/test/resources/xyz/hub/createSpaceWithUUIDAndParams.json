@@ -2,6 +2,9 @@
   "id": "x-psql-test",
   "title": "My Demo Space",
   "enableUUID": true,
-  "enableHistory": true,
+  "storage": {
+    "id": "psql",
+    "params": { "maxVersionCount" : 5 }
+  },
   "client": {}
 }
