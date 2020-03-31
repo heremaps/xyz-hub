@@ -531,6 +531,8 @@ paths:
         - $ref: '#/components/parameters/SkipCache'
         - $ref: '#/components/parameters/Clustering'
         - $ref: '#/components/parameters/ClusteringParams'
+        - $ref: '#/components/parameters/Tweaks'
+        - $ref: '#/components/parameters/TweaksParams'
       responses:
         '200':
           $ref: '#/components/responses/QueryFCResponse'
@@ -590,6 +592,8 @@ paths:
         - $ref: '#/components/parameters/SkipCache'
         - $ref: '#/components/parameters/Clustering'
         - $ref: '#/components/parameters/ClusteringParams'
+        - $ref: '#/components/parameters/Tweaks'
+        - $ref: '#/components/parameters/TweaksParams'
         - name: margin
           in: query
           description: >-
@@ -887,6 +891,47 @@ components:
       required: false
       schema:
         type: integer
+    Tweaks:
+      name: tweaks
+      in: query
+      description: >-
+        Providing this query parameter only a subset of the data will be returned. This can be used for rendering higher zoom levels.
+
+        Possible values are:
+
+          * "sampling"
+
+            Delivery of geometry distributed data-samples.
+      required: false
+      schema:
+        type: string
+        enum:
+          - sampling
+    TweaksParams:
+      name: tweaksParams
+      in: query
+      required: false
+      description: |
+        Providing this query parameter only a subset of the data will be returned. This can be used for rendering higher zoom levels.
+
+        ### Tweaks-Parameter reference
+
+        **Tweaks-type: "sampling":**
+
+        With the strength parameter it is possibile to control the behavior of the tweaks-sampling algorithm.
+
+        | Parameter   | Type    | Mandatory | Meaning                                                               |
+        |-------------|---------|-----------|-----------------------------------------------------------------------|
+        | strength    | String  | NO        | Use presets: LOW, MID, HIGH or define strengh in percentage 1-100     |
+
+      style: form
+      explode: true
+      schema:
+        type: object
+        example:
+          tweaks.strength: "1-100 | [LOW,MID,HIGH]"
+        additionalProperties:
+          type: string
     Clustering:
       name: clustering
       in: query
@@ -952,16 +997,16 @@ components:
         | Parameter   | Type    | Mandatory | Meaning                                                               |
         |-------------|---------|-----------|-----------------------------------------------------------------------|
         | resolution  | Number  | NO        | The quad resolution [0-4]                                             |
-        | countmode   | String  | NO        | [real, estimated, mixed]						                        |
+        | countmode   | String  | NO        | [real, estimated, mixed]                                    |
         |             |         |           | real = real feature counts. Best accuracy, but slow.                  |
-        |             |         |           | 		Not recommended for big result sets 			                |
+        |             |         |           |     Not recommended for big result sets                       |
         |             |         |           |                                                                       |
-        |             |         |           | estimated = estimated feature counts. Low accuracy, but very fast	    |
-        |             |         |           | 		Recommended for big result sets 			                    |
+        |             |         |           | estimated = estimated feature counts. Low accuracy, but very fast      |
+        |             |         |           |     Recommended for big result sets                           |
         |             |         |           |                                                                       |
-        |             |         |           | mixed (default) = estimated feature counts combined with real ones. 	|
-        |             |         |           | 		If the estimation is low a real count gets applied. Fits to the |
-        |             |         |           | 		most use cases						                            |
+        |             |         |           | mixed (default) = estimated feature counts combined with real ones.   |
+        |             |         |           |     If the estimation is low a real count gets applied. Fits to the |
+        |             |         |           |     most use cases                                        |
       style: form
       explode: true
       schema:
