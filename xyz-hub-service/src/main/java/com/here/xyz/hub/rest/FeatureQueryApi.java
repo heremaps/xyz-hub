@@ -186,13 +186,19 @@ public class FeatureQueryApi extends Api {
           .withBbox(getBBox(context))
           .withClip(Query.getBoolean(context, Query.CLIP, false));
 
-      event.withClusteringType(Query.getString(context, Query.CLUSTERING, null))
-          .withClusteringParams(Query.getClusteringParams(context))
-          .withSimplificationLevel(Query.getInteger(context, Query.SIMPLIFICATION_LEVEL, -1))
-          .withLimit(getLimit(context))
-          .withTags(Query.getTags(context))
-          .withPropertiesQuery(Query.getPropertiesQuery(context))
-          .withSelection(Query.getSelection(context));
+      try {
+        event.withClusteringType(Query.getString(context, Query.CLUSTERING, null))
+                .withClusteringParams(Query.getAdditionalParams(context,Query.CLUSTERING))
+                .withTweakType(Query.getString(context, Query.TWEAKS, null))
+                .withTweakParams(Query.getAdditionalParams(context, Query.TWEAKS))
+                .withSimplificationLevel(Query.getInteger(context, Query.SIMPLIFICATION_LEVEL, -1))
+                .withLimit(getLimit(context))
+                .withTags(Query.getTags(context))
+                .withPropertiesQuery(Query.getPropertiesQuery(context))
+                .withSelection(Query.getSelection(context));
+      } catch (Exception e) {
+        throw new HttpException(BAD_REQUEST,e.getMessage());
+      }
 
       final BBoxQuery task = new FeatureTask.BBoxQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache);
       task.execute(this::sendResponse, this::sendErrorResponse);
@@ -226,16 +232,23 @@ public class FeatureQueryApi extends Api {
         responseType = ApiResponseType.FEATURE_COLLECTION;
       }
 
-      GetFeaturesByTileEvent event = new GetFeaturesByTileEvent()
-          .withClip(Query.getBoolean(context, Query.CLIP, false) || responseType == ApiResponseType.MVT || responseType == ApiResponseType.MVT_FLATTENED)
-          .withMargin(Query.getInteger(context, Query.MARGIN, 0))
-          .withClusteringType(Query.getString(context, Query.CLUSTERING, null))
-          .withClusteringParams(Query.getClusteringParams(context))
-          .withSimplificationLevel(Query.getInteger(context, Query.SIMPLIFICATION_LEVEL, -1))
-          .withLimit(getLimit(context))
-          .withTags(Query.getTags(context))
-          .withPropertiesQuery(Query.getPropertiesQuery(context))
-          .withSelection(Query.getSelection(context));
+      GetFeaturesByTileEvent event = new GetFeaturesByTileEvent();
+
+      try {
+        event.withClip(Query.getBoolean(context, Query.CLIP, false) || responseType == ApiResponseType.MVT || responseType == ApiResponseType.MVT_FLATTENED)
+              .withMargin(Query.getInteger(context, Query.MARGIN, 0))
+              .withClusteringType(Query.getString(context, Query.CLUSTERING, null))
+              .withClusteringParams(Query.getAdditionalParams(context, Query.CLUSTERING))
+              .withTweakType(Query.getString(context, Query.TWEAKS, null))
+              .withTweakParams(Query.getAdditionalParams(context, Query.TWEAKS))
+              .withSimplificationLevel(Query.getInteger(context, Query.SIMPLIFICATION_LEVEL, -1))
+              .withLimit(getLimit(context))
+              .withTags(Query.getTags(context))
+              .withPropertiesQuery(Query.getPropertiesQuery(context))
+              .withSelection(Query.getSelection(context));
+      }catch (Exception e){
+        throw new HttpException(BAD_REQUEST,e.getMessage());
+      }
 
       String tileType = context.pathParam(Path.TILE_TYPE);
 

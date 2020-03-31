@@ -111,6 +111,7 @@ public class ApiParam {
     static final String CLIP = "clip";
     static final String SKIP_CACHE = "skipCache";
     static final String CLUSTERING = "clustering";
+    static final String TWEAKS = "tweaks";
     static final String LIMIT = "limit";
     static final String WEST = "west";
     static final String NORTH = "north";
@@ -127,6 +128,13 @@ public class ApiParam {
     static final String RADIUS = "radius";
     static final String REF_SPACE_ID = "refSpaceId";
     static final String REF_FEATURE_ID = "refFeatureId";
+
+    static final String CLUSTERING_PARAM_RESOLUTION = "resolution";
+    static final String CLUSTERING_PARAM_PROPERTY = "property";
+    static final String CLUSTERING_PARAM_POINTMODE = "pointmode";
+    static final String CLUSTERING_PARAM_COUNTMODE = "countmode";
+
+    static String TWEAKS_PARAM_STRENGTH = "strength";
 
     private static List<String> shortOperators = Arrays.asList("!=", ">=", "=gte=", "<=", "=lte=", ">", "=gt=", "<", "=lt=", "=");
     private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{
@@ -288,42 +296,100 @@ public class ApiParam {
       return pq;
     }
 
-    static Map<String, Object> getClusteringParams(RoutingContext context) {
-      Map<String, Object> clusteringParams = context.get("clusteringParams");
+    static Map<String, Object> getAdditionalParams(RoutingContext context, String type) throws Exception{
+      Map<String, Object> clusteringParams = context.get(type);
+
       if (clusteringParams == null) {
-        clusteringParams = parseClusteringParams(context.request().query());
-        context.put("clusteringParams", clusteringParams);
+        clusteringParams = parseAdditionalParams(context.request().query(), type);
+        context.put(type, clusteringParams);
       }
       return clusteringParams;
     }
 
-    static Map<String, Object> parseClusteringParams(String query) {
+    static Map<String, Object> parseAdditionalParams(String query, String type) throws Exception{
       if (query == null || query.length() == 0) {
         return null;
       }
 
-      final String clusterPrefix = Query.CLUSTERING + ".";
+      final String paramPrefix = type + ".";
+
       Map<String, Object> cp = new HashMap<>();
       Stream.of(query.split("&"))
-          .filter(k -> k.startsWith(clusterPrefix))
-          .forEach(keyValuePair -> {
-            try {
-              keyValuePair = URLDecoder.decode(keyValuePair, "utf-8");
-            } catch (UnsupportedEncodingException e) {
-              e.printStackTrace();
-            }
+              .filter(k -> k.startsWith(paramPrefix))
+              .forEach(keyValuePair -> {
+                try {
+                  keyValuePair = URLDecoder.decode(keyValuePair, "utf-8");
+                } catch (UnsupportedEncodingException e) {
+                  e.printStackTrace();
+                }
 
-            if (keyValuePair.contains("=")) {
-              // If the original parameter expression doesn't contain the equal sign API GW appends it at the end
-              String[] keyVal = keyValuePair.split("=");
-              if (keyVal.length < 2) {
-                return;
-              }
-              cp.put(keyVal[0].substring(clusterPrefix.length()), getConvertedValue(keyVal[1]));
-            }
-          });
+                if (keyValuePair.contains("=")) {
+                  // If the original parameter expression doesn't contain the equal sign API GW appends it at the end
+                  String[] keyVal = keyValuePair.split("=");
+                  if (keyVal.length < 2) {
+                    return;
+                  }
+                  String key = keyVal[0].substring(paramPrefix.length());
+                  Object value =  getConvertedValue(keyVal[1]);
+                  try {
+                    validateAdditionalParams(type,key,value);
+                  }catch (Exception e){
+                    throw new RuntimeException(e.getMessage());
+                  }
+                  cp.put(keyVal[0].substring(paramPrefix.length()), getConvertedValue(keyVal[1]));
+                }
+              });
 
       return cp;
+    }
+
+    private static void validateAdditionalParams(String type, String key, Object value) throws  Exception{
+      if(type.equals(CLUSTERING)){
+        switch (key){
+          case CLUSTERING_PARAM_RESOLUTION:
+            if(!(value instanceof Long))
+              throw new Exception("Invalid clustering.resolution value. Expect Integer.");
+            else if((long)value < 0 || (long)value > 15)
+              throw new Exception("Invalid clustering.resolution value. Expect Integer [0,15].");
+            break;
+          case CLUSTERING_PARAM_PROPERTY:
+            if(!(value instanceof String))
+              throw new Exception("Invalid clustering.property value. Expect String.");
+            break;
+          case CLUSTERING_PARAM_POINTMODE:
+            if(!(value instanceof Boolean))
+              throw new Exception("Invalid clustering.pointmode value. Expect true or false.");
+            break;
+          case CLUSTERING_PARAM_COUNTMODE:
+            if(!(value instanceof String))
+              throw new Exception("Invalid clustering.count value. Expect one of [real,estimated,mixed].");
+            break;
+          default: throw new Exception("Invalid Clustering Parameter! Expect one of ["+CLUSTERING_PARAM_RESOLUTION
+                  +","+CLUSTERING_PARAM_PROPERTY+","+CLUSTERING_PARAM_POINTMODE+","+CLUSTERING_PARAM_COUNTMODE+"].");
+        }
+      }else if(type.equals(TWEAKS)){
+        if(key.equals(TWEAKS_PARAM_STRENGTH)){
+          if(!(value instanceof String) && !(value instanceof Long))
+            throw new Exception("Invalid tweaks.strength value. Expect String or Integer.");
+          else{
+            if(value instanceof String) {
+              String keyS = (String) key.toLowerCase();
+              switch (keyS) {
+                case "low":
+                case "mid":
+                case "high":
+                  break;
+                default:
+                  throw new Exception("Invalid tweaks.strength value. Expect [LOW,MID,HIGH]");
+              }
+            }else{
+              if((long)value < 1 || (long)value > 100)
+                throw new Exception("Invalid tweaks.strength value. Expect Integer [1,100].");
+            }
+          }
+        }else
+          throw new Exception("Invalid Tweaks Parameter! Expect one of ["+TWEAKS_PARAM_STRENGTH+"]");
+      }
     }
 
     public static Point getCenter(RoutingContext context)
