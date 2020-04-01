@@ -53,7 +53,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
   @Override
   synchronized void setConnectorConfig(final Connector newConnectorConfig) throws NullPointerException, IllegalArgumentException {
     super.setConnectorConfig(newConnectorConfig);
-    shutdownWebClient();
+    shutdownWebClient(webClient);
     createClient();
   }
 
@@ -72,7 +72,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
   @Override
   void destroy() {
     super.destroy();
-    shutdownWebClient();
+    shutdownWebClient(webClient);
   }
 
   private void shutdownWebClient() {
