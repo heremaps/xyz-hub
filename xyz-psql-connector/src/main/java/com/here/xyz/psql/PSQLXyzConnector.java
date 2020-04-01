@@ -27,6 +27,7 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.factory.H3SQL;
 import com.here.xyz.psql.factory.QuadbinSQL;
+import com.here.xyz.psql.factory.TweaksSQL;
 import com.here.xyz.responses.*;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -86,9 +87,12 @@ public class PSQLXyzConnector extends DatabaseHandler {
       final String clusteringType = event.getClusteringType();
       final Map<String, Object> clusteringParams = event.getClusteringParams();
 
-      if(event.getTweakType() != null){
-        //Handle Tweaks
-      }
+      if(event.getTweakType() != null)
+       switch( event.getTweakType().toLowerCase() )
+       { case TweaksSQL.SAMPLING : 
+          return executeQueryWithRetry(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, event.getTweakParams(), dataSource));
+         default : break;
+       }
 
       if (clusteringType != null && H3SQL.HEXBIN.equalsIgnoreCase(clusteringType)) {
         return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource));

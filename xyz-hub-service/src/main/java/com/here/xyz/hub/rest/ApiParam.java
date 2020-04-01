@@ -373,14 +373,11 @@ public class ApiParam {
             throw new Exception("Invalid tweaks.strength value. Expect String or Integer.");
           else{
             if(value instanceof String) {
-              String keyS = (String) key.toLowerCase();
+              String keyS = ((String) value).toLowerCase();
               switch (keyS) {
-                case "low":
-                case "mid":
-                case "high":
-                  break;
+                case "low": case "lowmed": case "med": case "medhigh": case "high": break;
                 default:
-                  throw new Exception("Invalid tweaks.strength value. Expect [LOW,MID,HIGH]");
+                  throw new Exception("Invalid tweaks.strength value. Expect [LOW,LOWMED,MED,MEDHIGH,HIGH]");
               }
             }else{
               if((long)value < 1 || (long)value > 100)

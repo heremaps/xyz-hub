@@ -25,6 +25,7 @@ import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.psql.factory.H3SQL;
 import com.here.xyz.psql.factory.QuadbinSQL;
+import com.here.xyz.psql.factory.TweaksSQL;
 
 import javax.sql.DataSource;
 import java.sql.SQLException;
@@ -203,6 +204,39 @@ public class SQLQueryBuilder {
         return QuadbinSQL.generateQuadbinClusteringSQL(config.schema(), config.table(event), resolution, countMode, propQuerySQL, tile);
     }
     /***************************************** CLUSTERING END **************************************************/
+
+    /*****************************************
+     * TWEAKS END
+     * 
+     * @throws SQLException
+     **************************************************/
+
+    public static SQLQuery buildSamplingTweaksQuery(GetFeaturesByBBoxEvent event, BBox bbox, Map tweakParams, DataSource dataSource) throws SQLException 
+    {
+     int strength = 0;
+
+     if( tweakParams != null )
+      if( tweakParams.get(TweaksSQL.SAMPLING_STRENGTH) instanceof Integer )
+       strength = (int) tweakParams.get(TweaksSQL.SAMPLING_STRENGTH);
+      else
+       switch((String) tweakParams.get(TweaksSQL.SAMPLING_STRENGTH) )
+       { case "low"     : strength =  10;  break;
+         case "lowmed"  : strength =  30;  break;
+         case "med"     : strength =  50;  break;
+         case "medhigh" : strength =  75;  break;
+         case "high"    : strength = 100; break;
+         default: strength  = 50; break;
+       }
+      
+       final String twqry = String.format("ST_Intersects(geo, ST_MakeEnvelope(%f,%f,%f,%f, 4326) ) and %s", bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat(), TweaksSQL.strengthSql(strength) );
+
+       final SQLQuery searchQuery = generateSearchQuery(event,dataSource);
+       final SQLQuery tweakQuery = new SQLQuery(twqry);
+
+       return generateCombinedQuery(event, tweakQuery, searchQuery , dataSource);
+	}
+
+    /***************************************** TWEAKS END **************************************************/
 
     public static SQLQuery buildFeaturesQuery(final SearchForFeaturesEvent event, final boolean isIterate, final boolean hasHandle,
                                                  final boolean hasSearch, final long start, DataSource dataSource)
@@ -512,4 +546,5 @@ public class SQLQueryBuilder {
                 "EXECUTE PROCEDURE xyz_trigger_historywriter("+(maxVersionCount == null ? "" : maxVersionCount)+"); ";
         return SQLQuery.replaceVars(historyTriggerSQL, schema, table);
     }
+
 }
