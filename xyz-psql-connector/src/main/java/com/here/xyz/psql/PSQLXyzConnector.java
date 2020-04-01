@@ -87,12 +87,16 @@ public class PSQLXyzConnector extends DatabaseHandler {
       final String clusteringType = event.getClusteringType();
       final Map<String, Object> clusteringParams = event.getClusteringParams();
 
-      if(event.getTweakType() != null)
-       switch( event.getTweakType().toLowerCase() )
-       { case TweaksSQL.SAMPLING : 
-          return executeQueryWithRetry(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, event.getTweakParams(), dataSource));
-         default : break;
-       }
+      if(event.getTweakType() != null) {
+        switch (event.getTweakType().toLowerCase()) {
+          case TweaksSQL.SAMPLING:
+            FeatureCollection collection = executeQueryWithRetry(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, event.getTweakParams(), dataSource));
+            collection.setPartial(true);
+            return collection;
+          default:
+            break;
+        }
+      }
 
       if (clusteringType != null && H3SQL.HEXBIN.equalsIgnoreCase(clusteringType)) {
         return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource));
