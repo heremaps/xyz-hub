@@ -53,7 +53,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
   @Override
   synchronized void setConnectorConfig(final Connector newConnectorConfig) throws NullPointerException, IllegalArgumentException {
     super.setConnectorConfig(newConnectorConfig);
-    shutdownWebClient();
+    shutdownWebClient(webClient);
     createClient();
   }
 
@@ -77,10 +77,10 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
   @Override
   void destroy() {
     super.destroy();
-    shutdownWebClient();
+    shutdownWebClient(webClient);
   }
 
-  private void shutdownWebClient() {
+  private static void shutdownWebClient(WebClient webClient) {
     if (webClient == null) return;
     //Shutdown the web client after the request timeout
     //TODO: Use CompletableFuture.delayedExecutor() after switching to Java 9
