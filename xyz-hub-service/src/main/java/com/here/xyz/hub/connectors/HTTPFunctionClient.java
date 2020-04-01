@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,10 +32,7 @@ import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.WebClientOptions;
-import java.io.IOException;
 import java.nio.charset.Charset;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.concurrent.TimeoutException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -44,10 +41,10 @@ import org.apache.logging.log4j.Marker;
 public class HTTPFunctionClient extends RemoteFunctionClient {
 
   private static final Logger logger = LogManager.getLogger();
+  private static final int MIN_THREADS_PER_CLIENT = 5;
 
-  private volatile ThreadLocal<WebClient> webClient;
+  private volatile WebClient webClient;
   private volatile String url;
-  private static volatile List<DestroyableWebClient> webClientsToDestroy = new LinkedList<>();
 
   HTTPFunctionClient(Connector connectorConfig) {
     super(connectorConfig);
@@ -67,13 +64,14 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
     }
     Http httpRemoteFunction = (Http) remoteFunction;
     url = httpRemoteFunction.url.toString();
-    webClient = ThreadLocal.withInitial(() -> WebClient.create(Service.vertx, new WebClientOptions()
-        .setUserAgent(Service.XYZ_HUB_USER_AGENT)
-        .setMaxPoolSize(getMaxConnections())));
-  }
 
-  private WebClient getWebClient() {
-    return webClient.get();
+    int maxConnections = getMaxConnections();
+    int desiredNumberOfThreads = Math.max(MIN_THREADS_PER_CLIENT, (int) (getPriority() * Service.configuration.LAMBDA_REMOTE_FUNCTION_EXECUTORS));
+    int numberOfThreads = Math.min(desiredNumberOfThreads, maxConnections);
+
+    webClient = WebClient.create(Service.vertx, new WebClientOptions()
+        .setUserAgent(Service.XYZ_HUB_USER_AGENT)
+        .setMaxPoolSize(numberOfThreads));
   }
 
   @Override
@@ -91,8 +89,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
         Thread.sleep(REQUEST_TIMEOUT);
       }
       catch (InterruptedException ignored) {}
-      webClientsToDestroy.forEach(wc -> wc.destroy());
-      webClientsToDestroy = new LinkedList<>();
+      webClient.close();
     }).start();
   }
 
@@ -102,7 +99,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
     final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
     logger.info(marker, "Invoke http remote function '{}' URL is: {} Event size is: {}", remoteFunction.id, url, bytes.length);
 
-    getWebClient().postAbs(url)
+    webClient.postAbs(url)
         .timeout(REQUEST_TIMEOUT)
         .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
         .sendBuffer(Buffer.buffer(bytes), ar -> {
@@ -117,17 +114,5 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
             callback.handle(Future.succeededFuture(responseBytes));
           }
         });
-  }
-
-  private static class DestroyableWebClient {
-    private WebClient webClient;
-
-    DestroyableWebClient(WebClient webClient) {
-      this.webClient = webClient;
-    }
-
-    public void destroy() {
-      webClient.close();
-    }
   }
 }
