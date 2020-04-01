@@ -247,6 +247,8 @@ public class RpcClient {
     }
 
     try {
+      if (stringResponse == null)
+        throw new NullPointerException("stringResponse is null");
       Typed payload = XyzSerializable.deserialize(stringResponse);
       if (payload instanceof RelocatedEvent) {
         try {
@@ -292,7 +294,7 @@ public class RpcClient {
       logger.info(marker, "The connector responded with an unexpected response type {}", payload.getClass().getSimpleName());
       callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "The connector responded with unexpected response type.")));
     } catch (NullPointerException e) {
-      logger.error(marker, "Received empty response, but expected a JSON response.", new NullPointerException());
+      logger.error(marker, "Received empty response, but expected a JSON response.", e);
       callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Received an empty response from the connector.")));
     } catch (JsonMappingException e) {
       logger.error(marker, "Error in the provided content {}", stringResponse, e);
