@@ -32,6 +32,7 @@ import static io.netty.handler.codec.rtsp.RtspResponseStatuses.REQUEST_ENTITY_TO
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.google.common.io.ByteStreams;
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.RelocationClient;
@@ -48,7 +49,6 @@ import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
@@ -77,11 +77,14 @@ public class RpcClient {
 
     if (connector.remoteFunction instanceof Connector.RemoteFunctionConfig.AWSLambda) {
       this.functionClient = new LambdaFunctionClient(connector);
-    } else if (connector.remoteFunction instanceof Connector.RemoteFunctionConfig.Embedded) {
+    }
+    else if (connector.remoteFunction instanceof Connector.RemoteFunctionConfig.Embedded) {
       this.functionClient = new EmbeddedFunctionClient(connector);
-    } else if (connector.remoteFunction instanceof Http) {
+    }
+    else if (connector.remoteFunction instanceof Http) {
       this.functionClient = new HTTPFunctionClient(connector);
-    } else {
+    }
+    else {
       throw new IllegalArgumentException("Unknown remote function type: " + connector.getClass().getSimpleName());
     }
   }
@@ -92,9 +95,7 @@ public class RpcClient {
     }
     RpcClient client = connectorIdToClient.get(connector.id);
     if (client == null) {
-      if (!createIfNotExists) {
-        throw new IllegalStateException("No RpcClient is ready for the given connector with ID " + connector.id);
-      }
+      if (!createIfNotExists) throw new IllegalStateException("No RpcClient is ready for the given connector with ID " + connector.id);
       client = new RpcClient(connector);
       synchronized (connectorIdToClient) {
         connectorIdToClient.put(connector.id, client);
@@ -232,7 +233,7 @@ public class RpcClient {
 
   /**
    * Sends an event to the connector without returning anything. Every connector client implements this class.
-   * <p>
+   *
    * This method should only be used to "inform" a connector about an event rather then "calling" it.
    *
    * @param marker the log marker
@@ -250,15 +251,12 @@ public class RpcClient {
   }
 
   @SuppressWarnings("rawtypes")
-  private void parseResponseContinue(
-      final Marker marker,
-      final String stringResponse,
-      final Typed payload,
-      final Handler<AsyncResult<XyzResponse>> callback
-  ) {
+  private void parseResponse(Marker marker, final String stringResponse, final Typed payload, final Handler<AsyncResult<XyzResponse>> callback) {
     try {
+      if (payload == null)
+        throw new NullPointerException("Response payload is null");
       if (payload instanceof ErrorResponse) {
-        final ErrorResponse errorResponse = (ErrorResponse) payload;
+        ErrorResponse errorResponse = (ErrorResponse) payload;
         logger.info(marker, "The connector responded with an error of type {}: {}", errorResponse.getError(),
             errorResponse.getErrorMessage());
 
@@ -281,14 +279,13 @@ public class RpcClient {
             throw new HttpException(BAD_GATEWAY, "Connector error.");
         }
       }
-
       if (payload instanceof XyzResponse) {
+        //noinspection rawtypes
         callback.handle(Future.succeededFuture((XyzResponse) payload));
         return;
       }
 
-      final String payloadType = payload == null ? "null" : payload.getClass().getSimpleName();
-      logger.info(marker, "The connector responded with an unexpected response type {}", payloadType);
+      logger.info(marker, "The connector responded with an unexpected response type {}", payload.getClass().getSimpleName());
       callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "The connector responded with unexpected response type.")));
     } catch (NullPointerException e) {
       logger.error(marker, "Received empty response, but expected a JSON response.", e);
@@ -304,34 +301,20 @@ public class RpcClient {
 
   @SuppressWarnings({"rawtypes", "UnusedAssignment"})
   private void parseResponse(final Marker marker, byte[] bytes, final Handler<AsyncResult<XyzResponse>> callback) {
-    final String stringResponse = bytes == null ? null : new String(bytes, StandardCharsets.UTF_8);
-    bytes = null; // GC may collect the bytes now.
+    final String stringResponse = bytes == null ? null : new String(bytes);
+    bytes = null; //GC may collect the bytes now.
     try {
-      if (stringResponse == null || stringResponse.length() == 0) {
-        logger.error(marker, "Received empty response, but expected a JSON response.", new NullPointerException());
-        callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Received an empty response from the connector.")));
-        return;
-      }
+      if (stringResponse == null || stringResponse.length() == 0)
+        throw new NullPointerException("Response string is null or empty");
 
       final Typed payload = XyzSerializable.deserialize(stringResponse);
       if (payload instanceof RelocatedEvent) {
-        Service.vertx.executeBlocking(future -> {
-          try {
-            InputStream input = relocationClient.processRelocatedEvent((RelocatedEvent) payload);
-            future.complete(XyzSerializable.deserialize(input));
-          } catch (Exception e) {
-            logger.error("An error when processing a relocated response.", e);
-            future.fail(new HttpException(BAD_GATEWAY, "Unable to load the relocated event."));
-          }
-        }, ar -> {
-          if (ar.failed()) {
-            callback.handle(Future.failedFuture(ar.cause()));
-          } else {
-            parseResponseContinue(marker, stringResponse, (Typed) ar.result(), callback);
-          }
+        processRelocatedEventAsync((RelocatedEvent) payload, ar -> {
+          parseResponse(marker, ar.result(), callback);
         });
-      } else {
-        parseResponseContinue(marker, stringResponse, payload, callback);
+      }
+      else {
+        parseResponse(marker, stringResponse, payload, callback);
       }
     } catch (NullPointerException e) {
       logger.error(marker, "Received empty response, but expected a JSON response.", e);
@@ -353,6 +336,26 @@ public class RpcClient {
       callback.handle(
           Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unexpected exception while processing connector response.")));
     }
+  }
+
+  private void processRelocatedEventAsync(RelocatedEvent relocatedEvent, Handler<AsyncResult<byte[]>> callback) {
+    Service.vertx.executeBlocking(future -> {
+      try {
+        InputStream input = relocationClient.processRelocatedEvent(relocatedEvent);
+        future.complete(ByteStreams.toByteArray(input));
+      }
+      catch (Exception e) {
+        logger.error("An error when processing a relocated response.", e);
+        future.fail(new HttpException(BAD_GATEWAY, "Unable to load the relocated event."));
+      }
+    }, ar -> {
+      if (ar.failed()) {
+        callback.handle(Future.failedFuture(ar.cause()));
+      }
+      else {
+        callback.handle(Future.succeededFuture((byte[]) ar.result()));
+      }
+    });
   }
 
   /**
