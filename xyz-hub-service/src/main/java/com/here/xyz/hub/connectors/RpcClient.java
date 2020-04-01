@@ -334,7 +334,7 @@ public class RpcClient {
         }
         return new HttpException(BAD_GATEWAY, errorMessage);
       }
-    } catch (IOException jpe) {
+    } catch (Exception jpe) {
       logger.error("Invalid content provided by the connector: Invalid JSON string: " + stringResponse, jpe);
       return new HttpException(BAD_GATEWAY, "Invalid content provided by the connector");
     }
