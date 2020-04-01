@@ -64,14 +64,9 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
     }
     Http httpRemoteFunction = (Http) remoteFunction;
     url = httpRemoteFunction.url.toString();
-
-    int maxConnections = getMaxConnections();
-    int desiredNumberOfThreads = Math.max(MIN_THREADS_PER_CLIENT, (int) (getPriority() * Service.configuration.LAMBDA_REMOTE_FUNCTION_EXECUTORS));
-    int numberOfThreads = Math.min(desiredNumberOfThreads, maxConnections);
-
     webClient = WebClient.create(Service.vertx, new WebClientOptions()
         .setUserAgent(Service.XYZ_HUB_USER_AGENT)
-        .setMaxPoolSize(numberOfThreads));
+        .setMaxPoolSize(getMaxConnections()));
   }
 
   @Override
