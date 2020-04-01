@@ -64,14 +64,9 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
     }
     Http httpRemoteFunction = (Http) remoteFunction;
     url = httpRemoteFunction.url.toString();
-
-    int maxConnections = getMaxConnections();
-    int desiredNumberOfThreads = Math.max(MIN_THREADS_PER_CLIENT, (int) (getPriority() * Service.configuration.LAMBDA_REMOTE_FUNCTION_EXECUTORS));
-    int numberOfThreads = Math.min(desiredNumberOfThreads, maxConnections);
-
     webClient = WebClient.create(Service.vertx, new WebClientOptions()
         .setUserAgent(Service.XYZ_HUB_USER_AGENT)
-        .setMaxPoolSize(numberOfThreads));
+        .setMaxPoolSize(Math.max(10, getMaxConnections())));
   }
 
   @Override
@@ -81,16 +76,14 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
   }
 
   private void shutdownWebClient() {
-    if (webClient == null) return;
-    //Shutdown the web client after the request timeout
-    //TODO: Use CompletableFuture.delayedExecutor() after switching to Java 9
-    new Thread(() -> {
-      try {
-        Thread.sleep(REQUEST_TIMEOUT);
-      }
-      catch (InterruptedException ignored) {}
+    final WebClient webClient = this.webClient;
+    if (webClient == null) {
+      return;
+    }
+    this.webClient = null;
+    Service.vertx.setTimer(REQUEST_TIMEOUT, (timerId) -> {
       webClient.close();
-    }).start();
+    });
   }
 
   @Override
