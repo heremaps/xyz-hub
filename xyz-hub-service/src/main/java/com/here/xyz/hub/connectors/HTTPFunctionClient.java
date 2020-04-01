@@ -66,7 +66,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
     url = httpRemoteFunction.url.toString();
     webClient = WebClient.create(Service.vertx, new WebClientOptions()
         .setUserAgent(Service.XYZ_HUB_USER_AGENT)
-        .setMaxPoolSize(Math.max(10, getMaxConnections())));
+        .setMaxPoolSize(getMaxConnections()));
   }
 
   @Override
@@ -75,15 +75,17 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
     shutdownWebClient(webClient);
   }
 
-  private void shutdownWebClient() {
-    final WebClient webClient = this.webClient;
-    if (webClient == null) {
-      return;
-    }
-    this.webClient = null;
-    Service.vertx.setTimer(REQUEST_TIMEOUT, (timerId) -> {
+  private static void shutdownWebClient(WebClient webClient) {
+    if (webClient == null) return;
+    //Shutdown the web client after the request timeout
+    //TODO: Use CompletableFuture.delayedExecutor() after switching to Java 9
+    new Thread(() -> {
+      try {
+        Thread.sleep(REQUEST_TIMEOUT);
+      }
+      catch (InterruptedException ignored) {}
       webClient.close();
-    });
+    }).start();
   }
 
   @Override
