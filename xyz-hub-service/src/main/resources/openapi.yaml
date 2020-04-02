@@ -536,6 +536,8 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/QueryFCResponse'
+        '206':
+          $ref: '#/components/responses/PartialQueryFCResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse400'
         '401':
@@ -607,6 +609,8 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/TileResponse'
+        '206':
+          $ref: '#/components/responses/PartialQueryFCResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse400'
         '401':
@@ -922,14 +926,14 @@ components:
 
         | Parameter   | Type    | Mandatory | Meaning                                                               |
         |-------------|---------|-----------|-----------------------------------------------------------------------|
-        | strength    | String  | NO        | Use presets: LOW, MID, HIGH or define strengh in percentage 1-100     |
+        | strength    | String  | NO        | Use presets: LOW, LOWMED, MED, MEDHIGH, HIGH or define strengh in percentage 1-100     |
 
       style: form
       explode: true
       schema:
         type: object
         example:
-          tweaks.strength: "1-100 | [LOW,MID,HIGH]"
+          tweaks.strength: "1-100 | [LOW,LOWMED,MED,MEDHIGH,HIGH]"
         additionalProperties:
           type: string
     Clustering:
@@ -1258,6 +1262,36 @@ components:
         application/geo+json:
           schema:
             $ref: '#/components/schemas/FeatureCollection'
+    PartialQueryFCResponse:
+      description: >-
+        A FeatureCollection, containing a subset of features found for the provided
+        parameters.
+      content:
+        application/geo+json:
+          schema:
+            $ref: '#/components/schemas/FeatureCollection'
+          example:
+            type: FeatureCollection
+            features:
+              - type: Feature
+                id: BfiimUxHjj
+                geometry:
+                  type: Point
+                  coordinates:
+                    - -2.960847
+                    - 53.430828
+                properties:
+                  name: Anfield
+                  '@ns:com:here:xyz':
+                    createdAt: 1517504700726
+                    updatedAt: 1517504700726
+                    tags:
+                      - football
+                      - stadium
+                  amenity: Football Stadium
+                  capacity: 54074
+                  description: Home of Liverpool Football Club
+            partial: true
     TileResponse:
       description: >-
         A FeatureCollection, containing all features found for the provided parameters.
