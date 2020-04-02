@@ -32,6 +32,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_MODIFIED;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.netty.handler.codec.http.HttpResponseStatus.PARTIAL_CONTENT;
 import static io.vertx.core.http.HttpHeaders.ACCEPT_ENCODING;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 
@@ -181,14 +182,14 @@ public abstract class Api {
     switch (task.responseType) {
       case FEATURE_COLLECTION: {
         if (response == null) {
-          sendGeoJsonResponse(task, new FeatureCollection().serialize());
+          sendGeoJsonResponse(task, new FeatureCollection().serialize(), null);
           return;
         }
 
         if (response instanceof FeatureCollection) {
           // Warning: We need to use "toString()" here and NOT Json.encode, because in fact the feature collection may be an
           // LazyParsedFeatureCollection and in that case only toString will work as intended!
-          sendGeoJsonResponse(task, response.serialize());
+          sendGeoJsonResponse(task, response.serialize(),((FeatureCollection) response).isPartial());
           return;
         }
         break;
@@ -217,7 +218,7 @@ public abstract class Api {
               return;
             }
 
-            sendGeoJsonResponse(task, Json.encode(collection.getFeatures().get(0)));
+            sendGeoJsonResponse(task, Json.encode(collection.getFeatures().get(0)),collection.isPartial());
           } catch (JsonProcessingException e) {
             logger.error(task.getMarker(), "The service received an invalid response and is unable to serialize it.", e);
             sendErrorResponse(task.context, INTERNAL_SERVER_ERROR, XyzError.EXCEPTION,
@@ -290,7 +291,7 @@ public abstract class Api {
         }
 
         final String geoJson = Json.mapper.writerWithView(view).writeValueAsString(task.responseSpaces.get(0));
-        sendGeoJsonResponse(task, geoJson);
+        sendGeoJsonResponse(task, geoJson, null);
         return;
       }
 
@@ -414,7 +415,9 @@ public abstract class Api {
    *
    * @param task the task for which to return the GeoJSON response.
    */
-  private void sendGeoJsonResponse(final Task task, final String geoJson) {
+  private void sendGeoJsonResponse(final Task task, final String geoJson, final Boolean isPartial) {
+    if(isPartial == Boolean.TRUE)
+      sendResponse(task, PARTIAL_CONTENT, APPLICATION_GEO_JSON, geoJson.getBytes());
     sendResponse(task, OK, APPLICATION_GEO_JSON, geoJson.getBytes());
   }
 
