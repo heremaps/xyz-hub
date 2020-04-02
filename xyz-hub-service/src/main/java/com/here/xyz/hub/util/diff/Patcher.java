@@ -589,8 +589,7 @@ public class Patcher {
   /**
    * An exception thrown if applying a patch fails, the creation of a difference fails or any other merge error occurrs.
    */
-  public static class
-  MergeConflictException extends Exception {
+  public static class MergeConflictException extends Exception {
 
     MergeConflictException(String msg) {
       super(msg);
