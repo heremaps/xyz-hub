@@ -134,7 +134,7 @@ public class Service {
     boolean debug = Arrays.asList(arguments).contains("--debug");
 
     final VertxOptions vertxOptions = new VertxOptions();
-    vertxOptions.setWorkerPoolSize(64);
+    vertxOptions.setWorkerPoolSize(512);
 
     if (debug) {
       vertxOptions
