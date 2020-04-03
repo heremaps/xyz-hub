@@ -19,7 +19,6 @@
 
 package com.here.xyz.hub.util.diff;
 
-import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.util.diff.Difference.DiffList;
 import com.here.xyz.hub.util.diff.Difference.DiffMap;
 import com.here.xyz.hub.util.diff.Difference.Insert;
@@ -248,9 +247,18 @@ public class Patcher {
       return mergeMapDifferences((DiffMap) diffA, (DiffMap) diffB, cr);
     }
 
-    if (diffA instanceof Update) {
-      final Object valueA = ((Update) diffA).newValue();
-      final Object valueB = ((Update) diffB).newValue();
+    if (diffA instanceof Update || diffA instanceof Insert) {
+      Object valueA;
+      Object valueB;
+
+      if (diffA instanceof Update) {
+        valueA = ((Update) diffA).newValue();
+        valueB = ((Update) diffB).newValue();
+      } else {
+        valueA = ((Insert) diffA).newValue();
+        valueB = ((Insert) diffB).newValue();
+      }
+
       if (valueA != valueB) {
         if (valueA == null || valueB == null || valueA.getClass() != valueB.getClass() || !valueA.equals(valueB)) {
           switch(cr) {
