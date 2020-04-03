@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -124,7 +124,7 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
     MESSAGE_MANAGER = messageManager;
     SNS_CLIENT = snsClient;
 
-    logger.info("TOPIC_ARN resolved as: " + TOPIC_ARN);
+    logger.debug("TOPIC_ARN resolved as: " + TOPIC_ARN);
     if (TOPIC_ARN == null || MESSAGE_MANAGER == null || SNS_CLIENT == null) {
       return;
     }

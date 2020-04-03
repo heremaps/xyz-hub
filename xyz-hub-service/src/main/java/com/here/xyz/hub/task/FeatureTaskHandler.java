@@ -563,7 +563,7 @@ public class FeatureTaskHandler {
           callback.call(task);
         });
       } catch (Exception e) {
-        logger.info(task.getMarker(), "The listeners for this space cannot be initialized", e);
+        logger.error(task.getMarker(), "The listeners for this space cannot be initialized", e);
         callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "The listeners for this space cannot be initialized"));
       }
     });

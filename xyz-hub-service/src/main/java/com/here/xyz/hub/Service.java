@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -210,7 +210,7 @@ public class Service {
 
       Runtime.getRuntime().addShutdownHook(new Thread(() -> {
         //This may fail, if we are OOM, but lets at least try.
-        logger.info("XYZ Service is going down at " + new Date().toString());
+        logger.warn("XYZ Service is going down at " + new Date().toString());
       }));
     }
   }

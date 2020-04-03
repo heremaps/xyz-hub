@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -90,7 +90,7 @@ public abstract class SpaceConfigClient implements Initializable {
         cache.put(spaceId, space);
         handlersToCall.forEach(h -> h.handle(Future.succeededFuture(ar.result())));
       } else {
-        logger.info(marker, "space[{}]: Failed to load the space, reason: {}", spaceId, ar.cause());
+        logger.error(marker, "space[{}]: Failed to load the space, reason: {}", spaceId, ar.cause());
         handlersToCall.forEach(h -> h.handle(Future.failedFuture(ar.cause())));
       }
     });
@@ -107,7 +107,7 @@ public abstract class SpaceConfigClient implements Initializable {
         logger.info(marker, "space[{}]: Stored successfully with title: \"{}\"", space.getId(), space.getTitle());
         handler.handle(Future.succeededFuture(ar.result()));
       } else {
-        logger.info(marker, "space[{}]: Failed storing the space", space.getId(), ar.cause());
+        logger.error(marker, "space[{}]: Failed storing the space", space.getId(), ar.cause());
         handler.handle(Future.failedFuture(ar.cause()));
       }
     });
@@ -120,7 +120,7 @@ public abstract class SpaceConfigClient implements Initializable {
         logger.info(marker, "space[{}]: Deleted space", spaceId);
         handler.handle(Future.succeededFuture(ar.result()));
       } else {
-        logger.info(marker, "space[{}]: Failed deleting the space", spaceId, ar.cause());
+        logger.error(marker, "space[{}]: Failed deleting the space", spaceId, ar.cause());
         handler.handle(Future.failedFuture(ar.cause()));
       }
     });
@@ -135,7 +135,7 @@ public abstract class SpaceConfigClient implements Initializable {
         logger.info(marker, "Loaded spaces by condition");
         handler.handle(Future.succeededFuture(ar.result()));
       } else {
-        logger.info(marker, "Failed to load spaces by condition", ar.cause());
+        logger.error(marker, "Failed to load spaces by condition", ar.cause());
         handler.handle(Future.failedFuture(ar.cause()));
       }
     });
