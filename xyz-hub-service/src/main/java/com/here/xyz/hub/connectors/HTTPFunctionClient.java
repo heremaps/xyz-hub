@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.connectors;
 
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
 
 import com.here.xyz.hub.Service;
@@ -115,6 +116,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
     }
     catch (Exception e) {
       logger.error(marker, "Error sending event to remote http service", e);
+      callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Connector error.", e)));
     }
   }
 }
