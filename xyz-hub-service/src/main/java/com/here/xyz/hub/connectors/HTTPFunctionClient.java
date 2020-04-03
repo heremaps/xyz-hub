@@ -94,20 +94,27 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
     final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
     logger.info(marker, "Invoke http remote function '{}' URL is: {} Event size is: {}", remoteFunction.id, url, bytes.length);
 
-    webClient.postAbs(url)
-        .timeout(REQUEST_TIMEOUT)
-        .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
-        .sendBuffer(Buffer.buffer(bytes), ar -> {
-          if (ar.failed()) {
-            if (ar.cause() instanceof TimeoutException) {
-              callback.handle(Future.failedFuture(new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.")));
-            } else {
-              callback.handle(Future.failedFuture(ar.cause()));
+    try {
+      webClient.postAbs(url)
+          .timeout(REQUEST_TIMEOUT)
+          .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
+          .sendBuffer(Buffer.buffer(bytes), ar -> {
+            if (ar.failed()) {
+              if (ar.cause() instanceof TimeoutException) {
+                callback.handle(Future.failedFuture(new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.")));
+              }
+              else {
+                callback.handle(Future.failedFuture(ar.cause()));
+              }
             }
-          } else {
-            byte[] responseBytes = ar.result().body().getBytes();
-            callback.handle(Future.succeededFuture(responseBytes));
-          }
-        });
+            else {
+              byte[] responseBytes = ar.result().body().getBytes();
+              callback.handle(Future.succeededFuture(responseBytes));
+            }
+          });
+    }
+    catch (Exception e) {
+      logger.error(marker, "Error sending event to remote http service", e);
+    }
   }
 }

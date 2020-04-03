@@ -81,7 +81,7 @@ public class SpaceTaskHandler {
   static <X extends ReadQuery<?>> void readSpaces(final X task, final Callback<X> callback) {
     Service.spaceConfigClient.getSelected(task.getMarker(), task.authorizedCondition, task.selectedCondition, ar -> {
       if (ar.failed()) {
-        logger.info(task.getMarker(), "Unable to load space definitions.'", ar.cause());
+        logger.error(task.getMarker(), "Unable to load space definitions.'", ar.cause());
         callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the space definitions", ar.cause()));
         return;
       }

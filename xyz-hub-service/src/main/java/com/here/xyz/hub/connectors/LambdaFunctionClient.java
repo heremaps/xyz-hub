@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -191,7 +191,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
   }
 
   private HttpException getWHttpException(Marker marker, Throwable e) {
-    logger.info(marker, "Unexpected exception while contacting lambda provider", e);
+    logger.error(marker, "Unexpected exception while contacting lambda provider", e);
 
     if (e instanceof HttpException) {
       return (HttpException) e;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -267,7 +267,7 @@ public class RpcClient {
         throw new NullPointerException("Response payload is null");
       if (payload instanceof ErrorResponse) {
         ErrorResponse errorResponse = (ErrorResponse) payload;
-        logger.info(marker, "The connector responded with an error of type {}: {}", errorResponse.getError(),
+        logger.warn(marker, "The connector responded with an error of type {}: {}", errorResponse.getError(),
             errorResponse.getErrorMessage());
 
         switch (errorResponse.getError()) {
@@ -295,7 +295,7 @@ public class RpcClient {
         return;
       }
 
-      logger.info(marker, "The connector responded with an unexpected response type {}", payload.getClass().getSimpleName());
+      logger.warn(marker, "The connector responded with an unexpected response type {}", payload.getClass().getSimpleName());
       callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "The connector responded with unexpected response type.")));
     } catch (HttpException e) {
       callback.handle(Future.failedFuture(e));
