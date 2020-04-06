@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -69,7 +69,7 @@ public class Capabilities {
           }
 
           if (indices.contains(key.substring("properties.".length()))) {
-        	  /** Check if all properties are indexed */
+        	  /* Check if all properties are indexed */
         	  idx_check++;
           }
         }
@@ -124,7 +124,7 @@ public class Capabilities {
       String result = rs.getString("idx_available");
       List<Map<String, Object>> raw = XyzSerializable.deserialize(result, new TypeReference<List<Map<String, Object>>>() {});
       for (Map<String, Object> one : raw) {
-        /**
+        /*
          * Indices are marked as:
          * a = automatically created (auto-indexing)
          * m = manually created (on-demand)
