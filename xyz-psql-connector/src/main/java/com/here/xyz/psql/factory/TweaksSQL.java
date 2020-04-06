@@ -27,6 +27,8 @@ public class TweaksSQL
   public static final String SAMPLING_STRENGTH = "strength";
 
   /*
+   [  1     |   (1) | 1/3    | ~ md5( '' || i) < '5'   ]
+   [  5     |   (5) | 1/4    | ~ md5( '' || i) < '4'   ]
    [ low    |  (10) | 1/8    | ~ md5( '' || i) < '2'   ]
    [ lowmed	|  (30) | 1/32   | ~ md5( '' || i) < '08'  ]
    [ med    |  (50) | 1/128  | ~ md5( '' || i) < '02'  ]
@@ -36,10 +38,12 @@ public class TweaksSQL
 
   public static String strengthSql(int strength)
   { 
-    String s = ( strength <= 10  ? "2"   : 
+    String s = ( strength <=  1  ? "5"   : 
+                 strength <=  5  ? "4"   : 
+                 strength <= 10  ? "2"   : 
                  strength <= 30  ? "08"  :
                  strength <= 50  ? "02"  :
-                 strength <= 75  ? "004" : "001"  );
+                 strength <= 75  ? "004" : "001" );
      
     return String.format("md5( '' || i) < '%s'",s);
   }
