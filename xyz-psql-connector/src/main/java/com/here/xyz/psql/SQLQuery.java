@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -91,7 +91,7 @@ public class SQLQuery {
   }
 
   public static SQLQuery replaceNamedParameters( String query, Map<String, Object> namedParameters )
-  {  // replace #{namedVar} in query with ? and appends correspondig paramter from map namedParameters
+  {  // replace #{namedVar} in query with ? and appends corresponding parameter from map namedParameters
    Pattern p = Pattern.compile("#\\{\\s*([^\\s\\}]+)\\s*\\}");
    SQLQuery qry = new SQLQuery();
    Matcher m = p.matcher( query );
@@ -111,17 +111,13 @@ public class SQLQuery {
   public void append(String text, Object... parameters) {
     addText(text);
     if (parameters != null) {
-      for (Object p : parameters) {
-        this.parameters.add(p);
-      }
+      Collections.addAll(this.parameters, parameters);
     }
   }
 
   public void append(SQLQuery other) {
     addText(other.statement);
-    for (Object p : other.parameters) {
-      parameters.add(p);
-    }
+    parameters.addAll(other.parameters);
   }
 
   private void addText(CharSequence text) {
@@ -142,9 +138,7 @@ public class SQLQuery {
 
   public void addParameters(Object... values) {
     if (values != null) {
-      for (Object value : values) {
-        parameters.add(value);
-      }
+      Collections.addAll(parameters, values);
     }
   }
 
@@ -195,7 +189,7 @@ public class SQLQuery {
     if (selection == null) {
       return new SQLQuery("jsondata");
     }
-    if (selection != null && !selection.contains("type")) {
+    if (!selection.contains("type")) {
       selection.add("type");
     }
 
