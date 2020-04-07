@@ -225,7 +225,7 @@ public class RpcClient {
 
       parseResponse(marker, bytesResult.result(), r -> {
         if (r.failed()) {
-          logger.error(marker, "Error while handling the connector response.", r.cause());
+          logger.error(marker, "Error while handling the response from connector \"{}\".", connector.id, r.cause());
           callback.handle(Future.failedFuture(r.cause()));
           return;
         }
@@ -324,22 +324,24 @@ public class RpcClient {
         parseResponse(marker, payload, callback);
       }
     } catch (NullPointerException e) {
-      logger.error(marker, "Received empty response, but expected a JSON response.", e);
+      logger.error(marker, "Received empty response from connector \"{}\", but expected a JSON response.", getConnector().id, e);
       callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Received an empty response from the connector.")));
     } catch (JsonMappingException e) {
-      logger.error(marker, "Error in the provided content {}", stringResponse, e);
+      logger.error(marker, "Error in the provided content {} from connector \"{}\"", stringResponse, getConnector().id, e);
       HttpException parsedError = getErrorMessage(stringResponse);
       callback.handle(Future.failedFuture(parsedError != null ? parsedError : new HttpException(BAD_GATEWAY,
-          "Invalid content provided by the connector: Invalid JSON type. Expected is a sub-type of XyzResponse.")));
+          "Invalid content provided by the connector \"" + getConnector().id
+          + "\": Invalid JSON type. Expected is a sub-type of XyzResponse.")));
     } catch (JsonParseException e) {
-      logger.error(marker, "Error in the provided content", e);
-      callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Invalid content provided by the connector: Invalid JSON string. "
-          + "Error at line " + e.getLocation().getLineNr() + ", column " + e.getLocation().getColumnNr() + ".")));
+      logger.error(marker, "Error in the provided content from connector \"{}\"", getConnector().id, e);
+      callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Invalid content provided by the connector \"" + getConnector().id
+          + "\": Invalid JSON string. Error at line " + e.getLocation().getLineNr() + ", column " + e.getLocation().getColumnNr() + ".")));
     } catch (IOException e) {
       logger.error(marker, "Error in the provided content ", e);
-      callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Cannot read input JSON string from the connector.")));
+      callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Cannot read input JSON string from the connector \""
+          + getConnector().id + "\".")));
     } catch (Exception e) {
-      logger.error(marker, "Unexpected exception while processing connector response: {}", stringResponse, e);
+      logger.error(marker, "Unexpected exception while processing connector \"{}\" response: {}", getConnector().id, stringResponse, e);
       callback.handle(
           Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unexpected exception while processing connector response.")));
     }
