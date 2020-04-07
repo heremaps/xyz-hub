@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -110,7 +110,7 @@ public class AdminApi extends Api {
         new FeatureTask.BBoxQuery((GetFeaturesByBBoxEvent) event, context, ApiResponseType.FEATURE_COLLECTION, skipCache)
             .execute(this::sendResponse, this::sendErrorResponse);
       } else {
-        logger.info("Event cannot be handled: " + body);
+        logger.warn("Event cannot be handled: " + body);
         sendErrorResponse(context, new HttpException(HttpResponseStatus.BAD_REQUEST, "Event cannot be handled"));
       }
     } catch (JsonProcessingException e) {

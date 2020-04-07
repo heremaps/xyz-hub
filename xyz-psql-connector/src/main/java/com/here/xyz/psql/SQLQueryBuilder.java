@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ public class SQLQueryBuilder {
         SQLQuery query = new SQLQuery("SELECT");
         query.append(SQLQuery.selectJson(event.getSelection(),dataSource));
         query.append(", replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
-                SQLQuery.createSQLArray(event.getIds().toArray(new String[event.getIds().size()]), "text",dataSource));
+                SQLQuery.createSQLArray(event.getIds().toArray(new String[0]), "text",dataSource));
        return query;
     }
 
@@ -105,7 +105,7 @@ public class SQLQueryBuilder {
             GetFeaturesByBBoxEvent event, BBox bbox,
             Map<String, Object> clusteringParams, DataSource dataSource) throws Exception {
 
-        int zLevel = (event instanceof GetFeaturesByTileEvent ? (int) ((GetFeaturesByTileEvent) event).getLevel() : H3SQL.bbox2zoom(bbox)),
+        int zLevel = (event instanceof GetFeaturesByTileEvent ? ((GetFeaturesByTileEvent) event).getLevel() : H3SQL.bbox2zoom(bbox)),
                 maxResForLevel = H3SQL.zoom2resolution(zLevel),
                 h3res = (clusteringParams != null && clusteringParams.get(H3SQL.HEXBIN_RESOLUTION) != null
                         ? Math.min((Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION), maxResForLevel)
@@ -179,14 +179,14 @@ public class SQLQueryBuilder {
     public static SQLQuery buildQuadbinClusteringQuery(GetFeaturesByBBoxEvent event,
                                                           BBox bbox, int resolution, String countMode,
                                                           PSQLConfig config) {
-        /** Quadkey calc */
+        /* Quadkey calc */
         final int lev = WebMercatorTile.getZoomFromBBOX(bbox);
         double lon2 = bbox.minLon() + ((bbox.maxLon() - bbox.minLon()) / 2);
         double lat2 = bbox.minLat() + ((bbox.maxLat() - bbox.minLat()) / 2);
 
         final WebMercatorTile tile = WebMercatorTile.getTileFromLatLonLev(lat2, lon2, lev);
 
-        SQLQuery propQuery = null;
+        SQLQuery propQuery;
         String propQuerySQL = null;
         final PropertiesQuery propertiesQuery = event.getPropertiesQuery();
 
@@ -299,14 +299,14 @@ public class SQLQueryBuilder {
 
         if(!enabledHistory) {
             return new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
-                    SQLQuery.createSQLArray(ids.toArray(new String[ids.size()]), "text", dataSource));
+                    SQLQuery.createSQLArray(ids.toArray(new String[0]), "text", dataSource));
         }else{
             final SQLQuery query;
             query = new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?) ");
             query.append("UNION ");
             query.append("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${hsttable} WHERE uuid = ANY(?) ");
-            query.addParameter( SQLQuery.createSQLArray(ids.toArray(new String[ids.size()]), "text", dataSource));
-            query.addParameter( SQLQuery.createSQLArray(values.toArray(new String[values.size()]), "text", dataSource));
+            query.addParameter( SQLQuery.createSQLArray(ids.toArray(new String[0]), "text", dataSource));
+            query.addParameter( SQLQuery.createSQLArray(values.toArray(new String[0]), "text", dataSource));
             return query;
         }
     }
@@ -320,11 +320,11 @@ public class SQLQueryBuilder {
             for (String property : searchableProperties.keySet()) {
                 searchablePropertiesJson += "\"" + property + "\":" + searchableProperties.get(property) + ",";
             }
-            /** remove last comma */
+            /* remove last comma */
             searchablePropertiesJson = searchablePropertiesJson.substring(0, searchablePropertiesJson.length() - 1);
         }
 
-        /** update xyz_idx_status table with searchabelProperties information */
+        /* update xyz_idx_status table with searchabelProperties information */
         query.append("INSERT INTO xyz_config.xyz_idxs_status as x_s (spaceid,schem,idx_creation_finished,idx_manual) "
                         + "		VALUES ('" + table + "', '" + schema + "', false, '{" + searchablePropertiesJson
                         + "}'::jsonb) "
@@ -402,7 +402,7 @@ public class SQLQueryBuilder {
         } else {
             query = new SQLQuery("(" + andQuery + ")");
             for (TagList tag : tags) {
-                query.addParameter(SQLQuery.createSQLArray(tag.toArray(new String[tag.size()]), "text",dataSource));
+                query.addParameter(SQLQuery.createSQLArray(tag.toArray(new String[0]), "text",dataSource));
             }
         }
 
@@ -482,7 +482,7 @@ public class SQLQueryBuilder {
     protected static String insertStmtSQL(final String schema, final String table){
         String instertStmtSQL ="INSERT INTO ${schema}.${table} (jsondata, geo, geojson) VALUES(?::jsonb, ST_Force3D(ST_GeomFromWKB(?,4326)), ?::jsonb)";
 
-        /** Prepared for removal of geojson column */
+        /* Prepared for removal of geojson column */
 //        String instertStmtSQL ="INSERT INTO ${schema}.${table} (jsondata, geo) VALUES(?::jsonb, ST_Force3D(ST_GeomFromWKB(?,4326)))";
         return SQLQuery.replaceVars(instertStmtSQL, schema, table);
     }
@@ -490,7 +490,7 @@ public class SQLQueryBuilder {
     protected static String insertWithoutGeometryStmtSQL(final String schema, final String table){
         String instertWithoutGeometryStmtSQL = "INSERT INTO ${schema}.${table} (jsondata, geo, geojson) VALUES(?::jsonb, NULL, NULL)";
 
-        /** Prepared for removal of geojson column */
+        /* Prepared for removal of geojson column */
 //        String instertWithoutGeometryStmtSQL = "INSERT INTO ${schema}.${table} (jsondata, geo) VALUES(?::jsonb, NULL)";
         return SQLQuery.replaceVars(instertWithoutGeometryStmtSQL, schema, table);
     }
@@ -498,7 +498,7 @@ public class SQLQueryBuilder {
     protected static String updateStmtSQL(final String schema, final String table, final boolean handleUUID){
         String updateStmtSQL = "UPDATE ${schema}.${table} SET jsondata = ?::jsonb, geo=ST_Force3D(ST_GeomFromWKB(?,4326)), geojson = ?::jsonb WHERE jsondata->>'id' = ?";
 
-        /** Prepared for removal of geojson column */
+        /* Prepared for removal of geojson column */
 //        String updateStmtSQL = "UPDATE ${schema}.${table} SET jsondata = ?::jsonb, geo=ST_Force3D(ST_GeomFromWKB(?,4326)) WHERE jsondata->>'id' = ?";
         if(handleUUID) {
             updateStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ?";
@@ -509,7 +509,7 @@ public class SQLQueryBuilder {
     protected static String updateWithoutGeometryStmtSQL(final String schema, final String table, final boolean handleUUID){
         String updateWithoutGeometryStmtSQL = "UPDATE ${schema}.${table} SET  jsondata = ?::jsonb, geo=NULL, geojson = NULL WHERE jsondata->>'id' = ?";
 
-        /** Prepared for removal of geojson column */
+        /* Prepared for removal of geojson column */
 //        String updateWithoutGeometryStmtSQL = "UPDATE ${schema}.${table} SET  jsondata = ?::jsonb, geo=NULL WHERE jsondata->>'id' = ?";
         if(handleUUID) {
             updateWithoutGeometryStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ?";

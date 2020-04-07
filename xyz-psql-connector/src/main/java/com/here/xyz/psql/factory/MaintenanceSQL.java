@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -84,7 +84,7 @@ public class MaintenanceSQL {
         return "CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;"+
                 "CREATE EXTENSION IF NOT EXISTS postgis_topology;"+
                 "CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;"+
-                (isPropertySearchSupported == true ? "CREATE EXTENSION IF NOT EXISTS dblink SCHEMA public;" : "");
+                (isPropertySearchSupported ? "CREATE EXTENSION IF NOT EXISTS dblink SCHEMA public;" : "");
     }
 
     /**

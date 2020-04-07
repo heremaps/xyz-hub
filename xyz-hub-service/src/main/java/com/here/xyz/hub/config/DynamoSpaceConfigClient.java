@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -145,11 +145,11 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
           handler.handle(Future.succeededFuture(space));
         } catch (AmazonDynamoDBException e) {
-          logger.info(marker, "Failure to delete space ID: {}", spaceId);
+          logger.error(marker, "Failure to delete space ID: {}", spaceId);
           handler.handle(Future.failedFuture(ar.cause()));
         }
       } else {
-        logger.info(marker, "Failure to get space ID: {} during space deletion", spaceId);
+        logger.error(marker, "Failure to get space ID: {} during space deletion", spaceId);
         handler.handle(Future.failedFuture(ar.cause()));
       }
     });
@@ -229,8 +229,8 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     }
 
     final List<Space> result = new ArrayList<>();
-    logger.info(marker, "authorizedCondition: spaceIds: {}, ownerIds {}, packages: {}", authorizedCondition.spaceIds, authorizedCondition.ownerIds, authorizedCondition.packages);
-    logger.info(marker, "selectedCondition: spaceIds: {}, ownerIds {}, packages: {}, shared: {}, negateOwnerIds: {}", selectedCondition.spaceIds, selectedCondition.ownerIds, selectedCondition.packages, selectedCondition.shared, selectedCondition.negateOwnerIds);
+    logger.debug(marker, "authorizedCondition: spaceIds: {}, ownerIds {}, packages: {}", authorizedCondition.spaceIds, authorizedCondition.ownerIds, authorizedCondition.packages);
+    logger.debug(marker, "selectedCondition: spaceIds: {}, ownerIds {}, packages: {}, shared: {}, negateOwnerIds: {}", selectedCondition.spaceIds, selectedCondition.ownerIds, selectedCondition.packages, selectedCondition.shared, selectedCondition.negateOwnerIds);
 
     try {
       final Set<String> authorizedSpaces = getAuthorizedSpaces(marker, authorizedCondition);
@@ -241,13 +241,13 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
             .forEach(p -> p.forEach(i -> {
               authorizedSpaces.add(i.getString("id"));
             }));
-        logger.info(marker, "Number of space IDs after addition of shared spaces: {}", authorizedSpaces.size());
+        logger.debug(marker, "Number of space IDs after addition of shared spaces: {}", authorizedSpaces.size());
       }
 
       // filter out the ones not present in the selectedCondition (null or empty represents 'do not filter')
       if (!CollectionUtils.isNullOrEmpty(selectedCondition.spaceIds)) {
         authorizedSpaces.removeIf(i -> !selectedCondition.spaceIds.contains(i));
-        logger.info(marker, "Number of space IDs after removal of the ones not selected by ID: {}", authorizedSpaces.size());
+        logger.debug(marker, "Number of space IDs after removal of the ones not selected by ID: {}", authorizedSpaces.size());
       }
 
       // now filter all spaceIds with the ones being selected in the selectedCondition (by checking the space's ownership) (
@@ -259,7 +259,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
         // HINT: A ^ TRUE == !A (negateOwnerIds: keep or remove the spaces contained in the owner's spaces list)
         authorizedSpaces.removeIf(i -> !selectedCondition.negateOwnerIds ^ ownersSpaces.contains(i));
-        logger.info(marker, "Number of space IDs after removal of the ones not selected by owner: {}", authorizedSpaces.size());
+        logger.debug(marker, "Number of space IDs after removal of the ones not selected by owner: {}", authorizedSpaces.size());
       }
 
       // TODO selection per packages is not yet supported: selectedCondition.packages
@@ -298,7 +298,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       // get the space ids which are authorized by the authorizedCondition
       if (authorizedCondition.spaceIds != null) {
         authorizedSpaces.addAll(authorizedCondition.spaceIds);
-        logger.info(marker, "Number of space IDs after addition from authorized condition space IDs: {}", authorizedSpaces.size());
+        logger.debug(marker, "Number of space IDs after addition from authorized condition space IDs: {}", authorizedSpaces.size());
       }
 
       // then get the owners which are authorized by the authorizedCondition
@@ -308,7 +308,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
               authorizedSpaces.add(i.getString("id"));
             }))
         );
-        logger.info(marker, "Number of space IDs after addition from owners: {}", authorizedSpaces.size());
+        logger.debug(marker, "Number of space IDs after addition from owners: {}", authorizedSpaces.size());
       }
 
       // then get the packages which are authorized by the authorizedCondition
@@ -318,7 +318,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
               authorizedSpaces.add(i.getString("spaceId"));
             }))
         );
-        logger.info(marker, "Number of space IDs after addition from packages: {}", authorizedSpaces.size());
+        logger.debug(marker, "Number of space IDs after addition from packages: {}", authorizedSpaces.size());
       }
 
       // then get the "empty" case, when no spaceIds or ownerIds os packages are provided, meaning select ALL spaces
