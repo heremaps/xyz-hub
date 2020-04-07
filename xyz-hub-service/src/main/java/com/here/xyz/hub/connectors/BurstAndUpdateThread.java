@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -101,7 +101,7 @@ public class BurstAndUpdateThread extends Thread {
       if (!connectorMap.containsKey(oldConnector.id)) {
         //Client needs to be destroyed, the connector configuration with the given ID has been removed.
         try {
-          logger.info("Connector with ID {} was removed or deactivated. Destroying the according client.", oldConnector.id);
+          logger.warn("Connector with ID {} was removed or deactivated. Destroying the according client.", oldConnector.id);
           client.destroy();
         } catch (Exception e) {
           logger.error("Unexpected exception while destroying RPC client", e);

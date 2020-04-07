@@ -236,7 +236,7 @@ public class FeatureApi extends Api {
       JsonObject json = context.getBodyAsJson();
       return getJsonObjects(json, context);
     } catch (DecodeException e) {
-      logger.info(logMarker, "Invalid input encoding.", e);
+      logger.warn(logMarker, "Invalid input encoding.", e);
       try {
         // Some types of exceptions could be avoided by reading the entire string.
         JsonObject json = new JsonObject(context.getBodyAsString());
