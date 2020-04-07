@@ -93,6 +93,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
             FeatureCollection collection = executeQueryWithRetry(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, event.getTweakParams(), dataSource));
             collection.setPartial(true);
             return collection;
+          case TweaksSQL.SIMPLIFICATION:
+             /** handle simplification */
+            break;
           default:
             break;
         }

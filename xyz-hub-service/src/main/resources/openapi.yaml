@@ -907,6 +907,7 @@ components:
         type: string
         enum:
           - sampling
+          - simplification
     TweaksParams:
       name: tweaksParams
       in: query

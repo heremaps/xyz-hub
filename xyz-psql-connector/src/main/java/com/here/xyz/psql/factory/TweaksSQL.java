@@ -24,6 +24,7 @@ import com.here.xyz.models.geojson.coordinates.BBox;
 public class TweaksSQL
 {
   public static final String SAMPLING = "sampling";
+  public static final String SIMPLIFICATION = "simplification";
   public static final String SAMPLING_STRENGTH = "strength";
 
   /*

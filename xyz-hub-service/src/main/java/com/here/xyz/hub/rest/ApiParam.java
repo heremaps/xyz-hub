@@ -134,7 +134,9 @@ public class ApiParam {
     static final String CLUSTERING_PARAM_POINTMODE = "pointmode";
     static final String CLUSTERING_PARAM_COUNTMODE = "countmode";
 
-    static String TWEAKS_PARAM_STRENGTH = "strength";
+    static final String TWEAKS_PARAM_STRENGTH  = "strength";
+    static final String TWEAKS_PARAM_ALGORITHM = "algorithm";
+    
 
     private static List<String> shortOperators = Arrays.asList("!=", ">=", "=gte=", "<=", "=lte=", ">", "=gt=", "<", "=lt=", "=");
     private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{
@@ -368,24 +370,33 @@ public class ApiParam {
                   +","+CLUSTERING_PARAM_PROPERTY+","+CLUSTERING_PARAM_POINTMODE+","+CLUSTERING_PARAM_COUNTMODE+"].");
         }
       }else if(type.equals(TWEAKS)){
-        if(key.equals(TWEAKS_PARAM_STRENGTH)){
-          if(!(value instanceof String) && !(value instanceof Long))
+        switch( key )
+        {
+         case TWEAKS_PARAM_STRENGTH :
+           if(value instanceof String) 
+           { String keyS = ((String) value).toLowerCase();
+             switch (keyS) 
+             { case "low": case "lowmed": case "med": case "medhigh": case "high": break;
+               default:
+                throw new Exception("Invalid tweaks.strength value. Expect [LOW,LOWMED,MED,MEDHIGH,HIGH]");
+             }
+           }
+           else if(value instanceof Long) 
+           {
+            if((long)value < 1 || (long)value > 100)
+             throw new Exception("Invalid tweaks.strength value. Expect Integer [1,100].");
+           }
+           else
             throw new Exception("Invalid tweaks.strength value. Expect String or Integer.");
-          else{
-            if(value instanceof String) {
-              String keyS = ((String) value).toLowerCase();
-              switch (keyS) {
-                case "low": case "lowmed": case "med": case "medhigh": case "high": break;
-                default:
-                  throw new Exception("Invalid tweaks.strength value. Expect [LOW,LOWMED,MED,MEDHIGH,HIGH]");
-              }
-            }else{
-              if((long)value < 1 || (long)value > 100)
-                throw new Exception("Invalid tweaks.strength value. Expect Integer [1,100].");
-            }
-          }
-        }else
-          throw new Exception("Invalid Tweaks Parameter! Expect one of ["+TWEAKS_PARAM_STRENGTH+"]");
+          
+         break;
+
+         case TWEAKS_PARAM_ALGORITHM : break;
+
+         default:
+          throw new Exception("Invalid Tweaks Parameter! Expect one of ["+TWEAKS_PARAM_STRENGTH+ "," + TWEAKS_PARAM_ALGORITHM + "]");
+        }
+
       }
     }
 
