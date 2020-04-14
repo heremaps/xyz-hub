@@ -411,8 +411,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                         &&((SQLException)e).getSQLState().equalsIgnoreCase("54000"))
                     throw e;
 
-                /** Objects which are responsible for the failed operation */
-                final List<String> failedIds = fails.stream().map(FeatureCollection.ModificationFailure::getId).filter(Objects::nonNull).collect(Collectors.toList());
+                /** Add objects which are responsible for the failed operation */
                 event.setFailed(fails);
 
                 if (retryCausedOnTimeout(e) && !retryAttempted) {
@@ -429,6 +428,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                         ;//Table does not exist yet - create it!
                     else{
                         /** Add all other Objects to failed list */
+                        final List<String> failedIds = fails.stream().map(FeatureCollection.ModificationFailure::getId).filter(Objects::nonNull).collect(Collectors.toList());
                         addAllToFailedList(failedIds, fails, insertIds, updateIds, deleteIds);
 
                         /** Reset the rest */
