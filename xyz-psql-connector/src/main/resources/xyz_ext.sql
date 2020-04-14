@@ -139,6 +139,16 @@
 --			where spaceid != 'idx_in_progess' order by count desc
 ------------------------------------------------------------------------------------------------
 ------------------------------------------------
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_ext_version()
+  RETURNS integer AS
+$BODY$
+ select 127
+$BODY$
+  LANGUAGE sql IMMUTABLE;
+------------------------------------------------
+------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_trigger_historywriter()
   RETURNS trigger AS
 $BODY$
@@ -187,14 +197,6 @@ $BODY$
 	END;
 $BODY$
 language plpgsql;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_ext_version()
-  RETURNS integer AS
-$BODY$
- select 126
-$BODY$
-  LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_count_estimation(query text)
@@ -997,11 +999,15 @@ $BODY$
 			AND relname != 'spatial_ref_sys'
 			ORDER BY reltuples
 	LOOP
-		spaceid := xyz_spaces.spaceid;
+		BEGIN
+			spaceid := xyz_spaces.spaceid;
 
-		EXECUTE format('SELECT tablesize, geometrytypes, properties, tags, count, bbox from xyz_statistic_space(''%s'',''%s'')',schema , xyz_spaces.spaceid)
-			INTO tablesize, geometrytypes, properties, tags, count, bbox;
-		RETURN NEXT;
+			EXECUTE format('SELECT tablesize, geometrytypes, properties, tags, count, bbox from xyz_statistic_space(''%s'',''%s'')',schema , xyz_spaces.spaceid)
+				INTO tablesize, geometrytypes, properties, tags, count, bbox;
+			RETURN NEXT;
+			EXCEPTION WHEN OTHERS THEN
+				RAISE NOTICE 'ERROR CREATING STATISTIC ON SPACE %',  xyz_spaces.spaceid;
+		END;
 	END LOOP;
 	END;
 $BODY$

@@ -46,6 +46,9 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         final PreparedStatement insertStmt = createInsertStatement(connection,schema,table);
         final PreparedStatement insertWithoutGeometryStmt = createInsertWithoutGeometryStatement(connection,schema,table);
 
+        insertStmt.setQueryTimeout(TIMEOUT);
+        insertWithoutGeometryStmt.setQueryTimeout(TIMEOUT);
+
         for (int i = 0; i < inserts.size(); i++) {
             final Feature feature = inserts.get(i);
 
@@ -89,6 +92,9 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
 
         final PreparedStatement updateStmt = createUpdateStatement(connection, schema, table, handleUUID);
         final PreparedStatement updateWithoutGeometryStmt = createUpdateWithoutGeometryStatement(connection,schema,table,handleUUID);
+
+        updateStmt.setQueryTimeout(TIMEOUT);
+        updateWithoutGeometryStmt.setQueryTimeout(TIMEOUT);
 
         List<String> updateIdList = new ArrayList<>();
         List<String> updateWithoutGeometryIdList = new ArrayList<>();
@@ -158,6 +164,10 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
 
         final PreparedStatement batchDeleteStmt = deleteStmtSQLStatement(connection,schema,table,handleUUID);
         final PreparedStatement batchDeleteStmtWithoutUUID = deleteStmtSQLStatement(connection,schema,table,false);
+
+        batchDeleteStmt.setQueryTimeout(TIMEOUT);
+        batchDeleteStmtWithoutUUID.setQueryTimeout(TIMEOUT);
+
         Set<String> idsToDelete = deletes.keySet();
 
         List<String> deleteIdList = new ArrayList<>();
