@@ -157,7 +157,7 @@ public class SQLQueryBuilder {
         }
 
         //query.append(" case st_geometrytype(geo) when 'ST_Point' then geo else st_intersection( geo ," ); query.append( expBboxSql ); query.append(" ) end as geo ");
-        query.append(" case st_geometrytype(geo) when 'ST_Point' then geo else st_closestpoint( geo, geo ) end as refpt ");
+        query.append(" case st_geometrytype(geo) when 'ST_Point' then geo else st_force3d(st_closestpoint(geo, geo)) end as refpt ");
         query.append(" from ${schema}.${table} v where 1 = 1 and geo && ");
         query.append(expBboxSql);
         query.append(" and st_intersects( geo ,");
