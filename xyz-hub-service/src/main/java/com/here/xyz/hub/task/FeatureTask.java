@@ -421,11 +421,17 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<LoadFeaturesQuery> getPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(this::postResolveSpace)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::readCache)
           .then(FeatureTaskHandler::invoke)
           .then(FeatureTaskHandler::convertResponse)
           .then(FeatureTaskHandler::writeCache);
+    }
+
+    private void postResolveSpace(LoadFeaturesQuery task, Callback<LoadFeaturesQuery> callback) {
+      task.getEvent().setEnableHistory(task.space.isEnableHistory());
+      callback.call(task);
     }
   }
 
