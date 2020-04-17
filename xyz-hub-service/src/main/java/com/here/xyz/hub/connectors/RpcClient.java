@@ -328,9 +328,7 @@ public class RpcClient {
       callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Received an empty response from the connector.")));
     } catch (JsonMappingException e) {
       logger.error(marker, "Error in the provided content {} from connector \"{}\".", stringResponse, getConnector().id, e);
-      HttpException parsedError = getErrorMessage(stringResponse);
-      callback.handle(Future.failedFuture(parsedError != null ? parsedError : new HttpException(BAD_GATEWAY,
-          "Invalid content provided by the connector: Invalid JSON type. Expected is a sub-type of XyzResponse.")));
+      callback.handle(Future.failedFuture(getJsonMappingErrorMessage(stringResponse)));
     } catch (JsonParseException e) {
       logger.error(marker, "Error in the provided content from connector \"{}\".", getConnector().id, e);
       callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Invalid content provided by the connector: Invalid JSON string. "
@@ -372,7 +370,7 @@ public class RpcClient {
    *
    * @param stringResponse the original response
    */
-  private HttpException getErrorMessage(final String stringResponse) {
+  private HttpException getJsonMappingErrorMessage(final String stringResponse) {
     try {
       final JsonNode node = XyzSerializable.DEFAULT_MAPPER.get().readTree(stringResponse);
       if (node.has("errorMessage")) {
@@ -380,12 +378,12 @@ public class RpcClient {
         if (errorMessage.contains("Task timed out after ")) {
           return new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.");
         }
-        return new HttpException(BAD_GATEWAY, errorMessage);
       }
-    } catch (Exception jpe) {
-      logger.error("Invalid content provided by the connector: Invalid JSON string: " + stringResponse, jpe);
-      return new HttpException(BAD_GATEWAY, "Invalid content provided by the connector");
+    } catch (Exception e) {
+      logger.error("Unable to parse error response from connector", e);
     }
-    return null;
+
+    return new HttpException(BAD_GATEWAY,
+        "Invalid content provided by the connector: Invalid JSON type. Expected is a sub-type of XyzResponse.");
   }
 }
