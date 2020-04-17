@@ -259,7 +259,7 @@ public class SQLQueryBuilder {
        //SIMPLIFICATION_ALGORITHM
        switch((String) tweakParams.get(TweaksSQL.SIMPLIFICATION_ALGORITHM) )
        { case TweaksSQL.SIMPLIFICATION_ALGORITHM_A01 :
-           double tolerance = ( strength >= 10 ? (1.0 / strength) : strength);
+           double tolerance = ( strength <= 10 ? (1.0 / (11 - strength)) : strength);
            tweaksGeoSql = String.format("ST_SimplifyPreserveTopology(geo, %f)", tolerance );
           break;
          default: break;
