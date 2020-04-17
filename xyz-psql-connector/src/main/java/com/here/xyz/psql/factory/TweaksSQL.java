@@ -24,8 +24,12 @@ import com.here.xyz.models.geojson.coordinates.BBox;
 public class TweaksSQL
 {
   public static final String SAMPLING = "sampling";
-  public static final String SIMPLIFICATION = "simplification";
   public static final String SAMPLING_STRENGTH = "strength";
+  public static final String SIMPLIFICATION = "simplification";
+  public static final String SIMPLIFICATION_STRENGTH = SAMPLING_STRENGTH;
+  public static final String SIMPLIFICATION_ALGORITHM = "algorithm";
+  public static final String SIMPLIFICATION_ALGORITHM_A01 = "a01";
+  
 
   /*
    [  1     |   (1) | 1/3    | ~ md5( '' || i) < '5'   ]
