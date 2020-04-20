@@ -205,11 +205,7 @@ public class SQLQueryBuilder {
     }
     /***************************************** CLUSTERING END **************************************************/
 
-    /*****************************************
-     * TWEAKS END
-     * 
-     * @throws SQLException
-     **************************************************/
+    /***************************************** TWEAKS **************************************************/
 
     public static SQLQuery buildSamplingTweaksQuery(GetFeaturesByBBoxEvent event, BBox bbox, Map tweakParams, DataSource dataSource) throws SQLException 
     {
@@ -256,20 +252,35 @@ public class SQLQueryBuilder {
          default: strength  = 50; break;
        }
 
+       // do clip before simplifications
+       if (event.getClip())
+       { String fmt =  String.format(  " case st_within( %%1$s, ST_MakeEnvelope(%%2$.%1$df,%%3$.%1$df,%%4$.%1$df,%%5$.%1$df, 4326) ) " 
+                                     + "  when true then %%1$s "
+                                     + "  else ST_Intersection(%%1$s,ST_MakeEnvelope(%%2$.%1$df,%%3$.%1$df,%%4$.%1$df,%%5$.%1$df, 4326))"
+                                     + " end " ,GEOMETRY_DECIMAL_DIGITS );
+        tweaksGeoSql = String.format( fmt, tweaksGeoSql, bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
+       } 
+
        //SIMPLIFICATION_ALGORITHM
        switch((String) tweakParams.get(TweaksSQL.SIMPLIFICATION_ALGORITHM) )
        { case TweaksSQL.SIMPLIFICATION_ALGORITHM_A01 :
-           double tolerance = ( strength <= 10 ? (1.0 / (11 - strength)) : strength);
-           tweaksGeoSql = String.format("ST_SimplifyPreserveTopology(geo, %f)", tolerance );
-          break;
-         default: break;
+         { 
+          double tolerance = ( strength <= 10 ? (1.0 / (11 - strength)) : strength);
+          tweaksGeoSql = String.format("ftm_SimplifyPreserveTopology(%s, %f)",tweaksGeoSql, tolerance );
+         }  
+         break;
+
+         case TweaksSQL.SIMPLIFICATION_ALGORITHM_A02 :
+         {
+          double tolerance =  (0.0045/100) * strength;
+          tweaksGeoSql = String.format("ST_SnapToGrid(%s, %f)",tweaksGeoSql, tolerance );
+         }  
+         break;
+        default: break;
        }
 
-       if (event.getClip()) 
-        tweaksGeoSql = String.format( String.format("ST_Intersection(ST_MakeValid(%%s),ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326))",GEOMETRY_DECIMAL_DIGITS), tweaksGeoSql, bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
-       
        //convert to geojson 
-       tweaksGeoSql = String.format("replace(ST_AsGeojson(ST_Force3D(%s),%d),'nan','0')",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS);
+       tweaksGeoSql = String.format("replace(ST_AsGeojson(ST_Force3D( %s ),%d),'nan','0')",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS);
      } 
 
        final String bboxqry = String.format( String.format("ST_Intersects(geo, ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326) )",GEOMETRY_DECIMAL_DIGITS), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() );

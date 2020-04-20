@@ -144,7 +144,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 127
+ select 128
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
@@ -2474,3 +2474,13 @@ $body$ -- select round( ( ln( 360 ) - ln( st_xmax(i.env) - st_xmin(i.env) )  )/ 
 $body$
 LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
+------ftm - fast tile mode ------------------------------------------
+CREATE OR REPLACE FUNCTION ftm_SimplifyPreserveTopology( geo geometry, tolerance float)
+  RETURNS geometry AS
+$BODY$
+ select case ST_NPoints( geo ) < 30 when true then geo else st_simplifypreservetopology( geo, tolerance ) end
+$BODY$
+  LANGUAGE sql IMMUTABLE;
+------------------------------------------------
+------------------------------------------------
+

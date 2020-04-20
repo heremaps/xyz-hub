@@ -29,6 +29,7 @@ public class TweaksSQL
   public static final String SIMPLIFICATION_STRENGTH = SAMPLING_STRENGTH;
   public static final String SIMPLIFICATION_ALGORITHM = "algorithm";
   public static final String SIMPLIFICATION_ALGORITHM_A01 = "a01";
+  public static final String SIMPLIFICATION_ALGORITHM_A02 = "a02";
   
 
   /*
