@@ -679,8 +679,12 @@ public class FeatureTaskHandler {
 
         if (!entry.isModified) {
           task.hasNonModified = true;
+          /** Entry does not exist - remove it to prevent null references */
+          if(entry.head == null && entry.base == null)
+            task.modifyOp.entries.remove(entry);
           continue;
         }
+
         final Feature result = entry.result;
 
         // Insert or update
@@ -757,7 +761,8 @@ public class FeatureTaskHandler {
         if( task.hasNonModified ){
           task.modifyOp.entries.stream().filter(e -> !e.isModified).forEach(e -> {
             try {
-              fc.getFeatures().add(e.result);
+              if(e.result != null)
+                fc.getFeatures().add(e.result);
             } catch (JsonProcessingException ignored) {}
           });
         }
