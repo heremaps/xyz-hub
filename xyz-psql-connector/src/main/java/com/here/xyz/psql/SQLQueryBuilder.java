@@ -262,21 +262,25 @@ public class SQLQueryBuilder {
        } 
 
        //SIMPLIFICATION_ALGORITHM
+       int hint = 0;
        switch((String) tweakParams.get(TweaksSQL.SIMPLIFICATION_ALGORITHM) )
-       { case TweaksSQL.SIMPLIFICATION_ALGORITHM_A01 :
+       { 
+         case TweaksSQL.SIMPLIFICATION_ALGORITHM_A03 : hint++;
+         case TweaksSQL.SIMPLIFICATION_ALGORITHM_A02 :
          { 
           double tolerance = ( strength <= 10 ? (1.0 / (11 - strength)) : strength);
-          tweaksGeoSql = String.format("ftm_SimplifyPreserveTopology(%s, %f)",tweaksGeoSql, tolerance );
-         }  
+          tweaksGeoSql = String.format("%s(%s, %f)",( hint == 0 ? "ftm_SimplifyPreserveTopology" : "ftm_Simplify"), tweaksGeoSql, tolerance );
+         }
          break;
 
-         case TweaksSQL.SIMPLIFICATION_ALGORITHM_A02 :
+         case TweaksSQL.SIMPLIFICATION_ALGORITHM_A01 :
          {
           double tolerance =  (0.0045/100) * strength;
           tweaksGeoSql = String.format("ST_SnapToGrid(%s, %f)",tweaksGeoSql, tolerance );
          }  
          break;
-        default: break;
+
+         default: break;
        }
 
        //convert to geojson 
@@ -468,11 +472,16 @@ public class SQLQueryBuilder {
             throws SQLException {
         final SQLQuery query = new SQLQuery();
 
-        query.append("SELECT");
+
+        if( tweaksgeo != null )
+         query.append("select * from ( SELECT");
+        else
+         query.append("SELECT");
+
         query.append(SQLQuery.selectJson(event.getSelection(),dataSource));
 
         if( tweaksgeo != null )
-            query.append(String.format(",%s",tweaksgeo));
+            query.append(String.format(",%s as twgeo",tweaksgeo));
         else if (event instanceof GetFeaturesByBBoxEvent) {
             query.append(",");
             query.append(geometrySelectorForEvent((GetFeaturesByBBoxEvent) event));
@@ -487,6 +496,9 @@ public class SQLQueryBuilder {
         { query.append(" and ");
           query.append(secondaryQuery);
         }  
+
+        if( tweaksgeo != null )
+         query.append(" ) tw where twgeo is not null");
 
         query.append("LIMIT ?", event.getLimit());
         return query;

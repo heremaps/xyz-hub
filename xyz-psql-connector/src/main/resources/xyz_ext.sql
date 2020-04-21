@@ -2478,7 +2478,15 @@ LANGUAGE sql IMMUTABLE;
 CREATE OR REPLACE FUNCTION ftm_SimplifyPreserveTopology( geo geometry, tolerance float)
   RETURNS geometry AS
 $BODY$
- select case ST_NPoints( geo ) < 30 when true then geo else st_simplifypreservetopology( geo, tolerance ) end
+ select case ST_NPoints( geo ) < 20 when true then geo else st_simplifypreservetopology( geo, tolerance ) end
+$BODY$
+  LANGUAGE sql IMMUTABLE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz.ftm_Simplify( geo geometry, tolerance float)
+  RETURNS geometry AS
+$BODY$
+ select case ST_NPoints( geo ) < 20 when true then geo else (select case st_issimple( i.g ) when true then i.g else null end from ( select st_simplify( geo, tolerance,false ) as g ) i ) end
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
