@@ -134,7 +134,7 @@ public class Service {
     boolean debug = Arrays.asList(arguments).contains("--debug");
 
     final VertxOptions vertxOptions = new VertxOptions();
-    vertxOptions.setWorkerPoolSize(512);
+    vertxOptions.setWorkerPoolSize(128);
 
     if (debug) {
       vertxOptions
@@ -202,7 +202,7 @@ public class Service {
     }
     else {
       //Start / Deploy the service including all endpoints and listeners
-      vertx.deployVerticle(XYZHubRESTVerticle.class, new DeploymentOptions().setConfig(config).setWorker(true).setInstances(8));
+      vertx.deployVerticle(XYZHubRESTVerticle.class, new DeploymentOptions().setConfig(config).setWorker(false).setInstances(8));
 
       logger.info("XYZ Hub " + BUILD_VERSION + " was started at " + new Date().toString());
 
