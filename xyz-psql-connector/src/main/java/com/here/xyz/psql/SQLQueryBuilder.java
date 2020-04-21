@@ -210,8 +210,10 @@ public class SQLQueryBuilder {
     public static SQLQuery buildSamplingTweaksQuery(GetFeaturesByBBoxEvent event, BBox bbox, Map tweakParams, DataSource dataSource) throws SQLException 
     {
      int strength = 0;
+     boolean bDistribution = true;
 
      if( tweakParams != null )
+     {
       if( tweakParams.get(TweaksSQL.SAMPLING_STRENGTH) instanceof Integer )
        strength = (int) tweakParams.get(TweaksSQL.SAMPLING_STRENGTH);
       else
@@ -223,14 +225,22 @@ public class SQLQueryBuilder {
          case "high"    : strength = 100; break;
          default: strength  = 50; break;
        }
-      
-                            
-       final String twqry = String.format(String.format("ST_Intersects(geo, ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326) ) and %%s",GEOMETRY_DECIMAL_DIGITS), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat(), TweaksSQL.strengthSql(strength) );
 
-       final SQLQuery searchQuery = generateSearchQuery(event,dataSource);
-       final SQLQuery tweakQuery = new SQLQuery(twqry);
+       switch((String) tweakParams.get(TweaksSQL.SAMPLING_ALGORITHM) )
+       { 
+         case TweaksSQL.SAMPLING_ALGORITHM_SZE : bDistribution = false; break;
+         case TweaksSQL.SAMPLING_ALGORITHM_DST : 
+         default: bDistribution = true; break;
+       }
+     } 
 
-       return generateCombinedQuery(event, tweakQuery, searchQuery , dataSource);
+
+     final String twqry = String.format(String.format("ST_Intersects(geo, ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326) ) and %%s",GEOMETRY_DECIMAL_DIGITS), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat(), TweaksSQL.strengthSql(strength,bDistribution) );
+
+     final SQLQuery searchQuery = generateSearchQuery(event,dataSource);
+     final SQLQuery tweakQuery = new SQLQuery(twqry);
+
+     return generateCombinedQuery(event, tweakQuery, searchQuery , dataSource);
 	}
 
     public static SQLQuery buildSimplificationTweaksQuery(GetFeaturesByBBoxEvent event, BBox bbox, Map tweakParams, DataSource dataSource) throws SQLException 
@@ -273,7 +283,7 @@ public class SQLQueryBuilder {
          }
          break;
 
-         case TweaksSQL.SIMPLIFICATION_ALGORITHM_A01 :
+         case TweaksSQL.SIMPLIFICATION_ALGORITHM_A01 : 
          {
           double tolerance =  (0.0045/100) * strength;
           tweaksGeoSql = String.format("ST_SnapToGrid(%s, %f)",tweaksGeoSql, tolerance );
