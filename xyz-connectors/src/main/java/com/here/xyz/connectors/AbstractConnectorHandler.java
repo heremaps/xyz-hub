@@ -28,10 +28,10 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.RelocatedEvent;
-import com.here.xyz.responses.HealthStatus;
-import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.NotModifiedResponse;
+import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -157,18 +157,21 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    * @return the event
    */
   Event readEvent(InputStream input) throws ErrorResponseException {
+    String streamPreview = null;
     try {
       input = Payload.prepareInputStream(input);
-      String streamPreview = previewInput(input);
+      streamPreview = previewInput(input);
 
       Event receivedEvent = XyzSerializable.deserialize(input);
       logger.info("{} [{} ms] - Parsed event: {}", receivedEvent.getStreamId(), ms(), streamPreview);
       return receivedEvent;
-    } catch (ClassCastException e) {
-      logger.error("{} [{} ms] - Exception occurred while reading the event: {}", "FATAL", ms(), e);
-      throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "The input is doesn't have known type.");
     } catch (Exception e) {
-      logger.error("{} [{} ms] - Exception occurred while reading the event: {}", "FATAL", ms(), e);
+      logger.error("{} [{} ms] - Exception {} occurred while reading the event: {}", "FATAL", ms(), e.getMessage(), streamPreview, e);
+
+      if (e instanceof ClassCastException) {
+        throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "The input is doesn't have known type.");
+      }
+
       throw new ErrorResponseException(streamId, XyzError.EXCEPTION, e);
     }
   }
