@@ -32,6 +32,7 @@ import static io.netty.handler.codec.rtsp.RtspResponseStatuses.REQUEST_ENTITY_TO
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.exc.InvalidTypeIdException;
 import com.google.common.io.ByteStreams;
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
@@ -43,10 +44,12 @@ import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.XyzResponse;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.json.JsonObject;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
@@ -310,7 +313,18 @@ public class RpcClient {
       if (stringResponse == null || stringResponse.length() == 0)
         throw new NullPointerException("Response string is null or empty");
 
-      final Typed payload = XyzSerializable.deserialize(stringResponse);
+      Typed payload;
+      try {
+        payload = XyzSerializable.deserialize(stringResponse);
+      } catch (InvalidTypeIdException e) {
+        JsonObject response = new JsonObject( stringResponse );
+        // Keep backward compatibility
+        if( response.containsKey("status") && !response.containsKey("type")){
+          payload = new HealthStatus().withStatus(response.getString("status"));
+        }
+        else throw e;
+      }
+
       if (payload instanceof RelocatedEvent) {
         processRelocatedEventAsync((RelocatedEvent) payload, ar -> {
           if (ar.failed()) {
