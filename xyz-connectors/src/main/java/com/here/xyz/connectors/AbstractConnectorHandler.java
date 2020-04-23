@@ -21,6 +21,7 @@ package com.here.xyz.connectors;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.google.common.hash.Hashing;
 import com.here.xyz.Payload;
 import com.here.xyz.Typed;
@@ -165,13 +166,14 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
       Event receivedEvent = XyzSerializable.deserialize(input);
       logger.info("{} [{} ms] - Parsed event: {}", receivedEvent.getStreamId(), ms(), streamPreview);
       return receivedEvent;
+    } catch (JsonMappingException e) {
+      logger.error("{} [{} ms] - Exception {} occurred while reading the event: {}", "FATAL", ms(), e.getMessage(), streamPreview, e);
+      throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "Unknown event type");
+    } catch (ClassCastException e) {
+      logger.error("{} [{} ms] - Exception {} occurred while reading the event: {}", "FATAL", ms(), e.getMessage(), streamPreview, e);
+      throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "The input should be of type Event");
     } catch (Exception e) {
       logger.error("{} [{} ms] - Exception {} occurred while reading the event: {}", "FATAL", ms(), e.getMessage(), streamPreview, e);
-
-      if (e instanceof ClassCastException) {
-        throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "The input is doesn't have known type.");
-      }
-
       throw new ErrorResponseException(streamId, XyzError.EXCEPTION, e);
     }
   }
