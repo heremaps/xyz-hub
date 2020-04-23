@@ -81,7 +81,7 @@ public class AdminApi extends Api {
           .putHeader(HttpHeaders.CONTENT_TYPE, APPLICATION_JSON)
           .end();
     }
-    catch (HttpException e) {
+    catch (Exception e) {
       sendErrorResponse(context, e);
     }
   }

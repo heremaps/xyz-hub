@@ -260,36 +260,40 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
         router.route().last().handler(XYZHubRESTVerticle::notFoundHandler);
 
         vertx.createHttpServer(SERVER_OPTIONS)
-            .requestHandler(router::accept)
+            .requestHandler(router)
             .listen(
                 Service.configuration.HTTP_PORT, result -> {
                   if (result.succeeded()) {
-                    fut.complete();
+                    createMessageServer(router, fut);
                   } else {
                     logger.error("An error occurred, during the initialization of the server.", result.cause());
                     fut.fail(result.cause());
                   }
                 });
-
-        int messagePort = Service.configuration.ADMIN_MESSAGE_PORT;
-        if (messagePort != Service.configuration.HTTP_PORT) {
-          //Create 2nd HTTP server for admin-messaging
-          vertx.createHttpServer(SERVER_OPTIONS)
-              .requestHandler(router::accept)
-              .listen(messagePort, result -> {
-                if (result.succeeded()) {
-                  logger.debug("HTTP server also listens on admin-messaging port {}.", messagePort);
-                } else {
-                  logger.error("An error occurred, during the initialization of admin-messaging http port" + messagePort
-                          + ". Messaging won't work correctly.",
-                      result.cause());
-                }
-              });
-        }
       } else {
         logger.error("An error occurred, during the creation of the router from the Open API specification file.", ar.cause());
       }
     });
+  }
+
+  protected void createMessageServer(Router router, Future<Void> fut) {
+    int messagePort = Service.configuration.ADMIN_MESSAGE_PORT;
+    if (messagePort != Service.configuration.HTTP_PORT) {
+      //Create 2nd HTTP server for admin-messaging
+      vertx.createHttpServer(SERVER_OPTIONS)
+          .requestHandler(router)
+          .listen(messagePort, result -> {
+            if (result.succeeded()) {
+              logger.debug("HTTP server also listens on admin-messaging port {}.", messagePort);
+            }
+            else {
+              logger.error("An error occurred, during the initialization of admin-messaging http port" + messagePort
+                      + ". Messaging won't work correctly.",
+                  result.cause());
+            }
+            fut.complete();
+          });
+    }
   }
 
   /**
