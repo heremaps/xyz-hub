@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -72,6 +72,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 
 public abstract class Api {
 
@@ -489,7 +490,7 @@ public abstract class Api {
       }
       Marker marker = context.get(MARKER);
       if (marker == null) {
-        marker = MarkerManager.getMarker(context.request().getHeader(STREAM_ID));
+        marker = new Log4jMarker(context.request().getHeader(STREAM_ID));
         context.put(MARKER, marker);
       }
       return marker;
