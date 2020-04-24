@@ -45,13 +45,13 @@ import com.here.xyz.hub.task.SpaceTask;
 import com.here.xyz.hub.task.Task;
 import com.here.xyz.hub.util.logging.AccessLog;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.responses.XyzError;
 import com.here.xyz.models.hub.Space.Internal;
 import com.here.xyz.models.hub.Space.Public;
 import com.here.xyz.models.hub.Space.WithConnectors;
 import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import io.netty.handler.codec.compression.ZlibWrapper;
 import io.netty.handler.codec.http.HttpContentCompressor;
@@ -71,7 +71,6 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
-import org.apache.logging.log4j.MarkerManager;
 import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 
 public abstract class Api {
