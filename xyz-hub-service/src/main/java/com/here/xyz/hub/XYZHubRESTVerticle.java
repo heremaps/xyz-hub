@@ -86,7 +86,8 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
       .setCompressionSupported(true)
       .setDecompressionSupported(true)
       .setHandle100ContinueAutomatically(true)
-      .setMaxInitialLineLength(16 * 1024);
+      .setMaxInitialLineLength(16 * 1024)
+      .setIdleTimeout(300);
 
   private static String FULL_API;
   private static String STABLE_API;
@@ -291,6 +292,7 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
                       + ". Messaging won't work correctly.",
                   result.cause());
             }
+            //Complete in any case as the admin-messaging is not essential
             fut.complete();
           });
     }
