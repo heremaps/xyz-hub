@@ -50,6 +50,7 @@ import java.util.Date;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.Configurator;
@@ -86,6 +87,11 @@ public class Service {
    * The LOG4J configuration file.
    */
   private static final String CONSOLE_LOG_CONFIG = "log4j2-console-plain.json";
+
+  /**
+   * The Vertx worker pool size environment variable.
+   */
+  private static final String VERTX_WORKER_POOL_SIZE = "VERTX_WORKER_POOL_SIZE";
 
   /**
    * The entry point to the Vert.x core API.
@@ -134,7 +140,7 @@ public class Service {
     boolean debug = Arrays.asList(arguments).contains("--debug");
 
     final VertxOptions vertxOptions = new VertxOptions();
-    vertxOptions.setWorkerPoolSize(128);
+    vertxOptions.setWorkerPoolSize(NumberUtils.toInt(System.getenv(VERTX_WORKER_POOL_SIZE), 128));
 
     if (debug) {
       vertxOptions
