@@ -296,6 +296,8 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
             fut.complete();
           });
     }
+    else
+      fut.complete();
   }
 
   /**
