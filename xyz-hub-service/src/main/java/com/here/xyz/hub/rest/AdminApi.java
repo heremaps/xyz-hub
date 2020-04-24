@@ -87,7 +87,7 @@ public class AdminApi extends Api {
   }
 
   /**
-   * Posts a event directly to the tasks handlers
+   * Posts an event directly to the tasks handlers
    */
   private void onEvent(final RoutingContext context) {
     final Marker marker = Context.getMarker(context);
