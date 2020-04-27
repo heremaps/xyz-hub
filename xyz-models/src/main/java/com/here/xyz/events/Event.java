@@ -77,6 +77,8 @@ public abstract class Event<T extends Event> extends Payload {
   @JsonView(ExcludeFromHash.class)
   private String tid;
   @JsonView(ExcludeFromHash.class)
+  private String jwt;
+  @JsonView(ExcludeFromHash.class)
   private String aid;
   @JsonView(ExcludeFromHash.class)
   private String version = VERSION;
@@ -224,6 +226,25 @@ public abstract class Event<T extends Event> extends Payload {
   @SuppressWarnings("unused")
   public T withTid(String tid) {
     setTid(tid);
+    //noinspection unchecked
+    return (T) this;
+  }
+
+  /**
+   * The complete JWT token to be forwarded to trusted connectors.
+   */
+  public String getJwt() {
+    return this.jwt;
+  }
+
+  @SuppressWarnings("WeakerAccess")
+  public void setJwt(String jwt) {
+    this.jwt = jwt;
+  }
+
+  @SuppressWarnings("unused")
+  public T withJwt(String jwt) {
+    setJwt(jwt);
     //noinspection unchecked
     return (T) this;
   }

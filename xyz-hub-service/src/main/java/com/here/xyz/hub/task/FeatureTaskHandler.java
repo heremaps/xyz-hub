@@ -79,7 +79,6 @@ import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -336,6 +335,7 @@ public class FeatureTaskHandler {
     if (connector.trusted) {
       event.setTid(task.getJwt().tid);
       event.setAid(task.getJwt().aid);
+      event.setJwt(task.getJwt().jwt);
     }
   }
 
