@@ -139,8 +139,9 @@ public class Service {
     final ConfigRetrieverOptions options = new ConfigRetrieverOptions().addStore(fileStore).addStore(envConfig).addStore(sysConfig);
     boolean debug = Arrays.asList(arguments).contains("--debug");
 
-    final VertxOptions vertxOptions = new VertxOptions();
-    vertxOptions.setWorkerPoolSize(NumberUtils.toInt(System.getenv(VERTX_WORKER_POOL_SIZE), 128));
+    final VertxOptions vertxOptions = new VertxOptions()
+      .setWorkerPoolSize(NumberUtils.toInt(System.getenv(VERTX_WORKER_POOL_SIZE), 128))
+      .setPreferNativeTransport(true);
 
     if (debug) {
       vertxOptions
@@ -208,9 +209,13 @@ public class Service {
     }
     else {
       //Start / Deploy the service including all endpoints and listeners
-      vertx.deployVerticle(XYZHubRESTVerticle.class, new DeploymentOptions().setConfig(config).setWorker(false).setInstances(8));
+      vertx.deployVerticle(XYZHubRESTVerticle.class, new DeploymentOptions()
+          .setConfig(config)
+          .setWorker(false)
+          .setInstances(Runtime.getRuntime().availableProcessors()*2));
 
       logger.info("XYZ Hub " + BUILD_VERSION + " was started at " + new Date().toString());
+      logger.info("Native transport enabled: " + vertx.isNativeTransportEnabled() );
 
       Thread.setDefaultUncaughtExceptionHandler((thread, t) -> logger.error("Uncaught exception: ", t));
 
