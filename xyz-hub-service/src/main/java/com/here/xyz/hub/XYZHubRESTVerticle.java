@@ -39,9 +39,9 @@ import static io.vertx.core.http.HttpMethod.POST;
 import static io.vertx.core.http.HttpMethod.PUT;
 
 import com.here.xyz.hub.auth.Authorization.AuthorizationType;
-import com.here.xyz.hub.auth.CompressedJWTAuthProvider;
 import com.here.xyz.hub.auth.JWTURIHandler;
 import com.here.xyz.hub.auth.JwtDummyHandler;
+import com.here.xyz.hub.auth.XyzAuthProvider;
 import com.here.xyz.hub.rest.AdminApi;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.FeatureApi;
@@ -323,7 +323,7 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
         new PubSecKeyOptions().setAlgorithm("RS256")
             .setPublicKey(Service.configuration.JWT_PUB_KEY));
 
-    JWTAuth authProvider = new CompressedJWTAuthProvider(vertx, authConfig);
+    JWTAuth authProvider = new XyzAuthProvider(vertx, authConfig);
 
     ChainAuthHandler authHandler = ChainAuthHandler.create()
         .append(JWTAuthHandler.create(authProvider))

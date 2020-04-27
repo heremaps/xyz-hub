@@ -33,9 +33,9 @@ import java.util.Base64;
 import java.util.zip.DataFormatException;
 import org.apache.commons.lang3.StringUtils;
 
-public class CompressedJWTAuthProvider extends JWTAuthProviderImpl {
+public class XyzAuthProvider extends JWTAuthProviderImpl {
 
-  public CompressedJWTAuthProvider(Vertx vertx, JWTAuthOptions config) {
+  public XyzAuthProvider(Vertx vertx, JWTAuthOptions config) {
     super(vertx, config);
   }
 
@@ -55,7 +55,17 @@ public class CompressedJWTAuthProvider extends JWTAuthProviderImpl {
       }
     }
 
-    super.authenticate(authInfo, resultHandler);
+    super.authenticate(authInfo, (authResult) -> {
+      if (authResult.failed()) {
+        resultHandler.handle(Future.failedFuture(authResult.cause()));
+        return;
+      }
+
+      final User user = authResult.result();
+      user.principal().put("jwt", jwt);
+
+      resultHandler.handle(Future.succeededFuture(user));
+    });
   }
 
   private boolean isJWT(final String jwt) {
