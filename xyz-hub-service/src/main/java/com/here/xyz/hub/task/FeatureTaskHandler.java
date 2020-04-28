@@ -183,7 +183,7 @@ public class FeatureTaskHandler {
       }
       catch (Exception e) {
         if(e.getMessage() != null && e.getMessage().contains("Related connector is not active")) {
-          callback.exception(new HttpException(NOT_FOUND, e.getMessage(), e));
+          callback.exception(new HttpException(BAD_REQUEST, e.getMessage(), e));
         }else
           callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Error executing the storage event.", e));
         return;
