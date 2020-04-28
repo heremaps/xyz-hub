@@ -114,14 +114,14 @@ public class SQLQueryBuilder {
         String statisticalProperty = (String) clusteringParams.get(H3SQL.HEXBIN_PROPERTY);
         boolean statisticalPropertyProvided = (statisticalProperty != null && statisticalProperty.length() > 0),
                 h3cflip = (clusteringParams.get(H3SQL.HEXBIN_POINTMODE) == Boolean.TRUE);
-
+               /** todo: replace format %.14f with parameterized version*/
         final String expBboxSql = String
-                .format("st_envelope( st_buffer( ST_MakeEnvelope(%f,%f,%f,%f, 4326)::geography, ( 2.5 * edgeLengthM( %d )) )::geometry )",
+                .format("st_envelope( st_buffer( ST_MakeEnvelope(%.14f,%.14f,%.14f,%.14f, 4326)::geography, ( 2.5 * edgeLengthM( %d )) )::geometry )",
                         bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat(), h3res);
 
         /*clippedGeo - passed bbox is extended by "margin" on service level */
         String clippedGeo = (!event.getClip() ? "geo" : String
-                .format("ST_Intersection(geo,ST_MakeEnvelope(%f,%f,%f,%f,4326) )", bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat())),
+                .format("ST_Intersection(geo,ST_MakeEnvelope(%.14f,%.14f,%.14f,%.14f,4326) )", bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat())),
                 fid = (!event.getClip() ? "h3" : String.format("h3 || %f || %f", bbox.minLon(), bbox.minLat())),
                 filterEmptyGeo = (!event.getClip() ? "" : String.format(" and not st_isempty( %s ) ", clippedGeo));
 
@@ -226,7 +226,7 @@ public class SQLQueryBuilder {
          default: strength  = 50; break;
        }
 
-       switch((String) tweakParams.get(TweaksSQL.SAMPLING_ALGORITHM) )
+       switch((String) tweakParams.getOrDefault(TweaksSQL.SAMPLING_ALGORITHM, TweaksSQL.SAMPLING_ALGORITHM_DST) )
        { 
          case TweaksSQL.SAMPLING_ALGORITHM_SZE : bDistribution = false; break;
          case TweaksSQL.SAMPLING_ALGORITHM_DST : 
@@ -235,7 +235,7 @@ public class SQLQueryBuilder {
      } 
 
 
-     final String twqry = String.format(String.format("ST_Intersects(geo, ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326) ) and %%s",GEOMETRY_DECIMAL_DIGITS), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat(), TweaksSQL.strengthSql(strength,bDistribution) );
+     final String twqry = String.format(String.format("ST_Intersects(geo, ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326) ) and %%s", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat(), TweaksSQL.strengthSql(strength,bDistribution) );
 
      final SQLQuery searchQuery = generateSearchQuery(event,dataSource);
      final SQLQuery tweakQuery = new SQLQuery(twqry);
@@ -267,8 +267,8 @@ public class SQLQueryBuilder {
        { String fmt =  String.format(  " case st_within( %%1$s, ST_MakeEnvelope(%%2$.%1$df,%%3$.%1$df,%%4$.%1$df,%%5$.%1$df, 4326) ) " 
                                      + "  when true then %%1$s "
                                      + "  else ST_Intersection(%%1$s,ST_MakeEnvelope(%%2$.%1$df,%%3$.%1$df,%%4$.%1$df,%%5$.%1$df, 4326))"
-                                     + " end " ,GEOMETRY_DECIMAL_DIGITS );
-        tweaksGeoSql = String.format( fmt, tweaksGeoSql, bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
+                                     + " end " , 14 /*GEOMETRY_DECIMAL_DIGITS*/ );
+         tweaksGeoSql = String.format( fmt, tweaksGeoSql, bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
        } 
 
        //SIMPLIFICATION_ALGORITHM
@@ -297,7 +297,7 @@ public class SQLQueryBuilder {
        tweaksGeoSql = String.format("replace(ST_AsGeojson(ST_Force3D( %s ),%d),'nan','0')",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS);
      } 
 
-       final String bboxqry = String.format( String.format("ST_Intersects(geo, ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326) )",GEOMETRY_DECIMAL_DIGITS), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() );
+       final String bboxqry = String.format( String.format("ST_Intersects(geo, ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326) )", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() );
 
        final SQLQuery searchQuery = generateSearchQuery(event,dataSource);
        final SQLQuery bboxQuery = new SQLQuery(bboxqry);

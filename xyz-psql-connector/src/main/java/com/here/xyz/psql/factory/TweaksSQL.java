@@ -19,8 +19,6 @@
 
 package com.here.xyz.psql.factory;
 
-import com.here.xyz.models.geojson.coordinates.BBox;
-
 public class TweaksSQL
 {
   public static final String SAMPLING = "sampling";
@@ -46,6 +44,7 @@ public class TweaksSQL
    [ high   | (100) | 1/4096 | ~ md5( '' || i) < '001' ]
   */
 
+  private static final String DstFunctIndexExpr = "left(md5(''||i),5)"; 
   public static String strengthSql(int strength, boolean bRandom)
   { 
    if( !bRandom ) 
@@ -56,14 +55,6 @@ public class TweaksSQL
                      strength <= 50  ? 0.008  :
                      strength <= 75  ? 0.01   : 0.05 );
     return String.format("( ST_Perimeter(box2d(geo) ) > %f )", bxLen );              
-/*     
-    int ghLen = ( strength <=  5  ? 8 : 
-                  strength <= 10  ? 7 : 
-                  strength <= 30  ? 6 : 
-                  strength <= 50  ? 5 :
-                  strength <= 75  ? 4 : 3 );
-    return String.format("length( ST_GeoHash(geo) ) <= %d and ( ST_Perimeter(box2d(geo)) > 0.004 )", ghLen );              
-*/    
    }
     
    String s = ( strength <=  1  ? "5"   : 
@@ -73,7 +64,7 @@ public class TweaksSQL
                 strength <= 50  ? "02"  :
                 strength <= 75  ? "004" : "001" );
      
-   return String.format("md5( '' || i) < '%s'",s);
+   return String.format("%s < '%s'",DstFunctIndexExpr,s);
   }
 }
 
