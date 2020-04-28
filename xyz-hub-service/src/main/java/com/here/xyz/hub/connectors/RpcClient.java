@@ -97,6 +97,8 @@ public class RpcClient {
       throw new NullPointerException("connector");
     }
     RpcClient client = connectorIdToClient.get(connector.id);
+    if(connector.active == false)
+      throw new IllegalStateException("Related connector is not active: " + connector.id);
     if (client == null) {
       if (!createIfNotExists) throw new IllegalStateException("No RpcClient is ready for the given connector with ID " + connector.id);
       client = new RpcClient(connector);
