@@ -88,8 +88,6 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
       .setHandle100ContinueAutomatically(true)
       .setTcpQuickAck(true)
       .setTcpFastOpen(true)
-      .setTcpCork(true)
-      .setReusePort(true)
       .setMaxInitialLineLength(16 * 1024)
       .setIdleTimeout(300);
 
