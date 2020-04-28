@@ -50,6 +50,7 @@ import java.util.Date;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.Configurator;
@@ -86,6 +87,11 @@ public class Service {
    * The LOG4J configuration file.
    */
   private static final String CONSOLE_LOG_CONFIG = "log4j2-console-plain.json";
+
+  /**
+   * The Vertx worker pool size environment variable.
+   */
+  private static final String VERTX_WORKER_POOL_SIZE = "VERTX_WORKER_POOL_SIZE";
 
   /**
    * The entry point to the Vert.x core API.
@@ -133,8 +139,9 @@ public class Service {
     final ConfigRetrieverOptions options = new ConfigRetrieverOptions().addStore(fileStore).addStore(envConfig).addStore(sysConfig);
     boolean debug = Arrays.asList(arguments).contains("--debug");
 
-    final VertxOptions vertxOptions = new VertxOptions();
-    vertxOptions.setWorkerPoolSize(512);
+    final VertxOptions vertxOptions = new VertxOptions()
+      .setWorkerPoolSize(NumberUtils.toInt(System.getenv(VERTX_WORKER_POOL_SIZE), 128))
+      .setPreferNativeTransport(true);
 
     if (debug) {
       vertxOptions
@@ -202,9 +209,13 @@ public class Service {
     }
     else {
       //Start / Deploy the service including all endpoints and listeners
-      vertx.deployVerticle(XYZHubRESTVerticle.class, new DeploymentOptions().setConfig(config).setWorker(true).setInstances(8));
+      vertx.deployVerticle(XYZHubRESTVerticle.class, new DeploymentOptions()
+          .setConfig(config)
+          .setWorker(false)
+          .setInstances(Runtime.getRuntime().availableProcessors()*2));
 
       logger.info("XYZ Hub " + BUILD_VERSION + " was started at " + new Date().toString());
+      logger.info("Native transport enabled: " + vertx.isNativeTransportEnabled() );
 
       Thread.setDefaultUncaughtExceptionHandler((thread, t) -> logger.error("Uncaught exception: ", t));
 

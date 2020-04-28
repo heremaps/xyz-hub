@@ -41,6 +41,8 @@ public class JWTPayload {
   public XYZUsageLimits limits;
   public boolean anonymous;
 
+  public String jwt;
+
   /**
    * Returns the XYZ Hub action matrix, if there is any for this JWT token.
    * @return the XYZ Hub action matrix or null.

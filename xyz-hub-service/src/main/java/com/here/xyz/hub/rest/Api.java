@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,13 +45,13 @@ import com.here.xyz.hub.task.SpaceTask;
 import com.here.xyz.hub.task.Task;
 import com.here.xyz.hub.util.logging.AccessLog;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.responses.XyzError;
 import com.here.xyz.models.hub.Space.Internal;
 import com.here.xyz.models.hub.Space.Public;
 import com.here.xyz.models.hub.Space.WithConnectors;
 import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import io.netty.handler.codec.compression.ZlibWrapper;
 import io.netty.handler.codec.http.HttpContentCompressor;
@@ -71,7 +71,7 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
-import org.apache.logging.log4j.MarkerManager;
+import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 
 public abstract class Api {
 
@@ -489,7 +489,7 @@ public abstract class Api {
       }
       Marker marker = context.get(MARKER);
       if (marker == null) {
-        marker = MarkerManager.getMarker(context.request().getHeader(STREAM_ID));
+        marker = new Log4jMarker(context.request().getHeader(STREAM_ID));
         context.put(MARKER, marker);
       }
       return marker;

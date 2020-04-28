@@ -32,7 +32,7 @@ import java.sql.SQLException;
 import java.util.*;
 
 public class SQLQueryBuilder {
-    private static final long GEOMETRY_DECIMAL_DIGITS = 6;
+    private static final long GEOMETRY_DECIMAL_DIGITS = 8;
     private static final long EQUATOR_LENGTH = 40_075_016;
     private static final long TILE_SIZE = 256;
     private static final String SQL_STATISTIC_FUNCTION = "xyz_statistic_space";
@@ -158,7 +158,7 @@ public class SQLQueryBuilder {
         }
 
         //query.append(" case st_geometrytype(geo) when 'ST_Point' then geo else st_intersection( geo ," ); query.append( expBboxSql ); query.append(" ) end as geo ");
-        query.append(" case st_geometrytype(geo) when 'ST_Point' then geo else st_closestpoint( geo, geo ) end as refpt ");
+        query.append(" case st_geometrytype(geo) when 'ST_Point' then geo else st_force3d(st_closestpoint(geo, geo)) end as refpt ");
         query.append(" from ${schema}.${table} v where 1 = 1 and geo && ");
         query.append(expBboxSql);
         query.append(" and st_intersects( geo ,");

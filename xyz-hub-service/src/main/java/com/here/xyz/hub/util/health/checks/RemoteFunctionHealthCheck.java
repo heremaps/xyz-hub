@@ -36,7 +36,7 @@ import com.here.xyz.hub.util.health.schema.Status;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import org.apache.logging.log4j.MarkerManager;
+import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 
 public class RemoteFunctionHealthCheck extends ExecutableCheck {
 
@@ -64,7 +64,7 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
     healthCheck.setStreamId(healthCheckStreamId);
     try {
       RpcClient client = getClient();
-      client.execute(MarkerManager.getMarker(healthCheckStreamId), healthCheck, ar -> {
+      client.execute(new Log4jMarker(healthCheckStreamId), healthCheck, ar -> {
         if (ar.failed()) {
           setResponse(generateResponse().withMessage("Error in connector health-check: " + ar.cause().getMessage()));
           s.setResult(ERROR);

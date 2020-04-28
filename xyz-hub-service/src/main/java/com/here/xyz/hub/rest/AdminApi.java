@@ -81,13 +81,13 @@ public class AdminApi extends Api {
           .putHeader(HttpHeaders.CONTENT_TYPE, APPLICATION_JSON)
           .end();
     }
-    catch (HttpException e) {
+    catch (Exception e) {
       sendErrorResponse(context, e);
     }
   }
 
   /**
-   * Posts a event directly to the tasks handlers
+   * Posts an event directly to the tasks handlers
    */
   private void onEvent(final RoutingContext context) {
     final Marker marker = Context.getMarker(context);

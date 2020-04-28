@@ -32,6 +32,7 @@ import static io.netty.handler.codec.rtsp.RtspResponseStatuses.REQUEST_ENTITY_TO
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.exc.InvalidTypeIdException;
 import com.google.common.io.ByteStreams;
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
@@ -43,10 +44,12 @@ import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.XyzResponse;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.json.JsonObject;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
@@ -225,7 +228,7 @@ public class RpcClient {
 
       parseResponse(marker, bytesResult.result(), r -> {
         if (r.failed()) {
-          logger.error(marker, "Error while handling the connector response.", r.cause());
+          logger.error(marker, "Error while handling the response from connector \"{}\".", connector.id, r.cause());
           callback.handle(Future.failedFuture(r.cause()));
           return;
         }
@@ -310,7 +313,18 @@ public class RpcClient {
       if (stringResponse == null || stringResponse.length() == 0)
         throw new NullPointerException("Response string is null or empty");
 
-      final Typed payload = XyzSerializable.deserialize(stringResponse);
+      Typed payload;
+      try {
+        payload = XyzSerializable.deserialize(stringResponse);
+      } catch (InvalidTypeIdException e) {
+        JsonObject response = new JsonObject( stringResponse );
+        // Keep backward compatibility
+        if( response.containsKey("status") && !response.containsKey("type")){
+          payload = new HealthStatus().withStatus(response.getString("status"));
+        }
+        else throw e;
+      }
+
       if (payload instanceof RelocatedEvent) {
         processRelocatedEventAsync((RelocatedEvent) payload, ar -> {
           if (ar.failed()) {
@@ -324,22 +338,20 @@ public class RpcClient {
         parseResponse(marker, payload, callback);
       }
     } catch (NullPointerException e) {
-      logger.error(marker, "Received empty response, but expected a JSON response.", e);
+      logger.error(marker, "Received empty response from connector \"{}\", but expected a JSON response.", getConnector().id, e);
       callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Received an empty response from the connector.")));
     } catch (JsonMappingException e) {
-      logger.error(marker, "Error in the provided content {}", stringResponse, e);
-      HttpException parsedError = getErrorMessage(stringResponse);
-      callback.handle(Future.failedFuture(parsedError != null ? parsedError : new HttpException(BAD_GATEWAY,
-          "Invalid content provided by the connector: Invalid JSON type. Expected is a sub-type of XyzResponse.")));
+      logger.error(marker, "Error in the provided content {} from connector \"{}\".", stringResponse, getConnector().id, e);
+      callback.handle(Future.failedFuture(getJsonMappingErrorMessage(stringResponse)));
     } catch (JsonParseException e) {
-      logger.error(marker, "Error in the provided content", e);
+      logger.error(marker, "Error in the provided content from connector \"{}\".", getConnector().id, e);
       callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Invalid content provided by the connector: Invalid JSON string. "
           + "Error at line " + e.getLocation().getLineNr() + ", column " + e.getLocation().getColumnNr() + ".")));
     } catch (IOException e) {
-      logger.error(marker, "Error in the provided content ", e);
+      logger.error(marker, "Error in the provided content from connector \"{}\".", getConnector().id, e);
       callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Cannot read input JSON string from the connector.")));
     } catch (Exception e) {
-      logger.error(marker, "Unexpected exception while processing connector response: {}", stringResponse, e);
+      logger.error(marker, "Unexpected exception while processing connector \"{}\" response: {}.", getConnector().id, stringResponse, e);
       callback.handle(
           Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unexpected exception while processing connector response.")));
     }
@@ -372,7 +384,7 @@ public class RpcClient {
    *
    * @param stringResponse the original response
    */
-  private HttpException getErrorMessage(final String stringResponse) {
+  private HttpException getJsonMappingErrorMessage(final String stringResponse) {
     try {
       final JsonNode node = XyzSerializable.DEFAULT_MAPPER.get().readTree(stringResponse);
       if (node.has("errorMessage")) {
@@ -380,12 +392,12 @@ public class RpcClient {
         if (errorMessage.contains("Task timed out after ")) {
           return new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.");
         }
-        return new HttpException(BAD_GATEWAY, errorMessage);
       }
-    } catch (Exception jpe) {
-      logger.error("Invalid content provided by the connector: Invalid JSON string: " + stringResponse, jpe);
-      return new HttpException(BAD_GATEWAY, "Invalid content provided by the connector");
+    } catch (Exception e) {
+      logger.error("Unable to parse error response from connector", e);
     }
-    return null;
+
+    return new HttpException(BAD_GATEWAY,
+        "Invalid content provided by the connector: Invalid JSON type. Expected is a sub-type of XyzResponse.");
   }
 }

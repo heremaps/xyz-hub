@@ -411,8 +411,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                         &&((SQLException)e).getSQLState().equalsIgnoreCase("54000"))
                     throw e;
 
-                /** Objects which are responsible for the failed operation */
-                final List<String> failedIds = fails.stream().map(FeatureCollection.ModificationFailure::getId).filter(Objects::nonNull).collect(Collectors.toList());
+                /** Add objects which are responsible for the failed operation */
                 event.setFailed(fails);
 
                 if (retryCausedOnTimeout(e) && !retryAttempted) {
@@ -429,6 +428,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                         ;//Table does not exist yet - create it!
                     else{
                         /** Add all other Objects to failed list */
+                        final List<String> failedIds = fails.stream().map(FeatureCollection.ModificationFailure::getId).filter(Objects::nonNull).collect(Collectors.toList());
                         addAllToFailedList(failedIds, fails, insertIds, updateIds, deleteIds);
 
                         /** Reset the rest */
@@ -593,8 +593,8 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     private void createSpaceStatement(Statement stmt, String tableName) throws SQLException {
-        String query = "CREATE TABLE IF NOT EXISTS ${schema}.${table} (jsondata jsonb, geo geometry(GeometryZ,4326), i SERIAL, geojson jsonb)";
-//        String query = "CREATE TABLE IF NOT EXISTS ${schema}.${table} (jsondata jsonb, geo geometry(GeometryZ,4326), i SERIAL)";
+        String query = "CREATE TABLE IF NOT EXISTS ${schema}.${table} (jsondata jsonb, geo geometry(GeometryZ,4326), i BIGSERIAL, geojson jsonb)";
+//        String query = "CREATE TABLE IF NOT EXISTS ${schema}.${table} (jsondata jsonb, geo geometry(GeometryZ,4326), i BIGSERIAL)";
         query = SQLQuery.replaceVars(query, config.schema(), tableName);
         stmt.addBatch(query);
 

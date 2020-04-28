@@ -352,6 +352,11 @@ public class PSQLXyzConnector extends DatabaseHandler {
         return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
                 .withErrorMessage("No time for retry left for database query.");
       }
+    }else{
+      if(e.getMessage() != null && e.getMessage().indexOf("An attempt by a client to checkout a Connection has timed out.") != -1){
+        return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
+                .withErrorMessage("Cant get a Connection to the database.");
+      }
     }
     return new ErrorResponse().withStreamId(streamId).withError(XyzError.EXCEPTION).withErrorMessage(e.getMessage());
   }

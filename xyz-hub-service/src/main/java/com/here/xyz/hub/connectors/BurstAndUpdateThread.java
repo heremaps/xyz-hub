@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.MarkerManager;
+import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 
 /**
  * The background thread that keeps track of the configurations and keeps the executor services in sync.
@@ -137,7 +137,7 @@ public class BurstAndUpdateThread extends Thread {
               //Just generate a stream ID here as the stream actually "begins" here
               final String healthCheckStreamId = UUID.randomUUID().toString();
               healthCheck.setStreamId(healthCheckStreamId);
-              client.execute(MarkerManager.getMarker(healthCheckStreamId), healthCheck, r -> {
+              client.execute(new Log4jMarker(healthCheckStreamId), healthCheck, r -> {
                 if (r.failed()) {
                   logger.error("Warmup-healtcheck failed for connector with ID " + oldConnector.id, r.cause());
                 }

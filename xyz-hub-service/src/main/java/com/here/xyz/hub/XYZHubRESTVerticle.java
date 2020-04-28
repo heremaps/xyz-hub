@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,9 +39,9 @@ import static io.vertx.core.http.HttpMethod.POST;
 import static io.vertx.core.http.HttpMethod.PUT;
 
 import com.here.xyz.hub.auth.Authorization.AuthorizationType;
-import com.here.xyz.hub.auth.CompressedJWTAuthProvider;
 import com.here.xyz.hub.auth.JWTURIHandler;
 import com.here.xyz.hub.auth.JwtDummyHandler;
+import com.here.xyz.hub.auth.XyzAuthProvider;
 import com.here.xyz.hub.rest.AdminApi;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.FeatureApi;
@@ -86,7 +86,10 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
       .setCompressionSupported(true)
       .setDecompressionSupported(true)
       .setHandle100ContinueAutomatically(true)
-      .setMaxInitialLineLength(16 * 1024);
+      .setTcpQuickAck(true)
+      .setTcpFastOpen(true)
+      .setMaxInitialLineLength(16 * 1024)
+      .setIdleTimeout(300);
 
   private static String FULL_API;
   private static String STABLE_API;
@@ -260,36 +263,43 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
         router.route().last().handler(XYZHubRESTVerticle::notFoundHandler);
 
         vertx.createHttpServer(SERVER_OPTIONS)
-            .requestHandler(router::accept)
+            .requestHandler(router)
             .listen(
                 Service.configuration.HTTP_PORT, result -> {
                   if (result.succeeded()) {
-                    fut.complete();
+                    createMessageServer(router, fut);
                   } else {
                     logger.error("An error occurred, during the initialization of the server.", result.cause());
                     fut.fail(result.cause());
                   }
                 });
-
-        int messagePort = Service.configuration.ADMIN_MESSAGE_PORT;
-        if (messagePort != Service.configuration.HTTP_PORT) {
-          //Create 2nd HTTP server for admin-messaging
-          vertx.createHttpServer(SERVER_OPTIONS)
-              .requestHandler(router::accept)
-              .listen(messagePort, result -> {
-                if (result.succeeded()) {
-                  logger.debug("HTTP server also listens on admin-messaging port {}.", messagePort);
-                } else {
-                  logger.error("An error occurred, during the initialization of admin-messaging http port" + messagePort
-                          + ". Messaging won't work correctly.",
-                      result.cause());
-                }
-              });
-        }
       } else {
         logger.error("An error occurred, during the creation of the router from the Open API specification file.", ar.cause());
       }
     });
+  }
+
+  protected void createMessageServer(Router router, Future<Void> fut) {
+    int messagePort = Service.configuration.ADMIN_MESSAGE_PORT;
+    if (messagePort != Service.configuration.HTTP_PORT) {
+      //Create 2nd HTTP server for admin-messaging
+      vertx.createHttpServer(SERVER_OPTIONS)
+          .requestHandler(router)
+          .listen(messagePort, result -> {
+            if (result.succeeded()) {
+              logger.debug("HTTP server also listens on admin-messaging port {}.", messagePort);
+            }
+            else {
+              logger.error("An error occurred, during the initialization of admin-messaging http port" + messagePort
+                      + ". Messaging won't work correctly.",
+                  result.cause());
+            }
+            //Complete in any case as the admin-messaging is not essential
+            fut.complete();
+          });
+    }
+    else
+      fut.complete();
   }
 
   /**
@@ -311,7 +321,7 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
         new PubSecKeyOptions().setAlgorithm("RS256")
             .setPublicKey(Service.configuration.JWT_PUB_KEY));
 
-    JWTAuth authProvider = new CompressedJWTAuthProvider(vertx, authConfig);
+    JWTAuth authProvider = new XyzAuthProvider(vertx, authConfig);
 
     ChainAuthHandler authHandler = ChainAuthHandler.create()
         .append(JWTAuthHandler.create(authProvider))
