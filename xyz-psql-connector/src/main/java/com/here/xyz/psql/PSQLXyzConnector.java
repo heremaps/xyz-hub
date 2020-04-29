@@ -51,7 +51,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
     try {
       return executeQueryWithRetry(SQLQueryBuilder.buildGetStatisticsQuery(event,config),
-              this::getStatisticsResultSetHandler);
+              this::getStatisticsResultSetHandler, true);
     }catch (SQLException e){
       return checkSQLException(e, config.table(event));
     }
@@ -131,7 +131,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processCountFeaturesEvent(CountFeaturesEvent event) throws Exception {
     try {
       return executeQueryWithRetry(SQLQueryBuilder.buildCountFeaturesQuery(event, dataSource, config.schema(), config.table(event)),
-              this::countResultSetHandler);
+              this::countResultSetHandler, true);
     } catch (SQLException e) {
       // 3F000	INVALID SCHEMA NAME
       // 42P01	UNDEFINED TABLE
@@ -259,35 +259,18 @@ public class PSQLXyzConnector extends DatabaseHandler {
       if (ModifySpaceEvent.Operation.DELETE == event.getOperation()) {
         boolean hasTable = hasTable();
 
-        try (final Connection connection = dataSource.getConnection()) {
-          try (Statement stmt = connection.createStatement()) {
-            if (hasTable) {
-              String query = "DROP TABLE IF EXISTS ${schema}.${table}";
-              query = SQLQuery.replaceVars(query, config.schema(), config.table(event));
-              stmt.executeUpdate(query);
+        if (hasTable) {
+          SQLQuery q = new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};");
+          q.append("DROP TABLE IF EXISTS ${schema}.${hsttable}");
+          executeUpdateWithRetry(q);
+          logger.info("{} - Successfully deleted table for space '{}'", streamId, event.getSpace());
+        } else
+          logger.info("{} - Table not found '{}'", streamId, event.getSpace());
 
-              query = "DROP TABLE IF EXISTS ${schema}.${hsttable}";
-              query = SQLQuery.replaceVars(query, config.schema(), config.table(event));
-              stmt.executeUpdate(query);
-
-              logger.info("{} - Successfully deleted table for space '{}'", streamId, event.getSpace());
-            } else
-              logger.info("{} - Table not found '{}'", streamId, event.getSpace());
-
-            if (event.getConnectorParams() != null && event.getConnectorParams().get("propertySearch") == Boolean.TRUE) {
-              stmt.executeUpdate(SQLQueryBuilder.buildDeleteIDXConfigEntryQuery(
-                      config.schema(),
-                      config.table(event)).text()
-              );
-            }
-          }
-        } catch (Exception e) {
-          final String tableName = config.table(event);
-          logger.error("{} - Failed to delete table '{}': {}", streamId, tableName, e);
-          throw new SQLException("Failed to delete table: " + tableName, e);
+        if (event.getConnectorParams() != null && event.getConnectorParams().get("propertySearch") == Boolean.TRUE) {
+          executeUpdateWithRetry(SQLQueryBuilder.buildDeleteIDXConfigEntryQuery(config.schema(),config.table(event)));
         }
       }
-
       return new SuccessResponse().withStatus("OK");
     }catch (SQLException e){
       return checkSQLException(e, config.table(event));
