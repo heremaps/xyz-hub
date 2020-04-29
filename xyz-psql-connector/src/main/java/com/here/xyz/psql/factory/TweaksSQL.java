@@ -24,14 +24,14 @@ public class TweaksSQL
   public static final String SAMPLING = "sampling";
   public static final String SAMPLING_STRENGTH = "strength";
   public static final String SAMPLING_ALGORITHM = "algorithm";
-  public static final String SAMPLING_ALGORITHM_DST = "dst";
-  public static final String SAMPLING_ALGORITHM_SZE = "sze";
+  public static final String SAMPLING_ALGORITHM_DST = "distribution";
+  public static final String SAMPLING_ALGORITHM_SZE = "geometrysize";
   public static final String SIMPLIFICATION = "simplification";
   public static final String SIMPLIFICATION_STRENGTH = SAMPLING_STRENGTH;
   public static final String SIMPLIFICATION_ALGORITHM = "algorithm";
-  public static final String SIMPLIFICATION_ALGORITHM_A01 = "a01";
-  public static final String SIMPLIFICATION_ALGORITHM_A02 = "a02";
-  public static final String SIMPLIFICATION_ALGORITHM_A03 = "a03";
+  public static final String SIMPLIFICATION_ALGORITHM_A01 = "grid";
+  public static final String SIMPLIFICATION_ALGORITHM_A02 = "simplifiedkeeptopology";
+  public static final String SIMPLIFICATION_ALGORITHM_A03 = "simplified";
   
 
   /*

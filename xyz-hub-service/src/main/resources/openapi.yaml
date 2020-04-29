@@ -900,8 +900,11 @@ components:
         Possible values are:
 
           * "sampling"
-
             Delivery of geometry distributed data-samples.
+
+          * "simplification"
+            Delivery of simplified geometries
+
       required: false
       schema:
         type: string
@@ -923,7 +926,17 @@ components:
 
         | Parameter   | Type    | Mandatory | Meaning                                                               |
         |-------------|---------|-----------|-----------------------------------------------------------------------|
+        | algorithm   | String  | NO        | distribution, geometrysize     |
         | strength    | String  | NO        | Use presets: LOW, LOWMED, MED, MEDHIGH, HIGH or define strengh in percentage 1-100     |
+
+        **Tweaks-type: "simplification":**
+
+        With the strength parameter it is possibile to control the behavior of the tweaks-simplification algorithm.
+
+        | Parameter   | Type    | Mandatory | Meaning                                                               |
+        |-------------|---------|-----------|-----------------------------------------------------------------------|
+        | algorithm   | String  | NO        | grid, simplifiedkeeptopology, simplified     |
+        | strength    | String  | NO        | Use presets: LOW, MED, HIGH or define strengh in percentage 1-100     |
 
       style: form
       explode: true
