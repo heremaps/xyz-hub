@@ -532,7 +532,9 @@ paths:
         - $ref: '#/components/parameters/Clustering'
         - $ref: '#/components/parameters/ClusteringParams'
         - $ref: '#/components/parameters/Tweaks'
+          x-experimental: true
         - $ref: '#/components/parameters/TweaksParams'
+          x-experimental: true
       responses:
         '200':
           $ref: '#/components/responses/QueryFCResponse'
@@ -593,7 +595,9 @@ paths:
         - $ref: '#/components/parameters/Clustering'
         - $ref: '#/components/parameters/ClusteringParams'
         - $ref: '#/components/parameters/Tweaks'
+          x-experimental: true
         - $ref: '#/components/parameters/TweaksParams'
+          x-experimental: true
         - name: margin
           in: query
           description: >-
@@ -892,9 +896,10 @@ components:
       schema:
         type: integer
     Tweaks:
+      x-experimental: true
       name: tweaks
       in: query
-      description: >-
+      x-experimental-description: >-
         Providing this query parameter only a subset of the data will be returned. This can be used for rendering higher zoom levels.
 
         Possible values are:
@@ -912,10 +917,11 @@ components:
           - sampling
           - simplification
     TweaksParams:
+      x-experimental: true
       name: tweaksParams
       in: query
       required: false
-      description: |
+      x-experimental-description: |
         Providing this query parameter only a subset of the data will be returned. This can be used for rendering higher zoom levels.
 
         ### Tweaks-Parameter reference
