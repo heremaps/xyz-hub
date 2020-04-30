@@ -42,6 +42,7 @@ public class FeatureCollection extends XyzResponse<FeatureCollection> {
 
   private LazyParsable<List<Feature>> features;
   private BBox bbox;
+  private Boolean partial;
   private String handle;
   private Long count;
   private List<String> inserted;
@@ -172,6 +173,31 @@ public class FeatureCollection extends XyzResponse<FeatureCollection> {
   @SuppressWarnings("unused")
   public FeatureCollection withHandle(final String handle) {
     setHandle(handle);
+    return this;
+  }
+
+  /**
+   * Returns true if FeatureCollection does not contain all results. Is used for tweaks.
+   *
+   * @return the handle.
+   */
+  public Boolean isPartial() {
+    return this.partial;
+  }
+
+  /**
+   * Set indication if FeatureCollection has all expected results or not.
+   *
+   * @param partial is true if FeatureCollection does not contains all data.
+   */
+  @SuppressWarnings("WeakerAccess")
+  public void setPartial(Boolean partial) {
+    this.partial = partial;
+  }
+
+  @SuppressWarnings("unused")
+  public FeatureCollection withHandle(final Boolean partial) {
+    setPartial(partial);
     return this;
   }
 

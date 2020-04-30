@@ -531,6 +531,10 @@ paths:
         - $ref: '#/components/parameters/SkipCache'
         - $ref: '#/components/parameters/Clustering'
         - $ref: '#/components/parameters/ClusteringParams'
+        - $ref: '#/components/parameters/Tweaks'
+          x-experimental: true
+        - $ref: '#/components/parameters/TweaksParams'
+          x-experimental: true
       responses:
         '200':
           $ref: '#/components/responses/QueryFCResponse'
@@ -590,6 +594,10 @@ paths:
         - $ref: '#/components/parameters/SkipCache'
         - $ref: '#/components/parameters/Clustering'
         - $ref: '#/components/parameters/ClusteringParams'
+        - $ref: '#/components/parameters/Tweaks'
+          x-experimental: true
+        - $ref: '#/components/parameters/TweaksParams'
+          x-experimental: true
         - name: margin
           in: query
           description: >-
@@ -887,6 +895,63 @@ components:
       required: false
       schema:
         type: integer
+    Tweaks:
+      x-experimental: true
+      name: tweaks
+      in: query
+      x-experimental-description: >-
+        Providing this query parameter only a subset of the data will be returned. This can be used for rendering higher zoom levels.
+
+        Possible values are:
+
+          * "sampling"
+            Delivery of geometry distributed data-samples.
+
+          * "simplification"
+            Delivery of simplified geometries
+
+      required: false
+      schema:
+        type: string
+        enum:
+          - sampling
+          - simplification
+    TweaksParams:
+      x-experimental: true
+      name: tweaksParams
+      in: query
+      required: false
+      x-experimental-description: |
+        Providing this query parameter only a subset of the data will be returned. This can be used for rendering higher zoom levels.
+
+        ### Tweaks-Parameter reference
+
+        **Tweaks-type: "sampling":**
+
+        With the strength parameter it is possibile to control the behavior of the tweaks-sampling algorithm.
+
+        | Parameter   | Type    | Mandatory | Meaning                                                               |
+        |-------------|---------|-----------|-----------------------------------------------------------------------|
+        | algorithm   | String  | NO        | distribution, geometrysize     |
+        | strength    | String  | NO        | Use presets: LOW, LOWMED, MED, MEDHIGH, HIGH or define strengh in percentage 1-100     |
+
+        **Tweaks-type: "simplification":**
+
+        With the strength parameter it is possibile to control the behavior of the tweaks-simplification algorithm.
+
+        | Parameter   | Type    | Mandatory | Meaning                                                               |
+        |-------------|---------|-----------|-----------------------------------------------------------------------|
+        | algorithm   | String  | NO        | grid, simplifiedkeeptopology, simplified     |
+        | strength    | String  | NO        | Use presets: LOW, MED, HIGH or define strengh in percentage 1-100     |
+
+      style: form
+      explode: true
+      schema:
+        type: object
+        example:
+          tweaks.strength: "1-100 | [LOW,LOWMED,MED,MEDHIGH,HIGH]"
+        additionalProperties:
+          type: string
     Clustering:
       name: clustering
       in: query
@@ -952,16 +1017,16 @@ components:
         | Parameter   | Type    | Mandatory | Meaning                                                               |
         |-------------|---------|-----------|-----------------------------------------------------------------------|
         | resolution  | Number  | NO        | The quad resolution [0-4]                                             |
-        | countmode   | String  | NO        | [real, estimated, mixed]						                        |
+        | countmode   | String  | NO        | [real, estimated, mixed]                                    |
         |             |         |           | real = real feature counts. Best accuracy, but slow.                  |
-        |             |         |           | 		Not recommended for big result sets 			                |
+        |             |         |           |     Not recommended for big result sets                       |
         |             |         |           |                                                                       |
-        |             |         |           | estimated = estimated feature counts. Low accuracy, but very fast	    |
-        |             |         |           | 		Recommended for big result sets 			                    |
+        |             |         |           | estimated = estimated feature counts. Low accuracy, but very fast      |
+        |             |         |           |     Recommended for big result sets                           |
         |             |         |           |                                                                       |
-        |             |         |           | mixed (default) = estimated feature counts combined with real ones. 	|
-        |             |         |           | 		If the estimation is low a real count gets applied. Fits to the |
-        |             |         |           | 		most use cases						                            |
+        |             |         |           | mixed (default) = estimated feature counts combined with real ones.   |
+        |             |         |           |     If the estimation is low a real count gets applied. Fits to the |
+        |             |         |           |     most use cases                                        |
       style: form
       explode: true
       schema:

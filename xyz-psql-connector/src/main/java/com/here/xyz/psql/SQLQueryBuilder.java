@@ -25,6 +25,7 @@ import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.psql.factory.H3SQL;
 import com.here.xyz.psql.factory.QuadbinSQL;
+import com.here.xyz.psql.factory.TweaksSQL;
 
 import javax.sql.DataSource;
 import java.sql.SQLException;
@@ -113,14 +114,14 @@ public class SQLQueryBuilder {
         String statisticalProperty = (String) clusteringParams.get(H3SQL.HEXBIN_PROPERTY);
         boolean statisticalPropertyProvided = (statisticalProperty != null && statisticalProperty.length() > 0),
                 h3cflip = (clusteringParams.get(H3SQL.HEXBIN_POINTMODE) == Boolean.TRUE);
-
+               /** todo: replace format %.14f with parameterized version*/
         final String expBboxSql = String
-                .format("st_envelope( st_buffer( ST_MakeEnvelope(%f,%f,%f,%f, 4326)::geography, ( 2.5 * edgeLengthM( %d )) )::geometry )",
+                .format("st_envelope( st_buffer( ST_MakeEnvelope(%.14f,%.14f,%.14f,%.14f, 4326)::geography, ( 2.5 * edgeLengthM( %d )) )::geometry )",
                         bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat(), h3res);
 
         /*clippedGeo - passed bbox is extended by "margin" on service level */
         String clippedGeo = (!event.getClip() ? "geo" : String
-                .format("ST_Intersection(geo,ST_MakeEnvelope(%f,%f,%f,%f,4326) )", bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat())),
+                .format("ST_Intersection(geo,ST_MakeEnvelope(%.14f,%.14f,%.14f,%.14f,4326) )", bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat())),
                 fid = (!event.getClip() ? "h3" : String.format("h3 || %f || %f", bbox.minLon(), bbox.minLat())),
                 filterEmptyGeo = (!event.getClip() ? "" : String.format(" and not st_isempty( %s ) ", clippedGeo));
 
@@ -203,6 +204,108 @@ public class SQLQueryBuilder {
         return QuadbinSQL.generateQuadbinClusteringSQL(config.schema(), config.table(event), resolution, countMode, propQuerySQL, tile);
     }
     /***************************************** CLUSTERING END **************************************************/
+
+    /***************************************** TWEAKS **************************************************/
+
+    public static SQLQuery buildSamplingTweaksQuery(GetFeaturesByBBoxEvent event, BBox bbox, Map tweakParams, DataSource dataSource) throws SQLException 
+    {
+     int strength = 0;
+     boolean bDistribution = true;
+
+     if( tweakParams != null )
+     {
+      if( tweakParams.get(TweaksSQL.SAMPLING_STRENGTH) instanceof Integer )
+       strength = (int) tweakParams.get(TweaksSQL.SAMPLING_STRENGTH);
+      else
+       switch((String) tweakParams.get(TweaksSQL.SAMPLING_STRENGTH) )
+       { case "low"     : strength =  10;  break;
+         case "lowmed"  : strength =  30;  break;
+         case "med"     : strength =  50;  break;
+         case "medhigh" : strength =  75;  break;
+         case "high"    : strength = 100; break;
+         default: strength  = 50; break;
+       }
+
+       switch((String) tweakParams.getOrDefault(TweaksSQL.SAMPLING_ALGORITHM, TweaksSQL.SAMPLING_ALGORITHM_DST) )
+       { 
+         case TweaksSQL.SAMPLING_ALGORITHM_SZE : bDistribution = false; break;
+         case TweaksSQL.SAMPLING_ALGORITHM_DST : 
+         default: bDistribution = true; break;
+       }
+     } 
+
+
+     final String twqry = String.format(String.format("ST_Intersects(geo, ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326) ) and %%s", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat(), TweaksSQL.strengthSql(strength,bDistribution) );
+
+     final SQLQuery searchQuery = generateSearchQuery(event,dataSource);
+     final SQLQuery tweakQuery = new SQLQuery(twqry);
+
+     return generateCombinedQuery(event, tweakQuery, searchQuery , dataSource);
+	}
+
+    public static SQLQuery buildSimplificationTweaksQuery(GetFeaturesByBBoxEvent event, BBox bbox, Map tweakParams, DataSource dataSource) throws SQLException 
+    {
+     int strength = 0;
+     String tweaksGeoSql = "geo";
+
+     if( tweakParams != null )
+     {
+      if( tweakParams.get(TweaksSQL.SIMPLIFICATION_STRENGTH) instanceof Integer )
+       strength = (int) tweakParams.get(TweaksSQL.SIMPLIFICATION_STRENGTH);
+      else
+       switch((String) tweakParams.get(TweaksSQL.SIMPLIFICATION_STRENGTH) )
+       { case "low"     : strength =  20;  break;
+         case "lowmed"  : strength =  40;  break;
+         case "med"     : strength =  60;  break;
+         case "medhigh" : strength =  80;  break;
+         case "high"    : strength = 100; break;
+         default: strength  = 50; break;
+       }
+
+       // do clip before simplifications
+       if (event.getClip())
+       { String fmt =  String.format(  " case st_within( %%1$s, ST_MakeEnvelope(%%2$.%1$df,%%3$.%1$df,%%4$.%1$df,%%5$.%1$df, 4326) ) " 
+                                     + "  when true then %%1$s "
+                                     + "  else ST_Intersection(%%1$s,ST_MakeEnvelope(%%2$.%1$df,%%3$.%1$df,%%4$.%1$df,%%5$.%1$df, 4326))"
+                                     + " end " , 14 /*GEOMETRY_DECIMAL_DIGITS*/ );
+         tweaksGeoSql = String.format( fmt, tweaksGeoSql, bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
+       } 
+
+       //SIMPLIFICATION_ALGORITHM
+       int hint = 0;
+       switch((String) tweakParams.get(TweaksSQL.SIMPLIFICATION_ALGORITHM) )
+       { 
+         case TweaksSQL.SIMPLIFICATION_ALGORITHM_A03 : hint++;
+         case TweaksSQL.SIMPLIFICATION_ALGORITHM_A02 :
+         { 
+          double tolerance = ( strength <= 10 ? (1.0 / (11 - strength)) : strength);
+          tweaksGeoSql = String.format("%s(%s, %f)",( hint == 0 ? "ftm_SimplifyPreserveTopology" : "ftm_Simplify"), tweaksGeoSql, tolerance );
+         }
+         break;
+
+         case TweaksSQL.SIMPLIFICATION_ALGORITHM_A01 : 
+         {
+          double tolerance =  (0.0045/100) * strength;
+          tweaksGeoSql = String.format("ST_SnapToGrid(%s, %f)",tweaksGeoSql, tolerance );
+         }  
+         break;
+
+         default: break;
+       }
+
+       //convert to geojson 
+       tweaksGeoSql = String.format("replace(ST_AsGeojson(ST_Force3D( %s ),%d),'nan','0')",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS);
+     } 
+
+       final String bboxqry = String.format( String.format("ST_Intersects(geo, ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326) )", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() );
+
+       final SQLQuery searchQuery = generateSearchQuery(event,dataSource);
+       final SQLQuery bboxQuery = new SQLQuery(bboxqry);
+
+       return generateCombinedQuery(event, bboxQuery, searchQuery , tweaksGeoSql, dataSource);
+	}
+    
+    /***************************************** TWEAKS END **************************************************/
 
     public static SQLQuery buildFeaturesQuery(final SearchForFeaturesEvent event, final boolean isIterate, final boolean hasHandle,
                                                  final boolean hasSearch, final long start, DataSource dataSource)
@@ -392,19 +495,26 @@ public class SQLQueryBuilder {
         return query;
     }
 
-    private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, DataSource dataSource)
+    private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, String tweaksgeo, DataSource dataSource)
             throws SQLException {
         final SQLQuery query = new SQLQuery();
 
-        query.append("SELECT");
+
+        if( tweaksgeo != null )
+         query.append("select * from ( SELECT");
+        else
+         query.append("SELECT");
+
         query.append(SQLQuery.selectJson(event.getSelection(),dataSource));
 
-        if (event instanceof GetFeaturesByBBoxEvent) {
+        if( tweaksgeo != null )
+            query.append(String.format(",%s as twgeo",tweaksgeo));
+        else if (event instanceof GetFeaturesByBBoxEvent) {
             query.append(",");
             query.append(geometrySelectorForEvent((GetFeaturesByBBoxEvent) event));
-        } else {
-            query.append(",replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0')");
-        }
+        } 
+        else
+         query.append(",replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0')");
 
         query.append("FROM ${schema}.${table} WHERE");
         query.append(indexedQuery);
@@ -414,9 +524,16 @@ public class SQLQueryBuilder {
           query.append(secondaryQuery);
         }  
 
+        if( tweaksgeo != null )
+         query.append(" ) tw where twgeo is not null");
+
         query.append("LIMIT ?", event.getLimit());
         return query;
     }
+
+    private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, DataSource dataSource) throws SQLException 
+    { return generateCombinedQuery(event,indexedQuery,secondaryQuery,null,dataSource); }
+
 
     /**
      * Returns the query, which will contains the geometry object.
@@ -529,4 +646,5 @@ public class SQLQueryBuilder {
                 "EXECUTE PROCEDURE xyz_trigger_historywriter("+(maxVersionCount == null ? "" : maxVersionCount)+"); ";
         return SQLQuery.replaceVars(historyTriggerSQL, schema, table);
     }
+
 }

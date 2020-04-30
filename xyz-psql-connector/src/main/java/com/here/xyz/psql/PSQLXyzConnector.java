@@ -27,6 +27,7 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.factory.H3SQL;
 import com.here.xyz.psql.factory.QuadbinSQL;
+import com.here.xyz.psql.factory.TweaksSQL;
 import com.here.xyz.responses.*;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -86,10 +87,29 @@ public class PSQLXyzConnector extends DatabaseHandler {
       final String clusteringType = event.getClusteringType();
       final Map<String, Object> clusteringParams = event.getClusteringParams();
 
-    if (H3SQL.HEXBIN.equalsIgnoreCase(clusteringType)) {
+      if(event.getTweakType() != null) {
+        switch (event.getTweakType().toLowerCase()) {
+
+          case TweaksSQL.SAMPLING:
+
+            FeatureCollection collection = executeQueryWithRetry(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, event.getTweakParams(), dataSource));
+            collection.setPartial(true);
+            return collection;
+
+          case TweaksSQL.SIMPLIFICATION:
+
+            FeatureCollection fcollection = executeQueryWithRetry(SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, event.getTweakParams(), dataSource));
+            fcollection.setPartial(true);
+            return fcollection;
+
+          default: break;
+        }
+      }
+
+      if (H3SQL.HEXBIN.equalsIgnoreCase(clusteringType)) {
         return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource));
-    } else if (QuadbinSQL.QUAD.equalsIgnoreCase(clusteringType)) {
-      /* Check if input is valid */
+      } else if ( QuadbinSQL.QUAD.equalsIgnoreCase(clusteringType)) {
+        /* Check if input is valid */
         final int resolution = clusteringParams.get("resolution") != null ? (int) clusteringParams.get("resolution") : 0;
         final String countMode = clusteringParams.get("countmode") != null ? (String) clusteringParams.get("countmode") : null;
 
@@ -100,7 +120,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       final boolean isBigQuery = (bbox.widthInDegree(false) >= (360d / 4d) || (bbox.heightInDegree() >= (180d / 4d)));
 
       if(isBigQuery){
-      /* Check if Properties are indexed */
+        /* Check if Properties are indexed */
         if (!Capabilities.canSearchFor(event.getSpace(), event.getPropertiesQuery(), this)) {
           throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
                   "Invalid request parameters. Search for the provided properties is not supported for this space.");
