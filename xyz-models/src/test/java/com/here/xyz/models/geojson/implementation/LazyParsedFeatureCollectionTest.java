@@ -36,7 +36,6 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Logger;
 import org.junit.Test;
 
 public class LazyParsedFeatureCollectionTest {
@@ -187,7 +186,6 @@ public class LazyParsedFeatureCollectionTest {
 
   @Test
   public void testSerializeWithoutOrder() throws IOException {
-
     try (final InputStream is = LazyParsedFeatureCollectionTest.class.getResourceAsStream("/com/here/xyz/test/featureWithNumberId.json")) {
       FeatureCollection fc = XyzSerializable.deserialize(is);
       assertEquals(1, fc.getFeatures().size());
@@ -199,6 +197,24 @@ public class LazyParsedFeatureCollectionTest {
     try (final InputStream is = LazyParsedFeatureCollectionTest.class.getResourceAsStream("/com/here/xyz/test/processedData.json")) {
       FeatureCollection fc = XyzSerializable.deserialize(is);
       assertEquals(252, fc.getFeatures().size());
+    }
+  }
+
+  @Test
+  public void testDeserializeWithNullFeature() throws IOException {
+    try (final InputStream is = LazyParsedFeatureCollectionTest.class.getResourceAsStream("/com/here/xyz/test/nullFeature.json")) {
+      FeatureCollection fc = XyzSerializable.deserialize(is);
+      assertEquals(1, fc.getFeatures().size());
+      assertNull(fc.getFeatures().get(0));
+    }
+  }
+
+  @Test
+  public void testDeserializeWithFeatureMissingType() throws IOException {
+    try (final InputStream is = LazyParsedFeatureCollectionTest.class.getResourceAsStream("/com/here/xyz/test/featureMissingType.json")) {
+      FeatureCollection fc = XyzSerializable.deserialize(is);
+      assertEquals(1, fc.getFeatures().size());
+      assertEquals("1234", fc.getFeatures().get(0).getId());
     }
   }
 }

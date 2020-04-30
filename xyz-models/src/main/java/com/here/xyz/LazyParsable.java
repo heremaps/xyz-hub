@@ -97,7 +97,7 @@ public class LazyParsable<T> {
         final JsonNode node = jp.readValueAsTree();
         for (JsonNode currNode : node) {
           // check the type and set in case of null
-          if (currNode.get("type") == null) {
+          if (currNode instanceof ObjectNode && currNode.get("type") == null) {
             ((ObjectNode) currNode).put("type", FEATURE_TYPE);
           }
         }
