@@ -56,7 +56,7 @@ public abstract class DatabaseHandler extends StorageConnector {
      * So if we receive a timeout prior 25s-STATEMENT_TIMEOUT_SECONDS the cancellation comes from
      * outside.
      **/
-    private static final int MIN_REMAINING_TIME_FOR_RETRY_SECONDS = 2;
+    private static final int MIN_REMAINING_TIME_FOR_RETRY_SECONDS = 3;
     protected static final int STATEMENT_TIMEOUT_SECONDS = 24;
     private static final int CONNECTION_CHECKOUT_TIMEOUT_SECONDS = 7;
 
@@ -198,16 +198,16 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     protected FeatureCollection executeQueryWithRetry(SQLQuery query) throws SQLException {
-        return executeQueryWithRetry(query, this::defaultFeatureResultSetHandler);
+        return executeQueryWithRetry(query, this::defaultFeatureResultSetHandler, true);
     }
 
     /**
      *
      * Executes the query and reattempt to execute the query, after
      */
-    protected <T extends XyzResponse> T executeQueryWithRetry(SQLQuery query, ResultSetHandler<T> handler) throws SQLException {
+    protected <T extends XyzResponse> T executeQueryWithRetry(SQLQuery query, ResultSetHandler<T> handler, boolean useReadReplica) throws SQLException {
         try {
-            return executeQuery(query, handler);
+            return executeQuery(query, handler, useReadReplica ? readDataSource : dataSource);
         } catch (Exception e) {
             try {
                 if (retryCausedOnTimeout(e) || canRetryAttempt()) {
@@ -223,10 +223,6 @@ public abstract class DatabaseHandler extends StorageConnector {
             }
             throw e;
         }
-    }
-
-    protected <T> T executeUpdateWithRetry(SQLQuery query, ResultSetHandler<T> handler) throws SQLException {
-        return executeQuery(query, handler, dataSource);
     }
 
     protected int executeUpdateWithRetry(SQLQuery query) throws SQLException {
@@ -504,7 +500,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         //TODO: check in detail what we want to return
         if (searchQuery != null && includeOldStates)
-            return executeUpdateWithRetry(query, this::oldStatesResultSetHandler);
+            return executeQueryWithRetry(query, this::oldStatesResultSetHandler,false);
 
         return new FeatureCollection().withCount((long) executeUpdateWithRetry(query));
     }
@@ -761,15 +757,15 @@ public abstract class DatabaseHandler extends StorageConnector {
     protected int calculateTimeout() throws SQLException{
         int remainingSeconds = context.getRemainingTimeInMillis() / 1000;
 
-        if(remainingSeconds < MIN_REMAINING_TIME_FOR_RETRY_SECONDS) {
+        if(remainingSeconds <= MIN_REMAINING_TIME_FOR_RETRY_SECONDS) {
             logger.info("{} - No time left to execute query '{}' s", streamId, remainingSeconds);
             throw new SQLException("No time left to execute query.","54000");
         }
 
-        int timeout = remainingSeconds > STATEMENT_TIMEOUT_SECONDS ? STATEMENT_TIMEOUT_SECONDS :
-                (remainingSeconds - MIN_REMAINING_TIME_FOR_RETRY_SECONDS);
+        int timeout = remainingSeconds >= STATEMENT_TIMEOUT_SECONDS ? STATEMENT_TIMEOUT_SECONDS :
+                (remainingSeconds - 1);
 
-        logger.info("{} - New timeout for query set to '{}'", streamId, timeout);
+        logger.info("{} - New timeout for query set to '{}'", streamId,  timeout);
         return timeout;
     }
 

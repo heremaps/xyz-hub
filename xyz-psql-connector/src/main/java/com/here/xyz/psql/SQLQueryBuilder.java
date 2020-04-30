@@ -394,7 +394,7 @@ public class SQLQueryBuilder {
         }
 
         /* update xyz_idx_status table with searchabelProperties information */
-        query.append("INSERT INTO xyz_config.xyz_idxs_status as x_s (spaceid,schem,idx_creation_finished,idx_manual) "
+        query.append("INSERT INTO  "+IDX_STATUS_TABLE+" as x_s (spaceid,schem,idx_creation_finished,idx_manual) "
                         + "		VALUES ('" + table + "', '" + schema + "', false, '{" + searchablePropertiesJson
                         + "}'::jsonb) "
                         + "ON CONFLICT (spaceid) DO "
@@ -405,6 +405,23 @@ public class SQLQueryBuilder {
         return query;
     }
 
+    public static SQLQuery buildDeleteIDXConfigEntryQuery(String schema, String table){
+        final SQLQuery query = new SQLQuery("");
+        query.append(
+                "DO $$ " +
+                        "    BEGIN  "+
+                        "        IF EXISTS " +
+                        "            (SELECT 1 " +
+                        "              FROM   information_schema.tables " +
+                        "              WHERE  table_schema = 'xyz_config'" +
+                        "              AND    table_name = 'xyz_idxs_status')" +
+                        "        THEN" +
+                        "            delete from "+IDX_STATUS_TABLE+" where spaceid = '"+table+"' AND schem='"+schema+"';" +
+                        "        END IF ;" +
+                        "    END" +
+                        "$$ ;");
+        return query;
+    }
 /** ###################################################################################### */
     private static SQLQuery generatePropertiesQuery(PropertiesQuery properties) {
         if (properties == null || properties.size() == 0) {
