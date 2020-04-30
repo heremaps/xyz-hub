@@ -38,6 +38,7 @@ import com.here.xyz.events.Event;
 import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
+import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.BinaryResponse;
@@ -73,6 +74,7 @@ import com.here.xyz.responses.NotModifiedResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse.PropertiesStatistics.Searchable;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.responses.SuccessResponse;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -129,7 +131,23 @@ public class FeatureTaskHandler {
       callback.call(task);
       return;
     }
+
+    if(!task.storage.active){
+      if(event instanceof ModifySpaceEvent && ((ModifySpaceEvent) event).getOperation()== ModifySpaceEvent.Operation.DELETE){
+        /* If connector is inactive we allow space deletions. In this case only the space configuration gets deleted. The
+        deactivated connector does not get invoked so the dataset behind stays untouched. */
+        task.setResponse(new SuccessResponse().withStatus("OK"));
+        callback.call(task);
+      }
+      else {
+        //Abort further processing - do not notifyProcessors, notifyListeners, invoke connector
+        callback.exception(new HttpException(BAD_REQUEST, "Related connector is not active: " + task.storage.id));
+      }
+      return;
+    }
+
     String eventType = event.getClass().getSimpleName();
+
     //Pre-process the event by executing potentially registered processors
     notifyProcessors(task, eventType, event, preProcessingResult -> {
       if (preProcessingResult.failed() || preProcessingResult.result() instanceof ErrorResponse) {
@@ -184,8 +202,9 @@ public class FeatureTaskHandler {
       catch (Exception e) {
         if(e.getMessage() != null && e.getMessage().contains("Related connector is not active")) {
           callback.exception(new HttpException(BAD_REQUEST, e.getMessage(), e));
-        }else
+        }else {
           callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Error executing the storage event.", e));
+        }
         return;
       }
 
