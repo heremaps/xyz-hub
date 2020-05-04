@@ -247,6 +247,7 @@ public class SQLQueryBuilder {
     {
      int strength = 0;
      String tweaksGeoSql = "geo";
+     boolean bMerge = false;
 
      if( tweakParams != null )
      {
@@ -273,6 +274,7 @@ public class SQLQueryBuilder {
 
        //SIMPLIFICATION_ALGORITHM
        int hint = 0;
+
        switch((String) tweakParams.get(TweaksSQL.SIMPLIFICATION_ALGORITHM) )
        { 
          case TweaksSQL.SIMPLIFICATION_ALGORITHM_A03 : hint++;
@@ -290,6 +292,8 @@ public class SQLQueryBuilder {
          }  
          break;
 
+         case TweaksSQL.SIMPLIFICATION_ALGORITHM_A04 : bMerge = true; break;
+
          default: break;
        }
 
@@ -300,9 +304,22 @@ public class SQLQueryBuilder {
        final String bboxqry = String.format( String.format("ST_Intersects(geo, ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326) )", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() );
 
        final SQLQuery searchQuery = generateSearchQuery(event,dataSource);
-       final SQLQuery bboxQuery = new SQLQuery(bboxqry);
 
-       return generateCombinedQuery(event, bboxQuery, searchQuery , tweaksGeoSql, dataSource);
+       if( !bMerge )
+        return generateCombinedQuery(event, new SQLQuery(bboxqry), searchQuery , tweaksGeoSql, dataSource);
+
+       // Merge Algorithm only
+       SQLQuery query = new SQLQuery( String.format( TweaksSQL.mergeBeginSql, tweaksGeoSql, bboxqry ) );
+
+       if (searchQuery != null) 
+       { query.append(" and ");
+         query.append(searchQuery);
+       }
+
+       query.append(TweaksSQL.mergeEndSql);
+       query.append("LIMIT ?", event.getLimit());
+
+       return query;
 	}
     
     /***************************************** TWEAKS END **************************************************/
