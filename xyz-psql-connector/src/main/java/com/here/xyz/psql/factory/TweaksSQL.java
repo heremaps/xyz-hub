@@ -72,26 +72,24 @@ public class TweaksSQL
     "select jsondata, geo "
    +"from "
    +"( "
-   +" select jsondata, (%1$s)::jsonb as geo"
+   +" select jsonb_set('{\"type\": \"Feature\",\"properties\": {}}'::jsonb,'{properties,gh}',('\"'|| gh ||'\"')::jsonb) as jsondata, (%1$s)::jsonb as geo"
    +" from "
    +" ( "
-   +"  select "
-   +"   jsonb_set('{\"type\": \"Feature\",\"properties\": {}}'::jsonb,'{properties,gh}',('\"'|| gh ||'\"')::jsonb) as jsondata, "
-   +"   (st_dump( st_union(oo.geo) )).geom as geo "
+   +"  select gh, case length(gh) > %2$d when true then 0 else i end as gsz, (st_dump( st_union(oo.geo) )).geom as geo "
    +"  from "
    +"  ( "
-   +"   select ST_GeoHash(geo) as gh, jsondata , geo "
+   +"   select ST_GeoHash(geo) as gh, i, jsondata , geo "
    +"   from "
    +"   ( "
-   +"    select jsondata, geo "  // fetch objects
+   +"    select i, jsondata, geo "  // fetch objects
    +"    from ${schema}.${table} "
    +"    where 1 = 1 "
-   +"      and %2$s ";  // bboxquery
+   +"      and %3$s ";  // bboxquery
  
   public static String mergeEndSql = 
     "   ) o "
    +"  ) oo "
-   +"  group by gh "
+   +"  group by gh, gsz"
    +" ) ooo "
    +") oooo "
    +"where 1 = 1 "

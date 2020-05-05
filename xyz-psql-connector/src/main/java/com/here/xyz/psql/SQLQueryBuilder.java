@@ -308,8 +308,14 @@ public class SQLQueryBuilder {
        if( !bMerge )
         return generateCombinedQuery(event, new SQLQuery(bboxqry), searchQuery , tweaksGeoSql, dataSource);
 
-       // Merge Algorithm only
-       SQLQuery query = new SQLQuery( String.format( TweaksSQL.mergeBeginSql, tweaksGeoSql, bboxqry ) );
+       // Merge Algorithm - only using low, med, high
+       
+       int minGeoHashLenToMerge = 0;
+       
+       if( strength <= 20 ) minGeoHashLenToMerge = 7;
+       else if ( strength <= 60 ) minGeoHashLenToMerge = 6;
+
+       SQLQuery query = new SQLQuery( String.format( TweaksSQL.mergeBeginSql, tweaksGeoSql, minGeoHashLenToMerge, bboxqry ) );
 
        if (searchQuery != null) 
        { query.append(" and ");
