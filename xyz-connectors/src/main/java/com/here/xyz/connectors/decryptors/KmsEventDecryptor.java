@@ -79,14 +79,18 @@ public class KmsEventDecryptor extends EventDecryptor {
       return encoded;
     }
 
-    ByteBuffer cipherText = ByteBuffer.wrap(Base64.getDecoder().decode(encoded.getBytes()));
-    DecryptRequest req = new DecryptRequest()
-        .withKeyId(kmsKeyArn)
-        .withEncryptionAlgorithm(ASYMMETRIC_ALGORITHM)
-        .withCiphertextBlob(cipherText);
+    String tmp = encoded.substring(2, encoded.length() - 2);
+
     try {
+      ByteBuffer cipherText = ByteBuffer.wrap(Base64.getDecoder().decode(tmp.getBytes()));
+      DecryptRequest req = new DecryptRequest()
+          .withKeyId(kmsKeyArn)
+          .withEncryptionAlgorithm(ASYMMETRIC_ALGORITHM)
+          .withCiphertextBlob(cipherText);
       ByteBuffer plainText = kmsClient.decrypt(req).getPlaintext();
       return new String(plainText.array());
+    } catch (IllegalArgumentException e) {
+      logger.warn("Could not Base64 decode value", e);
     } catch (RuntimeException e) {
       logger.error("Error when trying to decryptPrivateKey asymmetric key. Please check the following:\n"
           + "\t- Does the application use an IAM role?\n"

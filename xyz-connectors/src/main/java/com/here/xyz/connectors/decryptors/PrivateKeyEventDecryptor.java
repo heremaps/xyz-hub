@@ -71,7 +71,7 @@ public class PrivateKeyEventDecryptor extends EventDecryptor {
    * a private key for decrypting the secrets.
    *
    * For security reasons should the private key be encrypted
-   * using PKCS#12 scheme.
+   * using PKCS#8 scheme.
    * This line converts an openssl private key to an usable, encrypted
    * PKCS#8 key:
    * openssl pkcs8 -topk8 -in private_key.pem  -v1 PBE-SHA1-3DES -out private_pkcs8.pem
@@ -94,19 +94,30 @@ public class PrivateKeyEventDecryptor extends EventDecryptor {
 
   @Override
   public String decryptAsymmetric(final String encoded) {
+    if (encoded == null || encoded.equals("")) {
+      return encoded;
+    }
+
+    // we cannot decode the secret if no private key is set.
     if (privateKey == null) {
       return encoded;
     }
+
+    String tmp = encoded.substring(2, encoded.length() - 2);
+
     try {
       Cipher cipher = Cipher.getInstance(ALGORITHM);
       cipher.init(Cipher.DECRYPT_MODE, privateKey);
 
-      byte[] decryptedBytes = cipher.doFinal(Base64.getDecoder().decode(encoded));
+      byte[] decryptedBytes = cipher.doFinal(Base64.getDecoder().decode(tmp));
       return new String(decryptedBytes, UTF_8);
+    } catch (IllegalArgumentException e) {
+      logger.warn("Could not Base64 decode value", e);
     } catch(Exception e) {
       logger.warn("Could not decrypt string.", e);
-      return encoded;
     }
+
+    return encoded;
   }
 
   /**
@@ -147,7 +158,7 @@ public class PrivateKeyEventDecryptor extends EventDecryptor {
   }
 
   /**
-   * This method decrypts the private key that was encrypted using PKCS#12 scheme.
+   * This method decrypts the private key that was encrypted using PKCS#8 scheme.
    *
    * @param pkcs8Data The private key in PEM format without header and footer.
    * @param passphrase The passphrase for decrypting the private key.
