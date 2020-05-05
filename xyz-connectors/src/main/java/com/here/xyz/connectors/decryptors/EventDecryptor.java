@@ -21,8 +21,11 @@ package com.here.xyz.connectors.decryptors;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 
@@ -91,24 +94,30 @@ public abstract class EventDecryptor {
     if (params == null) {
       return null;
     }
+    params.forEach((key, value) -> params.put(key, decodeValue(value)));
+    return params;
+  }
 
-    final Map<String, Object> decodedParams = new LinkedHashMap<>(params.size());
-
-    params.forEach((key, value) -> {
-      if (value instanceof String) {
-        String encoded = (String) value;
-        if (isEncrypted(encoded)) {
-          decodedParams.put(key,
-              secretsCache.computeIfAbsent(
-                  key,
-                  k -> decryptAsymmetric(encoded.substring(2, encoded.length() - 2))));
-        } else {
-          decodedParams.put(key, value);
-        }
+  private Object decodeValue(Object value) {
+    if (value instanceof Map) {
+      Map<String, Object> map = (Map) value;
+      map.forEach((k,v) -> map.put(k, decodeValue(v)));
+      return map;
+    } else if (value instanceof List) {
+      List<Object> list = (List) value;
+      return list.stream().map(this::decodeValue).collect(Collectors.toList());
+    } else if (value instanceof String) {
+      String encoded = (String) value;
+      if (isEncrypted(encoded)) {
+        return secretsCache.computeIfAbsent(
+                encoded,
+                k -> decryptAsymmetric(k.substring(2, k.length() - 2)));
+      } else {
+        return value;
       }
-    });
-
-    return decodedParams;
+    } else {
+      return value;
+    }
   }
 
   /**
