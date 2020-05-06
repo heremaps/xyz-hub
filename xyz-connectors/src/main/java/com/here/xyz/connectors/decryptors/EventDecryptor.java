@@ -20,7 +20,6 @@
 package com.here.xyz.connectors.decryptors;
 
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -49,7 +48,7 @@ public abstract class EventDecryptor {
   /**
    * Map with already created instances.
    */
-  private static Map<Decryptors, EventDecryptor> instances = new HashMap<>();
+  private final static Map<Decryptors, EventDecryptor> instances = new HashMap<>();
 
   /**
    * Cache for storing the decrypted secrets for 30s.
@@ -98,20 +97,19 @@ public abstract class EventDecryptor {
     return params;
   }
 
+  @SuppressWarnings("unchecked")
   private Object decodeValue(Object value) {
     if (value instanceof Map) {
-      Map<String, Object> map = (Map) value;
+      Map<String, Object> map = (Map<String, Object>) value;
       map.forEach((k,v) -> map.put(k, decodeValue(v)));
       return map;
     } else if (value instanceof List) {
-      List<Object> list = (List) value;
+      List<Object> list = (List<Object>) value;
       return list.stream().map(this::decodeValue).collect(Collectors.toList());
     } else if (value instanceof String) {
       String encoded = (String) value;
       if (isEncrypted(encoded)) {
-        return secretsCache.computeIfAbsent(
-                encoded,
-                k -> decryptAsymmetric(k.substring(2, k.length() - 2)));
+        return secretsCache.computeIfAbsent(encoded, this::decryptAsymmetric);
       } else {
         return value;
       }
