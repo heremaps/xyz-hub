@@ -32,6 +32,7 @@ public class TweaksSQL
   public static final String SIMPLIFICATION_ALGORITHM_A01 = "grid";
   public static final String SIMPLIFICATION_ALGORITHM_A02 = "simplifiedkeeptopology";
   public static final String SIMPLIFICATION_ALGORITHM_A03 = "simplified";
+  public static final String SIMPLIFICATION_ALGORITHM_A04 = "merge";
   
 
   /*
@@ -66,6 +67,37 @@ public class TweaksSQL
      
    return String.format("%s < '%s'",DstFunctIndexExpr,s);
   }
+
+  public static String mergeBeginSql = 
+    "select jsondata, geo "
+   +"from "
+   +"( "
+   +" select jsonb_set('{\"type\": \"Feature\"}'::jsonb,'{properties}', jsonb_set( jsonb_set( '{}'::jsonb, '{gid}', to_jsonb(gid) ),'{gidObjs}', to_jsonb(w) )  ) as jsondata, (%1$s)::jsonb as geo"
+   +" from "
+   +" ( "
+   +"  select left( md5(gh), 12 ) as gid, case length(gh) > %2$d when true then 0 else i end as gsz, count(1) as w, (st_dump( st_union(oo.geo) )).geom as geo "
+   +"  from "
+   +"  ( "
+   +"   select ST_GeoHash(geo) as gh, i, jsondata , geo "
+   +"   from "
+   +"   ( "
+   +"    select i, jsondata, geo "  // fetch objects
+   +"    from ${schema}.${table} "
+   +"    where 1 = 1 "
+   +"      and %3$s ";  // bboxquery
+ 
+  public static String mergeEndSql = 
+    "   ) o "
+   +"  ) oo "
+   +"  group by gh, gsz"
+   +" ) ooo "
+   +") oooo "
+   +"where 1 = 1 "
+   +"and geo is not null "
+   +"and geo->>'type' != 'GeometryCollection' ";
+ 
+
+
 }
 
 
