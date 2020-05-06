@@ -94,7 +94,7 @@ public class PrivateKeyEventDecryptor extends EventDecryptor {
 
   @Override
   public String decryptAsymmetric(final String encoded) {
-    if (encoded == null || encoded.equals("")) {
+    if (!isEncrypted(encoded)) {
       return encoded;
     }
 

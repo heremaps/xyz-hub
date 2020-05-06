@@ -70,7 +70,7 @@ public class KmsEventDecryptor extends EventDecryptor {
    * {@inheritDoc}
    */
   public String decryptAsymmetric(String encoded) {
-    if (encoded == null || encoded.equals("")) {
+    if (!isEncrypted(encoded)) {
       return encoded;
     }
 
