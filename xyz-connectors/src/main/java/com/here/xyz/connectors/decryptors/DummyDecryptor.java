@@ -19,6 +19,8 @@
 
 package com.here.xyz.connectors.decryptors;
 
+import java.util.Map;
+
 /**
  * Dummy implementation that is used when no custom Decryptor is configured.
  */
@@ -30,6 +32,17 @@ public class DummyDecryptor extends EventDecryptor {
    *
    */
   DummyDecryptor() { }
+
+  /**
+   * Dummy implementation. Just return the original map.
+   *
+   * @param params The parameters that should be decrypted.
+   * @return Returns the not-decrypted map.
+   */
+  @Override
+  public Map<String, Object> decodeParams(final Map<String, Object> params) {
+    return params;
+  }
 
   /**
    * Dummy implementation. Just return the original string.
