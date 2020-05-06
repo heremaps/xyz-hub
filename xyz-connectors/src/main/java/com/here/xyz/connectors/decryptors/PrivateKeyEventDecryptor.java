@@ -21,20 +21,26 @@ package com.here.xyz.connectors.decryptors;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.LineNumberReader;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.security.Key;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
+import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
-import java.util.Arrays;
 import java.util.Base64;
-import java.util.stream.Collectors;
+import java.util.Iterator;
+import java.util.stream.Stream;
 import javax.crypto.Cipher;
 import javax.crypto.EncryptedPrivateKeyInfo;
 import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.OAEPParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.PSource.PSpecified;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -63,7 +69,18 @@ public class PrivateKeyEventDecryptor extends EventDecryptor {
    * The algorithm for creating the private key.
    */
   public static final String RSA = "RSA";
-
+  /**
+   * Prefix for loading files from classpath.
+   */
+  private static final String CLASSPATH_PREFIX = "classpath:";
+  /**
+   * OAEP Padding specs for decrypting secrets.
+   */
+  private static final OAEPParameterSpec OAEP_PARAMS
+      = new OAEPParameterSpec("SHA-256", "MGF1", new MGF1ParameterSpec("SHA-256"), PSpecified.DEFAULT);
+  /**
+   * The private key for decrypting secrets.
+   */
   final private PrivateKey privateKey;
 
   /**
@@ -75,6 +92,15 @@ public class PrivateKeyEventDecryptor extends EventDecryptor {
    * This line converts an openssl private key to an usable, encrypted
    * PKCS#8 key:
    * openssl pkcs8 -topk8 -in private_key.pem  -v1 PBE-SHA1-3DES -out private_pkcs8.pem
+   *
+   * This is how you can encrypt a secret using openssl and the public key:
+   * openssl pkeyutl -encrypt \
+   *                 -inkey public_key.pem \
+   *                 -pubin \
+   *                 -in secret.txt \
+   *                 -pkeyopt rsa_padding_mode:oaep \
+   *                 -pkeyopt rsa_oaep_md:sha256 \
+   *                 -pkeyopt rsa_mgf1_md:sha256
    *
    * Following environment variables need to be set to use this class:
    * - {@link com.here.xyz.connectors.AbstractConnectorHandler#ENV_DECRYPTOR}
@@ -92,6 +118,9 @@ public class PrivateKeyEventDecryptor extends EventDecryptor {
     privateKey = tmp;
   }
 
+  /**
+   * {@inheritDoc}
+   */
   @Override
   public String decryptAsymmetric(final String encoded) {
     if (encoded == null || encoded.equals("")) {
@@ -107,7 +136,7 @@ public class PrivateKeyEventDecryptor extends EventDecryptor {
 
     try {
       Cipher cipher = Cipher.getInstance(ALGORITHM);
-      cipher.init(Cipher.DECRYPT_MODE, privateKey);
+      cipher.init(Cipher.DECRYPT_MODE, privateKey, OAEP_PARAMS);
 
       byte[] decryptedBytes = cipher.doFinal(Base64.getDecoder().decode(tmp));
       return new String(decryptedBytes, UTF_8);
@@ -128,33 +157,48 @@ public class PrivateKeyEventDecryptor extends EventDecryptor {
    * @return Returns the {@link PrivateKey} or null if there a problem.
    */
   public static PrivateKey loadPrivateKey(final String filePath, final String passphrase) {
-    if (filePath == null) {
+    if (filePath == null || filePath.isEmpty()) {
       return null;
     }
-    BufferedReader reader;
+
+    Stream<String> lines;
     try {
-      reader = new BufferedReader(new FileReader(filePath));
-    } catch (IOException e) {
+      if (filePath.startsWith(CLASSPATH_PREFIX)) {
+        InputStream is = PrivateKeyEventDecryptor.class.getResourceAsStream(filePath.substring(CLASSPATH_PREFIX.length()));
+        lines = new LineNumberReader(new InputStreamReader(is)).lines();
+      } else {
+        lines = Files.newBufferedReader(Paths.get(filePath), UTF_8).lines();
+      }
+    } catch (NullPointerException | IOException e) {
       logger.error("Could not load private key from file path '" + filePath + "'", e);
       return null;
     }
-    String[] lines = reader.lines().toArray(String[]::new);
-    if ("-----BEGIN PRIVATE KEY-----".equals(lines[0])) {
-      // not encrypted
-      String privateKeyPEM = Arrays.stream(lines)
-          .filter(s -> !"-----BEGIN PRIVATE KEY-----".equals(s) && !"-----END PRIVATE KEY-----".equals(s))
-          .collect(Collectors.joining(""));
-      return createPrivateKey(privateKeyPEM);
-    } else if("-----BEGIN ENCRYPTED PRIVATE KEY-----".equals(lines[0])) {
-      // encrypted
-      String privateKeyPEM = Arrays.stream(lines)
-          .filter(s -> !"-----BEGIN ENCRYPTED PRIVATE KEY-----".equals(s) && !"-----END ENCRYPTED PRIVATE KEY-----".equals(s))
-          .collect(Collectors.joining(""));
-      return decryptPrivateKey(privateKeyPEM, passphrase);
-    } else {
-      logger.error("Unknown key format. Params will not be decrypted.");
-      return null;
+
+    final StringBuilder privateKeyPEM = new StringBuilder();
+    final Iterator<String> i = lines.iterator();
+    if (i.hasNext()) {
+      String header = i.next();
+      if ("-----BEGIN PRIVATE KEY-----".equals(header)) {
+        i.forEachRemaining(s -> {
+          if (!"-----END PRIVATE KEY-----".equals(s)) {
+            privateKeyPEM.append(s);
+          }
+        });
+        return createPrivateKey(privateKeyPEM.toString());
+      } else if("-----BEGIN ENCRYPTED PRIVATE KEY-----".equals(header)) {
+        i.forEachRemaining(s -> {
+          if (!"-----END ENCRYPTED PRIVATE KEY-----".equals(s)) {
+            privateKeyPEM.append(s);
+          }
+        });
+        return decryptPrivateKey(privateKeyPEM.toString(), passphrase);
+      } else{
+        logger.error("Unknown key format. Params will not be decrypted.");
+        return null;
+      }
     }
+    logger.error("Empty key file. Params will not be decrypted.");
+    return null;
   }
 
   /**
