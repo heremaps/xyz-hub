@@ -941,7 +941,7 @@ components:
 
         | Parameter   | Type    | Mandatory | Meaning                                                               |
         |-------------|---------|-----------|-----------------------------------------------------------------------|
-        | algorithm   | String  | NO        | grid, simplifiedkeeptopology, simplified     |
+        | algorithm   | String  | NO        | grid, simplifiedkeeptopology, simplified, merge     |
         | strength    | String  | NO        | Use presets: LOW, MED, HIGH or define strengh in percentage 1-100     |
 
       style: form
