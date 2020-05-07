@@ -30,6 +30,7 @@ import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
+import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.hub.auth.ActionMatrix;
 import com.here.xyz.hub.auth.Authorization;
@@ -108,6 +109,9 @@ public class AdminApi extends Api {
             .execute(this::sendResponse, this::sendErrorResponse);
       } else if (event instanceof GetFeaturesByBBoxEvent) {
         new FeatureTask.BBoxQuery((GetFeaturesByBBoxEvent) event, context, ApiResponseType.FEATURE_COLLECTION, skipCache)
+            .execute(this::sendResponse, this::sendErrorResponse);
+      } else if (event instanceof GetStatisticsEvent) {
+        new FeatureTask.GetStatistics((GetStatisticsEvent) event, context, ApiResponseType.STATISTICS_RESPONSE, skipCache)
             .execute(this::sendResponse, this::sendErrorResponse);
       } else {
         logger.warn("Event cannot be handled: " + body);
