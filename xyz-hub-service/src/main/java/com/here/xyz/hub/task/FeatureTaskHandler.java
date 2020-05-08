@@ -73,8 +73,8 @@ import com.here.xyz.responses.ModifiedResponseResponse;
 import com.here.xyz.responses.NotModifiedResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse.PropertiesStatistics.Searchable;
-import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.SuccessResponse;
+import com.here.xyz.responses.XyzResponse;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -656,7 +656,8 @@ public class FeatureTaskHandler {
         if (id != null) { // Test for duplicate IDs
           if (ids.containsKey(id)) {
             logger.info(task.getMarker(), "Objects with the same ID {} are included in the request.", id);
-            throw new HttpException(BAD_REQUEST, "Objects with the same ID " + id + " is included in the request.");
+            callback.exception(new HttpException(BAD_REQUEST, "Objects with the same ID " + id + " is included in the request."));
+            return;
           }
           ids.put(id, true);
         }
@@ -672,7 +673,7 @@ public class FeatureTaskHandler {
         properties.putIfAbsent(XyzNamespace.XYZ_NAMESPACE, new HashMap<String, Object>());
       }
     } catch (Exception e) {
-      logger.error(e);
+      logger.error(task.getMarker(), e.getMessage(), e);
       callback.exception(new HttpException(BAD_REQUEST, "Unable to process the request input."));
       return;
     }
