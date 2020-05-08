@@ -29,8 +29,6 @@ import static io.vertx.core.http.HttpMethod.PATCH;
 import static io.vertx.core.http.HttpMethod.POST;
 import static io.vertx.core.http.HttpMethod.PUT;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.rest.Api;
 import io.vertx.core.MultiMap;
@@ -54,22 +52,6 @@ public class LogUtil {
   private static final Marker ACCESS_LOG_MARKER = MarkerManager.getMarker("ACCESS");
 
   private static List<String> skipLoggingHeaders = Collections.singletonList(X_FORWARDED_FOR);
-
-  public static void logRequest(RoutingContext context) {
-    final HttpServerRequest request = context.request();
-    StringBuilder buf = new StringBuilder();
-    buf.append("HTTP Request: \n");
-    buf.append(request.method());
-    buf.append(' ');
-    buf.append(request.uri());
-    buf.append('\n');
-
-    appendHeaders(request.headers(), buf);
-
-    buf.append('\n');
-    buf.append(context.getBodyAsString());
-    logger.info(Api.Context.getMarker(context), "{}", buf.toString().trim());
-  }
 
   public static String responseToLogEntry(RoutingContext context) {
     HttpServerResponse response = context.response();
@@ -129,10 +111,11 @@ public class LogUtil {
     accessLog.respInfo.statusMsg = context.response().getStatusMessage();
     accessLog.respInfo.size = context.response().bytesWritten();
 
-    final JWTPayload jwt = Api.Context.getJWT(context);
-    if (jwt != null) {
-      accessLog.clientInfo.userId = jwt.aid;
-      accessLog.clientInfo.appId = jwt.cid;
+    final JWTPayload tokenPayload = Api.Context.getJWT(context);
+    if (tokenPayload != null) {
+      accessLog.clientInfo.userId = tokenPayload.aid;
+      accessLog.clientInfo.appId = tokenPayload.cid;
+      accessLog.classified = new String[]{tokenPayload.tid, tokenPayload.jwt};
     }
 
     return accessLog;
@@ -143,7 +126,6 @@ public class LogUtil {
     final Marker marker = Api.Context.getMarker(context);
 
     accessLog.streamId = marker.getName();
-    final String formattedLog = XyzSerializable.serialize(accessLog, new TypeReference<AccessLog>() {});
-    logger.log(STREAM_LEVEL, ACCESS_LOG_MARKER, formattedLog);
+    logger.log(STREAM_LEVEL, ACCESS_LOG_MARKER, accessLog.serialize());
   }
 }

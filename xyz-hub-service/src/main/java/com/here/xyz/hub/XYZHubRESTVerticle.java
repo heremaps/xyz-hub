@@ -195,7 +195,6 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
 
     //Log the request information.
     LogUtil.addRequestInfo(context);
-    LogUtil.logRequest(context);
 
     context.response().putHeader(STREAM_ID, context.request().getHeader(STREAM_ID));
     context.response().endHandler(ar -> XYZHubRESTVerticle.onResponseSent(context));
