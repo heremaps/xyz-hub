@@ -21,6 +21,8 @@ package com.here.xyz.hub.util.logging;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.here.xyz.XyzSerializable;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -30,6 +32,7 @@ public class AccessLog extends AccessLogExtended {
   public ClientInfo clientInfo;
   public RequestInfo reqInfo;
   public ResponseInfo respInfo;
+  public String[] classified;
 
   public AccessLog() {
     super();
@@ -48,6 +51,18 @@ public class AccessLog extends AccessLogExtended {
     reqInfo.aid = clientInfo.userId;
     reqInfo.cid = clientInfo.appId;
     respInfo.responseSize = respInfo.size;
+  }
+
+  public String serialize() {
+    return stripClassified(XyzSerializable.serialize(this, new TypeReference<AccessLog>() {}));
+  }
+
+  private String stripClassified(String original) {
+    for (String c : classified) {
+      if (c == null) continue;
+      original = original.replace(c, c.substring(0, c.length() / 2) + "*****");
+    }
+    return original;
   }
 
   @JsonInclude(Include.ALWAYS)
