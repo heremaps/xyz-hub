@@ -20,6 +20,7 @@
 package com.here.xyz.hub.util.logging;
 
 import static com.google.common.net.HttpHeaders.X_FORWARDED_FOR;
+import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_INFO;
 import static io.vertx.core.http.HttpHeaders.ACCEPT;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 import static io.vertx.core.http.HttpHeaders.ORIGIN;
@@ -33,7 +34,6 @@ import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.rest.Api;
 import io.vertx.core.MultiMap;
 import io.vertx.core.http.HttpMethod;
-import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.ext.web.RoutingContext;
 import java.util.Collections;
@@ -110,6 +110,7 @@ public class LogUtil {
     accessLog.respInfo.statusCode = context.response().getStatusCode();
     accessLog.respInfo.statusMsg = context.response().getStatusMessage();
     accessLog.respInfo.size = context.response().bytesWritten();
+    accessLog.respInfo.streamInfo = context.response().headers().get(STREAM_INFO);
 
     final JWTPayload tokenPayload = Api.Context.getJWT(context);
     if (tokenPayload != null) {

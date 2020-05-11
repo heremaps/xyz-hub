@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_INFO;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.BBOX;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.ID;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
@@ -41,6 +42,7 @@ import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.RpcClient;
+import com.here.xyz.hub.connectors.RpcClient.RpcContext;
 import com.here.xyz.hub.connectors.models.BinaryResponse;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
@@ -132,15 +134,17 @@ public class FeatureTaskHandler {
       return;
     }
 
-    if(!task.storage.active){
-      if(event instanceof ModifySpaceEvent && ((ModifySpaceEvent) event).getOperation()== ModifySpaceEvent.Operation.DELETE){
-        /* If connector is inactive we allow space deletions. In this case only the space configuration gets deleted. The
-        deactivated connector does not get invoked so the dataset behind stays untouched. */
+    if (!task.storage.active) {
+      if (event instanceof ModifySpaceEvent && ((ModifySpaceEvent) event).getOperation() == ModifySpaceEvent.Operation.DELETE) {
+        /*
+        If connector is inactive we allow space deletions. In this case only the space configuration gets deleted. The
+        deactivated connector does not get invoked so the dataset behind stays untouched.
+        */
         task.setResponse(new SuccessResponse().withStatus("OK"));
         callback.call(task);
       }
       else {
-        //Abort further processing - do not notifyProcessors, notifyListeners, invoke connector
+        //Abort further processing - do not: notifyProcessors, notifyListeners, invoke connector
         callback.exception(new HttpException(BAD_REQUEST, "Related connector is not active: " + task.storage.id));
       }
       return;
@@ -168,14 +172,17 @@ public class FeatureTaskHandler {
       Event<? extends Event> requestListenerPayload = eventToExecute.copy();
       //}
 
-      // CMEKB-2779 Remove failed entries before calling storage client
+      //CMEKB-2779 Remove failed entries before calling storage client
       if (eventToExecute instanceof ModifyFeaturesEvent) {
         ((ModifyFeaturesEvent) eventToExecute).setFailed(null);
       }
       //Do the actual storage call
       try {
         setAdditionalEventProps(task, task.storage, eventToExecute);
-        RpcClient.getInstanceFor(task.storage).execute(task.getMarker(), eventToExecute, storageResult -> {
+        final long storageRequestStart = Service.currentTimeMillis();
+        responseContext.rpcContext = RpcClient.getInstanceFor(task.storage).execute(task.getMarker(), eventToExecute, storageResult -> {
+          addStoragePerformanceInfo(task, task.storage, Service.currentTimeMillis() - storageRequestStart,
+              responseContext.rpcContext);
           if (storageResult.failed()) {
             handleFailure(task.getMarker(), storageResult.cause(), callback);
             return;
@@ -199,16 +206,16 @@ public class FeatureTaskHandler {
           });
         });
       }
+      catch (IllegalStateException e) {
+        callback.exception(new HttpException(BAD_REQUEST, e.getMessage(), e));
+        return;
+      }
       catch (Exception e) {
-        if(e.getMessage() != null && e.getMessage().contains("Related connector is not active")) {
-          callback.exception(new HttpException(BAD_REQUEST, e.getMessage(), e));
-        }else {
-          callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Error executing the storage event.", e));
-        }
+        callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Error executing the storage event.", e));
         return;
       }
 
-      // update the contentUpdatedAt timestamp to indicate that the data in this space was modified
+      //Update the contentUpdatedAt timestamp to indicate that the data in this space was modified
       if (task instanceof FeatureTask.ConditionalOperation || task instanceof FeatureTask.DeleteOperation) {
         long now = Service.currentTimeMillis();
         if (now - task.space.contentUpdatedAt > Space.CONTENT_UPDATED_AT_INTERVAL_MILLIS) {
@@ -221,6 +228,14 @@ public class FeatureTaskHandler {
       //Send event to potentially registered request-listeners
       notifyListeners(task, eventType, requestListenerPayload);
     });
+  }
+
+  private static <T extends FeatureTask> void addStoragePerformanceInfo(T task, Connector storage, long storageTime,
+      RpcContext rpcContext) {
+    String connectorPerformanceValues = "SID=" + storage.id + ";STime=" + storageTime + ";";
+    if (rpcContext != null)
+      connectorPerformanceValues += "SReqSize=" + rpcContext.getRequestSize() + ";SResSize=" + rpcContext.getResponseSize() + ";";
+    addStreamInfo(task, connectorPerformanceValues);
   }
 
   private static XyzResponse transform(byte[] value) throws JsonProcessingException {
@@ -259,12 +274,14 @@ public class FeatureTaskHandler {
       Service.cacheClient.getBinary(cacheKey, cacheResult -> {
         if (cacheResult == null) {
           //Cache MISS: Just go on in the task pipeline
+          addStreamInfo(task, "CH=0;");
           logger.info(task.getMarker(), "Cache MISS for cache key {}", cacheKey);
         } else {
           //Cache HIT: Set the response for the task to the result from the cache so invoke (in the task pipeline) won't have anything to do
           try {
             task.setResponse(transform(cacheResult));
             task.setCacheHit(true);
+            addStreamInfo(task, "CH=1;");
             logger.info(task.getMarker(), "Cache HIT for cache key {}", cacheKey);
           } catch (JsonProcessingException e) {
             //Actually, this should never happen as we're controlling how the data is written to the cache, but you never know ;-)
@@ -945,7 +962,15 @@ public class FeatureTaskHandler {
     }
 
     task.setResponse(binaryResponse);
+
     callback.call(task);
+  }
+
+  private static <T extends FeatureTask> void addStreamInfo(T task, String streamInfoValues) {
+    if (task.context.response().headers().contains(STREAM_INFO))
+      streamInfoValues = task.context.response().headers().get(STREAM_INFO) + streamInfoValues;
+
+    task.context.response().putHeader(STREAM_INFO, streamInfoValues);
   }
 
   public static <X extends FeatureTask<?, X>> void validate(X task, Callback<X> callback) {
@@ -1021,6 +1046,7 @@ public class FeatureTaskHandler {
 
     List<FeatureCollection.ModificationFailure> failedModifications;
     Class<? extends Event> eventType;
+    RpcContext rpcContext;
 
     EventResponseContext(Event event) {
       eventType = event.getClass();
