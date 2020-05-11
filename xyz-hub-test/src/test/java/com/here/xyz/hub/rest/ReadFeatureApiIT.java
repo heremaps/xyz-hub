@@ -19,25 +19,10 @@
 
 package com.here.xyz.hub.rest;
 
-import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.geom.GeometryFactory;
-import com.wdtinc.mapbox_vector_tile.adapt.jts.MvtReader;
-import com.wdtinc.mapbox_vector_tile.adapt.jts.TagKeyValueMapConverter;
-import com.wdtinc.mapbox_vector_tile.adapt.jts.model.JtsLayer;
-import com.wdtinc.mapbox_vector_tile.adapt.jts.model.JtsMvt;
-import io.vertx.core.json.JsonObject;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-
 import static com.google.common.net.HttpHeaders.ACCEPT_ENCODING;
-import static com.here.xyz.hub.rest.Api.HeaderValues.*;
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
 import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
@@ -56,6 +41,22 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+
+import com.vividsolutions.jts.geom.Coordinate;
+import com.vividsolutions.jts.geom.Geometry;
+import com.vividsolutions.jts.geom.GeometryFactory;
+import com.wdtinc.mapbox_vector_tile.adapt.jts.MvtReader;
+import com.wdtinc.mapbox_vector_tile.adapt.jts.TagKeyValueMapConverter;
+import com.wdtinc.mapbox_vector_tile.adapt.jts.model.JtsLayer;
+import com.wdtinc.mapbox_vector_tile.adapt.jts.model.JtsMvt;
+import io.vertx.core.json.JsonObject;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class ReadFeatureApiIT extends TestSpaceWithFeature {
 
@@ -111,7 +112,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void readByBoundingBoxWithCache() {
+  public void readByBoundingBoxWithEtag() {
     String etag =
         given().
             accept(APPLICATION_GEO_JSON).
@@ -242,7 +243,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testFullCountWithCache() {
+  public void testFullCountWithEtag() {
     String etag =
         given().
             accept(APPLICATION_JSON).
@@ -280,7 +281,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testSearchSpaceRequestWithCache() {
+  public void testSearchSpaceRequestWithEtag() {
     String etag =
         given().
             accept(APPLICATION_GEO_JSON).
@@ -416,7 +417,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testIterateSpaceWithCache() {
+  public void testIterateSpaceWithEtag() {
     String etag =
         given().
             accept(APPLICATION_GEO_JSON).
@@ -494,7 +495,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testFeatureByIdWithCache() {
+  public void testFeatureByIdWithEtag() {
     String etag =
         given().
             accept(APPLICATION_GEO_JSON).

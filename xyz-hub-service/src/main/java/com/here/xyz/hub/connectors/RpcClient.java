@@ -212,22 +212,25 @@ public class RpcClient {
    * @param marker the log marker
    * @param event the event
    * @param callback the callback handler
+   * @return The rpc context belonging to the request
    */
   @SuppressWarnings("rawtypes")
-  public void execute(final Marker marker, final Event event, final Handler<AsyncResult<XyzResponse>> callback) {
+  public RpcContext execute(final Marker marker, final Event event, final Handler<AsyncResult<XyzResponse>> callback) {
     final Connector connector = getConnector();
     event.setConnectorParams(connector.params);
     final String eventJson = event.serialize();
-    final byte[] bytes = eventJson.getBytes();
-    logger.info(marker, "Invoking remote function \"{}\". Total uncompressed event size: {}, Event: {}", connector.id, bytes.length,
+    final byte[] eventBytes = eventJson.getBytes();
+    final RpcContext context = new RpcContext().withRequestSize(eventBytes.length);
+    logger.info(marker, "Invoking remote function \"{}\". Total uncompressed event size: {}, Event: {}", connector.id, eventBytes.length,
         preview(eventJson, 4092));
 
-    invokeWithRelocation(marker, bytes, false, bytesResult -> {
+    invokeWithRelocation(marker, eventBytes, false, bytesResult -> {
       if (bytesResult.failed()) {
         callback.handle(Future.failedFuture(bytesResult.cause()));
         return;
       }
 
+      context.setResponseSize(bytesResult.result().length);
       parseResponse(marker, bytesResult.result(), r -> {
         if (r.failed()) {
           logger.error(marker, "Error while handling the response from connector \"{}\".", connector.id, r.cause());
@@ -237,6 +240,7 @@ public class RpcClient {
         callback.handle(Future.succeededFuture(r.result()));
       });
     });
+    return context;
   }
 
   private String preview(String eventJson, @SuppressWarnings("SameParameterValue") int previewLength) {
@@ -253,16 +257,19 @@ public class RpcClient {
    *
    * @param marker the log marker
    * @param event  the event
+   * @return The rpc context belonging to the request
    * @throws NullPointerException if this RPC client is closed or the function client it is bound to is closed.
    */
-  public void send(final Marker marker, @SuppressWarnings("rawtypes") final Event event) throws NullPointerException {
+  public RpcContext send(final Marker marker, @SuppressWarnings("rawtypes") final Event event) throws NullPointerException {
     final Connector connector = getConnector();
     event.setConnectorParams(connector.params);
-    invokeWithRelocation(marker, event.serialize().getBytes(), true, r -> {
+    final byte[] eventBytes = event.serialize().getBytes();
+    invokeWithRelocation(marker, eventBytes, true, r -> {
       if (r.failed()) {
         logger.error(marker, "Failed to send event to remote function {}.", connector.remoteFunction.id, r.cause());
       }
     });
+    return new RpcContext().withRequestSize(eventBytes.length);
   }
 
   @SuppressWarnings("rawtypes")
@@ -401,5 +408,36 @@ public class RpcClient {
 
     return new HttpException(BAD_GATEWAY,
         "Invalid content provided by the connector: Invalid JSON type. Expected is a sub-type of XyzResponse.");
+  }
+
+  public static class RpcContext {
+    private int requestSize = -1;
+    private int responseSize = -1;
+
+    public int getRequestSize() {
+      return requestSize;
+    }
+
+    public void setRequestSize(int requestSize) {
+      this.requestSize = requestSize;
+    }
+
+    public int getResponseSize() {
+      return responseSize;
+    }
+
+    public void setResponseSize(int responseSize) {
+      this.responseSize = responseSize;
+    }
+
+    public RpcContext withRequestSize(int requestSize) {
+      setRequestSize(requestSize);
+      return this;
+    }
+
+    public RpcContext withResponseSize(int responseSize) {
+      setResponseSize(responseSize);
+      return this;
+    }
   }
 }

@@ -21,6 +21,7 @@ package com.here.xyz.hub;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
+import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_INFO;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.vertx.core.http.HttpHeaders.AUTHORIZATION;
@@ -118,7 +119,7 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
   /**
    * The headers, which can be exposed as part of the response.
    */
-  private final List<CharSequence> exposeHeaders = Arrays.asList(STREAM_ID, ETAG);
+  private final List<CharSequence> exposeHeaders = Arrays.asList(STREAM_ID, STREAM_INFO, ETAG);
 
   /**
    * The headers the client is allowed to send.

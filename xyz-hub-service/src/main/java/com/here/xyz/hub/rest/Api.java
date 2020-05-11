@@ -454,6 +454,7 @@ public abstract class Api {
   public static class HeaderValues {
 
     public static final String STREAM_ID = "Stream-Id";
+    public static final String STREAM_INFO = "Stream-Info";
     public static final String APPLICATION_GEO_JSON = "application/geo+json";
     public static final String APPLICATION_JSON = "application/json";
     static final String APPLICATION_VND_MAPBOX_VECTOR_TILE = "application/vnd.mapbox-vector-tile";
