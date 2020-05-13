@@ -58,6 +58,8 @@ public class AccessLog extends AccessLogExtended {
   }
 
   private String stripClassified(String original) {
+    if (classified == null)
+      return original;
     for (String c : classified) {
       if (c == null) continue;
       original = original.replace(c, c.substring(0, c.length() / 2) + "*****");
