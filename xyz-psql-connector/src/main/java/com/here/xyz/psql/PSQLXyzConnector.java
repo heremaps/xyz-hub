@@ -21,23 +21,39 @@ package com.here.xyz.psql;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.events.*;
+import com.here.xyz.events.CountFeaturesEvent;
+import com.here.xyz.events.DeleteFeaturesByTagEvent;
+import com.here.xyz.events.GetFeaturesByBBoxEvent;
+import com.here.xyz.events.GetFeaturesByGeometryEvent;
+import com.here.xyz.events.GetFeaturesByIdEvent;
+import com.here.xyz.events.GetFeaturesByTileEvent;
+import com.here.xyz.events.GetStatisticsEvent;
+import com.here.xyz.events.IterateFeaturesEvent;
+import com.here.xyz.events.LoadFeaturesEvent;
+import com.here.xyz.events.ModifyFeaturesEvent;
+import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.factory.H3SQL;
 import com.here.xyz.psql.factory.QuadbinSQL;
 import com.here.xyz.psql.factory.TweaksSQL;
-import com.here.xyz.responses.*;
+import com.here.xyz.responses.CountResponse;
+import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.SuccessResponse;
+import com.here.xyz.responses.XyzError;
+import com.here.xyz.responses.XyzResponse;
+import java.sql.SQLException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.List;
-import java.util.Map;
 
 public class PSQLXyzConnector extends DatabaseHandler {
 
@@ -198,25 +214,19 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       final boolean addUUID = event.getEnableUUID() == Boolean.TRUE && event.getVersion().compareTo("0.2.0") < 0;
       // Update the features to insert
-      final List<Feature> inserts = event.getInsertFeatures();
-      if (inserts != null) {
-        for (Feature feature : inserts) {
-          if (feature.getId() == null) {
-            feature.setId(RandomStringUtils.randomAlphanumeric(16));
-          }
-          Feature.finalizeFeature(feature, event.getSpace(), addUUID);
-        }
-      }
+      final List<Feature> inserts = Optional.ofNullable(event.getInsertFeatures()).orElse(Collections.emptyList());
+      final List<Feature> updates = Optional.ofNullable(event.getUpdateFeatures()).orElse(Collections.emptyList());
+      final List<Feature> upserts = Optional.ofNullable(event.getUpsertFeatures()).orElse(Collections.emptyList());
 
-      final List<Feature> updates = event.getUpdateFeatures();
-      if (updates != null) {
-        for (final Feature feature : updates) {
-          Feature.finalizeFeature(feature, event.getSpace(), addUUID);
+      Stream.of(inserts, updates, upserts).flatMap(Collection::stream).forEach(feature -> {
+        if (feature.getId() == null) {
+          feature.setId(RandomStringUtils.randomAlphanumeric(16));
         }
-      }
+        Feature.finalizeFeature(feature, event.getSpace(), addUUID);
+      });
 
       return executeModifyFeatures(event);
-    }catch (SQLException e){
+    } catch (SQLException e) {
       return checkSQLException(e, config.table(event));
     }
   }
