@@ -18,7 +18,18 @@
  */
 package com.here.xyz.psql;
 
-import com.here.xyz.events.*;
+import com.here.xyz.events.CountFeaturesEvent;
+import com.here.xyz.events.GetFeaturesByBBoxEvent;
+import com.here.xyz.events.GetFeaturesByGeometryEvent;
+import com.here.xyz.events.GetFeaturesByIdEvent;
+import com.here.xyz.events.GetFeaturesByTileEvent;
+import com.here.xyz.events.GetStatisticsEvent;
+import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.events.QueryEvent;
+import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.events.TagList;
+import com.here.xyz.events.TagsQuery;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
@@ -26,10 +37,13 @@ import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.psql.factory.H3SQL;
 import com.here.xyz.psql.factory.QuadbinSQL;
 import com.here.xyz.psql.factory.TweaksSQL;
-
-import javax.sql.DataSource;
 import java.sql.SQLException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import javax.sql.DataSource;
 
 public class SQLQueryBuilder {
     private static final long GEOMETRY_DECIMAL_DIGITS = 8;
@@ -207,7 +221,7 @@ public class SQLQueryBuilder {
 
     /***************************************** TWEAKS **************************************************/
 
-    public static SQLQuery buildSamplingTweaksQuery(GetFeaturesByBBoxEvent event, BBox bbox, Map tweakParams, DataSource dataSource) throws SQLException 
+    public static SQLQuery buildSamplingTweaksQuery(GetFeaturesByBBoxEvent event, BBox bbox, Map tweakParams, DataSource dataSource) throws SQLException
     {
      int strength = 0;
      boolean bDistribution = true;
@@ -227,12 +241,12 @@ public class SQLQueryBuilder {
        }
 
        switch((String) tweakParams.getOrDefault(TweaksSQL.SAMPLING_ALGORITHM, TweaksSQL.SAMPLING_ALGORITHM_DST) )
-       { 
+       {
          case TweaksSQL.SAMPLING_ALGORITHM_SZE : bDistribution = false; break;
-         case TweaksSQL.SAMPLING_ALGORITHM_DST : 
+         case TweaksSQL.SAMPLING_ALGORITHM_DST :
          default: bDistribution = true; break;
        }
-     } 
+     }
 
 
      final String twqry = String.format(String.format("ST_Intersects(geo, ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326) ) and %%s", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat(), TweaksSQL.strengthSql(strength,bDistribution) );
@@ -243,7 +257,7 @@ public class SQLQueryBuilder {
      return generateCombinedQuery(event, tweakQuery, searchQuery , dataSource);
 	}
 
-    public static SQLQuery buildSimplificationTweaksQuery(GetFeaturesByBBoxEvent event, BBox bbox, Map tweakParams, DataSource dataSource) throws SQLException 
+    public static SQLQuery buildSimplificationTweaksQuery(GetFeaturesByBBoxEvent event, BBox bbox, Map tweakParams, DataSource dataSource) throws SQLException
     {
      int strength = 0;
      String tweaksGeoSql = "geo";
@@ -265,31 +279,31 @@ public class SQLQueryBuilder {
 
        // do clip before simplifications
        if (event.getClip())
-       { String fmt =  String.format(  " case st_within( %%1$s, ST_MakeEnvelope(%%2$.%1$df,%%3$.%1$df,%%4$.%1$df,%%5$.%1$df, 4326) ) " 
+       { String fmt =  String.format(  " case st_within( %%1$s, ST_MakeEnvelope(%%2$.%1$df,%%3$.%1$df,%%4$.%1$df,%%5$.%1$df, 4326) ) "
                                      + "  when true then %%1$s "
                                      + "  else ST_Intersection(%%1$s,ST_MakeEnvelope(%%2$.%1$df,%%3$.%1$df,%%4$.%1$df,%%5$.%1$df, 4326))"
                                      + " end " , 14 /*GEOMETRY_DECIMAL_DIGITS*/ );
          tweaksGeoSql = String.format( fmt, tweaksGeoSql, bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
-       } 
+       }
 
        //SIMPLIFICATION_ALGORITHM
        int hint = 0;
 
        switch((String) tweakParams.get(TweaksSQL.SIMPLIFICATION_ALGORITHM) )
-       { 
+       {
          case TweaksSQL.SIMPLIFICATION_ALGORITHM_A03 : hint++;
          case TweaksSQL.SIMPLIFICATION_ALGORITHM_A02 :
-         { 
+         {
           double tolerance = ( strength <= 10 ? (1.0 / (11 - strength)) : strength);
           tweaksGeoSql = String.format("%s(%s, %f)",( hint == 0 ? "ftm_SimplifyPreserveTopology" : "ftm_Simplify"), tweaksGeoSql, tolerance );
          }
          break;
 
-         case TweaksSQL.SIMPLIFICATION_ALGORITHM_A01 : 
+         case TweaksSQL.SIMPLIFICATION_ALGORITHM_A01 :
          {
           double tolerance =  (0.0045/100) * strength;
           tweaksGeoSql = String.format("ST_SnapToGrid(%s, %f)",tweaksGeoSql, tolerance );
-         }  
+         }
          break;
 
          case TweaksSQL.SIMPLIFICATION_ALGORITHM_A04 : bMerge = true; break;
@@ -297,9 +311,9 @@ public class SQLQueryBuilder {
          default: break;
        }
 
-       //convert to geojson 
+       //convert to geojson
        tweaksGeoSql = String.format("replace(ST_AsGeojson(ST_Force3D( %s ),%d),'nan','0')",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS);
-     } 
+     }
 
        final String bboxqry = String.format( String.format("ST_Intersects(geo, ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326) )", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() );
 
@@ -309,15 +323,15 @@ public class SQLQueryBuilder {
         return generateCombinedQuery(event, new SQLQuery(bboxqry), searchQuery , tweaksGeoSql, dataSource);
 
        // Merge Algorithm - only using low, med, high
-       
+
        int minGeoHashLenToMerge = 0;
-       
+
        if( strength <= 20 ) minGeoHashLenToMerge = 7;
        else if ( strength <= 60 ) minGeoHashLenToMerge = 6;
 
        SQLQuery query = new SQLQuery( String.format( TweaksSQL.mergeBeginSql, tweaksGeoSql, minGeoHashLenToMerge, bboxqry ) );
 
-       if (searchQuery != null) 
+       if (searchQuery != null)
        { query.append(" and ");
          query.append(searchQuery);
        }
@@ -327,7 +341,7 @@ public class SQLQueryBuilder {
 
        return query;
 	}
-    
+
     /***************************************** TWEAKS END **************************************************/
 
     public static SQLQuery buildFeaturesQuery(final SearchForFeaturesEvent event, final boolean isIterate, final boolean hasHandle,
@@ -535,7 +549,7 @@ public class SQLQueryBuilder {
         else if (event instanceof GetFeaturesByBBoxEvent) {
             query.append(",");
             query.append(geometrySelectorForEvent((GetFeaturesByBBoxEvent) event));
-        } 
+        }
         else
          query.append(",replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0')");
 
@@ -545,7 +559,7 @@ public class SQLQueryBuilder {
         if( secondaryQuery != null )
         { query.append(" and ");
           query.append(secondaryQuery);
-        }  
+        }
 
         if( tweaksgeo != null )
          query.append(" ) tw where twgeo is not null");
@@ -554,7 +568,7 @@ public class SQLQueryBuilder {
         return query;
     }
 
-    private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, DataSource dataSource) throws SQLException 
+    private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, DataSource dataSource) throws SQLException
     { return generateCombinedQuery(event,indexedQuery,secondaryQuery,null,dataSource); }
 
 
@@ -595,7 +609,13 @@ public class SQLQueryBuilder {
     protected static SQLQuery generateLoadOldFeaturesQuery(final String[] idsToFetch, final DataSource dataSource)
             throws SQLException {
         return new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
-            SQLQuery.createSQLArray(idsToFetch, "text",dataSource));
+            SQLQuery.createSQLArray(idsToFetch, "text", dataSource));
+    }
+
+    protected static SQLQuery generateLoadExistingIdsQuery(final String[] idsToFetch, final DataSource dataSource)
+        throws SQLException {
+      return new SQLQuery("SELECT jsondata->>'id' FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
+          SQLQuery.createSQLArray(idsToFetch, "text", dataSource));
     }
 
     protected static SQLQuery generateIDXStatusQuery(final String space){

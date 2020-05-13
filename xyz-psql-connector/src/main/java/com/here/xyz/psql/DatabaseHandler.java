@@ -22,27 +22,45 @@ package com.here.xyz.psql;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.StorageConnector;
-import com.here.xyz.events.*;
+import com.here.xyz.events.DeleteFeaturesByTagEvent;
+import com.here.xyz.events.Event;
+import com.here.xyz.events.HealthCheckEvent;
+import com.here.xyz.events.IterateFeaturesEvent;
+import com.here.xyz.events.LoadFeaturesEvent;
+import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.responses.*;
+import com.here.xyz.responses.CountResponse;
+import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.HealthStatus;
+import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.responses.XyzError;
+import com.here.xyz.responses.XyzResponse;
 import com.mchange.v2.c3p0.AbstractConnectionCustomizer;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import javax.sql.DataSource;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.commons.dbutils.StatementConfiguration;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import javax.sql.DataSource;
-import java.sql.*;
-import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public abstract class DatabaseHandler extends StorageConnector {
     private static final Logger logger = LogManager.getLogger();
@@ -334,7 +352,7 @@ public abstract class DatabaseHandler extends StorageConnector {
      *
      * @param idsToFetch Ids of objects which should get fetched
      * @return List of Features which could get fetched
-     * @throws Exception  if any error occurred.
+     * @throws Exception if any error occurred.
      */
     protected List<Feature> fetchOldStates(String[] idsToFetch) throws Exception {
         List<Feature> oldFeatures = null;
@@ -345,6 +363,16 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
 
         return oldFeatures;
+    }
+
+    /**
+     *
+     * @param idsToFetch Ids of objects which should get fetched
+     * @return List of Feature's id which could get fetched
+     * @throws Exception if any error occurred.
+     */
+    protected List<String> fetchExistingIds(String[] idsToFetch) throws Exception {
+      return executeQuery(SQLQueryBuilder.generateLoadExistingIdsQuery(idsToFetch, dataSource), this::idsListResultSetHandler);
     }
 
     protected XyzResponse executeModifyFeatures(ModifyFeaturesEvent event) throws Exception {
@@ -358,28 +386,30 @@ public abstract class DatabaseHandler extends StorageConnector {
         final FeatureCollection collection = new FeatureCollection();
         collection.setFeatures(new ArrayList<>());
 
-        List<Feature> oldFeatures;
-
         List<Feature> inserts = Optional.ofNullable(event.getInsertFeatures()).orElse(new ArrayList<>());
         List<Feature> updates = Optional.ofNullable(event.getUpdateFeatures()).orElse(new ArrayList<>());
+        List<Feature> upserts = Optional.ofNullable(event.getUpsertFeatures()).orElse(new ArrayList<>());
         Map<String, String> deletes = Optional.ofNullable(event.getDeleteFeatures()).orElse(new HashMap<>());
         List<FeatureCollection.ModificationFailure> fails = Optional.ofNullable(event.getFailed()).orElse(new ArrayList<>());
 
-        List<String> insertIds = inserts.stream().map(Feature::getId).filter(Objects::nonNull).collect(Collectors.toList());
-        List<String> updateIds = updates.stream().map(Feature::getId).filter(Objects::nonNull).collect(Collectors.toList());
-        List<String> deleteIds = new ArrayList<>(deletes.keySet());
-
         /** Include Old states */
         if (includeOldStates) {
-            String[] idsToFetch = Stream.of(insertIds, updateIds, deleteIds).flatMap(List::stream).toArray(String[]::new);
-            oldFeatures = fetchOldStates(idsToFetch);
+            String[] idsToFetch = getAllIds(inserts, updates, upserts, deletes).stream().filter(Objects::nonNull).toArray(String[]::new);
+            List<Feature> oldFeatures = fetchOldStates(idsToFetch);
             if (oldFeatures != null) {
                 collection.setOldFeatures(oldFeatures);
             }
         }
 
+        /** Include Upserts */
+        if (!upserts.isEmpty()) {
+          String[] upsertIds = upserts.stream().map(Feature::getId).filter(Objects::nonNull).toArray(String[]::new);
+          List<String> existingIds = fetchExistingIds(upsertIds);
+          upserts.forEach(f -> (existingIds.contains(f.getId()) ? updates : inserts).add(f));
+        }
+
         try (final Connection connection = dataSource.getConnection()) {
-            if(transactional)
+            if (transactional)
                 connection.setAutoCommit(false);
             else
                 connection.setAutoCommit(true);
@@ -394,14 +424,14 @@ public abstract class DatabaseHandler extends StorageConnector {
                     DatabaseWriter.insertFeatures(schema, table, streamId, collection, fails, inserts, connection, transactional);
                 }
                 if (updates.size() > 0) {
-                    DatabaseWriter.updateFeatures(schema, table, streamId, collection, fails,  updates, connection, transactional, handleUUID);
+                    DatabaseWriter.updateFeatures(schema, table, streamId, collection, fails, updates, connection, transactional, handleUUID);
                 }
 
                 if (transactional) {
                     /** Commit SQLS in one transaction */
                     connection.commit();
                 }
-            }catch (Exception e){
+            } catch (Exception e) {
                 /** No time left for processing */
                 if(e instanceof SQLException && ((SQLException)e).getSQLState() !=null
                         &&((SQLException)e).getSQLState().equalsIgnoreCase("54000"))
@@ -417,15 +447,14 @@ public abstract class DatabaseHandler extends StorageConnector {
                     return executeModifyFeatures(event);
                 }
 
-                if(transactional) {
+                if (transactional) {
                     connection.rollback();
-                    if((e instanceof SQLException && ((SQLException)e).getSQLState() != null
+                    if ((e instanceof SQLException && ((SQLException)e).getSQLState() != null
                             && ((SQLException)e).getSQLState().equalsIgnoreCase("42P01")))
                         ;//Table does not exist yet - create it!
-                    else{
+                    else {
                         /** Add all other Objects to failed list */
-                        final List<String> failedIds = fails.stream().map(FeatureCollection.ModificationFailure::getId).filter(Objects::nonNull).collect(Collectors.toList());
-                        addAllToFailedList(failedIds, fails, insertIds, updateIds, deleteIds);
+                        addAllToFailedList(fails, getAllIds(inserts, updates, upserts, deletes));
 
                         /** Reset the rest */
                         collection.setFeatures(new ArrayList<>());
@@ -444,9 +473,9 @@ public abstract class DatabaseHandler extends StorageConnector {
 
             /** filter out failed ids */
             final List<String> failedIds = fails.stream().map(FeatureCollection.ModificationFailure::getId).filter(Objects::nonNull).collect(Collectors.toList());
-            insertIds = inserts.stream().map(Feature::getId).filter(x -> !failedIds.contains(x)).collect(Collectors.toList());
-            updateIds = updates.stream().map(Feature::getId).filter(x -> !failedIds.contains(x)).collect(Collectors.toList());
-            deleteIds = deletes.keySet().stream().filter(x -> !failedIds.contains(x)).collect(Collectors.toList());
+            final List<String> insertIds = inserts.stream().map(Feature::getId).filter(x -> !failedIds.contains(x)).collect(Collectors.toList());
+            final List<String> updateIds = updates.stream().map(Feature::getId).filter(x -> !failedIds.contains(x)).collect(Collectors.toList());
+            final List<String> deleteIds = deletes.keySet().stream().filter(x -> !failedIds.contains(x)).collect(Collectors.toList());
 
             collection.setFailed(fails);
 
@@ -454,7 +483,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 if (collection.getInserted() == null) {
                     collection.setInserted(new ArrayList<>());
                 }
-                
+
                 collection.getInserted().addAll(insertIds);
             }
 
@@ -476,19 +505,19 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
-    private void addAllToFailedList(
-            final List<String> failedIds, List<FeatureCollection.ModificationFailure> fails,
-            List<String> insertIds,List<String> updateIds ,List<String> deleteIds ){
+    private List<String> getAllIds(List<Feature> inserts, List<Feature> updates, List<Feature> upserts, Map<String, ?> deletes) {
+      List<String> ids = Stream.of(inserts, updates, upserts).flatMap(Collection::stream).map(Feature::getId).collect(Collectors.toList());
+      ids.addAll(deletes.keySet());
 
-        final List<String> failedIdsTotal = new LinkedList<>();
+      return ids;
+    }
 
-        failedIdsTotal.addAll(insertIds.stream().filter(x -> !failedIds.contains(x)).collect(Collectors.toList()));
-        failedIdsTotal.addAll(updateIds.stream().filter(x -> !failedIds.contains(x)).collect(Collectors.toList()));
-        failedIdsTotal.addAll(deleteIds.stream().filter(x -> !failedIds.contains(x)).collect(Collectors.toList()));
-
-        for (String id: failedIdsTotal) {
-            fails.add(new FeatureCollection.ModificationFailure().withId(id).withMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL));
-        }
+    private void addAllToFailedList(List<FeatureCollection.ModificationFailure> fails, List<String> ids) {
+        List<String> failedIds = fails.stream().map(FeatureCollection.ModificationFailure::getId).filter(Objects::nonNull)
+            .collect(Collectors.toList());
+        ids.stream().filter(id -> !failedIds.contains(id)).forEach(id ->
+            fails.add(new FeatureCollection.ModificationFailure().withId(id).withMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL))
+        );
     }
 
     protected XyzResponse executeDeleteFeaturesByTag(DeleteFeaturesByTagEvent event) throws Exception {
@@ -739,6 +768,23 @@ public abstract class DatabaseHandler extends StorageConnector {
         final FeatureCollection featureCollection = new FeatureCollection();
         featureCollection._setFeatures(sb.toString());
         return featureCollection;
+    }
+
+    /**
+     * handler for list of feature's id results.
+     *
+     * @param rs the result set.
+     * @return the generated feature collection from the result set.
+     * @throws SQLException when any unexpected error happened.
+     */
+    protected List<String> idsListResultSetHandler(ResultSet rs) throws SQLException {
+      final ArrayList<String> result = new ArrayList<>();
+
+      while (rs.next()) {
+        result.add(rs.getString("id"));
+      }
+
+      return result;
     }
 
     /**
