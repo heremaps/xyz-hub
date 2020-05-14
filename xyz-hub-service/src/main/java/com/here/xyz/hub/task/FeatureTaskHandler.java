@@ -181,8 +181,7 @@ public class FeatureTaskHandler {
         setAdditionalEventProps(task, task.storage, eventToExecute);
         final long storageRequestStart = Service.currentTimeMillis();
         responseContext.rpcContext = RpcClient.getInstanceFor(task.storage).execute(task.getMarker(), eventToExecute, storageResult -> {
-          addStoragePerformanceInfo(task, task.storage, Service.currentTimeMillis() - storageRequestStart,
-              responseContext.rpcContext);
+          addStoragePerformanceInfo(task, Service.currentTimeMillis() - storageRequestStart, responseContext.rpcContext);
           if (storageResult.failed()) {
             handleFailure(task.getMarker(), storageResult.cause(), callback);
             return;
@@ -230,9 +229,9 @@ public class FeatureTaskHandler {
     });
   }
 
-  private static <T extends FeatureTask> void addStoragePerformanceInfo(T task, Connector storage, long storageTime,
+  private static <T extends FeatureTask> void addStoragePerformanceInfo(T task, long storageTime,
       RpcContext rpcContext) {
-    String connectorPerformanceValues = "SID=" + storage.id + ";STime=" + storageTime + ";";
+    String connectorPerformanceValues = "STime=" + storageTime + ";";
     if (rpcContext != null)
       connectorPerformanceValues += "SReqSize=" + rpcContext.getRequestSize() + ";SResSize=" + rpcContext.getResponseSize() + ";";
     addStreamInfo(task, connectorPerformanceValues);
@@ -584,6 +583,7 @@ public class FeatureTaskHandler {
     logger.debug(task.getMarker(), "Given space configuration is: {}", Json.encode(task.space));
 
     final String storageId = task.space.getStorage().getId();
+    addStreamInfo(task, "SID=" + storageId + ";");
     Space.resolveConnector(task.getMarker(), storageId, (arStorage) -> {
       if (arStorage.failed()) {
         callback.exception(new InvalidStorageException("Unable to load the definition for this storage."));
