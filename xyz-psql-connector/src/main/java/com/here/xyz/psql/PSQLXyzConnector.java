@@ -218,12 +218,16 @@ public class PSQLXyzConnector extends DatabaseHandler {
       final List<Feature> updates = Optional.ofNullable(event.getUpdateFeatures()).orElse(Collections.emptyList());
       final List<Feature> upserts = Optional.ofNullable(event.getUpsertFeatures()).orElse(Collections.emptyList());
 
-      Stream.of(inserts, updates, upserts).flatMap(Collection::stream).forEach(feature -> {
-        if (feature.getId() == null) {
-          feature.setId(RandomStringUtils.randomAlphanumeric(16));
-        }
-        Feature.finalizeFeature(feature, event.getSpace(), addUUID);
-      });
+      // Generate feature ID
+      Stream.of(inserts, upserts)
+          .flatMap(Collection::stream)
+          .filter(feature -> feature.getId() == null)
+          .forEach(feature -> feature.setId(RandomStringUtils.randomAlphanumeric(16)));
+
+      // Call finalize feature
+      Stream.of(inserts, updates, upserts)
+          .flatMap(Collection::stream)
+          .forEach(feature -> Feature.finalizeFeature(feature, event.getSpace(), addUUID));
 
       return executeModifyFeatures(event);
     } catch (SQLException e) {
