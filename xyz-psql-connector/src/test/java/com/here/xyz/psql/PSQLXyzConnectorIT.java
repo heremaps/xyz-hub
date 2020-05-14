@@ -19,6 +19,13 @@
 
 package com.here.xyz.psql;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 import com.amazonaws.util.IOUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -26,11 +33,31 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.events.*;
+import com.here.xyz.events.GetFeaturesByGeometryEvent;
+import com.here.xyz.events.GetStatisticsEvent;
+import com.here.xyz.events.HealthCheckEvent;
+import com.here.xyz.events.ModifyFeaturesEvent;
+import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQuery.QueryOperation;
-import com.here.xyz.models.geojson.coordinates.*;
+import com.here.xyz.events.PropertyQueryList;
+import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.models.geojson.coordinates.LineStringCoordinates;
+import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
+import com.here.xyz.models.geojson.coordinates.MultiPolygonCoordinates;
+import com.here.xyz.models.geojson.coordinates.PointCoordinates;
+import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
+import com.here.xyz.models.geojson.coordinates.Position;
+import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.xyz.models.geojson.implementation.LineString;
+import com.here.xyz.models.geojson.implementation.MultiPolygon;
+import com.here.xyz.models.geojson.implementation.Point;
+import com.here.xyz.models.geojson.implementation.Polygon;
 import com.here.xyz.models.geojson.implementation.Properties;
-import com.here.xyz.models.geojson.implementation.*;
+import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
@@ -40,14 +67,6 @@ import com.jayway.jsonpath.Configuration;
 import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.Option;
-import org.apache.commons.lang3.RandomStringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -66,8 +85,13 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static org.junit.Assert.*;
+import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 @SuppressWarnings("unused")
 public class PSQLXyzConnectorIT {
@@ -1273,26 +1297,16 @@ public class PSQLXyzConnectorIT {
   }
 
   @Test
-  public void testUpsertFeature() {
-/*
-    // =========== INSERT ==========
-    String insertJsonFile = "/UpsertFeaturesEvent.json";
-    String insertResponse = invokeLambdaFromFile(insertJsonFile);
-    String insertRequest = IOTools.toString(GSContext.class.getResourceAsStream(insertJsonFile));
-    assertRead(insertRequest, insertResponse, false);
-    logger.info("Insert of upsert-operation successful");
+  public void testUpsertFeature() throws Exception {
+    invokeLambdaFromFile("/events/InsertFeaturesEvent.json");
 
-    // =========== UPDATE ==========
-    FeatureCollection featureCollection = new FeatureCollection().capture(Json.parse(insertResponse));
-    featureCollection.features().get(0).properties().put("name", "Toyota");
-    featureCollection.features().get(0).properties().nsXyz().tags().add("green");
-    featureCollection.features().get(1).properties().put("name", "Tesla");
-    featureCollection.features().get(1).properties().nsXyz().tags().add("green");
-    final String updateRequest = Json.stringify(featureCollection);
-    String updateResponse = invokeLambda(updateRequest);
-    assertUpdate(updateRequest, updateResponse, false);
-    logger.info("Update of upsert-operation successful");
-*/
+    // =========== UPSERT ==========
+    String jsonFile = "/events/UpsertFeaturesEvent.json";
+    String response = invokeLambdaFromFile(jsonFile);
+    logger.info("RAW RESPONSE: " + response);
+    String request = IOUtils.toString(GSContext.class.getResourceAsStream(jsonFile));
+    assertRead(request, response, false);
+    logger.info("Upsert feature tested successfully");
   }
 
   @Test
