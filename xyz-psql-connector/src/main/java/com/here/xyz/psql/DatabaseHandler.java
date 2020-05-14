@@ -392,20 +392,28 @@ public abstract class DatabaseHandler extends StorageConnector {
         Map<String, String> deletes = Optional.ofNullable(event.getDeleteFeatures()).orElse(new HashMap<>());
         List<FeatureCollection.ModificationFailure> fails = Optional.ofNullable(event.getFailed()).orElse(new ArrayList<>());
 
-        /** Include Old states */
-        if (includeOldStates) {
+        try {
+          /** Include Old states */
+          if (includeOldStates) {
             String[] idsToFetch = getAllIds(inserts, updates, upserts, deletes).stream().filter(Objects::nonNull).toArray(String[]::new);
             List<Feature> oldFeatures = fetchOldStates(idsToFetch);
             if (oldFeatures != null) {
-                collection.setOldFeatures(oldFeatures);
+              collection.setOldFeatures(oldFeatures);
             }
-        }
+          }
 
-        /** Include Upserts */
-        if (!upserts.isEmpty()) {
-          String[] upsertIds = upserts.stream().map(Feature::getId).filter(Objects::nonNull).toArray(String[]::new);
-          List<String> existingIds = fetchExistingIds(upsertIds);
-          upserts.forEach(f -> (existingIds.contains(f.getId()) ? updates : inserts).add(f));
+          /** Include Upserts */
+          if (!upserts.isEmpty()) {
+            String[] upsertIds = upserts.stream().map(Feature::getId).filter(Objects::nonNull).toArray(String[]::new);
+            List<String> existingIds = fetchExistingIds(upsertIds);
+            upserts.forEach(f -> (existingIds.contains(f.getId()) ? updates : inserts).add(f));
+          }
+        } catch (Exception e) {
+          if (!retryAttempted) {
+            canRetryAttempt();
+
+            return executeModifyFeatures(event);
+          }
         }
 
         try (final Connection connection = dataSource.getConnection()) {
