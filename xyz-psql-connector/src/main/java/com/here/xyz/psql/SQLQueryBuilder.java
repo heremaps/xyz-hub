@@ -294,14 +294,22 @@ public class SQLQueryBuilder {
          case TweaksSQL.SIMPLIFICATION_ALGORITHM_A03 : hint++;
          case TweaksSQL.SIMPLIFICATION_ALGORITHM_A02 :
          {
-          double tolerance = ( strength <= 10 ? (1.0 / (11 - strength)) : strength);
+          double tolerance = 0.0;
+          if(  strength > 0  && strength <= 25 )      tolerance = 0.0001 + ((0.001-0.0001)/25.0) * (strength -  1);
+          else if(  strength > 25 && strength <= 50 ) tolerance = 0.001  + ((0.01 -0.001) /25.0) * (strength - 26);
+          else if(  strength > 50 && strength <= 75 ) tolerance = 0.01   + ((0.1  -0.01)  /25.0) * (strength - 51);
+          else /* [76 - 100 ] */                      tolerance = 0.1    + ((1.0  -0.1)   /25.0) * (strength - 76);
           tweaksGeoSql = String.format("%s(%s, %f)",( hint == 0 ? "ftm_SimplifyPreserveTopology" : "ftm_Simplify"), tweaksGeoSql, tolerance );
          }
          break;
 
          case TweaksSQL.SIMPLIFICATION_ALGORITHM_A01 :
          {
-          double tolerance =  (0.0045/100) * strength;
+          double tolerance = 0.0;
+          if(  strength > 0  && strength <= 25 )      tolerance = 0.0001 + ((0.001-0.0001)/25.0) * (strength -  1);
+          else if(  strength > 25 && strength <= 50 ) tolerance = 0.001  + ((0.01 -0.001) /25.0) * (strength - 26);
+          else if(  strength > 50 && strength <= 75 ) tolerance = 0.01   + ((0.1  -0.01)  /25.0) * (strength - 51);
+          else /* [76 - 100 ] */                      tolerance = 0.1    + ((1.0  -0.1)   /25.0) * (strength - 76);
           tweaksGeoSql = String.format("ST_SnapToGrid(%s, %f)",tweaksGeoSql, tolerance );
          }
          break;
