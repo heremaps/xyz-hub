@@ -713,4 +713,29 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       return positionById.get(id) == null ? -1 : positionById.get(id);
     }
   }
+
+  /**
+   * Minimal version of Conditional Operation used on admin events endpoint.
+   * Contains some limitations because doesn't implement the full pipeline.
+   * If you want to use the full conditional operation pipeline, you should request
+   * through Features API.
+   * Known limitations:
+   * - Cannot perform validation of existing resources per operation type
+   */
+  public static class ModifyFeaturesTask extends FeatureTask<ModifyFeaturesEvent, ModifyFeaturesTask> {
+
+    public ModifyFeaturesTask(ModifyFeaturesEvent event, RoutingContext context, ApiResponseType responseType, boolean skipCache) {
+      super(event, context, responseType, skipCache);
+    }
+
+    @Override
+    public TaskPipeline<ModifyFeaturesTask> getPipeline() {
+      return TaskPipeline.create(this)
+          .then(FeatureTaskHandler::resolveSpace)
+          .then(FeatureTaskHandler::checkPreconditions)
+          .then(FeatureAuthorization::authorize)
+          .then(FeatureTaskHandler::enforceUsageQuotas)
+          .then(FeatureTaskHandler::invoke);
+    }
+  }
 }

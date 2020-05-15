@@ -32,6 +32,7 @@ import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
+import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.hub.auth.ActionMatrix;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.auth.JWTPayload;
@@ -112,6 +113,9 @@ public class AdminApi extends Api {
             .execute(this::sendResponse, this::sendErrorResponse);
       } else if (event instanceof GetStatisticsEvent) {
         new FeatureTask.GetStatistics((GetStatisticsEvent) event, context, ApiResponseType.STATISTICS_RESPONSE, skipCache)
+            .execute(this::sendResponse, this::sendErrorResponse);
+      } else if (event instanceof ModifyFeaturesEvent) {
+        new FeatureTask.ModifyFeaturesTask((ModifyFeaturesEvent) event, context, ApiResponseType.FEATURE_COLLECTION, skipCache)
             .execute(this::sendResponse, this::sendErrorResponse);
       } else {
         logger.warn("Event cannot be handled: " + body);
