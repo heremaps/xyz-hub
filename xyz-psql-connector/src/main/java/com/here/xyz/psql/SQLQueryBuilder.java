@@ -614,7 +614,7 @@ public class SQLQueryBuilder {
 
     protected static SQLQuery generateLoadExistingIdsQuery(final String[] idsToFetch, final DataSource dataSource)
         throws SQLException {
-      return new SQLQuery("SELECT jsondata->>'id' FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
+      return new SQLQuery("SELECT jsondata->>'id' id FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
           SQLQuery.createSQLArray(idsToFetch, "text", dataSource));
     }
 
