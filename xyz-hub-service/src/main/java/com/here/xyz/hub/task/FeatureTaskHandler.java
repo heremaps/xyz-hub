@@ -785,7 +785,6 @@ public class FeatureTaskHandler {
 
         // DELETE
         else if (entry.head != null) {
-          final String id = entry.head.getId();
           delete.put(entry.head.getId(), entry.inputUUID);
         }
       }
@@ -851,7 +850,7 @@ public class FeatureTaskHandler {
     callback.call(task);
   }
 
-  static void enforceUsageQuotas(ConditionalOperation task, Callback<ConditionalOperation> callback) {
+  static <X extends FeatureTask<?, X>> void enforceUsageQuotas(X task, Callback<X> callback) {
     final long maxFeaturesPerSpace = task.getJwt().limits != null ? task.getJwt().limits.maxFeaturesPerSpace : -1;
     if (maxFeaturesPerSpace <= 0) {
       callback.call(task);
@@ -877,10 +876,10 @@ public class FeatureTaskHandler {
     });
   }
 
-  private static void checkFeaturesPerSpaceQuota(ConditionalOperation task, Callback<ConditionalOperation> callback,
+  private static <X extends FeatureTask<?, X>> void checkFeaturesPerSpaceQuota(X task, Callback<X> callback,
       long maxFeaturesPerSpace, Long count) {
     try {
-      ModifyFeaturesEvent modifyEvent = task.getEvent();
+      ModifyFeaturesEvent modifyEvent = (ModifyFeaturesEvent) task.getEvent();
       if (modifyEvent != null) {
         final List<Feature> insertFeaturesList = modifyEvent.getInsertFeatures();
         final int insertFeaturesSize = insertFeaturesList == null ? 0 : insertFeaturesList.size();
@@ -900,7 +899,7 @@ public class FeatureTaskHandler {
     }
   }
 
-  private static void getCountForSpace(FeatureTask<ModifyFeaturesEvent, ConditionalOperation> task, Handler<AsyncResult<Long>> handler) {
+  private static <X extends FeatureTask<?, X>>void getCountForSpace(X task, Handler<AsyncResult<Long>> handler) {
     final CountFeaturesEvent countEvent = new CountFeaturesEvent();
     countEvent.setSpace(task.getEvent().getSpace());
     countEvent.setParams(task.getEvent().getParams());
