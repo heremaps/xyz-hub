@@ -33,6 +33,7 @@ import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
+import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.hub.auth.ActionMatrix;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.auth.JWTPayload;
@@ -43,6 +44,7 @@ import com.here.xyz.hub.rest.admin.MessageBroker;
 import com.here.xyz.hub.task.FeatureTask;
 import com.here.xyz.hub.task.FeatureTask.IdsQuery;
 import com.here.xyz.hub.task.FeatureTask.LoadFeaturesQuery;
+import com.here.xyz.hub.task.FeatureTask.SearchQuery;
 import com.here.xyz.hub.task.FeatureTask.TileQuery;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Vertx;
@@ -116,6 +118,9 @@ public class AdminApi extends Api {
             .execute(this::sendResponse, this::sendErrorResponse);
       } else if (event instanceof ModifyFeaturesEvent) {
         new FeatureTask.ModifyFeaturesTask((ModifyFeaturesEvent) event, context, ApiResponseType.FEATURE_COLLECTION, skipCache)
+            .execute(this::sendResponse, this::sendErrorResponse);
+      } else if (event instanceof SearchForFeaturesEvent) {
+        new SearchQuery((SearchForFeaturesEvent) event, context, ApiResponseType.FEATURE_COLLECTION, skipCache)
             .execute(this::sendResponse, this::sendErrorResponse);
       } else {
         logger.warn("Event cannot be handled: " + body);
