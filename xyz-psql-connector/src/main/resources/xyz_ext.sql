@@ -144,7 +144,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 128
+ select 129
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
@@ -910,7 +910,7 @@ $BODY$
 					|| '	UNION '
 					|| '	SELECT  propkey, '
 					|| '		COALESCE(COUNT(*)::numeric::INTEGER, 0) as count, '
-					|| '		(SELECT '''||idxlist||''' @> (format(''"%s"'',replace(propkey,''"'',''\"'')))::jsonb) as searchable, '
+					|| '		(SELECT '''||idxlist||''' @>  to_jsonb(propkey)) as searchable, '
 					|| '		(SELECT * from xyz_property_datatype('''||schema||''','''||spaceid||''',propkey,1000)) as datatype '
 					|| '			FROM( 	'
 					|| '				SELECT jsonb_object_keys(jsondata->''properties'') as propkey '
@@ -936,7 +936,7 @@ $BODY$
 				|| '	UNION '
 				|| '	SELECT  propkey, '
 				|| '		TRUNC(((COUNT(*)/1000::real) * '||estimate_cnt||')::numeric, 0)::INTEGER as count, '
-				|| '		(SELECT '''||idxlist||''' @> (format(''"%s"'',replace(propkey,''"'',''\"'')))::jsonb) as searchable, '
+				|| '		(SELECT '''||idxlist||''' @>  to_jsonb(propkey)) as searchable, '
 				|| '		(SELECT * from xyz_property_datatype('''||schema||''','''||spaceid||''',propkey,'||tablesamplecnt||')) as datatype '
 				|| '			FROM( '
 				|| '				SELECT jsonb_object_keys(jsondata->''properties'') as propkey '
