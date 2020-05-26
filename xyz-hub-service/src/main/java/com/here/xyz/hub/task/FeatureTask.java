@@ -208,6 +208,10 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public Space refSpace;
     private Connector refConnector;
 
+    public GeometryQuery(GetFeaturesByGeometryEvent event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
+      this(event, context, apiResponseTypeType, skipCache, null, null);
+    }
+
     public GeometryQuery(GetFeaturesByGeometryEvent event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache,
         String refSpaceId, String refFeatureId) {
       super(event, context, apiResponseTypeType, skipCache);

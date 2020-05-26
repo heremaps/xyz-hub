@@ -12,7 +12,7 @@ create schema if not exists h3;
 create or replace function h3_version() 
 returns integer as
 $body$
- select 103
+ select 104
 $body$ 
 language sql immutable;
 
@@ -4052,7 +4052,7 @@ begin
    l = ST_MakeLine(p_start, p_end);
    
    if( ST_Length(l::geography) < edge_len_m ) then
-    return query select h_start;
+    return query select h_start union select h_end;
    else 
     p = ST_LineInterpolatePoint( l, 0.5 );
     h = geotoh3deg( p, res );
