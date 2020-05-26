@@ -171,8 +171,7 @@ public class SQLQueryBuilder {
             query.addParameter(SQLQuery.createSQLArray(jpath.toArray(new String[]{}), "text", dataSource));
         }
 
-        //query.append(" case st_geometrytype(geo) when 'ST_Point' then geo else st_intersection( geo ," ); query.append( expBboxSql ); query.append(" ) end as geo ");
-        query.append(" case st_geometrytype(geo) when 'ST_Point' then geo else st_force3d(st_closestpoint(geo, geo)) end as refpt ");
+        query.append(String.format( " case st_geometrytype(geo) when 'ST_Point' then geo else st_force3d(st_setsrid( h3ToGeoDeg( coveringDeg( case ST_Within(geo, %2$s ) when true then geo else ST_Intersection( ST_MakeValid(geo), %2$s ) end, %1$d)), st_srid(geo))) end as refpt ",h3res, expBboxSql));
         query.append(" from ${schema}.${table} v where 1 = 1 and geo && ");
         query.append(expBboxSql);
         query.append(" and st_intersects( geo ,");
