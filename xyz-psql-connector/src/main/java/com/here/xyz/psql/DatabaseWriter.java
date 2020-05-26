@@ -59,32 +59,22 @@ public class DatabaseWriter {
 
     protected static int TIMEOUT;
 
-    protected static PGobject featureToPGobject(final Feature feature, final boolean jsonObjectMode) throws SQLException {
+    protected static PGobject featureToPGobject(final Feature feature) throws SQLException {
         final Geometry geometry = feature.getGeometry();
         feature.setGeometry(null); // Do not serialize the geometry in the JSON object
 
         final String json;
-        final String geojson;
 
         try {
             json = feature.serialize();
-            geojson = geometry != null ? geometry.serialize() : null;
         } finally {
             feature.setGeometry(geometry);
         }
 
-        if(jsonObjectMode){
-            final PGobject jsonbObject = new PGobject();
-            jsonbObject.setType("jsonb");
-            jsonbObject.setValue(json);
-            return jsonbObject;
-        }
-
-        final PGobject geojsonbObject = new PGobject();
-        geojsonbObject.setType("jsonb");
-        geojsonbObject.setValue(geojson);
-
-        return geojsonbObject;
+        final PGobject jsonbObject = new PGobject();
+        jsonbObject.setType("jsonb");
+        jsonbObject.setValue(json);
+        return jsonbObject;
     }
 
     protected static PreparedStatement createStatement(Connection connection, String statement) throws SQLException {

@@ -52,8 +52,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         for (int i = 0; i < inserts.size(); i++) {
             final Feature feature = inserts.get(i);
 
-            final PGobject jsonbObject= featureToPGobject(feature, true);
-            final PGobject geojsonbObject = featureToPGobject(feature, false);
+            final PGobject jsonbObject= featureToPGobject(feature);
 
             if (feature.getGeometry() == null) {
                 insertWithoutGeometryStmt.setObject(1, jsonbObject);
@@ -67,7 +66,6 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
                 //Avoid NAN values
                 assure3d(jtsGeometry.getCoordinates());
                 insertStmt.setBytes(2, wkbWriter.write(jtsGeometry));
-                insertStmt.setObject(3, geojsonbObject);
 
                 insertStmt.addBatch();
                 batchInsert = true;
@@ -110,8 +108,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
                 throw new NullPointerException("id");
             }
 
-            final PGobject jsonbObject= featureToPGobject(feature, true);
-            final PGobject geojsonbObject = featureToPGobject(feature, false);
+            final PGobject jsonbObject= featureToPGobject(feature);
 
             if (feature.getGeometry() == null) {
                 updateWithoutGeometryStmt.setObject(1, jsonbObject);
@@ -129,11 +126,10 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
                 //Avoid NAN values
                 assure3d(jtsGeometry.getCoordinates());
                 updateStmt.setBytes(2, wkbWriter.write(jtsGeometry));
-                updateStmt.setObject(3, geojsonbObject);
-                updateStmt.setString(4, feature.getId());
+                updateStmt.setString(3, feature.getId());
 
                 if(handleUUID) {
-                    updateStmt.setString(5, puuid);
+                    updateStmt.setString(4, puuid);
                 }
                 updateStmt.addBatch();
 
