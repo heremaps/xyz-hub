@@ -25,6 +25,7 @@ import com.here.xyz.hub.cache.CacheClient;
 import com.here.xyz.hub.config.ConnectorConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.BurstAndUpdateThread;
+import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.hub.util.ARN;
 import com.here.xyz.hub.util.ConfigDecryptor;
 import com.here.xyz.hub.util.ConfigDecryptor.CryptoException;
@@ -51,6 +52,7 @@ import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.math.NumberUtils;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.Configurator;
@@ -436,5 +438,33 @@ public class Service {
      * The value of the health check header to instruct for additional health status information.
      */
     public String HEALTH_CHECK_HEADER_VALUE;
+  }
+
+  /**
+   * That message can be used to change the log-level of one or more service-nodes.
+   * The specified level must be a valid log-level.
+   * As this is a {@link RelayedMessage} it can be sent to a specific service-node or to all service-nodes regardless of the first service
+   * node by which it was received.
+   *
+   * Specifying the property {@link RelayedMessage#relay} to true will relay the message to the specified destination.
+   * If no destination is specified the message will be relayed to all service-nodes (broadcast).
+   */
+  static class ChangeLogLevelMessage extends RelayedMessage {
+    private String level;
+
+    public String getLevel() {
+      return level;
+    }
+
+    public void setLevel(String level) {
+      this.level = level;
+    }
+
+    @Override
+    protected void handleAtDestination() {
+      logger.info("LOG LEVEL UPDATE requested. New level will be: " + level);
+      Configurator.setAllLevels(LogManager.getRootLogger().getName(), Level.getLevel(level));
+      logger.info("LOG LEVEL UPDATE performed. New level is now: " + level);
+    }
   }
 }

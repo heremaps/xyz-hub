@@ -334,7 +334,7 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
 
   private void _sendMessage(String message) {
     if (SNS_CLIENT == null) {
-      logger.error("The AdminMessage can not be sent as the MessageBroker is not ready. Message was: {}", message);
+      logger.warn("The AdminMessage can not be sent as the MessageBroker is not ready. Message was: {}", message);
       return;
     }
     if (message.length() > MAX_MESSAGE_SIZE) {
