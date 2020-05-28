@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.util.logging;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -32,6 +33,8 @@ public class AccessLog extends AccessLogExtended {
   public ClientInfo clientInfo;
   public RequestInfo reqInfo;
   public ResponseInfo respInfo;
+
+  @JsonIgnore
   public String[] classified;
 
   public AccessLog() {
