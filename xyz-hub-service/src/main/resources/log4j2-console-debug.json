@@ -1,0 +1,34 @@
+{
+  "configuration": {
+    "status": "debug",
+
+    "name": "Default Log Config",
+    "packages": "com.here.xyz",
+
+    "ThresholdFilter": {
+      "level": "debug"
+    },
+    "CustomLevels": {
+      "CustomLevel": [{
+        "name": "STREAM",
+        "intLevel": 350
+      }]
+    },
+    "appenders": {
+      "Console": {
+        "name": "STDOUT",
+        "PatternLayout": {
+          "pattern": "%d %-5p %c{1} %.-4096msg %enc{%ex}{JSON}%n%xEx{none}"
+        }
+      }
+    },
+    "loggers": {
+      "root": {
+        "level": "debug",
+        "AppenderRef": {
+          "ref": "STDOUT"
+        }
+      }
+    }
+  }
+}

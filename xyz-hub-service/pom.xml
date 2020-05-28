@@ -276,6 +276,14 @@
       <artifactId>aws-java-sdk-sns</artifactId>
       <groupId>com.amazonaws</groupId>
     </dependency>
+    <dependency>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>aws-java-sdk-servicediscovery</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>aws-java-sdk-elasticloadbalancingv2</artifactId>
+    </dependency>
 
     <!--  GeoTools libraries -->
     <dependency>

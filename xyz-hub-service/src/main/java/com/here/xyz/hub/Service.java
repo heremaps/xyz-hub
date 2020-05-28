@@ -49,6 +49,7 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
@@ -436,5 +437,46 @@ public class Service {
      * The value of the health check header to instruct for additional health status information.
      */
     public String HEALTH_CHECK_HEADER_VALUE;
+
+    /**
+     * The configuration json string for the static web message broker.
+     */
+    public ConcurrentHashMap<String, String> STATIC_WEB_MESSAGE_BROKER_CONFIG;
+
+    /**
+     * The configuration bucket for the s3 web message broker.
+     */
+    public String S3_WEB_MESSAGE_BROKER_BUCKET;
+
+    /**
+     * The configuration object in the configuration bucket for the s3 web message broker.
+     */
+    public String S3_WEB_MESSAGE_BROKER_OBJECT;
+
+    /**
+     * Whether to periodically update the web message broker list of targets or not.
+     */
+    public Boolean WEB_MESSAGE_BROKER_PERIODIC_UPDATE;
+    
+    /**
+     * The delay between the web message broker list of targets periodically updates.
+     */
+    public Integer WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY;
+    
+    /**
+     * The arn of the target group to use with the target group web message broker.
+     */
+    public String TARGET_GROUP_WEB_MESSAGE_BROKER_ELB_TARGETGROUP_ARN;
+
+    /**
+     * The id of the service discovery service to use with the service discovery web message broker.
+     */
+    public String SERVICE_DISCOVERY_WEB_MESSAGE_BROKER_SERVICE_ID;
+
+    /**
+     * The name of the message broker class implementation to use.
+     */
+    public String ADMIN_MESSAGE_BROKER;
+
   }
 }

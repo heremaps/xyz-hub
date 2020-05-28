@@ -1,0 +1,127 @@
+version: "3.4"
+services:
+    xyz-hub:
+        image: "xyz-hub"
+        build:
+          context: "./"
+        expose:
+            - "8080"
+        depends_on:
+            - "postgres"
+            - "redis"
+            - "dynamodb"
+        environment:
+            - LOG_CONFIG=log4j2-console-debug.json
+            - INSTANCE_COUNT=2
+            - ADMIN_MESSAGE_BROKER=StaticWebMessageBroker
+            - 'STATIC_WEB_MESSAGE_BROKER_CONFIG={"xyz-hub_xyz-hub_1": "8080","xyz-hub_xyz-hub_2": "8080"}'
+            - SPACES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-spaces
+            - CONNECTORS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-connectors
+            - PACKAGES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-packages
+        command: [ "bash", "-c", "export HOST_NAME=$$(hostname) && java -jar xyz-hub-service.jar" ]
+    swagger-ui:
+        image: swaggerapi/swagger-ui
+        container_name: "swagger-ui"
+        expose:
+            - "8080"
+        environment:
+            - BASE_URL=/swagger
+            - URL=/hub/static/openapi/stable.yaml
+        depends_on:
+            - "xyz-hub"
+        healthcheck:
+            test: ["CMD", "wget", "-O", "/dev/null", "http://localhost:8080/swagger/"]
+            interval: 30s
+            timeout: 15s
+            retries: 3
+            start_period: 1m
+    postgres:
+        image: "xyz-postgres"
+        build:
+            context: "./"
+            dockerfile: "Dockerfile-postgres"
+        container_name: "postgres"
+        volumes:
+            - pgdata:/var/lib/postgresql/data:rw
+        expose:
+            - "5432"
+    pgadmin:
+        image: "dpage/pgadmin4"
+        container_name: "pgadmin"
+        volumes:
+            - ./pgadmin.json:/pgadmin4/servers.json
+            - pgadmindata:/var/lib/pgadmin
+        expose:
+            - "80"
+        depends_on:
+            - "postgres"
+        environment:
+            - PGADMIN_DEFAULT_EMAIL=user@localhost
+            - PGADMIN_DEFAULT_PASSWORD=password
+            - PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION=True
+            - PGADMIN_CONFIG_LOGIN_BANNER="Authorised users only!"
+            - PROXY_X_FOR_COUNT = 1
+            - PROXY_X_PROTO_COUNT = 1
+            - PROXY_X_HOST_COUNT = 1
+            - PROXY_X_PORT_COUNT = 1
+            - PROXY_X_PREFIX_COUNT = 1
+        healthcheck:
+            test: ["CMD", "wget", "-O", "/dev/null", "http://localhost/"]
+            interval: 30s
+            timeout: 15s
+            retries: 3
+            start_period: 1m
+    redis:
+        image: "redis"
+        container_name: "redis"
+        expose:
+            - "6379"
+    redis-commander:
+        container_name: redis-commander
+        hostname: redis-commander
+        image: rediscommander/redis-commander
+        environment:
+            - REDIS_HOSTS=local:redis:6379
+        expose:
+            - "8081"
+        depends_on:
+            - "redis"
+    dynamodb:
+        image: "amazon/dynamodb-local"
+        container_name: "dynamodb"
+        volumes:
+            - dynamodbdata:/shared-local-instance.db:rw
+        expose:
+            - "8000"
+        command: ["-jar", "DynamoDBLocal.jar", "-sharedDb"]
+    dynamodb-admin:
+        image: "aaronshaf/dynamodb-admin"
+        container_name: "dynamodb-admin"
+        hostname: dynamodb-admin
+        environment:
+            - AWS_ACCESS_KEY_ID=local
+            - AWS_SECRET_ACCESS_KEY=local
+            - AWS_DEFAULT_REGION=us-east-1
+            - DYNAMO_ENDPOINT=http://dynamodb:8000
+        expose:
+            - "8001"
+        depends_on:
+            - "dynamodb"
+    nginx:
+        image: nginx
+        container_name: "nginx"
+        volumes:
+            - ./nginx.conf:/etc/nginx/nginx.conf:ro
+        depends_on:
+            - "xyz-hub"
+            - "swagger-ui"
+            - "pgadmin"
+            - "redis-commander"
+            - "dynamodb-admin"
+        ports:
+            - "8080:8080"
+
+volumes:
+    pgdata:
+    pgadmindata:
+    dynamodbdata:
