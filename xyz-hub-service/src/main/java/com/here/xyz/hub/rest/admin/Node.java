@@ -40,6 +40,7 @@ import org.apache.logging.log4j.Logger;
  */
 public class Node {
 
+  private static final int HEALTH_TIMEOUT = 25;
   private static final Logger logger = LogManager.getLogger();
 
   public static final Node OWN_INSTANCE = new Node(Service.HOST_ID, Service.getHostname(),
@@ -72,7 +73,7 @@ public class Node {
 
   private void callHealthCheck(boolean onlyAliveCheck, Handler<AsyncResult<Void>> callback) {
     Service.webClient.get(getUrl().getPort() == -1 ? DEFAULT_PORT : getUrl().getPort(), url.getHost(), HealthApi.MAIN_HEALTCHECK_ENDPOINT)
-        .timeout(TimeUnit.SECONDS.toMillis(5))
+        .timeout(TimeUnit.SECONDS.toMillis(HEALTH_TIMEOUT))
         .send(ar -> {
           if (ar.succeeded()) {
             HttpResponse<Buffer> response = ar.result();

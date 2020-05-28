@@ -141,7 +141,9 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
   }
 
   public static void preventSubscriptionCleanup() {
-    getInstance().shutdownCleanup();
+    SnsMessageBroker mb = getInstance();
+    if (mb != null)
+      mb.shutdownCleanup();
   }
 
   static SnsMessageBroker getInstance() {
@@ -218,8 +220,11 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
   }
 
   private void shutdownCleanup() {
-    threadPool.shutdownNow();
-    threadPool = null;
+    ScheduledExecutorService tp = threadPool;
+    if (tp != null) {
+      threadPool.shutdownNow();
+      threadPool = null;
+    }
     oldSubscriptions = null;
   }
 
@@ -277,7 +282,8 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
           unsubscribe(subscription);
         }
       });
-    } catch (MalformedURLException e) {
+    }
+    catch (MalformedURLException e) {
       logger.error("Subscription with endpoint {} could not be verified. It will be kept for now.", endpoint);
     }
   }
