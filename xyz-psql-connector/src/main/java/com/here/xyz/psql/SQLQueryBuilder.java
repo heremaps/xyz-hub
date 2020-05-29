@@ -150,7 +150,8 @@ public class SQLQueryBuilder {
                 zLevel,
                 !h3cflip ? "centroid" : "hexagon",
                 aggField,
-                fid));
+                fid,
+                expBboxSql));
 
         if (statisticalPropertyProvided) {
             ArrayList<String> jpath = new ArrayList<>();
@@ -158,24 +159,16 @@ public class SQLQueryBuilder {
             query.addParameter(SQLQuery.createSQLArray(jpath.toArray(new String[]{}), "text", dataSource));
         }
 
-        query.append(expBboxSql);
-
         if (!statisticalPropertyProvided) {
-            query.append(new SQLQuery(String.format(H3SQL.h3sqlMid, h3res, "(0.0)::numeric", zLevel, H3SQL.pxSize)));
+            query.append(new SQLQuery(String.format(H3SQL.h3sqlMid, h3res, "(0.0)::numeric", zLevel, H3SQL.pxSize,expBboxSql)));
         } else {
             ArrayList<String> jpath = new ArrayList<>();
             jpath.add("properties");
             jpath.addAll(Arrays.asList(statisticalProperty.split("\\.")));
 
-            query.append(new SQLQuery(String.format(H3SQL.h3sqlMid, h3res, "(jsondata#>> ?)::numeric", zLevel, H3SQL.pxSize)));
+            query.append(new SQLQuery(String.format(H3SQL.h3sqlMid, h3res, "(jsondata#>> ?)::numeric", zLevel, H3SQL.pxSize,expBboxSql)));
             query.addParameter(SQLQuery.createSQLArray(jpath.toArray(new String[]{}), "text", dataSource));
         }
-        query.append(" case st_geometrytype(geo) when 'ST_Point' then geo else st_force3d(st_closestpoint(geo, geo)) end as refpt ");
-        query.append(" from ${schema}.${table} v where 1 = 1 and geo && ");
-        query.append(expBboxSql);
-        query.append(" and st_intersects( geo ,");
-        query.append(expBboxSql);
-        query.append(" ) ");
 
         if (searchQuery != null) {
             query.append(" and ");
