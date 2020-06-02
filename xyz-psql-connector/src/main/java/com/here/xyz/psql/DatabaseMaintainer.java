@@ -163,7 +163,7 @@ public class DatabaseMaintainer {
         {
             try (final Connection connection = dataSource.getConnection();
                  final Statement stmt = connection.createStatement();) {
-                final int H3CoreVersion = 105;
+                final int H3CoreVersion = 106;
                 boolean needUpdate = false;
 
                 ResultSet rs;

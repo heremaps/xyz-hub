@@ -126,7 +126,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
         return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource));
       } else if ( QuadbinSQL.QUAD.equalsIgnoreCase(clusteringType)) {
         /* Check if input is valid */
-        final int resolution = clusteringParams.get("resolution") != null ? (int) clusteringParams.get("resolution") : 0;
+        final int resolution = ( clusteringParams.get("resolution") != null ? (int) clusteringParams.get("resolution") :
+                               ( clusteringParams.get("relative_resolution") != null ? (int) clusteringParams.get("relative_resolution") : 0));
         final String countMode = clusteringParams.get("countmode") != null ? (String) clusteringParams.get("countmode") : null;
 
         QuadbinSQL.checkQuadbinInput(countMode, resolution, event, streamId, this);

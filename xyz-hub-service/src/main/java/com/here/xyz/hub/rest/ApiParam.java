@@ -130,6 +130,7 @@ public class ApiParam {
     static final String REF_FEATURE_ID = "refFeatureId";
 
     static final String CLUSTERING_PARAM_RESOLUTION = "resolution";
+    static final String CLUSTERING_PARAM_RESOLUTION_RELATIVE = "resolution_relative";
     static final String CLUSTERING_PARAM_PROPERTY = "property";
     static final String CLUSTERING_PARAM_POINTMODE = "pointmode";
     static final String CLUSTERING_PARAM_COUNTMODE = "countmode";
@@ -348,6 +349,7 @@ public class ApiParam {
     private static void validateAdditionalParams(String type, String key, Object value) throws  Exception{
       if(type.equals(CLUSTERING)){
         switch (key){
+          case CLUSTERING_PARAM_RESOLUTION_RELATIVE:
           case CLUSTERING_PARAM_RESOLUTION:
             if(!(value instanceof Long))
               throw new Exception("Invalid clustering.resolution value. Expect Integer.");
@@ -366,8 +368,9 @@ public class ApiParam {
             if(!(value instanceof String))
               throw new Exception("Invalid clustering.count value. Expect one of [real,estimated,mixed].");
             break;
-          default: throw new Exception("Invalid Clustering Parameter! Expect one of ["+CLUSTERING_PARAM_RESOLUTION
-                  +","+CLUSTERING_PARAM_PROPERTY+","+CLUSTERING_PARAM_POINTMODE+","+CLUSTERING_PARAM_COUNTMODE+"].");
+          default: throw new Exception("Invalid Clustering Parameter! Expect one of ["
+                          +CLUSTERING_PARAM_RESOLUTION+","+CLUSTERING_PARAM_RESOLUTION_RELATIVE+","
+                          +CLUSTERING_PARAM_PROPERTY+","+CLUSTERING_PARAM_POINTMODE+","+CLUSTERING_PARAM_COUNTMODE+"].");
         }
       }else if(type.equals(TWEAKS)){
         switch( key )
