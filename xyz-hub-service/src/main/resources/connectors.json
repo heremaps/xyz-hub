@@ -9,6 +9,7 @@
       "searchablePropertiesConfiguration": true,
       "preserializedResponseSupport": true,
       "enableAutoCache": true,
+      "maxPayloadSize": 1073741824,
       "clusteringTypes": [
         "hexbin"
       ]
@@ -25,7 +26,8 @@
         "PSQL_HOST": "${PSQL_HOST}",
         "PSQL_PORT": "${PSQL_PORT}",
         "PSQL_USER": "${PSQL_USER}",
-        "PSQL_PASSWORD": "${PSQL_PASSWORD}"
+        "PSQL_PASSWORD": "${PSQL_PASSWORD}",
+        "PSQL_MAX_CONN": 32
       }
     }
   },
