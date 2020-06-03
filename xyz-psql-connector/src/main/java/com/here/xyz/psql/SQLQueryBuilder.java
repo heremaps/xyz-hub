@@ -115,15 +115,28 @@ public class SQLQueryBuilder {
     }
 
     /***************************************** CLUSTERING ******************************************************/
+
+    private static int evalH3Resolution( Map<String, Object> clusteringParams, int maxResForLevel )
+    { 
+     int h3res = maxResForLevel;
+      
+     if( clusteringParams == null ) return h3res;
+
+     if( clusteringParams.get(H3SQL.HEXBIN_RESOLUTION) != null )
+      h3res = Math.min((Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION), maxResForLevel);
+
+     if( clusteringParams.get(H3SQL.HEXBIN_RESOLUTION_RELATIVE) != null )
+      h3res += Math.max(0, Math.min( 4, (Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION_RELATIVE)));
+
+     return Math.min( h3res, 13 );
+    }
+
     public static SQLQuery buildHexbinClusteringQuery(
             GetFeaturesByBBoxEvent event, BBox bbox,
             Map<String, Object> clusteringParams, DataSource dataSource) throws Exception {
 
         int zLevel = (event instanceof GetFeaturesByTileEvent ? ((GetFeaturesByTileEvent) event).getLevel() : H3SQL.bbox2zoom(bbox)),
-                maxResForLevel = H3SQL.zoom2resolution(zLevel),
-                h3res = (clusteringParams != null && clusteringParams.get(H3SQL.HEXBIN_RESOLUTION) != null
-                        ? Math.min((Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION), maxResForLevel)
-                        : maxResForLevel);
+            h3res = evalH3Resolution( clusteringParams, H3SQL.zoom2resolution(zLevel) );
 
         String statisticalProperty = (String) clusteringParams.get(H3SQL.HEXBIN_PROPERTY);
         boolean statisticalPropertyProvided = (statisticalProperty != null && statisticalProperty.length() > 0),

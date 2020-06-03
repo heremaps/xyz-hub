@@ -12,7 +12,7 @@ create schema if not exists h3;
 create or replace function h3_version() 
 returns integer as
 $body$
- select 105
+ select 106
 $body$ 
 language sql immutable;
 
@@ -4080,7 +4080,7 @@ language plpgsql immutable;
 create or replace function walkpath( h_start H3Index, p_start geometry, h_end H3Index, p_end geometry, res integer ) 
  returns table ( h3 H3Index ) as
 $body$
- select distinct _walkpath_s(h_start, p_start, h_end, p_end, res, greatest( edgeLengthM( res ), 3.5 ) )
+ select distinct _walkpath_s(h_start, p_start, h_end, p_end, res, edgeLengthM( res ) )
 $body$ 
 language sql immutable;
 
