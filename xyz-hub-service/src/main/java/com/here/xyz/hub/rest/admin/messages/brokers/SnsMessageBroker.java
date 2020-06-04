@@ -355,7 +355,7 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
   }
 
   void receiveMessage(String jsonMessage) {
-    receiveMessage(readMessage(jsonMessage));
+    receiveMessage(deserializeMessage(jsonMessage));
   }
 
   /**

@@ -16,25 +16,21 @@ public class RedisMessageBroker implements MessageBroker {
 
   private static final Logger logger = LogManager.getLogger();
 
-  private static final RedisMessageBroker instance;
   private RedisOptions config;
   private RedisClient redis;
   private static final String CHANNEL = "XYZ_HUB_ADMIN_MESSAGES";
   private static int MAX_MESSAGE_SIZE = 1024 * 1024;
-
-  static {
-    instance = new RedisMessageBroker();
-  }
+  private static final RedisMessageBroker instance = new RedisMessageBroker();
 
   public RedisMessageBroker() {
-    config = new RedisOptions()
-        .setHost(Service.configuration.XYZ_HUB_REDIS_HOST)
-        .setPort(Service.configuration.XYZ_HUB_REDIS_PORT);
-    config.setTcpKeepAlive(true);
-    config.setConnectTimeout(2000);
-    redis = RedisClient.create(Service.vertx, config);
-
     try {
+      config = new RedisOptions()
+          .setHost(Service.configuration.XYZ_HUB_REDIS_HOST)
+          .setPort(Service.configuration.XYZ_HUB_REDIS_PORT);
+      config.setTcpKeepAlive(true);
+      config.setConnectTimeout(2000);
+      redis = RedisClient.create(Service.vertx, config);
+
       subscribeOwnNode(r -> {
         if (r.succeeded()) {
           logger.info("Subscribing node in Redis pub/sub channel {} succeeded.", CHANNEL);
@@ -48,7 +44,6 @@ public class RedisMessageBroker implements MessageBroker {
 
   private void subscribeOwnNode(Handler<AsyncResult<Void>> callback) {
     logger.info("Subscribing the NODE=" + Node.OWN_INSTANCE.getUrl());
-
 
     redis.subscribe(CHANNEL, ar -> {
       if (ar.succeeded()) {

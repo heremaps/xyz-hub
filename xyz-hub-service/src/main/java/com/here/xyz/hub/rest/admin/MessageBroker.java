@@ -69,14 +69,13 @@ public interface MessageBroker {
   }
 
   default void receiveRawMessage(String jsonMessage) {
-    receiveMessage(readMessage(jsonMessage));
+    receiveMessage(deserializeMessage(jsonMessage));
   }
 
-  default AdminMessage readMessage(String jsonMessage) {
+  default AdminMessage deserializeMessage(String jsonMessage) {
     AdminMessage message = null;
     try {
       message = mapper.get().readValue(jsonMessage, AdminMessage.class);
-      receiveMessage(message);
     }
     catch (IOException e) {
       logger.error("Error while de-serializing AdminMessage {} : {}", jsonMessage, e);
