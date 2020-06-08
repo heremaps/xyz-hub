@@ -53,6 +53,13 @@ public enum XyzError {
   /**
    * Indicates an authorization error.
    *
+   * This will result in a 401 Unauthorized response.
+   */
+  UNAUTHORIZED("Unauthorized"),
+
+  /**
+   * Indicates an authorization error.
+   *
    * This will result in an 403 Forbidden response.
    */
   FORBIDDEN("Forbidden"),
