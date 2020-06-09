@@ -22,6 +22,7 @@ package com.here.xyz.hub.rest.admin;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.rest.admin.messages.brokers.RedisMessageBroker;
 import com.here.xyz.hub.rest.health.HealthApi;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -43,6 +44,9 @@ public class Node {
   private static final int HEALTH_TIMEOUT = 25;
   private static final Logger logger = LogManager.getLogger();
 
+  private static int nodeCount = Service.configuration.INSTANCE_COUNT;
+  private static final int NODE_COUNT_FETCH_PERIOD = 30_000; //ms
+
   public static final Node OWN_INSTANCE = new Node(Service.HOST_ID, Service.getHostname(),
       Service.configuration != null ? Service.configuration.ADMIN_MESSAGE_PORT : -1);
   private static final int DEFAULT_PORT = 80;
@@ -57,6 +61,23 @@ public class Node {
     this.id = id;
     this.ip = ip;
     this.port = port;
+  }
+
+  static {
+    initNodeCountFetcher();
+  }
+
+  private static void initNodeCountFetcher() {
+    if (Service.vertx != null) {
+      Service.vertx.setPeriodic(NODE_COUNT_FETCH_PERIOD, handler -> RedisMessageBroker.getInstance().fetchSubscriberCount(r -> {
+        if (r.succeeded()) {
+          nodeCount = r.result();
+          logger.debug("Service node-count: " + nodeCount);
+        }
+        else
+          logger.warn("Checking service node-count failed.", r.cause());
+      }));
+    }
   }
 
   public static Node forIpAndPort(String ip, int port) {
@@ -113,5 +134,9 @@ public class Node {
   @Override
   public int hashCode() {
     return Objects.hash(id);
+  }
+
+  public static int count() {
+    return nodeCount;
   }
 }

@@ -4,11 +4,13 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.admin.MessageBroker;
 import com.here.xyz.hub.rest.admin.Node;
 import io.vertx.core.AsyncResult;
+import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
 import io.vertx.redis.RedisClient;
 import io.vertx.redis.RedisOptions;
+import java.util.Collections;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -18,9 +20,9 @@ public class RedisMessageBroker implements MessageBroker {
 
   private RedisOptions config;
   private RedisClient redis;
-  private static final String CHANNEL = "XYZ_HUB_ADMIN_MESSAGES";
+  public static final String CHANNEL = "XYZ_HUB_ADMIN_MESSAGES";
   private static int MAX_MESSAGE_SIZE = 1024 * 1024;
-  private static final RedisMessageBroker instance = new RedisMessageBroker();
+  private static volatile RedisMessageBroker instance;
 
   public RedisMessageBroker() {
     try {
@@ -40,6 +42,16 @@ public class RedisMessageBroker implements MessageBroker {
     catch (Exception e) {
       logger.error("Error while subscribing node in Redis.", e);
     }
+  }
+
+  public void fetchSubscriberCount(Handler<AsyncResult<Integer>> handler) {
+    redis.pubsubNumsub(Collections.singletonList(RedisMessageBroker.CHANNEL), r -> {
+      if (r.succeeded())
+        //The 2nd array element contains the channel-subscriber count
+        handler.handle(Future.succeededFuture(r.result().getInteger(1)));
+      else
+        handler.handle(Future.failedFuture(r.cause()));
+    });
   }
 
   private void subscribeOwnNode(Handler<AsyncResult<Void>> callback) {
@@ -79,6 +91,8 @@ public class RedisMessageBroker implements MessageBroker {
   }
 
   public static RedisMessageBroker getInstance() {
-    return instance;
+    if (instance != null)
+      return instance;
+    return instance = new RedisMessageBroker();
   }
 }
