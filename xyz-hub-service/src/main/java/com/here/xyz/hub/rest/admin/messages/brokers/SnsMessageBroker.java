@@ -64,7 +64,7 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
 
   private static final Logger logger = LogManager.getLogger();
 
-  private static final SnsMessageBroker instance;
+  private static SnsMessageBroker instance;
   private static final ThreadLocal<ObjectMapper> mapper = ThreadLocal.withInitial(ObjectMapper::new);
   private static final long MAX_MESSAGE_SIZE = 256 * 1024;
   private static final String OWN_NODE_MESSAGING_URL;
@@ -87,7 +87,6 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
       }
     }
     OWN_NODE_MESSAGING_URL = ownNodeUrl;
-    instance = new SnsMessageBroker();
   }
 
   private final String TOPIC_ARN;
@@ -152,7 +151,9 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
   }
 
   static SnsMessageBroker getInstance() {
-    return instance;
+    if (instance != null)
+      return instance;
+    return instance = new SnsMessageBroker();
   }
 
   @Override
@@ -203,7 +204,7 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
   }
 
   private void cleanup() {
-    long randomSeconds = (long) (Math.random() * (double) TimeUnit.MINUTES.toSeconds(Service.configuration.INSTANCE_COUNT));
+    long randomSeconds = (long) (Math.random() * (double) TimeUnit.MINUTES.toSeconds(Node.count()));
     long deferringSeconds = TimeUnit.MINUTES.toSeconds(10) + randomSeconds;
     long shutdownDelay = deferringSeconds + TimeUnit.MINUTES.toSeconds(1);
 

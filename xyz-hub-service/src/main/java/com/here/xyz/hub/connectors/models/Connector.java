@@ -25,10 +25,10 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLambda;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
+import com.here.xyz.hub.rest.admin.Node;
 import java.net.URL;
 import java.util.List;
 import java.util.Map;
@@ -103,12 +103,12 @@ public class Connector {
 
   @JsonIgnore
   public int getMinConnectionsPerInstance() {
-    return connectionSettings.getMinConnections() / Service.configuration.INSTANCE_COUNT;
+    return connectionSettings.getMinConnections() / Node.count();
   }
 
   @JsonIgnore
   public int getMaxConnectionsPerInstance() {
-    return connectionSettings.maxConnections / Service.configuration.INSTANCE_COUNT;
+    return connectionSettings.maxConnections / Node.count();
   }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
