@@ -1006,7 +1006,7 @@ components:
         | Parameter   | Type    | Mandatory | Meaning                                                               |
         |-------------|---------|-----------|-----------------------------------------------------------------------|
         | resolution  | Number  | NO        | The H3 hexagon resolution                                             |
-        | resolution_relative | Number  | NO        | integer value [0-4] to be added to current used resolution  |
+        | resolutionRelative | Number  | NO        | integer value [0-4] to be added to current used resolution  |
         | property    | String  | NO        | A property of the original features for which to calculate statistics |
         | pointmode   | Boolean | NO        | retuns the centroid of hexagons as geojson feature                    |
 
@@ -1017,8 +1017,8 @@ components:
 
         | Parameter   | Type    | Mandatory | Meaning                                                               |
         |-------------|---------|-----------|-----------------------------------------------------------------------|
-        | resolution_relative | Number  | NO        | The quad resolution [0-4]                                             |
-        | resolution  | Number  | NO        | deprecated, renamed to resolution_relative             |
+        | resolutionRelative | Number  | NO        | The quad resolution [0-4]                                             |
+        | resolution  | Number  | NO        | deprecated, renamed to resolutionRelative             |
         | countmode   | String  | NO        | [real, estimated, mixed]                                    |
         |             |         |           | real = real feature counts. Best accuracy, but slow.                  |
         |             |         |           |     Not recommended for big result sets                       |
