@@ -25,6 +25,7 @@ public class H3SQL
 {
   public static final String HEXBIN = "hexbin";
   public static final String HEXBIN_RESOLUTION = "resolution";
+  public static final String HEXBIN_RESOLUTION_RELATIVE = "resolution_relative";
   public static final String HEXBIN_PROPERTY = "property";
   public static final String HEXBIN_POINTMODE = "pointmode";
 
@@ -55,13 +56,12 @@ public class H3SQL
           + "   with h3cluster as "
           + "   ( select oo.h3, "
           + "           ( select row_to_json( t1 ) from ( select qty %4$s ) t1 ) as agg, "
-          + "           st_containsproperly( ",
-  //+"                  st_envelope( st_buffer( ST_MakeEnvelope( 45, 21.943045533438177, 67.49999999999997, 40.97989806962013, 4326 )::geography, ( 2.5 * edgeLengthM( 2 )) )::geometry )"
+          + "                    st_containsproperly( %9$s, oo.geo ) as omni,"
+          + "                    oo.geo "
+          + "     from ",
+  
   h3sqlMid =
-      "                    , oo.geo ) as omni, "
-          + "           oo.geo "
-          + "     from "
-          + "     ( "
+            "     ( "
           + "      select to_hex(cc.h3) as h3,"
           + "              count(1) as qty,"
           + "              min(cc.unnest) as min,"
@@ -98,13 +98,20 @@ public class H3SQL
           + "            select cval, st_x(in_data.refpt) as lon, st_y(in_data.refpt) as lat, refpt "
           + "            from "
           + "            ( "
-          + "              select %2$s as cval,",
-  /*
-  +"         and geo && st_envelope( st_buffer( ST_MakeEnvelope( 45, 21.943045533438177, 67.49999999999997, 40.97989806962013, 4326 )::geography, ( 2.5 * edgeLengthM( 2 )) )::geometry ) "
-  +"         AND st_intersects( geo , st_envelope( st_buffer( ST_MakeEnvelope( 45, 21.943045533438177, 67.49999999999997, 40.97989806962013, 4326 )::geography, ( 2.5 * edgeLengthM( 2 )) )::geometry )) "
-  */
+          + "              select %2$s as cval, coalesce( l.geoh3, v.geo ) as refpt"
+          + "              from ${schema}.${table} v " 
+          + "               left join lateral "
+          + "                ( select st_force3d(st_setsrid( h3ToGeoDeg( coveringDeg( case ST_Within(geo, %5$s ) " 
+          + "                                                                          when true then geo "
+          + "                                                                          else ST_Intersection( ST_MakeValid(geo), %5$s ) "
+          + "                                                                         end, %1$d)), st_srid(geo))) "
+          + "                  where st_geometrytype(v.geo) != 'ST_Point'"
+          + "                ) l(geoh3) "
+          + "                on ( true ) "
+          + "              where 1 = 1 and st_intersects( geo , %5$s ) ",          
+
   h3sqlEnd =
-            "             ) in_data "
+            "            ) in_data "
           + "          ) q2 "
           + "          group by px, py "
           + "        ) a_data "

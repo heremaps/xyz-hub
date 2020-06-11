@@ -115,15 +115,28 @@ public class SQLQueryBuilder {
     }
 
     /***************************************** CLUSTERING ******************************************************/
+
+    private static int evalH3Resolution( Map<String, Object> clusteringParams, int maxResForLevel )
+    { 
+     int h3res = maxResForLevel;
+      
+     if( clusteringParams == null ) return h3res;
+
+     if( clusteringParams.get(H3SQL.HEXBIN_RESOLUTION) != null )
+      h3res = Math.min((Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION), maxResForLevel);
+
+     if( clusteringParams.get(H3SQL.HEXBIN_RESOLUTION_RELATIVE) != null )
+      h3res += Math.max(0, Math.min( 4, (Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION_RELATIVE)));
+
+     return Math.min( h3res, 13 );
+    }
+
     public static SQLQuery buildHexbinClusteringQuery(
             GetFeaturesByBBoxEvent event, BBox bbox,
             Map<String, Object> clusteringParams, DataSource dataSource) throws Exception {
 
         int zLevel = (event instanceof GetFeaturesByTileEvent ? ((GetFeaturesByTileEvent) event).getLevel() : H3SQL.bbox2zoom(bbox)),
-                maxResForLevel = H3SQL.zoom2resolution(zLevel),
-                h3res = (clusteringParams != null && clusteringParams.get(H3SQL.HEXBIN_RESOLUTION) != null
-                        ? Math.min((Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION), maxResForLevel)
-                        : maxResForLevel);
+            h3res = evalH3Resolution( clusteringParams, H3SQL.zoom2resolution(zLevel) );
 
         String statisticalProperty = (String) clusteringParams.get(H3SQL.HEXBIN_PROPERTY);
         boolean statisticalPropertyProvided = (statisticalProperty != null && statisticalProperty.length() > 0),
@@ -150,7 +163,8 @@ public class SQLQueryBuilder {
                 zLevel,
                 !h3cflip ? "centroid" : "hexagon",
                 aggField,
-                fid));
+                fid,
+                expBboxSql));
 
         if (statisticalPropertyProvided) {
             ArrayList<String> jpath = new ArrayList<>();
@@ -158,25 +172,16 @@ public class SQLQueryBuilder {
             query.addParameter(SQLQuery.createSQLArray(jpath.toArray(new String[]{}), "text", dataSource));
         }
 
-        query.append(expBboxSql);
-
         if (!statisticalPropertyProvided) {
-            query.append(new SQLQuery(String.format(H3SQL.h3sqlMid, h3res, "(0.0)::numeric", zLevel, H3SQL.pxSize)));
+            query.append(new SQLQuery(String.format(H3SQL.h3sqlMid, h3res, "(0.0)::numeric", zLevel, H3SQL.pxSize,expBboxSql)));
         } else {
             ArrayList<String> jpath = new ArrayList<>();
             jpath.add("properties");
             jpath.addAll(Arrays.asList(statisticalProperty.split("\\.")));
 
-            query.append(new SQLQuery(String.format(H3SQL.h3sqlMid, h3res, "(jsondata#>> ?)::numeric", zLevel, H3SQL.pxSize)));
+            query.append(new SQLQuery(String.format(H3SQL.h3sqlMid, h3res, "(jsondata#>> ?)::numeric", zLevel, H3SQL.pxSize,expBboxSql)));
             query.addParameter(SQLQuery.createSQLArray(jpath.toArray(new String[]{}), "text", dataSource));
         }
-
-        query.append(String.format( " case st_geometrytype(geo) when 'ST_Point' then geo else st_force3d(st_setsrid( h3ToGeoDeg( coveringDeg( case ST_Within(geo, %2$s ) when true then geo else ST_Intersection( ST_MakeValid(geo), %2$s ) end, %1$d)), st_srid(geo))) end as refpt ",h3res, expBboxSql));
-        query.append(" from ${schema}.${table} v where 1 = 1 and geo && ");
-        query.append(expBboxSql);
-        query.append(" and st_intersects( geo ,");
-        query.append(expBboxSql);
-        query.append(" ) ");
 
         if (searchQuery != null) {
             query.append(" and ");
@@ -630,26 +635,18 @@ public class SQLQueryBuilder {
     }
 
     protected static String insertStmtSQL(final String schema, final String table){
-        String instertStmtSQL ="INSERT INTO ${schema}.${table} (jsondata, geo, geojson) VALUES(?::jsonb, ST_Force3D(ST_GeomFromWKB(?,4326)), ?::jsonb)";
-
-        /* Prepared for removal of geojson column */
-//        String instertStmtSQL ="INSERT INTO ${schema}.${table} (jsondata, geo) VALUES(?::jsonb, ST_Force3D(ST_GeomFromWKB(?,4326)))";
-        return SQLQuery.replaceVars(instertStmtSQL, schema, table);
+        String insertStmtSQL ="INSERT INTO ${schema}.${table} (jsondata, geo) VALUES(?::jsonb, ST_Force3D(ST_GeomFromWKB(?,4326)))";
+        return SQLQuery.replaceVars(insertStmtSQL, schema, table);
     }
 
     protected static String insertWithoutGeometryStmtSQL(final String schema, final String table){
-        String instertWithoutGeometryStmtSQL = "INSERT INTO ${schema}.${table} (jsondata, geo, geojson) VALUES(?::jsonb, NULL, NULL)";
+        String insertWithoutGeometryStmtSQL = "INSERT INTO ${schema}.${table} (jsondata, geo) VALUES(?::jsonb, NULL)";
 
-        /* Prepared for removal of geojson column */
-//        String instertWithoutGeometryStmtSQL = "INSERT INTO ${schema}.${table} (jsondata, geo) VALUES(?::jsonb, NULL)";
-        return SQLQuery.replaceVars(instertWithoutGeometryStmtSQL, schema, table);
+        return SQLQuery.replaceVars(insertWithoutGeometryStmtSQL, schema, table);
     }
 
     protected static String updateStmtSQL(final String schema, final String table, final boolean handleUUID){
-        String updateStmtSQL = "UPDATE ${schema}.${table} SET jsondata = ?::jsonb, geo=ST_Force3D(ST_GeomFromWKB(?,4326)), geojson = ?::jsonb WHERE jsondata->>'id' = ?";
-
-        /* Prepared for removal of geojson column */
-//        String updateStmtSQL = "UPDATE ${schema}.${table} SET jsondata = ?::jsonb, geo=ST_Force3D(ST_GeomFromWKB(?,4326)) WHERE jsondata->>'id' = ?";
+        String updateStmtSQL = "UPDATE ${schema}.${table} SET jsondata = ?::jsonb, geo=ST_Force3D(ST_GeomFromWKB(?,4326)) WHERE jsondata->>'id' = ?";
         if(handleUUID) {
             updateStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ?";
         }
@@ -657,10 +654,7 @@ public class SQLQueryBuilder {
     }
 
     protected static String updateWithoutGeometryStmtSQL(final String schema, final String table, final boolean handleUUID){
-        String updateWithoutGeometryStmtSQL = "UPDATE ${schema}.${table} SET  jsondata = ?::jsonb, geo=NULL, geojson = NULL WHERE jsondata->>'id' = ?";
-
-        /* Prepared for removal of geojson column */
-//        String updateWithoutGeometryStmtSQL = "UPDATE ${schema}.${table} SET  jsondata = ?::jsonb, geo=NULL WHERE jsondata->>'id' = ?";
+        String updateWithoutGeometryStmtSQL = "UPDATE ${schema}.${table} SET  jsondata = ?::jsonb, geo=NULL WHERE jsondata->>'id' = ?";
         if(handleUUID) {
             updateWithoutGeometryStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ?";
         }

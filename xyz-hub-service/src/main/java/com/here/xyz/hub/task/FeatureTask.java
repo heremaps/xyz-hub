@@ -229,7 +229,9 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(this::loadObject)
           .then(this::verifyResourceExists)
           .then(FeatureTaskHandler::validate)
-          .then(FeatureTaskHandler::invoke);
+          .then(FeatureTaskHandler::readCache)
+          .then(FeatureTaskHandler::invoke)
+          .then(FeatureTaskHandler::writeCache);
     }
 
     private void verifyResourceExists(GeometryQuery task, Callback<GeometryQuery> callback) {

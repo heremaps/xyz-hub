@@ -12,7 +12,7 @@ create schema if not exists h3;
 create or replace function h3_version() 
 returns integer as
 $body$
- select 104
+ select 106
 $body$ 
 language sql immutable;
 
@@ -2839,9 +2839,13 @@ $body$
 $body$
 language sql immutable;
 
-create table if not exists h3cache ( h3 h3index not null, res integer not null,  geo geometry not null, constraint pk_h3 primary key (h3) );
+create table if not exists h3cache ( h3 h3index not null, res integer not null,  geo geometry not null );
 create index if not exists idx_h3cache_geo on h3cache using gist (geo);
 create index if not exists idx_h3cache_res on h3cache ( res );
+
+alter table h3cache drop constraint if exists pk_h3;
+create index if not exists idx_h3cache_h3 on h3cache ( h3 );
+
 
 create or replace function geoToH3Deg( c geometry, res integer)
  returns h3index as
@@ -2851,7 +2855,7 @@ declare
  hg geometry;
 begin
 
- select t.h3 into h from h3cache t where t.geo && c and st_intersects(t.geo,c) and t.res = geoToH3Deg.res;
+ select t.h3 into h from h3cache t where t.geo && c and st_intersects(t.geo,c) and t.res = geoToH3Deg.res limit 1;
 
  if( h notnull ) then
   return h;
@@ -2860,7 +2864,7 @@ begin
  h = geoToH3Deg_p(c,res);
  hg = h3ToGeoBoundaryDeg_p( h );
  
- insert into h3cache ( h3, res, geo ) values( h,res, hg ) on conflict do nothing;
+ insert into h3cache ( h3, res, geo ) values( h,res, hg );
 
  return h; 
  
@@ -3340,7 +3344,7 @@ declare
  hg geometry;
 begin
 
- select t.geo into hg from h3cache t where t.h3 = h3ToGeoBoundaryDeg.h3;
+ select t.geo into hg from h3cache t where t.h3 = h3ToGeoBoundaryDeg.h3 limit 1;
 
  if( hg notnull ) then
   return hg;
@@ -3348,7 +3352,7 @@ begin
 
  hg = h3ToGeoBoundaryDeg_p( h3 );
  
- insert into h3cache ( h3, res, geo ) values( h3, H3_GET_RESOLUTION(h3), hg ) on conflict do nothing;
+ insert into h3cache ( h3, res, geo ) values( h3, H3_GET_RESOLUTION(h3), hg );
 
  return hg; 
  
@@ -3785,8 +3789,8 @@ begin
 
  if( minK > 2 ) then
 
-  return query    -- paint the outline
-   select cl.h3 from coveringLineDeg( st_exteriorring( (st_dump(geoPolygon)).geom) , res ) cl;
+  return query    -- paint the boundary - outline and holes
+   select cl.h3 from coveringDeg( ST_Boundary( geoPolygon ) , res ) cl;
    
   return query   -- paint the interior
    select kr.h3 from kRing(centerH3, minK ) kr
@@ -4076,7 +4080,7 @@ language plpgsql immutable;
 create or replace function walkpath( h_start H3Index, p_start geometry, h_end H3Index, p_end geometry, res integer ) 
  returns table ( h3 H3Index ) as
 $body$
- select distinct _walkpath_s(h_start, p_start, h_end, p_end, res, greatest( edgeLengthM( res ), 3.5 ) )
+ select distinct _walkpath_s(h_start, p_start, h_end, p_end, res, edgeLengthM( res ) )
 $body$ 
 language sql immutable;
 

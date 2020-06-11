@@ -228,12 +228,12 @@ public abstract class DatabaseHandler extends StorageConnector {
             return executeQuery(query, handler, useReadReplica ? readDataSource : dataSource);
         } catch (Exception e) {
             try {
-                if (retryCausedOnTimeout(e) || canRetryAttempt()) {
+                if (retryCausedOnServerlessDB(e) || canRetryAttempt()) {
                     logger.info("{} - Retry Query permitted.", streamId);
                     return executeQuery(query, handler);
                 }
             } catch (Exception e1) {
-                if(retryCausedOnTimeout(e1)) {
+                if(retryCausedOnServerlessDB(e1)) {
                     logger.info("{} - Retry Query permitted.", streamId);
                     return executeQuery(query, handler);
                 }
@@ -248,12 +248,12 @@ public abstract class DatabaseHandler extends StorageConnector {
             return executeUpdate(query);
         } catch (Exception e) {
             try {
-                if (retryCausedOnTimeout(e) || canRetryAttempt()) {
+                if (retryCausedOnServerlessDB(e) || canRetryAttempt()) {
                     logger.info("{} - Retry Update permitted.", streamId);
                     return executeUpdate(query);
                 }
             } catch (Exception e1) {
-                if (retryCausedOnTimeout(e)) {
+                if (retryCausedOnServerlessDB(e)) {
                     logger.info("{} - Retry Update permitted.", streamId);
                     return executeUpdate(query);
                 }
@@ -263,7 +263,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
-    protected boolean retryCausedOnTimeout(Exception e) {
+    protected boolean retryCausedOnServerlessDB(Exception e) {
         /** If a timeout comes directly after the invocation it could rely
          * on serverless aurora scaling. Then we should retry again.
          * 57014 - query_canceled
@@ -272,8 +272,12 @@ public abstract class DatabaseHandler extends StorageConnector {
         if(e instanceof SQLException
                 && ((SQLException)e).getSQLState() != null
                 &&  context.getRemainingTimeInMillis() > (MIN_REMAINING_TIME_FOR_RETRY_SECONDS * 1000)
-                && (((SQLException)e).getSQLState().equalsIgnoreCase("57014") ||
-                ((SQLException)e).getSQLState().equalsIgnoreCase("57P01"))
+                && (
+                    ((SQLException)e).getSQLState().equalsIgnoreCase("57014") ||
+                    ((SQLException)e).getSQLState().equalsIgnoreCase("57P01") ||
+                    ((SQLException)e).getSQLState().equalsIgnoreCase("08003") ||
+                    ((SQLException)e).getSQLState().equalsIgnoreCase("08006")
+                   )
         ) {
             if (!retryAttempted) {
                 logger.warn("{} - Retry based on timeout detected! RemainingTime: {} {}", streamId, context.getRemainingTimeInMillis(), e);
@@ -448,7 +452,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 /** Add objects which are responsible for the failed operation */
                 event.setFailed(fails);
 
-                if (retryCausedOnTimeout(e) && !retryAttempted) {
+                if (retryCausedOnServerlessDB(e) && !retryAttempted) {
                     retryAttempted = true;
 
                     connection.close();
@@ -626,8 +630,8 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     private void createSpaceStatement(Statement stmt, String tableName) throws SQLException {
-        String query = "CREATE TABLE IF NOT EXISTS ${schema}.${table} (jsondata jsonb, geo geometry(GeometryZ,4326), i BIGSERIAL, geojson jsonb)";
-//        String query = "CREATE TABLE IF NOT EXISTS ${schema}.${table} (jsondata jsonb, geo geometry(GeometryZ,4326), i BIGSERIAL)";
+        String query = "CREATE TABLE IF NOT EXISTS ${schema}.${table} (jsondata jsonb, geo geometry(GeometryZ,4326), i BIGSERIAL)";
+
         query = SQLQuery.replaceVars(query, config.schema(), tableName);
         stmt.addBatch(query);
 

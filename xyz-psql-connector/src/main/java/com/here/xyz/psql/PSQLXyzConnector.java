@@ -50,6 +50,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -126,8 +128,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
         return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource));
       } else if ( QuadbinSQL.QUAD.equalsIgnoreCase(clusteringType)) {
         /* Check if input is valid */
-        final int resolution = clusteringParams.get("resolution") != null ? (int) clusteringParams.get("resolution") : 0;
-        final String countMode = clusteringParams.get("countmode") != null ? (String) clusteringParams.get("countmode") : null;
+        final int resolution = ( clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) != null ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) :
+                               ( clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION_RELATIVE) != null ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION_RELATIVE) : 0));
+        final String countMode = (String) clusteringParams.get(QuadbinSQL.QUADBIN_COUNTMODE);
 
         QuadbinSQL.checkQuadbinInput(countMode, resolution, event, streamId, this);
         return executeQueryWithRetry(SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, resolution, countMode, config));
@@ -343,28 +346,40 @@ public class PSQLXyzConnector extends DatabaseHandler {
     }
   }
 
+  private static final Pattern ERRVALUE_22P02 = Pattern.compile("invalid input syntax for type numeric:\\s+\"([^\"]*)\"\\s+Query:");
+
   protected XyzResponse checkSQLException(SQLException e, String table) throws Exception{
     logger.warn("{} - SQL Error ({}) on {} : {}", streamId, e.getSQLState(), table, e);
 
-    if(e.getSQLState() != null){
-      if ((e.getSQLState().equalsIgnoreCase("57014")
-              || e.getSQLState().equalsIgnoreCase("57P01"))) {
-        /**
-         * 57014 - query_canceled
-         * 57P01 - admin_shutdown
-         */
-        return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
-                .withErrorMessage("Database query timed out or got canceled.");
-      }else if (e.getSQLState().equalsIgnoreCase("54000")){
-        return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
-                .withErrorMessage("No time for retry left for database query.");
-      }
-    }else{
-      if(e.getMessage() != null && e.getMessage().indexOf("An attempt by a client to checkout a Connection has timed out.") != -1){
-        return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
-                .withErrorMessage("Cant get a Connection to the database.");
-      }
+    String sqlState = ( e.getSQLState() != null ? e.getSQLState().toUpperCase() : "SNULL" );
+
+    switch( sqlState ) 
+    {   
+     case "57014" : /* 57014 - query_canceled */
+     case "57P01" : /* 57P01 - admin_shutdown */
+      return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
+                                .withErrorMessage("Database query timed out or got canceled.");
+      
+     case "54000" :
+      return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
+                                .withErrorMessage("No time for retry left for database query.");
+
+     case "22P02" : // specific handling in case to H3 clustering.property
+      if( e.getMessage() == null || e.getMessage().indexOf("'H3'::text") == -1 ) break;
+      
+      Matcher m = ERRVALUE_22P02.matcher(e.getMessage());
+      return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
+                                .withErrorMessage(String.format("clustering.property: string(%s) can not be converted to numeric",( m.find() ? m.group(1) : "" ))); 
+
+     case "SNULL" :
+      if(e.getMessage() == null || e.getMessage().indexOf("An attempt by a client to checkout a Connection has timed out.") == -1) break;
+
+      return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
+                                 .withErrorMessage("Cant get a Connection to the database.");
+
+     default: break;
     }
+
     return new ErrorResponse().withStreamId(streamId).withError(XyzError.EXCEPTION).withErrorMessage(e.getMessage());
   }
 }

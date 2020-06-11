@@ -30,6 +30,10 @@ import com.here.xyz.responses.XyzError;
 public class QuadbinSQL {
 
     public static final String QUAD = "quadbin";
+    public static final String QUADBIN_RESOLUTION = H3SQL.HEXBIN_RESOLUTION;
+    public static final String QUADBIN_RESOLUTION_RELATIVE = H3SQL.HEXBIN_RESOLUTION_RELATIVE;
+    public static final String QUADBIN_COUNTMODE = "countmode";
+    
 
     /**
      * Real live counts via count(*)
