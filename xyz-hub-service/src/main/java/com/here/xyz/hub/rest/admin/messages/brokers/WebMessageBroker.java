@@ -26,16 +26,17 @@ abstract class WebMessageBroker implements MessageBroker {
 
 	private static volatile WebClient HTTP_CLIENT;
 	private static volatile ConcurrentHashMap<String, String> TARGET_ENDPOINTS;
-	protected static volatile Boolean WEB_MESSAGE_BROKER_PERIODIC_UPDATE;
-	protected static volatile Integer WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY;
+	protected static volatile Boolean ADMIN_MESSAGE_BROKER_PERIODIC_UPDATE;
+	protected static volatile Integer ADMIN_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY;
 	private static final long MAX_MESSAGE_SIZE = 256 * 1024;
 
-    protected WebMessageBroker() {
+	protected WebMessageBroker() {
 		HTTP_CLIENT = WebClient.create(Service.vertx);
 		updateTargetEndpoints();
-		if (WEB_MESSAGE_BROKER_PERIODIC_UPDATE) {
-			Service.vertx.setPeriodic(WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY, handler -> updateTargetEndpoints());
+		if (ADMIN_MESSAGE_BROKER_PERIODIC_UPDATE) {
+			Service.vertx.setPeriodic(ADMIN_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY, handler -> updateTargetEndpoints());
 		}
+		logger.debug("ADMIN_MESSAGE_BROKER_CONFIG: {}", Service.configuration.ADMIN_MESSAGE_BROKER_CONFIG);
 	}
 
 	abstract protected Boolean isInitialized();
@@ -50,11 +51,12 @@ abstract class WebMessageBroker implements MessageBroker {
 				logger.warn("Failed to update target endpoints with error {} ", e.getMessage());
 			}
 		} else {
+			TARGET_ENDPOINTS = new ConcurrentHashMap<String, String>();
 			logger.warn("Failed to update target endpoints. The broker is not initialized!");
 		}
 		logConfig();
 	}
-	
+
 	private ConcurrentHashMap<String, String> removeOwnInstance(ConcurrentHashMap<String, String> targetEndpoints) {
 		InetAddress ownInetAddress;
 		String targetInetAddress;
@@ -92,10 +94,11 @@ abstract class WebMessageBroker implements MessageBroker {
 			logger.warn("Error while de-serializing the received raw AdminMessage {} : {}", new String(rawJsonMessage),
 					e.getMessage());
 		}
+		logger.debug("AdminMessage has been received with following content: {}", new String(rawJsonMessage));
 	}
 
 	@Override
-  	public void sendRawMessage(String message) {
+	public void sendRawMessage(String message) {
 		if (HTTP_CLIENT == null) {
 			logger.warn("The AdminMessage cannot be processed. The HTTP_CLIENT is not ready. AdminMessage was: {}",
 					message);
@@ -120,6 +123,7 @@ abstract class WebMessageBroker implements MessageBroker {
 				}
 			});
 			logger.debug("Send AdminMessage to all target endpoints running in background.");
+			logger.debug("AdminMessage has been sent with following content: {}", message);
 		} else {
 			logger.warn("Send AdminMessage cannot run. The WebMessageBroker has no target endpoints.");
 		}
@@ -157,27 +161,27 @@ abstract class WebMessageBroker implements MessageBroker {
 	}
 
 	protected static void setPeriodicUpdateConfig() {
-		WEB_MESSAGE_BROKER_PERIODIC_UPDATE = (Service.configuration.WEB_MESSAGE_BROKER_PERIODIC_UPDATE != null
-				? Service.configuration.WEB_MESSAGE_BROKER_PERIODIC_UPDATE
+		ADMIN_MESSAGE_BROKER_PERIODIC_UPDATE = (Service.configuration.ADMIN_MESSAGE_BROKER_PERIODIC_UPDATE != null
+				? Service.configuration.ADMIN_MESSAGE_BROKER_PERIODIC_UPDATE
 				: false);
-		WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY = (Service.configuration.WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY != null
-				? Service.configuration.WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY
+		ADMIN_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY = (Service.configuration.ADMIN_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY != null
+				? Service.configuration.ADMIN_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY
 				: 30000);
-		if (WEB_MESSAGE_BROKER_PERIODIC_UPDATE && WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY < 30000) {
-			WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY = 30000;
+		if (ADMIN_MESSAGE_BROKER_PERIODIC_UPDATE && ADMIN_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY < 30000) {
+			ADMIN_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY = 30000;
 		}
-		if (WEB_MESSAGE_BROKER_PERIODIC_UPDATE && WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY <= 0) {
-			WEB_MESSAGE_BROKER_PERIODIC_UPDATE = false;
+		if (ADMIN_MESSAGE_BROKER_PERIODIC_UPDATE && ADMIN_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY <= 0) {
+			ADMIN_MESSAGE_BROKER_PERIODIC_UPDATE = false;
 		}
 	}
 
 	protected static void disablePeriodicUpdate() {
-		WEB_MESSAGE_BROKER_PERIODIC_UPDATE = false;
-		WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY = 0;
+		ADMIN_MESSAGE_BROKER_PERIODIC_UPDATE = false;
+		ADMIN_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY = 0;
 	}
-	
+
 	protected void logConfig() {
 		logger.debug("TARGET_ENDPOINTS: {}, PeriodicUpdate: {}, PeriodicUpdateDelay: {}", TARGET_ENDPOINTS,
-				WEB_MESSAGE_BROKER_PERIODIC_UPDATE, WEB_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY);
+				ADMIN_MESSAGE_BROKER_PERIODIC_UPDATE, ADMIN_MESSAGE_BROKER_PERIODIC_UPDATE_DELAY);
 	}
 }

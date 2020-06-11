@@ -34,13 +34,14 @@ import com.amazonaws.services.sns.model.SubscribeResult;
 import com.amazonaws.services.sns.model.Subscription;
 import com.amazonaws.services.sns.model.UnsubscribeRequest;
 import com.amazonaws.services.sns.model.UnsubscribeResult;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.AdminApi;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.rest.admin.AdminMessage;
 import com.here.xyz.hub.rest.admin.MessageBroker;
 import com.here.xyz.hub.rest.admin.Node;
+import com.here.xyz.hub.util.ARN;
+
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -57,15 +58,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * The MessageBroker provides the infrastructural implementation of how to send & receive {@link AdminMessage}s. Currently it's an
- * implementation relying purely on AWS SNS as a broadcasting mechanism.
+ * The MessageBroker provides the infrastructural implementation of how to send
+ * & receive {@link AdminMessage}s. Currently it's an implementation relying
+ * purely on AWS SNS as a broadcasting mechanism.
  */
 public class SnsMessageBroker extends DefaultSnsMessageHandler implements MessageBroker {
 
   private static final Logger logger = LogManager.getLogger();
 
   private static final SnsMessageBroker instance;
-  private static final ThreadLocal<ObjectMapper> mapper = ThreadLocal.withInitial(ObjectMapper::new);
   private static final long MAX_MESSAGE_SIZE = 256 * 1024;
   private static final String OWN_NODE_MESSAGING_URL;
   private static final String SNS_HTTP_PROTOCOL = "http";
@@ -75,13 +76,14 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
     String ownNodeUrl;
     if (Service.configuration.ADMIN_MESSAGE_JWT == null) {
       ownNodeUrl = null;
-    }
-    else {
+    } else {
       try {
-        ownNodeUrl = Node.OWN_INSTANCE.getUrl() != null ? new URL(Node.OWN_INSTANCE.getUrl(), AdminApi.ADMIN_MESSAGES_ENDPOINT
-            + "?" + Query.ACCESS_TOKEN + "=" + Service.configuration.ADMIN_MESSAGE_JWT).toString() : null;
-      }
-      catch (MalformedURLException e) {
+        ownNodeUrl = Node.OWN_INSTANCE.getUrl() != null
+            ? new URL(Node.OWN_INSTANCE.getUrl(),
+                AdminApi.ADMIN_MESSAGES_ENDPOINT + "?" + Query.ACCESS_TOKEN + "="
+                    + Service.configuration.ADMIN_MESSAGE_JWT).toString()
+            : null;
+      } catch (MalformedURLException e) {
         logger.error("Error creating the Node URL", e);
         ownNodeUrl = null;
       }
@@ -99,30 +101,28 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
   private SnsMessageBroker() {
     logger.info("Initializing SnsMessageBroker");
 
-    final String initWarnMsg = "Environment variable \"ADMIN_MESSAGE_TOPIC_ARN\" not defined. The node could not be subscribed as"
+    final String initWarnMsg = "Environment variable \"ADMIN_MESSAGE_BROKER_CONFIG\" not defined properly. The node could not be subscribed as"
         + " AdminMessage listener. No AdminMessages will be received from SNS by this node.";
     String topicArn = null;
     SnsMessageManager messageManager = null;
     AmazonSNSAsync snsClient = null;
 
-    if (Service.configuration.ADMIN_MESSAGE_TOPIC_ARN != null) {
+    ARN ADMIN_MESSAGE_TOPIC_ARN = new ARN((Service.configuration.ADMIN_MESSAGE_BROKER_CONFIG.get("snsTopicArn") != null
+        ? Service.configuration.ADMIN_MESSAGE_BROKER_CONFIG.get("snsTopicArn")
+        : null));
+
+    if (ADMIN_MESSAGE_TOPIC_ARN != null) {
       try {
-        topicArn = Service.configuration.ADMIN_MESSAGE_TOPIC_ARN.toString();
-        messageManager = new SnsMessageManager(Service.configuration.ADMIN_MESSAGE_TOPIC_ARN.getRegion());
-        snsClient = AmazonSNSAsyncClientBuilder
-            .standard()
-            .withRegion(Service.configuration.ADMIN_MESSAGE_TOPIC_ARN.getRegion())
-            .build();
-      }
-      catch (Exception e) {
+        topicArn = ADMIN_MESSAGE_TOPIC_ARN.toString();
+        messageManager = new SnsMessageManager(ADMIN_MESSAGE_TOPIC_ARN.getRegion());
+        snsClient = AmazonSNSAsyncClientBuilder.standard().withRegion(ADMIN_MESSAGE_TOPIC_ARN.getRegion()).build();
+      } catch (Exception e) {
         logger.warn(initWarnMsg, e);
         topicArn = null;
         messageManager = null;
         snsClient = null;
+        logger.warn(initWarnMsg);
       }
-    }
-    else {
-      logger.warn(initWarnMsg);
     }
 
     TOPIC_ARN = topicArn;
@@ -139,8 +139,7 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
           cleanup();
         }
       });
-    }
-    catch (Exception e) {
+    } catch (Exception e) {
       logger.error("Error while subscribing node in SNS.", e);
     }
   }
@@ -168,20 +167,23 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
     if (OWN_NODE_MESSAGING_URL == null)
       throw new NullPointerException("No messaging node URL provided. " + subscriptionErrorMsg);
 
-    //First check whether there is an existing subscription for the own endpoint
+    // First check whether there is an existing subscription for the own endpoint
     loadSubscriptions(subscriptionsResult -> {
       if (subscriptionsResult.succeeded()) {
         oldSubscriptions = subscriptionsResult.result();
-        logger.info("Subscriptions have been loaded [" + oldSubscriptions.size() + "] for NODE=" + Node.OWN_INSTANCE.getUrl());
+        logger.info(
+            "Subscriptions have been loaded [" + oldSubscriptions.size() + "] for NODE=" + Node.OWN_INSTANCE.getUrl());
         /*
-        Check whether a subscription to the own node's endpoint already exists.
-        (could happen by accident when this node re-uses an IP from a previously running node)
-        */
-        if (oldSubscriptions.stream().noneMatch(subscription -> OWN_NODE_MESSAGING_URL.equals(subscription.getEndpoint()))) {
-          logger
-              .info("Current node is not subscribed yet, subscribing NODE=" + Node.OWN_INSTANCE.getUrl() + " into TOPIC_ARN=" + TOPIC_ARN);
-          SNS_CLIENT
-              .subscribeAsync(TOPIC_ARN, SNS_HTTP_PROTOCOL, OWN_NODE_MESSAGING_URL, new AsyncHandler<SubscribeRequest, SubscribeResult>() {
+         * Check whether a subscription to the own node's endpoint already exists.
+         * (could happen by accident when this node re-uses an IP from a previously
+         * running node)
+         */
+        if (oldSubscriptions.stream()
+            .noneMatch(subscription -> OWN_NODE_MESSAGING_URL.equals(subscription.getEndpoint()))) {
+          logger.info("Current node is not subscribed yet, subscribing NODE=" + Node.OWN_INSTANCE.getUrl()
+              + " into TOPIC_ARN=" + TOPIC_ARN);
+          SNS_CLIENT.subscribeAsync(TOPIC_ARN, SNS_HTTP_PROTOCOL, OWN_NODE_MESSAGING_URL,
+              new AsyncHandler<SubscribeRequest, SubscribeResult>() {
                 @Override
                 public void onError(Exception e) {
                   logger.error(subscriptionErrorMsg, e);
@@ -190,38 +192,40 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
 
                 @Override
                 public void onSuccess(SubscribeRequest request, SubscribeResult subscribeResult) {
-                  logger.info("Subscription succeeded for NODE=" + Node.OWN_INSTANCE.getUrl() + " into TOPIC_ARN=" + TOPIC_ARN);
+                  logger.info(
+                      "Subscription succeeded for NODE=" + Node.OWN_INSTANCE.getUrl() + " into TOPIC_ARN=" + TOPIC_ARN);
                   callback.handle(Future.succeededFuture());
                 }
               });
         }
-      }
-      else {
+      } else {
         logger.error(subscriptionErrorMsg, subscriptionsResult.cause());
       }
     });
   }
 
   private void cleanup() {
-    long randomSeconds = (long) (Math.random() * (double) TimeUnit.MINUTES.toSeconds(Service.configuration.INSTANCE_COUNT));
+    long randomSeconds = (long) (Math.random()
+        * (double) TimeUnit.MINUTES.toSeconds(Service.configuration.INSTANCE_COUNT));
     long deferringSeconds = TimeUnit.MINUTES.toSeconds(10) + randomSeconds;
     long shutdownDelay = deferringSeconds + TimeUnit.MINUTES.toSeconds(1);
 
     if (oldSubscriptions == null) {
       logger.error("Cleanup of old AdminMessage subscriptions could not be performed.");
-    }
-    else {
+    } else {
       threadPool.schedule(() -> {
         if (oldSubscriptions != null) {
-          //Cleanup old SNS subscriptions here. Do this deferred by 10 minutes + some random time
+          // Cleanup old SNS subscriptions here. Do this deferred by 10 minutes + some
+          // random time
           oldSubscriptions.forEach(this::checkSubscription);
-          //Send a notification to all other nodes to not care about the subscription cleanup anymore.
+          // Send a notification to all other nodes to not care about the subscription
+          // cleanup anymore.
           new PreventSubscriptionCleanup().broadcast();
         }
       }, deferringSeconds, TimeUnit.SECONDS);
     }
 
-    //Shut down and remove the pool once everything is done
+    // Shut down and remove the pool once everything is done
     threadPool.schedule(this::shutdownCleanup, shutdownDelay, TimeUnit.SECONDS);
   }
 
@@ -235,16 +239,16 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
   }
 
   /**
-   * Loads all subscriptions being relevant for the message broker. This includes only those using the HTTP protocol and pointing to an
-   * admin messaging endpoint.
+   * Loads all subscriptions being relevant for the message broker. This includes
+   * only those using the HTTP protocol and pointing to an admin messaging
+   * endpoint.
    */
   private void loadSubscriptions(Handler<AsyncResult<List<Subscription>>> callback) {
     loadSubscriptions(null, callback);
   }
 
   private void loadSubscriptions(String nextToken, Handler<AsyncResult<List<Subscription>>> callback) {
-    ListSubscriptionsByTopicRequest req = new ListSubscriptionsByTopicRequest()
-        .withTopicArn(TOPIC_ARN);
+    ListSubscriptionsByTopicRequest req = new ListSubscriptionsByTopicRequest().withTopicArn(TOPIC_ARN);
     if (nextToken != null) {
       req.setNextToken(nextToken);
     }
@@ -257,8 +261,7 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
 
           @Override
           public void onSuccess(ListSubscriptionsByTopicRequest request, ListSubscriptionsByTopicResult result) {
-            List<Subscription> subscriptions = result.getSubscriptions()
-                .stream()
+            List<Subscription> subscriptions = result.getSubscriptions().stream()
                 .filter(subscription -> SNS_HTTP_PROTOCOL.equals(subscription.getProtocol())
                     && subscription.getEndpoint().contains(AdminApi.ADMIN_MESSAGES_ENDPOINT))
                 .collect(Collectors.toCollection(LinkedList::new));
@@ -271,8 +274,7 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
                   callback.handle(subscriptionsResult);
                 }
               });
-            }
-            else {
+            } else {
               callback.handle(Future.succeededFuture(subscriptions));
             }
           }
@@ -289,29 +291,31 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
           unsubscribe(subscription);
         }
       });
-    }
-    catch (MalformedURLException e) {
+    } catch (MalformedURLException e) {
       logger.error("Subscription with endpoint {} could not be verified. It will be kept for now.", endpoint);
     }
   }
 
   private void unsubscribe(Subscription subscription) {
     if (PENDING_CONFIRMATION.equals(subscription.getSubscriptionArn())) {
-      logger.warn("Could not remove subscription ({}) because it's pending for confirmation. It will be removed automatically "
-          + "after 3 days.", subscription.getEndpoint());
+      logger.warn(
+          "Could not remove subscription ({}) because it's pending for confirmation. It will be removed automatically "
+              + "after 3 days.",
+          subscription.getEndpoint());
       return;
     }
-    SNS_CLIENT.unsubscribeAsync(subscription.getSubscriptionArn(), new AsyncHandler<UnsubscribeRequest, UnsubscribeResult>() {
-      @Override
-      public void onError(Exception e) {
-        logger.error("Error un-subscribing endpoint {} from SNS: {}", subscription.getEndpoint(), e);
-      }
+    SNS_CLIENT.unsubscribeAsync(subscription.getSubscriptionArn(),
+        new AsyncHandler<UnsubscribeRequest, UnsubscribeResult>() {
+          @Override
+          public void onError(Exception e) {
+            logger.error("Error un-subscribing endpoint {} from SNS: {}", subscription.getEndpoint(), e);
+          }
 
-      @Override
-      public void onSuccess(UnsubscribeRequest request, UnsubscribeResult unsubscribeResult) {
-        logger.debug("Endpoint {} has been successfully un-subscribed from SNS.", subscription.getEndpoint());
-      }
-    });
+          @Override
+          public void onSuccess(UnsubscribeRequest request, UnsubscribeResult unsubscribeResult) {
+            logger.debug("Endpoint {} has been successfully un-subscribed from SNS.", subscription.getEndpoint());
+          }
+        });
   }
 
   @Override
@@ -323,7 +327,7 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
     if (message.length() > MAX_MESSAGE_SIZE) {
       throw new RuntimeException("AdminMessage is larger than the MAX_MESSAGE_SIZE. Can not send it.");
     }
-    //Send using SNS client
+    // Send using SNS client
     SNS_CLIENT.publishAsync(TOPIC_ARN, message, new AsyncHandler<PublishRequest, PublishResult>() {
       @Override
       public void onError(Exception exception) {
@@ -345,11 +349,12 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
     }
 
     if (MESSAGE_MANAGER != null) {
-      //The SNS message manager parses & verifies the incoming SNS message and calls the #handle() method.
+      // The SNS message manager parses & verifies the incoming SNS message and calls
+      // the #handle() method.
       MESSAGE_MANAGER.handleMessage(new ByteArrayInputStream(rawJsonMessage), this);
-    }
-    else {
-      //In case there is no actual SNS subscription we accept serialized AdminMessages directly (e.g. for testing purposes)
+    } else {
+      // In case there is no actual SNS subscription we accept serialized
+      // AdminMessages directly (e.g. for testing purposes)
       receiveMessage(new String(rawJsonMessage));
     }
   }
@@ -359,8 +364,9 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
   }
 
   /**
-   * An infrastructural message needed by the {@link SnsMessageBroker} to inform all other nodes that the subscription-cleanup was already
-   * done by this node and can be skipped on the other ones.
+   * An infrastructural message needed by the {@link SnsMessageBroker} to inform
+   * all other nodes that the subscription-cleanup was already done by this node
+   * and can be skipped on the other ones.
    */
   public static class PreventSubscriptionCleanup extends AdminMessage {
 

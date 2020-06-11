@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.amazonaws.services.s3.AmazonS3URI;
 import com.amazonaws.util.IOUtils;
 import com.here.xyz.hub.Service;
 
@@ -35,8 +36,7 @@ import com.here.xyz.hub.Service;
  * "ADMIN_MESSAGE_BROKER={@link S3WebMessageBroker}".
  * 
  * The {@link S3WebMessageBroker} must be configured. You can set the
- * environment variables "S3_WEB_MESSAGE_BROKER_BUCKET" and
- * "S3_WEB_MESSAGE_BROKER_OBJECT".
+ * environment variable "ADMIN_MESSAGE_BROKER_CONFIG".
  * 
  */
 
@@ -44,24 +44,21 @@ public class S3WebMessageBroker extends WebMessageBroker {
 
 	private static volatile S3WebMessageBroker instance;
 	private static volatile AmazonS3 S3_CLIENT;
-	private static volatile String S3_WEB_MESSAGE_BROKER_BUCKET;
-	private static volatile String S3_WEB_MESSAGE_BROKER_OBJECT;
+	private static volatile AmazonS3URI S3_URI;
 	private static volatile Boolean isInitialized;
 
 	static {
-		S3_WEB_MESSAGE_BROKER_BUCKET = (Service.configuration.S3_WEB_MESSAGE_BROKER_BUCKET != null
-				? Service.configuration.S3_WEB_MESSAGE_BROKER_BUCKET
-				: "xyz-hub-admin-messaging");
-		S3_WEB_MESSAGE_BROKER_OBJECT = (Service.configuration.S3_WEB_MESSAGE_BROKER_OBJECT != null
-				? Service.configuration.S3_WEB_MESSAGE_BROKER_OBJECT
-				: "instances.json");
 		try {
+			S3_URI = new AmazonS3URI((Service.configuration.ADMIN_MESSAGE_BROKER_CONFIG != null
+					? Service.configuration.ADMIN_MESSAGE_BROKER_CONFIG.get("s3Uri")
+					: "s3://xyz-hub-admin/service-instances.json"));
 			S3_CLIENT = AmazonS3ClientBuilder.standard().withCredentials(new DefaultAWSCredentialsProviderChain())
 					.build();
 			setPeriodicUpdateConfig();
 			isInitialized = true;
 			logger.info("The S3WebMessageBroker was initialized.");
 		} catch (Exception e) {
+			S3_URI = null;
 			S3_CLIENT = null;
 			disablePeriodicUpdate();
 			isInitialized = false;
@@ -78,10 +75,10 @@ public class S3WebMessageBroker extends WebMessageBroker {
 	@Override
 	@SuppressWarnings("unchecked")
 	protected ConcurrentHashMap<String, String> getTargetEndpoints() throws Exception {
-		return mapper.get()
-				.readValue(new String(IOUtils.toByteArray(S3_CLIENT
-						.getObject(S3_WEB_MESSAGE_BROKER_BUCKET, S3_WEB_MESSAGE_BROKER_OBJECT).getObjectContent())),
-						ConcurrentHashMap.class);
+		return mapper.get().readValue(
+				new String(IOUtils
+						.toByteArray(S3_CLIENT.getObject(S3_URI.getBucket(), S3_URI.getKey()).getObjectContent())),
+				ConcurrentHashMap.class);
 	}
 
 	public static S3WebMessageBroker getInstance() {

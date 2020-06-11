@@ -12,9 +12,26 @@ services:
             - "dynamodb"
         environment:
             - LOG_CONFIG=log4j2-console-debug.json
-            - INSTANCE_COUNT=2
-            - ADMIN_MESSAGE_BROKER=StaticWebMessageBroker
-            - 'STATIC_WEB_MESSAGE_BROKER_CONFIG={"xyz-hub_xyz-hub_1": "8080","xyz-hub_xyz-hub_2": "8080"}'
+            - INSTANCE_COUNT=3
+            # POSSIBLE MESSAGE BROKER CONFIGURATION EXAMPLES
+            #
+            #- ADMIN_MESSAGE_BROKER=RedisMessageBroker
+            #
+            #- ADMIN_MESSAGE_BROKER=S3WebMessageBroker
+            #- 'ADMIN_MESSAGE_BROKER_CONFIG={"s3Uri": "s3://xyz-hub-admin/service-instances.json"}'
+            #
+            #- ADMIN_MESSAGE_BROKER=ServiceDiscoveryWebMessageBroker
+            #- 'ADMIN_MESSAGE_BROKER_CONFIG={"serviceDiscoveryId": "xyz-hub"}'
+            #
+            #- ADMIN_MESSAGE_BROKER=SnsMessageBroker
+            #- 'ADMIN_MESSAGE_BROKER_CONFIG={"snsTopicArn": "arn:aws:sns:us-east-2:123456789012:MyTopic"}'
+            #
+            #- ADMIN_MESSAGE_BROKER=StaticWebMessageBroker
+            #- 'ADMIN_MESSAGE_BROKER_CONFIG={"xyz-hub_xyz-hub_1": "8080","xyz-hub_xyz-hub_2": "8080", "xyz-hub_xyz-hub_3": "8080"}'
+            #
+            #- ADMIN_MESSAGE_BROKER=TargetGroupWebMessageBroker
+            #- 'ADMIN_MESSAGE_BROKER_CONFIG={"targetGroupArn": "arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/my-targets/73e2d6bc24d8a067"}'
+            #
             - SPACES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-spaces
             - CONNECTORS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-connectors
             - PACKAGES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-packages

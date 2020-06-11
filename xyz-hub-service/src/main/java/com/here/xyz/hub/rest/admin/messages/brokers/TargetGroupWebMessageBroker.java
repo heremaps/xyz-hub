@@ -35,7 +35,7 @@ import com.here.xyz.hub.Service;
  * variable "ADMIN_MESSAGE_BROKER={@link TargetGroupWebMessageBroker}".
  * 
  * The {@link TargetGroupWebMessageBroker} must be configured. You can set the
- * environment variable "TARGET_GROUP_WEB_MESSAGE_BROKER_ELB_TARGETGROUP_ARN".
+ * environment variable "ADMIN_MESSAGE_BROKER_CONFIG".
  * 
  */
 
@@ -43,14 +43,14 @@ public class TargetGroupWebMessageBroker extends WebMessageBroker {
 
 	private static volatile TargetGroupWebMessageBroker instance;
 	private static volatile AmazonElasticLoadBalancingAsync ELB_CLIENT;
-	private static volatile String TARGET_GROUP_WEB_MESSAGE_BROKER_ELB_TARGETGROUP_ARN;
+	private static volatile String ELB_TARGETGROUP_ARN;
 	private static volatile Boolean isInitialized;
 
 	static {
-		TARGET_GROUP_WEB_MESSAGE_BROKER_ELB_TARGETGROUP_ARN = (Service.configuration.TARGET_GROUP_WEB_MESSAGE_BROKER_ELB_TARGETGROUP_ARN != null
-				? Service.configuration.TARGET_GROUP_WEB_MESSAGE_BROKER_ELB_TARGETGROUP_ARN
-				: null);
 		try {
+			ELB_TARGETGROUP_ARN = (Service.configuration.ADMIN_MESSAGE_BROKER_CONFIG.get("targetGroupArn") != null
+					? Service.configuration.ADMIN_MESSAGE_BROKER_CONFIG.get("targetGroupArn")
+					: null);
 			ELB_CLIENT = AmazonElasticLoadBalancingAsyncClientBuilder.standard()
 					.withCredentials(new DefaultAWSCredentialsProviderChain()).build();
 			setPeriodicUpdateConfig();
@@ -75,7 +75,7 @@ public class TargetGroupWebMessageBroker extends WebMessageBroker {
 		// TODO: minor: support multiple target group arn once required
 		ConcurrentHashMap<String, String> targetEndpoints = new ConcurrentHashMap<String, String>();
 		DescribeTargetHealthRequest request = new DescribeTargetHealthRequest();
-		request.setTargetGroupArn(TARGET_GROUP_WEB_MESSAGE_BROKER_ELB_TARGETGROUP_ARN);
+		request.setTargetGroupArn(ELB_TARGETGROUP_ARN);
 		// TODO: minor: respect possible pagination
 		ELB_CLIENT.describeTargetHealth(request).getTargetHealthDescriptions().forEach(targetInstance -> targetEndpoints
 				.put(targetInstance.getTarget().getId(), Integer.toString(targetInstance.getTarget().getPort())));

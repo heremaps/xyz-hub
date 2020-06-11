@@ -37,7 +37,7 @@ import com.here.xyz.hub.Service;
  * "ADMIN_MESSAGE_BROKER={@link ServiceDiscoveryWebMessageBroker}".
  * 
  * The {@link ServiceDiscoveryWebMessageBroker} must be configured. You can set
- * the environment variable "SERVICE_DISCOVERY_WEB_MESSAGE_BROKER_SERVICE_ID".
+ * the environment variable "ADMIN_MESSAGE_BROKER_CONFIG".
  * 
  */
 
@@ -45,14 +45,14 @@ public class ServiceDiscoveryWebMessageBroker extends WebMessageBroker {
 
 	private static volatile ServiceDiscoveryWebMessageBroker instance;
 	private static volatile AWSServiceDiscoveryAsync SD_CLIENT;
-	private static volatile String SERVICE_DISCOVERY_WEB_MESSAGE_BROKER_SERVICE_ID;
+	private static volatile String SD_ID;
 	private static volatile Boolean isInitialized;
 
 	static {
-		SERVICE_DISCOVERY_WEB_MESSAGE_BROKER_SERVICE_ID = (Service.configuration.SERVICE_DISCOVERY_WEB_MESSAGE_BROKER_SERVICE_ID != null
-				? Service.configuration.SERVICE_DISCOVERY_WEB_MESSAGE_BROKER_SERVICE_ID
-				: "xyz-hub");
 		try {
+			SD_ID = (Service.configuration.ADMIN_MESSAGE_BROKER_CONFIG.get("serviceDiscoveryId") != null
+					? Service.configuration.ADMIN_MESSAGE_BROKER_CONFIG.get("serviceDiscoveryId")
+					: "xyz-hub");
 			SD_CLIENT = AWSServiceDiscoveryAsyncClientBuilder.standard()
 					.withCredentials(new DefaultAWSCredentialsProviderChain()).build();
 			setPeriodicUpdateConfig();
@@ -76,7 +76,7 @@ public class ServiceDiscoveryWebMessageBroker extends WebMessageBroker {
 	protected ConcurrentHashMap<String, String> getTargetEndpoints() throws Exception {
 		ConcurrentHashMap<String, String> targetEndpoints = new ConcurrentHashMap<String, String>();
 		ListInstancesRequest request = new ListInstancesRequest();
-		request.setServiceId(SERVICE_DISCOVERY_WEB_MESSAGE_BROKER_SERVICE_ID);
+		request.setServiceId(SD_ID);
 		// TODO: minor: respect possible pagination
 		SD_CLIENT.listInstances(request).getInstances()
 				.forEach(targetInstance -> targetEndpoints.put(targetInstance.getAttributes().get("AWS_INSTANCE_IPV4"),
