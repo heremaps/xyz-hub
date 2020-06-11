@@ -21,7 +21,14 @@ package com.here.xyz.hub.rest.admin;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.admin.messages.brokers.RedisMessageBroker;
+import com.here.xyz.hub.rest.admin.messages.brokers.S3WebMessageBroker;
+import com.here.xyz.hub.rest.admin.messages.brokers.ServiceDiscoveryWebMessageBroker;
+import com.here.xyz.hub.rest.admin.messages.brokers.SnsMessageBroker;
+import com.here.xyz.hub.rest.admin.messages.brokers.StaticWebMessageBroker;
+import com.here.xyz.hub.rest.admin.messages.brokers.TargetGroupWebMessageBroker;
+
 import java.io.IOException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,12 +41,12 @@ import org.apache.logging.log4j.Logger;
  * implementation to return.
  * 
  * The default {@link MessageBroker} implementation is the
- * {@link SnsMessageBroker}.
+ * {@link RedisMessageBroker}.
  * 
  * To set the {@link MessageBroker} you can set the environment variable
  * ADMIN_MESSAGE_BROKER e.g.
  * "ADMIN_MESSAGE_BROKER={@link StaticWebMessageBroker}" or
- * "ADMIN_MESSAGE_BROKER={@link ServiceDiscoveryWebMessageBroker}".
+ * "ADMIN_MESSAGE_BROKER={@link SnsMessageBroker}".
  * 
  */
 public interface MessageBroker {
@@ -55,18 +62,18 @@ public interface MessageBroker {
       try {
         jsonMessage = mapper.get().writeValueAsString(message);
         sendRawMessage(jsonMessage);
-      }
-      catch (JsonProcessingException e) {
-        logger.error("Error while serializing AdminMessage of type {} prior to send it.", message.getClass().getSimpleName());
-      }
-      catch (Exception e) {
+      } catch (JsonProcessingException e) {
+        logger.error("Error while serializing AdminMessage of type {} prior to send it.",
+            message.getClass().getSimpleName());
+      } catch (Exception e) {
         logger.error("Error while sending AdminMessage: {}", jsonMessage);
       }
     }
-    //Receive it (also) locally (if applicable)
+    // Receive it (also) locally (if applicable)
     /*
-    NOTE: Local messages will always be received directly and only once. This is also true for a broadcast message
-    with the #broadcastIncludeLocalNode flag being active.
+     * NOTE: Local messages will always be received directly and only once. This is
+     * also true for a broadcast message with the #broadcastIncludeLocalNode flag
+     * being active.
      */
     receiveMessage(message);
   }
@@ -87,11 +94,9 @@ public interface MessageBroker {
     AdminMessage message = null;
     try {
       message = mapper.get().readValue(jsonMessage, AdminMessage.class);
-    }
-    catch (IOException e) {
+    } catch (IOException e) {
       logger.error("Error while de-serializing AdminMessage {} : {}", jsonMessage, e);
-    }
-    catch (Exception e) {
+    } catch (Exception e) {
       logger.error("Error while receiving AdminMessage {} : {}", jsonMessage, e);
     }
     return message;
@@ -107,15 +112,29 @@ public interface MessageBroker {
         || Node.OWN_INSTANCE.equals(message.destination)) {
       try {
         message.handle();
-      }
-      catch (RuntimeException e) {
+      } catch (RuntimeException e) {
         logger.error("Error while trying to handle AdminMessage {} : {}", message, e);
       }
     }
   }
 
   static MessageBroker getInstance() {
-    //Return an instance of the default implementation
-    return RedisMessageBroker.getInstance();
+    switch (Service.configuration.ADMIN_MESSAGE_BROKER != null ? Service.configuration.ADMIN_MESSAGE_BROKER
+        : "RedisMessageBroker") {
+      case "S3WebMessageBroker":
+        return S3WebMessageBroker.getInstance();
+      case "ServiceDiscoveryWebMessageBroker":
+        return ServiceDiscoveryWebMessageBroker.getInstance();
+      case "SnsMessageBroker":
+        return SnsMessageBroker.getInstance();
+      case "StaticWebMessageBroker":
+        return StaticWebMessageBroker.getInstance();
+      case "TargetGroupWebMessageBroker":
+        return TargetGroupWebMessageBroker.getInstance();
+      // Return an instance of the default implementation
+      case "RedisMessageBroker":
+      default:
+        return RedisMessageBroker.getInstance();
+    }
   }
 }

@@ -151,7 +151,7 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
       mb.shutdownCleanup();
   }
 
-  static SnsMessageBroker getInstance() {
+  public static SnsMessageBroker getInstance() {
     return instance;
   }
 

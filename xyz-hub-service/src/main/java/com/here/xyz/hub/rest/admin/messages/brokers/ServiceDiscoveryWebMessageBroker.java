@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.rest.admin;
+package com.here.xyz.hub.rest.admin.messages.brokers;
 
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -84,7 +84,7 @@ public class ServiceDiscoveryWebMessageBroker extends WebMessageBroker {
 		return targetEndpoints;
 	}
 
-	static ServiceDiscoveryWebMessageBroker getInstance() {
+	public static ServiceDiscoveryWebMessageBroker getInstance() {
 		return instance;
 	}
 

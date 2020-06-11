@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.rest.admin;
+package com.here.xyz.hub.rest.admin.messages.brokers;
 
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -84,7 +84,7 @@ public class S3WebMessageBroker extends WebMessageBroker {
 						ConcurrentHashMap.class);
 	}
 
-	static S3WebMessageBroker getInstance() {
+	public static S3WebMessageBroker getInstance() {
 		return instance;
 	}
 
