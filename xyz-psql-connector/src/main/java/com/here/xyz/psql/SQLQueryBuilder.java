@@ -138,6 +138,12 @@ public class SQLQueryBuilder {
         int zLevel = (event instanceof GetFeaturesByTileEvent ? ((GetFeaturesByTileEvent) event).getLevel() : H3SQL.bbox2zoom(bbox)),
             h3res = evalH3Resolution( clusteringParams, H3SQL.zoom2resolution(zLevel) );
 
+        if( zLevel == 1)  // prevent ERROR:  Antipodal (180 degrees long) edge detected!
+         if( bbox.minLon() == 0.0 ) 
+          bbox.setEast( bbox.maxLon() - 0.0001 );
+         else
+          bbox.setWest( bbox.minLon() + 0.0001); 
+
         String statisticalProperty = (String) clusteringParams.get(H3SQL.HEXBIN_PROPERTY);
         boolean statisticalPropertyProvided = (statisticalProperty != null && statisticalProperty.length() > 0),
                 h3cflip = (clusteringParams.get(H3SQL.HEXBIN_POINTMODE) == Boolean.TRUE);
