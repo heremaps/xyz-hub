@@ -20,6 +20,7 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
+import static com.here.xyz.hub.rest.ApiParam.Query.FORCE_2D;
 import static com.here.xyz.hub.rest.ApiParam.Query.SKIP_CACHE;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 
@@ -102,13 +103,17 @@ public class FeatureQueryApi extends Api {
    */
   private void searchForFeatures(final RoutingContext context) {
     try {
-      SearchForFeaturesEvent event = new SearchForFeaturesEvent();
+      final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
+      final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
+
+      final SearchForFeaturesEvent event = new SearchForFeaturesEvent();
       event.withLimit(getLimit(context))
+          .withForce2D(force2D)
           .withTags(Query.getTags(context))
           .withPropertiesQuery(Query.getPropertiesQuery(context))
           .withSelection(Query.getSelection(context));
-      final SearchQuery task = new SearchQuery(event, context, ApiResponseType.FEATURE_COLLECTION,
-          Query.getBoolean(context, SKIP_CACHE, false));
+
+      final SearchQuery task = new SearchQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache);
       task.execute(this::sendResponse, this::sendErrorResponse);
     } catch (HttpException e) {
       sendErrorResponse(context, e);
@@ -121,11 +126,15 @@ public class FeatureQueryApi extends Api {
   private void iterateFeatures(final RoutingContext context) {
     try {
       final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
+      final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
+
       IterateFeaturesEvent event = new IterateFeaturesEvent()
           .withLimit(getLimit(context))
+          .withForce2D(force2D)
           .withTags(Query.getTags(context))
           .withSelection(Query.getSelection(context))
           .withHandle(Query.getString(context, Query.HANDLE, null));
+
       final IterateQuery task = new IterateQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache);
       task.execute(this::sendResponse, this::sendErrorResponse);
     } catch (HttpException e) {
@@ -154,11 +163,12 @@ public class FeatureQueryApi extends Api {
 
         if(geometry == null && (refFeatureId == null || refSpaceId ==null))
           throw new HttpException(BAD_REQUEST, "Invalid arguments! Define '"+Query.LAT+"' and '"+Query.LON+"' or reference a '"+Query.REF_FEATURE_ID+"' in a '"+Query.REF_SPACE_ID+"'!");
-      }else if(context.request().method() == HttpMethod.POST) {
+      } else if(context.request().method() == HttpMethod.POST) {
           geometry = getBodyAsGeometry(context);
       }
 
       final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
+      final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
 
       GetFeaturesByGeometryEvent event = new GetFeaturesByGeometryEvent()
           .withGeometry(geometry)
@@ -166,8 +176,8 @@ public class FeatureQueryApi extends Api {
           .withLimit(getLimit(context))
           .withTags(Query.getTags(context))
           .withPropertiesQuery(Query.getPropertiesQuery(context))
-          .withSelection(Query.getSelection(context)
-          );
+          .withSelection(Query.getSelection(context))
+          .withForce2D(force2D);
 
       final GeometryQuery task = new GeometryQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache, refSpaceId, refFeatureId);
       task.execute(this::sendResponse, this::sendErrorResponse);
@@ -182,9 +192,13 @@ public class FeatureQueryApi extends Api {
   private void getFeaturesByBBox(final RoutingContext context) {
     try {
       final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
+      final boolean clip = Query.getBoolean(context, Query.CLIP, false);
+      final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
+
       GetFeaturesByBBoxEvent event = new GetFeaturesByBBoxEvent<>()
+          .withForce2D(force2D)
           .withBbox(getBBox(context))
-          .withClip(Query.getBoolean(context, Query.CLIP, false));
+          .withClip(clip);
 
       try {
         event.withClusteringType(Query.getString(context, Query.CLUSTERING, null))
@@ -214,7 +228,9 @@ public class FeatureQueryApi extends Api {
     try {
       String tileId = context.pathParam(Path.TILE_ID);
       String acceptTypeSuffix = null;
+
       final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
+      final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
 
       final int indexOfPoint = tileId.indexOf('.');
       if (indexOfPoint >= 0) {
@@ -245,8 +261,9 @@ public class FeatureQueryApi extends Api {
               .withLimit(getLimit(context))
               .withTags(Query.getTags(context))
               .withPropertiesQuery(Query.getPropertiesQuery(context))
-              .withSelection(Query.getSelection(context));
-      }catch (Exception e){
+              .withSelection(Query.getSelection(context))
+              .withForce2D(force2D);
+      } catch (Exception e) {
         throw new HttpException(BAD_REQUEST,e.getMessage());
       }
 
@@ -304,7 +321,7 @@ public class FeatureQueryApi extends Api {
   }
 
   /**
-   * Checks the query string for an EPSG code, when found, it pases and returns it. If not found, it will return the provided default
+   * Checks the query string for an EPSG code, when found, it passes and returns it. If not found, it will return the provided default
    * value.
    */
   private int getVerifiedEpsg(RoutingContext context) throws HttpException {

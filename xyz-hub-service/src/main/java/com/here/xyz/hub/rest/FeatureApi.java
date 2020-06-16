@@ -21,6 +21,7 @@ package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.hub.rest.ApiParam.Query.FORCE_2D;
 import static com.here.xyz.hub.rest.ApiParam.Query.SKIP_CACHE;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.vertx.core.http.HttpHeaders.ACCEPT;
@@ -90,9 +91,12 @@ public class FeatureApi extends Api {
    */
   private void getFeature(final RoutingContext context) {
     final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
-    GetFeaturesByIdEvent event = new GetFeaturesByIdEvent()
+    final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
+
+    final GetFeaturesByIdEvent event = new GetFeaturesByIdEvent()
         .withIds(Collections.singletonList(context.pathParam(Path.FEATURE_ID)))
-        .withSelection(Query.getSelection(context));
+        .withSelection(Query.getSelection(context))
+        .withForce2D(force2D);
 
     new IdsQuery(event, context, ApiResponseType.FEATURE, skipCache)
         .execute(this::sendResponse, this::sendErrorResponse);
@@ -103,9 +107,12 @@ public class FeatureApi extends Api {
    */
   private void getFeatures(final RoutingContext context) {
     final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
-    GetFeaturesByIdEvent event = new GetFeaturesByIdEvent()
+    final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
+
+    final GetFeaturesByIdEvent event = new GetFeaturesByIdEvent()
         .withIds(Query.queryParam(Query.FEATURE_ID, context))
-        .withSelection(Query.getSelection(context));
+        .withSelection(Query.getSelection(context))
+        .withForce2D(force2D);
 
     new IdsQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache)
         .execute(this::sendResponse, this::sendErrorResponse);
@@ -143,6 +150,7 @@ public class FeatureApi extends Api {
     final IfExists ifExists = IfExists.of(Query.getString(context, Query.IF_EXISTS, "patch"));
     final ConflictResolution conflictResolution = ConflictResolution.of(Query.getString(context, Query.CONFLICT_RESOLUTION, "error"));
     boolean transactional = Query.getBoolean(context, Query.TRANSACTIONAL, true);
+
     executeConditionalOperationChain(false, context, getEmptyResponseTypeOr(context, ApiResponseType.FEATURE_COLLECTION), ifExists,
         ifNotExists, transactional, conflictResolution);
   }

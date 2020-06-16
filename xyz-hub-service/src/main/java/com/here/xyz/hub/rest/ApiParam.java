@@ -137,7 +137,8 @@ public class ApiParam {
 
     static final String TWEAKS_PARAM_STRENGTH  = "strength";
     static final String TWEAKS_PARAM_ALGORITHM = "algorithm";
-    
+
+    static final String FORCE_2D = "force2D";
 
     private static List<String> shortOperators = Arrays.asList("!=", ">=", "=gte=", "<=", "=lte=", ">", "=gt=", "<", "=lt=", "=");
     private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{
@@ -376,22 +377,22 @@ public class ApiParam {
         switch( key )
         {
          case TWEAKS_PARAM_STRENGTH :
-           if(value instanceof String) 
+           if(value instanceof String)
            { String keyS = ((String) value).toLowerCase();
-             switch (keyS) 
+             switch (keyS)
              { case "low": case "lowmed": case "med": case "medhigh": case "high": break;
                default:
                 throw new Exception("Invalid tweaks.strength value. Expect [LOW,LOWMED,MED,MEDHIGH,HIGH]");
              }
            }
-           else if(value instanceof Long) 
+           else if(value instanceof Long)
            {
             if((long)value < 1 || (long)value > 100)
              throw new Exception("Invalid tweaks.strength value. Expect Integer [1,100].");
            }
            else
             throw new Exception("Invalid tweaks.strength value. Expect String or Integer.");
-          
+
          break;
 
          case TWEAKS_PARAM_ALGORITHM : break;
