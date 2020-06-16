@@ -60,11 +60,11 @@ public class SQLQueryBuilder {
     }
 
     public static SQLQuery buildGetFeaturesByIdQuery(GetFeaturesByIdEvent event, PSQLConfig config, DataSource dataSource)
-        throws SQLException{
+        throws SQLException {
 
         SQLQuery query = new SQLQuery("SELECT");
         query.append(SQLQuery.selectJson(event.getSelection(),dataSource));
-        query.append(", replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
+        query.append(", replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
                 SQLQuery.createSQLArray(event.getIds().toArray(new String[0]), "text",dataSource));
        return query;
     }
@@ -117,9 +117,9 @@ public class SQLQueryBuilder {
     /***************************************** CLUSTERING ******************************************************/
 
     private static int evalH3Resolution( Map<String, Object> clusteringParams, int maxResForLevel )
-    { 
+    {
      int h3res = maxResForLevel;
-      
+
      if( clusteringParams == null ) return h3res;
 
      if( clusteringParams.get(H3SQL.HEXBIN_RESOLUTION) != null )
@@ -324,7 +324,7 @@ public class SQLQueryBuilder {
        }
 
        //convert to geojson
-       tweaksGeoSql = String.format("replace(ST_AsGeojson(ST_Force3D( %s ),%d),'nan','0')",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS);
+       tweaksGeoSql = String.format("replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "( %s ),%d),'nan','0')",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS);
      }
 
        final String bboxqry = String.format( String.format("ST_Intersects(geo, ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326) )", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() );
@@ -341,6 +341,7 @@ public class SQLQueryBuilder {
        if( strength <= 20 ) minGeoHashLenToMerge = 7;
        else if ( strength <= 60 ) minGeoHashLenToMerge = 6;
 
+       tweaksGeoSql = "geo".equals(tweaksGeoSql) ? getForceMode(event.isForce2D()) + "(geo)" : tweaksGeoSql;
        SQLQuery query = new SQLQuery( String.format( TweaksSQL.mergeBeginSql, tweaksGeoSql, minGeoHashLenToMerge, bboxqry ) );
 
        if (searchQuery != null)
@@ -362,7 +363,7 @@ public class SQLQueryBuilder {
 
         final SQLQuery query = new SQLQuery("SELECT");
         query.append(SQLQuery.selectJson(event.getSelection(), dataSource));
-        query.append(", replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0'), i FROM ${schema}.${table}");
+        query.append(", replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0'), i FROM ${schema}.${table}");
         final SQLQuery searchQuery = generateSearchQuery(event, dataSource);
 
         if (hasSearch || hasHandle) {
@@ -563,7 +564,7 @@ public class SQLQueryBuilder {
             query.append(geometrySelectorForEvent((GetFeaturesByBBoxEvent) event));
         }
         else
-         query.append(",replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0')");
+         query.append(",replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0')");
 
         query.append("FROM ${schema}.${table} WHERE");
         query.append(indexedQuery);
@@ -593,7 +594,7 @@ public class SQLQueryBuilder {
 
         if (!event.getClip()) {
             if (simplificationLevel <= 0) {
-                return new SQLQuery("replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0')");
+                return new SQLQuery("replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0')");
 
             }
             return new SQLQuery("replace(ST_AsGeoJson(ST_Transform(ST_MakeValid(ST_SnapToGrid(ST_Force2D(ST_Transform(geo,3857)),?)),4326),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0')", pixelSize);
@@ -691,4 +692,7 @@ public class SQLQueryBuilder {
         return SQLQuery.replaceVars(historyTriggerSQL, schema, table);
     }
 
+    private static String getForceMode(boolean isForce2D) {
+      return isForce2D ? "ST_Force2D" : "ST_Force3D";
+    }
 }
