@@ -247,11 +247,13 @@ public class PSQLXyzConnector extends DatabaseHandler {
         if(event.getParams() != null)
           maxVersionCount = (Integer)event.getParams().get("maxVersionCount");
 
-        if(ModifySpaceEvent.Operation.CREATE == event.getOperation()){
-          ensureHistorySpace(maxVersionCount);
-        }else if(ModifySpaceEvent.Operation.UPDATE == event.getOperation()){
-          //TODO: ONLY update Trigger
-          ensureHistorySpace(maxVersionCount);
+        if(event.getSpaceDefinition().isEnableHistory()){
+          if(ModifySpaceEvent.Operation.CREATE == event.getOperation()){
+            ensureHistorySpace(maxVersionCount);
+          }else if(ModifySpaceEvent.Operation.UPDATE == event.getOperation()){
+            //TODO: ONLY update Trigger
+            ensureHistorySpace(maxVersionCount);
+          }
         }
       }
 
