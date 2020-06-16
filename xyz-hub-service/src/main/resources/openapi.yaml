@@ -165,6 +165,7 @@ paths:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/RequiredIdList'
         - $ref: '#/components/parameters/PropertiesSelection'
+        - $ref: '#/components/parameters/Force2D'
       responses:
         '200':
           content:
@@ -381,6 +382,7 @@ paths:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/FeatureId'
         - $ref: '#/components/parameters/PropertiesSelection'
+        - $ref: '#/components/parameters/Force2D'
       responses:
         '200':
           $ref: '#/components/responses/SingleFeatureResponse'
@@ -535,6 +537,7 @@ paths:
           x-experimental: true
         - $ref: '#/components/parameters/TweaksParams'
           x-experimental: true
+        - $ref: '#/components/parameters/Force2D'
       responses:
         '200':
           $ref: '#/components/responses/QueryFCResponse'
@@ -608,6 +611,7 @@ paths:
             type: integer
             minimum: 0
         - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Force2D'
       responses:
         '200':
           $ref: '#/components/responses/TileResponse'
@@ -664,6 +668,7 @@ paths:
         - $ref: '#/components/parameters/PropertiesQuery'
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/SkipCache'
+        - $ref: '#/components/parameters/Force2D'
       responses:
         '200':
           $ref: '#/components/responses/QueryFCResponse'
@@ -694,6 +699,7 @@ paths:
         - $ref: '#/components/parameters/PropertiesQuery'
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/SkipCache'
+        - $ref: '#/components/parameters/Force2D'
       requestBody:
         description: A Geometry object which is getting used for the spatial search.
         content:
@@ -728,6 +734,7 @@ paths:
         - $ref: '#/components/parameters/PropertiesQuery'
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/SkipCache'
+        - $ref: '#/components/parameters/Force2D'
       responses:
         '200':
           $ref: '#/components/responses/QueryFCResponse'
@@ -763,6 +770,7 @@ paths:
           required: false
           schema:
             type: string
+        - $ref: '#/components/parameters/Force2D'
       responses:
         '200':
           $ref: '#/components/responses/QueryFCResponse'
@@ -1146,6 +1154,14 @@ components:
       name: transactional
       in: query
       description: Defines, if this is a transactional operation. Default is _true_.
+      required: false
+      schema:
+        type: boolean
+    Force2D:
+      name: force2D
+      in: query
+      description: >-
+        If set to _true_ the features in the response will have only X's and Y's as coordinates.
       required: false
       schema:
         type: boolean
