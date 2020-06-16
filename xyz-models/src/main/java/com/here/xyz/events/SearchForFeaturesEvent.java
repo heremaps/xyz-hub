@@ -30,8 +30,8 @@ public class SearchForFeaturesEvent<T extends SearchForFeaturesEvent> extends Qu
   private static final long MAX_LIMIT = 100_000L;
 
   private long limit = DEFAULT_LIMIT;
+  private boolean force2D;
 
-  @SuppressWarnings("WeakerAccess")
   public long getLimit() {
     return limit;
   }
@@ -44,6 +44,24 @@ public class SearchForFeaturesEvent<T extends SearchForFeaturesEvent> extends Qu
   @SuppressWarnings("unused")
   public T withLimit(long limit) {
     setLimit(limit);
-    return (T)this;
+    //noinspection unchecked
+    return (T) this;
+  }
+
+  @SuppressWarnings("WeakerAccess")
+  public boolean isForce2D() {
+    return force2D;
+  }
+
+  @SuppressWarnings("WeakerAccess")
+  public void setForce2D(boolean force2D) {
+    this.force2D = force2D;
+  }
+
+  @SuppressWarnings("unused")
+  public T withForce2D(boolean force2D) {
+    setForce2D(force2D);
+    //noinspection unchecked
+    return (T) this;
   }
 }

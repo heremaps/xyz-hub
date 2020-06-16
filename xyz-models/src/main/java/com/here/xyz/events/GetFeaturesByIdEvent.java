@@ -30,6 +30,7 @@ public final class GetFeaturesByIdEvent extends Event<GetFeaturesByIdEvent> {
 
   private List<String> ids;
   private List<String> selection;
+  private boolean force2D;
 
   public List<String> getIds() {
     return this.ids;
@@ -57,4 +58,18 @@ public final class GetFeaturesByIdEvent extends Event<GetFeaturesByIdEvent> {
     return this;
   }
 
+  public boolean isForce2D() {
+    return force2D;
+  }
+
+  @SuppressWarnings("WeakerAccess")
+  public void setForce2D(boolean force2D) {
+    this.force2D = force2D;
+  }
+
+  @SuppressWarnings("unused")
+  public GetFeaturesByIdEvent withForce2D(boolean force2D) {
+    setForce2D(force2D);
+    return this;
+  }
 }
