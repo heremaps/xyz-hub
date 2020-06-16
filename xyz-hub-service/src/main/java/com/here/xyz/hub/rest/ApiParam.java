@@ -130,7 +130,7 @@ public class ApiParam {
     static final String REF_FEATURE_ID = "refFeatureId";
 
     static final String CLUSTERING_PARAM_RESOLUTION = "resolution";
-    static final String CLUSTERING_PARAM_RESOLUTION_RELATIVE = "resolution_relative";
+    static final String CLUSTERING_PARAM_RESOLUTION_RELATIVE = "relativeResolution";
     static final String CLUSTERING_PARAM_PROPERTY = "property";
     static final String CLUSTERING_PARAM_POINTMODE = "pointmode";
     static final String CLUSTERING_PARAM_COUNTMODE = "countmode";
