@@ -670,7 +670,14 @@ public class FeatureTaskHandler {
         }
         entry.input.put(ID, id);
 
-        if (id != null) { // Test for duplicate IDs
+        if (id != null) { 
+          // Minimum length of id should be 1
+          if (id.length() < 1) {
+            logger.info(task.getMarker(), "Minimum length of object id should be 1.");
+            callback.exception(new HttpException(BAD_REQUEST, "Minimum length of object id should be 1."));
+            return;
+          }
+          // Test for duplicate IDs
           if (ids.containsKey(id)) {
             logger.info(task.getMarker(), "Objects with the same ID {} are included in the request.", id);
             callback.exception(new HttpException(BAD_REQUEST, "Objects with the same ID " + id + " is included in the request."));
