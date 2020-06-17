@@ -805,6 +805,208 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
 //    assertEquals("NaN", coordinates[0].z);
   }
 
+  @Test
+  public void testGetFeatureWithForce2D() {
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+        when().
+        get("/spaces/x-psql-test/features/Q2838923?force2D=false").
+        then().
+        statusCode(OK.code()).
+        body("geometry.coordinates.size()", equalTo(3)).
+        body("geometry.coordinates[0]", equalTo(-77.075F)).
+        body("geometry.coordinates[1]", equalTo(-12.057F)).
+        body("geometry.coordinates[2]", equalTo(0F));
+
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+        when().
+        get("/spaces/x-psql-test/features/Q2838923?force2D=true").
+        then().
+        statusCode(OK.code()).
+        body("geometry.coordinates.size()", equalTo(2)).
+        body("geometry.coordinates[0]", equalTo(-77.075F)).
+        body("geometry.coordinates[1]", equalTo(-12.057F));
+  }
+
+  @Test
+  public void testGetFeaturesWithForce2D() {
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+        when().
+        get("/spaces/x-psql-test/features?id=Q2838923&id=Q202150&force2D=false").
+        then().
+        statusCode(OK.code()).
+        body("features[0].geometry.coordinates.size()", equalTo(3)).
+        body("features[0].geometry.coordinates[0]", equalTo(-77.075F)).
+        body("features[0].geometry.coordinates[1]", equalTo(-12.057F)).
+        body("features[0].geometry.coordinates[2]", equalTo(0F)).
+        body("features[1].geometry.coordinates.size()", equalTo(3)).
+        body("features[1].geometry.coordinates[0]", equalTo(5.395833333F)).
+        body("features[1].geometry.coordinates[1]", equalTo(43.269722222F)).
+        body("features[1].geometry.coordinates[2]", equalTo(0F));
+
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+        when().
+        get("/spaces/x-psql-test/features?id=Q2838923&id=Q202150&force2D=true").
+        then().
+        statusCode(OK.code()).
+        body("features[0].geometry.coordinates.size()", equalTo(2)).
+        body("features[0].geometry.coordinates[0]", equalTo(-77.075F)).
+        body("features[0].geometry.coordinates[1]", equalTo(-12.057F)).
+        body("features[1].geometry.coordinates.size()", equalTo(2)).
+        body("features[1].geometry.coordinates[0]", equalTo(5.395833333F)).
+        body("features[1].geometry.coordinates[1]", equalTo(43.269722222F));
+  }
+
+  @Test
+  public void testBBoxWithForce2D() {
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+        when().
+        get("/spaces/x-psql-test/bbox?west=-180&north=90&east=180&south=-90&force2D=false").
+        then().
+        statusCode(OK.code()).
+        body("features[0].geometry.coordinates.size()", equalTo(3));
+
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+        when().
+        get("/spaces/x-psql-test/bbox?west=-180&north=90&east=180&south=-90&force2D=true").
+        then().
+        statusCode(OK.code()).
+        body("features[0].geometry.coordinates.size()", equalTo(2));
+  }
+
+  @Test
+  public void testTileWithForce2D() {
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+        when().
+        get("/spaces/x-psql-test/tile/quadkey/2100300120310022?force2D=false").
+        then().
+        statusCode(OK.code()).
+        body("features[0].geometry.coordinates.size()", equalTo(3));
+
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+        when().
+        get("/spaces/x-psql-test/tile/quadkey/2100300120310022?force2D=true").
+        then().
+        statusCode(OK.code()).
+        body("features[0].geometry.coordinates.size()", equalTo(2));
+  }
+
+
+  @Test
+  public void testGetSpatialWithForce2D() {
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+        when().
+        get("/spaces/x-psql-test/spatial?lon=-77.075&lat=-12.057&force2D=false").
+        then().
+        statusCode(OK.code()).
+        body("features[0].geometry.coordinates.size()", equalTo(3));
+
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+        when().
+        get("/spaces/x-psql-test/spatial?lon=-77.075&lat=-12.057&force2D=true").
+        then().
+        statusCode(OK.code()).
+        body("features[0].geometry.coordinates.size()", equalTo(2));
+  }
+
+  @Test
+  public void testPostSpatialWithForce2D() {
+    given().
+        contentType(APPLICATION_GEO_JSON).
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+        when().
+        body("{"
+            + "  \"type\": \"Point\","
+            + "  \"coordinates\": ["
+            + "    -77.075,"
+            + "    -12.057"
+            + "  ]"
+            + "}").
+        post("/spaces/x-psql-test/spatial?force2D=false").
+        then().
+        statusCode(OK.code()).
+        body("features[0].geometry.coordinates.size()", equalTo(3));
+
+    given().
+        contentType(APPLICATION_GEO_JSON).
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+        when().
+        body("{"
+            + "  \"type\": \"Point\","
+            + "  \"coordinates\": ["
+            + "    -77.075,"
+            + "    -12.057"
+            + "  ]"
+            + "}").
+        post("/spaces/x-psql-test/spatial?force2D=true").
+        then().
+        statusCode(OK.code()).
+        body("features[0].geometry.coordinates.size()", equalTo(2));
+  }
+
+  @Test
+  public void testSearchWithForce2D() {
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+        when().
+        get("/spaces/x-psql-test/search?p.capacity=67469&force2D=false").
+        then().
+        statusCode(OK.code()).
+        body("features[0].geometry.coordinates.size()", equalTo(3));
+
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+        when().
+        get("/spaces/x-psql-test/search?p.capacity=67469&force2D=true").
+        then().
+        statusCode(OK.code()).
+        body("features[0].geometry.coordinates.size()", equalTo(2));
+  }
+
+  @Test
+  public void testIterateWithForce2D() {
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+        when().
+        get("/spaces/x-psql-test/iterate?force2D=false").
+        then().
+        statusCode(OK.code()).
+        body("features[0].geometry.coordinates.size()", equalTo(3));
+
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+        when().
+        get("/spaces/x-psql-test/iterate?force2D=true").
+        then().
+        statusCode(OK.code()).
+        body("features[0].geometry.coordinates.size()", equalTo(2));
+  }
+
   private void createSpaceWithSize(int s) {
     // Create a space which returns around 9 MB of data
     cleanUpId = HUGE_RESPONSE_SPACE + s;
