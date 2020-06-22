@@ -165,20 +165,24 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
    * Creates and sends an error response to the client.
    */
   public static void sendErrorResponse(final RoutingContext context, final Throwable exception) {
-    final ErrorMessage error = new ErrorMessage(context, exception);
+    ErrorMessage error;
+
     try {
       final Marker marker = Api.Context.getMarker(context);
-      if (error.statusCode >= 500) {
-        logger.error(marker, "sendErrorResponse: {} {} {}", error.statusCode, error.reasonPhrase, exception);
-        if (error.statusCode == 500) {
-          error.message = null;
-        }
-      } else {
-        logger.warn(marker, "sendErrorResponse: {} {} {}", error.statusCode, error.reasonPhrase, exception);
+
+      error = new ErrorMessage(context, exception);
+      if (error.statusCode == 500) {
+        error.message = null;
+        logger.error(marker, "Sending error response: {} {} {}", error.statusCode, error.reasonPhrase, exception);
+      }
+      else {
+        logger.warn(marker, "Sending error response: {} {} {}", error.statusCode, error.reasonPhrase, exception);
       }
     } catch (Exception e) {
-      e.printStackTrace(System.err);
+      logger.error("Error {} while preparing error response {}", e, exception);
+      error = new ErrorMessage();
     }
+
     context.response()
         .putHeader(CONTENT_TYPE, APPLICATION_JSON)
         .setStatusCode(error.statusCode)
@@ -340,10 +344,12 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
   private static class ErrorMessage {
 
     public String type = "error";
-    public int statusCode;
-    public String reasonPhrase;
+    public int statusCode = INTERNAL_SERVER_ERROR.code();
+    public String reasonPhrase = INTERNAL_SERVER_ERROR.reasonPhrase();
     public String message;
     public String streamId;
+
+    public ErrorMessage() {}
 
     public ErrorMessage(RoutingContext context, Throwable e) {
       Marker marker = Api.Context.getMarker(context);
@@ -352,9 +358,6 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
       if (e instanceof HttpException) {
         this.statusCode = ((HttpException) e).status.code();
         this.reasonPhrase = ((HttpException) e).status.reasonPhrase();
-      } else {
-        this.statusCode = INTERNAL_SERVER_ERROR.code();
-        this.reasonPhrase = INTERNAL_SERVER_ERROR.reasonPhrase();
       }
 
       // The authentication providers do not pass the exception message
