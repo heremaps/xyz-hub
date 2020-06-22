@@ -50,7 +50,6 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.json.JsonObject;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
 import java.util.Collections;
@@ -233,7 +232,7 @@ public class RpcClient {
       context.setResponseSize(bytesResult.result().length);
       parseResponse(marker, bytesResult.result(), r -> {
         if (r.failed()) {
-          logger.error(marker, "Error while handling the response from connector \"{}\".", connector.id, r.cause());
+          logger.warn(marker, "Error while handling the response from connector \"{}\".", connector.id, r.cause());
           callback.handle(Future.failedFuture(r.cause()));
           return;
         }
@@ -347,18 +346,15 @@ public class RpcClient {
         parseResponse(marker, payload, callback);
       }
     } catch (NullPointerException e) {
-      logger.error(marker, "Received empty response from connector \"{}\", but expected a JSON response.", getConnector().id, e);
+      logger.warn(marker, "Received empty response from connector \"{}\", but expected a JSON response.", getConnector().id, e);
       callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Received an empty response from the connector.")));
     } catch (JsonMappingException e) {
-      logger.error(marker, "Error in the provided content {} from connector \"{}\".", stringResponse, getConnector().id, e);
+      logger.warn(marker, "Mapping error in the provided content {} from connector \"{}\".", stringResponse, getConnector().id, e);
       callback.handle(Future.failedFuture(getJsonMappingErrorMessage(stringResponse)));
     } catch (JsonParseException e) {
-      logger.error(marker, "Error in the provided content from connector \"{}\".", getConnector().id, e);
+      logger.warn(marker, "Parsing error in the provided content {} from connector \"{}\".", stringResponse, getConnector().id, e);
       callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Invalid content provided by the connector: Invalid JSON string. "
           + "Error at line " + e.getLocation().getLineNr() + ", column " + e.getLocation().getColumnNr() + ".")));
-    } catch (IOException e) {
-      logger.error(marker, "Error in the provided content from connector \"{}\".", getConnector().id, e);
-      callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Cannot read input JSON string from the connector.")));
     } catch (Exception e) {
       logger.error(marker, "Unexpected exception while processing connector \"{}\" response: {}.", getConnector().id, stringResponse, e);
       callback.handle(
@@ -403,7 +399,7 @@ public class RpcClient {
         }
       }
     } catch (Exception e) {
-      logger.error("Unable to parse error response from connector", e);
+      logger.warn("Unable to parse error response from connector", e);
     }
 
     return new HttpException(BAD_GATEWAY,

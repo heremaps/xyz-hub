@@ -137,7 +137,7 @@ public class AdminApi extends Api {
         sendErrorResponse(context, new HttpException(HttpResponseStatus.BAD_REQUEST, "Event cannot be handled"));
       }
     } catch (JsonProcessingException e) {
-      logger.error(marker, "Error processing the event payload", e);
+      logger.warn(marker, "Error processing the event payload", e);
       sendErrorResponse(context, new HttpException(BAD_REQUEST, "Error processing the event payload", e));
     } catch (Exception e) {
       logger.error(marker, "General error processing the event", e);
