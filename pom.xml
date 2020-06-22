@@ -189,14 +189,6 @@
           <releaseProfiles>release</releaseProfiles>
         </configuration>
       </plugin>
-      <plugin>
-        <groupId>org.owasp</groupId>
-        <artifactId>dependency-check-maven</artifactId>
-        <version>5.3.2</version>
-        <configuration>
-          <failBuildOnCVSS>8</failBuildOnCVSS>
-        </configuration>
-      </plugin>
     </plugins>
   </build>
 
