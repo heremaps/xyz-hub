@@ -332,7 +332,7 @@ paths:
         - $ref: '#/components/parameters/PrefixId'
           x-experimental: true
       requestBody:
-        $ref: '#/components/requestBodies/FeatureCollection'
+        $ref: '#/components/requestBodies/FeatureCollectionOrFeatureCollectionList'
       responses:
         '200':
           $ref: '#/components/responses/ModifyFCResponse'
@@ -858,14 +858,7 @@ components:
         Default is _patch_
       required: false
       schema:
-        type: string
-        enum:
-          - patch
-          - replace
-          - merge
-          - delete
-          - retain
-          - error
+        $ref: '#/components/schemas/OnFeatureExists'
     IfNotExists:
       x-experimental: true
       name: ne
@@ -875,11 +868,7 @@ components:
         exist or the feature contains no ID. Default is _create_
       required: false
       schema:
-        type: string
-        enum:
-          - retain
-          - error
-          - create
+        $ref: '#/components/schemas/OnFeatureNotExists'
     ConflictResolution:
       x-experimental: true
       name: cr
@@ -891,11 +880,7 @@ components:
         To abort the entry update select _error_.
       required: false
       schema:
-        type: string
-        enum:
-          - error
-          - retain
-          - replace
+        $ref: '#/components/schemas/OnMergeConflict'
     Limit:
       name: limit
       in: query
@@ -1374,6 +1359,16 @@ components:
         application/geo+json:
           schema:
             $ref: '#/components/schemas/FeatureCollection'
+    FeatureCollectionOrFeatureCollectionList:
+      description: A FeatureCollection object.
+      required: true
+      content:
+        application/geo+json:
+          schema:
+            $ref: '#/components/schemas/FeatureCollection'
+        application/vnd.here.feature-collection-list:
+          schema:
+            $ref: '#/components/schemas/FeatureCollectionList'
     Space:
       required: true
       content:
@@ -1992,6 +1987,12 @@ components:
                 $ref: '#/components/schemas/Feature'
             bbox:
               $ref: '#/components/schemas/BBox'
+            onFeatureNotExists:
+              $ref: '#/components/schemas/OnFeatureNotExists'
+            onFeatureExists:
+              $ref: '#/components/schemas/OnFeatureExists'
+            onMergeConflict:
+              $ref: '#/components/schemas/OnMergeConflict'
           example:
             type: FeatureCollection
             features:
@@ -2013,6 +2014,77 @@ components:
                   amenity: Football Stadium
                   capacity: 54074
                   description: Home of Liverpool Football Club
+    FeatureCollectionList:
+      x-experimental: true
+      type: object
+      description: |
+        An object containing a list of GeoJSON FeatureCollections, see [RFC-7946](https://tools.ietf.org/html/rfc7946).
+      externalDocs:
+        url: 'https://tools.ietf.org/html/rfc7946'
+      required:
+        - type
+      discriminator:
+        propertyName: type
+      properties:
+        type:
+          type: string
+        collection:
+          type: array
+          description: A list of FeatureCollection objects
+          items:
+            $ref: '#/components/schemas/FeatureCollection'
+      example:
+        type: FeatureCollectionList
+        collections:
+          - type: FeatureCollection
+            onFeatureNotExists: create
+            onFeatureExists: replace
+            features:
+              - type: Feature
+                id: BfiimUxHjj
+                geometry:
+                  type: Point
+                  coordinates:
+                    - -2.960847
+                    - 53.430828
+                properties:
+                  name: Anfield
+                  '@ns:com:here:xyz':
+                    createdAt: 1517504700726
+                    updatedAt: 1517504700726
+                    tags:
+                      - football
+                      - stadium
+                  amenity: Football Stadium
+                  capacity: 54074
+                  description: Home of Liverpool Football Club
+    OnFeatureNotExists:
+      x-experimental: true
+      type: string
+      enum:
+        - retain
+        - error
+        - create
+      default: create
+    OnFeatureExists:
+      x-experimental: true
+      type: string
+      enum:
+        - patch
+        - replace
+        - merge
+        - delete
+        - retain
+        - error
+      default: patch
+    OnMergeConflict:
+      x-experimental: true
+      type: string
+      enum:
+        - error
+        - retain
+        - replace
+      default: error
   securitySchemes:
     authToken:
       bearerFormat: JWTPayload
