@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import org.junit.Test;
 
@@ -64,8 +65,10 @@ public class ModifyFeatureOpTest {
       input.getProperties().getXyzNamespace().setCreatedAt(123);
       input.getProperties().getXyzNamespace().getTags().add("tag2");
 
-      ModifyFeatureOp op = new ModifyFeatureOp(Arrays.asList(JsonObject.mapFrom(input).getMap()), IfNotExists.CREATE, IfExists.MERGE, true,
-          ConflictResolution.ERROR);
+      List<Map<String, Object>> features = Arrays.asList(JsonObject.mapFrom(input).getMap());
+
+      ModifyFeatureOp op = new ModifyFeatureOp(Collections.singletonList(Collections.singletonMap("features", features)),
+          IfNotExists.CREATE, IfExists.MERGE, true, ConflictResolution.ERROR);
       final Entry<Feature> entry = op.entries.get(0);
       entry.head = head;
       entry.base = base;
@@ -92,7 +95,10 @@ public class ModifyFeatureOpTest {
       input.getProperties().getXyzNamespace().setCreatedAt(123);
       input.getProperties().getXyzNamespace().getTags().add("tag2");
 
-      ModifyFeatureOp op = new ModifyFeatureOp(Collections.singletonList(JsonObject.mapFrom(input).getMap()), IfNotExists.CREATE, IfExists.MERGE, true, ConflictResolution.ERROR);
+      List<Map<String, Object>> features = Collections.singletonList(JsonObject.mapFrom(input).getMap());
+
+      ModifyFeatureOp op = new ModifyFeatureOp(Collections.singletonList(Collections.singletonMap("features", features)),
+          IfNotExists.CREATE, IfExists.MERGE, true, ConflictResolution.ERROR);
       final Entry<Feature> entry = op.entries.get(0);
       entry.head = base;
       entry.base = base;

@@ -37,14 +37,14 @@ import java.util.stream.Collectors;
 public class ModifySpaceOp extends ModifyOp<Space, SpaceEntry> {
 
   public ModifySpaceOp(List<Map<String, Object>> inputStates, IfNotExists ifNotExists, IfExists ifExists, boolean isTransactional) {
-    super((inputStates == null) ? Collections.emptyList() : inputStates.stream().map(SpaceEntry::new).collect(Collectors.toList()),
-        ifNotExists, ifExists, isTransactional);
+    super((inputStates == null) ? Collections.emptyList() : inputStates.stream().map(input -> new SpaceEntry(input, ifNotExists, ifExists))
+            .collect(Collectors.toList()), ifNotExists, ifExists, isTransactional);
   }
 
   public static class SpaceEntry extends ModifyOp.Entry<Space> {
 
-    public SpaceEntry(Map<String, Object> input) {
-      super(input, ConflictResolution.ERROR);
+    public SpaceEntry(Map<String, Object> input, IfNotExists ifNotExists, IfExists ifExists) {
+      super(input, ifNotExists, ifExists, ConflictResolution.ERROR);
     }
 
     @Override
