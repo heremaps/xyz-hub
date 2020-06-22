@@ -94,7 +94,7 @@
     <jts-version>1.14.0</jts-version>
     <jackson-version>2.10.0</jackson-version>
     <lambda-core-version>1.2.0</lambda-core-version>
-    <log4j-version>2.13.0</log4j-version>
+    <log4j-version>2.13.2</log4j-version>
   </properties>
 
   <!-- Release settings -->
@@ -187,6 +187,14 @@
           <autoVersionSubmodules>true</autoVersionSubmodules>
           <tagNameFormat>@{project.version}</tagNameFormat>
           <releaseProfiles>release</releaseProfiles>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.owasp</groupId>
+        <artifactId>dependency-check-maven</artifactId>
+        <version>5.3.2</version>
+        <configuration>
+          <failBuildOnCVSS>8</failBuildOnCVSS>
         </configuration>
       </plugin>
     </plugins>
@@ -483,7 +491,7 @@
       <dependency>
         <groupId>org.postgresql</groupId>
         <artifactId>postgresql</artifactId>
-        <version>42.2.5</version>
+        <version>42.2.13</version>
       </dependency>
       <dependency>
         <groupId>commons-dbutils</groupId>
