@@ -136,7 +136,8 @@ public class SQLQueryBuilder {
             Map<String, Object> clusteringParams, DataSource dataSource) throws Exception {
 
         int zLevel = (event instanceof GetFeaturesByTileEvent ? ((GetFeaturesByTileEvent) event).getLevel() : H3SQL.bbox2zoom(bbox)),
-            h3res = evalH3Resolution( clusteringParams, H3SQL.zoom2resolution(zLevel) );
+            maxResForLevel = H3SQL.zoom2resolution(zLevel),
+            h3res = evalH3Resolution( clusteringParams, maxResForLevel );
 
         if( zLevel == 1)  // prevent ERROR:  Antipodal (180 degrees long) edge detected!
          if( bbox.minLon() == 0.0 ) 
@@ -178,14 +179,16 @@ public class SQLQueryBuilder {
             query.addParameter(SQLQuery.createSQLArray(jpath.toArray(new String[]{}), "text", dataSource));
         }
 
+        int pxSize = H3SQL.adjPixelSize( h3res, maxResForLevel );
+         
         if (!statisticalPropertyProvided) {
-            query.append(new SQLQuery(String.format(H3SQL.h3sqlMid, h3res, "(0.0)::numeric", zLevel, H3SQL.pxSize,expBboxSql)));
+            query.append(new SQLQuery(String.format(H3SQL.h3sqlMid, h3res, "(0.0)::numeric", zLevel, pxSize,expBboxSql)));
         } else {
             ArrayList<String> jpath = new ArrayList<>();
             jpath.add("properties");
             jpath.addAll(Arrays.asList(statisticalProperty.split("\\.")));
 
-            query.append(new SQLQuery(String.format(H3SQL.h3sqlMid, h3res, "(jsondata#>> ?)::numeric", zLevel, H3SQL.pxSize,expBboxSql)));
+            query.append(new SQLQuery(String.format(H3SQL.h3sqlMid, h3res, "(jsondata#>> ?)::numeric", zLevel, pxSize,expBboxSql)));
             query.addParameter(SQLQuery.createSQLArray(jpath.toArray(new String[]{}), "text", dataSource));
         }
 

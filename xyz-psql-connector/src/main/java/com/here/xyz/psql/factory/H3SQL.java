@@ -138,7 +138,16 @@ public class H3SQL
     return ((int) Math.round((5.88610403145016 - Math.log(bbox.maxLon() - bbox.minLon())) / 0.693147180559945));
   }
 
-  public static int pxSize = 64;
+  public static int adjPixelSize(int h3res, int maxResForLevel)
+  {
+   int pxSize = 64,   // 64 in general, but clashes when h3 res is to fine grained (e.g. resulting in holes in hex areas). 
+       pdiff = (h3res - maxResForLevel);
+
+   if(  pdiff == 2 ) pxSize = 88;
+   else if (  pdiff >= 3 ) pxSize = 256;
+
+   return( pxSize );
+  }
 }
 
 
