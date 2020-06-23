@@ -506,14 +506,14 @@
 
   <repositories>
     <repository>
-      <id>boundless</id>
+      <id>osgeo</id>
       <layout>default</layout>
-      <name>boundless-repo</name>
+      <name>osgeo-repo</name>
       <releases>
         <checksumPolicy>warn</checksumPolicy>
         <enabled>true</enabled>
       </releases>
-      <url>https://repo.boundlessgeo.com/main/</url>
+      <url>https://repo.osgeo.org</url>
     </repository>
 
     <repository>
