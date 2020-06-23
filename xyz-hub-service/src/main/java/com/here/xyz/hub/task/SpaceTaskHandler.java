@@ -136,7 +136,7 @@ public class SpaceTaskHandler {
     input.remove("createdAt");
     input.remove("updatedAt");
 
-    if (task.modifyOp.entries.get(0).head == null && task.modifyOp.ifNotExists.equals(IfNotExists.CREATE)) {
+    if (task.modifyOp.isCreate()) {
       String owner = task.getJwt().aid;
       String cid = task.getJwt().cid;
       task.template = getSpaceTemplate(owner, cid);
@@ -155,7 +155,7 @@ public class SpaceTaskHandler {
 
   static void processModifyOp(ConditionalOperation task, Callback<ConditionalOperation> callback) throws Exception {
     try {
-      if(task.isUpdate()){
+      if (task.isUpdate()) {
         /** enableUUID is immutable and it is only allowed to set it during the space creation */
         Space spaceHead = task.modifyOp.entries.get(0).head;
 
@@ -172,7 +172,8 @@ public class SpaceTaskHandler {
       }
       task.modifyOp.process();
       callback.call(task);
-    } catch (ModifyOpError e) {
+    }
+    catch (ModifyOpError e) {
       logger.info(task.getMarker(), "ConditionalOperationError: {}", e.getMessage(), e);
       throw new HttpException(CONFLICT, e.getMessage());
     }
@@ -416,17 +417,17 @@ public class SpaceTaskHandler {
       if (task.isCreate()) {
         entry.result.setCreatedAt(entry.result.getUpdatedAt());
       }
-      else if( task.isUpdate()){
+      else if (task.isUpdate()) {
         // Do not allow updating the createdAt value
         entry.result.setCreatedAt(entry.head.getCreatedAt());
 
         // Do not allow removing the owner property
-        if( entry.result.getOwner()==null){
+        if (entry.result.getOwner() == null) {
           entry.result.setOwner(entry.head.getOwner());
         }
 
         // Do not allow removing the cid property
-        if( entry.result.getCid()==null){
+        if (entry.result.getCid() == null) {
           entry.result.setCid(entry.head.getCid());
         }
       }

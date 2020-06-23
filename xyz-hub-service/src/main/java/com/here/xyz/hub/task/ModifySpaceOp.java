@@ -38,7 +38,7 @@ public class ModifySpaceOp extends ModifyOp<Space, SpaceEntry> {
 
   public ModifySpaceOp(List<Map<String, Object>> inputStates, IfNotExists ifNotExists, IfExists ifExists, boolean isTransactional) {
     super((inputStates == null) ? Collections.emptyList() : inputStates.stream().map(input -> new SpaceEntry(input, ifNotExists, ifExists))
-            .collect(Collectors.toList()), ifNotExists, ifExists, isTransactional);
+            .collect(Collectors.toList()), isTransactional);
   }
 
   public static class SpaceEntry extends ModifyOp.Entry<Space> {

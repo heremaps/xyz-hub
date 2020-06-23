@@ -82,7 +82,7 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
       }
 
       return features.stream().map(feature -> new FeatureEntry(feature, ne, e, cr));
-    }).collect(Collectors.toList()), ifNotExists, ifExists, isTransactional);
+    }).collect(Collectors.toList()), isTransactional);
   }
 
   private static List<Map<String, Object>> idsToFeatures(List<String> featureIds) {
