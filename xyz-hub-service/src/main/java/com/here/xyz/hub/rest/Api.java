@@ -458,7 +458,7 @@ public abstract class Api {
     public static final String APPLICATION_GEO_JSON = "application/geo+json";
     public static final String APPLICATION_JSON = "application/json";
     public static final String APPLICATION_VND_MAPBOX_VECTOR_TILE = "application/vnd.mapbox-vector-tile";
-    public static final String APPLICATION_VND_HERE_FEATURE_COLLECTION_LIST = "application/vnd.here.feature-collection-list";
+    public static final String APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST = "application/vnd.here.feature-modification-list";
   }
 
   private static class XYZHttpContentCompressor extends HttpContentCompressor {
