@@ -30,7 +30,6 @@ import com.here.xyz.hub.task.FeatureTask.ConditionalOperation;
 import com.here.xyz.hub.task.FeatureTask.DeleteOperation;
 import com.here.xyz.hub.task.FeatureTask.GeometryQuery;
 import com.here.xyz.hub.task.ModifyOp.Entry;
-import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
 import com.here.xyz.models.geojson.implementation.Feature;
 
@@ -89,7 +88,18 @@ public class FeatureAuthorization extends Authorization {
     final ActionMatrix tokenRights = jwt.getXyzHubMatrix();
     final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
 
-    task.modifyOp.entries.forEach(entry -> addAttributeMapForEntry(task, requestRights, entry));
+    //READ
+    if (!requestRights.containsKey(XyzHubActionMatrix.READ_FEATURES) && task.modifyOp.isRead())
+      requestRights.readFeatures(XyzHubAttributeMap.forValues(task.space.getOwner(), task.space.getId(), task.space.getPackages()));
+    //CREATE
+    else if (!requestRights.containsKey(XyzHubActionMatrix.CREATE_FEATURES) && task.modifyOp.isCreate())
+      requestRights.createFeatures(XyzHubAttributeMap.forValues(task.space.getOwner(), task.space.getId(), task.space.getPackages()));
+    //UPDATE
+    else if (!requestRights.containsKey(XyzHubActionMatrix.UPDATE_FEATURES) && task.modifyOp.isUpdate())
+      requestRights.updateFeatures(XyzHubAttributeMap.forValues(task.space.getOwner(), task.space.getId(), task.space.getPackages()));
+    //DELETE
+    else if (!requestRights.containsKey(XyzHubActionMatrix.DELETE_FEATURES) && task.modifyOp.isDelete())
+      requestRights.deleteFeatures(XyzHubAttributeMap.forValues(task.space.getOwner(), task.space.getId(), task.space.getPackages()));
 
     evaluateRights(requestRights, tokenRights, task, callback);
   }
@@ -107,22 +117,6 @@ public class FeatureAuthorization extends Authorization {
   private static void addAttributeMapForEntry(ConditionalOperation task, XyzHubActionMatrix requestRights,
       Entry<Feature> entry) {
 
-    // READ
-    if (!requestRights.containsKey(XyzHubActionMatrix.READ_FEATURES) && (entry.head != null && IfExists.RETAIN
-        .equals(task.modifyOp.ifExists))) {
-      requestRights.readFeatures(XyzHubAttributeMap.forValues(task.space.getOwner(), task.space.getId(), task.space.getPackages()));
-    }
-    // CREATE
-    else if (!requestRights.containsKey(XyzHubActionMatrix.CREATE_FEATURES) && (entry.head == null && entry.result != null)) {
-      requestRights.createFeatures(XyzHubAttributeMap.forValues(task.space.getOwner(), task.space.getId(), task.space.getPackages()));
-    }
-    // UPDATE
-    else if (!requestRights.containsKey(XyzHubActionMatrix.UPDATE_FEATURES) && (entry.head != null && entry.result != null)) {
-      requestRights.updateFeatures(XyzHubAttributeMap.forValues(task.space.getOwner(), task.space.getId(), task.space.getPackages()));
-    }
-    // DELETE
-    else if (!requestRights.containsKey(XyzHubActionMatrix.DELETE_FEATURES) && entry.head != null && entry.result == null) {
-      requestRights.deleteFeatures(XyzHubAttributeMap.forValues(task.space.getOwner(), task.space.getId(), task.space.getPackages()));
-    }
+
   }
 }
