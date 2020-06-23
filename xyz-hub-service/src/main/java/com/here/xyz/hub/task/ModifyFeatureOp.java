@@ -37,7 +37,6 @@ import io.vertx.core.json.JsonObject;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -49,29 +48,45 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
 
   /**
    *
-   * @param modificationInput A list of FeatureCollections of which each may have different settings
+   * @param featureModifications A list of FeatureModifications of which each may have different settings
    *  for existence-handling and/or conflict-handling.
-   *  If these settings are not specified at the FeatureCollection the according other parameters (ifNotExists, ifExists, conflictResolution)
-   *  of this constructor will be applied for that purpose.
+   *  If these settings are not specified at the FeatureModification the according other parameters (ifNotExists, ifExists,
+   *  conflictResolution) of this constructor will be applied for that purpose.
    * @param ifNotExists
    * @param ifExists
    * @param isTransactional
    * @param conflictResolution
    */
-  public ModifyFeatureOp(List<Map<String, Object>> modificationInput, IfNotExists ifNotExists, IfExists ifExists, boolean isTransactional,
-      ConflictResolution conflictResolution) {
-    super((modificationInput == null) ? Collections.emptyList() : modificationInput.stream().flatMap(fc -> {
-      IfNotExists ne = fc.get(ON_FEATURE_NOT_EXISTS) instanceof String ? IfNotExists.of((String) fc.get(ON_FEATURE_NOT_EXISTS)) : ifNotExists;
-      IfExists e = fc.get(ON_FEATURE_EXISTS) instanceof String ? IfExists.of((String) fc.get(ON_FEATURE_EXISTS)) : ifExists;
-      ConflictResolution cr = fc.get(ON_MERGE_CONFLICT) instanceof String ?
-          ConflictResolution.of((String) fc.get(ON_MERGE_CONFLICT)) : conflictResolution;
+  public ModifyFeatureOp(List<Map<String, Object>> featureModifications, IfNotExists ifNotExists, IfExists ifExists,
+      boolean isTransactional, ConflictResolution conflictResolution) {
+    super((featureModifications == null) ? Collections.emptyList() : featureModifications.stream().flatMap(fm -> {
+      IfNotExists ne = fm.get(ON_FEATURE_NOT_EXISTS) instanceof String ? IfNotExists.of((String) fm.get(ON_FEATURE_NOT_EXISTS)) : ifNotExists;
+      IfExists e = fm.get(ON_FEATURE_EXISTS) instanceof String ? IfExists.of((String) fm.get(ON_FEATURE_EXISTS)) : ifExists;
+      ConflictResolution cr = fm.get(ON_MERGE_CONFLICT) instanceof String ?
+          ConflictResolution.of((String) fm.get(ON_MERGE_CONFLICT)) : conflictResolution;
 
-      List<Map<String, Object>> features = (List<Map<String, Object>>) fc.get("features");
-      if (features == null)
+      List<String> featureIds = (List<String>) fm.get("featureIds");
+      Map<String, Object> featureCollection = (Map<String, Object>) fm.get("featureData");
+      List<Map<String, Object>> features = null;
+      if (featureCollection != null)
+        features = (List<Map<String, Object>>) featureCollection.get("features");
+
+      if (featureIds == null && features == null)
         return Stream.empty();
+
+      if (featureIds != null) {
+        if (features == null)
+          features = idsToFeatures(featureIds);
+        else
+          features.addAll(idsToFeatures(featureIds));
+      }
 
       return features.stream().map(feature -> new FeatureEntry(feature, ne, e, cr));
     }).collect(Collectors.toList()), ifNotExists, ifExists, isTransactional);
+  }
+
+  private static List<Map<String, Object>> idsToFeatures(List<String> featureIds) {
+    return featureIds.stream().map(fId -> new JsonObject().put("id", fId).getMap()).collect(Collectors.toList());
   }
 
   public static class FeatureEntry extends ModifyOp.Entry<Feature> {
