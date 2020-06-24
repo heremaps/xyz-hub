@@ -191,8 +191,8 @@ public class ModifySpaceWithUUID extends TestSpaceWithFeature {
 
   @Test
   public void testMergeWithHistory() throws JsonProcessingException {
-    /** Keep 5 versions of objects */
-    patchSpaceWithMaxVersionCount(5,AuthProfile.ACCESS_ALL);
+    /** Keep 6 versions of objects */
+    patchSpaceWithMaxVersionCount(6,AuthProfile.ACCESS_ALL);
     String body = createRequest(generateRandomFeatures(1, 2))
             .post("/spaces/x-psql-test/features")
             .getBody().asString();
@@ -218,7 +218,7 @@ public class ModifySpaceWithUUID extends TestSpaceWithFeature {
 
   @Test
   public void testPatchConflictWithHistory() throws JsonProcessingException {
-    /** Keep 5 versions of objects */
+    /** Keep 6 versions of objects */
     patchSpaceWithMaxVersionCount(5,AuthProfile.ACCESS_ALL);
     String body = createRequest(generateRandomFeatures(1, 2))
             .post("/spaces/x-psql-test/features")
@@ -246,7 +246,7 @@ public class ModifySpaceWithUUID extends TestSpaceWithFeature {
   @Test
   public void testPatchWithHistory() throws JsonProcessingException {
     /** Keep 5 versions of objects */
-    patchSpaceWithMaxVersionCount(5,AuthProfile.ACCESS_ALL);
+    patchSpaceWithMaxVersionCount(6,AuthProfile.ACCESS_ALL);
     String body = createRequest(generateRandomFeatures(1, 2))
             .post("/spaces/x-psql-test/features")
             .getBody().asString();
@@ -276,12 +276,10 @@ public class ModifySpaceWithUUID extends TestSpaceWithFeature {
             .body("features[0].properties.foo", equalTo(10))
             .body("features[0].properties.foo2", equalTo("bar"))
             .body("features[0].id",equalTo(oldVersion.getId()));
-
-//    fc = XyzSerializable.deserialize(response.extract().asString());
   }
 
   private void patchSpaceWithMaxVersionCount(int maxVersionCount, AuthProfile profile){
-    String body = "{\"storage\": {\"id\": \"psql\",\"params\": { \"maxVersionCount\" : "+maxVersionCount+" }}}";
+    String body = "{\"maxVersionCount\" : "+maxVersionCount+" }";
     final ValidatableResponse response = given()
             .contentType(APPLICATION_JSON)
             .accept(APPLICATION_JSON)
@@ -290,7 +288,7 @@ public class ModifySpaceWithUUID extends TestSpaceWithFeature {
             .when().patch("/spaces/x-psql-test").then();
 
     response.statusCode(OK.code())
-            .body("storage.params.maxVersionCount", equalTo(maxVersionCount));
+            .body("maxVersionCount", equalTo(maxVersionCount));
   }
 
   private Map<Integer,List<Feature>> produceUpdates(FeatureCollection fc , int updateCnt) throws JsonProcessingException {
