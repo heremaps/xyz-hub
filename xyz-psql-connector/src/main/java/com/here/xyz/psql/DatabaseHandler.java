@@ -346,7 +346,12 @@ public abstract class DatabaseHandler extends StorageConnector {
                             && ((SQLException)e).getSQLState().equalsIgnoreCase("42P01"))
                             && e.getMessage() != null && e.getMessage().indexOf("_hst") != 0){
                 logger.log(Level.WARN,"{} History Table for space {} is missing! Try to create it! ",streamId,event.getSpace());
-                ensureHistorySpace(null);
+                Boolean compactHistory = null;
+
+                if(event.getConnectorParams() != null) {
+                    compactHistory= (Boolean)event.getConnectorParams().get("compactHistory");
+                }
+                ensureHistorySpace(null, compactHistory == null ? true : compactHistory);
             }
             throw e;
         }
@@ -660,7 +665,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         stmt.addBatch(query);
     }
 
-    protected void ensureHistorySpace(Integer maxVersionCount) throws SQLException {
+    protected void ensureHistorySpace(Integer maxVersionCount, boolean compactHistory) throws SQLException {
         final String tableName = config.table(event);
 
         try (final Connection connection = dataSource.getConnection()) {
@@ -692,7 +697,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                     query = SQLQueryBuilder.deleteHistoryTriggerSQL(config.schema(),config.table(event));
                     stmt.addBatch(query);
 
-                    query = SQLQueryBuilder.addHistoryTriggerSQL(config.schema(),config.table(event), maxVersionCount);
+                    query = SQLQueryBuilder.addHistoryTriggerSQL(config.schema(),config.table(event), maxVersionCount, compactHistory);
                     stmt.addBatch(query);
 
                     stmt.executeBatch();
