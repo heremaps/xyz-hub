@@ -2055,6 +2055,7 @@ components:
                     capacity: 54074
                     description: Home of Liverpool Football Club
     FeatureModification:
+      x-experimental: true
       type: object
       description: A FeatureModification object containing GeoJSON FeatureCollections
         (see [RFC-7946](https://tools.ietf.org/html/rfc7946)) or (in case if deletions) a list of
