@@ -144,9 +144,72 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 129
+ select 130
 $BODY$
   LANGUAGE sql IMMUTABLE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_trigger_historywriter_full()
+  RETURNS trigger AS
+$BODY$
+	DECLARE oldest_uuids text[];
+	DECLARE max_version_cnt integer := COALESCE(TG_ARGV[0]::NUMERIC::INTEGER,10);
+	DECLARE max_version_diff integer;
+	DECLARE uuid_deletes text[];
+
+	BEGIN
+		IF TG_OP = 'INSERT' THEN
+			EXECUTE
+				format('INSERT INTO'
+					||' %s."%s_hst" (uuid,jsondata,geo)'
+					||' VALUES( %L,%L,%L)',TG_TABLE_SCHEMA, TG_TABLE_NAME, NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo);
+			RETURN NEW;
+		END IF;
+
+		IF max_version_cnt != -1 THEN
+			--IF MORE THAN max_version_cnt ARE EXISTING DELETE OLDEST ENTRIES
+			EXECUTE
+				format('SELECT array_agg(uuid)'
+					|| 'FROM( '
+					|| '	select uuid FROM %s."%s_hst" '
+					|| '		WHERE jsondata->>''id'' = %L ORDER BY jsondata->''properties''->''@ns:com:here:xyz''->''updatedAt'' ASC'
+					|| ') A',TG_TABLE_SCHEMA, TG_TABLE_NAME, OLD.jsondata->>'id'
+				) into oldest_uuids;
+
+			max_version_diff := array_length(oldest_uuids,1) - max_version_cnt;
+
+			IF max_version_diff >= 0 THEN
+				-- DELETE OLDEST ENTRIES
+				FOR i IN 1..max_version_diff+1 LOOP
+					select array_append(uuid_deletes, oldest_uuids[i])
+						INTO uuid_deletes;
+				END LOOP;
+				EXECUTE
+					format('DELETE FROM %s."%s_hst" WHERE uuid = ANY(%L)',TG_TABLE_SCHEMA, TG_TABLE_NAME, uuid_deletes);
+			END IF;
+		END IF;
+
+		IF TG_OP = 'UPDATE' THEN
+			EXECUTE
+				format('INSERT INTO'
+					||' %s."%s_hst" (uuid,jsondata,geo)'
+					||' VALUES( %L,%L,%L)',TG_TABLE_SCHEMA, TG_TABLE_NAME, NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo);
+			RETURN NEW;
+
+		ELSEIF TG_OP = 'DELETE' THEN
+			EXECUTE
+				format('INSERT INTO'
+					||' %s."%s_hst" (uuid,jsondata,geo)'
+					||' VALUES( %L,%L,%L)',TG_TABLE_SCHEMA, TG_TABLE_NAME,
+					OLD.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' || '_deleted',
+					jsonb_set(OLD.jsondata,'{properties,@ns:com:here:xyz}', ('{"deleted":true}'::jsonb  || (OLD.jsondata->'properties'->'@ns:com:here:xyz')::jsonb)),
+					OLD.geo);
+			RETURN OLD;
+		END IF;
+	END;
+$BODY$
+language plpgsql;
+
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_trigger_historywriter()
@@ -158,25 +221,28 @@ $BODY$
 	DECLARE uuid_deletes text[];
 
 	BEGIN
-		EXECUTE
-			format('SELECT array_agg(uuid)'
-				|| 'FROM( '
-				|| '	select uuid FROM %s."%s_hst" '
-				|| '		WHERE jsondata->>''id'' = %L ORDER BY jsondata->''properties''->''@ns:com:here:xyz''->''updatedAt'' ASC'
-				|| ') A',TG_TABLE_SCHEMA, TG_TABLE_NAME, OLD.jsondata->>'id'
-			) into path;
+        IF max_version_cnt != -1 THEN
+            --IF MORE THAN max_version_cnt ARE EXISTING DELETE OLDEST ENTRIES
+            EXECUTE
+                format('SELECT array_agg(uuid)'
+                    || 'FROM( '
+                    || '	select uuid FROM %s."%s_hst" '
+                    || '		WHERE jsondata->>''id'' = %L ORDER BY jsondata->''properties''->''@ns:com:here:xyz''->''updatedAt'' ASC'
+                    || ') A',TG_TABLE_SCHEMA, TG_TABLE_NAME, OLD.jsondata->>'id'
+                ) into path;
 
-		max_version_diff := array_length(path,1) - max_version_cnt;
+            max_version_diff := array_length(path,1) - max_version_cnt;
 
-		IF max_version_diff >= 0 THEN
-			-- DELETE OLDEST ENTRIES
-			FOR i IN 1..max_version_diff+1 LOOP
-				select array_append(uuid_deletes, path[i])
-					INTO uuid_deletes;
-			END LOOP;
-			EXECUTE
-				format('DELETE FROM %s."%s_hst" WHERE uuid = ANY(%L)',TG_TABLE_SCHEMA, TG_TABLE_NAME, uuid_deletes);
-		END IF;
+            IF max_version_diff >= 0 THEN
+                -- DELETE OLDEST ENTRIES
+                FOR i IN 1..max_version_diff+1 LOOP
+                    select array_append(uuid_deletes, path[i])
+                        INTO uuid_deletes;
+                END LOOP;
+                EXECUTE
+                    format('DELETE FROM %s."%s_hst" WHERE uuid = ANY(%L)',TG_TABLE_SCHEMA, TG_TABLE_NAME, uuid_deletes);
+            END IF;
+        END IF;
 
 		IF TG_OP = 'UPDATE' THEN
 			EXECUTE

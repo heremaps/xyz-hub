@@ -693,11 +693,16 @@ public class SQLQueryBuilder {
         return SQLQuery.replaceVars(deleteHistoryTriggerSQL, schema, table);
     }
 
-    protected static String addHistoryTriggerSQL(final String schema, final String table, final Integer maxVersionCount){
+    protected static String addHistoryTriggerSQL(final String schema, final String table, final Integer maxVersionCount, final boolean compactHistory){
+        String triggerFunction = compactHistory ? "xyz_trigger_historywriter" : "xyz_trigger_historywriter_full";
+
         String historyTriggerSQL = "CREATE TRIGGER TR_"+table.replaceAll("-","_")+"_HISTORY_WRITER " +
-                "BEFORE UPDATE OR DELETE ON ${schema}.${table} " +
+                "BEFORE "+(compactHistory ? "" : "INSERT OR ")+" UPDATE OR DELETE ON ${schema}.${table} " +
                 " FOR EACH ROW " +
-                "EXECUTE PROCEDURE xyz_trigger_historywriter("+(maxVersionCount == null ? "" : maxVersionCount)+"); ";
+                "EXECUTE PROCEDURE "+triggerFunction;
+        historyTriggerSQL+=
+                    maxVersionCount == null ? "()" : "('"+maxVersionCount+"')";
+
         return SQLQuery.replaceVars(historyTriggerSQL, schema, table);
     }
 
