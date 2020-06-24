@@ -47,35 +47,15 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
 public abstract class RemoteFunctionClient {
-
-  private static final Logger logger = LogManager.getLogger();
-
-  public static final int REQUEST_TIMEOUT = (int) TimeUnit.SECONDS.toMillis(Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT);
-  private static int MEASUREMENT_INTERVAL = 1000; //1s
-  private static final int MIN_CONNECTIONS_PER_NODE = 4;
-
-  protected Connector connectorConfig;
-
-  private final LongAdder requestsSinceLastArrivalRateMeasurement = new LongAdder();
-  private final AtomicLong lastArrivalRateMeasurement = new AtomicLong(Service.currentTimeMillis());
-
-  private final LongAdder responsesSinceLastThroughputMeasurement = new LongAdder();
-  private final AtomicLong lastThroughputMeasurement = new AtomicLong(Service.currentTimeMillis());
-
-  /**
-   * The number of requests per second currently being executed by this RemoteFunctionClient.
-   */
-  private volatile double throughput;
-
-  /**
-   * The number of requests per second currently being submitted to this RemoteFunctionClient.
-   */
-  private volatile double arrivalRate;
-
   /**
    * The global maximum byte size that is available for allocation by all of the queues.
    */
   public static final long GLOBAL_MAX_QUEUE_BYTE_SIZE = (long) Service.configuration.GLOBAL_MAX_QUEUE_SIZE * 1024 * 1024;
+  public static final int REQUEST_TIMEOUT = (int) TimeUnit.SECONDS.toMillis(Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT);
+
+  private static final Logger logger = LogManager.getLogger();
+  private static int MEASUREMENT_INTERVAL = 1000; //1s
+  private static final int MIN_CONNECTIONS_PER_NODE = 4;
 
 //  /**
 //   * Tweaking constant for the percentage that the connection slots relevance should be used. The rest is the rateOfService relevance.
@@ -90,8 +70,15 @@ public abstract class RemoteFunctionClient {
   private static Set<RemoteFunctionClient> clientInstances = new ConcurrentHashSet<>();
   private static LongAdder globalMinConnectionSum = new LongAdder();
   private static LongAdder globalMaxConnectionSum = new LongAdder();
-  private static AtomicLong lastSizeAdjustment;
+//  private static AtomicLong lastSizeAdjustment;
 
+  protected Connector connectorConfig;
+
+  private final LongAdder requestsSinceLastArrivalRateMeasurement = new LongAdder();
+  private final AtomicLong lastArrivalRateMeasurement = new AtomicLong(Service.currentTimeMillis());
+
+  private final LongAdder responsesSinceLastThroughputMeasurement = new LongAdder();
+  private final AtomicLong lastThroughputMeasurement = new AtomicLong(Service.currentTimeMillis());
   private final LimitedQueue<FunctionCall> queue = new LimitedQueue<>(0, 0);
   private final AtomicInteger usedConnections = new AtomicInteger(0);
 
@@ -99,10 +86,26 @@ public abstract class RemoteFunctionClient {
 //   * Sliding average request execution time in seconds.
 //   */
 //  private double SARET = 1d; // 1 second initial value
+
+  /**
+   * The number of requests per second currently being executed by this RemoteFunctionClient.
+   */
+  private volatile double throughput;
+
+  /**
+   * The number of requests per second currently being submitted to this RemoteFunctionClient.
+   */
+  private volatile double arrivalRate;
+
   /**
    * An approximation for the maximum number of requests per second which can be executed based on the performance of the remote function.
    */
   private double rateOfService;
+
+  /**
+   * The last time this connector has been reported as "Healthy", in Unix timestamp format.
+   */
+  private long lastHealthyTimestamp;
 
   RemoteFunctionClient(Connector connectorConfig) {
     if (connectorConfig == null) {
@@ -260,9 +263,8 @@ public abstract class RemoteFunctionClient {
    *  given one do not match.
    */
   synchronized void setConnectorConfig(Connector connectorConfig) throws NullPointerException, IllegalArgumentException {
-    if (connectorConfig == null) {
-      throw new NullPointerException("connectorConfig");
-    }
+    if (connectorConfig == null) throw new NullPointerException("connectorConfig");
+
     if (this.connectorConfig != null && !this.connectorConfig.id.equals(connectorConfig.id)) throw new IllegalArgumentException(
         "Wrong connector config was provided to an existing function client during a runtime update. IDs are not matching. new ID: "
             + connectorConfig.id + " vs. old ID: " + this.connectorConfig.id);
@@ -394,6 +396,10 @@ public abstract class RemoteFunctionClient {
   public double getRateOfService() {
     return rateOfService;
   }
+
+  public long getLastHealthyTimestamp() { return lastHealthyTimestamp; }
+
+  public void setLastHealthyTimestamp(long lastHealthyTimestamp) { this.lastHealthyTimestamp = lastHealthyTimestamp; }
 
   public int getMinConnections() {
     return connectorConfig == null ? 0 : connectorConfig.getMinConnectionsPerInstance();
