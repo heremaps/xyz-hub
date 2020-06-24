@@ -113,10 +113,4 @@ public class FeatureAuthorization extends Authorization {
 
     evaluateRights(requestRights, task.getJwt().getXyzHubMatrix(), task, callback);
   }
-
-  private static void addAttributeMapForEntry(ConditionalOperation task, XyzHubActionMatrix requestRights,
-      Entry<Feature> entry) {
-
-
-  }
 }
