@@ -25,6 +25,7 @@ import com.here.xyz.hub.connectors.models.Connector;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
@@ -39,12 +40,11 @@ import org.apache.logging.log4j.MarkerManager.Log4jMarker;
  */
 public class BurstAndUpdateThread extends Thread {
 
-  public static final String name = BurstAndUpdateThread.class.getSimpleName();
+  private static final String name = BurstAndUpdateThread.class.getSimpleName();
   private static final Logger logger = LogManager.getLogger();
-  /**
-   * The warm up interval
-   */
   private static final long CONNECTOR_UPDATE_INTERVAL = TimeUnit.MINUTES.toMillis(2);
+  private static final long CONNECTOR_UNHEALTHY_INTERVAL = TimeUnit.MINUTES.toSeconds(2);
+
   private static BurstAndUpdateThread instance;
   private volatile Handler<AsyncResult<Void>> initializeHandler;
 
@@ -79,6 +79,7 @@ public class BurstAndUpdateThread extends Thread {
         logger.error("Found null entry (or without ID) in connector list, see stack trace");
         continue;
       }
+
       if (connector.active) {
         connectorMap.put(connector.id, connector);
         try { //Try to initialize the connector client
@@ -98,12 +99,21 @@ public class BurstAndUpdateThread extends Thread {
         continue;
       }
 
+      // when the connector is responding with unhealthy status, disable it momentarily, until next BurstAndUpdateThread round.
+      long now = Instant.now().getEpochSecond();
+      long lastHealthyTimestamp = client.getFunctionClient().getLastHealthyTimestamp();
+      if (lastHealthyTimestamp != 0 && lastHealthyTimestamp < now - CONNECTOR_UNHEALTHY_INTERVAL) {
+        logger.warn("Connector {} last healthy timestamp {} is greater than {}s ago, now is {}.", oldConnector.id, lastHealthyTimestamp, CONNECTOR_UNHEALTHY_INTERVAL, now);
+        connectorMap.remove(oldConnector.id);
+      }
+
       if (!connectorMap.containsKey(oldConnector.id)) {
         //Client needs to be destroyed, the connector configuration with the given ID has been removed.
         try {
-          logger.warn("Connector with ID {} was removed or deactivated. Destroying the according client.", oldConnector.id);
+          logger.warn("Connector {} was removed or deactivated. Destroying the according client.", oldConnector.id);
           client.destroy();
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
           logger.error("Unexpected exception while destroying RPC client", e);
         }
         continue;

@@ -33,6 +33,7 @@ import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedde
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.util.health.schema.Response;
 import com.here.xyz.hub.util.health.schema.Status;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -70,6 +71,7 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
           s.setResult(ERROR);
         }
         else {
+          client.getFunctionClient().setLastHealthyTimestamp(Instant.now().getEpochSecond());
           setResponse(generateResponse());
           s.setResult(OK);
         }
@@ -120,6 +122,7 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
       rfcData.put("rateOfService", rfc.getRateOfService());
       rfcData.put("arrivalRate", rfc.getArrivalRate());
       rfcData.put("throughput", rfc.getThroughput());
+      rfcData.put("lastHealthyTimestamp", rfc.getLastHealthyTimestamp());
 
       return r.withAdditionalProperty("statistics", rfcData);
     }
