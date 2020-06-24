@@ -186,6 +186,13 @@ public class SpaceTaskHandler {
 
     Space space = task.modifyOp.entries.get(0).result;
 
+    if(space.getMaxVersionCount() != null){
+      if(!space.isEnableHistory())
+        throw new HttpException(BAD_REQUEST, "Validation failed. The property 'maxVersionCount' can only get set if 'enableHistory' is set.");
+      if(space.getMaxVersionCount() < -1)
+        throw new HttpException(BAD_REQUEST, "Validation failed. The property 'maxVersionCount' must be greater or equal to -1.");
+    }
+
     if (task.isCreate() && space.isEnableHistory()) {
       if(!space.isEnableUUID())
         task.modifyOp.entries.get(0).result.setEnableUUID(true);
