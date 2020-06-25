@@ -50,6 +50,11 @@ public class AuthTestsIT extends RestAssuredTest {
     removeAllSpaces();
   }
 
+  @After
+  public void tearDown() {
+    removeAllSpaces();
+  }
+
   public static void removeSpace(String id) {
     given()
         .accept(APPLICATION_JSON)
@@ -158,11 +163,6 @@ public class AuthTestsIT extends RestAssuredTest {
     return testSpaceListWithShared(owner, AuthProfile.ACCESS_OWNER_2);
   }
 
-  @After
-  public void tearDown() {
-    removeAllSpaces();
-  }
-
   @Test
   public void createDefaultSpaceNegative() {
     createSpace("/xyz/hub/auth/createDefaultSpace.json", AuthProfile.ACCESS_OWNER_1_WITH_FEATURES_ONLY)
@@ -192,6 +192,26 @@ public class AuthTestsIT extends RestAssuredTest {
   public void createSpaceWithNoAccessNegative() {
     createSpace("/xyz/hub/auth/createDefaultSpace.json", AuthProfile.NO_ACCESS)
         .statusCode(FORBIDDEN.code());
+  }
+
+  @Test
+  public void createSpaceWithCustomIdNegative1() {
+    createSpace("/xyz/hub/auth/createDefaultSpace.json", AuthProfile.ACCESS_OWNER_3)
+        .statusCode(FORBIDDEN.code());
+  }
+
+  @Test
+  public void createSpaceWithCustomIdNegative2() {
+    createSpace("/xyz/hub/auth/createCustomIdSpace.json", AuthProfile.ACCESS_OWNER_3)
+        .statusCode(FORBIDDEN.code());
+  }
+
+  @Test
+  public void createSpaceWithCustomIdPositive() {
+    cleanUpId = createSpace("/xyz/hub/auth/createCustomIdSpace.json", AuthProfile.ACCESS_OWNER_3_WITH_CUSTOM_SPACE_IDS)
+        .statusCode(OK.code())
+        .extract()
+        .path("id");
   }
 
   @Test

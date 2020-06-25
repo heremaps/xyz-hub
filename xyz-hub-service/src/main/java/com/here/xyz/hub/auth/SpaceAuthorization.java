@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.auth;
 
+import static com.here.xyz.hub.auth.XyzHubActionMatrix.MANAGE_SPACES;
 import static com.here.xyz.hub.auth.XyzHubAttributeMap.ID;
 import static com.here.xyz.hub.auth.XyzHubAttributeMap.LISTENERS;
 import static com.here.xyz.hub.auth.XyzHubAttributeMap.OWNER;
@@ -57,7 +58,7 @@ import javax.annotation.Nonnull;
 public class SpaceAuthorization extends Authorization {
 
   public static List<String> basicEdit = Arrays
-      .asList("title", "description", "client", "copyright", "license", "shared", "enableUUID", "enableHistory", "maxVersionCount", "cacheTTL", STORAGE,
+      .asList("id", "title", "description", "client", "copyright", "license", "shared", "enableUUID", "enableHistory", "maxVersionCount", "cacheTTL", STORAGE,
           LISTENERS, PROCESSORS, SEARCHABLE_PROPERTIES);
 
   public static List<String> packageEdit = Collections.singletonList(PACKAGES);
@@ -91,7 +92,8 @@ public class SpaceAuthorization extends Authorization {
     final Space head = entry.head;
     final Space target = entry.result;
 
-    boolean isAdminEdit, isBasicEdit, isStorageEdit, isListenersEdit, isProcessorsEdit, isPackagesEdit, isSearchablePropertiesEdit;
+    boolean isAdminEdit, isBasicEdit, isStorageEdit, isListenersEdit, isProcessorsEdit, isPackagesEdit, isSearchablePropertiesEdit,
+        isIdEdit;
     final AttributeMap xyzhubFilter;
 
     //Check if anonymous token is being used
@@ -115,6 +117,16 @@ public class SpaceAuthorization extends Authorization {
       isProcessorsEdit = isPropertyEdit(templateAsMap, inputAsMap, PROCESSORS);
       isPackagesEdit = isPropertyEdit(templateAsMap, inputAsMap, PACKAGES);
       isSearchablePropertiesEdit = isPropertyEdit(templateAsMap, inputAsMap, SEARCHABLE_PROPERTIES);
+
+      final XyzHubActionMatrix adminMatrix = new XyzHubActionMatrix().adminSpaces(xyzhubFilter);
+      boolean hasAdminPermissions = tokenRights != null && tokenRights.matches(adminMatrix);
+      //If the creation contains a different space ID than the randomly-generated one.
+      if (!hasAdminPermissions && isPropertyEdit(templateAsMap, inputAsMap, ID) && tokenRights != null && tokenRights.containsKey(MANAGE_SPACES)) {
+        tokenRights.put(MANAGE_SPACES, tokenRights.get(MANAGE_SPACES)
+            .stream()
+            .filter(permission -> permission.containsKey(SPACE) || permission.isEmpty())
+            .collect(Collectors.toList()));
+      }
     }
     //READ, UPDATE, DELETE
     else {
