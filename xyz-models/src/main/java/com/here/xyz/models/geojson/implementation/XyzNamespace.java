@@ -86,7 +86,7 @@ public class XyzNamespace implements XyzSerializable {
    * Multiple features could be part of a single space-version if they have been edited in one transaction.
    */
   @JsonInclude(Include.NON_EMPTY)
-  private String version;
+  private int version;
 
   /**
    * A method to normalize and lower case a tag.
@@ -390,16 +390,16 @@ public class XyzNamespace implements XyzSerializable {
     return this;
   }
 
-  public String getVersion() {
+  public int getVersion() {
     return version;
   }
 
-  public void setVersion(String version) {
+  public void setVersion(int version) {
     this.version = version;
   }
 
   @SuppressWarnings("unused")
-  public XyzNamespace withVersion(String version) {
+  public XyzNamespace withVersion(int version) {
     setVersion(version);
     return this;
   }
