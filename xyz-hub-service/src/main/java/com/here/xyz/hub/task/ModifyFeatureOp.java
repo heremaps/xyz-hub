@@ -38,18 +38,61 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
 
-  public ModifyFeatureOp(List<Map<String, Object>> inputStates, IfNotExists ifNotExists, IfExists ifExists, boolean isTransactional, ConflictResolution cr) {
-    super((inputStates == null) ? Collections.emptyList() : inputStates.stream().map(m-> new FeatureEntry(m,cr)).collect(Collectors.toList()),
-        ifNotExists, ifExists, isTransactional);
+  private final static String ON_FEATURE_NOT_EXISTS = "onFeatureNotExists";
+  private final static String ON_FEATURE_EXISTS = "onFeatureExists";
+  private final static String ON_MERGE_CONFLICT = "onMergeConflict";
+
+  /**
+   *
+   * @param featureModifications A list of FeatureModifications of which each may have different settings
+   *  for existence-handling and/or conflict-handling.
+   *  If these settings are not specified at the FeatureModification the according other parameters (ifNotExists, ifExists,
+   *  conflictResolution) of this constructor will be applied for that purpose.
+   * @param ifNotExists
+   * @param ifExists
+   * @param isTransactional
+   * @param conflictResolution
+   */
+  public ModifyFeatureOp(List<Map<String, Object>> featureModifications, IfNotExists ifNotExists, IfExists ifExists,
+      boolean isTransactional, ConflictResolution conflictResolution) {
+    super((featureModifications == null) ? Collections.emptyList() : featureModifications.stream().flatMap(fm -> {
+      IfNotExists ne = fm.get(ON_FEATURE_NOT_EXISTS) instanceof String ? IfNotExists.of((String) fm.get(ON_FEATURE_NOT_EXISTS)) : ifNotExists;
+      IfExists e = fm.get(ON_FEATURE_EXISTS) instanceof String ? IfExists.of((String) fm.get(ON_FEATURE_EXISTS)) : ifExists;
+      ConflictResolution cr = fm.get(ON_MERGE_CONFLICT) instanceof String ?
+          ConflictResolution.of((String) fm.get(ON_MERGE_CONFLICT)) : conflictResolution;
+
+      List<String> featureIds = (List<String>) fm.get("featureIds");
+      Map<String, Object> featureCollection = (Map<String, Object>) fm.get("featureData");
+      List<Map<String, Object>> features = null;
+      if (featureCollection != null)
+        features = (List<Map<String, Object>>) featureCollection.get("features");
+
+      if (featureIds == null && features == null)
+        return Stream.empty();
+
+      if (featureIds != null) {
+        if (features == null)
+          features = idsToFeatures(featureIds);
+        else
+          features.addAll(idsToFeatures(featureIds));
+      }
+
+      return features.stream().map(feature -> new FeatureEntry(feature, ne, e, cr));
+    }).collect(Collectors.toList()), isTransactional);
+  }
+
+  private static List<Map<String, Object>> idsToFeatures(List<String> featureIds) {
+    return featureIds.stream().map(fId -> new JsonObject().put("id", fId).getMap()).collect(Collectors.toList());
   }
 
   public static class FeatureEntry extends ModifyOp.Entry<Feature> {
 
-    public FeatureEntry(Map<String, Object> input, ConflictResolution cr) {
-      super(input, cr);
+    public FeatureEntry(Map<String, Object> input, IfNotExists ifNotExists, IfExists ifExists, ConflictResolution cr) {
+      super(input, ifNotExists, ifExists, cr);
     }
 
     @Override
@@ -66,7 +109,8 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
     protected String getUuid(Map<String, Object> feature) {
       try {
         return new JsonObject(feature).getJsonObject(PROPERTIES).getJsonObject(XyzNamespace.XYZ_NAMESPACE).getString(UUID);
-      } catch (Exception e) {
+      }
+      catch (Exception e) {
         return null;
       }
     }
@@ -75,7 +119,8 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
     protected String getUuid(Feature input) {
       try {
         return input.getProperties().getXyzNamespace().getUuid();
-      } catch (Exception e) {
+      }
+      catch (Exception e) {
         return null;
       }
     }
@@ -86,7 +131,7 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
 
     @Override
     public Map<String, Object> filterMetadata(Map<String, Object> map) {
-      return filter(map,metadataFilter);
+      return filter(map, metadataFilter);
     }
 
     @SuppressWarnings("unchecked")

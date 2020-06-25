@@ -1,4 +1,4 @@
-FROM postgres:10.0
+FROM postgres:10
 
 MAINTAINER Benjamin Rögner "benjamin.roegner@here.com"
 MAINTAINER Lucas Ceni "lucas.ceni@here.com"

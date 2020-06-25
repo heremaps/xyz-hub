@@ -242,17 +242,20 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception {
     try{
       if(event.getSpaceDefinition() != null && event.getSpaceDefinition().isEnableUUID()){
-        Integer maxVersionCount = null;
-
-        if(event.getParams() != null)
-          maxVersionCount = (Integer)event.getParams().get("maxVersionCount");
+        Integer maxVersionCount;
+        Boolean compactHistory = true;
 
         if(event.getSpaceDefinition().isEnableHistory()){
+          maxVersionCount = event.getSpaceDefinition().getMaxVersionCount();
+          if(event.getConnectorParams() != null){
+            compactHistory = (Boolean)event.getConnectorParams().get("compactHistory");
+            compactHistory = compactHistory == null ? true : compactHistory;
+          }
           if(ModifySpaceEvent.Operation.CREATE == event.getOperation()){
-            ensureHistorySpace(maxVersionCount);
+            ensureHistorySpace(maxVersionCount, compactHistory);
           }else if(ModifySpaceEvent.Operation.UPDATE == event.getOperation()){
             //TODO: ONLY update Trigger
-            ensureHistorySpace(maxVersionCount);
+            ensureHistorySpace(maxVersionCount, compactHistory);
           }
         }
       }

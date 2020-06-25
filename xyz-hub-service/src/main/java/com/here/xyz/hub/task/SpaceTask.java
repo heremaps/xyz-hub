@@ -141,7 +141,6 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
 
   public static class ConditionalOperation extends SpaceTask<ConditionalOperation> {
 
-    private static final List<IfExists> UPDATE_OPS = Arrays.asList(PATCH, MERGE, REPLACE);
     public final boolean requireResourceExists;
     public ModifySpaceOp modifyOp;
     public Space template;
@@ -161,35 +160,19 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
     }
 
     public boolean isRead() {
-      try {
-        return modifyOp.entries.get(0).head != null && modifyOp.ifExists.equals(RETAIN);
-      } catch (NullPointerException e) {
-        return false;
-      }
+      return modifyOp.isRead();
     }
 
     public boolean isCreate() {
-      try {
-        return modifyOp.entries.get(0).head == null && modifyOp.entries.get(0).result != null;
-      } catch (NullPointerException e) {
-        return false;
-      }
+      return modifyOp.isCreate();
     }
 
     public boolean isDelete() {
-      try {
-        return modifyOp.entries.get(0).head != null && modifyOp.ifExists.equals(DELETE);
-      } catch (NullPointerException e) {
-        return false;
-      }
+      return modifyOp.isDelete();
     }
 
     public boolean isUpdate() {
-      try {
-        return modifyOp.entries.get(0).head != null && UPDATE_OPS.contains(modifyOp.ifExists);
-      } catch (NullPointerException e) {
-        return false;
-      }
+      return modifyOp.isUpdate();
     }
 
     @Override

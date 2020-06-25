@@ -19,7 +19,9 @@
 
 package com.here.xyz.hub.task;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.rest.HttpException;
@@ -29,13 +31,12 @@ import com.here.xyz.hub.task.ModifyOp.IfNotExists;
 import com.here.xyz.hub.task.ModifyOp.ModifyOpError;
 import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import org.junit.Test;
 
@@ -64,8 +65,11 @@ public class ModifyFeatureOpTest {
       input.getProperties().getXyzNamespace().setCreatedAt(123);
       input.getProperties().getXyzNamespace().getTags().add("tag2");
 
-      ModifyFeatureOp op = new ModifyFeatureOp(Arrays.asList(JsonObject.mapFrom(input).getMap()), IfNotExists.CREATE, IfExists.MERGE, true,
-          ConflictResolution.ERROR);
+      List<Map<String, Object>> features = Arrays.asList(JsonObject.mapFrom(input).getMap());
+      Map<String, Object> featureCollection = Collections.singletonMap("features", features);
+
+      ModifyFeatureOp op = new ModifyFeatureOp(Collections.singletonList(Collections.singletonMap("featureData", featureCollection)),
+          IfNotExists.CREATE, IfExists.MERGE, true, ConflictResolution.ERROR);
       final Entry<Feature> entry = op.entries.get(0);
       entry.head = head;
       entry.base = base;
@@ -76,7 +80,8 @@ public class ModifyFeatureOpTest {
       assertTrue(res.getProperties().getXyzNamespace().getTags().contains("tag1"));
       assertTrue(res.getProperties().getXyzNamespace().getTags().contains("tag2"));
       assertEquals(res.getProperties().get("name"), "changed");
-    } catch (IOException | ModifyOpError | HttpException e) {
+    }
+    catch (IOException | ModifyOpError | HttpException e) {
       e.printStackTrace();
     }
   }
@@ -92,7 +97,11 @@ public class ModifyFeatureOpTest {
       input.getProperties().getXyzNamespace().setCreatedAt(123);
       input.getProperties().getXyzNamespace().getTags().add("tag2");
 
-      ModifyFeatureOp op = new ModifyFeatureOp(Collections.singletonList(JsonObject.mapFrom(input).getMap()), IfNotExists.CREATE, IfExists.MERGE, true, ConflictResolution.ERROR);
+      List<Map<String, Object>> features = Collections.singletonList(JsonObject.mapFrom(input).getMap());
+      Map<String, Object> featureCollection = Collections.singletonMap("features", features);
+
+      ModifyFeatureOp op = new ModifyFeatureOp(Collections.singletonList(Collections.singletonMap("featureData", featureCollection)),
+          IfNotExists.CREATE, IfExists.MERGE, true, ConflictResolution.ERROR);
       final Entry<Feature> entry = op.entries.get(0);
       entry.head = base;
       entry.base = base;
@@ -102,7 +111,8 @@ public class ModifyFeatureOpTest {
       assertTrue(res.getProperties().getXyzNamespace().getTags().contains("tag1"));
       assertTrue(res.getProperties().getXyzNamespace().getTags().contains("tag2"));
       assertEquals(res.getProperties().get("name"), "changed");
-    } catch (IOException | ModifyOpError | HttpException e) {
+    }
+    catch (IOException | ModifyOpError | HttpException e) {
       e.printStackTrace();
     }
   }
