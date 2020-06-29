@@ -20,7 +20,7 @@
                     ]
                 },
                 "occupant": "Daring Club Motema Pembe",
-                "sport": "association football",
+                "sport": "association = football",
                 "capacity": 50000
             }
         },
@@ -43,7 +43,7 @@
                     ]
                 },
                 "occupant": "Guangzhou Evergrande Taobao Football Club",
-                "sport": "association football",
+                "sport": "association <= football",
                 "capacity": 58500
             }
         },
@@ -66,7 +66,7 @@
                     ]
                 },
                 "occupant": "Clube do Remo",
-                "sport": "association football",
+                "sport": "association =gte= football",
                 "capacity": 45007
             }
         },
@@ -89,7 +89,7 @@
                     ]
                 },
                 "occupant": "Maranhão Atlético Clube",
-                "sport": "association football",
+                "sport": "association --> football",
                 "capacity": 40000
             }
         },
