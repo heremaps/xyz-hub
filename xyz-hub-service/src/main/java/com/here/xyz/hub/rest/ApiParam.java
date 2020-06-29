@@ -268,29 +268,36 @@ public class ApiParam {
               e.printStackTrace();
             }
 
+            int position=0;
+            String op=null;
+
+            /** store "main" operator. Needed for such cases foo=bar-->test*/
             for (String shortOperator : shortOperators) {
-              if (keyValuePair.contains(shortOperator)) {
-                // If the original parameter expression doesn't contain the equal sign API GW appends it at the end
-                String[] keyVal = keyValuePair.split(shortOperator);
-                if (keyVal.length < 2) {
-                  break;
+              int currentPositionOfOp = keyValuePair.indexOf(shortOperator);
+              if (currentPositionOfOp != -1) {
+                if(op == null || currentPositionOfOp < position) {
+                  op = shortOperator;
+                  position = currentPositionOfOp;
                 }
-                if ((">".equals(shortOperator) || "<".equals(shortOperator)) && keyVal[1].endsWith("=")) {
-                  keyVal[1] = keyVal[1].substring(0, keyVal[1].length() - 1);
-                }
+              }
+            }
+
+            if(op != null){
+                String[] keyVal = new String[]{keyValuePair.substring(0, position), keyValuePair.substring(position + op.length())};
+
                 propertyQuery.setKey(getConvertedKey(keyVal[0]));
-                propertyQuery.setOperation(operators.get(shortOperator));
+                propertyQuery.setOperation(operators.get(op));
                 String[] rawValues = keyVal[1].split(",");
+
                 ArrayList<Object> values = new ArrayList<>();
                 for (String rawValue : rawValues) {
                   values.add(getConvertedValue(rawValue));
                 }
                 propertyQuery.setValues(values);
                 pql.add(propertyQuery);
-                break;
               }
-            }
           });
+
       PropertiesQuery pq = new PropertiesQuery();
       pq.add(pql);
 
