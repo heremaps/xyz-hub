@@ -66,22 +66,60 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
   }
 
   @Test
+  public void testGreaterThanEquals() {
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.capacity>=50000").
+            then().
+            body("features.size()", equalTo(150));
+
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.capacity=gte=50000").
+            then().
+            body("features.size()", equalTo(150));
+  }
+
+  @Test
   public void testLessThan() {
     given().
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         when().
-        get("/spaces/x-psql-test/search?p.capacity>50000").
+        get("/spaces/x-psql-test/search?p.capacity<50000").
         then().
-        body("features.size()", equalTo(133));
+        body("features.size()", equalTo(102));
 
     given().
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         when().
-        get("/spaces/x-psql-test/search?p.capacity=gt=50000").
+        get("/spaces/x-psql-test/search?p.capacity=lt=50000").
         then().
-        body("features.size()", equalTo(133));
+        body("features.size()", equalTo(102));
+  }
+
+  @Test
+  public void testLessThanEquals() {
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.capacity<=50000").
+            then().
+            body("features.size()", equalTo(119));
+
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.capacity=lte=50000").
+            then().
+            body("features.size()", equalTo(119));
   }
 
   @Test
@@ -159,7 +197,53 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
         body("features.size()", equalTo(252));
   }
 
-  /*
+  @Test
+  public void testSpecialCharactersProperty() {
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.sport=association = football").
+            then().
+            body("features.size()", equalTo(1));
+
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.sport=association <= football").
+            then().
+            body("features.size()", equalTo(1));
+
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.sport=association =gte= football").
+            then().
+            body("features.size()", equalTo(1));
+
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.sport=association --> football").
+            then().
+            body("features.size()", equalTo(1));
+  }
+
+  @Test
+  public void testSearchWithoutValues() {
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.sport=&p.sport>=&p.sport=gte=&foo=bar").
+            then().
+            body("features.size()", equalTo(0));
+  }
+
+    /*
    * Test is commented out because it takes too long to execute, since the indexes should be created by the connector for the test be valid.
    * Only kept here for future reference
    */
