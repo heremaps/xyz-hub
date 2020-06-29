@@ -773,7 +773,7 @@ paths:
         - $ref: '#/components/parameters/Force2D'
       responses:
         '200':
-          $ref: '#/components/responses/QueryFCResponse'
+          $ref: '#/components/responses/IterateResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse400'
         '401':
@@ -1281,6 +1281,14 @@ components:
         application/geo+json:
           schema:
             $ref: '#/components/schemas/FeatureCollection'
+    IterateResponse:
+      description: >-
+        A FeatureCollection with handle, containing all features found for the provided
+        parameters.
+      content:
+        application/geo+json:
+          schema:
+            $ref: '#/components/schemas/FeatureCollectionIterable'
     TileResponse:
       description: >-
         A FeatureCollection, containing all features found for the provided parameters.
@@ -1989,6 +1997,37 @@ components:
               $ref: '#/components/schemas/BBox'
           example:
             type: FeatureCollection
+            features:
+              - type: Feature
+                id: BfiimUxHjj
+                geometry:
+                  type: Point
+                  coordinates:
+                    - -2.960847
+                    - 53.430828
+                properties:
+                  name: Anfield
+                  '@ns:com:here:xyz':
+                    createdAt: 1517504700726
+                    updatedAt: 1517504700726
+                    tags:
+                      - football
+                      - stadium
+                  amenity: Football Stadium
+                  capacity: 54074
+                  description: Home of Liverpool Football Club
+    FeatureCollectionIterable:
+      allOf:
+        - $ref: '#/components/schemas/FeatureCollection'
+        - type: object
+          description: A FeatureCollection GeoJSON object with handle.
+          properties:
+            handle:
+              type: string
+              description: The handler to the next iteration.
+          example:
+            type: FeatureCollection
+            handle: 1000
             features:
               - type: Feature
                 id: BfiimUxHjj
