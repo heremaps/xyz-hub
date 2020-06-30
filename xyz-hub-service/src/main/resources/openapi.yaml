@@ -2024,7 +2024,7 @@ components:
           properties:
             handle:
               type: string
-              description: The handler to the next iteration.
+              description: The handle to the next iteration.
           example:
             type: FeatureCollection
             handle: 1000
