@@ -120,12 +120,13 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
 
   @Override
   protected void getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition,
-      SpaceSelectionCondition selectedCondition,
+      SpaceSelectionCondition selectedCondition, SpacePaginationCondition paginationCondition,
       Handler<AsyncResult<List<Space>>> handler) {
     //BUILD THE QUERY
     List<String> whereConjunctions = new ArrayList<>();
     String baseQuery = String.format("SELECT config FROM %s", SPACE_TABLE);
     List<String> authorizationWhereClauses = generateWhereClausesFor(authorizedCondition);
+    String paginationQuery = "";
     if (!authorizationWhereClauses.isEmpty()) {
       authorizationWhereClauses.add("config->'shared' = 'true'");
     }
@@ -141,9 +142,13 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
     if (!selectionWhereClauses.isEmpty()) {
       whereConjunctions.add("(" + StringUtils.join(selectionWhereClauses, " OR ") + ")");
     }
-
+    if (paginationCondition.index > -1) {
+      paginationQuery = " LIMIT " + paginationCondition.limit + " OFFSET " + paginationCondition.index;
+    }
+    
     String query = baseQuery + (whereConjunctions.isEmpty() ? "" :
-        " WHERE " + StringUtils.join(whereConjunctions, " AND "));
+        " WHERE " + StringUtils.join(whereConjunctions, " AND ")) 
+        + paginationQuery;
 
     querySpaces(handler, query);
   }

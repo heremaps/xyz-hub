@@ -64,7 +64,7 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
 
   @Override
   public void getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition, SpaceSelectionCondition selectedCondition,
-      Handler<AsyncResult<List<Space>>> handler) {
+  SpacePaginationCondition paginationCondition, Handler<AsyncResult<List<Space>>> handler) {
     //Sets are not even defined that means all access
     Predicate<Space> authorizationFilter = s -> authorizedCondition.spaceIds == null && authorizedCondition.ownerIds == null
         || authorizedCondition.spaceIds != null && authorizedCondition.spaceIds.contains(s.getId())

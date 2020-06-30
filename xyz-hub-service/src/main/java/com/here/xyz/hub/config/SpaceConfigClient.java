@@ -127,8 +127,8 @@ public abstract class SpaceConfigClient implements Initializable {
   }
 
   public void getSelected(Marker marker, SpaceAuthorizationCondition authorizedCondition, SpaceSelectionCondition selectedCondition,
-      Handler<AsyncResult<List<Space>>> handler) {
-    getSelectedSpaces(marker, authorizedCondition, selectedCondition, ar -> {
+      SpacePaginationCondition paginationCondition, Handler<AsyncResult<List<Space>>> handler) {
+    getSelectedSpaces(marker, authorizedCondition, selectedCondition, paginationCondition, ar -> {
       if (ar.succeeded()) {
         List<Space> spaces = ar.result();
         spaces.forEach(s -> cache.put(s.getId(), s));
@@ -143,9 +143,10 @@ public abstract class SpaceConfigClient implements Initializable {
 
   public void getOwn(Marker marker, String ownerId, Handler<AsyncResult<List<Space>>> handler) {
     SpaceSelectionCondition selectedCondition = new SpaceSelectionCondition();
+    SpacePaginationCondition paginationCondition = new SpacePaginationCondition();
     selectedCondition.ownerIds = Collections.singleton(ownerId);
     selectedCondition.shared = false;
-    getSelected(marker, emptySpaceCondition, selectedCondition, handler);
+    getSelected(marker, emptySpaceCondition, selectedCondition, paginationCondition, handler);
   }
 
   protected abstract void getSpace(Marker marker, String spaceId, Handler<AsyncResult<Space>> handler);
@@ -155,7 +156,8 @@ public abstract class SpaceConfigClient implements Initializable {
   protected abstract void deleteSpace(Marker marker, String spaceId, Handler<AsyncResult<Space>> handler);
 
   protected abstract void getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition,
-      SpaceSelectionCondition selectedCondition, Handler<AsyncResult<List<Space>>> handler);
+      SpaceSelectionCondition selectedCondition, SpacePaginationCondition paginationCondition, Handler<AsyncResult<List<Space>>> handler);
+
 
   public void invalidateCache(String spaceId) {
     cache.remove(spaceId);
@@ -173,6 +175,11 @@ public abstract class SpaceConfigClient implements Initializable {
 
     public boolean shared = true;
     public boolean negateOwnerIds = false;
+  }
+
+  public static class SpacePaginationCondition {
+    public int index = -1;
+    public int limit;
   }
 
   public static class InvalidateSpaceCacheMessage extends AdminMessage {

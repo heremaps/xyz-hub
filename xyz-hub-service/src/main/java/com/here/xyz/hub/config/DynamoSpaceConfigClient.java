@@ -46,6 +46,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -221,7 +222,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
   @Override
   public void getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition, SpaceSelectionCondition selectedCondition,
-      Handler<AsyncResult<List<Space>>> handler) {
+  SpacePaginationCondition paginationCondition, Handler<AsyncResult<List<Space>>> handler) {
     logger.info(marker, "Getting selected spaces");
 
     if (authorizedCondition == null || selectedCondition == null) {
@@ -266,10 +267,14 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
       logger.info(marker, "Final number of space IDs to be retrieved from DynamoDB: {}", authorizedSpaces.size());
       if (!authorizedSpaces.isEmpty()) {
-        int batches = (int) Math.ceil((double) authorizedSpaces.size()/100);
+        Set<String> subSet = authorizedSpaces;
+        if (paginationCondition.index > -1) {
+          subSet = authorizedSpaces.stream().skip(paginationCondition.index).limit(paginationCondition.limit).collect(Collectors.toSet());
+        }
+        int batches = (int) Math.ceil((double) subSet.size()/100);
         for (int i=0; i<batches; i++) {
           final TableKeysAndAttributes keys = new TableKeysAndAttributes(dynamoClient.tableName);
-          authorizedSpaces.stream().skip(i*100).limit(100).forEach(id -> keys.addHashOnlyPrimaryKey("id", id));
+          subSet.stream().skip(i*100).limit(100).forEach(id -> keys.addHashOnlyPrimaryKey("id", id));
 
           BatchGetItemOutcome outcome = dynamoClient.db.batchGetItem(keys);
           processOutcome(outcome, result);

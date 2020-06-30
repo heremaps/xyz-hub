@@ -56,6 +56,22 @@ paths:
           schema:
             type: string
             default: me
+        - name: index
+          in: query
+          description: >-
+            Defines the start position of the read pointer of spaces to be returned in response.
+            Pagination is enabled when this parameter is set.
+          required: false
+          schema:
+            type: number
+        - name: limit
+          in: query
+          description: >-
+            Maximal number of spaces returned in the response when pagination is enabled.
+            Default is 50.
+          required: false
+          schema:
+            type: number
       responses:
         '200':
           $ref: '#/components/responses/SpacesResponse'

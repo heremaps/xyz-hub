@@ -32,6 +32,7 @@ import com.here.xyz.events.Event;
 import com.here.xyz.hub.auth.SpaceAuthorization;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceAuthorizationCondition;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceSelectionCondition;
+import com.here.xyz.hub.config.SpaceConfigClient.SpacePaginationCondition;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.ApiResponseType;
@@ -75,6 +76,7 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
 
     public SpaceAuthorizationCondition authorizedCondition;
     public SpaceSelectionCondition selectedCondition;
+    public SpacePaginationCondition paginationCondition;
 
     public ReadQuery(RoutingContext context, ApiResponseType returnType, List<String> spaceIds, List<String> ownerIds) {
       super(context, returnType);
@@ -99,7 +101,7 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
     public static final String OTHERS = "others";
     public static final String ALL = "*";
 
-    public MatrixReadQuery(RoutingContext context, ApiResponseType returnType, boolean includeRights, boolean includeConnectors, String owner) {
+    public MatrixReadQuery(RoutingContext context, ApiResponseType returnType, boolean includeRights, boolean includeConnectors, String owner, int index, int limit) {
       super(context, returnType, null, null);
       if (!Strings.isNullOrEmpty(owner)) {
         selectedCondition = new SpaceSelectionCondition();
@@ -127,6 +129,11 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
       }
 
       this.canReadConnectorsProperties = includeConnectors;
+
+      paginationCondition = new SpacePaginationCondition();
+      paginationCondition.index = index;
+      paginationCondition.limit = limit;
+
     }
 
     @Override
