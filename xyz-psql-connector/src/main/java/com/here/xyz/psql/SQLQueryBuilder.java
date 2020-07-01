@@ -244,7 +244,7 @@ public class SQLQueryBuilder {
       if( tweakParams.get(TweaksSQL.SAMPLING_STRENGTH) instanceof Integer )
        strength = (int) tweakParams.get(TweaksSQL.SAMPLING_STRENGTH);
       else
-       switch((String) tweakParams.get(TweaksSQL.SAMPLING_STRENGTH) )
+       switch(((String) tweakParams.getOrDefault(TweaksSQL.SAMPLING_STRENGTH,"default")).toLowerCase() )
        { case "low"     : strength =  10;  break;
          case "lowmed"  : strength =  30;  break;
          case "med"     : strength =  50;  break;
@@ -253,7 +253,7 @@ public class SQLQueryBuilder {
          default: strength  = 50; break;
        }
 
-       switch((String) tweakParams.getOrDefault(TweaksSQL.SAMPLING_ALGORITHM, TweaksSQL.SAMPLING_ALGORITHM_DST) )
+       switch(((String) tweakParams.getOrDefault(TweaksSQL.SAMPLING_ALGORITHM, TweaksSQL.SAMPLING_ALGORITHM_DST)).toLowerCase() )
        {
          case TweaksSQL.SAMPLING_ALGORITHM_SZE : bDistribution = false; break;
          case TweaksSQL.SAMPLING_ALGORITHM_DST :
@@ -281,7 +281,7 @@ public class SQLQueryBuilder {
       if( tweakParams.get(TweaksSQL.SIMPLIFICATION_STRENGTH) instanceof Integer )
        strength = (int) tweakParams.get(TweaksSQL.SIMPLIFICATION_STRENGTH);
       else
-       switch((String) tweakParams.get(TweaksSQL.SIMPLIFICATION_STRENGTH) )
+       switch(((String) tweakParams.getOrDefault(TweaksSQL.SIMPLIFICATION_STRENGTH,"default")).toLowerCase() )
        { case "low"     : strength =  20;  break;
          case "lowmed"  : strength =  40;  break;
          case "med"     : strength =  60;  break;

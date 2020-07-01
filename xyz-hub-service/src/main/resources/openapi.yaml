@@ -926,7 +926,7 @@ components:
         | Parameter   | Type    | Mandatory | Meaning                                                               |
         |-------------|---------|-----------|-----------------------------------------------------------------------|
         | algorithm   | String  | NO        | distribution, geometrysize     |
-        | strength    | String  | NO        | Use presets: LOW, LOWMED, MED, MEDHIGH, HIGH or define strengh in percentage 1-100     |
+        | strength    | String  | NO        | Use presets: low, lowmed, med, medhigh, high or define strengh in percentage 1-100     |
 
         **Tweaks-type: "simplification":**
 
@@ -935,14 +935,14 @@ components:
         | Parameter   | Type    | Mandatory | Meaning                                                               |
         |-------------|---------|-----------|-----------------------------------------------------------------------|
         | algorithm   | String  | NO        | grid, simplifiedkeeptopology, simplified, merge     |
-        | strength    | String  | NO        | Use presets: LOW, MED, HIGH or define strengh in percentage 1-100     |
+        | strength    | String  | NO        | Use presets: low, med, high or define strengh in percentage 1-100     |
 
       style: form
       explode: true
       schema:
         type: object
         example:
-          tweaks.strength: "1-100 | [LOW,LOWMED,MED,MEDHIGH,HIGH]"
+          tweaks.strength: "1-100 | [low,lowmed,med,medhigh,high]"
         additionalProperties:
           type: string
     Clustering:
