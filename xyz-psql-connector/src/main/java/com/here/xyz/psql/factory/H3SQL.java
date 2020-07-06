@@ -25,6 +25,7 @@ public class H3SQL
 {
   public static final String HEXBIN = "hexbin";
   public static final String HEXBIN_RESOLUTION = "resolution";
+  public static final String HEXBIN_RESOLUTION_ABSOLUTE = "absoluteResolution";
   public static final String HEXBIN_RESOLUTION_RELATIVE = "relativeResolution";
   public static final String HEXBIN_PROPERTY = "property";
   public static final String HEXBIN_POINTMODE = "pointmode";

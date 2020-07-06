@@ -120,7 +120,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
             fcollection.setPartial(true);
             return fcollection;
 
-          default: break;
+          default: break; // fall back to non-tweaks usage.
         }
       }
 
@@ -128,12 +128,13 @@ public class PSQLXyzConnector extends DatabaseHandler {
         return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource));
       } else if ( QuadbinSQL.QUAD.equalsIgnoreCase(clusteringType)) {
         /* Check if input is valid */
-        final int resolution = ( clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) != null ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) :
-                               ( clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION_RELATIVE) != null ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION_RELATIVE) : 0));
+        final int relResolution = ( clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) != null ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) :
+                                  ( clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION_RELATIVE) != null ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION_RELATIVE) : 0)),
+                  absResolution = clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION_ABSOLUTE) != null ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION_ABSOLUTE) : 0;
         final String countMode = (String) clusteringParams.get(QuadbinSQL.QUADBIN_COUNTMODE);
 
-        QuadbinSQL.checkQuadbinInput(countMode, resolution, event, streamId, this);
-        return executeQueryWithRetry(SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, resolution, countMode, config));
+        QuadbinSQL.checkQuadbinInput(countMode, relResolution, event, streamId, this);
+        return executeQueryWithRetry(SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config));
       }
 
       final boolean isBigQuery = (bbox.widthInDegree(false) >= (360d / 4d) || (bbox.heightInDegree() >= (180d / 4d)));
