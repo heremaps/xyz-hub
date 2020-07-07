@@ -76,7 +76,7 @@ public abstract class DatabaseHandler extends StorageConnector {
      **/
     private static final int MIN_REMAINING_TIME_FOR_RETRY_SECONDS = 3;
     protected static final int STATEMENT_TIMEOUT_SECONDS = 24;
-    private static final int CONNECTION_CHECKOUT_TIMEOUT_SECONDS = 10;
+    private static final int CONNECTION_CHECKOUT_TIMEOUT_SECONDS = 7;
 
     /**
      * The data source connections factory.
@@ -202,7 +202,8 @@ public abstract class DatabaseHandler extends StorageConnector {
         cpds.setInitialPoolSize(1);
         cpds.setMinPoolSize(1);
         cpds.setAcquireIncrement(1);
-        cpds.setAcquireRetryAttempts(2);
+        cpds.setAcquireRetryAttempts(5);
+        cpds.setTestConnectionOnCheckout(true);
         cpds.setMaxPoolSize(maxPostgreSQLConnections);
         cpds.setCheckoutTimeout( CONNECTION_CHECKOUT_TIMEOUT_SECONDS * 1000 );
         cpds.setConnectionCustomizerClassName(DatabaseHandler.XyzConnectionCustomizer.class.getName());
@@ -272,7 +273,6 @@ public abstract class DatabaseHandler extends StorageConnector {
          * */
         if(e instanceof SQLException
                 && ((SQLException)e).getSQLState() != null
-                &&  context.getRemainingTimeInMillis() > (MIN_REMAINING_TIME_FOR_RETRY_SECONDS * 1000)
                 && (
                     ((SQLException)e).getSQLState().equalsIgnoreCase("57014") ||
                     ((SQLException)e).getSQLState().equalsIgnoreCase("57P01") ||
@@ -280,8 +280,13 @@ public abstract class DatabaseHandler extends StorageConnector {
                     ((SQLException)e).getSQLState().equalsIgnoreCase("08006")
                    )
         ) {
+            int remainingSeconds = context.getRemainingTimeInMillis() / 1000;
+            if(remainingSeconds <= MIN_REMAINING_TIME_FOR_RETRY_SECONDS){
+                logger.info("{} - No time left to retry the query! RemainingTime: '{}' s", streamId, remainingSeconds);
+                return false;
+            }
             if (!retryAttempted) {
-                logger.warn("{} - Retry based on timeout detected! RemainingTime: {} {}", streamId, context.getRemainingTimeInMillis(), e);
+                logger.warn("{} - Retry based on serverless scaling detected! RemainingTime: {} {}", streamId, remainingSeconds, e);
                 return true;
             }
         }
