@@ -76,7 +76,7 @@ public abstract class DatabaseHandler extends StorageConnector {
      **/
     private static final int MIN_REMAINING_TIME_FOR_RETRY_SECONDS = 3;
     protected static final int STATEMENT_TIMEOUT_SECONDS = 24;
-    private static final int CONNECTION_CHECKOUT_TIMEOUT_SECONDS = 7;
+    private static final int CONNECTION_CHECKOUT_TIMEOUT_SECONDS = 10;
 
     /**
      * The data source connections factory.
@@ -202,6 +202,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         cpds.setInitialPoolSize(1);
         cpds.setMinPoolSize(1);
         cpds.setAcquireIncrement(1);
+        cpds.setAcquireRetryAttempts(2);
         cpds.setMaxPoolSize(maxPostgreSQLConnections);
         cpds.setCheckoutTimeout( CONNECTION_CHECKOUT_TIMEOUT_SECONDS * 1000 );
         cpds.setConnectionCustomizerClassName(DatabaseHandler.XyzConnectionCustomizer.class.getName());
@@ -556,14 +557,9 @@ public abstract class DatabaseHandler extends StorageConnector {
             return false;
         }
 
-        if (hasTable()) {
-            retryAttempted = true; // the table is there, do not retry
-            return false;
-        }
-
         ensureSpace();
-
         retryAttempted = true;
+
         logger.info("{} - Retry the execution.", streamId);
         return true;
     }
@@ -579,16 +575,22 @@ public abstract class DatabaseHandler extends StorageConnector {
             return true;
         }
 
-        PSQLConfig pConfig = (PSQLConfig) config;
         long start = System.currentTimeMillis();
-        try (final Connection conn = dataSource.getConnection()) {
-            try (final ResultSet rs = conn.getMetaData()
-                    .getTables(null, pConfig.schema(), pConfig.table(event), new String[]{"TABLE", "VIEW"})) {
-                if (rs.next()) {
-                    long end = System.currentTimeMillis();
-                    logger.info("{} - Time for table check: " + (end - start) + "ms", streamId);
-                    return true;
-                }
+
+        try (final Connection connection = dataSource.getConnection()) {
+            Statement stmt = connection.createStatement();
+            String query = "SELECT to_regclass('${schema}.${table}')";
+
+            query = SQLQuery.replaceVars(query, config.schema(), config.table(event));
+            stmt.addBatch(query);
+            stmt.executeBatch();
+
+            ResultSet rs;
+
+            if ((rs = stmt.executeQuery(query)).next()) {
+                logger.info("{} - Time for table check: " + (System.currentTimeMillis() - start) + "ms", streamId);
+                String oid = rs.getString(1);
+                return oid != null ? true : false;
             }
             return false;
         }
@@ -826,7 +828,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
 
         int timeout = remainingSeconds >= STATEMENT_TIMEOUT_SECONDS ? STATEMENT_TIMEOUT_SECONDS :
-                (remainingSeconds - 1);
+                (remainingSeconds - 2);
 
         logger.info("{} - New timeout for query set to '{}'", streamId,  timeout);
         return timeout;
