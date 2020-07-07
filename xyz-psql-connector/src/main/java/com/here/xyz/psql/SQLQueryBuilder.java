@@ -302,7 +302,7 @@ public class SQLQueryBuilder {
        //SIMPLIFICATION_ALGORITHM
        int hint = 0;
 
-       switch((String) tweakParams.get(TweaksSQL.SIMPLIFICATION_ALGORITHM) )
+       switch( ((String) tweakParams.getOrDefault(TweaksSQL.SIMPLIFICATION_ALGORITHM,"default")).toLowerCase() ) 
        {
          case TweaksSQL.SIMPLIFICATION_ALGORITHM_A03 : hint++;
          case TweaksSQL.SIMPLIFICATION_ALGORITHM_A02 :
