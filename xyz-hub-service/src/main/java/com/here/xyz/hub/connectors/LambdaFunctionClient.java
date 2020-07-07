@@ -20,13 +20,16 @@
 package com.here.xyz.hub.connectors;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
+import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
 import static io.netty.handler.codec.http.HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE;
 
 import com.amazonaws.ClientConfiguration;
+import com.amazonaws.SdkClientException;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.auth.STSAssumeRoleSessionCredentialsProvider;
 import com.amazonaws.handlers.AsyncHandler;
+import com.amazonaws.http.exception.HttpRequestTimeoutException;
 import com.amazonaws.services.lambda.AWSLambdaAsync;
 import com.amazonaws.services.lambda.AWSLambdaAsyncClientBuilder;
 import com.amazonaws.services.lambda.model.AWSLambdaException;
@@ -148,7 +151,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
           logger.error(marker, "Error sending event to remote lambda function", exception);
         }
         else {
-          callback.handle(Future.failedFuture(getWHttpException(marker, exception)));
+          callback.handle(Future.failedFuture(getHttpException(marker, exception)));
         }
       }
 
@@ -190,7 +193,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
     return awsCredentialsProvider;
   }
 
-  private HttpException getWHttpException(Marker marker, Throwable e) {
+  private HttpException getHttpException(Marker marker, Throwable e) {
     logger.error(marker, "Unexpected exception while contacting lambda provider", e);
 
     if (e instanceof HttpException) {
@@ -199,9 +202,11 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
     if (e instanceof AWSLambdaException) {
       AWSLambdaException le = (AWSLambdaException) e;
       if (le.getStatusCode() == 413) {
-        return new HttpException(REQUEST_ENTITY_TOO_LARGE, "The compressed request must be smaller than 6291456 bytes.");
+        return new HttpException(REQUEST_ENTITY_TOO_LARGE, "The compressed request must be smaller than 6291456 bytes.", e);
       }
     }
+    if (e instanceof HttpRequestTimeoutException || e instanceof SdkClientException && e.getCause() instanceof HttpRequestTimeoutException)
+      return new HttpException(GATEWAY_TIMEOUT, "The connector did not respond in time.", e);
 
     return new HttpException(BAD_GATEWAY, "Unable to parse the response of the connector.", e);
   }

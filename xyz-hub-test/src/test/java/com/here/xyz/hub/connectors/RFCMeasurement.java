@@ -50,7 +50,7 @@ public class RFCMeasurement {
         s.connectionSettings = new Connector.ConnectionSettings();
         s.connectionSettings.maxConnections = RFC_MAX_CONNECTIONS;
         Service.configuration = new Config();
-        Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT = 20;
+        Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT = 26;
         Service.configuration.INSTANCE_COUNT = 1;
         rfc = new MockedRemoteFunctionClient(s, 10);
 
