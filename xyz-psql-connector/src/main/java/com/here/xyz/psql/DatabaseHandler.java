@@ -582,9 +582,6 @@ public abstract class DatabaseHandler extends StorageConnector {
             String query = "SELECT to_regclass('${schema}.${table}')";
 
             query = SQLQuery.replaceVars(query, config.schema(), config.table(event));
-            stmt.addBatch(query);
-            stmt.executeBatch();
-
             ResultSet rs;
 
             if ((rs = stmt.executeQuery(query)).next()) {
