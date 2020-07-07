@@ -374,4 +374,17 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         put("/spaces/x-psql-test/features/C001").
         then().statusCode(METHOD_NOT_ALLOWED.code());
   }
+
+  @Test
+  public void validateFeature() {
+    String featureId = "Q2838923";
+    validateFeatureProperties(given()
+        .urlEncodingEnabled(false)
+        .accept(APPLICATION_GEO_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .get("/spaces/x-psql-test/features?id=" + featureId)
+        .then()
+        .statusCode(OK.code()), featureId);
+  }
 }
