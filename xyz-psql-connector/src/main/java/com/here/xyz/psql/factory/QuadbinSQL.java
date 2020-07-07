@@ -31,6 +31,7 @@ public class QuadbinSQL {
 
     public static final String QUAD = "quadbin";
     public static final String QUADBIN_RESOLUTION = H3SQL.HEXBIN_RESOLUTION;
+    public static final String QUADBIN_RESOLUTION_ABSOLUTE = H3SQL.HEXBIN_RESOLUTION_ABSOLUTE;
     public static final String QUADBIN_RESOLUTION_RELATIVE = H3SQL.HEXBIN_RESOLUTION_RELATIVE;
     public static final String QUADBIN_COUNTMODE = "countmode";
     
@@ -55,18 +56,17 @@ public class QuadbinSQL {
     /**
      * Check if request parameters are valid. In case of invalidity throw an Exception
      */
-    public static void checkQuadbinInput(String countMode, int resolution, GetFeaturesByBBoxEvent event, String streamId,
-                                         PSQLXyzConnector connector) throws
-            ErrorResponseException{
+    public static void checkQuadbinInput(String countMode, int relResolution, GetFeaturesByBBoxEvent event, String streamId, PSQLXyzConnector connector) throws ErrorResponseException
+    {
         if(countMode != null && (!countMode.equalsIgnoreCase(QuadbinSQL.COUNTMODE_REAL) && !countMode.equalsIgnoreCase(QuadbinSQL.COUNTMODE_ESTIMATED) && !countMode.equalsIgnoreCase(QuadbinSQL.COUNTMODE_MIXED)) )
             throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
                     "Invalid request parameters. Unknown clustering.countmode="+countMode+". Available are: ["+ QuadbinSQL.COUNTMODE_REAL +","+ QuadbinSQL.COUNTMODE_ESTIMATED +","+ QuadbinSQL.COUNTMODE_MIXED +"]!");
 
-        if(resolution > 5)
+        if(relResolution > 5)
             throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-                    "Invalid request parameters. clustering.resolution="+resolution+" to high. 5 is maximum!");
+                    "Invalid request parameters. clustering.relativeResolution="+relResolution+" to high. 5 is maximum!");
 
-        if(event.getPropertiesQuery() != null && event.getPropertiesQuery() .get(0).size() != 1)
+        if(event.getPropertiesQuery() != null && event.getPropertiesQuery().get(0).size() != 1)
             throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
                     "Invalid request parameters. Only one Property is allowed");
 

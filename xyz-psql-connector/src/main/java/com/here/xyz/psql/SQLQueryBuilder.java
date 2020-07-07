@@ -121,9 +121,12 @@ public class SQLQueryBuilder {
      int h3res = maxResForLevel;
 
      if( clusteringParams == null ) return h3res;
-
+/** deprecated */
      if( clusteringParams.get(H3SQL.HEXBIN_RESOLUTION) != null )
       h3res = Math.min((Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION), maxResForLevel);
+/***/
+     if( clusteringParams.get(H3SQL.HEXBIN_RESOLUTION_ABSOLUTE) != null )
+      h3res = Math.min((Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION_ABSOLUTE), maxResForLevel);
 
      if( clusteringParams.get(H3SQL.HEXBIN_RESOLUTION_RELATIVE) != null )
       h3res += Math.max(0, Math.min( 4, (Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION_RELATIVE)));
@@ -204,7 +207,7 @@ public class SQLQueryBuilder {
     }
 
     public static SQLQuery buildQuadbinClusteringQuery(GetFeaturesByBBoxEvent event,
-                                                          BBox bbox, int resolution, String countMode,
+                                                          BBox bbox, int relResolution, int absResolution, String countMode,
                                                           PSQLConfig config) {
         /* Quadkey calc */
         final int lev = WebMercatorTile.getZoomFromBBOX(bbox);
@@ -212,6 +215,9 @@ public class SQLQueryBuilder {
         double lat2 = bbox.minLat() + ((bbox.maxLat() - bbox.minLat()) / 2);
 
         final WebMercatorTile tile = WebMercatorTile.getTileFromLatLonLev(lat2, lon2, lev);
+        
+        if( (absResolution - lev) >= 0 )  // case of valid absResolution convert it to a relative resolution and add both resolutions
+         relResolution = Math.min( relResolution + (absResolution - lev), 5);
 
         SQLQuery propQuery;
         String propQuerySQL = null;
@@ -228,7 +234,7 @@ public class SQLQueryBuilder {
                 }
             }
         }
-        return QuadbinSQL.generateQuadbinClusteringSQL(config.schema(), config.table(event), resolution, countMode, propQuerySQL, tile);
+        return QuadbinSQL.generateQuadbinClusteringSQL(config.schema(), config.table(event), relResolution, countMode, propQuerySQL, tile);
     }
     /***************************************** CLUSTERING END **************************************************/
 
