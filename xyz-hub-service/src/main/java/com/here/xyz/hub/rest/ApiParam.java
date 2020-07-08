@@ -132,6 +132,7 @@ public class ApiParam {
 
     static final String CLUSTERING_PARAM_RESOLUTION = "resolution";
     static final String CLUSTERING_PARAM_RESOLUTION_RELATIVE = "relativeResolution";
+    static final String CLUSTERING_PARAM_RESOLUTION_ABSOLUTE = "absoluteResolution";
     static final String CLUSTERING_PARAM_PROPERTY = "property";
     static final String CLUSTERING_PARAM_POINTMODE = "pointmode";
     static final String CLUSTERING_PARAM_COUNTMODE = "countmode";
@@ -358,6 +359,7 @@ public class ApiParam {
     private static void validateAdditionalParams(String type, String key, Object value) throws  Exception{
       if(type.equals(CLUSTERING)){
         switch (key){
+          case CLUSTERING_PARAM_RESOLUTION_ABSOLUTE:
           case CLUSTERING_PARAM_RESOLUTION_RELATIVE:
           case CLUSTERING_PARAM_RESOLUTION:
             if(!(value instanceof Long))
@@ -378,7 +380,7 @@ public class ApiParam {
               throw new Exception("Invalid clustering.count value. Expect one of [real,estimated,mixed].");
             break;
           default: throw new Exception("Invalid Clustering Parameter! Expect one of ["
-                          +CLUSTERING_PARAM_RESOLUTION+","+CLUSTERING_PARAM_RESOLUTION_RELATIVE+","
+                          +CLUSTERING_PARAM_RESOLUTION+","+CLUSTERING_PARAM_RESOLUTION_RELATIVE+","+CLUSTERING_PARAM_RESOLUTION_ABSOLUTE+","
                           +CLUSTERING_PARAM_PROPERTY+","+CLUSTERING_PARAM_POINTMODE+","+CLUSTERING_PARAM_COUNTMODE+"].");
         }
       }else if(type.equals(TWEAKS)){
@@ -390,7 +392,7 @@ public class ApiParam {
              switch (keyS)
              { case "low": case "lowmed": case "med": case "medhigh": case "high": break;
                default:
-                throw new Exception("Invalid tweaks.strength value. Expect [LOW,LOWMED,MED,MEDHIGH,HIGH]");
+                throw new Exception("Invalid tweaks.strength value. Expect [low,lowmed,med,medhigh,high]");
              }
            }
            else if(value instanceof Long)
