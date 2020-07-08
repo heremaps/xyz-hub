@@ -63,6 +63,14 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
         get("/spaces/x-psql-test/search?p.capacity=gt=50000").
         then().
         body("features.size()", equalTo(133));
+
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        when().
+        get("/spaces/x-psql-test/search?p.capacity>50000=").
+        then().
+        body("features.size()", equalTo(133));
   }
 
   @Test
@@ -101,6 +109,14 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
         get("/spaces/x-psql-test/search?p.capacity=lt=50000").
         then().
         body("features.size()", equalTo(102));
+
+    given().
+       accept(APPLICATION_GEO_JSON).
+       headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+       when().
+       get("/spaces/x-psql-test/search?p.capacity<50000=").
+       then().
+       body("features.size()", equalTo(102));
   }
 
   @Test

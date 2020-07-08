@@ -285,6 +285,10 @@ public class ApiParam {
 
             if(op != null){
                 String[] keyVal = new String[]{keyValuePair.substring(0, position), keyValuePair.substring(position + op.length())};
+                /** Cut from API-Gateway appended "=" */
+                if ((">".equals(op) || "<".equals(op)) && keyVal[1].endsWith("=")) {
+                  keyVal[1] = keyVal[1].substring(0, keyVal[1].length() - 1);
+                }
 
                 propertyQuery.setKey(getConvertedKey(keyVal[0]));
                 propertyQuery.setOperation(operators.get(op));
