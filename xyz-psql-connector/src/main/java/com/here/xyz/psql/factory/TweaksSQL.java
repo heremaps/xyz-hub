@@ -19,6 +19,10 @@
 
 package com.here.xyz.psql.factory;
 
+import com.here.xyz.events.GetFeaturesByBBoxEvent;
+import com.here.xyz.models.geojson.coordinates.BBox;
+import com.here.xyz.psql.PSQLXyzConnector;
+
 public class TweaksSQL
 {
   public static final String SAMPLING = "sampling";
@@ -33,8 +37,8 @@ public class TweaksSQL
   public static final String SIMPLIFICATION_ALGORITHM_A02 = "simplifiedkeeptopology";
   public static final String SIMPLIFICATION_ALGORITHM_A03 = "simplified";
   public static final String SIMPLIFICATION_ALGORITHM_A04 = "merge";
+  public static final String ENSURE = "ensure";
   
-
   /*
    [  1     |   (1) | 1/3    | ~ md5( '' || i) < '5'   ]
    [  5     |   (5) | 1/4    | ~ md5( '' || i) < '4'   ]
@@ -68,6 +72,18 @@ public class TweaksSQL
    return String.format("%s < '%s'",DstFunctIndexExpr,s);
   }
 
+  public static int calculateDistributionStrength(int rCount) 
+  { int CHNKSZ = 10000;
+    if( rCount <= (   3 * CHNKSZ ) ) return  1;
+    if( rCount <= (   4 * CHNKSZ ) ) return  5;
+    if( rCount <= (   8 * CHNKSZ ) ) return 10;
+    if( rCount <= (  32 * CHNKSZ ) ) return 30;
+    if( rCount <= ( 128 * CHNKSZ ) ) return 50;
+    if( rCount <= (1024 * CHNKSZ ) ) return 75;
+    return 100;
+  }
+ 
+
   public static String mergeBeginSql = 
     "select jsondata, geo "
    +"from "
@@ -95,9 +111,15 @@ public class TweaksSQL
    +"where 1 = 1 "
    +"and geo is not null "
    +"and geo->>'type' != 'GeometryCollection' ";
- 
-
-
+  
+  public static String 
+   estimateBboxSql = String.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/),
+   estimateCountByBboxSql =
+    " with indata as ( select '${schema}' as schema, '${table}' as space, %1$s as tile, 'geo' as colname  ) "
+   +" select jsonb_set( '{\"type\":\"Feature\"}', '{rcount}', to_jsonb( ( reltuples * _postgis_selectivity( format('%%s.%%s',r.schema,r.space )::regclass, r.colname, r.tile) )::integer ) ) as rcount, null "
+   +" from pg_class l, indata r "
+   +" where oid = format('%%s.%%s',r.schema,r.space )::regclass ";
+  
 }
 
 

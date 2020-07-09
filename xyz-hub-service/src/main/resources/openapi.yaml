@@ -909,6 +909,7 @@ components:
         enum:
           - sampling
           - simplification
+          - ensure
     TweaksParams:
       x-experimental: true
       name: tweaksParams
@@ -936,6 +937,14 @@ components:
         |-------------|---------|-----------|-----------------------------------------------------------------------|
         | algorithm   | String  | NO        | grid, simplifiedkeeptopology, simplified, merge     |
         | strength    | String  | NO        | Use presets: low, med, high or define strengh in percentage 1-100     |
+
+        **Tweaks-type: "ensure":**
+
+        With the strength parameter it is possibile to control the behavior of the tweaks-simplification algorithm.
+
+        | Parameter   | Type    | Mandatory | Meaning                                                               |
+        |-------------|---------|-----------|-----------------------------------------------------------------------|
+        |             |         |           |                                                                       |
 
       style: form
       explode: true

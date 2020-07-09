@@ -47,6 +47,7 @@ import com.here.xyz.responses.XyzResponse;
 import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -102,39 +103,57 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processGetFeaturesByBBoxEvent(GetFeaturesByBBoxEvent event) throws Exception {
     try{
       final BBox bbox = event.getBbox();
-      final String clusteringType = event.getClusteringType();
-      final Map<String, Object> clusteringParams = event.getClusteringParams();
 
-      if(event.getTweakType() != null) {
+      if(event.getTweakType() != null)
+      { Map<String, Object> tweakParams = event.getTweakParams();
+
         switch (event.getTweakType().toLowerCase()) {
 
-          case TweaksSQL.SAMPLING:
+          case TweaksSQL.ENSURE: {
+            int rCount = executeQueryWithRetry(SQLQueryBuilder.buildEstimateSamplingStrengthQuery( bbox )).getFeatures().get(0).get("rcount");
+            if( rCount < 10000 ) break; // fall back to non-tweaks usage.
+            HashMap<String, Object> hmap = new HashMap<String, Object>();
+            hmap.put("algorithm", new String("distribution"));
+            hmap.put("strength", new Integer( TweaksSQL.calculateDistributionStrength( rCount ) ));
+            tweakParams = hmap;
+            // fall thru tweaks=sampling
+          }
 
-            FeatureCollection collection = executeQueryWithRetry(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, event.getTweakParams(), dataSource));
+          case TweaksSQL.SAMPLING: {
+            FeatureCollection collection = executeQueryWithRetry(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, dataSource));
             collection.setPartial(true);
             return collection;
+          }            
 
-          case TweaksSQL.SIMPLIFICATION:
-
-            FeatureCollection fcollection = executeQueryWithRetry(SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, event.getTweakParams(), dataSource));
-            fcollection.setPartial(true);
-            return fcollection;
+          case TweaksSQL.SIMPLIFICATION: {
+            FeatureCollection collection = executeQueryWithRetry(SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams, dataSource));
+            collection.setPartial(true);
+            return collection;
+          }
 
           default: break; // fall back to non-tweaks usage.
         }
       }
 
-      if (H3SQL.HEXBIN.equalsIgnoreCase(clusteringType)) {
-        return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource));
-      } else if ( QuadbinSQL.QUAD.equalsIgnoreCase(clusteringType)) {
-        /* Check if input is valid */
-        final int relResolution = ( clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) != null ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) :
-                                  ( clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION_RELATIVE) != null ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION_RELATIVE) : 0)),
-                  absResolution = clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION_ABSOLUTE) != null ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION_ABSOLUTE) : 0;
-        final String countMode = (String) clusteringParams.get(QuadbinSQL.QUADBIN_COUNTMODE);
+      if( event.getClusteringType() != null )
+      { final Map<String, Object> clusteringParams = event.getClusteringParams();
 
-        QuadbinSQL.checkQuadbinInput(countMode, relResolution, event, streamId, this);
-        return executeQueryWithRetry(SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config));
+        switch(event.getClusteringType().toLowerCase())
+        {
+          case H3SQL.HEXBIN : 
+           return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource));
+
+          case QuadbinSQL.QUAD :
+           final int relResolution = ( clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) != null ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) :
+                                     ( clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION_RELATIVE) != null ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION_RELATIVE) : 0)),
+                     absResolution = clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION_ABSOLUTE) != null ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION_ABSOLUTE) : 0;
+           final String countMode = (String) clusteringParams.get(QuadbinSQL.QUADBIN_COUNTMODE);
+
+           QuadbinSQL.checkQuadbinInput(countMode, relResolution, event, streamId, this);
+           return executeQueryWithRetry(SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config));
+         
+          default: break; // fall back to non-tweaks usage.
+       }
       }
 
       final boolean isBigQuery = (bbox.widthInDegree(false) >= (360d / 4d) || (bbox.heightInDegree() >= (180d / 4d)));
@@ -146,7 +165,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
                   "Invalid request parameters. Search for the provided properties is not supported for this space.");
         }
       }
+
       return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource));
+
     }catch (SQLException e){
       return checkSQLException(e, config.table(event));
     }

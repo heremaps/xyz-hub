@@ -33,10 +33,13 @@ import com.here.xyz.events.TagsQuery;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.psql.factory.H3SQL;
 import com.here.xyz.psql.factory.QuadbinSQL;
 import com.here.xyz.psql.factory.TweaksSQL;
+
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -369,6 +372,16 @@ public class SQLQueryBuilder {
 
        return query;
 	}
+
+
+    
+    public static SQLQuery buildEstimateSamplingStrengthQuery( BBox bbox ) 
+    {
+     final String bboxqry = String.format( TweaksSQL.estimateBboxSql , bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() );
+     
+     return new SQLQuery( String.format( TweaksSQL.estimateCountByBboxSql, bboxqry ) );
+    }
+  
 
     /***************************************** TWEAKS END **************************************************/
 
