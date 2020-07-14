@@ -364,7 +364,7 @@ public class SQLQueryBuilder {
 
            final String 
             box2d   = String.format( String.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() ),
-            mvtgeom = String.format("st_asmvtgeom(%s, %s)",tweaksGeoSql,box2d);
+            mvtgeom = String.format("st_asmvtgeom(st_transform(%s,3857), st_transform(%s,3857))",tweaksGeoSql,box2d);
             
             tweaksGeoSql = 
              String.format(
