@@ -90,7 +90,7 @@ public class RedisMessageBroker implements MessageBroker {
     });
   }
 
-  public static RedisMessageBroker getInstance() {
+  public static synchronized RedisMessageBroker getInstance() {
     if (instance != null)
       return instance;
     return instance = new RedisMessageBroker();
