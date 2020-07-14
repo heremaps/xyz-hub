@@ -2109,7 +2109,13 @@ components:
       description: A FeatureModification object containing GeoJSON FeatureCollections
         (see [RFC-7946](https://tools.ietf.org/html/rfc7946)) or (in case if deletions) a list of
         feature IDs.
+      required:
+        - type
+      discriminator:
+        propertyName: type
       properties:
+        type:
+          type: string
         featureData:
           $ref: '#/components/schemas/FeatureCollection'
         featureIds:
