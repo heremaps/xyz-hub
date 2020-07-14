@@ -34,6 +34,7 @@ public class TweaksSQL
   public static final String SIMPLIFICATION_STRENGTH = SAMPLING_STRENGTH;
   public static final String SIMPLIFICATION_ALGORITHM = "algorithm";
   public static final String SIMPLIFICATION_ALGORITHM_A01 = "grid";
+  public static final String SIMPLIFICATION_ALGORITHM_A05 = "gridbytilelevel";
   public static final String SIMPLIFICATION_ALGORITHM_A02 = "simplifiedkeeptopology";
   public static final String SIMPLIFICATION_ALGORITHM_A03 = "simplified";
   public static final String SIMPLIFICATION_ALGORITHM_A04 = "merge";
