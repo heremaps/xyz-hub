@@ -288,7 +288,7 @@ public class SQLQueryBuilder {
     {
      int strength = 0;
      String tweaksGeoSql = "geo";
-     boolean bMerge = false;
+     boolean bMerge = false, bStrength = true;
 
      if( tweakParams != null )
      {
@@ -301,6 +301,7 @@ public class SQLQueryBuilder {
          case "med"     : strength =  60;  break;
          case "medhigh" : strength =  80;  break;
          case "high"    : strength = 100; break;
+         case "default" : bStrength = false;
          default: strength  = 50; break;
        }
 
@@ -333,7 +334,8 @@ public class SQLQueryBuilder {
          case TweaksSQL.SIMPLIFICATION_ALGORITHM_A01 :
          {
           double tolerance = 0.0;
-          if(  strength > 0  && strength <= 25 )      tolerance = 0.0001 + ((0.001-0.0001)/25.0) * (strength -  1);
+          if(!bStrength) tolerance = Math.abs( bbox.maxLon() - bbox.minLon() ) / 4096;
+          else if(  strength > 0  && strength <= 25 ) tolerance = 0.0001 + ((0.001-0.0001)/25.0) * (strength -  1);
           else if(  strength > 25 && strength <= 50 ) tolerance = 0.001  + ((0.01 -0.001) /25.0) * (strength - 26);
           else if(  strength > 50 && strength <= 75 ) tolerance = 0.01   + ((0.1  -0.01)  /25.0) * (strength - 51);
           else /* [76 - 100 ] */                      tolerance = 0.1    + ((1.0  -0.1)   /25.0) * (strength - 76);
