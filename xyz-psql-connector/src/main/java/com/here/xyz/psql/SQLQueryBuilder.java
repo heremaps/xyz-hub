@@ -209,18 +209,23 @@ public class SQLQueryBuilder {
         return query;
     }
 
+    private static WebMercatorTile getTileFromBbox(BBox bbox)
+    {
+     /* Quadkey calc */
+     final int lev = WebMercatorTile.getZoomFromBBOX(bbox);
+     double lon2 = bbox.minLon() + ((bbox.maxLon() - bbox.minLon()) / 2);
+     double lat2 = bbox.minLat() + ((bbox.maxLat() - bbox.minLat()) / 2);
+
+     return WebMercatorTile.getTileFromLatLonLev(lat2, lon2, lev);
+    }
+
     public static SQLQuery buildQuadbinClusteringQuery(GetFeaturesByBBoxEvent event,
                                                           BBox bbox, int relResolution, int absResolution, String countMode,
                                                           PSQLConfig config) {
-        /* Quadkey calc */
-        final int lev = WebMercatorTile.getZoomFromBBOX(bbox);
-        double lon2 = bbox.minLon() + ((bbox.maxLon() - bbox.minLon()) / 2);
-        double lat2 = bbox.minLat() + ((bbox.maxLat() - bbox.minLat()) / 2);
+        final WebMercatorTile tile = getTileFromBbox(bbox);
 
-        final WebMercatorTile tile = WebMercatorTile.getTileFromLatLonLev(lat2, lon2, lev);
-        
-        if( (absResolution - lev) >= 0 )  // case of valid absResolution convert it to a relative resolution and add both resolutions
-         relResolution = Math.min( relResolution + (absResolution - lev), 5);
+        if( (absResolution - tile.level) >= 0 )  // case of valid absResolution convert it to a relative resolution and add both resolutions
+         relResolution = Math.min( relResolution + (absResolution - tile.level), 5);
 
         SQLQuery propQuery;
         String propQuerySQL = null;
@@ -336,6 +341,38 @@ public class SQLQueryBuilder {
          }
          break;
 
+         case TweaksSQL.SIMPLIFICATION_ALGORITHM_A05 : // gridbylevel - convert to/from mvt
+         { int extend = 4096, level = -1, tileX = -1, tileY = -1;
+           
+           if( event instanceof GetFeaturesByTileEvent ) 
+           { GetFeaturesByTileEvent tevnt = (GetFeaturesByTileEvent) event;
+             level = tevnt.getLevel();
+             tileX = tevnt.getX();
+             tileY = tevnt.getY();
+           }
+           else
+           { final WebMercatorTile tile = getTileFromBbox(bbox);
+             level = tile.level;
+             tileX = tile.x;
+             tileY = tile.y;
+           }
+           
+           double wgs3857width = 20037508.342789244d,
+                  xwidth = 2 * wgs3857width,
+                  ywidth = 2 * wgs3857width,
+                  gridsize = extend * (1L << level);
+
+           final String 
+            box2d   = String.format( String.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() ),
+            mvtgeom = String.format("st_asmvtgeom(st_transform(%s,3857), st_transform(%s,3857))",tweaksGeoSql,box2d);
+            
+            tweaksGeoSql = 
+             String.format(
+              "st_transform( ST_SetSRID( st_scale( st_translate( st_scale( st_translate( %1$s, %2$d, %3$d, 0.0 ), %4$.14f, %5$.14f, 0.0 ), %6$.14f , %7$.14f, 0.0 ), 1.0, -1.0, 1.0 ), 3857),4326 )"
+               , mvtgeom, tileX * extend, tileY * extend, xwidth / gridsize, ywidth / gridsize, -0.5 * xwidth , -0.5 * ywidth);
+         } 
+         break;
+         
          case TweaksSQL.SIMPLIFICATION_ALGORITHM_A04 : bMerge = true; break;
 
          default: break;
@@ -359,7 +396,9 @@ public class SQLQueryBuilder {
        if( strength <= 20 ) minGeoHashLenToMerge = 7;
        else if ( strength <= 60 ) minGeoHashLenToMerge = 6;
 
-       tweaksGeoSql = "geo".equals(tweaksGeoSql) ? getForceMode(event.isForce2D()) + "(geo)" : tweaksGeoSql;
+       if( "geo".equals(tweaksGeoSql) )
+        tweaksGeoSql = String.format("replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "( %s ),%d),'nan','0')",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS);
+
        SQLQuery query = new SQLQuery( String.format( TweaksSQL.mergeBeginSql, tweaksGeoSql, minGeoHashLenToMerge, bboxqry ) );
 
        if (searchQuery != null)
