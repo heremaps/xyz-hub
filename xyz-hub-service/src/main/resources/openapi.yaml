@@ -1706,6 +1706,9 @@ components:
           description: >-
             A Geometry object represents points, curves, and surfaces in coordinate
             space.
+          properties:
+            bbox:
+              $ref: '#/components/schemas/BBox'
           example:
             type: Point
             coordinates:
