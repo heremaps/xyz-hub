@@ -171,7 +171,7 @@ paths:
           content:
             application/geo+json:
               schema:
-                $ref: '#/components/schemas/FeatureCollection'
+                $ref: '#/components/schemas/FeatureCollectionResponse'
           description: >-
             The FeatureCollection containing all of the features, found for the
             provided list of ids.
@@ -1251,7 +1251,7 @@ components:
       content:
         application/geo+json:
           schema:
-            $ref: '#/components/schemas/FeatureCollection'
+            $ref: '#/components/schemas/FeatureCollectionResponse'
           example:
             type: FeatureCollection
             etag: b9be03f253c53c23
@@ -1290,7 +1290,7 @@ components:
       content:
         application/geo+json:
           schema:
-            $ref: '#/components/schemas/FeatureCollection'
+            $ref: '#/components/schemas/FeatureCollectionResponse'
     IterateResponse:
       description: >-
         A FeatureCollection with handle, containing all features found for the provided
@@ -1305,7 +1305,7 @@ components:
       content:
         application/geo+json:
           schema:
-            $ref: '#/components/schemas/FeatureCollection'
+            $ref: '#/components/schemas/FeatureCollectionResponse'
         application/vnd.mapbox-vector-tile:
           x-experimental: true
           schema:
@@ -1317,7 +1317,7 @@ components:
       content:
         application/geo+json:
           schema:
-            $ref: '#/components/schemas/Feature'
+            $ref: '#/components/schemas/FeatureResponse'
     SpaceResponse:
       description: The space
       content:
@@ -1369,21 +1369,21 @@ components:
       content:
         application/geo+json:
           schema:
-            $ref: '#/components/schemas/Feature'
+            $ref: '#/components/schemas/FeatureRequest'
     FeatureCollection:
       description: A FeatureCollection object.
       required: true
       content:
         application/geo+json:
           schema:
-            $ref: '#/components/schemas/FeatureCollection'
+            $ref: '#/components/schemas/FeatureCollectionRequest'
     FeatureCollectionOrFeatureModificationList:
       description: A FeatureCollection object or a FeatureModificationList object.
       required: true
       content:
         application/geo+json:
           schema:
-            $ref: '#/components/schemas/FeatureCollection'
+            $ref: '#/components/schemas/FeatureCollectionRequest'
         application/vnd.here.feature-modification-list:
           schema:
             $ref: '#/components/schemas/FeatureModificationList'
@@ -1665,7 +1665,39 @@ components:
       properties:
         type:
           type: string
-    Feature:
+    FeatureRequest:
+      allOf:
+        - $ref: '#/components/schemas/GeoJSONObject'
+        - type: object
+          description: A Feature object represents a spatially bounded thing.
+          properties:
+            id:
+              description: The unique identifier of the feature.
+              type: string
+            geometry:
+              $ref: '#/components/schemas/Geometry'
+            properties:
+              $ref: '#/components/schemas/Properties'
+            bbox:
+              $ref: '#/components/schemas/BBox'
+          example:
+            type: Feature
+            id: BfiimUxHjj
+            geometry:
+              type: Point
+              coordinates:
+                - -2.960847
+                - 53.430828
+            properties:
+              name: Anfield
+              '@ns:com:here:xyz':
+                tags:
+                  - football
+                  - stadium
+              amenity: Football Stadium
+              capacity: 54074
+              description: Home of Liverpool Football Club
+    FeatureResponse:
       allOf:
         - $ref: '#/components/schemas/GeoJSONObject'
         - type: object
@@ -1980,7 +2012,50 @@ components:
                 - key: PuneBusStop
                   count: 29208
             etag: 072d3ec0f881b4e7
-    FeatureCollection:
+    FeatureCollectionRequest:
+      allOf:
+        - type: object
+          description: A FeatureCollection GeoJSON object.
+          required:
+            - features
+          properties:
+            inserted:
+              type: array
+              description: List of inserted feature IDs.
+              items:
+                type: string
+            updated:
+              type: array
+              description: List of updated features IDs.
+              items:
+                type: string
+            features:
+              type: array
+              description: Features included in the collection.
+              items:
+                $ref: '#/components/schemas/FeatureRequest'
+            bbox:
+              $ref: '#/components/schemas/BBox'
+          example:
+            type: FeatureCollection
+            features:
+              - type: Feature
+                id: BfiimUxHjj
+                geometry:
+                  type: Point
+                  coordinates:
+                    - -2.960847
+                    - 53.430828
+                properties:
+                  name: Anfield
+                  '@ns:com:here:xyz':
+                    tags:
+                      - football
+                      - stadium
+                  amenity: Football Stadium
+                  capacity: 54074
+                  description: Home of Liverpool Football Club
+    FeatureCollectionResponse:
       allOf:
         - $ref: '#/components/schemas/XyzResponse'
         - type: object
@@ -2002,7 +2077,7 @@ components:
               type: array
               description: Features included in the collection.
               items:
-                $ref: '#/components/schemas/Feature'
+                $ref: '#/components/schemas/FeatureResponse'
             bbox:
               $ref: '#/components/schemas/BBox'
           example:
@@ -2028,7 +2103,7 @@ components:
                   description: Home of Liverpool Football Club
     FeatureCollectionIterable:
       allOf:
-        - $ref: '#/components/schemas/FeatureCollection'
+        - $ref: '#/components/schemas/FeatureCollectionResponse'
         - type: object
           description: A FeatureCollection GeoJSON object with handle.
           properties:
@@ -2095,8 +2170,6 @@ components:
                   properties:
                     name: Anfield
                     '@ns:com:here:xyz':
-                      createdAt: 1517504700726
-                      updatedAt: 1517504700726
                       tags:
                         - football
                         - stadium
@@ -2111,7 +2184,7 @@ components:
         feature IDs.
       properties:
         featureData:
-          $ref: '#/components/schemas/FeatureCollection'
+          $ref: '#/components/schemas/FeatureCollectionRequest'
         featureIds:
           type: array
           description: A list of feature IDs (strings)
@@ -2138,8 +2211,6 @@ components:
                 properties:
                   name: Anfield
                   '@ns:com:here:xyz':
-                    createdAt: 1517504700726
-                    updatedAt: 1517504700726
                     tags:
                       - football
                       - stadium
