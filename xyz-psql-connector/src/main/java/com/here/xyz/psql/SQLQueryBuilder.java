@@ -344,7 +344,7 @@ public class SQLQueryBuilder {
          break;
 
          case TweaksSQL.SIMPLIFICATION_ALGORITHM_A05 : // gridbylevel - convert to/from mvt
-         { int extend = 4096, level = -1, tileX = -1, tileY = -1, margin = 0;
+         { int extend = 4096, extendPerMargin = extend / WebMercatorTile.TileSizeInPixel, extendWithMargin = 4096, level = -1, tileX = -1, tileY = -1, margin = 0;
            
            if( event instanceof GetFeaturesByTileEvent ) 
            { GetFeaturesByTileEvent tevnt = (GetFeaturesByTileEvent) event;
@@ -352,6 +352,7 @@ public class SQLQueryBuilder {
              tileX = tevnt.getX();
              tileY = tevnt.getY();
              margin = tevnt.getMargin();
+             extendWithMargin = extend + (margin * extendPerMargin);
            }
            else
            { final WebMercatorTile tile = getTileFromBbox(bbox);
@@ -364,12 +365,12 @@ public class SQLQueryBuilder {
                   xwidth = 2 * wgs3857width,
                   ywidth = 2 * wgs3857width,
                   gridsize = extend * (1L << level),
-                  stretchFactor = 1.0 + (margin * (1.0/ WebMercatorTile.TileSizeInPixel));  // xyz-hub uses margin for tilesize of 256 pixel.
-            int  shiftOffset = margin * (extend / (2 * WebMercatorTile.TileSizeInPixel));
+                  stretchFactor = 1.0 + ( margin / ((double) WebMercatorTile.TileSizeInPixel); // xyz-hub uses margin for tilesize of 256 pixel.
+            int  shiftOffset = (margin * extendPerMargin);
 
            final String 
             box2d   = String.format( String.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() ),
-            mvtgeom = String.format("st_scale(st_asmvtgeom(st_transform(%1$s,3857), st_transform(%2$s,3857)),%3$f,%3$f,1.0 )",tweaksGeoSql,box2d, stretchFactor );
+            mvtgeom = String.format("st_scale(st_asmvtgeom(st_transform(%1$s,3857), st_transform(%2$s,3857),%3$d),%4$f,%4$f,1.0 )",tweaksGeoSql,box2d,extendWithMargin,stretchFactor );
             
             tweaksGeoSql = 
              String.format(
