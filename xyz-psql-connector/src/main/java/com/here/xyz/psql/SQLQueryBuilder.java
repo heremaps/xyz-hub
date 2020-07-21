@@ -365,7 +365,7 @@ public class SQLQueryBuilder {
                   xwidth = 2 * wgs3857width,
                   ywidth = 2 * wgs3857width,
                   gridsize = extend * (1L << level),
-                  stretchFactor = 1.0 + ( margin / ((double) WebMercatorTile.TileSizeInPixel); // xyz-hub uses margin for tilesize of 256 pixel.
+                  stretchFactor = 1.0 + ( margin / ((double) WebMercatorTile.TileSizeInPixel)); // xyz-hub uses margin for tilesize of 256 pixel.
             int  shiftOffset = (margin * extendPerMargin);
 
            final String 
