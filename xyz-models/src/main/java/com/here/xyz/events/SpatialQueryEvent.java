@@ -27,28 +27,10 @@ import java.util.Map;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class SpatialQueryEvent<T extends SpatialQueryEvent> extends SearchForFeaturesEvent<T> {
 
-  private long simplificationLevel;
   private String clusteringType;
   private Map<String, Object> clusteringParams;
   private String tweakType;
   private Map<String, Object> tweakParams;
-
-  @SuppressWarnings("unused")
-  public long getSimplificationLevel() {
-    return this.simplificationLevel;
-  }
-
-  @SuppressWarnings("WeakerAccess")
-  public void setSimplificationLevel(long simplificationLevel) {
-    this.simplificationLevel = simplificationLevel;
-  }
-
-  @SuppressWarnings("unused")
-  public T withSimplificationLevel(long simplificationLevel) {
-    setSimplificationLevel(simplificationLevel);
-    //noinspection unchecked
-    return (T) this;
-  }
 
   @SuppressWarnings("unused")
   public String getClusteringType() {
