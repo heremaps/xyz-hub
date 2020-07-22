@@ -50,8 +50,6 @@ import javax.sql.DataSource;
 
 public class SQLQueryBuilder {
     private static final long GEOMETRY_DECIMAL_DIGITS = 8;
-    private static final long EQUATOR_LENGTH = 40_075_016;
-    private static final long TILE_SIZE = 256;
     private static final String SQL_STATISTIC_FUNCTION = "xyz_statistic_space";
     private static final String IDX_STATUS_TABLE = "xyz_config.xyz_idxs_status";
 
@@ -662,26 +660,14 @@ public class SQLQueryBuilder {
      * Returns the query, which will contains the geometry object.
      */
     private static SQLQuery geometrySelectorForEvent(final GetFeaturesByBBoxEvent event) {
-        final long simplificationLevel = Optional.ofNullable(event.getSimplificationLevel()).orElse(0L);
-        final double pixelSize = (double) EQUATOR_LENGTH / (TILE_SIZE << simplificationLevel);
 
         if (!event.getClip()) {
-            if (simplificationLevel <= 0) {
                 return new SQLQuery("replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0')");
-
-            }
-            return new SQLQuery("replace(ST_AsGeoJson(ST_Transform(ST_MakeValid(ST_SnapToGrid(ST_Force2D(ST_Transform(geo,3857)),?)),4326),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0')", pixelSize);
         }
 
         final BBox bbox = event.getBbox();
-        if (simplificationLevel <= 0) {
             return new SQLQuery("replace(ST_AsGeoJson(ST_Intersection(ST_MakeValid(geo),ST_MakeEnvelope(?,?,?,?,4326)),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0')",
                     bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
-        }
-
-        return new SQLQuery(
-                "replace(ST_AsGeoJson(ST_Intersection(ST_Transform(ST_MakeValid(ST_SnapToGrid(ST_Force2D(ST_Transform(geo,3857)),?)),4326),ST_MakeEnvelope(?,?,?,?,4326)),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0')",
-                pixelSize, bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
     }
 
     protected static SQLQuery generateSearchQuery(final QueryEvent event, final DataSource dataSource)

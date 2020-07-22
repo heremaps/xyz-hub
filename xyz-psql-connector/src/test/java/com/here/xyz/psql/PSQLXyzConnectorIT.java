@@ -1037,7 +1037,6 @@ public class PSQLXyzConnectorIT {
         + "\t\"type\": \"GetFeaturesByBBoxEvent\",\n"
         + "\t\"space\": \"foo\",\n"
         + "\t\"tags\": [],\n"
-        + "\t\"simplificationLevel\": -1,\n"
         + "\t\"limit\": 30000,\n"
         + "\t\"clip\": false\n"
         + "}";
@@ -1058,7 +1057,6 @@ public class PSQLXyzConnectorIT {
         + "\t\"type\": \"GetFeaturesByBBoxEvent\",\n"
         + "\t\"space\": \"foo\",\n"
         + "\t\"tags\": [[\"yellow\"]],\n"
-        + "\t\"simplificationLevel\": -1,\n"
         + "\t\"limit\": 30000,\n"
         + "\t\"clip\": false\n"
         + "}";
@@ -1079,7 +1077,6 @@ public class PSQLXyzConnectorIT {
         + "\"type\": \"GetFeaturesByBBoxEvent\",\n"
         + "\"space\": \"foo\",\n"
         + "\"tags\": [[\"yellow\"]],\n"
-        + "\"simplificationLevel\": -1,\n"
         + "\"limit\": 30000,\n"
         + "\"selection\": [\"id\",\"type\",\"geometry\",\"properties.name\"],\n"
         + "\"clip\": false\n"
@@ -1106,7 +1103,6 @@ public class PSQLXyzConnectorIT {
         + "\"type\": \"GetFeaturesByBBoxEvent\",\n"
         + "\"space\": \"foo\",\n"
         + "\"tags\": [[\"yellow\"]],\n"
-        + "\"simplificationLevel\": -1,\n"
         + "\"limit\": 30000,\n"
         + "\"selection\": [\"properties.@ns:com:here:xyz.tags\"],\n"
         + "\"clip\": false\n"
@@ -1130,7 +1126,6 @@ public class PSQLXyzConnectorIT {
         + "\"type\": \"GetFeaturesByBBoxEvent\",\n"
         + "\"space\": \"foo\",\n"
         + "\"tags\": [[\"yellow\"]],\n"
-        + "\"simplificationLevel\": -1,\n"
         + "\"limit\": 30000,\n"
         + "\"selection\": [\"properties\"],\n"
         + "\"clip\": false\n"
@@ -1153,7 +1148,6 @@ public class PSQLXyzConnectorIT {
         + "\t\"type\": \"GetFeaturesByBBoxEvent\",\n"
         + "\t\"space\": \"foo\",\n"
         + "\t\"tags\": [[\"yellow\"]],\n"
-        + "\t\"simplificationLevel\": -1,\n"
         + "\t\"limit\": 30000,\n"
         + "\t\"clip\": false\n"
         + "}";
@@ -1165,7 +1159,7 @@ public class PSQLXyzConnectorIT {
     assertNotNull(features);
     assertEquals(1, features.size());
 
-    // =========== QUERY BBOX - +TAGS, +simplificationLevel ==========
+    // =========== QUERY BBOX - +TAGS ==========
     queryEvent = "{\n"
         + "\t\"margin\": 20,\n"
         + "\t\"streamId\": \"Z1YaJv1PCHCl00000waR\",\n"
@@ -1174,7 +1168,6 @@ public class PSQLXyzConnectorIT {
         + "\t\"type\": \"GetFeaturesByBBoxEvent\",\n"
         + "\t\"space\": \"foo\",\n"
         + "\t\"tags\": [[\"yellow\"]],\n"
-        + "\t\"simplificationLevel\": 2,\n"
         + "\t\"limit\": 30000,\n"
         + "\t\"clip\": false\n"
         + "}";
@@ -1195,28 +1188,6 @@ public class PSQLXyzConnectorIT {
         + "\t\"type\": \"GetFeaturesByBBoxEvent\",\n"
         + "\t\"space\": \"foo\",\n"
         + "\t\"tags\": [[\"yellow\"]],\n"
-        + "\t\"simplificationLevel\": -1,\n"
-        + "\t\"limit\": 30000,\n"
-        + "\t\"clip\": true\n"
-        + "}";
-    queryResponse = invokeLambda(queryEvent);
-    assertNotNull(queryResponse);
-    featureCollection = XyzSerializable.deserialize(queryResponse);
-    assertNotNull(featureCollection);
-    features = featureCollection.getFeatures();
-    assertNotNull(features);
-    assertEquals(1, features.size());
-
-    // =========== QUERY BBOX - +TAGS, +simplificationLevel, +clip ==========
-    queryEvent = "{\n"
-        + "\t\"margin\": 20,\n"
-        + "\t\"streamId\": \"Z1YaJv1PCHCl00000waR\",\n"
-        + "\t\"level\": 3,\n"
-        + "\t\"bbox\": [-170, -170, 170, 170],\n"
-        + "\t\"type\": \"GetFeaturesByBBoxEvent\",\n"
-        + "\t\"space\": \"foo\",\n"
-        + "\t\"tags\": [[\"yellow\"]],\n"
-        + "\t\"simplificationLevel\": 2,\n"
         + "\t\"limit\": 30000,\n"
         + "\t\"clip\": true\n"
         + "}";

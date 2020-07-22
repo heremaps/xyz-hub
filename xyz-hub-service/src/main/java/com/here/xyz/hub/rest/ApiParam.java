@@ -107,7 +107,6 @@ public class ApiParam {
     static final String TRANSACTIONAL = "transactional";
     static final String CONFLICT_RESOLUTION = "cr";
     static final String PREFIX_ID = "prefixId";
-    static final String SIMPLIFICATION_LEVEL = "simplificationLevel";
     static final String CLIP = "clip";
     static final String SKIP_CACHE = "skipCache";
     static final String CLUSTERING = "clustering";
