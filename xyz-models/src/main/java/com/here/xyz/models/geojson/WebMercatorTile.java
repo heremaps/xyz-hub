@@ -58,6 +58,9 @@ public class WebMercatorTile {
    * Maximal longitude for Web Mercator projection.
    */
   public static final double MaxLongitude = 180;
+
+  public static final int TileSizeInPixel = 256;
+
   private static final Pattern QUADKEY_REGEXP = Pattern.compile("[0-3]*");
   private static final Pattern QUADPIXEL_REGEXP = Pattern.compile("([0-9]*)_([0-9]*)_([0-9]*)");
   private static final int MAX_LEVEL = 20; // Why 20 and not 23?
@@ -529,7 +532,7 @@ public class WebMercatorTile {
       return bbox;
     }
 
-    long TILE_SIZE_IN_PIXEL = 256;
+    long TILE_SIZE_IN_PIXEL = TileSizeInPixel;
     double bufferRelative = (double) buffer / (double) TILE_SIZE_IN_PIXEL;
 
     double mapSize = 1 << level;

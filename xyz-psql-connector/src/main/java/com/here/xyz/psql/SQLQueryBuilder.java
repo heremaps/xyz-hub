@@ -344,13 +344,15 @@ public class SQLQueryBuilder {
          break;
 
          case TweaksSQL.SIMPLIFICATION_ALGORITHM_A05 : // gridbylevel - convert to/from mvt
-         { int extend = 4096, level = -1, tileX = -1, tileY = -1;
+         { int extend = 4096, extendPerMargin = extend / WebMercatorTile.TileSizeInPixel, extendWithMargin = 4096, level = -1, tileX = -1, tileY = -1, margin = 0;
            
            if( event instanceof GetFeaturesByTileEvent ) 
            { GetFeaturesByTileEvent tevnt = (GetFeaturesByTileEvent) event;
              level = tevnt.getLevel();
              tileX = tevnt.getX();
              tileY = tevnt.getY();
+             margin = tevnt.getMargin();
+             extendWithMargin = extend + (margin * extendPerMargin);
            }
            else
            { final WebMercatorTile tile = getTileFromBbox(bbox);
@@ -362,16 +364,18 @@ public class SQLQueryBuilder {
            double wgs3857width = 20037508.342789244d,
                   xwidth = 2 * wgs3857width,
                   ywidth = 2 * wgs3857width,
-                  gridsize = extend * (1L << level);
+                  gridsize = extend * (1L << level),
+                  stretchFactor = 1.0 + ( margin / ((double) WebMercatorTile.TileSizeInPixel)); // xyz-hub uses margin for tilesize of 256 pixel.
+            int  shiftOffset = (margin * extendPerMargin);
 
            final String 
             box2d   = String.format( String.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() ),
-            mvtgeom = String.format("st_asmvtgeom(st_transform(%s,3857), st_transform(%s,3857))",tweaksGeoSql,box2d);
+            mvtgeom = String.format("st_scale(st_asmvtgeom(st_transform(%1$s,3857), st_transform(%2$s,3857),%3$d),%4$f,%4$f,1.0 )",tweaksGeoSql,box2d,extendWithMargin,stretchFactor );
             
             tweaksGeoSql = 
              String.format(
               "st_transform( ST_SetSRID( st_scale( st_translate( st_scale( st_translate( %1$s, %2$d, %3$d, 0.0 ), %4$.14f, %5$.14f, 0.0 ), %6$.14f , %7$.14f, 0.0 ), 1.0, -1.0, 1.0 ), 3857),4326 )"
-               , mvtgeom, tileX * extend, tileY * extend, xwidth / gridsize, ywidth / gridsize, -0.5 * xwidth , -0.5 * ywidth);
+               , mvtgeom, tileX * extend - shiftOffset, tileY * extend - shiftOffset,  (xwidth / gridsize), (ywidth / gridsize), -0.5 * xwidth , -0.5 * ywidth);
          } 
          break;
          
