@@ -53,6 +53,8 @@
 -- DROP FUNCTION xyz_statistic_xs_space(text, text);
 -- DROP FUNCTION xyz_create_idxs_for_space(text, text);
 -- DROP FUNCTION xyz_remove_unnecessary_idx(text, integer);
+-- DROP FUNCTION xyz_index_dissolve_datatype(text);
+-- DROP FUNCTION xyz_index_get_plain_propkey(text);
 -- DROP FUNCTION IF EXISTS xyz_qk_point2lrc(geometry, integer);
 -- DROP FUNCTION IF EXISTS xyz_qk_lrc2qk(integer,integer,integer);
 -- DROP FUNCTION IF EXISTS xyz_qk_qk2lrc(text );
@@ -101,6 +103,8 @@
 -- xyz_qk_grird								:	select xyz_qk_grird(3)
 -- xyz_qk_child_calculation					:	select select * from xyz_qk_child_calculation('012',3,null)
 -- xyz_count_estimation                     :   select xyz_count_estimation('select 1')
+-- xyz_index_get_plain_propkey              : select xyz_index_get_plain_propkey('foo.bar::string')
+-- xyz_index_dissolve_datatype              : select xyz_index_dissolve_datatype('foo.bar::array')
 ---------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------
 -- xyz_qk_point2lrc							:	select * from xyz_qk_point2lrc( ST_GeomFromText( 'POINT( -64.78767  32.29703)' ), 3 );
@@ -144,9 +148,71 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 130
+ select 131
 $BODY$
   LANGUAGE sql IMMUTABLE;
+------------------------------------------------
+------------------------------------------------
+-- Function: xyz_index_dissolve_datatype(text)
+-- DROP FUNCTION xyz_index_dissolve_datatype(text);
+CREATE OR REPLACE FUNCTION xyz_index_dissolve_datatype(propkey text)
+  RETURNS text AS
+$BODY$
+	/**
+	* Description: Get a specified datatype from a propkey.
+	*
+	*		prefix = foo.bar::array => array
+	*
+	* Parameters:
+	*   		@propkey - path of json-key inside jsondata->'properties' object (eg. foo | foo.bar)
+	*
+	* Returns:
+	*   datatype	- array / object / string / number / boolean
+	*/
+	DECLARE datatype TEXT;
+
+	BEGIN
+		IF (POSITION('::' in propkey) > 0) THEN
+			datatype :=  lower(substring(propkey, position('::' in propkey)+2));
+			IF datatype IN ('object','array','number','string','boolean') THEN
+				RETURN datatype;
+			END IF;
+		END IF;
+		RETURN NULL;
+	END;
+$BODY$
+  LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+-- Function: xyz_index_get_plain_propkey(text)
+-- DROP FUNCTION xyz_index_get_plain_propkey(text);
+CREATE OR REPLACE FUNCTION xyz_index_get_plain_propkey(propkey text)
+  RETURNS text AS
+$BODY$
+	/**
+	* Description: Get the plain propkey.
+	*
+	*		prefix = foo.bar::array => foo.bar
+	*
+	* Parameters:
+	*   		@propkey - path of json-key inside jsondata->'properties' object (eg. foo | foo.bar)
+	*
+	* Returns:
+	*   propkey	- json-key without datatype
+	*/
+	DECLARE datatype TEXT;
+
+	BEGIN
+		IF (POSITION('::' in propkey) > 0) THEN
+			datatype :=  lower(substring(propkey, position('::' in propkey)+2));
+			IF datatype IN ('object','array','number','string','boolean') THEN
+				return substring(propkey, 0, position('::' in propkey));
+			END IF;
+		END IF;
+		RETURN propkey;
+	END;
+$BODY$
+  LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_trigger_historywriter_full()
@@ -578,7 +644,7 @@ $BODY$
 		idx_type text := 'btree';
 	BEGIN
 		source = lower(source);
-		select into prop_path concat('''',replace(propkey, '.', '''->'''),'''');
+		select into prop_path concat('''',replace(xyz_index_get_plain_propkey(propkey), '.', '''->'''),'''');
 
 		IF source not in ('a','m') THEN
 			RAISE NOTICE 'Source ''%'' not supported. Use ''m'' for manual or ''a'' for automatic!',source;
@@ -596,7 +662,7 @@ $BODY$
 
 		EXECUTE format('COMMENT ON INDEX %s."%s" '
 				||'IS ''p.name=%s''',
-			schema, idx_name, propkey);
+			schema, idx_name, xyz_index_get_plain_propkey(propkey));
 
 		RETURN idx_name;
 	END
@@ -665,7 +731,6 @@ $BODY$
 					(jsonb_each(idx_manual)).value::text::boolean as idx_required
 						FROM xyz_config.xyz_idxs_status
 					WHERE idx_creation_finished = false
-						--AND count >= 10
 						AND spaceid = space
 			) A
 		LOOP
@@ -693,21 +758,19 @@ $BODY$
 
 		/** Search created ON-DEMAND IDXs which are no longer getting used */
 		FOR xyz_needless_manual_idx IN
-			SELECT idx_property as prop, idx_name FROM (
-				SELECT idx_property,idx_name,
-				(
-					SELECT property=idx_property as idx_manual_prop FROM (
-						SELECT  (jsonb_each(idx_manual)).key as property,
-							(jsonb_each(idx_manual)).value::text::boolean as idx_required
-						FROM xyz_config.xyz_idxs_status
-							where spaceid = space
-					)A WHERE property=idx_property
-				)
+			SELECT idx_name, idx_property
 				FROM xyz_index_list_all_available(schema,space)
-				      WHERE src='m'
-			) A WHERE idx_manual_prop is null
+					WHERE src='m'
+			EXCEPT
+			SELECT idx_name, idx_property FROM(
+				SELECT  xyz_index_get_plain_propkey((jsonb_each(idx_manual)).key) as idx_property,
+					xyz_index_name_for_property(space, (jsonb_each(idx_manual)).key, 'm') as idx_name,
+					(jsonb_each(idx_manual)).value::text::boolean as idx_required
+					FROM xyz_config.xyz_idxs_status
+						where spaceid = space
+			) A WHERE idx_required = true
 		LOOP
-			RAISE NOTICE '-- PROPERTY: % | SPACE: % |> DELETE UNWANTED IDX: %!',xyz_needless_manual_idx.prop, space, xyz_needless_manual_idx.idx_name;
+			RAISE NOTICE '-- PROPERTY: % | SPACE: % |> DELETE UNWANTED IDX: %!',xyz_needless_manual_idx.idx_property, space, xyz_needless_manual_idx.idx_name;
 			EXECUTE FORMAT ('DROP INDEX IF EXISTS %s."%s" ', schema, xyz_needless_manual_idx.idx_name);
 		END LOOP;
 
@@ -899,10 +962,14 @@ $BODY$
 	*	datatype		- string | number | boolean | object | array | null
 	*/
 
-	DECLARE datatype TEXT;
+	DECLARE datatype TEXT := xyz_index_dissolve_datatype(propertypath);
 	DECLARE json_proppath TEXT;
 
 	BEGIN
+		IF (datatype IS NOT NULL) THEN
+			RETURN datatype;
+		END IF;
+
 		SELECT xyz_property_path(propertypath) into json_proppath;
 
 		EXECUTE format('SELECT jsonb_typeof((jsondata->''properties''->%s)::jsonb)::text '
@@ -1783,7 +1850,7 @@ $BODY$
 		SELECT * INTO idx_split FROM regexp_split_to_array(substring(idx_name from char_length(space_id) + 6), '_');
 
 		spaceid := space_id;
-		propkey := idx_split[1];
+		propkey := xyz_index_get_plain_propkey(idx_split[1]);
 		source := idx_split[2];
 
 		RETURN NEXT;
