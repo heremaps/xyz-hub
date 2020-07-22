@@ -20,6 +20,7 @@
 package com.here.xyz.connectors.decryptors;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Dummy implementation that is used when no custom Decryptor is configured.
@@ -40,18 +41,41 @@ public class DummyDecryptor extends EventDecryptor {
    * @return Returns the not-decrypted map.
    */
   @Override
-  public Map<String, Object> decodeParams(final Map<String, Object> params) {
+  public Map<String, Object> decryptParams(final Map<String, Object> params) {
+    return params;
+  }
+
+  /**
+   * Dummy implementation. Just return the original map.
+   *
+   * @param params The parameters that should be encrypted.
+   * @param fieldsToEncrypt A set with the fields that should be encrypted.
+   * @return Returns the not-encrypted map.
+   */
+  @Override
+  public Map<String, Object> encryptParams(final Map<String, Object> params, final Set<String> fieldsToEncrypt) {
     return params;
   }
 
   /**
    * Dummy implementation. Just return the original string.
    *
-   * @param encoded The string that should be decrypted.
+   * @param secret The string that should be encrypted.
+   * @return Returns the not-encrypted string.
+   */
+  @Override
+  public String encryptAsymmetric(final String secret) {
+    return secret;
+  }
+
+  /**
+   * Dummy implementation. Just return the original string.
+   *
+   * @param encrypted The string that should be decrypted.
    * @return Returns the not-decrypted string.
    */
   @Override
-  public String decryptAsymmetric(final String encoded) {
-    return encoded;
+  public String decryptAsymmetric(final String encrypted) {
+    return encrypted;
   }
 }

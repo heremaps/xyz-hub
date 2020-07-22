@@ -43,7 +43,7 @@ import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 
 /**
- * This class could be extended by any listener connector implementations.
+ * This class could be extended by any processor connector implementations.
  */
 @SuppressWarnings({"WeakerAccess", "unused"})
 public abstract class ProcessorConnector extends AbstractConnectorHandler {
@@ -69,9 +69,9 @@ public abstract class ProcessorConnector extends AbstractConnectorHandler {
     }
 
     final NotificationParams notificationParams = new NotificationParams(
-        eventDecryptor.decodeParams(notification.getParams()),
-        eventDecryptor.decodeParams(notification.getConnectorParams()),
-        eventDecryptor.decodeParams(notification.getMetadata()),
+        eventDecryptor.decryptParams(notification.getParams()),
+        eventDecryptor.decryptParams(notification.getConnectorParams()),
+        eventDecryptor.decryptParams(notification.getMetadata()),
         notification.getTid());
 
     if (notification.getEvent() instanceof ErrorResponse) {
