@@ -141,7 +141,7 @@ public class ApiParam {
 
     static final String FORCE_2D = "force2D";
 
-    private static List<String> shortOperators = Arrays.asList("!=", ">=", "=gte=", "<=", "=lte=", ">", "=gt=", "<", "=lt=", "=");
+    private static List<String> shortOperators = Arrays.asList("!=", ">=", "=gte=", "<=", "=lte=", ">", "=gt=", "<", "=lt=", "@>", "=cs=", "=");
     private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{
       put("!=", QueryOperation.NOT_EQUALS);
       put(">=", QueryOperation.GREATER_THAN_OR_EQUALS);
@@ -153,6 +153,8 @@ public class ApiParam {
       put("<", QueryOperation.LESS_THAN);
       put("=lt=", QueryOperation.LESS_THAN);
       put("=", QueryOperation.EQUALS);
+      put("@>", QueryOperation.CONTAINS);
+      put("=cs=", QueryOperation.CONTAINS);
     }};
 
     /**
