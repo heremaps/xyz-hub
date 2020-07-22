@@ -22,9 +22,11 @@ package com.here.xyz.connectors.decryptors;
 import com.amazonaws.services.kms.AWSKMS;
 import com.amazonaws.services.kms.AWSKMSClientBuilder;
 import com.amazonaws.services.kms.model.DecryptRequest;
+import com.amazonaws.services.kms.model.EncryptRequest;
 import com.amazonaws.services.kms.model.EncryptionAlgorithmSpec;
 import java.nio.ByteBuffer;
 import java.util.Base64;
+import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -47,7 +49,16 @@ public class KmsEventDecryptor extends EventDecryptor {
    */
   public static String ENV_KMS_KEY_ARN = "KMS_KEY_ARN";
 
+  /**
+   * ARN of the KMS key to use.
+   */
   public final String kmsKeyArn;
+
+  /**
+   * Regexp to check if the KMS Key ARN is valid.
+   */
+  public final static Pattern kmsKeyArnPattern = Pattern.compile("arn:aws:kms:\\w+-\\w+-\\d+:\\d{12}:key/\\w{8}-\\w{4}-\\w{4}-\\w{4}-\\w{12}");
+
   /**
    * AWS KMS client for getting the private key to decryptPrivateKey space secrets.
    */
@@ -63,23 +74,70 @@ public class KmsEventDecryptor extends EventDecryptor {
    */
   KmsEventDecryptor() {
     kmsClient = AWSKMSClientBuilder.defaultClient();
-    kmsKeyArn = System.getenv(ENV_KMS_KEY_ARN);
+    // validate KMS Key ARN
+    String keyArn = System.getenv(ENV_KMS_KEY_ARN);
+    if (keyArn != null && kmsKeyArnPattern.matcher(keyArn).matches()) {
+      kmsKeyArn = keyArn;
+    } else {
+      logger.error("KMS Key ARN has wrong format. Automatic de- and encryption disabled!");
+      kmsKeyArn = null;
+    }
   }
 
   /**
    * {@inheritDoc}
    */
-  public String decryptAsymmetric(String encoded) {
-    if (!isEncrypted(encoded)) {
-      return encoded;
+  @Override
+  public String encryptAsymmetric(final String secret) {
+    if (isEncrypted(secret)) {
+      return secret;
     }
 
-    // we cannot decode the secret if no KMS key ARN is set.
+    if (secret.length() > 230) {
+      return secret;
+    }
+
+    // we cannot decrypt the secret if no KMS key ARN is set.
     if (kmsKeyArn == null) {
-      return encoded;
+      return secret;
     }
 
-    String tmp = encoded.substring(2, encoded.length() - 2);
+    String tmp = secret;
+    if (isToBeEncrypted(secret)) {
+      tmp = secret.substring(2, secret.length() - 2);
+    }
+
+    try {
+      EncryptRequest req = new EncryptRequest()
+          .withKeyId(kmsKeyArn)
+          .withEncryptionAlgorithm(ASYMMETRIC_ALGORITHM)
+          .withPlaintext(ByteBuffer.wrap(tmp.getBytes()));
+      ByteBuffer plainText = kmsClient.encrypt(req).getCiphertextBlob();
+      return TO_DECRYPT_PREFIX + Base64.getEncoder().encodeToString(plainText.array()) + TO_DECRYPT_POSTFIX;
+    } catch (RuntimeException e) {
+      logger.error("Error when trying to encrypt using asymmetric key. Please check the following:\n"
+          + "\t- Does the application use an IAM role?\n"
+          + "\t- Does the application's role have the permission to use the CMK the value was encrypted with?\n"
+          + "More information on that topic: https://confluence.in.here.com/display/CMECMCPDOWS/Encryption+of+secrets", e);
+    }
+
+    return secret;
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  public String decryptAsymmetric(String encrypted) {
+    if (!isEncrypted(encrypted)) {
+      return encrypted;
+    }
+
+    // we cannot decrypt the secret if no KMS key ARN is set.
+    if (kmsKeyArn == null) {
+      return encrypted;
+    }
+
+    String tmp = encrypted.substring(2, encrypted.length() - 2);
 
     try {
       ByteBuffer cipherText = ByteBuffer.wrap(Base64.getDecoder().decode(tmp.getBytes()));
@@ -92,12 +150,12 @@ public class KmsEventDecryptor extends EventDecryptor {
     } catch (IllegalArgumentException e) {
       logger.warn("Could not Base64 decode value", e);
     } catch (RuntimeException e) {
-      logger.error("Error when trying to decryptPrivateKey asymmetric key. Please check the following:\n"
+      logger.error("Error when trying to decrypt with asymmetric key. Please check the following:\n"
           + "\t- Does the application use an IAM role?\n"
           + "\t- Does the application's role have the permission to use the CMK the value was encrypted with?\n"
           + "More information on that topic: https://confluence.in.here.com/display/CMECMCPDOWS/Encryption+of+secrets", e);
     }
 
-    return encoded;
+    return encrypted;
   }
 }

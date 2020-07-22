@@ -21,17 +21,18 @@ package com.here.xyz.connectors.decryptors;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.LineNumberReader;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.security.Key;
 import java.security.KeyFactory;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.spec.MGF1ParameterSpec;
+import java.security.PublicKey;
+import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 import java.util.Iterator;
 import java.util.stream.Stream;
@@ -50,23 +51,24 @@ public class PrivateKeyEventDecryptor extends EventDecryptor {
    * Logger for the class
    */
   private static final Logger logger = LogManager.getLogger();
-
   /**
    * Environment variable for the file path to the private key in PKCS#8 PEM format.
    */
   public static final String ENV_PRIVATE_KEY = "PRIVATE_KEY_FILE";
-
+  /**
+   * Environment variable for the file path to the public key in X509 PEM format.
+   */
+  public static final String ENV_PUBLIC_KEY = "PUBLIC_KEY_FILE";
   /**
    * The optional (but recommended) passphrase to decode the private key.
    */
   public static final String ENV_PRIVATE_KEY_PASSPHRASE = "PRIVATE_KEY_PASSPHRASE";
-
   /**
    * The algorithm used for decrypting the secrets.
    */
   public static final String ALGORITHM = "RSA/ECB/OAEPWithSHA-256AndMGF1Padding";
   /**
-   * The algorithm for creating the private key.
+   * The algorithm for creating the public and private key.
    */
   public static final String RSA = "RSA";
   /**
@@ -82,10 +84,15 @@ public class PrivateKeyEventDecryptor extends EventDecryptor {
    * The private key for decrypting secrets.
    */
   final private PrivateKey privateKey;
+  /**
+   * The public key for encrypting secrets.
+   */
+  final private PublicKey publicKey;
 
   /**
    * Default constructor to create a new EventDecryptor that takes
-   * a private key for decrypting the secrets.
+   * a private key for decrypting the secrets and an optional
+   * public key for encrypting.
    *
    * For security reasons should the private key be encrypted
    * using PKCS#8 scheme.
@@ -108,31 +115,67 @@ public class PrivateKeyEventDecryptor extends EventDecryptor {
    * - {@link #ENV_PRIVATE_KEY_PASSPHRASE}
    */
   PrivateKeyEventDecryptor() {
-    PrivateKey tmp;
+    PrivateKey tmpPrivateKey;
+    PublicKey tmpPublicKey;
     try {
-      tmp = loadPrivateKey(System.getenv(ENV_PRIVATE_KEY), System.getenv(ENV_PRIVATE_KEY_PASSPHRASE));
+      tmpPrivateKey = loadPrivateKey(System.getenv(ENV_PRIVATE_KEY), System.getenv(ENV_PRIVATE_KEY_PASSPHRASE));
     } catch (Exception e) {
-      tmp = null;
+      tmpPrivateKey = null;
       logger.error("Could not load the private key. Params will not be decrypted!", e);
     }
-    privateKey = tmp;
+    try {
+      // TODO validate input
+      tmpPublicKey = loadPublicKey(System.getenv(ENV_PUBLIC_KEY));
+    } catch (Exception e) {
+      tmpPublicKey = null;
+      logger.error("Could not load the public key. Params will not be encrypted!", e);
+    }
+    privateKey = tmpPrivateKey;
+    publicKey = tmpPublicKey;
   }
 
   /**
    * {@inheritDoc}
    */
   @Override
-  public String decryptAsymmetric(final String encoded) {
-    if (!isEncrypted(encoded)) {
-      return encoded;
+  public String encryptAsymmetric(final String secret) {
+    // we cannot encrypt the secret if no public key is set.
+    if (publicKey == null) {
+      return secret;
     }
 
+    String tmp = secret;
+    if (isToBeEncrypted(secret)) {
+      tmp = secret.substring(2, secret.length() - 2);
+    }
+
+    try {
+      Cipher cipher = Cipher.getInstance(ALGORITHM);
+      cipher.init(Cipher.ENCRYPT_MODE, publicKey, OAEP_PARAMS);
+      byte[] encryptedBytes = cipher.doFinal(tmp.getBytes());
+      return TO_DECRYPT_PREFIX + Base64.getEncoder().encodeToString(encryptedBytes) + TO_DECRYPT_POSTFIX;
+    } catch(Exception e) {
+      logger.warn("Could not encrypt string.", e);
+    }
+
+    return secret;
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public String decryptAsymmetric(final String encrypted) {
     // we cannot decode the secret if no private key is set.
     if (privateKey == null) {
-      return encoded;
+      return encrypted;
     }
 
-    String tmp = encoded.substring(2, encoded.length() - 2);
+    if (!isEncrypted(encrypted)) {
+      return encrypted;
+    }
+
+    String tmp = encrypted.substring(2, encrypted.length() - 2);
 
     try {
       Cipher cipher = Cipher.getInstance(ALGORITHM);
@@ -146,7 +189,7 @@ public class PrivateKeyEventDecryptor extends EventDecryptor {
       logger.warn("Could not decrypt string.", e);
     }
 
-    return encoded;
+    return encrypted;
   }
 
   /**
@@ -167,10 +210,11 @@ public class PrivateKeyEventDecryptor extends EventDecryptor {
         InputStream is = PrivateKeyEventDecryptor.class.getResourceAsStream(filePath.substring(CLASSPATH_PREFIX.length()));
         lines = new LineNumberReader(new InputStreamReader(is)).lines();
       } else {
-        lines = Files.newBufferedReader(Paths.get(filePath), UTF_8).lines();
+        logger.error("Loading key from filesystem is forbidden.");
+        return null;
       }
-    } catch (NullPointerException | IOException e) {
-      logger.error("Could not load private key from file path '" + filePath + "'", e);
+    } catch (NullPointerException e) {
+      logger.error("Could not load private key from classpath '" + filePath + "'.", e);
       return null;
     }
 
@@ -193,11 +237,56 @@ public class PrivateKeyEventDecryptor extends EventDecryptor {
         });
         return decryptPrivateKey(privateKeyPEM.toString(), passphrase);
       } else{
-        logger.error("Unknown key format. Params will not be decrypted.");
+        logger.error("Unknown key format.");
         return null;
       }
     }
-    logger.error("Empty key file. Params will not be decrypted.");
+    logger.error("Empty key file.");
+    return null;
+  }
+
+  /**
+   * Load the public key.
+   *
+   * @param filePath The file path to the public key in X509 PEM format
+   * @return Returns the {@link PublicKey} or null if there a problem.
+   */
+  public static PublicKey loadPublicKey(final String filePath) {
+    if (filePath == null || filePath.isEmpty()) {
+      return null;
+    }
+
+    Stream<String> lines;
+    try {
+      if (filePath.startsWith(CLASSPATH_PREFIX)) {
+        InputStream is = PrivateKeyEventDecryptor.class.getResourceAsStream(filePath.substring(CLASSPATH_PREFIX.length()));
+        lines = new LineNumberReader(new InputStreamReader(is)).lines();
+      } else {
+        logger.error("Loading key from filesystem is forbidden.");
+        return null;
+      }
+    } catch (NullPointerException e) {
+      logger.error("Could not load public key from classpath '" + filePath + "'.", e);
+      return null;
+    }
+
+    final StringBuilder publicKeyPEM = new StringBuilder();
+    final Iterator<String> i = lines.iterator();
+    if (i.hasNext()) {
+      String header = i.next();
+      if ("-----BEGIN PUBLIC KEY-----".equals(header)) {
+        i.forEachRemaining(s -> {
+          if (!"-----END PUBLIC KEY-----".equals(s)) {
+            publicKeyPEM.append(s);
+          }
+        });
+        return createPublicKey(publicKeyPEM.toString());
+      } else{
+        logger.error("Unknown key format.");
+        return null;
+      }
+    }
+    logger.error("Empty key file.");
     return null;
   }
 
@@ -210,7 +299,7 @@ public class PrivateKeyEventDecryptor extends EventDecryptor {
    */
   public static PrivateKey decryptPrivateKey(final String pkcs8Data, final String passphrase) {
     if (passphrase == null || pkcs8Data == null) {
-      logger.error("Could not create private key because passphrase or key is null");
+      logger.error("Could not create private key because passphrase or key is null.");
       return null;
     }
     try {
@@ -222,7 +311,7 @@ public class PrivateKeyEventDecryptor extends EventDecryptor {
       KeyFactory keyFactory = KeyFactory.getInstance(RSA);
       return keyFactory.generatePrivate(keySpec);
     } catch (Exception e) {
-      logger.error("Could not create encrypted private key from environment variable", e);
+      logger.error("Could not create encrypted private key from environment variable.", e);
       return null;
     }
   }
@@ -237,8 +326,24 @@ public class PrivateKeyEventDecryptor extends EventDecryptor {
     try {
       KeyFactory keyFactory = KeyFactory.getInstance(RSA);
       return keyFactory.generatePrivate(new PKCS8EncodedKeySpec(Base64.getDecoder().decode(pkcs8Data.getBytes(UTF_8))));
-    } catch (Exception e) {
-      logger.error("Could not create unencrypted private key from environment variable", e);
+    } catch (IllegalArgumentException | NoSuchAlgorithmException | InvalidKeySpecException e) {
+      logger.error("Could not create unencrypted private key from environment variable.", e);
+      return null;
+    }
+  }
+
+  /**
+   * Try to create a RSA public key from X509 PEM without header and footer.
+   *
+   * @param data The public key in X509 PEM format without header and footer.
+   * @return Returns the {@link PublicKey} or null if there was a problem.
+   */
+  public static PublicKey createPublicKey(final String data) {
+    try {
+      KeyFactory keyFactory = KeyFactory.getInstance(RSA);
+      return keyFactory.generatePublic(new X509EncodedKeySpec(Base64.getDecoder().decode(data.getBytes(UTF_8))));
+    } catch (IllegalArgumentException | NoSuchAlgorithmException | InvalidKeySpecException e) {
+      logger.error("Could not create public key from environment variable.", e);
       return null;
     }
   }

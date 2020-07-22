@@ -70,9 +70,9 @@ public abstract class ListenerConnector extends AbstractConnectorHandler {
     }
 
     final NotificationParams notificationParams = new NotificationParams(
-        eventDecryptor.decodeParams(notification.getParams()),
-        eventDecryptor.decodeParams(notification.getConnectorParams()),
-        eventDecryptor.decodeParams(notification.getMetadata()),
+        eventDecryptor.decryptParams(notification.getParams()),
+        eventDecryptor.decryptParams(notification.getConnectorParams()),
+        eventDecryptor.decryptParams(notification.getMetadata()),
         notification.getTid());
 
     if (notification.getEvent() instanceof ErrorResponse) {
