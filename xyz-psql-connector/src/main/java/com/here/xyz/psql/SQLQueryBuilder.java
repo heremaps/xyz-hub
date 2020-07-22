@@ -364,11 +364,11 @@ public class SQLQueryBuilder {
                   ywidth = 2 * wgs3857width,
                   gridsize = extend * (1L << level),
                   stretchFactor = 1.0 + ( margin / ((double) WebMercatorTile.TileSizeInPixel)); // xyz-hub uses margin for tilesize of 256 pixel.
-            int  shiftOffset = (margin * extendPerMargin);
+            int  shiftOffset = (margin * extendPerMargin/2);
 
            final String 
             box2d   = String.format( String.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() ),
-            mvtgeom = String.format("st_scale(st_asmvtgeom(st_transform(%1$s,3857), st_transform(%2$s,3857),%3$d),%4$f,%4$f,1.0 )",tweaksGeoSql,box2d,extendWithMargin,stretchFactor );
+            mvtgeom = String.format("st_translate(st_scale(st_translate(st_asmvtgeom(st_transform(%1$s,3857), st_transform(%2$s,3857),%3$d), %5$d , %5$d, 0.0), st_makepoint(%4$f,%4$f,1.0) ), %6$d , %6$d, 0.0 )",tweaksGeoSql, box2d, extendWithMargin, stretchFactor, -extendWithMargin/2, extendWithMargin/2 );
             
             tweaksGeoSql = 
              String.format(
