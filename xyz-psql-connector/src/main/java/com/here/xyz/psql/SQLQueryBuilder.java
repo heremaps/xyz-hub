@@ -364,18 +364,19 @@ public class SQLQueryBuilder {
            double wgs3857width = 20037508.342789244d,
                   xwidth = 2 * wgs3857width,
                   ywidth = 2 * wgs3857width,
-                  gridsize = extend * (1L << level),
+                  gridsize = (1L << level),
                   stretchFactor = 1.0 + ( margin / ((double) WebMercatorTile.TileSizeInPixel)); // xyz-hub uses margin for tilesize of 256 pixel.
-            int  shiftOffset = (margin * extendPerMargin/2);
 
            final String 
             box2d   = String.format( String.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() ),
-            mvtgeom = String.format("st_translate(st_scale(st_translate(st_asmvtgeom(st_force2d(st_transform(%1$s,3857)), st_transform(%2$s,3857),%3$d), %5$d , %5$d, 0.0), st_makepoint(%4$f,%4$f,1.0) ), %6$d , %6$d, 0.0 )",tweaksGeoSql, box2d, extendWithMargin, stretchFactor, -extendWithMargin/2, extendWithMargin/2 );
+            mvtgeom = String.format("st_translate(st_scale(st_translate(st_asmvtgeom(st_force2d(st_transform(%1$s,3857)), st_transform(%2$s,3857),%3$d), %4$d , %4$d, 0.0), st_makepoint(%5$f,%6$f,1.0) ), %7$f , %8$f, 0.0 )",
+                                       tweaksGeoSql, box2d, extendWithMargin, 
+                                       -extendWithMargin/2, // => shift to stretch from tilecenter
+                                       stretchFactor*(xwidth / (gridsize*extend)), stretchFactor * (ywidth / (gridsize*extend)) * -1, // stretch tile to proj. size
+                                        (tileX - gridsize/2 + 0.5) * (xwidth / gridsize), (tileY - gridsize/2 + 0.5) * (ywidth / gridsize) * -1 // shift to proj. position
+                                       );
             
-            tweaksGeoSql = 
-             String.format(
-              "st_transform( ST_SetSRID( st_scale( st_translate( st_scale( st_translate( %1$s, %2$d, %3$d, 0.0 ), %4$.14f, %5$.14f, 0.0 ), %6$.14f , %7$.14f, 0.0 ), 1.0, -1.0, 1.0 ), 3857),4326 )"
-               , mvtgeom, tileX * extend - shiftOffset, tileY * extend - shiftOffset,  (xwidth / gridsize), (ywidth / gridsize), -0.5 * xwidth , -0.5 * ywidth);
+            tweaksGeoSql = String.format("st_transform(ST_SetSRID( %1$s, 3857), 4326)", mvtgeom);
          } 
          break;
          
