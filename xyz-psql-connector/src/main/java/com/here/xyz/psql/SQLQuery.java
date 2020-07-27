@@ -223,6 +223,8 @@ public class SQLQuery {
         return "<=";
       case GREATER_THAN_OR_EQUALS:
         return ">=";
+      case CONTAINS:
+        return "@>";
     }
 
     return "";
@@ -234,8 +236,10 @@ public class SQLQuery {
             "jsondata->" + Collections.nCopies(results.length, "?").stream().collect(Collectors.joining("->")), results);
   }
 
-  protected static String getValue(Object value) {
+  protected static String getValue(Object value, PropertyQuery.QueryOperation op) {
     if (value instanceof String) {
+      if(op.equals(PropertyQuery.QueryOperation.CONTAINS) && ((String) value).startsWith("{") && ((String) value).endsWith("}"))
+        return "(?::jsonb || '[]'::jsonb)";
       return "to_jsonb(?::text)";
     }
     if (value instanceof Number) {

@@ -573,7 +573,7 @@ public class SQLQueryBuilder {
                     else {
                         SQLQuery q = SQLQuery.createKey(propertyQuery.getKey());
 
-                        q.append(new SQLQuery(SQLQuery.getOperation(propertyQuery.getOperation()) + SQLQuery.getValue(v), v));
+                        q.append(new SQLQuery(SQLQuery.getOperation(propertyQuery.getOperation()) + SQLQuery.getValue(v,propertyQuery.getOperation()), v));
                         keyDisjunctionQueries.add(q);
                     }
                 });

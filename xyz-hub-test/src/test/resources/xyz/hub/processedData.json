@@ -21,7 +21,11 @@
                 },
                 "occupant": "Daring Club Motema Pembe",
                 "sport": "association = football",
-                "capacity": 50000
+                "capacity": 50000,
+                "stringArray" : [ "foo1" , "foo2" ],
+                "intArray" : [ 1 , 2 ],
+                "objectArray" : [ {"foo1" :  1} ,{"foo2" :  2} ],
+                "nestedObjectArray" : [ {"foo" : {"foo1" :  {"foo2" :  2}}}]
             }
         },
         {
@@ -44,7 +48,10 @@
                 },
                 "occupant": "Guangzhou Evergrande Taobao Football Club",
                 "sport": "association <= football",
-                "capacity": 58500
+                "capacity": 58500,
+                "stringArray" : [ "foo2" , "foo3" ],
+                "intArray" : [ 2 , 3 ],
+                "objectArray" : [ {"foo2" :  2} ,{"foo3" :  3} ]
             }
         },
         {

@@ -47,6 +47,79 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
   }
 
   @Test
+  public void testContains() {
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.stringArray@>foo1").
+            then().
+            body("features.size()", equalTo(1));
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.stringArray=cs=foo2").
+            then().
+            body("features.size()", equalTo(2));
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.stringArray=cs=foo1,NA").
+            then().
+            body("features.size()", equalTo(1));
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.stringArray=cs=NA").
+            then().
+            body("features.size()", equalTo(0));
+
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.intArray@>1").
+            then().
+            body("features.size()", equalTo(1));
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.intArray=cs=2").
+            then().
+            body("features.size()", equalTo(2));
+
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            queryParam("p.objectArray@>{\"foo1\":1}").
+            get("/spaces/x-psql-test/search").
+            then().
+            body("features.size()", equalTo(1));
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            queryParam("p.objectArray=cs={\"foo2\":2}").
+            get("/spaces/x-psql-test/search").
+            then().
+            body("features.size()", equalTo(2));
+
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            queryParam("p.nestedObjectArray@>{\"foo\":{\"foo1\":{\"foo2\":2}}}").
+            get("/spaces/x-psql-test/search").
+            then().
+            body("features.size()", equalTo(1));
+  }
+
+  @Test
   public void testGreaterThan() {
     given().
         accept(APPLICATION_GEO_JSON).
