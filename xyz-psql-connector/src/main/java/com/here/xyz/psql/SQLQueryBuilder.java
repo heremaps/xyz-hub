@@ -49,7 +49,7 @@ import java.util.Optional;
 import javax.sql.DataSource;
 
 public class SQLQueryBuilder {
-    private static final long GEOMETRY_DECIMAL_DIGITS = 8;
+    public static final long GEOMETRY_DECIMAL_DIGITS = 8;
     private static final long EQUATOR_LENGTH = 40_075_016;
     private static final long TILE_SIZE = 256;
     private static final String SQL_STATISTIC_FUNCTION = "xyz_statistic_space";
@@ -221,7 +221,7 @@ public class SQLQueryBuilder {
 
     public static SQLQuery buildQuadbinClusteringQuery(GetFeaturesByBBoxEvent event,
                                                           BBox bbox, int relResolution, int absResolution, String countMode,
-                                                          PSQLConfig config) {
+                                                          PSQLConfig config, boolean noBuffer) {
         final WebMercatorTile tile = getTileFromBbox(bbox);
 
         if( (absResolution - tile.level) >= 0 )  // case of valid absResolution convert it to a relative resolution and add both resolutions
@@ -242,8 +242,9 @@ public class SQLQueryBuilder {
                 }
             }
         }
-        return QuadbinSQL.generateQuadbinClusteringSQL(config.schema(), config.table(event), relResolution, countMode, propQuerySQL, tile);
+        return QuadbinSQL.generateQuadbinClusteringSQL(config.schema(), config.table(event), relResolution, countMode, propQuerySQL, tile, noBuffer);
     }
+
     /***************************************** CLUSTERING END **************************************************/
 
     /***************************************** TWEAKS **************************************************/
