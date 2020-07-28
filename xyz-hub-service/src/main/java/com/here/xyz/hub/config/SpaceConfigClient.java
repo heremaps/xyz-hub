@@ -127,8 +127,8 @@ public abstract class SpaceConfigClient implements Initializable {
   }
 
   public void getSelected(Marker marker, SpaceAuthorizationCondition authorizedCondition, SpaceSelectionCondition selectedCondition,
-      SpacePaginationCondition paginationCondition, Handler<AsyncResult<List<Space>>> handler) {
-    getSelectedSpaces(marker, authorizedCondition, selectedCondition, paginationCondition, ar -> {
+      SpacePartialResponseCondition partialResponseCondition, Handler<AsyncResult<List<Space>>> handler) {
+    getSelectedSpaces(marker, authorizedCondition, selectedCondition, partialResponseCondition, ar -> {
       if (ar.succeeded()) {
         List<Space> spaces = ar.result();
         spaces.forEach(s -> cache.put(s.getId(), s));
@@ -143,10 +143,10 @@ public abstract class SpaceConfigClient implements Initializable {
 
   public void getOwn(Marker marker, String ownerId, Handler<AsyncResult<List<Space>>> handler) {
     SpaceSelectionCondition selectedCondition = new SpaceSelectionCondition();
-    SpacePaginationCondition paginationCondition = new SpacePaginationCondition();
+    SpacePartialResponseCondition partialResponseCondition = new SpacePartialResponseCondition();
     selectedCondition.ownerIds = Collections.singleton(ownerId);
     selectedCondition.shared = false;
-    getSelected(marker, emptySpaceCondition, selectedCondition, paginationCondition, handler);
+    getSelected(marker, emptySpaceCondition, selectedCondition, partialResponseCondition, handler);
   }
 
   protected abstract void getSpace(Marker marker, String spaceId, Handler<AsyncResult<Space>> handler);
@@ -156,7 +156,7 @@ public abstract class SpaceConfigClient implements Initializable {
   protected abstract void deleteSpace(Marker marker, String spaceId, Handler<AsyncResult<Space>> handler);
 
   protected abstract void getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition,
-      SpaceSelectionCondition selectedCondition, SpacePaginationCondition paginationCondition, Handler<AsyncResult<List<Space>>> handler);
+      SpaceSelectionCondition selectedCondition, SpacePartialResponseCondition partialResponseCondition, Handler<AsyncResult<List<Space>>> handler);
 
 
   public void invalidateCache(String spaceId) {
@@ -177,8 +177,8 @@ public abstract class SpaceConfigClient implements Initializable {
     public boolean negateOwnerIds = false;
   }
 
-  public static class SpacePaginationCondition {
-    public int index = -1;
+  public static class SpacePartialResponseCondition {
+    public int handle = -1;
     public int limit;
   }
 

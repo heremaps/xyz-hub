@@ -222,7 +222,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
   @Override
   public void getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition, SpaceSelectionCondition selectedCondition,
-  SpacePaginationCondition paginationCondition, Handler<AsyncResult<List<Space>>> handler) {
+  SpacePartialResponseCondition partialResponseCondition, Handler<AsyncResult<List<Space>>> handler) {
     logger.info(marker, "Getting selected spaces");
 
     if (authorizedCondition == null || selectedCondition == null) {
@@ -265,12 +265,16 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
       // TODO selection per packages is not yet supported: selectedCondition.packages
 
-      logger.info(marker, "Final number of space IDs to be retrieved from DynamoDB: {}", authorizedSpaces.size());
       if (!authorizedSpaces.isEmpty()) {
+        logger.info(marker, "Number of space IDs to be retrieved from DynamoDB after authorization: {}", authorizedSpaces.size());
+
         Set<String> subSet = authorizedSpaces;
-        if (paginationCondition.index > -1) {
-          subSet = authorizedSpaces.stream().skip(paginationCondition.index).limit(paginationCondition.limit).collect(Collectors.toSet());
+        if (partialResponseCondition.handle > -1) {
+          subSet = authorizedSpaces.stream().skip(partialResponseCondition.handle).limit(partialResponseCondition.limit).collect(Collectors.toSet());
         }
+
+        logger.info(marker, "Final number of space IDs to be retrieved from DynamoDB: {}", subSet.size());
+
         int batches = (int) Math.ceil((double) subSet.size()/100);
         for (int i=0; i<batches; i++) {
           final TableKeysAndAttributes keys = new TableKeysAndAttributes(dynamoClient.tableName);
@@ -284,6 +288,8 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
             processOutcome(outcome, result);
           }
         }
+      } else {
+        logger.info(marker, "Final number of space IDs to be retrieved from DynamoDB: {}", authorizedSpaces.size());
       }
 
       logger.info(marker, "Number of spaces retrieved from DynamoDB: {}", result.size());

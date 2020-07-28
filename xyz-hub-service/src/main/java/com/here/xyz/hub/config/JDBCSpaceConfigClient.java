@@ -120,7 +120,7 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
 
   @Override
   protected void getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition,
-      SpaceSelectionCondition selectedCondition, SpacePaginationCondition paginationCondition,
+      SpaceSelectionCondition selectedCondition, SpacePartialResponseCondition partialResponseCondition,
       Handler<AsyncResult<List<Space>>> handler) {
     //BUILD THE QUERY
     List<String> whereConjunctions = new ArrayList<>();
@@ -142,8 +142,8 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
     if (!selectionWhereClauses.isEmpty()) {
       whereConjunctions.add("(" + StringUtils.join(selectionWhereClauses, " OR ") + ")");
     }
-    if (paginationCondition.index > -1) {
-      paginationQuery = " LIMIT " + paginationCondition.limit + " OFFSET " + paginationCondition.index;
+    if (partialResponseCondition.handle > -1) {
+      paginationQuery = " LIMIT " + partialResponseCondition.limit + " OFFSET " + partialResponseCondition.handle;
     }
     
     String query = baseQuery + (whereConjunctions.isEmpty() ? "" :

@@ -64,7 +64,7 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
 
   @Override
   public void getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition, SpaceSelectionCondition selectedCondition,
-  SpacePaginationCondition paginationCondition, Handler<AsyncResult<List<Space>>> handler) {
+  SpacePartialResponseCondition partialResponseCondition, Handler<AsyncResult<List<Space>>> handler) {
     //Sets are not even defined that means all access
     Predicate<Space> authorizationFilter = s -> authorizedCondition.spaceIds == null && authorizedCondition.ownerIds == null
         || authorizedCondition.spaceIds != null && authorizedCondition.spaceIds.contains(s.getId())
@@ -75,10 +75,12 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
         || selectedCondition.spaceIds != null && selectedCondition.spaceIds.contains(s.getId())
         || selectedCondition.ownerIds != null && selectedCondition.ownerIds.contains(s.getOwner())
         || selectedCondition.shared && s.isShared();
-
+  
     List<Space> spaces = spaceMap.values().stream()
         .filter(authorizationFilter)
         .filter(selectionFilter)
+        .skip(partialResponseCondition.handle > -1 ? partialResponseCondition.handle : 0)
+        .limit(partialResponseCondition.handle > -1 ? partialResponseCondition.limit : spaceMap.size())
         .collect(Collectors.toList());
     handler.handle(Future.succeededFuture(spaces));
   }

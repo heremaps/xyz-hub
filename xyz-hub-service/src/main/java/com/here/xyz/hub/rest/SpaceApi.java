@@ -76,7 +76,7 @@ public class SpaceApi extends Api {
         ApiParam.Query.getBoolean(context, ApiParam.Query.INCLUDE_RIGHTS, false),
         ApiParam.Query.getBoolean(context, Query.INCLUDE_CONNECTORS, false),
         ApiParam.Query.getString(context, ApiParam.Query.OWNER, MatrixReadQuery.ME),
-        ApiParam.Query.getInteger(context, ApiParam.Query.INDEX, -1),
+        ApiParam.Query.getInteger(context, ApiParam.Query.HANDLE, -1),
         ApiParam.Query.getInteger(context, ApiParam.Query.LIMIT, 50)
     ).execute(this::sendResponse, this::sendErrorResponse);
   }

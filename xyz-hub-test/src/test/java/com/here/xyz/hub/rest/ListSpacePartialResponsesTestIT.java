@@ -36,7 +36,7 @@ import org.junit.Test;
 import org.junit.runners.MethodSorters;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
-public class ListSpacePaginationTestIT extends TestSpaceWithFeature {
+public class ListSpacePartialResponsesTestIT extends TestSpaceWithFeature {
 
   private static Set<String> cleanUpIds = new HashSet<>();
   
@@ -50,10 +50,11 @@ public class ListSpacePaginationTestIT extends TestSpaceWithFeature {
     cleanUpIds.add(createSpace(AuthProfile.ACCESS_OWNER_1_ADMIN, "shared", true));
     cleanUpIds.add(createSpace(AuthProfile.ACCESS_OWNER_1_ADMIN, "shared", true));
     cleanUpIds.add(createSpace(AuthProfile.ACCESS_OWNER_1_ADMIN, "shared", true));
-    cleanUpIds.add(createSpace(AuthProfile.ACCESS_OWNER_1_ADMIN, "shared", true));
-    cleanUpIds.add(createSpace(AuthProfile.ACCESS_OWNER_1_ADMIN, "shared", true));
+    cleanUpIds.add(createSpace(AuthProfile.ACCESS_OWNER_1_ADMIN, "other", false));
+    cleanUpIds.add(createSpace(AuthProfile.ACCESS_OWNER_1_ADMIN, "other", false));
     cleanUpIds.add(createSpace(AuthProfile.ACCESS_OWNER_2, "shared", true));
     cleanUpIds.add(createSpace(AuthProfile.ACCESS_OWNER_2, "shared", true));
+    cleanUpIds.add(createSpace(AuthProfile.ACCESS_OWNER_2, "other", false));
   }
 
   @After
@@ -62,13 +63,13 @@ public class ListSpacePaginationTestIT extends TestSpaceWithFeature {
     cleanUpIds.forEach(TestSpaceWithFeature::removeSpace);
   }
 
-  private static ValidatableResponse listSpaces(int index, int limit, String owner) {
+  private static ValidatableResponse listSpaces(int handle, int limit, String owner) {
     return given()
       .contentType(APPLICATION_JSON)
       .accept(APPLICATION_JSON)
       .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
       .when()
-      .get("/spaces?owner=" + owner + "&index=" + index + "&limit=" + limit)
+      .get("/spaces?owner=" + owner + "&handle=" + handle + "&limit=" + limit)
       .then();
   }
 
@@ -94,10 +95,32 @@ public class ListSpacePaginationTestIT extends TestSpaceWithFeature {
       .then()
       .statusCode(OK.code())
       .body("$.size()", equalTo(7));
+
+
+    given()
+      .contentType(APPLICATION_JSON)
+      .accept(APPLICATION_JSON)
+      .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_2))
+      .when()
+      .get("/spaces?owner=me")
+      .then()
+      .statusCode(OK.code())
+      .body("$.size()", equalTo(3));
+    
+
+    given()
+      .contentType(APPLICATION_JSON)
+      .accept(APPLICATION_JSON)
+      .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_2))
+      .when()
+      .get("/spaces?owner=*")
+      .then()
+      .statusCode(OK.code())
+      .body("$.size()", equalTo(6));
   }
 
-  @Test
-  public void testListSpacesIndex0Limit10() {
+  // @Test
+  public void testListSpacesHandle0Limit10() {
     listSpaces(0, 10, "me")
       .statusCode(OK.code())
       .body("$.size()", equalTo(5));
@@ -108,7 +131,7 @@ public class ListSpacePaginationTestIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testListSpacesIndex1Limit10() {
+  public void testListSpacesHandle1Limit10() {
     listSpaces(1, 10, "me")
       .statusCode(OK.code())
       .body("$.size()", equalTo(4));
@@ -119,7 +142,7 @@ public class ListSpacePaginationTestIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testListSpacesIndex0Limit3() {
+  public void testListSpacesHandle0Limit3() {
     listSpaces(0, 3, "me")
       .statusCode(OK.code())
       .body("$.size()", equalTo(3));
@@ -131,7 +154,7 @@ public class ListSpacePaginationTestIT extends TestSpaceWithFeature {
 
 
   @Test
-  public void testListSpacesIndex3Limit3() {
+  public void testListSpacesHandle3Limit3() {
     listSpaces(3, 3, "me")
       .statusCode(OK.code())
       .body("$.size()", equalTo(2));
@@ -142,7 +165,7 @@ public class ListSpacePaginationTestIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testListSpacesIndex6Limit3() {
+  public void testListSpacesHandle6Limit3() {
     listSpaces(6, 3, "me")
       .statusCode(OK.code())
       .body("$.size()", equalTo(0));

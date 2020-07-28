@@ -112,7 +112,6 @@ public class ApiParam {
     static final String SKIP_CACHE = "skipCache";
     static final String CLUSTERING = "clustering";
     static final String TWEAKS = "tweaks";
-    static final String INDEX = "index";
     static final String LIMIT = "limit";
     static final String WEST = "west";
     static final String NORTH = "north";
