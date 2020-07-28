@@ -49,7 +49,7 @@ import java.util.Optional;
 import javax.sql.DataSource;
 
 public class SQLQueryBuilder {
-    public static final long GEOMETRY_DECIMAL_DIGITS = 8;
+    private static final long GEOMETRY_DECIMAL_DIGITS = 8;
     private static final long EQUATOR_LENGTH = 40_075_016;
     private static final long TILE_SIZE = 256;
     private static final String SQL_STATISTIC_FUNCTION = "xyz_statistic_space";
