@@ -58,8 +58,8 @@ import javax.annotation.Nonnull;
 public class SpaceAuthorization extends Authorization {
 
   public static List<String> basicEdit = Arrays
-      .asList("id", "title", "description", "client", "copyright", "license", "shared", "enableUUID", "enableHistory", "maxVersionCount", "cacheTTL", STORAGE,
-          LISTENERS, PROCESSORS, SEARCHABLE_PROPERTIES);
+      .asList("id", "title", "description", "client", "copyright", "license", "shared", "enableUUID", "enableHistory", "maxVersionCount",
+          "cacheTTL", "readOnly", STORAGE, LISTENERS, PROCESSORS, SEARCHABLE_PROPERTIES);
 
   public static List<String> packageEdit = Collections.singletonList(PACKAGES);
 
@@ -74,7 +74,7 @@ public class SpaceAuthorization extends Authorization {
         final XyzHubActionMatrix connectorsReadMatrix = new XyzHubActionMatrix().accessConnectors(new XyzHubAttributeMap());
         task.canReadConnectorsProperties = task.getJwt().getXyzHubMatrix().matches(connectorsReadMatrix);
       }
-
+      
       /*
        * No further checks are necessary. Authenticated users generally have access to this resource.
        * The resulting list response will only contain spaces the token has access to.
@@ -121,7 +121,8 @@ public class SpaceAuthorization extends Authorization {
       final XyzHubActionMatrix adminMatrix = new XyzHubActionMatrix().adminSpaces(xyzhubFilter);
       boolean hasAdminPermissions = tokenRights != null && tokenRights.matches(adminMatrix);
       //If the creation contains a different space ID than the randomly-generated one.
-      if (!hasAdminPermissions && isPropertyEdit(templateAsMap, inputAsMap, ID) && tokenRights != null && tokenRights.containsKey(MANAGE_SPACES)) {
+      if (!hasAdminPermissions && isPropertyEdit(templateAsMap, inputAsMap, ID) && tokenRights != null && tokenRights
+          .containsKey(MANAGE_SPACES)) {
         tokenRights.put(MANAGE_SPACES, tokenRights.get(MANAGE_SPACES)
             .stream()
             .filter(permission -> permission.containsKey(SPACE) || permission.isEmpty())
