@@ -130,7 +130,7 @@ public class QuadbinSQL {
                         "    SELECT reltuples as est_cnt FROM pg_class WHERE oid = '"+schema+".\""+space+"\"'::regclass"+
                         ")"+
                         "SELECT * from ("+
-                        "SELECT  (SELECT concat('{\"id\": \"',ceil(random()*10000000),'\", \"type\": \"Feature\""+
+                        "SELECT  (SELECT concat('{\"id\": \"', ('x' || left(md5(qk),15) )::bit(60)::bigint ,'\", \"type\": \"Feature\""+
                         "       ,\"properties\": {\"count\": ',cnt_bbox_est,',\"qk\":\"',qk,'\""+
                         "       ,\"xyz\":\"',qkxyz,'\" ,\"estimated\":',to_jsonb(NOT("+realCountCondition+")),',\"total_count\":',est_cnt::bigint,',\"equipartition_count\":',"+
                         "          (floor((est_cnt/POW(2,"+(tile.level+1)+")/POW(4,"+resolution+")))),'}}')::jsonb) as properties,"+
