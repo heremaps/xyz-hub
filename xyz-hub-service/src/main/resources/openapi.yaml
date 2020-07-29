@@ -1021,6 +1021,7 @@ components:
         | Parameter   | Type    | Mandatory | Meaning                                                               |
         |-------------|---------|-----------|-----------------------------------------------------------------------|
         | relativeResolution | Number  | NO        | The quad resolution [0-4]                                             |
+        | noBuffer    | Boolean | NO        | do not place a buffer around quad polygons, default: false            |
         | resolution  | Number  | NO        | deprecated, renamed to resolutionRelative             |
         | countmode   | String  | NO        | [real, estimated, mixed]                                    |
         |             |         |           | real = real feature counts. Best accuracy, but slow.                  |

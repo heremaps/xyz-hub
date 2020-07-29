@@ -34,6 +34,7 @@ public class QuadbinSQL {
     public static final String QUADBIN_RESOLUTION_ABSOLUTE = H3SQL.HEXBIN_RESOLUTION_ABSOLUTE;
     public static final String QUADBIN_RESOLUTION_RELATIVE = H3SQL.HEXBIN_RESOLUTION_RELATIVE;
     public static final String QUADBIN_COUNTMODE = "countmode";
+    public static final String QUADBIN_NOBOFFER = "noBuffer";
     
 
     /**
@@ -79,12 +80,14 @@ public class QuadbinSQL {
     /**
      * Creates the SQLQuery for Quadbin requests.
      */
-    public static SQLQuery generateQuadbinClusteringSQL(String schema, String space, int resolution, String quadMode, String propQuery, WebMercatorTile tile) {
+    public static SQLQuery generateQuadbinClusteringSQL(String schema, String space, int resolution, String quadMode, String propQuery, WebMercatorTile tile, boolean noBuffer) {
         SQLQuery query = new SQLQuery("");
 
-        String realCountCondition = "";
-        String pureEstimation = "";
-        String estCalc = "cond_est_cnt";
+        double bufferSizeInDeg = tile.getBBox(false).widthInDegree(true) / (Math.pow(2, resolution) *  1024.0);
+        String realCountCondition = "",
+               pureEstimation = "",
+               estCalc = "cond_est_cnt",
+               qkGeo = (!noBuffer ? String.format("ST_Buffer(qkbbox, -%f)",bufferSizeInDeg) : "qkbbox");
 
         if(quadMode == null)
             quadMode = QuadbinSQL.COUNTMODE_MIXED;
@@ -127,13 +130,13 @@ public class QuadbinSQL {
                         "    SELECT reltuples as est_cnt FROM pg_class WHERE oid = '"+schema+".\""+space+"\"'::regclass"+
                         ")"+
                         "SELECT * from ("+
-                        "SELECT  (SELECT concat('{\"id\": \"',ceil(random()*10000000),'\", \"type\": \"Feature\""+
+                        "SELECT  (SELECT concat('{\"id\": \"', ('x' || left(md5(qk),15) )::bit(60)::bigint ,'\", \"type\": \"Feature\""+
                         "       ,\"properties\": {\"count\": ',cnt_bbox_est,',\"qk\":\"',qk,'\""+
                         "       ,\"xyz\":\"',qkxyz,'\" ,\"estimated\":',to_jsonb(NOT("+realCountCondition+")),',\"total_count\":',est_cnt::bigint,',\"equipartition_count\":',"+
                         "          (floor((est_cnt/POW(2,"+(tile.level+1)+")/POW(4,"+resolution+")))),'}}')::jsonb) as properties,"+
                         "    (CASE WHEN cnt_bbox_est != 0"+
                         "        THEN"+
-                        "            (SELECT ST_AsGeojson( ST_Buffer(qkbbox,-0.01/"+tile.level+")) ::jsonb)"+
+                        "            (SELECT ST_AsGeojson( " + qkGeo + ",8 ) ::jsonb)"+
                         "        ELSE"+
                         "            NULL::jsonb"+
                         "        END "+

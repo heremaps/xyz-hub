@@ -219,7 +219,7 @@ public class SQLQueryBuilder {
 
     public static SQLQuery buildQuadbinClusteringQuery(GetFeaturesByBBoxEvent event,
                                                           BBox bbox, int relResolution, int absResolution, String countMode,
-                                                          PSQLConfig config) {
+                                                          PSQLConfig config, boolean noBuffer) {
         final WebMercatorTile tile = getTileFromBbox(bbox);
 
         if( (absResolution - tile.level) >= 0 )  // case of valid absResolution convert it to a relative resolution and add both resolutions
@@ -240,8 +240,9 @@ public class SQLQueryBuilder {
                 }
             }
         }
-        return QuadbinSQL.generateQuadbinClusteringSQL(config.schema(), config.table(event), relResolution, countMode, propQuerySQL, tile);
+        return QuadbinSQL.generateQuadbinClusteringSQL(config.schema(), config.table(event), relResolution, countMode, propQuerySQL, tile, noBuffer);
     }
+
     /***************************************** CLUSTERING END **************************************************/
 
     /***************************************** TWEAKS **************************************************/
