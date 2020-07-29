@@ -83,7 +83,7 @@ public class QuadbinSQL {
     public static SQLQuery generateQuadbinClusteringSQL(String schema, String space, int resolution, String quadMode, String propQuery, WebMercatorTile tile, boolean noBuffer) {
         SQLQuery query = new SQLQuery("");
 
-        double bufferSizeInDeg = tile.getBBox(false).widthInDegree(true) / 1024.0;
+        double bufferSizeInDeg = tile.getBBox(false).widthInDegree(true) / (Math.pow(2, resolution) *  1024.0);
         String realCountCondition = "",
                pureEstimation = "",
                estCalc = "cond_est_cnt",
