@@ -29,6 +29,7 @@ import com.here.xyz.hub.util.health.Config;
 import com.here.xyz.hub.util.health.MainHealthCheck;
 import com.here.xyz.hub.util.health.checks.ExecutableCheck;
 import com.here.xyz.hub.util.health.checks.JDBCHealthCheck;
+import com.here.xyz.hub.util.health.checks.MemoryHealthCheck;
 import com.here.xyz.hub.util.health.checks.RedisHealthCheck;
 import com.here.xyz.hub.util.health.checks.RemoteFunctionHealthAggregator;
 import com.here.xyz.hub.util.health.schema.Reporter;
@@ -60,7 +61,8 @@ public class HealthApi extends Api {
               .withEndpoint(getPublicServiceEndpoint())
       )
       .add(new RedisHealthCheck(Service.configuration.XYZ_HUB_REDIS_HOST, Service.configuration.XYZ_HUB_REDIS_PORT))
-      .add(new RemoteFunctionHealthAggregator());
+      .add(new RemoteFunctionHealthAggregator())
+      .add(new MemoryHealthCheck());
 
   static {
     if (Service.configuration.STORAGE_DB_URL != null) {

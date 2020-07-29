@@ -294,6 +294,16 @@ public class Service {
     }
   }
 
+  public static long getUsedMemoryBytes() {
+    return Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
+  }
+
+  public static float getUsedMemoryPercent() {
+    float used = getUsedMemoryBytes();
+    float total = Runtime.getRuntime().totalMemory();
+    return used / total * 100;
+  }
+
   public static long currentTimeMillis() {
     return clock.currentTimeMillis();
   }
