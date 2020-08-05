@@ -287,7 +287,7 @@ public class SQLQueryBuilder {
     {
      int strength = 0;
      String tweaksGeoSql = "geo";
-     boolean bMerge = false, bStrength = true;
+     boolean bMerge = false, bStrength = true, bTestTweaksGeoIfNull = true;
 
      if( tweakParams != null )
      {
@@ -376,6 +376,7 @@ public class SQLQueryBuilder {
                                        );
             
             tweaksGeoSql = String.format("st_transform(ST_SetSRID( %1$s, 3857), 4326)", mvtgeom);
+            bTestTweaksGeoIfNull = false;
          } 
          break;
          
@@ -393,7 +394,7 @@ public class SQLQueryBuilder {
        final SQLQuery searchQuery = generateSearchQuery(event,dataSource);
 
        if( !bMerge )
-        return generateCombinedQuery(event, new SQLQuery(bboxqry), searchQuery , tweaksGeoSql, dataSource);
+        return generateCombinedQuery(event, new SQLQuery(bboxqry), searchQuery , tweaksGeoSql, bTestTweaksGeoIfNull, dataSource);
 
        // Merge Algorithm - only using low, med, high
 
@@ -618,7 +619,7 @@ public class SQLQueryBuilder {
         return query;
     }
 
-    private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, String tweaksgeo, DataSource dataSource)
+    private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, String tweaksgeo, boolean bTestTweaksGeoIfNull, DataSource dataSource)
             throws SQLException {
         final SQLQuery query = new SQLQuery();
 
@@ -648,14 +649,14 @@ public class SQLQueryBuilder {
         }
 
         if( tweaksgeo != null )
-         query.append(" ) tw where twgeo is not null");
+         query.append(String.format(" ) tw where %s ", bTestTweaksGeoIfNull ? "twgeo is not null" : "1 = 1" ) );
 
         query.append("LIMIT ?", event.getLimit());
         return query;
     }
 
     private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, DataSource dataSource) throws SQLException
-    { return generateCombinedQuery(event,indexedQuery,secondaryQuery,null,dataSource); }
+    { return generateCombinedQuery(event,indexedQuery,secondaryQuery,null, false,dataSource); }
 
 
     /**
