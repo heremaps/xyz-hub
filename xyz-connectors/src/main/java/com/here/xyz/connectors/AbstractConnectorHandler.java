@@ -180,6 +180,8 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
       writeDataOut(output, dataOut, ifNoneMatch);
     } catch (Exception e) {
       logger.error("{} - Unexpected exception occurred: {}\n{}", streamId, e.getMessage(), e.getStackTrace());
+    } catch (OutOfMemoryError e) {
+      logger.error("{} - Unexpected exception occurred (heap space): {}\n{}", streamId, e.getMessage(), e.getStackTrace());
     }
   }
 
