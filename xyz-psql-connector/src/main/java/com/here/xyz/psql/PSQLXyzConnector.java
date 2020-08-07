@@ -45,6 +45,7 @@ import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import java.sql.SQLException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -116,6 +117,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
             hmap.put("algorithm", new String("distribution"));
             hmap.put("strength", new Integer( TweaksSQL.calculateDistributionStrength( rCount ) ));
             tweakParams = hmap;
+            if( event.getSelection() == null )
+             event.setSelection(Arrays.asList("id","type"));
             // fall thru tweaks=sampling
           }
 
