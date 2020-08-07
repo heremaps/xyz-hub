@@ -111,14 +111,19 @@ public class PSQLXyzConnector extends DatabaseHandler {
         switch (event.getTweakType().toLowerCase()) {
 
           case TweaksSQL.ENSURE: {
-            int rCount = executeQueryWithRetry(SQLQueryBuilder.buildEstimateSamplingStrengthQuery( bbox )).getFeatures().get(0).get("rcount");
+            int rCount = executeQueryWithRetry(SQLQueryBuilder.buildEstimateSamplingStrengthQuery(event, bbox )).getFeatures().get(0).get("rcount");
+
+            boolean bDefaultSelectionHandling =  
+             ((String) tweakParams.getOrDefault(TweaksSQL.ENSURE_OPTIONS,"default")).toLowerCase().contains(TweaksSQL.ENSURE_OPTIONS_ALLPROP);
+
+            if( event.getSelection() == null && !bDefaultSelectionHandling )
+             event.setSelection(Arrays.asList("id","type"));
+
             if( rCount < 10000 ) break; // fall back to non-tweaks usage.
             HashMap<String, Object> hmap = new HashMap<String, Object>();
             hmap.put("algorithm", new String("distribution"));
             hmap.put("strength", new Integer( TweaksSQL.calculateDistributionStrength( rCount ) ));
             tweakParams = hmap;
-            if( event.getSelection() == null )
-             event.setSelection(Arrays.asList("id","type"));
             // fall thru tweaks=sampling
           }
 

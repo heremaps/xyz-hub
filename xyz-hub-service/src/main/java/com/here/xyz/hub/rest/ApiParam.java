@@ -138,6 +138,7 @@ public class ApiParam {
 
     static final String TWEAKS_PARAM_STRENGTH  = "strength";
     static final String TWEAKS_PARAM_ALGORITHM = "algorithm";
+    static final String TWEAKS_PARAM_OPTIONS   = "options";
 
     static final String FORCE_2D = "force2D";
 
@@ -368,13 +369,13 @@ public class ApiParam {
           case CLUSTERING_PARAM_RESOLUTION_RELATIVE:
           case CLUSTERING_PARAM_RESOLUTION:
             if(!(value instanceof Long))
-              throw new Exception("Invalid clustering.resolution value. Expect Integer.");
+              throw new Exception(String.format("Invalid clustering.%s value. Expect Integer.",key));
             else if((long)value < 0 || (long)value > 15)
-              throw new Exception("Invalid clustering.resolution value. Expect Integer [0,15].");
+              throw new Exception(String.format("Invalid clustering.%s value. Expect Integer [0,15].",key));
             break;
           case CLUSTERING_PARAM_PROPERTY:
             if(!(value instanceof String))
-              throw new Exception("Invalid clustering.property value. Expect String.");
+              throw new Exception(String.format("Invalid clustering.%s value. Expect String.",key));
             break;
           case CLUSTERING_PARAM_POINTMODE:
             if(!(value instanceof Boolean))
@@ -390,7 +391,8 @@ public class ApiParam {
             break;
           default: throw new Exception("Invalid Clustering Parameter! Expect one of ["
                           +CLUSTERING_PARAM_RESOLUTION+","+CLUSTERING_PARAM_RESOLUTION_RELATIVE+","+CLUSTERING_PARAM_RESOLUTION_ABSOLUTE+","
-                          +CLUSTERING_PARAM_PROPERTY+","+CLUSTERING_PARAM_POINTMODE+","+CLUSTERING_PARAM_COUNTMODE+","+CLUSTERING_PARAM_NOBUFFER+"].");
+                          +CLUSTERING_PARAM_PROPERTY+","+CLUSTERING_PARAM_POINTMODE+","+CLUSTERING_PARAM_COUNTMODE+","
+                          +CLUSTERING_PARAM_NOBUFFER+"].");
         }
       }else if(type.equals(TWEAKS)){
         switch( key )
@@ -414,10 +416,15 @@ public class ApiParam {
 
          break;
 
-         case TWEAKS_PARAM_ALGORITHM : break;
+         case TWEAKS_PARAM_ALGORITHM : 
+         case TWEAKS_PARAM_OPTIONS:
+
+         break;
 
          default:
-          throw new Exception("Invalid Tweaks Parameter! Expect one of ["+TWEAKS_PARAM_STRENGTH+ "," + TWEAKS_PARAM_ALGORITHM + "]");
+          throw new Exception("Invalid Tweaks Parameter! Expect one of [" + TWEAKS_PARAM_STRENGTH + "," 
+                                                                          + TWEAKS_PARAM_ALGORITHM + ","
+                                                                          + TWEAKS_PARAM_OPTIONS + "]");
         }
 
       }

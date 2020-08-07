@@ -944,7 +944,7 @@ components:
 
         | Parameter   | Type    | Mandatory | Meaning                                                               |
         |-------------|---------|-----------|-----------------------------------------------------------------------|
-        |             |         |           |                                                                       |
+        | options     | String  | NO        | comma separated string of values [allprop]                            |
 
       style: form
       explode: true
