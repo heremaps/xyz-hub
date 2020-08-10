@@ -138,7 +138,7 @@ public class ApiParam {
 
     static final String TWEAKS_PARAM_STRENGTH  = "strength";
     static final String TWEAKS_PARAM_ALGORITHM = "algorithm";
-    static final String TWEAKS_PARAM_OPTIONS   = "options";
+    static final String TWEAKS_PARAM_DEFAULT_SELECTION = "defaultselection";
 
     static final String FORCE_2D = "force2D";
 
@@ -416,15 +416,19 @@ public class ApiParam {
 
          break;
 
+         case TWEAKS_PARAM_DEFAULT_SELECTION:
+          if(!(value instanceof Boolean))
+           throw new Exception("Invalid tweaks.defaultselection value. Expect true or false.");
+          break;
+         
          case TWEAKS_PARAM_ALGORITHM : 
-         case TWEAKS_PARAM_OPTIONS:
-
+         
          break;
 
          default:
           throw new Exception("Invalid Tweaks Parameter! Expect one of [" + TWEAKS_PARAM_STRENGTH + "," 
                                                                           + TWEAKS_PARAM_ALGORITHM + ","
-                                                                          + TWEAKS_PARAM_OPTIONS + "]");
+                                                                          + TWEAKS_PARAM_DEFAULT_SELECTION + "]");
         }
 
       }
