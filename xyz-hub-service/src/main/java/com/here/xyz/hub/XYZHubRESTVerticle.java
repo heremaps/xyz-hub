@@ -174,17 +174,17 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
       if (error.statusCode == 500) {
         error.message = null;
         logger.error(marker, "Sending error response: {} {} {}", error.statusCode, error.reasonPhrase, exception);
-        logger.error(marker, "Error:", exception);
+        logger.error(marker, "Error:", exception.getStackTrace());
       }
       else {
         logger.warn(marker, "Sending error response: {} {} {}", error.statusCode, error.reasonPhrase, exception);
-        logger.warn(marker, "Error:", exception);
+        logger.warn(marker, "Error:", exception.getStackTrace());
       }
     }
     catch (Exception e) {
       logger.error("Error {} while preparing error response {}", e, exception);
-      logger.error("Error:", e);
-      logger.error("Original error:", exception);
+      logger.error("Error:", e.getStackTrace());
+      logger.error("Original error:", exception.getStackTrace());
       error = new ErrorMessage();
     }
 
