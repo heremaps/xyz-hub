@@ -944,7 +944,7 @@ components:
 
         | Parameter   | Type    | Mandatory | Meaning                                                               |
         |-------------|---------|-----------|-----------------------------------------------------------------------|
-        | options     | String  | NO        | comma separated string of values [allprop]                            |
+        | defaultselection | boolean  | NO        | use standard selection behaviour  [default: false]              |
 
       style: form
       explode: true

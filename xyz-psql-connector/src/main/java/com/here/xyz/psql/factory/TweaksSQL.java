@@ -39,8 +39,7 @@ public class TweaksSQL
   public static final String SIMPLIFICATION_ALGORITHM_A03 = "simplified";
   public static final String SIMPLIFICATION_ALGORITHM_A04 = "merge";
   public static final String ENSURE = "ensure";
-  public static final String ENSURE_OPTIONS = "options";
-  public static final String ENSURE_OPTIONS_ALLPROP = "allprop";
+  public static final String ENSURE_DEFAULT_SELECTION = "defaultselection";
   
   /*
    [  1     |   (1) | 1/3    | ~ md5( '' || i) < '5'   ]

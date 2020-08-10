@@ -113,8 +113,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
           case TweaksSQL.ENSURE: {
             int rCount = executeQueryWithRetry(SQLQueryBuilder.buildEstimateSamplingStrengthQuery(event, bbox )).getFeatures().get(0).get("rcount");
 
-            boolean bDefaultSelectionHandling =  
-             ((String) tweakParams.getOrDefault(TweaksSQL.ENSURE_OPTIONS,"default")).toLowerCase().contains(TweaksSQL.ENSURE_OPTIONS_ALLPROP);
+            boolean bDefaultSelectionHandling = (tweakParams.get(TweaksSQL.ENSURE_DEFAULT_SELECTION) == Boolean.TRUE );
 
             if( event.getSelection() == null && !bDefaultSelectionHandling )
              event.setSelection(Arrays.asList("id","type"));
