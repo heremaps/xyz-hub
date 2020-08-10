@@ -723,14 +723,19 @@ public abstract class DatabaseHandler extends StorageConnector {
      * @return the generated feature collection from the result set.
      * @throws SQLException when any unexpected error happened.
      */
+
+    private final long MaxResultChars = 100 * 1024 *1024;
+
     protected FeatureCollection defaultFeatureResultSetHandler(ResultSet rs) throws SQLException {
         final boolean isIterate = (event instanceof IterateFeaturesEvent);
         long nextHandle = 0;
+
         StringBuilder sb = new StringBuilder();
         String prefix = "[";
         sb.append(prefix);
         int numFeatures = 0;
-        while (rs.next()) {
+
+        while (rs.next() && (MaxResultChars > sb.length())) {
             sb.append(rs.getString(1));
             String geom = rs.getString(2);
             sb.setLength(sb.length() - 1);
@@ -744,6 +749,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 nextHandle = rs.getLong(3);
             }
         }
+        
         if (sb.length() > prefix.length()) {
             sb.setLength(sb.length() - 1);
         }
@@ -751,6 +757,9 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         final FeatureCollection featureCollection = new FeatureCollection();
         featureCollection._setFeatures(sb.toString());
+
+        if( MaxResultChars <= sb.length() ) featureCollection.setPartial( true );
+
         if (isIterate) {
             if (numFeatures > 0 && numFeatures == ((IterateFeaturesEvent) event).getLimit()) {
                 featureCollection.setHandle("" + nextHandle);
