@@ -45,6 +45,7 @@ import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import java.sql.SQLException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -110,7 +111,13 @@ public class PSQLXyzConnector extends DatabaseHandler {
         switch (event.getTweakType().toLowerCase()) {
 
           case TweaksSQL.ENSURE: {
-            int rCount = executeQueryWithRetry(SQLQueryBuilder.buildEstimateSamplingStrengthQuery( bbox )).getFeatures().get(0).get("rcount");
+            int rCount = executeQueryWithRetry(SQLQueryBuilder.buildEstimateSamplingStrengthQuery(event, bbox )).getFeatures().get(0).get("rcount");
+
+            boolean bDefaultSelectionHandling = (tweakParams.get(TweaksSQL.ENSURE_DEFAULT_SELECTION) == Boolean.TRUE );
+
+            if( event.getSelection() == null && !bDefaultSelectionHandling )
+             event.setSelection(Arrays.asList("id","type"));
+
             if( rCount < 10000 ) break; // fall back to non-tweaks usage.
             HashMap<String, Object> hmap = new HashMap<String, Object>();
             hmap.put("algorithm", new String("distribution"));

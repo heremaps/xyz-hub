@@ -39,6 +39,7 @@ public class TweaksSQL
   public static final String SIMPLIFICATION_ALGORITHM_A03 = "simplified";
   public static final String SIMPLIFICATION_ALGORITHM_A04 = "merge";
   public static final String ENSURE = "ensure";
+  public static final String ENSURE_DEFAULT_SELECTION = "defaultselection";
   
   /*
    [  1     |   (1) | 1/3    | ~ md5( '' || i) < '5'   ]
@@ -114,10 +115,10 @@ public class TweaksSQL
    +"and geo->>'type' != 'GeometryCollection' ";
   
   public static String 
-   estimateBboxSql = String.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/),
-   estimateCountByBboxSql =
-    " with indata as ( select '${schema}' as schema, '${table}' as space, %1$s as tile, 'geo' as colname  ) "
-   +" select jsonb_set( '{\"type\":\"Feature\"}', '{rcount}', to_jsonb( ( reltuples * _postgis_selectivity( format('%%s.%%s',r.schema,r.space )::regclass, r.colname, r.tile) )::integer ) ) as rcount, null "
+   estimateBuildBboxSql = String.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/),
+   estimateCountByBboxesSql =
+    " with indata as ( select '${schema}' as schema, '${table}' as space, unnest( array[ %1$s ] ) as tile, 'geo' as colname  ) "
+   +" select jsonb_set( '{\"type\":\"Feature\"}', '{rcount}', to_jsonb( max( reltuples * _postgis_selectivity( format('%%s.%%s',r.schema,r.space )::regclass, r.colname, r.tile) )::integer ) ) as rcount, null "
    +" from pg_class l, indata r "
    +" where oid = format('%%s.%%s',r.schema,r.space )::regclass ";
   

@@ -421,11 +421,39 @@ public class SQLQueryBuilder {
 
 
     
-    public static SQLQuery buildEstimateSamplingStrengthQuery( BBox bbox ) 
+    public static SQLQuery buildEstimateSamplingStrengthQuery( GetFeaturesByBBoxEvent event, BBox bbox ) 
     {
-     final String bboxqry = String.format( TweaksSQL.estimateBboxSql , bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() );
-     
-     return new SQLQuery( String.format( TweaksSQL.estimateCountByBboxSql, bboxqry ) );
+     int level, tileX, tileY, margin = 0;
+
+     if( event instanceof GetFeaturesByTileEvent ) 
+     { GetFeaturesByTileEvent tevnt = (GetFeaturesByTileEvent) event;
+       level = tevnt.getLevel();
+       tileX = tevnt.getX();
+       tileY = tevnt.getY();
+       margin = tevnt.getMargin();
+     }
+     else
+     { final WebMercatorTile tile = getTileFromBbox(bbox);
+       level = tile.level;
+       tileX = tile.x;
+       tileY = tile.y;
+     }
+
+     ArrayList<BBox> listOfBBoxes = new ArrayList<BBox>();
+     int nrTilesXY = 1 << level;
+
+     for( int dy = -1; dy < 2; dy++ )     
+      for( int dx = -1; dx < 2; dx++ )
+       if( (dy == 0) && (dx == 0) ) listOfBBoxes.add(bbox);  // centerbox, this is alredy extended by margin
+       else if( ((tileY + dy) > 0) && ((tileY + dy) < nrTilesXY) )
+        listOfBBoxes.add( WebMercatorTile.forWeb(level, ((nrTilesXY +(tileX + dx)) % nrTilesXY) , (tileY + dy)).getExtendedBBox(margin) );
+
+     int flag = 0;
+     StringBuilder sb = new StringBuilder();
+     for (BBox b : listOfBBoxes)
+      sb.append(String.format("%s%s",( flag++ > 0 ? "," : ""),String.format( TweaksSQL.estimateBuildBboxSql , b.minLon(), b.minLat(), b.maxLon(), b.maxLat() )));
+
+     return new SQLQuery( String.format( TweaksSQL.estimateCountByBboxesSql, sb.toString() ) );
     }
   
 
