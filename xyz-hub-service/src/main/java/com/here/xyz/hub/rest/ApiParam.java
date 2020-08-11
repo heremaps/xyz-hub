@@ -283,7 +283,8 @@ public class ApiParam {
             for (String shortOperator : shortOperators) {
               int currentPositionOfOp = keyValuePair.indexOf(shortOperator);
               if (currentPositionOfOp != -1) {
-                if(op == null || currentPositionOfOp < position) {
+                if(op == null || currentPositionOfOp < position || ( currentPositionOfOp == position && op.length() < shortOperator.length() ) ) 
+                {
                   op = shortOperator;
                   position = currentPositionOfOp;
                 }
