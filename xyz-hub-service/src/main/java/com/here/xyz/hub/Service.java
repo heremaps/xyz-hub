@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub;
 
+import com.amazonaws.services.cloudwatch.model.StandardUnit;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.cache.CacheClient;
@@ -29,6 +30,10 @@ import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.hub.util.ARN;
 import com.here.xyz.hub.util.ConfigDecryptor;
 import com.here.xyz.hub.util.ConfigDecryptor.CryptoException;
+import com.here.xyz.hub.util.metrics.CloudWatchMetricPublisher;
+import com.here.xyz.hub.util.metrics.MajorGcCountMetric;
+import com.here.xyz.hub.util.metrics.MemoryMetric;
+import com.here.xyz.hub.util.metrics.Metric;
 import io.vertx.config.ConfigRetriever;
 import io.vertx.config.ConfigRetrieverOptions;
 import io.vertx.config.ConfigStoreOptions;
@@ -48,6 +53,8 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -129,6 +136,8 @@ public class Service {
    * The hostname
    */
   private static String hostname;
+
+  private static List<Metric> metrics = new LinkedList<>();
 
   /**
    * The service entry point.
@@ -222,9 +231,12 @@ public class Service {
       Thread.setDefaultUncaughtExceptionHandler((thread, t) -> logger.error("Uncaught exception: ", t));
 
       Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+        stopMetricPublishers();
         //This may fail, if we are OOM, but lets at least try.
         logger.warn("XYZ Service is going down at " + new Date().toString());
       }));
+
+      startMetricPublishers();
     }
   }
 
@@ -306,6 +318,19 @@ public class Service {
 
   public static long currentTimeMillis() {
     return clock.currentTimeMillis();
+  }
+
+  private static void startMetricPublishers() {
+    if (configuration.PUBLISH_METRICS) {
+      metrics.add(new MemoryMetric(new CloudWatchMetricPublisher("XYZ/Hub", "JvmMemoryUtilization",
+          "ServiceName", "XYZ-Hub-" + configuration.ENVIRONMENT_NAME, StandardUnit.Percent)));
+      metrics.add(new MajorGcCountMetric(new CloudWatchMetricPublisher("XYZ/Hub", "MajorGcCount",
+          "ServiceName", "XYZ-Hub-" + configuration.ENVIRONMENT_NAME, StandardUnit.Count)));
+    }
+  }
+
+  private static void stopMetricPublishers() {
+    metrics.forEach(Metric::stop);
   }
 
   /**
@@ -448,6 +473,16 @@ public class Service {
      * The value of the health check header to instruct for additional health status information.
      */
     public String HEALTH_CHECK_HEADER_VALUE;
+
+    /**
+     * An identifier for the service environment.
+     */
+    public String ENVIRONMENT_NAME;
+
+    /**
+     * Whether to publish custom service metrics like JVM memory utilization or Major GC count.
+     */
+    public boolean PUBLISH_METRICS;
   }
 
   /**
