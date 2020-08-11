@@ -142,7 +142,6 @@ public class ApiParam {
 
     static final String FORCE_2D = "force2D";
 
-    private static List<String> shortOperators = Arrays.asList("!=", ">=", "=gte=", "<=", "=lte=", ">", "=gt=", "<", "=lt=", "@>", "=cs=", "=");
     private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{
       put("!=", QueryOperation.NOT_EQUALS);
       put(">=", QueryOperation.GREATER_THAN_OR_EQUALS);
@@ -157,6 +156,9 @@ public class ApiParam {
       put("@>", QueryOperation.CONTAINS);
       put("=cs=", QueryOperation.CONTAINS);
     }};
+
+    private static List<String> shortOperators = new ArrayList<>(operators.keySet());
+    
 
     /**
      * Get access to the custom parsed query parameters. Used as a temporary replacement for context.queryParam until
@@ -266,7 +268,9 @@ public class ApiParam {
           .forEach(keyValuePair -> {
             PropertyQuery propertyQuery = new PropertyQuery();
 
+            String operatorComma = "-#:comma:#-";
             try {
+              keyValuePair = keyValuePair.replaceAll(",", operatorComma);
               keyValuePair = URLDecoder.decode(keyValuePair, "utf-8");
             } catch (UnsupportedEncodingException e) {
               e.printStackTrace();
@@ -287,7 +291,9 @@ public class ApiParam {
             }
 
             if(op != null){
-                String[] keyVal = new String[]{keyValuePair.substring(0, position), keyValuePair.substring(position + op.length())};
+                String[] keyVal = new String[]{keyValuePair.substring(0, position).replaceAll(operatorComma,","), 
+                                               keyValuePair.substring(position + op.length())
+                                              };
                 /** Cut from API-Gateway appended "=" */
                 if ((">".equals(op) || "<".equals(op)) && keyVal[1].endsWith("=")) {
                   keyVal[1] = keyVal[1].substring(0, keyVal[1].length() - 1);
@@ -295,7 +301,7 @@ public class ApiParam {
 
                 propertyQuery.setKey(getConvertedKey(keyVal[0]));
                 propertyQuery.setOperation(operators.get(op));
-                String[] rawValues = keyVal[1].split(",");
+                String[] rawValues = keyVal[1].split( operatorComma );
 
                 ArrayList<Object> values = new ArrayList<>();
                 for (String rawValue : rawValues) {
