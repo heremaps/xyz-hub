@@ -31,6 +31,7 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
+import io.vertx.core.net.impl.ConnectionBase;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.WebClientOptions;
 import java.nio.charset.Charset;
@@ -95,28 +96,42 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
     final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
     logger.info(marker, "Invoke http remote function '{}' URL is: {} Event size is: {}", remoteFunction.id, url, bytes.length);
 
-    try {
-      webClient.postAbs(url)
-          .timeout(REQUEST_TIMEOUT)
-          .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
-          .sendBuffer(Buffer.buffer(bytes), ar -> {
-            if (ar.failed()) {
-              if (ar.cause() instanceof TimeoutException) {
-                callback.handle(Future.failedFuture(new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.")));
+    int tryCount = 0;
+    boolean retry;
+    do {
+      retry = false;
+      tryCount++;
+      try {
+        webClient.postAbs(url)
+            .timeout(REQUEST_TIMEOUT)
+            .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
+            .sendBuffer(Buffer.buffer(bytes), ar -> {
+              if (ar.failed()) {
+                if (ar.cause() instanceof TimeoutException) {
+                  callback.handle(Future.failedFuture(new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.")));
+                }
+                else {
+                  callback.handle(Future.failedFuture(ar.cause()));
+                }
               }
               else {
-                callback.handle(Future.failedFuture(ar.cause()));
+                byte[] responseBytes = ar.result().body().getBytes();
+                callback.handle(Future.succeededFuture(responseBytes));
               }
-            }
-            else {
-              byte[] responseBytes = ar.result().body().getBytes();
-              callback.handle(Future.succeededFuture(responseBytes));
-            }
-          });
-    }
-    catch (Exception e) {
-      logger.error(marker, "Error sending event to remote http service", e);
-      callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Connector error.", e)));
-    }
+            });
+      }
+      catch (Exception e) {
+        if (e == ConnectionBase.CLOSED_EXCEPTION) {
+          e = new RuntimeException("Connection was already closed.", e);
+          if (tryCount <= 1)
+            retry = true;
+          logger.error(e.getMessage() + (retry ? " Retrying ..." : ""), e);
+        }
+        if (!retry) {
+          logger.error(marker, "Error sending event to remote http service", e);
+          callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Connector error.", e)));
+        }
+      }
+    } while (retry && tryCount <= 1);
   }
 }
