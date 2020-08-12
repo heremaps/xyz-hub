@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.config;
 
+import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.admin.AdminMessage;
@@ -127,8 +128,8 @@ public abstract class SpaceConfigClient implements Initializable {
   }
 
   public void getSelected(Marker marker, SpaceAuthorizationCondition authorizedCondition, SpaceSelectionCondition selectedCondition,
-      Handler<AsyncResult<List<Space>>> handler) {
-    getSelectedSpaces(marker, authorizedCondition, selectedCondition, ar -> {
+    PropertiesQuery propsQuery, Handler<AsyncResult<List<Space>>> handler) {
+    getSelectedSpaces(marker, authorizedCondition, selectedCondition, propsQuery, ar -> {
       if (ar.succeeded()) {
         List<Space> spaces = ar.result();
         spaces.forEach(s -> cache.put(s.getId(), s));
@@ -145,7 +146,7 @@ public abstract class SpaceConfigClient implements Initializable {
     SpaceSelectionCondition selectedCondition = new SpaceSelectionCondition();
     selectedCondition.ownerIds = Collections.singleton(ownerId);
     selectedCondition.shared = false;
-    getSelected(marker, emptySpaceCondition, selectedCondition, handler);
+    getSelected(marker, emptySpaceCondition, selectedCondition, null, handler);
   }
 
   protected abstract void getSpace(Marker marker, String spaceId, Handler<AsyncResult<Space>> handler);
@@ -155,7 +156,7 @@ public abstract class SpaceConfigClient implements Initializable {
   protected abstract void deleteSpace(Marker marker, String spaceId, Handler<AsyncResult<Space>> handler);
 
   protected abstract void getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition,
-      SpaceSelectionCondition selectedCondition, Handler<AsyncResult<List<Space>>> handler);
+      SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery, Handler<AsyncResult<List<Space>>> handler);
 
   public void invalidateCache(String spaceId) {
     cache.remove(spaceId);

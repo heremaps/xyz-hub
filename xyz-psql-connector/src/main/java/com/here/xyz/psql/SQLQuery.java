@@ -205,7 +205,7 @@ public class SQLQuery {
     }
   }
 
-  protected static String getOperation(PropertyQuery.QueryOperation op) {
+  public static String getOperation(PropertyQuery.QueryOperation op) {
     if (op == null) {
       throw new NullPointerException("op is required");
     }
