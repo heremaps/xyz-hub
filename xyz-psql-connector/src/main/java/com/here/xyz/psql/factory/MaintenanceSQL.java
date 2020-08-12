@@ -110,10 +110,11 @@ public class MaintenanceSQL {
 
     /**
      * Trigger indexing (auto+on-demand) by using dblink
+     * @param string
      */
-    public static String generateIDXSQL(String schema, String user, String password, String database, int port, int mode){
-        return  "SELECT * from xyz_create_idxs_over_dblink('" + schema + "',50, 0,"+mode+",ARRAY['wikvaya','" + user + "'],'" + user
-                + "','" + password + "','" + database + "'," + port + ",'" + schema + ",h3,public,topology)')";
+    public static String generateIDXSQL(String schema, String user, String password, String database, String host, int port, int mode){
+        return "SELECT * from xyz_create_idxs_over_dblink('" + schema + "',50, 0,"+mode+",ARRAY['wikvaya','" + user + "'],'" + user
+                + "','" + password + "','" + database + "','" + host + "'," + port + ",'" + schema + ",h3,public,topology')";
     }
 
     /** Get status of running index queries (statistic,analyzing,creation,deletion) */
