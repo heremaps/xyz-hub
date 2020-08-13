@@ -57,6 +57,7 @@ import com.here.xyz.hub.task.FeatureTask.DeleteOperation;
 import com.here.xyz.hub.task.FeatureTask.ReadQuery;
 import com.here.xyz.hub.task.FeatureTask.TileQuery;
 import com.here.xyz.hub.task.FeatureTask.TileQuery.TransformationContext;
+import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
 import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.task.ModifyOp.ModifyOpError;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
@@ -85,6 +86,7 @@ import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
@@ -714,8 +716,11 @@ public class FeatureTaskHandler {
 
       long now = Service.currentTimeMillis();
 
-      for (int i = 0; i < task.modifyOp.entries.size(); i++) {
-        final Entry<Feature> entry = task.modifyOp.entries.get(i);
+      Iterator<FeatureEntry> it = task.modifyOp.entries.iterator();
+      int i=-1;
+      while( it.hasNext() ){
+        FeatureEntry entry = it.next();
+        i++;
 
         if(entry.exception != null){
           fails.add(new FeatureCollection.ModificationFailure()
@@ -728,7 +733,7 @@ public class FeatureTaskHandler {
           task.hasNonModified = true;
           /** Entry does not exist - remove it to prevent null references */
           if(entry.head == null && entry.base == null)
-            task.modifyOp.entries.remove(entry);
+            it.remove();
           continue;
         }
 
