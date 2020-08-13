@@ -19,6 +19,9 @@
 
 package com.here.xyz.events;
 
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -46,13 +49,17 @@ public class TagsQuery extends ArrayList<TagList> {
       return result;
     }
 
-    for (String s : tagsQueryParam) {
-      if (s == null || s.length() == 0) {
-        continue;
-      }
+    String operatorPlus = "-#:plus:#-";
 
-      final String[] split = StringUtils.split(s.replace(' ', '+'), "+");
-      result.add(new TagList(split));
+    for (String s : tagsQueryParam) 
+    {
+     if (s == null || s.length() == 0) continue;
+
+     try { s = URLDecoder.decode(s.replaceAll("\\+",operatorPlus), "utf-8"); }
+     catch (UnsupportedEncodingException e) { e.printStackTrace(); }
+   
+     final String[] split = s.split( operatorPlus );
+     result.add(new TagList(split));
     }
 
     return result;
