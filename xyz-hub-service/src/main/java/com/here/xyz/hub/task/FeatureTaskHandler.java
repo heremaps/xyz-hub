@@ -66,6 +66,7 @@ import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.geojson.implementation.FeatureCollection.ModificationFailure;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
@@ -718,9 +719,13 @@ public class FeatureTaskHandler {
         final Entry<Feature> entry = task.modifyOp.entries.get(i);
 
         if(entry.exception != null){
-          fails.add(new FeatureCollection.ModificationFailure()
-                  .withMessage(entry.exception.getMessage())
-                  .withId(entry.head.getId()));
+          ModificationFailure failure = new ModificationFailure()
+              .withMessage(entry.exception.getMessage())
+              .withPosition((long) i);
+          if (entry.input.get("id") instanceof String) {
+            failure.setId((String) entry.input.get("id"));
+          }
+          fails.add(failure);
           continue;
         }
 
