@@ -238,6 +238,15 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     try {
       final Set<String> authorizedSpaces = getAuthorizedSpaces(marker, authorizedCondition);
 
+      // get all shared spaces if the selection for shared spaces is enabled
+      if (selectedCondition.shared) {
+        spaces.getIndex("shared-index").query(new QuerySpec().withHashKey("shared", 1).withProjectionExpression("id")).pages()
+            .forEach(p -> p.forEach(i -> {
+              authorizedSpaces.add(i.getString("id"));
+            }));
+        logger.debug(marker, "Number of space IDs after addition of shared spaces: {}", authorizedSpaces.size());
+      }
+
       if (propsQuery != null) {
         final Set<String> contentUpdatedSpaces = new HashSet<>();
 
@@ -264,15 +273,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
         // filter out spaces which are not present in contentUpdateSpaces
         authorizedSpaces.removeIf(i -> !contentUpdatedSpaces.contains(i));
-      }
-
-      // get all shared spaces if the selection for shared spaces is enabled
-      if (selectedCondition.shared) {
-        spaces.getIndex("shared-index").query(new QuerySpec().withHashKey("shared", 1).withProjectionExpression("id")).pages()
-            .forEach(p -> p.forEach(i -> {
-              authorizedSpaces.add(i.getString("id"));
-            }));
-        logger.debug(marker, "Number of space IDs after addition of shared spaces: {}", authorizedSpaces.size());
+        logger.debug(marker, "Number of space IDs after removal of the ones filtered by contentUpdatedAt: {}", authorizedSpaces.size());
       }
 
       // filter out the ones not present in the selectedCondition (null or empty represents 'do not filter')

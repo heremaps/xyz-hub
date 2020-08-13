@@ -245,16 +245,4 @@ public class ListSpaceContentUpdatedAtTestIT extends TestSpaceWithFeature {
       .statusCode(OK.code())
       .body("$.size()", equalTo(4));
   }
-
-  // @Test
-  // public void testListSpacesIndex6Limit3() {
-  //   listSpaces(6, 3, "me")
-  //     .statusCode(OK.code())
-  //     .body("$.size()", equalTo(0));
-    
-
-  //   listSpaces(6, 3, "*")
-  //     .statusCode(OK.code())
-  //     .body("$.size()", equalTo(1));
-  // }
 }
