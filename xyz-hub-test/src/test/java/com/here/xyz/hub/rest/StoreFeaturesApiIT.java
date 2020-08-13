@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,11 @@ import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static org.hamcrest.Matchers.equalTo;
 
+import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import java.util.Arrays;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -33,6 +37,7 @@ import org.junit.runners.MethodSorters;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class StoreFeaturesApiIT extends TestSpaceWithFeature {
+
   @BeforeClass
   public static void setupClass() {
     remove();
@@ -72,5 +77,34 @@ public class StoreFeaturesApiIT extends TestSpaceWithFeature {
         put("/spaces/x-psql-test/features").
         then().
         statusCode(OK.code());
+  }
+
+  @Test
+  public void testFailureResponse() {
+    FeatureCollection fc = new FeatureCollection().withFeatures(Arrays.asList(
+        Feature.createEmptyFeature().withId("T1")));
+
+    given().
+        contentType(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        body(fc.serialize()).
+        when().
+        put("/spaces/x-psql-test/features").
+        then().
+        statusCode(OK.code());
+
+    FeatureCollection fcUpdate = new FeatureCollection().withFeatures(Arrays.asList(
+        Feature.createEmptyFeature().withId("A1"),
+        Feature.createEmptyFeature().withId("T1")));
+
+    given().
+        contentType(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        body(fcUpdate.serialize()).
+        when().
+        post("/spaces/x-psql-test/features?ne=retain&e=error&transactional=false").prettyPeek().
+        then().
+        statusCode(OK.code()).
+        body("failed[0].id", equalTo("T1"));
   }
 }
