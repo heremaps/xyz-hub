@@ -27,6 +27,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -68,9 +69,11 @@ public class AuthTestsIT extends RestAssuredTest {
     removeSpace("x-auth-test-space");
     removeSpace("x-auth-test-space-shared");
 
-    if (cleanUpId != null) {
-      removeSpace(cleanUpId);
-    }
+    if (cleanUpId != null 
+        && !"x-auth-test-space".equals(cleanUpId) 
+        && !"x-auth-test-space-shared".equals(cleanUpId)
+    ) removeSpace(cleanUpId);
+    
   }
 
   @SuppressWarnings("SameParameterValue")
@@ -213,7 +216,6 @@ public class AuthTestsIT extends RestAssuredTest {
         .extract()
         .path("id");
   }
-
   @Test
   public void createTestStorageSpaceNegative() {
     createSpace("/xyz/hub/auth/createTestStorageSpace.json", AuthProfile.STORAGE_AUTH_TEST_PSQL_ONLY)
@@ -351,7 +353,7 @@ public class AuthTestsIT extends RestAssuredTest {
   public void testSpaceListWithAccessAll() {
     testSpaceListWithShared("*", AuthProfile.ACCESS_ALL)
         .statusCode(OK.code())
-        .body("$.size()", equalTo(2))
+        .body("$.size()", greaterThanOrEqualTo(2))
         .body("id", hasItems("x-auth-test-space", "x-auth-test-space-shared"));
   }
 
