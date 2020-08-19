@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -85,11 +85,10 @@ public class JDBCHealthCheck extends DBHealthCheck {
 		}
 		
 		//Do a simple query
-		Statement statement;
+
 		String simpleQuery = "SELECT 1";
-		try {
-			statement = connection.createStatement();
-			ResultSet rs = statement.executeQuery(simpleQuery);
+		try (Statement statement = connection.createStatement();
+				ResultSet rs = statement.executeQuery(simpleQuery)){
 			rs.next();
 			int result = rs.getInt(1);
 			if (result != 1) {
