@@ -213,6 +213,9 @@ public abstract class Geometry implements Typed {
       throw new InvalidGeometryException("Coordinates are expected to be an array");
     }
     @SuppressWarnings("unchecked") final List<Object> linearRings = (List<Object>) raw;
+    if(linearRings.size() == 0) {
+      throw new InvalidGeometryException("Polygon must have at least one LinearRing");
+    }
     for (int i = 0; i < linearRings.size(); i++) {
       final Object linearRing = linearRings.get(i);
       if (!(linearRing instanceof List)) {
@@ -233,6 +236,9 @@ public abstract class Geometry implements Typed {
       throw new InvalidGeometryException("Coordinates are expected to be an array");
     }
     @SuppressWarnings("unchecked") final List<Object> polygons = (List<Object>) raw;
+    if(polygons.size() == 0) {
+      throw new InvalidGeometryException("MultiPolygon must have at least one Polygon");
+    }
     for (int i = 0; i < polygons.size(); i++) {
       final Object polygon = polygons.get(i);
       if (!(polygon instanceof List)) {
