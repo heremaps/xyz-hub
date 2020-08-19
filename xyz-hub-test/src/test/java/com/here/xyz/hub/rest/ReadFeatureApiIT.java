@@ -42,6 +42,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
+import com.jayway.restassured.RestAssured;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
@@ -220,6 +221,9 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
 
   @Test
   public void testCombinedTags() {
+    boolean bFlag = RestAssured.urlEncodingEnabled;
+    RestAssured.urlEncodingEnabled = false;
+
     given().
         accept(APPLICATION_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
@@ -228,6 +232,8 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         then().
         statusCode(OK.code()).
         body("count", equalTo(41));
+
+    RestAssured.urlEncodingEnabled = bFlag;    
   }
 
   @Test
