@@ -120,6 +120,9 @@ public class PSQLXyzConnectorIT {
     String response = invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
     assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
 
+    response = invokeLambdaFromFile("/events/DeleteSpaceFooTestEvent.json");
+    assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
+
     logger.info("Setup Completed.");
   }
 
@@ -127,6 +130,7 @@ public class PSQLXyzConnectorIT {
   public void shutdown() throws Exception {
     logger.info("Shutdown...");
     invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
+    invokeLambdaFromFile("/events/DeleteSpaceFooTestEvent.json");
     logger.info("Shutdown Completed.");
   }
 
