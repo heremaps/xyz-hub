@@ -45,10 +45,12 @@ import org.junit.Test;
 public class AuthTestsIT extends RestAssuredTest {
 
   private static String cleanUpId;
+  private static boolean zeroSpaces = true;
 
   @BeforeClass
   public static void setupClass() {
     removeAllSpaces();
+    zeroSpaces = zeroSpaces();
   }
 
   @After
@@ -74,6 +76,16 @@ public class AuthTestsIT extends RestAssuredTest {
         && !"x-auth-test-space-shared".equals(cleanUpId)
     ) removeSpace(cleanUpId);
     
+  }
+
+  private static boolean zeroSpaces()
+  {
+    int nrCurrentSpaces = 
+     getSpacesList("*", AuthProfile.ACCESS_ALL)
+      .statusCode(OK.code())
+       .extract().path("$.size()");
+
+    return nrCurrentSpaces == 0;
   }
 
   @SuppressWarnings("SameParameterValue")
@@ -353,7 +365,7 @@ public class AuthTestsIT extends RestAssuredTest {
   public void testSpaceListWithAccessAll() {
     testSpaceListWithShared("*", AuthProfile.ACCESS_ALL)
         .statusCode(OK.code())
-        .body("$.size()", greaterThanOrEqualTo(2))
+        .body("$.size()", zeroSpaces ? equalTo(2) : greaterThanOrEqualTo(2) )
         .body("id", hasItems("x-auth-test-space", "x-auth-test-space-shared"));
   }
 
