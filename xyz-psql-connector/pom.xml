@@ -270,6 +270,18 @@
     </dependency>
 
     <dependency>
+      <groupId>com.google.crypto.tink</groupId>
+      <artifactId>tink</artifactId>
+      <version>1.4.0</version>
+    </dependency>
+
+    <dependency>
+      <groupId>com.google.protobuf</groupId>
+      <artifactId>protobuf-java</artifactId>
+      <version>3.11.1</version>
+    </dependency>
+
+    <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
       <scope>test</scope>
@@ -280,6 +292,5 @@
       <artifactId>json-path</artifactId>
       <scope>test</scope>
     </dependency>
-
   </dependencies>
 </project>
