@@ -120,6 +120,9 @@ public class PSQLXyzConnectorIT {
     String response = invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
     assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
 
+    response = invokeLambdaFromFile("/events/DeleteSpaceFooTestEvent.json");
+    assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
+
     logger.info("Setup Completed.");
   }
 
@@ -127,6 +130,7 @@ public class PSQLXyzConnectorIT {
   public void shutdown() throws Exception {
     logger.info("Shutdown...");
     invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
+    invokeLambdaFromFile("/events/DeleteSpaceFooTestEvent.json");
     logger.info("Shutdown Completed.");
   }
 
@@ -384,7 +388,7 @@ public class PSQLXyzConnectorIT {
     try (final Connection connection = lambda.dataSource.getConnection()) {
       Statement stmt = connection.createStatement();
       String sql = "SELECT pg_get_triggerdef(oid)," +
-              "(SELECT (to_regclass('public.\"foo\"') IS NOT NULL) as hst_table_exists) " +
+              "(SELECT (to_regclass('\"foo\"') IS NOT NULL) as hst_table_exists) " +
               "FROM pg_trigger " +
               "WHERE tgname = 'tr_foo_history_writer';";
 
@@ -1353,7 +1357,7 @@ public class PSQLXyzConnectorIT {
     /* Needed to trigger update on pg_stat*/
     try (final Connection connection = lambda.dataSource.getConnection()) {
       Statement stmt = connection.createStatement();
-      stmt.execute("ANALYZE public.\"foo\";");
+      stmt.execute("ANALYZE \"foo\";");
     }
 
     statisticsJson = invokeLambda(eventJson);
@@ -1415,7 +1419,7 @@ public class PSQLXyzConnectorIT {
     try (final Connection connection = lambda.dataSource.getConnection()) {
       Statement stmt = connection.createStatement();
       stmt.execute("DELETE FROM xyz_config.xyz_idxs_status WHERE spaceid='foo';");
-      stmt.execute("ANALYZE public.\"foo\";");
+      stmt.execute("ANALYZE \"foo\";");
     }
 
     //Triggers dbMaintenance
