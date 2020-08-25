@@ -179,16 +179,8 @@ public class DatabaseMaintainer {
                 }
 
                 if (needUpdate) {
-                    String currSearchPath;
-
-                    if ((rs = stmt.executeQuery("show search_path")).next()) {
-                        currSearchPath = rs.getString(1);
-                    } else {
-                        throw new Exception("failed on statement [show search_path]");
-                    }
-
                     stmt.execute(readResource("/h3Core.sql"));
-                    stmt.execute(String.format("set search_path = %1$s", currSearchPath));
+                    stmt.execute(MaintenanceSQL.generateSearchPathSQL( config.schema() ));
                     logger.info("{} - Successfully created H3 SQL-Functions", streamId);
                 }
             } catch (Exception e) {
