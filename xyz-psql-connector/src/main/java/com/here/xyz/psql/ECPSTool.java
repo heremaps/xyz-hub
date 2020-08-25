@@ -20,8 +20,10 @@
 package com.here.xyz.psql;
 
 import com.here.xyz.psql.PSQLConfig.AESHelper;
-import javax.crypto.BadPaddingException;
-import javax.crypto.IllegalBlockSizeException;
+import com.here.xyz.psql.PSQLConfig.AESGCMHelper;
+
+import java.io.UnsupportedEncodingException;
+import java.security.GeneralSecurityException;
 
 /**
  * This tool can be used to prepare a new secret ECPS string for the connectorParams of the PSQL storage connector.
@@ -29,17 +31,22 @@ import javax.crypto.IllegalBlockSizeException;
 public class ECPSTool {
   public static final String USAGE = "java ECPSTool encrypt|decrypt <ecps_phrase> <data>";
 
-  public static void main(String[] args) throws BadPaddingException, IllegalBlockSizeException {
+  public static void main(String[] args) throws GeneralSecurityException, UnsupportedEncodingException {
     String action = args[0];
     String phrase = args[1];
     String data = args[2];
 
     switch (action) {
       case "encrypt":
-        System.out.println(new AESHelper(phrase).encrypt(data));
+        System.out.println(new AESGCMHelper(phrase).encrypt(data));
         break;
       case "decrypt":
-        System.out.println(new AESHelper(phrase).decrypt(data));
+        try {
+          System.out.println(new AESHelper(phrase).decrypt(data));
+        }catch(Exception e){
+          //Try new Decryption
+          System.out.println(new AESGCMHelper(phrase).decrypt(data));
+        }
         break;
       default:
         System.err.println("ERROR: Invalid action provided.\n\n" + USAGE);
