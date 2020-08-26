@@ -79,6 +79,12 @@ public class Connector {
   public List<String> defaultEventTypes;
 
   /**
+   * A list of email addresses of responsible owners for this connector.
+   * These email addresses will be used to send potential health warnings and other notifications.
+   */
+  public List<String> contactEmails;
+
+  /**
    * Returns the maximal amount of requests to queue.
    *
    * @return the maximal amount of requests to queue.
