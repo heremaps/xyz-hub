@@ -209,11 +209,15 @@ public class FeatureTaskHandler {
         });
       }
       catch (IllegalStateException e) {
+        cancelRPC(responseContext.rpcContext);
+        logger.error(task.getMarker(), e.getMessage(), e);
         callback.exception(new HttpException(BAD_REQUEST, e.getMessage(), e));
         return;
       }
       catch (Exception e) {
-        callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Error executing the storage event.", e));
+        cancelRPC(responseContext.rpcContext);
+        logger.error(task.getMarker(), "Unexpected error executing the storage event.", e);
+        callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unexpected error executing the storage event.", e));
         return;
       }
 
@@ -230,6 +234,12 @@ public class FeatureTaskHandler {
       //Send event to potentially registered request-listeners
       notifyListeners(task, eventType, requestListenerPayload);
     });
+  }
+
+  private static void cancelRPC(RpcContext rpcContext) {
+    if (rpcContext != null) {
+      rpcContext.cancelRequest();
+    }
   }
 
   private static <T extends FeatureTask> void addStoragePerformanceInfo(T task, long storageTime,

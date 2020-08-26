@@ -91,10 +91,10 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
   }
 
   @Override
-  protected void invoke(Marker marker, byte[] bytes, boolean fireAndForget, Handler<AsyncResult<byte[]>> callback) {
-    //TODO: respect fireAndForget parameter
+  protected void invoke(FunctionCall fc, Handler<AsyncResult<byte[]>> callback) {
+    //TODO: respect fc.fireAndForget parameter
     final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
-    logger.info(marker, "Invoke http remote function '{}' URL is: {} Event size is: {}", remoteFunction.id, url, bytes.length);
+    logger.info(fc.marker, "Invoke http remote function '{}' URL is: {} Event size is: {}", remoteFunction.id, url, fc.bytes.length);
 
     int tryCount = 0;
     boolean retry;
@@ -105,7 +105,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
         webClient.postAbs(url)
             .timeout(REQUEST_TIMEOUT)
             .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
-            .sendBuffer(Buffer.buffer(bytes), ar -> {
+            .sendBuffer(Buffer.buffer(fc.bytes), ar -> {
               if (ar.failed()) {
                 if (ar.cause() instanceof TimeoutException) {
                   callback.handle(Future.failedFuture(new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.")));
@@ -128,7 +128,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
           logger.error(e.getMessage() + (retry ? " Retrying ..." : ""), e);
         }
         if (!retry) {
-          logger.error(marker, "Error sending event to remote http service", e);
+          logger.error(fc.marker, "Error sending event to remote http service", e);
           callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Connector error.", e)));
         }
       }
