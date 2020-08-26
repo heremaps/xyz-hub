@@ -187,6 +187,9 @@ public abstract class ConnectorConfigClient implements Initializable {
         map.put("PSQL_PORT", String.valueOf(uri.getPort() == -1 ? 5432 : uri.getPort()));
         map.put("PSQL_USER", Service.configuration.STORAGE_DB_USER);
         map.put("PSQL_PASSWORD", Service.configuration.STORAGE_DB_PASSWORD);
+        String[] pathComponent = ( uri.getPath() == null ? null : uri.getPath().split("/") );
+        if( pathComponent != null && pathComponent.length > 1 )
+         map.put("PSQL_DB", pathComponent[1]);
       }
 
       final Embedded embedded = (Embedded) connector.remoteFunction;

@@ -21,6 +21,7 @@ package com.here.xyz.psql;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.connectors.SimulatedContext;
 import com.here.xyz.connectors.StorageConnector;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
@@ -39,6 +40,9 @@ import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.mchange.v2.c3p0.AbstractConnectionCustomizer;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
+
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -55,6 +59,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.sql.DataSource;
+
+import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.commons.dbutils.StatementConfiguration;
@@ -133,19 +139,42 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
+    private static MessageDigest md;
+    static { 
+      try{ md = MessageDigest.getInstance("MD5"); }
+      catch( NoSuchAlgorithmException e)
+      { logger.error("MessageDigest md5 init failed"); }
+    }
+    
+    private String idFromPsqlEnv( final SimulatedContext ctx )
+    { if(ctx == null || md == null ) return PSQLConfig.DEFAULT_ECPS;
+      md.reset();
+      String[] sArr = { PSQLConfig.PSQL_HOST, PSQLConfig.PSQL_PORT, PSQLConfig.PSQL_USER, "PSQL_DB" };
+      String msg = "";
+      for( String s : sArr)
+       msg += ( ctx.getEnv(s) == null ? "mxm" : ctx.getEnv(s) ); 
+      
+      return Hex.encodeHexString( md.digest(msg.getBytes()) );
+    }
+
     @Override
     protected synchronized void initialize(Event event) {
 
         this.event = event;
-        final String ecps = PSQLConfig.getECPS(event);
+        String ecps = PSQLConfig.getECPS(event);
+
+        if( PSQLConfig.DEFAULT_ECPS.equals(ecps) && context instanceof SimulatedContext )
+         ecps = idFromPsqlEnv((SimulatedContext) context);         
 
         if (!dbInstanceMap.containsKey(ecps)) {
             /** Init dataSource, readDataSource ..*/
             logger.info("{} - Create new config and data source for ECPS string: '{}'", streamId, ecps);
             final PSQLConfig config = new PSQLConfig(event, context);
+            final String sName   = ecps.length() <  8 ? ecps : ( ecps.length() < 33 ? ecps.substring(0, 7) : ecps.substring(21, 28) ),
+                         appName = String.format("%s[%s]", config.applicationName(), sName );
 
             final ComboPooledDataSource source = getComboPooledDataSource(config.host(), config.port(), config.database(), config.user(),
-                    config.password(), config.applicationName(), config.maxPostgreSQLConnections());
+                    config.password(), appName, config.maxPostgreSQLConnections());
 
             Map<String, String> m = new HashMap<>();
             m.put(C3P0EXT_CONFIG_SCHEMA, config.schema());
@@ -156,7 +185,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
             if (config.replica() != null) {
                 final ComboPooledDataSource replicaDataSource = getComboPooledDataSource(config.replica(), config.port(), config.database(),
-                        config.user(), config.password(), config.applicationName(), config.maxPostgreSQLConnections());
+                        config.user(), config.password(), appName, config.maxPostgreSQLConnections());
                 replicaDataSource.setExtensions(m);
                 xyzDBInstance.addReadDataSource(replicaDataSource);
             }

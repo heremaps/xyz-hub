@@ -11,7 +11,7 @@
       "enableAutoCache": true,
       "maxPayloadSize": 1073741824,
       "clusteringTypes": [
-        "hexbin"
+        "hexbin", "quadbin"
       ]
     },
     "connectionSettings": {
@@ -25,6 +25,7 @@
       "env": {
         "PSQL_HOST": "${PSQL_HOST}",
         "PSQL_PORT": "${PSQL_PORT}",
+        "PSQL_DB"  : "${PSQL_DB}",
         "PSQL_USER": "${PSQL_USER}",
         "PSQL_PASSWORD": "${PSQL_PASSWORD}",
         "PSQL_MAX_CONN": 32
@@ -158,6 +159,7 @@
       "env": {
         "PSQL_HOST": "${PSQL_HOST}",
         "PSQL_PORT": "${PSQL_PORT}",
+        "PSQL_DB"  : "${PSQL_DB}",
         "PSQL_USER": "${PSQL_USER}",
         "PSQL_PASSWORD": "${PSQL_PASSWORD}"
       }
