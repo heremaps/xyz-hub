@@ -20,6 +20,7 @@
 package com.here.xyz.hub;
 
 import com.amazonaws.services.cloudwatch.model.StandardUnit;
+import com.amazonaws.util.CollectionUtils;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.cache.CacheClient;
@@ -63,7 +64,6 @@ import java.util.Properties;
 import java.util.UUID;
 import java.util.Vector;
 import java.util.concurrent.TimeUnit;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -248,13 +248,12 @@ public class Service {
       return;
     }
 
-    if (StringUtils.isEmpty(Service.configuration.VERTICLES_CLASS_NAMES)) {
+    if (CollectionUtils.isNullOrEmpty(Service.configuration.VERTICLES_CLASS_NAMES)) {
       logger.error("At least one Verticle class name should be specified on VERTICLES_CLASS_NAMES. Service can't be started");
       return;
     }
 
     final Router global = Router.router(vertx);
-    final List<String> verticlesClassNames = Arrays.asList(Service.configuration.VERTICLES_CLASS_NAMES.split(","));
     final Vector<Router> routers = new Vector<>();
     final Future<AsyncResult<Void>> future = Future.future();
 
@@ -266,7 +265,7 @@ public class Service {
     future.compose(r -> {
       final List<Future> futures = new ArrayList<>();
 
-      verticlesClassNames.forEach(className -> {
+      Service.configuration.VERTICLES_CLASS_NAMES.forEach(className -> {
         final Future<AsyncResult<String>> deployVerticleFuture = Future.future();
         futures.add(deployVerticleFuture);
 
@@ -603,7 +602,7 @@ public class Service {
     /**
      * The verticles class names to be deployed, separated by comma
      */
-    public String VERTICLES_CLASS_NAMES;
+    public List<String> VERTICLES_CLASS_NAMES;
   }
 
   /**
