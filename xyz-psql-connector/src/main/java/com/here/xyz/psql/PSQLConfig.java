@@ -349,7 +349,7 @@ class PSQLConfig {
      * @param data The Base 64 encoded string representation of the encrypted bytes.
      */
     protected String decrypt(String data) throws IllegalBlockSizeException, BadPaddingException {
-      return new String(decrypt(Base64.getDecoder().decode(data)), StandardCharsets.UTF_8);
+      return new String(decrypt(Base64.getDecoder().decode(data)));
     }
 
     /**
@@ -444,7 +444,7 @@ class PSQLConfig {
      */
     protected String decrypt(String data) throws GeneralSecurityException {
       byte[] decrypted = key.decrypt(Base64.getDecoder().decode(data), null);
-      return new String(decrypted, StandardCharsets.UTF_8);
+      return new String(decrypted);
     }
 
     /**
@@ -453,7 +453,7 @@ class PSQLConfig {
      * @return A Base 64 encoded string, which represents the encoded bytes.
      */
     protected String encrypt(String data) throws UnsupportedEncodingException, GeneralSecurityException {
-      byte[] encrypted = key.encrypt(data.getBytes("utf-8"), null);
+      byte[] encrypted = key.encrypt(data.getBytes(), null);
       return new String(Base64.getEncoder().encode(encrypted));
     }
   }
