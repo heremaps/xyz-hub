@@ -156,7 +156,7 @@ public abstract class RemoteFunctionClient {
     }
   }
 
-  protected void submit(final Marker marker, byte[] bytes, boolean fireAndForget, final Handler<AsyncResult<byte[]>> callback) {
+  protected FunctionCall submit(final Marker marker, byte[] bytes, boolean fireAndForget, final Handler<AsyncResult<byte[]>> callback) {
     Handler<AsyncResult<byte[]>> cb = r -> {
       //This is the point where the request's response came back so measure the throughput
       invokeCompleted();
@@ -176,11 +176,13 @@ public abstract class RemoteFunctionClient {
     //This is the point where new requests arrive so measure the arrival time
     invokeStarted();
 
+    FunctionCall fc = new FunctionCall(marker, bytes, fireAndForget, cb);
     if (!compareAndIncrementUpTo(getMaxConnections(), usedConnections)) {
-      enqueue(marker, bytes, fireAndForget, cb);
-      return;
+      enqueue(fc);
+      return fc;
     }
-    _invoke(marker, bytes, fireAndForget, cb);
+    _invoke(fc);
+    return fc;
   }
 
   /**
@@ -233,7 +235,7 @@ public abstract class RemoteFunctionClient {
     }
   }
 
-  protected abstract void invoke(final Marker marker, byte[] bytes, boolean fireAndForget, final Handler<AsyncResult<byte[]>> callback);
+  protected abstract void invoke(final FunctionCall fc, final Handler<AsyncResult<byte[]>> callback);
 
   public double getThroughput() {
     measureThroughput();
@@ -346,26 +348,28 @@ public abstract class RemoteFunctionClient {
     return Collections.unmodifiableSet(clientInstances);
   }
 
-  private void _invoke(final Marker marker, byte[] bytes, boolean fireAndForget, final Handler<AsyncResult<byte[]>> callback) {
+  private void _invoke(final FunctionCall fc) {
     //long start = System.nanoTime();
-    invoke(marker, bytes, fireAndForget, r -> {
+    invoke(fc, r -> {
+      if (fc.cancelled)
+        return;
       //long end = System.nanoTime();
       //TODO: Activate performance calculation once it's implemented completely
       //recalculatePerformance(end - start, TimeUnit.NANOSECONDS);
       //Look into queue if there is something further to do
-      FunctionCall fc = queue.remove();
-      if (fc == null) {
+      FunctionCall nextFc = queue.remove();
+      if (nextFc == null) {
         usedConnections.getAndDecrement(); //Free the connection only in case it's not needed for the next invocation
       }
       try {
-        callback.handle(r);
+        fc.callback.handle(r);
       }
       catch (Exception e) {
-        logger.error(marker, "Error while calling response handler", e);
+        logger.error(fc.marker, "Error while calling response handler", e);
       }
-      //In case there has been an enqueued element invoke the it
-      if (fc != null) {
-        _invoke(fc.marker, fc.bytes, fc.fireAndForget, fc.callback);
+      //In case there has been an enqueued element invoke it
+      if (nextFc != null) {
+        _invoke(nextFc);
       }
     });
   }
@@ -436,9 +440,7 @@ public abstract class RemoteFunctionClient {
 //    queue.setMaxSize(maxFeasibleElements);
 //  }
 
-  private void enqueue(final Marker marker, byte[] bytes, boolean fireAndForget, final Handler<AsyncResult<byte[]>> callback) {
-    FunctionCall fc = new FunctionCall(marker, bytes, fireAndForget, callback);
-
+  private void enqueue(final FunctionCall fc) {
     /*if (Service.currentTimeMillis() > lastSizeAdjustment.get() + SIZE_ADJUSTMENT_INTERVAL
         && fc.getByteSize() + queue.getByteSize() > queue.getMaxByteSize()) {
       //Element won't fit into queue so we try to enlarge it
@@ -453,12 +455,15 @@ public abstract class RemoteFunctionClient {
                 .handle(Future.failedFuture(new HttpException(TOO_MANY_REQUESTS, "Remote function is busy or cannot be invoked."))));
   }
 
-  public static class FunctionCall implements ByteSizeAware {
+  public class FunctionCall implements ByteSizeAware {
 
     final Marker marker;
     final byte[] bytes;
     final boolean fireAndForget;
-    final Handler<AsyncResult<byte[]>> callback;
+
+    private final Handler<AsyncResult<byte[]>> callback;
+    private Runnable cancelHandler;
+    private volatile boolean cancelled;
 
     public FunctionCall(Marker marker, byte[] bytes, boolean fireAndForget, Handler<AsyncResult<byte[]>> callback) {
       this.marker = marker;
@@ -470,6 +475,27 @@ public abstract class RemoteFunctionClient {
     @Override
     public long getByteSize() {
       return bytes.length;
+    }
+
+    public void setCancelHandler(Runnable cancelHandler) {
+      if (this.cancelHandler != null)
+        throw new IllegalStateException("Cancel handler was already set for FunctionCall");
+      this.cancelHandler = cancelHandler;
+    }
+
+    public void cancel() {
+      cancelled = true;
+      try {
+        if (cancelHandler != null) {
+          cancelHandler.run();
+        }
+      }
+      catch (Exception e) {
+        logger.error(marker, "Error cancelling call to Remote Function.");
+      }
+      finally {
+        usedConnections.getAndDecrement(); //Free the connection
+      }
     }
   }
 

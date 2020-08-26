@@ -135,23 +135,23 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
    * Invokes the remote lambda function and returns the decompressed response as bytes.
    */
   @Override
-  protected void invoke(final Marker marker, byte[] bytes, boolean fireAndForget, final Handler<AsyncResult<byte[]>> callback) {
+  protected void invoke(final FunctionCall fc, final Handler<AsyncResult<byte[]>> callback) {
     final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
-    logger.debug(marker, "Invoking remote lambda function with id '{}' Event size is: {}", remoteFunction.id, bytes.length);
+    logger.debug(fc.marker, "Invoking remote lambda function with id '{}' Event size is: {}", remoteFunction.id, fc.bytes.length);
 
     InvokeRequest invokeReq = new InvokeRequest()
         .withFunctionName(((AWSLambda) remoteFunction).lambdaARN)
-        .withPayload(ByteBuffer.wrap(bytes))
-        .withInvocationType(fireAndForget ? InvocationType.Event : InvocationType.RequestResponse);
+        .withPayload(ByteBuffer.wrap(fc.bytes))
+        .withInvocationType(fc.fireAndForget ? InvocationType.Event : InvocationType.RequestResponse);
 
-    asyncClient.invokeAsync(invokeReq, new AsyncHandler<InvokeRequest, InvokeResult>() {
+    java.util.concurrent.Future<InvokeResult> future = asyncClient.invokeAsync(invokeReq, new AsyncHandler<InvokeRequest, InvokeResult>() {
       @Override
       public void onError(Exception exception) {
         if (callback == null) {
-          logger.error(marker, "Error sending event to remote lambda function", exception);
+          logger.error(fc.marker, "Error sending event to remote lambda function", exception);
         }
         else {
-          callback.handle(Future.failedFuture(getHttpException(marker, exception)));
+          callback.handle(Future.failedFuture(getHttpException(fc.marker, exception)));
         }
       }
 
@@ -162,6 +162,8 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
         callback.handle(Future.succeededFuture(responseBytes));
       }
     });
+
+    fc.setCancelHandler(() -> future.cancel(true));
   }
 
   /**

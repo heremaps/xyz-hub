@@ -40,6 +40,7 @@ import com.here.xyz.connectors.RelocationClient;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.RelocatedEvent;
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.connectors.RemoteFunctionClient.FunctionCall;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.HttpException;
@@ -159,7 +160,7 @@ public class RpcClient {
     return functionClient;
   }
 
-  private void invokeWithRelocation(final Marker marker, byte[] bytes, boolean fireAndForget, final Handler<AsyncResult<byte[]>> callback) {
+  private void invokeWithRelocation(final Marker marker, RpcContext context, byte[] bytes, boolean fireAndForget, final Handler<AsyncResult<byte[]>> callback) {
     try {
       final Connector connector = getConnector();
       if (bytes.length > connector.capabilities.maxPayloadSize) { // If the payload is too large to send directly to the connector
@@ -176,13 +177,14 @@ public class RpcClient {
             callback.handle(Future.failedFuture(ar.cause()));
             return;
           }
-          functionClient.submit(marker, ar.result(), fireAndForget, callback);
+          context.functionCall = functionClient.submit(marker, ar.result(), fireAndForget, callback);
         });
       }
       else {
-        functionClient.submit(marker, bytes, fireAndForget, callback);
+        context.functionCall = functionClient.submit(marker, bytes, fireAndForget, callback);
       }
-    } catch (Exception e) {
+    }
+    catch (Exception e) {
       callback.handle(Future.failedFuture(e));
     }
   }
@@ -223,7 +225,9 @@ public class RpcClient {
     logger.info(marker, "Invoking remote function \"{}\". Total uncompressed event size: {}, Event: {}", connector.id, eventBytes.length,
         preview(eventJson, 4092));
 
-    invokeWithRelocation(marker, eventBytes, false, bytesResult -> {
+    invokeWithRelocation(marker, context, eventBytes, false, bytesResult -> {
+      if (context.cancelled)
+        return;
       if (bytesResult.failed()) {
         callback.handle(Future.failedFuture(bytesResult.cause()));
         return;
@@ -263,12 +267,13 @@ public class RpcClient {
     final Connector connector = getConnector();
     event.setConnectorParams(connector.params);
     final byte[] eventBytes = event.serialize().getBytes();
-    invokeWithRelocation(marker, eventBytes, true, r -> {
+    RpcContext context = new RpcContext().withRequestSize(eventBytes.length);
+    invokeWithRelocation(marker, context, eventBytes, true, r -> {
       if (r.failed()) {
         logger.error(marker, "Failed to send event to remote function {}.", connector.remoteFunction.id, r.cause());
       }
     });
-    return new RpcContext().withRequestSize(eventBytes.length);
+    return context;
   }
 
   @SuppressWarnings("rawtypes")
@@ -409,6 +414,13 @@ public class RpcClient {
   public static class RpcContext {
     private int requestSize = -1;
     private int responseSize = -1;
+    private volatile boolean cancelled = false;
+    private FunctionCall functionCall;
+
+    public void cancelRequest() {
+      cancelled = true;
+      functionCall.cancel();
+    }
 
     public int getRequestSize() {
       return requestSize;
