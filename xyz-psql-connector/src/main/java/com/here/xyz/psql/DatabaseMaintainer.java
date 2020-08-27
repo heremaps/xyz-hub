@@ -214,7 +214,7 @@ public class DatabaseMaintainer {
                 int mode = autoIndexing == true ? 2 : 0;
 
                 /** Maintain INDICES */
-                stmt.execute(MaintenanceSQL.generateIDXSQL(config.schema(), config.user(), config.password(), config.database(), config.host(), config.port(), mode));
+                stmt.execute(MaintenanceSQL.generateIDXSQL(config.schema(), config.user(), config.password(), config.database(),"localhost", config.port(), mode));
             }
         } catch (Exception e) {
             logger.error("{} - Failed run auto-indexing on database {} : {}", streamId, config.database(), e);
