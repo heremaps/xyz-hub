@@ -491,6 +491,11 @@ public class Service {
     public int XYZ_HUB_REDIS_PORT;
 
     /**
+     * The redis auth token.
+     */
+    public String XYZ_HUB_REDIS_AUTH_TOKEN;
+
+    /**
      * The authorization type.
      */
     public Authorization.AuthorizationType XYZ_HUB_AUTH;
