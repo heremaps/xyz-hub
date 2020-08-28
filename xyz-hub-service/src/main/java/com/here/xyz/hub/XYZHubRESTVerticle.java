@@ -228,6 +228,7 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
         //OpenAPI resources
         router.route("/hub/static/openapi/*").handler(createCorsHandler()).handler((routingContext -> {
           final HttpServerResponse res = routingContext.response();
+          res.putHeader("content-type", "application/yaml");
           final String path = routingContext.request().path();
           if (path.endsWith("full.yaml")) {
             res.headers().add(CONTENT_LENGTH, String.valueOf(FULL_API.getBytes().length));
