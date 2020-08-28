@@ -1,27 +1,16 @@
 package com.here.xyz.hub.rest.admin.messages.brokers;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.rest.AdminApi;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.rest.admin.MessageBroker;
 import com.here.xyz.hub.rest.admin.Node;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
-import io.vertx.core.buffer.Buffer;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
-import io.vertx.core.net.impl.ConnectionBase;
 import io.vertx.redis.RedisClient;
 import io.vertx.redis.RedisOptions;
-
-import java.nio.charset.Charset;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.TimeoutException;
-
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -36,13 +25,17 @@ public class RedisMessageBroker implements MessageBroker {
   private static int MAX_MESSAGE_SIZE = 1024 * 1024;
   private static volatile RedisMessageBroker instance;
 
-  private List<String> hubRemoteUrls = null;
-
   public RedisMessageBroker() {
     try {
       config = new RedisOptions()
           .setHost(Service.configuration.XYZ_HUB_REDIS_HOST)
           .setPort(Service.configuration.XYZ_HUB_REDIS_PORT);
+
+      // use redis auth token when available
+      if (!StringUtils.isEmpty(Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN)) {
+        config.setAuth(Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN);
+      }
+
       config.setTcpKeepAlive(true);
       config.setConnectTimeout(2000);
       redis = RedisClient.create(Service.vertx, config);
@@ -55,10 +48,6 @@ public class RedisMessageBroker implements MessageBroker {
     }
     catch (Exception e) {
       logger.error("Error while subscribing node in Redis.", e);
-    }
-
-    if (StringUtils.isEmpty(Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS)){
-      hubRemoteUrls = Arrays.asList(Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS.split(";"));
     }
   }
 
@@ -106,51 +95,6 @@ public class RedisMessageBroker implements MessageBroker {
       else
         logger.error("Error sending message: {}", jsonMessage, ar.cause());
     });
-
-    sendRawMessagesToRemoteCluster(jsonMessage);
-  }
-
-  private void sendRawMessagesToRemoteCluster(String jsonMessage) {
-    if (hubRemoteUrls != null) {
-
-      for (String remoteUrl : hubRemoteUrls) {
-        Service.vertx.executeBlocking(future -> {
-          int tryCount = 0;
-          boolean retry = false;
-          do {
-            tryCount++;
-            try {
-              byte[] body = mapper.get().writeValueAsBytes(jsonMessage);
-              synchronized (Service.webClient) {
-                Service.webClient
-                        .postAbs(remoteUrl + AdminApi.ADMIN_MESSAGES_ENDPOINT)
-                        .timeout(Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT)
-                        .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
-                        .sendBuffer(Buffer.buffer(body), ar -> {
-                          if (ar.failed()) {
-                            future.fail("Failed to sent message to remote cluster at " + hubRemoteUrls + ": " + ar.cause());
-                          } else {
-                            future.complete();
-                          }
-                        });
-              }
-            } catch (JsonProcessingException e) {
-              future.fail("Error while serializing AdminMessage prior to send it. URL: " + hubRemoteUrls + " AdminMessage: " + jsonMessage);
-            } catch (Exception e) {
-              if (!retry) {
-                logger.error("Error sending event to remote http service. Retrying once...", e);
-                retry = true;
-              } else {
-                future.fail("Error sending event to remote http service twice. " + e.getMessage());
-              }
-            }
-          } while (retry && tryCount <= 1);
-        }, ar -> {
-          if (ar.failed())
-            logger.error(ar.cause());
-        });
-      }
-    }
   }
 
   public static synchronized RedisMessageBroker getInstance() {

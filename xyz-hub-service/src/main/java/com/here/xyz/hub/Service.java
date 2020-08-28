@@ -491,9 +491,9 @@ public class Service {
     public int XYZ_HUB_REDIS_PORT;
 
     /**
-     * The urls of remote hub services, separated by semicolon ';'
+     * The redis auth token.
      */
-    public String XYZ_HUB_REMOTE_SERVICE_URLS;
+    public String XYZ_HUB_REDIS_AUTH_TOKEN;
 
     /**
      * The authorization type.
