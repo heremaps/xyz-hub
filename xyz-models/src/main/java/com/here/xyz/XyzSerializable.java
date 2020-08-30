@@ -27,8 +27,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.here.xyz.LazyParsable.ProxyStringReader;
 import com.here.xyz.models.hub.Space.Static;
 import com.here.xyz.responses.ErrorResponse;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
@@ -78,7 +80,15 @@ public interface XyzSerializable {
   }
 
   static <T> T deserialize(String string, Class<T> klass) throws JsonProcessingException {
-    return DEFAULT_MAPPER.get().readValue(string, klass);
+    // Jackson always wraps larger strings, with a string reader, which hides the original string from the lazy raw deserializer.
+    // To circumvent that wrap the source string with a custom string reader, which provides access to the input string.
+    try {
+      return DEFAULT_MAPPER.get().readValue(new ProxyStringReader(string), klass);
+    } catch (JsonProcessingException e) {
+      throw e;
+    } catch (IOException e) {
+      return null;
+    }
   }
 
   @SuppressWarnings("unused")
