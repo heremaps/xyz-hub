@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.here.xyz.models.geojson.implementation.Feature;
 import java.io.IOException;
+import java.io.StringReader;
 import java.util.List;
 
 public class LazyParsable<T> {
@@ -92,25 +93,26 @@ public class LazyParsable<T> {
       // the token, then it is possible to extract the value in some cases. For the rest (e.g. input stream without mark support, etc.)
       // the value must be parsed.
       final Object sourceRef = jp.getCurrentLocation().getSourceRef();
-      if (start <= 1 || !(sourceRef instanceof String) || ((String) sourceRef).charAt(start - 1) != '[') {
-        // necessary to allow Feature objects which has no type attribute (for backward compatibility)
-        final JsonNode node = jp.readValueAsTree();
-        for (JsonNode currNode : node) {
-          // check the type and set in case of null
-          if (currNode instanceof ObjectNode && currNode.get("type") == null) {
-            ((ObjectNode) currNode).put("type", FEATURE_TYPE);
-          }
-        }
+      String source = (sourceRef instanceof String) ? (String) sourceRef
+          : (sourceRef instanceof ProxyStringReader) ? ((ProxyStringReader) sourceRef).source : null;
 
-        final ObjectMapper mapper = (ObjectMapper) jp.getCodec();
-        return mapper.treeAsTokens(node).readValueAs(FEATURE_LIST);
+      if (source != null && start > 1 && source.charAt(start - 1) == '[') {
+        jp.skipChildren();
+        int end = (int) jp.getCurrentLocation().getCharOffset();
+        return source.substring(start - 1, end);
       }
 
-      jp.skipChildren();
-      long end = jp.getCurrentLocation().getCharOffset();
+      // necessary to allow Feature objects which has no type attribute (for backward compatibility)
+      final JsonNode node = jp.readValueAsTree();
+      for (JsonNode currNode : node) {
+        // check the type and set in case of null
+        if (currNode instanceof ObjectNode && currNode.get("type") == null) {
+          ((ObjectNode) currNode).put("type", FEATURE_TYPE);
+        }
+      }
 
-      String json = (String) sourceRef;
-      return json.substring(start - 1, (int) end);
+      final ObjectMapper mapper = (ObjectMapper) jp.getCodec();
+      return mapper.treeAsTokens(node).readValueAs(FEATURE_LIST);
     }
   }
 
@@ -133,5 +135,18 @@ public class LazyParsable<T> {
             .serialize(value, gen, serializers);
       }
     }
+  }
+
+  /**
+   * A string reader, which provides access to the underlying string.
+   */
+  public static class ProxyStringReader extends StringReader {
+
+    public ProxyStringReader(String s) {
+      super(s);
+      source = s;
+    }
+
+    public final String source;
   }
 }
