@@ -429,13 +429,7 @@ class PSQLConfig {
 
     protected AESGCMHelper(String passphrase) throws GeneralSecurityException {
       /** If required - adjust passphrase to 256bit length */
-      if(passphrase != null && passphrase.length() != 32){
-        if(passphrase.length() < 32)
-          passphrase = Strings.padStart(passphrase, 32, '0');
-        else if(passphrase.length() > 32)
-          passphrase = passphrase.substring(0,32);
-      }
-      this.key = new AesGcmJce(passphrase.getBytes());
+      this.key = new AesGcmJce( Arrays.copyOfRange((passphrase == null ? "" : passphrase).getBytes(), 0, 16) );    
     }
 
     /**
