@@ -1,16 +1,28 @@
 package com.here.xyz.hub.rest.admin.messages.brokers;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.rest.AdminApi;
+import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.rest.admin.MessageBroker;
 import com.here.xyz.hub.rest.admin.Node;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
+import io.vertx.core.net.impl.ConnectionBase;
 import io.vertx.redis.RedisClient;
 import io.vertx.redis.RedisOptions;
+
+import java.nio.charset.Charset;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.TimeoutException;
+
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -88,6 +100,59 @@ public class RedisMessageBroker implements MessageBroker {
       else
         logger.error("Error sending message: {}", jsonMessage, ar.cause());
     });
+
+    sendRawMessagesToRemoteCluster(jsonMessage);
+  }
+
+  private void sendRawMessagesToRemoteCluster(String jsonMessage) {
+    if (!StringUtils.isEmpty(Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS)) {
+      List<String> hubRemoteUrls = Arrays.asList(Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS.split(";"));
+
+      for (String remoteUrl : hubRemoteUrls) {
+        try {
+          byte[] body = mapper.get().writeValueAsBytes(jsonMessage);
+
+          int tryCount = 0;
+          boolean retry;
+          do {
+            retry = false;
+            tryCount++;
+            try {
+              synchronized (Service.webClient) {
+                Service.webClient
+                        .postAbs(remoteUrl + AdminApi.ADMIN_MESSAGES_ENDPOINT)
+                        .timeout(Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT)
+                        .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
+                        .sendBuffer(Buffer.buffer(body), ar -> {
+                          if (ar.failed()) {
+                            if (ar.cause() instanceof TimeoutException) {
+                              logger.error("Failed to sent message to remote cluster. Connector timeout error.");
+                            } else {
+                              logger.error("Failed to sent message to remote cluster. " + ar.cause());
+                            }
+                          }
+                        });
+              }
+            } catch (Exception e) {
+              if (e == ConnectionBase.CLOSED_EXCEPTION) {
+                e = new RuntimeException("Connection was already closed.", e);
+                if (tryCount <= 1)
+                  retry = true;
+                logger.error(e.getMessage() + (retry ? " Retrying ..." : ""), e);
+              }
+              if (!retry) {
+                logger.error("Error sending event to remote http service", e);
+              }
+            }
+          } while (retry && tryCount <= 1);
+
+        } catch (JsonProcessingException e) {
+          logger.error("Error while serializing AdminMessage prior to send it. AdminMessage: {}", jsonMessage);
+        } catch (Exception e) {
+          logger.error("Error while sending AdminMessage: {}", jsonMessage);
+        }
+      }
+    }
   }
 
   public static synchronized RedisMessageBroker getInstance() {
