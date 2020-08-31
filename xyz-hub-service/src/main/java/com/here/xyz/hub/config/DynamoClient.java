@@ -38,7 +38,9 @@ import com.amazonaws.services.dynamodbv2.model.ResourceInUseException;
 import com.amazonaws.services.dynamodbv2.model.TimeToLiveSpecification;
 import com.amazonaws.services.dynamodbv2.model.UpdateTimeToLiveRequest;
 import com.amazonaws.services.s3.model.Region;
+import com.here.xyz.hub.Service;
 import com.here.xyz.hub.util.ARN;
+import io.vertx.core.WorkerExecutor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -48,6 +50,7 @@ import org.apache.logging.log4j.Logger;
 class DynamoClient {
 
   private static final Logger logger = LogManager.getLogger();
+  static final WorkerExecutor dynamoWorkers = Service.vertx.createSharedWorkerExecutor(DynamoClient.class.getName(), 8);
 
   final AmazonDynamoDBAsync client;
   final String tableName;
