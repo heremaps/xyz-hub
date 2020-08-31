@@ -26,6 +26,9 @@ import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.equalTo;
 
 import java.util.concurrent.TimeUnit;
+
+import com.jayway.restassured.RestAssured;
+
 import org.awaitility.Durations;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -62,6 +65,9 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
             get("/spaces/x-psql-test/search?p.stringArray=cs=foo2").
             then().
             body("features.size()", equalTo(2));
+
+    boolean bFlag = RestAssured.urlEncodingEnabled;
+    RestAssured.urlEncodingEnabled = false;
     given().
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
@@ -69,6 +75,8 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
             get("/spaces/x-psql-test/search?p.stringArray=cs=foo1,NA").
             then().
             body("features.size()", equalTo(1));
+    RestAssured.urlEncodingEnabled = bFlag;
+
     given().
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).

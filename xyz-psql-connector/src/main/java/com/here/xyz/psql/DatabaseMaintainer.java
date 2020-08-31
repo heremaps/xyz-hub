@@ -38,7 +38,7 @@ public class DatabaseMaintainer {
     private static final Logger logger = LogManager.getLogger();
 
     /** Is used to check against xyz_ext_version() */
-    private static final int XYZ_EXT_VERSION = 131;
+    private static final int XYZ_EXT_VERSION = 132;
     /** Can get configured dynamically with storageParam onDemandIdxLimit */
     protected final static int ON_DEMAND_IDX_DEFAULT_LIM = 4;
 
@@ -179,16 +179,8 @@ public class DatabaseMaintainer {
                 }
 
                 if (needUpdate) {
-                    String currSearchPath;
-
-                    if ((rs = stmt.executeQuery("show search_path")).next()) {
-                        currSearchPath = rs.getString(1);
-                    } else {
-                        throw new Exception("failed on statement [show search_path]");
-                    }
-
                     stmt.execute(readResource("/h3Core.sql"));
-                    stmt.execute(String.format("set search_path = %1$s", currSearchPath));
+                    stmt.execute(MaintenanceSQL.generateSearchPathSQL( config.schema() ));
                     logger.info("{} - Successfully created H3 SQL-Functions", streamId);
                 }
             } catch (Exception e) {
@@ -222,7 +214,7 @@ public class DatabaseMaintainer {
                 int mode = autoIndexing == true ? 2 : 0;
 
                 /** Maintain INDICES */
-                stmt.execute(MaintenanceSQL.generateIDXSQL(config.schema(), config.user(), config.password(), config.database(), config.port(), mode));
+                stmt.execute(MaintenanceSQL.generateIDXSQL(config.schema(), config.user(), config.password(), config.database(),"localhost", config.port(), mode));
             }
         } catch (Exception e) {
             logger.error("{} - Failed run auto-indexing on database {} : {}", streamId, config.database(), e);

@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub;
 
+import com.amazonaws.services.cloudwatch.model.StandardUnit;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.cache.CacheClient;
@@ -29,15 +30,22 @@ import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.hub.util.ARN;
 import com.here.xyz.hub.util.ConfigDecryptor;
 import com.here.xyz.hub.util.ConfigDecryptor.CryptoException;
+import com.here.xyz.hub.util.metrics.CloudWatchMetricPublisher;
+import com.here.xyz.hub.util.metrics.MajorGcCountMetric;
+import com.here.xyz.hub.util.metrics.MemoryMetric;
+import com.here.xyz.hub.util.metrics.Metric;
 import io.vertx.config.ConfigRetriever;
 import io.vertx.config.ConfigRetrieverOptions;
 import io.vertx.config.ConfigStoreOptions;
 import io.vertx.core.AsyncResult;
+import io.vertx.core.CompositeFuture;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
+import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.web.Router;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.WebClientOptions;
 import java.io.IOException;
@@ -46,11 +54,16 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.Vector;
 import java.util.concurrent.TimeUnit;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -86,6 +99,16 @@ public class Service {
   public static final String HOST_ID = UUID.randomUUID().toString();
 
   /**
+   * The shared map used across verticles
+   */
+  public static final String SHARED_DATA = "SHARED_DATA";
+
+  /**
+   * The key to access a router list in the shared data
+   */
+  public static final String ROUTERS = "ROUTERS";
+
+  /**
    * The LOG4J configuration file.
    */
   private static final String CONSOLE_LOG_CONFIG = "log4j2-console-plain.json";
@@ -94,6 +117,18 @@ public class Service {
    * The Vertx worker pool size environment variable.
    */
   private static final String VERTX_WORKER_POOL_SIZE = "VERTX_WORKER_POOL_SIZE";
+
+  /**
+   * The http server options to be initialized
+   */
+  private static final HttpServerOptions SERVER_OPTIONS = new HttpServerOptions()
+      .setCompressionSupported(true)
+      .setDecompressionSupported(true)
+      .setHandle100ContinueAutomatically(true)
+      .setTcpQuickAck(true)
+      .setTcpFastOpen(true)
+      .setMaxInitialLineLength(16 * 1024)
+      .setIdleTimeout(300);
 
   /**
    * The entry point to the Vert.x core API.
@@ -129,6 +164,8 @@ public class Service {
    * The hostname
    */
   private static String hostname;
+
+  private static List<Metric> metrics = new LinkedList<>();
 
   /**
    * The service entry point.
@@ -208,24 +245,115 @@ public class Service {
   private static void onServiceInitialized(AsyncResult<Void> result, JsonObject config) {
     if (result.failed()) {
       logger.error("Failed to initialize Connectors. Service can't be started.", result.cause());
+      return;
     }
-    else {
-      //Start / Deploy the service including all endpoints and listeners
-      vertx.deployVerticle(XYZHubRESTVerticle.class, new DeploymentOptions()
+
+    if (StringUtils.isEmpty(Service.configuration.VERTICLES_CLASS_NAMES)) {
+      logger.error("At least one Verticle class name should be specified on VERTICLES_CLASS_NAMES. Service can't be started");
+      return;
+    }
+
+    final Router global = Router.router(vertx);
+    final List<String> verticlesClassNames = Arrays.asList(Service.configuration.VERTICLES_CLASS_NAMES.split(","));
+    final Vector<Router> routers = new Vector<>();
+    final Future<AsyncResult<Void>> future = Future.future();
+
+    final DeploymentOptions options = new DeploymentOptions()
           .setConfig(config)
           .setWorker(false)
-          .setInstances(Runtime.getRuntime().availableProcessors()*2));
+          .setInstances(Runtime.getRuntime().availableProcessors()*2);
 
-      logger.info("XYZ Hub " + BUILD_VERSION + " was started at " + new Date().toString());
-      logger.info("Native transport enabled: " + vertx.isNativeTransportEnabled() );
+    future.compose(r -> {
+      final List<Future> futures = new ArrayList<>();
 
-      Thread.setDefaultUncaughtExceptionHandler((thread, t) -> logger.error("Uncaught exception: ", t));
+      verticlesClassNames.forEach(className -> {
+        final Future<AsyncResult<String>> deployVerticleFuture = Future.future();
+        futures.add(deployVerticleFuture);
 
-      Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-        //This may fail, if we are OOM, but lets at least try.
-        logger.warn("XYZ Service is going down at " + new Date().toString());
-      }));
+        logger.info("Deploying verticle: " + className);
+        vertx.deployVerticle(className, options, deployVerticleHandler -> {
+          if (deployVerticleHandler.failed())
+            logger.warn("Unable to load verticle class:" + className);
+          deployVerticleFuture.complete();
+        });
+      });
+
+      return CompositeFuture.all(futures);
+    }).setHandler(done -> {
+      routers.forEach(router -> {
+        global.mountSubRouter("/", router);
+      });
+
+      final List<Future> futures = new ArrayList<Future>() {{
+        add(createDefaultHttpServer(global));
+        add(createAdminHttpServer(global));
+      }};
+
+      CompositeFuture.all(futures).setHandler(serversResult -> {
+        if (serversResult.succeeded()) {
+          logger.info("XYZ Hub " + BUILD_VERSION + " was started at " + new Date().toString());
+          logger.info("Native transport enabled: " + vertx.isNativeTransportEnabled());
+        }
+      });
+    });
+
+    // shared data initialization
+    vertx.sharedData().getAsyncMap(SHARED_DATA, asyncMapResult -> asyncMapResult.result().put(ROUTERS, routers, future::complete));
+
+    Thread.setDefaultUncaughtExceptionHandler((thread, t) -> logger.error("Uncaught exception: ", t));
+
+    Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+        stopMetricPublishers();
+      //This may fail, if we are OOM, but lets at least try.
+      logger.warn("XYZ Service is going down at " + new Date().toString());
+    }));
+
+      startMetricPublishers();
+  }
+
+  private static Future<Void> createDefaultHttpServer(Router router) {
+    final Future<Void> future = Future.future();
+
+    vertx.createHttpServer(SERVER_OPTIONS)
+        .requestHandler(router)
+        .listen(
+            Service.configuration.HTTP_PORT, result -> {
+              if (result.succeeded()) {
+                future.complete();
+              } else {
+                logger.error("An error occurred, during the initialization of the server.", result.cause());
+                future.fail(result.cause());
+              }
+            });
+
+    return future;
+  }
+
+  protected static Future<Void> createAdminHttpServer(Router router) {
+    final int messagePort = Service.configuration.ADMIN_MESSAGE_PORT;
+    if (messagePort == Service.configuration.HTTP_PORT) {
+      return Future.succeededFuture();
     }
+
+    final Future<Void> future = Future.future();
+
+    //Create 2nd HTTP server for admin-messaging
+    vertx.createHttpServer(SERVER_OPTIONS)
+      .requestHandler(router)
+      .listen(messagePort, result -> {
+        if (result.succeeded()) {
+          logger.debug("HTTP server also listens on admin-messaging port {}.", messagePort);
+        }
+        else {
+          logger.error("An error occurred, during the initialization of admin-messaging http port" + messagePort
+                  + ". Messaging won't work correctly.",
+              result.cause());
+        }
+        //Complete in any case as the admin-messaging is not essential
+        future.complete();
+      });
+
+    return future;
   }
 
   private static void decryptSecrets() {
@@ -306,6 +434,19 @@ public class Service {
 
   public static long currentTimeMillis() {
     return clock.currentTimeMillis();
+  }
+
+  private static void startMetricPublishers() {
+    if (configuration.PUBLISH_METRICS) {
+      metrics.add(new MemoryMetric(new CloudWatchMetricPublisher("XYZ/Hub", "JvmMemoryUtilization",
+          "ServiceName", "XYZ-Hub-" + configuration.ENVIRONMENT_NAME, StandardUnit.Percent)));
+      metrics.add(new MajorGcCountMetric(new CloudWatchMetricPublisher("XYZ/Hub", "MajorGcCount",
+          "ServiceName", "XYZ-Hub-" + configuration.ENVIRONMENT_NAME, StandardUnit.Count)));
+    }
+  }
+
+  private static void stopMetricPublishers() {
+    metrics.forEach(Metric::stop);
   }
 
   /**
@@ -448,6 +589,21 @@ public class Service {
      * The value of the health check header to instruct for additional health status information.
      */
     public String HEALTH_CHECK_HEADER_VALUE;
+
+    /**
+     * An identifier for the service environment.
+     */
+    public String ENVIRONMENT_NAME;
+
+    /**
+     * Whether to publish custom service metrics like JVM memory utilization or Major GC count.
+     */
+    public boolean PUBLISH_METRICS;
+
+    /**
+     * The verticles class names to be deployed, separated by comma
+     */
+    public String VERTICLES_CLASS_NAMES;
   }
 
   /**

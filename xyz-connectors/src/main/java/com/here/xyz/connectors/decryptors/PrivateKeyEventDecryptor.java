@@ -205,16 +205,15 @@ public class PrivateKeyEventDecryptor extends EventDecryptor {
     }
 
     Stream<String> lines;
-    try {
-      if (filePath.startsWith(CLASSPATH_PREFIX)) {
-        InputStream is = PrivateKeyEventDecryptor.class.getResourceAsStream(filePath.substring(CLASSPATH_PREFIX.length()));
-        lines = new LineNumberReader(new InputStreamReader(is)).lines();
-      } else {
-        logger.error("Loading key from filesystem is forbidden.");
+    if (filePath.startsWith(CLASSPATH_PREFIX)) {
+      InputStream is = PrivateKeyEventDecryptor.class.getResourceAsStream(filePath.substring(CLASSPATH_PREFIX.length()));
+      if (is == null) {
+        logger.error("Could not load private key from path '" + filePath + "'");
         return null;
       }
-    } catch (NullPointerException e) {
-      logger.error("Could not load private key from classpath '" + filePath + "'.", e);
+      lines = new LineNumberReader(new InputStreamReader(is)).lines();
+    } else {
+      logger.error("Loading key from filesystem is forbidden.");
       return null;
     }
 
@@ -257,16 +256,15 @@ public class PrivateKeyEventDecryptor extends EventDecryptor {
     }
 
     Stream<String> lines;
-    try {
-      if (filePath.startsWith(CLASSPATH_PREFIX)) {
-        InputStream is = PrivateKeyEventDecryptor.class.getResourceAsStream(filePath.substring(CLASSPATH_PREFIX.length()));
-        lines = new LineNumberReader(new InputStreamReader(is)).lines();
-      } else {
-        logger.error("Loading key from filesystem is forbidden.");
+    if (filePath.startsWith(CLASSPATH_PREFIX)) {
+      InputStream is = PrivateKeyEventDecryptor.class.getResourceAsStream(filePath.substring(CLASSPATH_PREFIX.length()));
+      if (is == null) {
+        logger.error("Could not load public key from path '" + filePath + "'");
         return null;
       }
-    } catch (NullPointerException e) {
-      logger.error("Could not load public key from classpath '" + filePath + "'.", e);
+      lines = new LineNumberReader(new InputStreamReader(is)).lines();
+    } else {
+      logger.error("Loading key from filesystem is forbidden.");
       return null;
     }
 

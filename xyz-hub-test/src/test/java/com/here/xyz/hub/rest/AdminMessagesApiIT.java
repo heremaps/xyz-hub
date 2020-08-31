@@ -27,6 +27,8 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.equalTo;
 
+import com.here.xyz.hub.Service;
+import com.here.xyz.hub.Service.Config;
 import com.here.xyz.hub.rest.admin.AdminMessage;
 import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.hub.rest.admin.messages.TestMessage;
@@ -53,6 +55,11 @@ public class AdminMessagesApiIT extends RestAssuredTest {
 
   @BeforeClass
   public static void setup() {
+    //Mock necessary configuration values
+    Service.configuration = new Config();
+    Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT = 26;
+    Service.configuration.INSTANCE_COUNT = 1;
+
     threadPool = new ForkJoinPool(10);
   }
 

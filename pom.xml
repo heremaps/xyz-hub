@@ -41,7 +41,7 @@
 
   <groupId>com.here.xyz</groupId>
   <artifactId>xyz-hub</artifactId>
-  <version>1.10.1-SNAPSHOT</version>
+  <version>1.10.4-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -349,6 +349,11 @@
       <dependency>
         <groupId>com.amazonaws</groupId>
         <artifactId>aws-java-sdk-kms</artifactId>
+        <version>${aws-sdk-version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.amazonaws</groupId>
+        <artifactId>aws-java-sdk-cloudwatch</artifactId>
         <version>${aws-sdk-version}</version>
       </dependency>
 

@@ -22,7 +22,7 @@
 -- CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;
 
 -- DROP FUNCTION xyz_index_status();
--- DROP FUNCTION xyz_create_idxs_over_dblink(text, integer, integer, integer, text[], text, text, text, integer, text);
+-- DROP FUNCTION xyz_create_idxs_over_dblink(text, integer, integer, integer, text[], text, text, text,text, integer, text);
 -- DROP FUNCTION xyz_space_bbox(text, text, integer);
 -- DROP FUNCTION xyz_update_dummy_v5();
 -- DROP FUNCTION xyz_index_check_comments(text, text);
@@ -67,7 +67,7 @@
 ------ ENV: XYZ-CIT ; SPACE: QgQCHStH ; OWNER: psql
 ---------------------------------------------------------------------------------
 -- xyz_index_status							:	select * from xyz_index_status();
--- xyz_create_idxs_over_dblink				:	select xyz_create_idxs_over_dblink('xyz', 20, 0, 2, ARRAY['postgres'], 'psql', 'xxx', 'xyz', 5432, 'xyz,h3,public,topology');
+-- xyz_create_idxs_over_dblink				:	select xyz_create_idxs_over_dblink('xyz', 20, 0, 2, ARRAY['postgres'], 'psql', 'xxx', 'xyz', 'localhost', 5432, 'xyz,h3,public,topology');
 -- xyz_space_bbox							:	select * from xyz_space_bbox('xyz', 'QgQCHStH', 1000);
 -- xyz_update_dummy_v5						:	select xyz_update_dummy_v5();
 -- xyz_index_check_comments					:	select xyz_index_check_comments('xyz', 'QgQCHStH');
@@ -148,7 +148,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 131
+ select 132
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
@@ -434,8 +434,8 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_create_idxs_over_dblink(text, integer, integer, integer, text[], text, text, text, integer, text)
--- DROP FUNCTION xyz_create_idxs_over_dblink(text, integer, integer, integer, text[], text, text, text, integer, text);
+-- Function: xyz_create_idxs_over_dblink(text, integer, integer, integer, text[], text, text, text, text, integer, text)
+-- DROP FUNCTION xyz_create_idxs_over_dblink(text, integer, integer, integer, text[], text, text, text, text, integer, text);
 CREATE OR REPLACE FUNCTION xyz_create_idxs_over_dblink(
 	schema text,
 	lim integer,
@@ -445,6 +445,7 @@ CREATE OR REPLACE FUNCTION xyz_create_idxs_over_dblink(
 	usr text,
 	pwd text,
 	dbname text,
+	host text,
 	port integer,
 	searchp text)
 		RETURNS void AS
@@ -466,7 +467,7 @@ CREATE OR REPLACE FUNCTION xyz_create_idxs_over_dblink(
 		*/
 
 		DECLARE
-			v_conn_str  text := 'port='||port||' dbname='||dbname||' host=localhost user='||usr||' password='||pwd||' options=-csearch_path='||searchp||'';
+			v_conn_str  text := 'port='||port||' dbname='||dbname||' host='||host||' user='||usr||' password='||pwd||' options=-csearch_path='||searchp||'';
 			v_query     text;
 		BEGIN
 			v_query := 'select xyz_create_idxs('''||schema||''',100, 0, '||mode||', '''||owner_list::text||''')';

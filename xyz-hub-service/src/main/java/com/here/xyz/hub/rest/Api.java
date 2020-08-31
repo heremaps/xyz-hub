@@ -40,6 +40,7 @@ import com.here.xyz.hub.XYZHubRESTVerticle;
 import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.connectors.models.BinaryResponse;
 import com.here.xyz.hub.connectors.models.Space.CacheProfile;
+import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.FeatureTask;
 import com.here.xyz.hub.task.SpaceTask;
 import com.here.xyz.hub.task.Task;
@@ -68,6 +69,8 @@ import java.net.URLDecoder;
 import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.stream.Stream;
+
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -538,6 +541,9 @@ public abstract class Api {
      *
      * Temporary solution until https://github.com/vert-x3/issues/issues/380 is resolved.
      */
+
+    private static final String[] nonDecodeList = { Query.TAGS };
+
     static MultiMap getQueryParameters(RoutingContext context) {
       MultiMap queryParams = context.get(QUERY_PARAMS);
       if (queryParams != null) {
@@ -552,12 +558,13 @@ public abstract class Api {
           int eqDelimiter = paramString.indexOf("=");
           if (eqDelimiter > 0) {
             String key = paramString.substring(0, eqDelimiter);
+            boolean decode = !ArrayUtils.contains(nonDecodeList,key);
             String rawValue = paramString.substring(eqDelimiter + 1);
             if (rawValue.length() > 0) {
               String[] values = rawValue.split(",");
               Stream.of(values).forEach(v -> {
                 try {
-                  map.add(key, URLDecoder.decode(v, Charset.defaultCharset().name()));
+                  map.add(key, (decode ? URLDecoder.decode(v, Charset.defaultCharset().name()) : v ));
                 } catch (UnsupportedEncodingException ignored) {
                 }
               });

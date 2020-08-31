@@ -56,7 +56,6 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.http.HttpMethod;
-import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.Json;
 import io.vertx.ext.auth.PubSecKeyOptions;
@@ -82,15 +81,6 @@ import org.apache.logging.log4j.Marker;
 public class XYZHubRESTVerticle extends AbstractVerticle {
 
   private static final Logger logger = LogManager.getLogger();
-
-  private static final HttpServerOptions SERVER_OPTIONS = new HttpServerOptions()
-      .setCompressionSupported(true)
-      .setDecompressionSupported(true)
-      .setHandle100ContinueAutomatically(true)
-      .setTcpQuickAck(true)
-      .setTcpFastOpen(true)
-      .setMaxInitialLineLength(16 * 1024)
-      .setIdleTimeout(300);
 
   private static String FULL_API;
   private static String STABLE_API;
@@ -238,6 +228,7 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
         //OpenAPI resources
         router.route("/hub/static/openapi/*").handler(createCorsHandler()).handler((routingContext -> {
           final HttpServerResponse res = routingContext.response();
+          res.putHeader("content-type", "application/yaml");
           final String path = routingContext.request().path();
           if (path.endsWith("full.yaml")) {
             res.headers().add(CONTENT_LENGTH, String.valueOf(FULL_API.getBytes().length));
@@ -271,44 +262,17 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
         //Default NotFound handler
         router.route().last().handler(XYZHubRESTVerticle::notFoundHandler);
 
-        vertx.createHttpServer(SERVER_OPTIONS)
-            .requestHandler(router)
-            .listen(
-                Service.configuration.HTTP_PORT, result -> {
-                  if (result.succeeded()) {
-                    createMessageServer(router, fut);
-                  } else {
-                    logger.error("An error occurred, during the initialization of the server.", result.cause());
-                    fut.fail(result.cause());
-                  }
-                });
+        vertx.sharedData().<String, List<Router>>getAsyncMap(Service.SHARED_DATA, sharedDataResult -> {
+          sharedDataResult.result().get(Service.ROUTERS, routersResult -> {
+            List<Router> routers = routersResult.result();
+            routers.add(router);
+            fut.complete();
+          });
+        });
       } else {
         logger.error("An error occurred, during the creation of the router from the Open API specification file.", ar.cause());
       }
     });
-  }
-
-  protected void createMessageServer(Router router, Future<Void> fut) {
-    int messagePort = Service.configuration.ADMIN_MESSAGE_PORT;
-    if (messagePort != Service.configuration.HTTP_PORT) {
-      //Create 2nd HTTP server for admin-messaging
-      vertx.createHttpServer(SERVER_OPTIONS)
-          .requestHandler(router)
-          .listen(messagePort, result -> {
-            if (result.succeeded()) {
-              logger.debug("HTTP server also listens on admin-messaging port {}.", messagePort);
-            }
-            else {
-              logger.error("An error occurred, during the initialization of admin-messaging http port" + messagePort
-                      + ". Messaging won't work correctly.",
-                  result.cause());
-            }
-            //Complete in any case as the admin-messaging is not essential
-            fut.complete();
-          });
-    }
-    else
-      fut.complete();
   }
 
   /**

@@ -21,10 +21,16 @@ package com.here.xyz.psql;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.Strings;
 import com.google.common.hash.Hashing;
+import com.google.crypto.tink.aead.AeadConfig;
+import com.google.crypto.tink.subtle.AesGcmJce;
 import com.here.xyz.connectors.SimulatedContext;
 import com.here.xyz.events.Event;
+
+import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
@@ -109,8 +115,13 @@ class PSQLConfig {
     try {
       return new ObjectMapper().readValue(AESHelper.getInstance(phrase).decrypt(ecps), Map.class);
     } catch (Exception e) {
-      logger.error("Unable to read the encrypted connector parameter settings.");
-      throw new RuntimeException(e);
+      try {
+        //try new Encryption
+        return new ObjectMapper().readValue(AESGCMHelper.getInstance(phrase).decrypt(ecps), Map.class);
+      }catch (Exception e2){
+        logger.error("Unable to read the encrypted connector parameter settings.");
+        throw new RuntimeException(e2);
+      }
     }
   }
 
@@ -119,7 +130,7 @@ class PSQLConfig {
    */
   @SuppressWarnings("unused")
   protected static String encryptCPS(String connectorParams, String phrase) throws Exception {
-    return new AESHelper(phrase).encrypt(connectorParams);
+    return new AESGCMHelper(phrase).encrypt(connectorParams);
   }
 
   protected static String getECPS(Event event) {
@@ -325,7 +336,8 @@ class PSQLConfig {
       return helpers.get(passphrase);
     }
 
-
+    @Deprecated
+    /** Can get removed after transition to new ECPS Strings encrypted with AesGce*/
     protected AESHelper(String passphrase) {
       //noinspection UnstableApiUsage
       this.key = Arrays.copyOf(Hashing.sha256().newHasher().putBytes(passphrase.getBytes()).hash().asBytes(), 16);
@@ -337,7 +349,7 @@ class PSQLConfig {
      * @param data The Base 64 encoded string representation of the encrypted bytes.
      */
     protected String decrypt(String data) throws IllegalBlockSizeException, BadPaddingException {
-      return new String(decrypt(Base64.getDecoder().decode(data)), StandardCharsets.UTF_8);
+      return new String(decrypt(Base64.getDecoder().decode(data)));
     }
 
     /**
@@ -386,5 +398,63 @@ class PSQLConfig {
         return null;
       }
     });
+  }
+
+  /**
+   * Encrypt and decrypt ECPS Strings by using AesGcm
+   */
+  public static class AESGCMHelper {
+    private static Map<String, AESGCMHelper> helpers = new HashMap<>();
+    private AesGcmJce key;
+
+    {
+      try {
+        AeadConfig.register();
+      }catch (Exception e){
+        logger.error("Cant register AeadConfig",e);
+      }
+    }
+
+    /**
+     * Returns an instance helper for this passphrase.
+     * @param passphrase The passphrase from which to derive a key.
+     */
+    @SuppressWarnings("WeakerAccess")
+    protected static AESGCMHelper getInstance(String passphrase) throws GeneralSecurityException {
+      if (helpers.get(passphrase) == null) {
+        helpers.put(passphrase, new AESGCMHelper(passphrase));
+      }
+      return helpers.get(passphrase);
+    }
+
+    protected AESGCMHelper(String passphrase) throws GeneralSecurityException {
+      /** If required - adjust passphrase to 256bit length */
+      if(passphrase != null && passphrase.length() != 32){
+        if(passphrase.length() < 32)
+          passphrase = Strings.padStart(passphrase, 32, '0');
+        else if(passphrase.length() > 32)
+          passphrase = passphrase.substring(0,32);
+      }
+      this.key = new AesGcmJce(passphrase.getBytes());
+    }
+
+    /**
+     * Decrypts the given string.
+     * @param data The Base 64 encoded string representation of the encrypted bytes.
+     */
+    protected String decrypt(String data) throws GeneralSecurityException {
+      byte[] decrypted = key.decrypt(Base64.getDecoder().decode(data), null);
+      return new String(decrypted);
+    }
+
+    /**
+     * Encrypts the provided string.
+     * @param data The string to encode
+     * @return A Base 64 encoded string, which represents the encoded bytes.
+     */
+    protected String encrypt(String data) throws UnsupportedEncodingException, GeneralSecurityException {
+      byte[] encrypted = key.encrypt(data.getBytes(), null);
+      return new String(Base64.getEncoder().encode(encrypted));
+    }
   }
 }
