@@ -41,6 +41,12 @@ public class RedisMessageBroker implements MessageBroker {
       config = new RedisOptions()
           .setHost(Service.configuration.XYZ_HUB_REDIS_HOST)
           .setPort(Service.configuration.XYZ_HUB_REDIS_PORT);
+
+      // use redis auth token when available
+      if (!StringUtils.isEmpty(Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN)) {
+        config.setAuth(Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN);
+      }
+
       config.setTcpKeepAlive(true);
       config.setConnectTimeout(2000);
       redis = RedisClient.create(Service.vertx, config);

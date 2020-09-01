@@ -495,6 +495,10 @@ public class Service {
      */
     public String XYZ_HUB_REMOTE_SERVICE_URLS;
 
+     * The redis auth token.
+     */
+    public String XYZ_HUB_REDIS_AUTH_TOKEN;
+
     /**
      * The authorization type.
      */
