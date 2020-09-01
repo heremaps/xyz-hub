@@ -29,6 +29,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
 import com.google.common.base.Strings;
 import com.here.xyz.events.Event;
+import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.auth.SpaceAuthorization;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceAuthorizationCondition;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceSelectionCondition;
@@ -75,6 +76,7 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
 
     public SpaceAuthorizationCondition authorizedCondition;
     public SpaceSelectionCondition selectedCondition;
+    public PropertiesQuery propertiesQuery;
 
     public ReadQuery(RoutingContext context, ApiResponseType returnType, List<String> spaceIds, List<String> ownerIds) {
       super(context, returnType);
@@ -99,7 +101,7 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
     public static final String OTHERS = "others";
     public static final String ALL = "*";
 
-    public MatrixReadQuery(RoutingContext context, ApiResponseType returnType, boolean includeRights, boolean includeConnectors, String owner) {
+    public MatrixReadQuery(RoutingContext context, ApiResponseType returnType, boolean includeRights, boolean includeConnectors, String owner, PropertiesQuery propsQuery) {
       super(context, returnType, null, null);
       if (!Strings.isNullOrEmpty(owner)) {
         selectedCondition = new SpaceSelectionCondition();
@@ -127,6 +129,9 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
       }
 
       this.canReadConnectorsProperties = includeConnectors;
+      if( propsQuery != null ) {
+        propertiesQuery = propsQuery;
+      }
     }
 
     @Override

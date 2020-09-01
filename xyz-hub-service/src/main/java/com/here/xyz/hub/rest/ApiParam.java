@@ -127,6 +127,7 @@ public class ApiParam {
     static final String RADIUS = "radius";
     static final String REF_SPACE_ID = "refSpaceId";
     static final String REF_FEATURE_ID = "refFeatureId";
+    static final String CONTENT_UPDATED_AT = "contentUpdatedAt";
 
     static final String CLUSTERING_PARAM_RESOLUTION = "resolution";
     static final String CLUSTERING_PARAM_RESOLUTION_RELATIVE = "relativeResolution";
@@ -244,6 +245,17 @@ public class ApiParam {
 
       return selection;
     }
+    /**
+     * Retures the parsed query parameter for space
+     */
+    static PropertiesQuery getSpacePropertiesQuery(RoutingContext context, String param) {
+      PropertiesQuery propertyQuery = context.get("propertyQuery");
+      if (propertyQuery == null) {
+        propertyQuery = parsePropertiesQuery(context.request().query(), param, true);
+        context.put("propertyQuery", propertyQuery);
+      }
+      return propertyQuery;
+    }
 
     /**
      * Returns the parsed tags parameter
@@ -251,20 +263,20 @@ public class ApiParam {
     static PropertiesQuery getPropertiesQuery(RoutingContext context) {
       PropertiesQuery propertyQuery = context.get("propertyQuery");
       if (propertyQuery == null) {
-        propertyQuery = parsePropertiesQuery(context.request().query());
+        propertyQuery = parsePropertiesQuery(context.request().query(), "", false);
         context.put("propertyQuery", propertyQuery);
       }
       return propertyQuery;
     }
 
-    protected static PropertiesQuery parsePropertiesQuery(String query) {
+    protected static PropertiesQuery parsePropertiesQuery(String query, String property, boolean spaceProperties) {
       if (query == null || query.length() == 0) {
         return null;
       }
 
       PropertyQueryList pql = new PropertyQueryList();
       Stream.of(query.split("&"))
-          .filter(k -> k.startsWith("p.") || k.startsWith("f."))
+          .filter(k -> k.startsWith("p.") || k.startsWith("f.") || spaceProperties)
           .forEach(keyValuePair -> {
             PropertyQuery propertyQuery = new PropertyQuery();
 
@@ -283,8 +295,12 @@ public class ApiParam {
             for (String shortOperator : shortOperators) {
               int currentPositionOfOp = keyValuePair.indexOf(shortOperator);
               if (currentPositionOfOp != -1) {
-                if(op == null || currentPositionOfOp < position || ( currentPositionOfOp == position && op.length() < shortOperator.length() ) ) 
-                {
+                if( 
+                  // feature properties query
+                  (!spaceProperties && (op == null || currentPositionOfOp < position || ( currentPositionOfOp == position && op.length() < shortOperator.length() ))) ||
+                  // space properties query
+                  (keyValuePair.substring(0,currentPositionOfOp).equals(property) && spaceProperties && (op == null || currentPositionOfOp < position || ( currentPositionOfOp == position && op.length() < shortOperator.length() )))
+                ) {
                   op = shortOperator;
                   position = currentPositionOfOp;
                 }
@@ -300,7 +316,7 @@ public class ApiParam {
                   keyVal[1] = keyVal[1].substring(0, keyVal[1].length() - 1);
                 }
 
-                propertyQuery.setKey(getConvertedKey(keyVal[0]));
+                propertyQuery.setKey(spaceProperties ? keyVal[0] : getConvertedKey(keyVal[0]));
                 propertyQuery.setOperation(operators.get(op));
                 String[] rawValues = keyVal[1].split( operatorComma );
 

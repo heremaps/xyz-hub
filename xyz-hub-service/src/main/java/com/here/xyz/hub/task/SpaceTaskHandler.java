@@ -79,7 +79,7 @@ public class SpaceTaskHandler {
   private static final int CLIENT_VALUE_MAX_SIZE = 1024;
 
   static <X extends ReadQuery<?>> void readSpaces(final X task, final Callback<X> callback) {
-    Service.spaceConfigClient.getSelected(task.getMarker(), task.authorizedCondition, task.selectedCondition, ar -> {
+    Service.spaceConfigClient.getSelected(task.getMarker(), task.authorizedCondition, task.selectedCondition, task.propertiesQuery, ar -> {
       if (ar.failed()) {
         logger.error(task.getMarker(), "Unable to load space definitions.'", ar.cause());
         callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the space definitions", ar.cause()));
