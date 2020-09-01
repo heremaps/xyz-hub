@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.config;
 
+import com.amazonaws.handlers.AsyncHandler;
 import com.amazonaws.services.dynamodbv2.document.BatchGetItemOutcome;
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
@@ -27,6 +28,11 @@ import com.amazonaws.services.dynamodbv2.document.spec.GetItemSpec;
 import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
 import com.amazonaws.services.dynamodbv2.document.spec.ScanSpec;
 import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException;
+import com.amazonaws.services.dynamodbv2.model.AttributeValue;
+import com.amazonaws.services.dynamodbv2.model.DeleteItemRequest;
+import com.amazonaws.services.dynamodbv2.model.DeleteItemResult;
+import com.amazonaws.services.dynamodbv2.model.PutItemRequest;
+import com.amazonaws.services.dynamodbv2.model.PutItemResult;
 import com.amazonaws.util.CollectionUtils;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.psql.SQLQuery;
@@ -41,6 +47,7 @@ import io.vertx.core.Handler;
 import io.vertx.core.json.Json;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -66,7 +73,8 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
     logger.info("Instantiating a reference to Dynamo Table {}", dynamoClient.tableName);
     spaces = dynamoClient.db.getTable(dynamoClient.tableName);
-    packages = dynamoClient.db.getTable(new ARN(Service.configuration.PACKAGES_DYNAMODB_TABLE_ARN).getResourceWithoutType());
+    packages = dynamoClient.db
+        .getTable(new ARN(Service.configuration.PACKAGES_DYNAMODB_TABLE_ARN).getResourceWithoutType());
   }
 
   @Override
@@ -77,7 +85,8 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       try {
         dynamoClient.createTable(spaces.getTableName(), "id:S,owner:S,shared:N", "id", "owner,shared", "exp");
         dynamoClient.createTable(packages.getTableName(), "packageName:S,spaceId:S", "packageName,spaceId", null, null);
-      } catch (AmazonDynamoDBException e) {
+      }
+      catch (AmazonDynamoDBException e) {
         logger.error("Failure during creating tables on DynamoSpaceConfigClient init", e);
         onReady.handle(Future.failedFuture(e));
         return;
@@ -89,49 +98,82 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
   @Override
   public void getSpace(Marker marker, String spaceId, Handler<AsyncResult<Space>> handler) {
-    try {
-      logger.info(marker, "Getting space with ID: {}", spaceId);
-      final Item item = spaces.getItem("id", spaceId);
+    logger.info(marker, "Getting space with ID: {}", spaceId);
 
-      if (item == null) {
-        logger.info(marker, "Getting space with ID: {} returned null", spaceId);
-        handler.handle(Future.succeededFuture(null));
-        return;
-      }
+    DynamoClient.dynamoWorkers.executeBlocking(
+        future -> {
+          try {
+            future.complete(spaces.getItem("id", spaceId));
+          }
+          catch (Exception e) {
+            future.fail(e);
+          }
+        },
+        ar -> {
+          if (ar.failed()) {
+            logger.error(marker, "Failure during getting a space from DynamoDB", ar.cause());
+            handler.handle(Future.failedFuture(ar.cause()));
+          }
+          else {
+            Item item = (Item) ar.result();
+            if (item == null) {
+              logger.info(marker, "Getting space with ID: {} returned null", spaceId);
+              handler.handle(Future.succeededFuture(null));
+              return;
+            }
 
-      final Space space = Json.decodeValue(item.toJSON(), Space.class);
-      if (space != null) {
-        logger.info(marker, "Space ID: {} with title: \"{}\" has been decoded", spaceId, space.getTitle());
-      } else {
-        logger.info(marker, "Space ID: {} has been decoded to null", spaceId);
-      }
-      handler.handle(Future.succeededFuture(space));
-    } catch (AmazonDynamoDBException e) {
-      logger.error(marker, "Failure during getting a space from DynamoDB", e);
-      handler.handle(Future.failedFuture(e));
-    }
+            final Space space = Json.decodeValue(item.toJSON(), Space.class);
+            if (space != null)
+              logger.info(marker, "Space ID: {} with title: \"{}\" has been decoded", spaceId, space.getTitle());
+            else
+              logger.info(marker, "Space ID: {} has been decoded to null", spaceId);
+            handler.handle(Future.succeededFuture(space));
+          }
+        }
+    );
   }
 
   @Override
   public void storeSpace(Marker marker, Space space, Handler<AsyncResult<Space>> handler) {
-    try {
-      logger.info(marker, "Storing space with ID: {}", space.getId());
+    logger.info(marker, "Storing space with ID: {}", space.getId());
 
-      final Map<String, Object> itemData = XyzSerializable.STATIC_MAPPER.get().convertValue(space, new TypeReference<Map<String, Object>>() {});
-      itemData.put("shared", space.isShared() ? 1 : 0); // shared value must be a number because it's also used as index
+    final Map<String, Object> itemData = XyzSerializable.STATIC_MAPPER.get().convertValue(space, new TypeReference<Map<String, Object>>() {});
+    itemData.put("shared", space.isShared() ? 1 : 0); //Shared value must be a number because it's also used as index
 
-      sanitize(itemData);
-      spaces.putItem(Item.fromMap(itemData));
-
-      deleteSpaceFromPackage(marker, space);
-      storeSpaceIntoPackages(marker, space);
-
-      logger.info(marker, "Space with ID: {} has been successfully stored", space.getId());
-      handler.handle(Future.succeededFuture(space));
-    } catch (AmazonDynamoDBException e) {
-      logger.error(marker, "Failure storing a space into DynamoDB", e);
-      handler.handle(Future.failedFuture(e));
-    }
+    sanitize(itemData);
+    DynamoClient.dynamoWorkers.executeBlocking(
+        future -> {
+          try {
+            spaces.putItem(Item.fromMap(itemData));
+            future.complete();
+          }
+          catch (Exception e) {
+            future.fail(e);
+          }
+        },
+        ar -> {
+          if (ar.failed()) {
+            logger.error(marker, "Failure storing a space into DynamoDB", ar.cause());
+            handler.handle(Future.failedFuture(ar.cause()));
+          }
+          else {
+            deleteSpaceFromPackage(marker, space, delFromPackageResult -> {
+              if (delFromPackageResult.failed())
+                handler.handle(Future.failedFuture(delFromPackageResult.cause()));
+              else {
+                storeSpaceIntoPackages(marker, space, storeInPackageResult -> {
+                  if (storeInPackageResult.failed())
+                    handler.handle(Future.failedFuture(storeInPackageResult.cause()));
+                  else {
+                    logger.info(marker, "Space with ID: {} has been successfully stored", space.getId());
+                    handler.handle(Future.succeededFuture(space));
+                  }
+                });
+              }
+            });
+          }
+        }
+    );
   }
 
   @Override
@@ -139,19 +181,33 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     logger.info(marker, "Deleting space ID: {}", spaceId);
     get(marker, spaceId, ar -> {
       if (ar.succeeded()) {
-        try {
-          final Space space = ar.result();
-          logger.info(marker, "Space ID: {} has been retrieved", spaceId);
+        final Space space = ar.result();
+        logger.info(marker, "Space ID: {} has been retrieved", space.getId());
 
-          deleteSpaceFromPackage(marker, space);
-          spaces.deleteItem("id", spaceId);
+        deleteSpaceFromPackage(marker, space, delFromPackageResult -> {
+          if (delFromPackageResult.failed())
+            handler.handle(Future.failedFuture(delFromPackageResult.cause()));
+          else {
+            DeleteItemRequest req = new DeleteItemRequest()
+                .withKey(Collections.singletonMap("id", new AttributeValue(space.getId())))
+                .withTableName(spaces.getTableName());
 
-          handler.handle(Future.succeededFuture(space));
-        } catch (AmazonDynamoDBException e) {
-          logger.error(marker, "Failure to delete space ID: {}", spaceId);
-          handler.handle(Future.failedFuture(ar.cause()));
-        }
-      } else {
+            dynamoClient.client.deleteItemAsync(req, new AsyncHandler<DeleteItemRequest, DeleteItemResult>() {
+              @Override
+              public void onError(Exception exception) {
+                logger.error(marker, "Failure to delete space ID: {}", space.getId());
+                handler.handle(Future.failedFuture(exception));
+              }
+
+              @Override
+              public void onSuccess(DeleteItemRequest request, DeleteItemResult deleteItemResult) {
+                handler.handle(Future.succeededFuture(space));
+              }
+            });
+          }
+        });
+      }
+      else {
         logger.error(marker, "Failure to get space ID: {} during space deletion", spaceId);
         handler.handle(Future.failedFuture(ar.cause()));
       }
@@ -164,27 +220,33 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
    * @param marker used in logs
    * @param space the space which is being stored
    */
-  private void storeSpaceIntoPackages(Marker marker, Space space) throws AmazonDynamoDBException {
-    if (space == null) {
-      return;
-    }
+  private void storeSpaceIntoPackages(Marker marker, Space space, Handler<AsyncResult<Void>> handler) {
+    logger.info(marker, "Inserting packages {} into the packages table for space ID: {}", space.getPackages(), space.getId());
+    if (space.getPackages() != null) {
+      for (String packageName : space.getPackages()) {
+        logger.info(marker, "Adding space ID: {} into package: {}", space.getId(), packageName);
+        final Map<String, AttributeValue> packagesMap = new HashMap<>();
+        packagesMap.put("packageName", new AttributeValue(packageName));
+        packagesMap.put("spaceId", new AttributeValue(space.getId()));
 
-    try {
-      logger.info(marker, "Inserting packages {} into the packages table for space ID: {}", space.getPackages(), space.getId());
-      if (space.getPackages() != null) {
-        for (String packageName : space.getPackages()) {
-          logger.info(marker, "Adding space ID: {} into package: {}", space.getId(), packageName);
-          final Map<String, Object> packagesMap = new HashMap<>();
-          packagesMap.put("packageName", packageName);
-          packagesMap.put("spaceId", space.getId());
+        PutItemRequest req = new PutItemRequest()
+            .withTableName(packages.getTableName())
+            .withItem(packagesMap);
+        dynamoClient.client.putItemAsync(req, new AsyncHandler<PutItemRequest, PutItemResult>() {
+          @Override
+          public void onError(Exception exception) {
+            logger.error(marker, "Failure storing space ID: {} into the packages table", space.getId(), exception);
+            handler.handle(Future.failedFuture(exception));
+          }
 
-          packages.putItem(Item.fromMap(packagesMap));
-        }
+          @Override
+          public void onSuccess(PutItemRequest request, PutItemResult putItemResult) {
+            handler.handle(Future.succeededFuture());
+          }
+        });
       }
-    } catch (AmazonDynamoDBException e) {
-      logger.error(marker, "Failure storing space ID: {} into the packages table", space.getId(), e);
-      throw e;
     }
+    handler.handle(Future.succeededFuture());
   }
 
   /**
@@ -193,18 +255,16 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
    * @param marker used in logs
    * @param space the spaceId which is being deleted
    */
-  private void deleteSpaceFromPackage(Marker marker, Space space) throws AmazonDynamoDBException {
-    if (space == null) {
-      return;
-    }
-
+  private void deleteSpaceFromPackage(Marker marker, Space space, Handler<AsyncResult<Void>> handler) {
+    //TODO: Transform to async
     try {
       logger.info(marker, "Removing packages from space ID: {}", space.getId());
       final List<String> packagesList = new ArrayList<>();
 
       if (space.getPackages() != null) {
         packagesList.addAll(space.getPackages());
-      } else {
+      }
+      else {
         final GetItemSpec spec = new GetItemSpec().withPrimaryKey("id", space.getId()).withProjectionExpression("packages");
         final Item item = spaces.getItem(spec);
         if (item != null && item.isPresent("packages")) {
@@ -216,9 +276,11 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       for (String packageName : packagesList) {
         packages.deleteItem("packageName", packageName, "spaceId", space.getId());
       }
-    } catch (AmazonDynamoDBException e) {
+      handler.handle(Future.succeededFuture());
+    }
+    catch (AmazonDynamoDBException e) {
       logger.error(marker, "Failure deleting space ID: {} from the packages table", space.getId(), e);
-      throw e;
+      handler.handle(Future.failedFuture(e));
     }
   }
 
@@ -227,98 +289,110 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       PropertiesQuery propsQuery, Handler<AsyncResult<List<Space>>> handler) {
     logger.info(marker, "Getting selected spaces");
 
-    if (authorizedCondition == null || selectedCondition == null) {
+    if (authorizedCondition == null || selectedCondition == null)
       throw new NullPointerException("authorizedCondition and selectedCondition are required");
-    }
 
-    final List<Space> result = new ArrayList<>();
     logger.debug(marker, "authorizedCondition: spaceIds: {}, ownerIds {}, packages: {}", authorizedCondition.spaceIds, authorizedCondition.ownerIds, authorizedCondition.packages);
     logger.debug(marker, "selectedCondition: spaceIds: {}, ownerIds {}, packages: {}, shared: {}, negateOwnerIds: {}", selectedCondition.spaceIds, selectedCondition.ownerIds, selectedCondition.packages, selectedCondition.shared, selectedCondition.negateOwnerIds);
 
-    try {
-      final Set<String> authorizedSpaces = getAuthorizedSpaces(marker, authorizedCondition);
+    DynamoClient.dynamoWorkers.executeBlocking(
+        future -> {
+          final List<Space> result = new ArrayList<>();
+          try {
+            final Set<String> authorizedSpaces = getAuthorizedSpaces(marker, authorizedCondition);
 
-      // get all shared spaces if the selection for shared spaces is enabled
-      if (selectedCondition.shared) {
-        spaces.getIndex("shared-index").query(new QuerySpec().withHashKey("shared", 1).withProjectionExpression("id")).pages()
-            .forEach(p -> p.forEach(i -> {
-              authorizedSpaces.add(i.getString("id"));
-            }));
-        logger.debug(marker, "Number of space IDs after addition of shared spaces: {}", authorizedSpaces.size());
-      }
+            // get all shared spaces if the selection for shared spaces is enabled
+            if (selectedCondition.shared) {
+              spaces.getIndex("shared-index").query(new QuerySpec().withHashKey("shared", 1).withProjectionExpression("id")).pages()
+                  .forEach(p -> p.forEach(i -> {
+                    authorizedSpaces.add(i.getString("id"));
+                  }));
+              logger.debug(marker, "Number of space IDs after addition of shared spaces: {}", authorizedSpaces.size());
+            }
+            
+            if (propsQuery != null) {
+              final Set<String> contentUpdatedSpaces = new HashSet<>();
 
-      if (propsQuery != null) {
-        final Set<String> contentUpdatedSpaces = new HashSet<>();
+              propsQuery.forEach(conjunctions -> {
+                List<String> contentUpdatedAtConjunctions = new ArrayList<>();
+                Map<String, Object> expressionAttributeValues = new HashMap<String, Object>();
+                conjunctions.forEach(conj -> {
+                    conj.getValues().forEach(v -> {
+                      int size = contentUpdatedAtConjunctions.size();
+                      contentUpdatedAtConjunctions.add("contentUpdatedAt " + SQLQuery.getOperation(conj.getOperation()) + " :" + size);
+                      expressionAttributeValues.put(":" + size, v );
+                    });
+                });
 
-        propsQuery.forEach(conjunctions -> {
-          List<String> contentUpdatedAtConjunctions = new ArrayList<>();
-          Map<String, Object> expressionAttributeValues = new HashMap<String, Object>();
-          conjunctions.forEach(conj -> {
-              conj.getValues().forEach(v -> {
-                int size = contentUpdatedAtConjunctions.size();
-                contentUpdatedAtConjunctions.add("contentUpdatedAt " + SQLQuery.getOperation(conj.getOperation()) + " :" + size);
-                expressionAttributeValues.put(":" + size, v );
+                // filter out spaces with contentUpatedAt property
+                spaces.scan(
+                  new ScanSpec()
+                  .withProjectionExpression("id, contentUpdatedAt")
+                  .withFilterExpression(StringUtils.join(contentUpdatedAtConjunctions, " OR "))
+                  .withValueMap(expressionAttributeValues)
+                ).pages()
+                .forEach(p -> p.forEach(i -> contentUpdatedSpaces.add(i.getString("id"))));
               });
-          });
 
-          // filter out spaces with contentUpatedAt property
-          spaces.scan(
-            new ScanSpec()
-            .withProjectionExpression("id, contentUpdatedAt")
-            .withFilterExpression(StringUtils.join(contentUpdatedAtConjunctions, " OR "))
-            .withValueMap(expressionAttributeValues)
-          ).pages()
-          .forEach(p -> p.forEach(i -> contentUpdatedSpaces.add(i.getString("id"))));
-        });
+              // filter out spaces which are not present in contentUpdateSpaces
+              authorizedSpaces.removeIf(i -> !contentUpdatedSpaces.contains(i));
+              logger.debug(marker, "Number of space IDs after removal of the ones filtered by contentUpdatedAt: {}", authorizedSpaces.size());
+            }
+            
+            // filter out the ones not present in the selectedCondition (null or empty represents 'do not filter')
+            if (!CollectionUtils.isNullOrEmpty(selectedCondition.spaceIds)) {
+              authorizedSpaces.removeIf(i -> !selectedCondition.spaceIds.contains(i));
+              logger.debug(marker, "Number of space IDs after removal of the ones not selected by ID: {}", authorizedSpaces.size());
+            }
 
-        // filter out spaces which are not present in contentUpdateSpaces
-        authorizedSpaces.removeIf(i -> !contentUpdatedSpaces.contains(i));
-        logger.debug(marker, "Number of space IDs after removal of the ones filtered by contentUpdatedAt: {}", authorizedSpaces.size());
-      }
+            // now filter all spaceIds with the ones being selected in the selectedCondition (by checking the space's ownership) (
+            if (!CollectionUtils.isNullOrEmpty(selectedCondition.ownerIds)) {
+              final Set<String> ownersSpaces = new HashSet<>();
+              selectedCondition.ownerIds.forEach(o ->
+                  spaces.getIndex("owner-index").query(new QuerySpec().withHashKey("owner", o).withProjectionExpression("id")).pages()
+                      .forEach(p -> p.forEach(i -> ownersSpaces.add(i.getString("id")))));
 
-      // filter out the ones not present in the selectedCondition (null or empty represents 'do not filter')
-      if (!CollectionUtils.isNullOrEmpty(selectedCondition.spaceIds)) {
-        authorizedSpaces.removeIf(i -> !selectedCondition.spaceIds.contains(i));
-        logger.debug(marker, "Number of space IDs after removal of the ones not selected by ID: {}", authorizedSpaces.size());
-      }
+              // HINT: A ^ TRUE == !A (negateOwnerIds: keep or remove the spaces contained in the owner's spaces list)
+              authorizedSpaces.removeIf(i -> !selectedCondition.negateOwnerIds ^ ownersSpaces.contains(i));
+              logger.debug(marker, "Number of space IDs after removal of the ones not selected by owner: {}", authorizedSpaces.size());
+            }
 
-      // now filter all spaceIds with the ones being selected in the selectedCondition (by checking the space's ownership) (
-      if (!CollectionUtils.isNullOrEmpty(selectedCondition.ownerIds)) {
-        final Set<String> ownersSpaces = new HashSet<>();
-        selectedCondition.ownerIds.forEach(o ->
-            spaces.getIndex("owner-index").query(new QuerySpec().withHashKey("owner", o).withProjectionExpression("id")).pages()
-                .forEach(p -> p.forEach(i -> ownersSpaces.add(i.getString("id")))));
+            // TODO selection per packages is not yet supported: selectedCondition.packages
 
-        // HINT: A ^ TRUE == !A (negateOwnerIds: keep or remove the spaces contained in the owner's spaces list)
-        authorizedSpaces.removeIf(i -> !selectedCondition.negateOwnerIds ^ ownersSpaces.contains(i));
-        logger.debug(marker, "Number of space IDs after removal of the ones not selected by owner: {}", authorizedSpaces.size());
-      }
+            logger.info(marker, "Final number of space IDs to be retrieved from DynamoDB: {}", authorizedSpaces.size());
+            if (!authorizedSpaces.isEmpty()) {
+              int batches = (int) Math.ceil((double) authorizedSpaces.size() / 100);
+              for (int i = 0; i < batches; i++) {
+                final TableKeysAndAttributes keys = new TableKeysAndAttributes(dynamoClient.tableName);
+                authorizedSpaces.stream().skip(i * 100).limit(100).forEach(id -> keys.addHashOnlyPrimaryKey("id", id));
 
-      // TODO selection per packages is not yet supported: selectedCondition.packages
+                BatchGetItemOutcome outcome = dynamoClient.db.batchGetItem(keys);
+                processOutcome(outcome, result);
 
-      logger.info(marker, "Final number of space IDs to be retrieved from DynamoDB: {}", authorizedSpaces.size());
-      if (!authorizedSpaces.isEmpty()) {
-        int batches = (int) Math.ceil((double) authorizedSpaces.size()/100);
-        for (int i=0; i<batches; i++) {
-          final TableKeysAndAttributes keys = new TableKeysAndAttributes(dynamoClient.tableName);
-          authorizedSpaces.stream().skip(i*100).limit(100).forEach(id -> keys.addHashOnlyPrimaryKey("id", id));
-
-          BatchGetItemOutcome outcome = dynamoClient.db.batchGetItem(keys);
-          processOutcome(outcome, result);
-
-          while (!outcome.getUnprocessedKeys().isEmpty()) {
-            outcome = dynamoClient.db.batchGetItemUnprocessed(outcome.getUnprocessedKeys());
-            processOutcome(outcome, result);
+                while (!outcome.getUnprocessedKeys().isEmpty()) {
+                  outcome = dynamoClient.db.batchGetItemUnprocessed(outcome.getUnprocessedKeys());
+                  processOutcome(outcome, result);
+                }
+              }
+            }
+            future.complete(result);
+          }
+          catch (Exception e) {
+            future.fail(e);
+          }
+        },
+        ar -> {
+          if (ar.failed()) {
+            logger.error(marker, "Failure getting authorized spaces", ar.cause());
+            handler.handle(Future.failedFuture(ar.cause()));
+          }
+          else {
+            final List<Space> result = (List<Space>) ar.result();
+            logger.info(marker, "Number of spaces retrieved from DynamoDB: {}", result.size());
+            handler.handle(Future.succeededFuture(result));
           }
         }
-      }
-
-      logger.info(marker, "Number of spaces retrieved from DynamoDB: {}", result.size());
-      handler.handle(Future.succeededFuture(result));
-    } catch (AmazonDynamoDBException e) {
-      logger.error(marker, "Failure getting authorized spaces", e);
-      handler.handle(Future.failedFuture(e));
-    }
+    );
   }
 
   private Set<String> getAuthorizedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition) throws AmazonDynamoDBException {
@@ -360,7 +434,8 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
         spaces.scan(new ScanSpec().withProjectionExpression("id")).pages()
             .forEach(p -> p.forEach(i -> authorizedSpaces.add(i.getString("id"))));
       }
-    } catch (AmazonDynamoDBException e) {
+    }
+    catch (AmazonDynamoDBException e) {
       logger.error(marker, "Failure to get the authorized spaces", e);
       throw e;
     }
