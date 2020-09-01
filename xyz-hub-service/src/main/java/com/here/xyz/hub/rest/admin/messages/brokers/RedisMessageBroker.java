@@ -114,14 +114,13 @@ public class RedisMessageBroker implements MessageBroker {
     if (hubRemoteUrls != null) {
 
       for (String remoteUrl : hubRemoteUrls) {
-        try {
-          byte[] body = mapper.get().writeValueAsBytes(jsonMessage);
-
+        Service.vertx.executeBlocking(future -> {
           int tryCount = 0;
           boolean retry = false;
           do {
             tryCount++;
             try {
+              byte[] body = mapper.get().writeValueAsBytes(jsonMessage);
               synchronized (Service.webClient) {
                 Service.webClient
                         .postAbs(remoteUrl + AdminApi.ADMIN_MESSAGES_ENDPOINT)
@@ -129,23 +128,27 @@ public class RedisMessageBroker implements MessageBroker {
                         .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
                         .sendBuffer(Buffer.buffer(body), ar -> {
                           if (ar.failed()) {
-                            logger.error("Failed to sent message to remote cluster. " + ar.cause());
+                            future.fail("Failed to sent message to remote cluster at " + hubRemoteUrls + ": " + ar.cause());
+                          } else {
+                            future.complete();
                           }
                         });
               }
+            } catch (JsonProcessingException e) {
+              future.fail("Error while serializing AdminMessage prior to send it. URL: " + hubRemoteUrls + " AdminMessage: " + jsonMessage);
             } catch (Exception e) {
               if (!retry) {
                 logger.error("Error sending event to remote http service. Retrying once...", e);
                 retry = true;
+              } else {
+                future.fail("Error sending event to remote http service twice. " + e.getMessage());
               }
             }
           } while (retry && tryCount <= 1);
-
-        } catch (JsonProcessingException e) {
-          logger.error("Error while serializing AdminMessage prior to send it. AdminMessage: {}", jsonMessage);
-        } catch (Exception e) {
-          logger.error("Error while sending AdminMessage: {}", jsonMessage);
-        }
+        }, ar -> {
+          if (ar.failed())
+            logger.error(ar.cause());
+        });
       }
     }
   }
