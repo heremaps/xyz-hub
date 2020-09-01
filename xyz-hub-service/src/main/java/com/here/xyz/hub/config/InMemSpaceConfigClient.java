@@ -110,7 +110,7 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
     else {
       switch (contentUpdatedAtList.get(0)) {
         case "=":
-          return contentUpdatedAt == Long.parseLong(contentUpdatedAtList.get(idx)) || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
+          return Long.toString(contentUpdatedAt).equals(contentUpdatedAtList.get(idx)) || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
         case "<>":
           return contentUpdatedAt != Long.parseLong(contentUpdatedAtList.get(idx)) || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
         case "<":

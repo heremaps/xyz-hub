@@ -25,6 +25,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 
 import com.jayway.restassured.response.ValidatableResponse;
+import com.jayway.restassured.RestAssured;
 
 import java.util.*;
 
@@ -152,6 +153,8 @@ public class ListSpaceContentUpdatedAtTestIT extends TestSpaceWithFeature {
       .statusCode(OK.code())
       .body("$.size()", equalTo(1));
 
+    boolean bFlag = RestAssured.urlEncodingEnabled;
+    RestAssured.urlEncodingEnabled = false;
     // both ts found
     listSpaces("=" + timestampStar + "," + timestampStarAnother, "*")
       .statusCode(OK.code())
@@ -177,10 +180,18 @@ public class ListSpaceContentUpdatedAtTestIT extends TestSpaceWithFeature {
       .statusCode(OK.code())
       .body("$.size()", equalTo(2));
 
+
     // one ts found, the other one not
     listSpaces("=" + timestampMe + ",0", "me")
       .statusCode(OK.code())
       .body("$.size()", equalTo(1));
+    RestAssured.urlEncodingEnabled = bFlag;
+
+    // nothing found
+    // search for 123,456 by input 123%2C456
+    listSpaces("=" + timestampMe + "," + timestampMeAnother, "me")
+      .statusCode(OK.code())
+      .body("$.size()", equalTo(0));
   }
 
   @Test
