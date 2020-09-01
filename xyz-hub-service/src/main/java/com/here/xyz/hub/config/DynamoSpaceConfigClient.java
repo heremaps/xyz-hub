@@ -243,6 +243,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
         });
       }
     }
+    handler.handle(Future.succeededFuture());
   }
 
   /**
