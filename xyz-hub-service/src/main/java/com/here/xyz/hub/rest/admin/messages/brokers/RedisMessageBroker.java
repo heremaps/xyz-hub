@@ -133,6 +133,7 @@ public class RedisMessageBroker implements MessageBroker {
                       .postAbs(remoteUrl + AdminApi.ADMIN_MESSAGES_ENDPOINT)
                       .timeout(Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT)
                       .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
+                      .putHeader("Authorization", "Bearer " + Service.configuration.ADMIN_MESSAGE_JWT)
                       .sendBuffer(Buffer.buffer(body), ar -> {
                         if (ar.failed()) {
                           future.fail("Failed to sent message to remote cluster at " + hubRemoteUrls + ": " + ar.cause());
