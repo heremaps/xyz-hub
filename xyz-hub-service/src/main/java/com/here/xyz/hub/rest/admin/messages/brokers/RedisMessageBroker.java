@@ -36,6 +36,8 @@ public class RedisMessageBroker implements MessageBroker {
   private static int MAX_MESSAGE_SIZE = 1024 * 1024;
   private static volatile RedisMessageBroker instance;
 
+  private List<String> hubRemoteUrls = null;
+
   public RedisMessageBroker() {
     try {
       config = new RedisOptions()
@@ -53,6 +55,10 @@ public class RedisMessageBroker implements MessageBroker {
     }
     catch (Exception e) {
       logger.error("Error while subscribing node in Redis.", e);
+    }
+
+    if (StringUtils.isEmpty(Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS)){
+      hubRemoteUrls = Arrays.asList(Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS.split(";"));
     }
   }
 
@@ -105,17 +111,15 @@ public class RedisMessageBroker implements MessageBroker {
   }
 
   private void sendRawMessagesToRemoteCluster(String jsonMessage) {
-    if (!StringUtils.isEmpty(Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS)) {
-      List<String> hubRemoteUrls = Arrays.asList(Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS.split(";"));
+    if (hubRemoteUrls != null) {
 
       for (String remoteUrl : hubRemoteUrls) {
         try {
           byte[] body = mapper.get().writeValueAsBytes(jsonMessage);
 
           int tryCount = 0;
-          boolean retry;
+          boolean retry = false;
           do {
-            retry = false;
             tryCount++;
             try {
               synchronized (Service.webClient) {
@@ -125,23 +129,14 @@ public class RedisMessageBroker implements MessageBroker {
                         .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
                         .sendBuffer(Buffer.buffer(body), ar -> {
                           if (ar.failed()) {
-                            if (ar.cause() instanceof TimeoutException) {
-                              logger.error("Failed to sent message to remote cluster. Connector timeout error.");
-                            } else {
-                              logger.error("Failed to sent message to remote cluster. " + ar.cause());
-                            }
+                            logger.error("Failed to sent message to remote cluster. " + ar.cause());
                           }
                         });
               }
             } catch (Exception e) {
-              if (e == ConnectionBase.CLOSED_EXCEPTION) {
-                e = new RuntimeException("Connection was already closed.", e);
-                if (tryCount <= 1)
-                  retry = true;
-                logger.error(e.getMessage() + (retry ? " Retrying ..." : ""), e);
-              }
               if (!retry) {
-                logger.error("Error sending event to remote http service", e);
+                logger.error("Error sending event to remote http service. Retrying once...", e);
+                retry = true;
               }
             }
           } while (retry && tryCount <= 1);
