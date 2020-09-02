@@ -687,10 +687,11 @@ public abstract class DatabaseHandler extends StorageConnector {
         final String tableName = config.table(event);
 
         try (final Connection connection = dataSource.getConnection()) {
+            boolean cStateFlag = connection.getAutoCommit();
             try {
-                if (connection.getAutoCommit()) {
-                    connection.setAutoCommit(false);
-                }
+                if (cStateFlag) 
+                 connection.setAutoCommit(false);
+                
 
                 try (Statement stmt = connection.createStatement()) {
                     /** Create Space-Table */
@@ -724,7 +725,11 @@ public abstract class DatabaseHandler extends StorageConnector {
                 }
             } catch (Exception e) {
                 throw new SQLException("Creation of history table for " + SQLQuery.sqlQuote(tableName) + "  has failed: " + e.getMessage(), e);
+            } finally {
+              if (cStateFlag) 
+                connection.setAutoCommit(true);
             }
+
         }
     }
 
