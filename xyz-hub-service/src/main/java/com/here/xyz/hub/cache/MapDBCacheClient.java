@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.cache;
 
+import com.here.xyz.hub.Service;
 import io.vertx.core.Handler;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -46,7 +47,7 @@ public class MapDBCacheClient implements CacheClient {
     map = db.hashMap("cache")
         .keySerializer(Serializer.STRING)
         .valueSerializer(Serializer.BYTE_ARRAY)
-        .expireStoreSize(256 * 1024 * 1024)
+        .expireStoreSize(Service.configuration.OFF_HEAP_CACHE_SIZE_MB * 1024 * 1024)
         .expireAfterCreate(3, TimeUnit.MINUTES)
         .expireAfterUpdate(3, TimeUnit.MINUTES)
         .expireAfterGet(3, TimeUnit.MINUTES)
