@@ -59,7 +59,12 @@ public interface MessageBroker {
         if (message instanceof RelayedMessage) {
           RelayedMessage rm = (RelayedMessage) message;
           if (rm.globalRelay) {
+
+            //Remote message does not need to be globally relayed again.
+            rm.globalRelay = false;
+
             rm.relay = true;
+            rm.broadcastIncludeLocalNode = true;
             //Send messages to remote cluster async.
             Service.vertx.executeBlocking(future -> {
               sendRawMessagesToRemoteCluster(rm, future);
