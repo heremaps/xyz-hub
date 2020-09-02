@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,16 +26,17 @@ import static com.here.xyz.hub.util.health.schema.Status.Result.UNKNOWN;
 import com.here.xyz.hub.cache.RedisCacheClient;
 import com.here.xyz.hub.util.health.schema.Response;
 import com.here.xyz.hub.util.health.schema.Status;
+import java.util.Arrays;
 
 
 public class RedisHealthCheck extends ExecutableCheck {
 
 	private static final String HC_CACHE_KEY = "__SAMPLE_HEALTH_CHECK_KEY";
-	private static final String HC_CACHE_VALUE = "someValue";
-	private String host;
-	private int port;
+	private static final byte[] HC_CACHE_VALUE = "someValue".getBytes();
+	private final String host;
+	private final int port;
 	private RedisCacheClient client;
-	private volatile String lastReceivedValue;
+	private volatile byte[] lastReceivedValue;
 
 	public RedisHealthCheck(String host, int port) {
 		this.host = host;
@@ -98,7 +99,7 @@ public class RedisHealthCheck extends ExecutableCheck {
 			resetClient();
 			return s.withResult(UNKNOWN);
 		}
-		if (HC_CACHE_VALUE.equals(lastReceivedValue)) {
+		if (Arrays.equals(HC_CACHE_VALUE, lastReceivedValue)) {
 			setResponse(null);
 			return s.withResult(OK);
 		}

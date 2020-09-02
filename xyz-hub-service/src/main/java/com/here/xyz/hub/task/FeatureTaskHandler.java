@@ -283,7 +283,7 @@ public class FeatureTaskHandler {
       String cacheKey = task.getCacheKey();
 
       //Check the cache
-      Service.cacheClient.getBinary(cacheKey, cacheResult -> {
+      Service.cacheClient.get(cacheKey, cacheResult -> {
         if (cacheResult == null) {
           //Cache MISS: Just go on in the task pipeline
           addStreamInfo(task, "CH=0;");
@@ -323,7 +323,7 @@ public class FeatureTaskHandler {
         throw new NullPointerException(npe);
       }
       logger.debug(task.getMarker(), "Writing entry with cache key {} to cache", cacheKey);
-      Service.cacheClient.setBinary(cacheKey, transform(response), cacheProfile.serviceTTL);
+      Service.cacheClient.set(cacheKey, transform(response), cacheProfile.serviceTTL);
     }
   }
 
