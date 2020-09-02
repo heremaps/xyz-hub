@@ -432,6 +432,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
 
         try (final Connection connection = dataSource.getConnection()) {
+
             boolean cStateFlag = connection.getAutoCommit();
             if (transactional)
                 connection.setAutoCommit(false);
@@ -455,34 +456,36 @@ public abstract class DatabaseHandler extends StorageConnector {
                     /** Commit SQLS in one transaction */
                     connection.commit();
                 }
-                connection.setAutoCommit(cStateFlag);
-
+                
             } catch (Exception e) {
                 /** No time left for processing */
                 if(e instanceof SQLException && ((SQLException)e).getSQLState() !=null
                         &&((SQLException)e).getSQLState().equalsIgnoreCase("54000"))
-                {   connection.setAutoCommit(cStateFlag);     
-                    throw e;
-                }    
+                 throw e;
 
                 /** Add objects which are responsible for the failed operation */
                 event.setFailed(fails);
 
                 if (retryCausedOnServerlessDB(e) && !retryAttempted) {
                     retryAttempted = true;
-                    connection.setAutoCommit(cStateFlag);
-                    connection.close();
+
+                    if(!connection.isClosed())
+                    { connection.setAutoCommit(cStateFlag);
+                      connection.close();
+                    } 
+
                     return executeModifyFeatures(event);
                 }
 
+
                 if (transactional) {
                     connection.rollback();
-                    
+
                     if ((e instanceof SQLException && ((SQLException)e).getSQLState() != null
                             && ((SQLException)e).getSQLState().equalsIgnoreCase("42P01")))
                         ;//Table does not exist yet - create it!
                     else {
-                        connection.setAutoCommit(cStateFlag);
+      
                         /** Add all other Objects to failed list */
                         addAllToFailedList(fails, getAllIds(inserts, updates, upserts, deletes));
 
@@ -493,17 +496,24 @@ public abstract class DatabaseHandler extends StorageConnector {
                     }
                 }
 
-                connection.setAutoCommit(cStateFlag);
-
                 if (!retryAttempted) {
                     /** Retry */
-                    connection.close();
+                    if(!connection.isClosed())
+                    { connection.setAutoCommit(cStateFlag);
+                      connection.close();
+                    } 
+
                     canRetryAttempt();
 
                     return executeModifyFeatures(event);
                 }
             }
-
+            finally
+            {
+             if(!connection.isClosed())
+              connection.setAutoCommit(cStateFlag);
+            }
+            
             /** filter out failed ids */
             final List<String> failedIds = fails.stream().map(FeatureCollection.ModificationFailure::getId).filter(Objects::nonNull).collect(Collectors.toList());
             final List<String> insertIds = inserts.stream().map(Feature::getId).filter(x -> !failedIds.contains(x)).collect(Collectors.toList());
