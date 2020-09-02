@@ -432,6 +432,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
 
         try (final Connection connection = dataSource.getConnection()) {
+            boolean cStateFlag = connection.getAutoCommit();
             if (transactional)
                 connection.setAutoCommit(false);
             else
@@ -454,28 +455,34 @@ public abstract class DatabaseHandler extends StorageConnector {
                     /** Commit SQLS in one transaction */
                     connection.commit();
                 }
+                connection.setAutoCommit(cStateFlag);
+
             } catch (Exception e) {
                 /** No time left for processing */
                 if(e instanceof SQLException && ((SQLException)e).getSQLState() !=null
                         &&((SQLException)e).getSQLState().equalsIgnoreCase("54000"))
+                {   connection.setAutoCommit(cStateFlag);     
                     throw e;
+                }    
 
                 /** Add objects which are responsible for the failed operation */
                 event.setFailed(fails);
 
                 if (retryCausedOnServerlessDB(e) && !retryAttempted) {
                     retryAttempted = true;
-
+                    connection.setAutoCommit(cStateFlag);
                     connection.close();
                     return executeModifyFeatures(event);
                 }
 
                 if (transactional) {
                     connection.rollback();
+                    
                     if ((e instanceof SQLException && ((SQLException)e).getSQLState() != null
                             && ((SQLException)e).getSQLState().equalsIgnoreCase("42P01")))
                         ;//Table does not exist yet - create it!
                     else {
+                        connection.setAutoCommit(cStateFlag);
                         /** Add all other Objects to failed list */
                         addAllToFailedList(fails, getAllIds(inserts, updates, upserts, deletes));
 
@@ -485,6 +492,9 @@ public abstract class DatabaseHandler extends StorageConnector {
                         return collection;
                     }
                 }
+
+                connection.setAutoCommit(cStateFlag);
+
                 if (!retryAttempted) {
                     /** Retry */
                     connection.close();
@@ -612,12 +622,12 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
 
         try (final Connection connection = dataSource.getConnection()) {
+            boolean cStateFlag = connection.getAutoCommit();
             try {
                 final String tableName = config.table(event);
 
-                if (connection.getAutoCommit()) {
-                    connection.setAutoCommit(false);
-                }
+                if (cStateFlag) 
+                  connection.setAutoCommit(false);
 
                 try (Statement stmt = connection.createStatement()) {
                     createSpaceStatement(stmt,tableName);
@@ -635,6 +645,9 @@ public abstract class DatabaseHandler extends StorageConnector {
                     return;
                 }
                 throw new SQLException("Missing table " + SQLQuery.sqlQuote(tableName) + " and creation failed: " + e.getMessage(), e);
+            } finally {
+                if (cStateFlag) 
+                 connection.setAutoCommit(true);
             }
         }
     }
