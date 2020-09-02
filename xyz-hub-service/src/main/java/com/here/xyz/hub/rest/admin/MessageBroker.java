@@ -21,8 +21,17 @@ package com.here.xyz.hub.rest.admin;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.here.xyz.hub.Service;
+import com.here.xyz.hub.rest.AdminApi;
+import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.hub.rest.admin.messages.brokers.RedisMessageBroker;
 import java.io.IOException;
+import java.nio.charset.Charset;
+import java.util.Arrays;
+import java.util.List;
+
+import io.vertx.core.Future;
+import io.vertx.core.buffer.Buffer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -36,6 +45,8 @@ public interface MessageBroker {
   Logger logger = LogManager.getLogger();
   ThreadLocal<ObjectMapper> mapper = ThreadLocal.withInitial(ObjectMapper::new);
 
+  List<String> hubRemoteUrls = Arrays.asList(Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS.split(";"));
+
   void sendRawMessage(String jsonMessage);
 
   default void sendMessage(AdminMessage message) {
@@ -44,6 +55,20 @@ public interface MessageBroker {
       try {
         jsonMessage = mapper.get().writeValueAsString(message);
         sendRawMessage(jsonMessage);
+
+        if (message instanceof RelayedMessage) {
+          RelayedMessage rm = (RelayedMessage) message;
+          if (rm.globalRelay) {
+            rm.relay = true;
+            //Send messages to remote cluster async.
+            Service.vertx.executeBlocking(future -> {
+              sendRawMessagesToRemoteCluster(rm, future);
+            }, ar -> {
+              if (ar.failed())
+                logger.error(ar.cause());
+            });
+          }
+        }
       }
       catch (JsonProcessingException e) {
         logger.error("Error while serializing AdminMessage of type {} prior to send it.", message.getClass().getSimpleName());
@@ -58,6 +83,45 @@ public interface MessageBroker {
     with the #broadcastIncludeLocalNode flag being active.
      */
     receiveMessage(message);
+  }
+
+  default void sendRawMessagesToRemoteCluster(RelayedMessage message, Future<Object> future) {
+    if (hubRemoteUrls != null && !hubRemoteUrls.isEmpty()) {
+
+      for (String remoteUrl : hubRemoteUrls) {
+        int tryCount = 0;
+        boolean retry = false;
+        do {
+          tryCount++;
+          try {
+            byte[] body = mapper.get().writeValueAsBytes(message);
+            synchronized (Service.webClient) {
+              Service.webClient
+                      .postAbs(remoteUrl + AdminApi.ADMIN_MESSAGES_ENDPOINT)
+                      .timeout(Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT)
+                      .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
+                      .putHeader("Authorization", "Bearer " + Service.configuration.ADMIN_MESSAGE_JWT)
+                      .sendBuffer(Buffer.buffer(body), ar -> {
+                        if (ar.failed()) {
+                          future.fail("Failed to sent message to remote cluster at " + hubRemoteUrls + ": " + ar.cause());
+                        } else {
+                          future.complete();
+                        }
+                      });
+            }
+          } catch (JsonProcessingException e) {
+            future.fail("Error while serializing RelayedMessage prior to send it to remote cluster. URL: " + hubRemoteUrls + " Error: " + e.getMessage());
+          } catch (Exception e) {
+            if (!retry) {
+              logger.error("Error sending event to remote http service. Retrying once...", e);
+              retry = true;
+            } else {
+              future.fail("Error sending event to remote http service twice. " + e.getMessage());
+            }
+          }
+        } while (retry && tryCount <= 1);
+      }
+    }
   }
 
   default void receiveRawMessage(byte[] rawJsonMessage) {

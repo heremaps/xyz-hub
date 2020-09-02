@@ -23,6 +23,7 @@ import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.admin.AdminMessage;
+import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -160,7 +161,7 @@ public abstract class SpaceConfigClient implements Initializable {
 
   public void invalidateCache(String spaceId) {
     cache.remove(spaceId);
-    new InvalidateSpaceCacheMessage().withId(spaceId).broadcast();
+    new InvalidateSpaceCacheMessage().withId(spaceId).withGlobalRelay(true).withRelay(false).broadcast();
   }
 
   public static class SpaceAuthorizationCondition {
@@ -176,7 +177,7 @@ public abstract class SpaceConfigClient implements Initializable {
     public boolean negateOwnerIds = false;
   }
 
-  public static class InvalidateSpaceCacheMessage extends AdminMessage {
+  public class InvalidateSpaceCacheMessage extends RelayedMessage {
 
     private String id;
 
@@ -194,7 +195,7 @@ public abstract class SpaceConfigClient implements Initializable {
     }
 
     @Override
-    protected void handle() {
+    protected void handleAtDestination() {
       cache.remove(id);
     }
   }
