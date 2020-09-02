@@ -53,27 +53,22 @@ public interface MessageBroker {
     if (!Node.OWN_INSTANCE.equals(message.destination)) {
       String jsonMessage = null;
       try {
+        if (message instanceof RelayedMessage && ((RelayedMessage) message).globalRelay) {
+          RelayedMessage rm = (RelayedMessage) message;
+          //Remote message does not need to be globally relayed again, but it needs be done remotely
+          rm.globalRelay = false;
+          boolean originalRelay = rm.relay;
+          rm.relay = true;
+          //Send messages to remote cluster async
+          jsonMessage = mapper.get().writeValueAsString(message);
+          //Re-set the relay value to its original value
+          rm.relay = originalRelay;
+          sendRawMessagesToRemoteClusterAsync(jsonMessage);
+        }
+
+        //Send the local version of the message
         jsonMessage = mapper.get().writeValueAsString(message);
         sendRawMessage(jsonMessage);
-
-        if (message instanceof RelayedMessage) {
-          RelayedMessage rm = (RelayedMessage) message;
-          if (rm.globalRelay) {
-
-            //Remote message does not need to be globally relayed again.
-            rm.globalRelay = false;
-
-            rm.relay = true;
-            rm.broadcastIncludeLocalNode = true;
-            //Send messages to remote cluster async.
-            Service.vertx.executeBlocking(future -> {
-              sendRawMessagesToRemoteCluster(rm, future);
-            }, ar -> {
-              if (ar.failed())
-                logger.error(ar.cause());
-            });
-          }
-        }
       }
       catch (JsonProcessingException e) {
         logger.error("Error while serializing AdminMessage of type {} prior to send it.", message.getClass().getSimpleName());
@@ -90,41 +85,40 @@ public interface MessageBroker {
     receiveMessage(message);
   }
 
-  default void sendRawMessagesToRemoteCluster(RelayedMessage message, Future<Object> future) {
-    if (hubRemoteUrls != null && !hubRemoteUrls.isEmpty()) {
+  default void sendRawMessagesToRemoteClusterAsync(String jsonMessage) {
+    Service.vertx.executeBlocking(
+        future -> {
+          sendRawMessagesToRemoteCluster(jsonMessage, future);
+        },
+        ar -> {
+          if (ar.failed())
+            logger.error("Failed to sent message to remote cluster. URLs: {}" + Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS,
+                ar.cause());
+        }
+    );
+  }
 
-      for (String remoteUrl : hubRemoteUrls) {
-        int tryCount = 0;
-        boolean retry = false;
-        do {
-          tryCount++;
+  default void sendRawMessagesToRemoteCluster(String jsonMessage, Future<Object> future) {
+    if (hubRemoteUrls != null && !hubRemoteUrls.isEmpty()) {
+      synchronized (Service.webClient) {
+        for (String remoteUrl : hubRemoteUrls) {
           try {
-            byte[] body = mapper.get().writeValueAsBytes(message);
-            synchronized (Service.webClient) {
-              Service.webClient
-                      .postAbs(remoteUrl + AdminApi.ADMIN_MESSAGES_ENDPOINT)
-                      .timeout(Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT)
-                      .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
-                      .putHeader("Authorization", "Bearer " + Service.configuration.ADMIN_MESSAGE_JWT)
-                      .sendBuffer(Buffer.buffer(body), ar -> {
-                        if (ar.failed()) {
-                          future.fail("Failed to sent message to remote cluster at " + hubRemoteUrls + ": " + ar.cause());
-                        } else {
-                          future.complete();
-                        }
-                      });
-            }
-          } catch (JsonProcessingException e) {
-            future.fail("Error while serializing RelayedMessage prior to send it to remote cluster. URL: " + hubRemoteUrls + " Error: " + e.getMessage());
-          } catch (Exception e) {
-            if (!retry) {
-              logger.error("Error sending event to remote http service. Retrying once...", e);
-              retry = true;
-            } else {
-              future.fail("Error sending event to remote http service twice. " + e.getMessage());
-            }
+            Service.webClient
+                .postAbs(remoteUrl + AdminApi.ADMIN_MESSAGES_ENDPOINT)
+                .timeout(Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT)
+                .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
+                .putHeader("Authorization", "Bearer " + Service.configuration.ADMIN_MESSAGE_JWT)
+                .sendBuffer(Buffer.buffer(jsonMessage), ar -> {
+                  if (ar.failed())
+                    future.fail(ar.cause());
+                  else
+                    future.complete();
+                });
           }
-        } while (retry && tryCount <= 1);
+          catch (Exception e) {
+            future.fail(e);
+          }
+        }
       }
     }
   }

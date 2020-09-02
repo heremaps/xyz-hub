@@ -22,7 +22,6 @@ package com.here.xyz.hub.config;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Space;
-import com.here.xyz.hub.rest.admin.AdminMessage;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -161,7 +160,7 @@ public abstract class SpaceConfigClient implements Initializable {
 
   public void invalidateCache(String spaceId) {
     cache.remove(spaceId);
-    new InvalidateSpaceCacheMessage().withId(spaceId).withGlobalRelay(true).withRelay(false).broadcast();
+    new InvalidateSpaceCacheMessage().withId(spaceId).withGlobalRelay(true).broadcast();
   }
 
   public static class SpaceAuthorizationCondition {
