@@ -27,6 +27,8 @@ public abstract class RelayedMessage extends AdminMessage {
 
   public boolean relay = false;
   public Node relayedBy;
+  public boolean globalRelay = false;
+
   /**
    * Whether the this message was relayed by the local node.
    * If that's the case it will be handled directly locally and the following broad-casted message coming
@@ -41,6 +43,14 @@ public abstract class RelayedMessage extends AdminMessage {
   }
 
   /**
+   * Whether this message should be replicated globally or not.
+   */
+  public RelayedMessage withGlobalRelay(boolean globalRelay) {
+    this.globalRelay = globalRelay;
+    return this;
+  }
+
+  /**
    * This method will be called at the relay and at the final {@link #destination} node. It will only care about the relaying.
    * If applicable it will delegate to {@link #handleAtDestination()} at the {@link #destination} node which contains the actual
    * implementation about the actions to be done.
@@ -48,7 +58,7 @@ public abstract class RelayedMessage extends AdminMessage {
   @Override
   protected final void handle() {
     if (relayedLocally) {
-      //Reset relayedBy here as actually this message was not relayed. It get's handled directly in place.
+      //Reset relayedBy here as actually this message was not relayed. It gets handled directly in place.
       relayedBy = null;
     }
     if (relay) {
