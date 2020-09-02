@@ -455,6 +455,7 @@ public class Service {
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class Config {
 
+    public int OFF_HEAP_CACHE_SIZE_MB;
     /**
      * The port of the HTTP server.
      */

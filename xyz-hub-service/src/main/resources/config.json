@@ -10,6 +10,8 @@
   "XYZ_HUB_REDIS_HOST": "localhost",
   "XYZ_HUB_REDIS_PORT": 6379,
 
+  "OFF_HEAP_CACHE_SIZE_MB": 256,
+
   "LOG_CONFIG": "log4j2-console-plain.json",
 
   "DEFAULT_STORAGE_ID": "psql",
