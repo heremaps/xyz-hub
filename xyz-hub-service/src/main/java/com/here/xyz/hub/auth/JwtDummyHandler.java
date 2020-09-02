@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ public class JwtDummyHandler extends AuthHandlerImpl implements JWTAuthHandler {
   private static final Logger logger = LogManager.getLogger();
   private final JsonObject options = new JsonObject();
   private static final String DUMMY_JWT_RESOURCE_FILE = "/auth/dummyJwt.json";
-  private static volatile String dummyJwt = JwtGenerator.generateToken(DUMMY_JWT_RESOURCE_FILE);
+  private static final  String dummyJwt = JwtGenerator.generateToken(DUMMY_JWT_RESOURCE_FILE);
 
   static {
     logger.info("DUMMY token was created.");
