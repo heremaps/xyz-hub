@@ -23,9 +23,7 @@ import io.vertx.core.Handler;
 
 public interface CacheClient {
 
-	void get(String key, Handler<String> handler);
-
-	void getBinary(String key, Handler<byte[]> handler);
+	void get(String key, Handler<byte[]> handler);
 
 	/**
 	 *
@@ -33,9 +31,7 @@ public interface CacheClient {
 	 * @param value
 	 * @param ttl The live time of the cache-record in seconds
 	 */
-	void set(String key, String value, long ttl);
-
-	void setBinary(String key, byte[] value, long ttl);
+	void set(String key, byte[] value, long ttl);
 
 	void remove(String key);
 

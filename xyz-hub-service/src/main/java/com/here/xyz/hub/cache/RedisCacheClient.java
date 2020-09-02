@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -68,17 +68,7 @@ public class RedisCacheClient implements CacheClient {
   }
 
   @Override
-  public void get(String key, Handler<String> handler) {
-    getClient().get(key, asyncResult -> {
-      if (asyncResult.failed()) {
-//				logger.error("Error when trying to read key " + key + " from redis cache", asyncResult.cause());
-      }
-      handler.handle(asyncResult.result());
-    });
-  }
-
-  @Override
-  public void getBinary(String key, Handler<byte[]> handler) {
+  public void get(String key, Handler<byte[]> handler) {
     getClient().getBinary(key, asyncResult -> {
       if (asyncResult.failed()) {
 //				logger.error("Error when trying to read key " + key + " from redis cache", asyncResult.cause());
@@ -89,17 +79,7 @@ public class RedisCacheClient implements CacheClient {
   }
 
   @Override
-  public void set(String key, String value, long ttl) {
-    getClient().setex(key, ttl, value, asyncResult -> {
-      //set command was executed. Nothing to do here.coo
-      if (asyncResult.failed()) {
-        //logger.error("Error when trying to put key " + key + " to redis cache", asyncResult.cause());
-      }
-    });
-  }
-
-  @Override
-  public void setBinary(String key, byte[] value, long ttl) {
+  public void set(String key, byte[] value, long ttl) {
     getClient().setBinaryWithOptions(key, Buffer.buffer(value), new SetOptions().setEX(ttl), asyncResult -> {
       //set command was executed. Nothing to do here.
       if (asyncResult.failed()) {

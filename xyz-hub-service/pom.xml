@@ -24,7 +24,7 @@
   <parent>
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
-    <relativePath>../</relativePath>
+    <relativePath>../pom.xml</relativePath>
     <version>1.10.6-SNAPSHOT</version>
   </parent>
 
