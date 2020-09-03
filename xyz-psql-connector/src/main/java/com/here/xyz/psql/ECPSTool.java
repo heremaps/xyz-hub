@@ -19,7 +19,6 @@
 
 package com.here.xyz.psql;
 
-import com.here.xyz.psql.PSQLConfig.AESHelper;
 import com.here.xyz.psql.PSQLConfig.AESGCMHelper;
 
 import java.io.UnsupportedEncodingException;
@@ -41,12 +40,7 @@ public class ECPSTool {
         System.out.println(new AESGCMHelper(phrase).encrypt(data));
         break;
       case "decrypt":
-        try {
-          System.out.println(new AESHelper(phrase).decrypt(data));
-        }catch(Exception e){
-          //Try new Decryption
-          System.out.println(new AESGCMHelper(phrase).decrypt(data));
-        }
+        System.out.println(new AESGCMHelper(phrase).decrypt(data));
         break;
       default:
         System.err.println("ERROR: Invalid action provided.\n\n" + USAGE);
