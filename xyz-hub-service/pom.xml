@@ -24,7 +24,7 @@
   <parent>
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
-    <relativePath>../</relativePath>
+    <relativePath>../pom.xml</relativePath>
     <version>1.10.6-SNAPSHOT</version>
   </parent>
 
@@ -316,20 +316,11 @@
       <version>2.0.0</version>
     </dependency>
 
-
-
-
     <!-- Test -->
     <dependency>
       <artifactId>junit</artifactId>
       <groupId>junit</groupId>
       <scope>test</scope>
     </dependency>
-
-    <dependency>
-      <groupId>org.mapdb</groupId>
-      <artifactId>mapdb</artifactId>
-    </dependency>
-
   </dependencies>
 </project>
