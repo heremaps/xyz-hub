@@ -24,7 +24,7 @@
   <parent>
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
-    <relativePath>../pom.xml</relativePath>
+    <relativePath>../</relativePath>
     <version>1.10.6-SNAPSHOT</version>
   </parent>
 
@@ -299,16 +299,25 @@
       <groupId>org.geotools</groupId>
     </dependency>
 
+    <!-- Cache -->
+    <dependency>
+      <artifactId>expiringmap</artifactId>
+      <groupId>net.jodah</groupId>
+    </dependency>
+    <dependency>
+      <groupId>org.mapdb</groupId>
+      <artifactId>mapdb</artifactId>
+    </dependency>
+
     <!-- External libraries -->
     <dependency>
       <artifactId>mapbox-vector-tile</artifactId>
       <groupId>com.wdtinc</groupId>
       <version>2.0.0</version>
     </dependency>
-    <dependency>
-      <artifactId>expiringmap</artifactId>
-      <groupId>net.jodah</groupId>
-    </dependency>
+
+
+
 
     <!-- Test -->
     <dependency>
