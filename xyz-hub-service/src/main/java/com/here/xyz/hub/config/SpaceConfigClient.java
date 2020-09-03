@@ -176,7 +176,7 @@ public abstract class SpaceConfigClient implements Initializable {
     public boolean negateOwnerIds = false;
   }
 
-  public class InvalidateSpaceCacheMessage extends RelayedMessage {
+  public static class InvalidateSpaceCacheMessage extends RelayedMessage {
 
     private String id;
 
