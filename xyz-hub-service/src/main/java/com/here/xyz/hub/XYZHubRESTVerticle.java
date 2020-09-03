@@ -54,6 +54,7 @@ import com.here.xyz.hub.util.OpenApiTransformer;
 import com.here.xyz.hub.util.logging.LogUtil;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AbstractVerticle;
+import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerResponse;
@@ -71,6 +72,7 @@ import io.vertx.ext.web.handler.CorsHandler;
 import io.vertx.ext.web.handler.JWTAuthHandler;
 import io.vertx.ext.web.handler.StaticHandler;
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -262,12 +264,25 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
         //Default NotFound handler
         router.route().last().handler(XYZHubRESTVerticle::notFoundHandler);
 
-        vertx.sharedData().<String, List<Router>>getAsyncMap(Service.SHARED_DATA, sharedDataResult -> {
-          sharedDataResult.result().get(Service.ROUTERS, routersResult -> {
-            List<Router> routers = routersResult.result();
-            routers.add(router);
+//        vertx.sharedData().<String, List<Router>>getAsyncMap(Service.SHARED_DATA, sharedDataResult -> {
+//          sharedDataResult.result().get(Service.ROUTERS, routersResult -> {
+//            List<Router> routers = routersResult.result();
+//            routers.add(router);
+//            fut.complete();
+//          });
+//        });
+
+        // FIXME temporary solution to improve performance until the implementation of multiple http servers sharing a global router is in place
+        final List<Future> futures = new ArrayList<Future>() {{
+          add(Service.createDefaultHttpServer(router));
+          add(Service.createAdminHttpServer(router));
+        }};
+
+        CompositeFuture.all(futures).setHandler(serversResult -> {
+          if (serversResult.succeeded())
             fut.complete();
-          });
+          else
+            fut.fail("Error creating Http servers");
         });
       } else {
         logger.error("An error occurred, during the creation of the router from the Open API specification file.", ar.cause());

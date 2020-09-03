@@ -121,7 +121,7 @@ public class Service {
   /**
    * The http server options to be initialized
    */
-  private static final HttpServerOptions SERVER_OPTIONS = new HttpServerOptions()
+  public static final HttpServerOptions SERVER_OPTIONS = new HttpServerOptions()
       .setCompressionSupported(true)
       .setDecompressionSupported(true)
       .setHandle100ContinueAutomatically(true)
@@ -285,8 +285,8 @@ public class Service {
       });
 
       final List<Future> futures = new ArrayList<Future>() {{
-        add(createDefaultHttpServer(global));
-        add(createAdminHttpServer(global));
+//        add(createDefaultHttpServer(global));
+//        add(createAdminHttpServer(global));
       }};
 
       CompositeFuture.all(futures).setHandler(serversResult -> {
@@ -311,7 +311,7 @@ public class Service {
       startMetricPublishers();
   }
 
-  private static Future<Void> createDefaultHttpServer(Router router) {
+  public static Future<Void> createDefaultHttpServer(Router router) {
     final Future<Void> future = Future.future();
 
     vertx.createHttpServer(SERVER_OPTIONS)
@@ -329,7 +329,7 @@ public class Service {
     return future;
   }
 
-  protected static Future<Void> createAdminHttpServer(Router router) {
+  public static Future<Void> createAdminHttpServer(Router router) {
     final int messagePort = Service.configuration.ADMIN_MESSAGE_PORT;
     if (messagePort == Service.configuration.HTTP_PORT) {
       return Future.succeededFuture();
