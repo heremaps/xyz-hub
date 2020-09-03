@@ -21,24 +21,17 @@ package com.here.xyz.psql;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.base.Strings;
-import com.google.common.hash.Hashing;
 import com.google.crypto.tink.aead.AeadConfig;
 import com.google.crypto.tink.subtle.AesGcmJce;
 import com.here.xyz.connectors.SimulatedContext;
 import com.here.xyz.events.Event;
 
 import java.io.UnsupportedEncodingException;
-import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
-import javax.crypto.BadPaddingException;
-import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.spec.SecretKeySpec;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -113,15 +106,10 @@ class PSQLConfig {
   @SuppressWarnings("unchecked")
   private static Map<String, Object> decryptECPS(String ecps, String phrase) {
     try {
-      return new ObjectMapper().readValue(AESHelper.getInstance(phrase).decrypt(ecps), Map.class);
+      return new ObjectMapper().readValue(AESGCMHelper.getInstance(phrase).decrypt(ecps), Map.class);
     } catch (Exception e) {
-      try {
-        //try new Encryption
-        return new ObjectMapper().readValue(AESGCMHelper.getInstance(phrase).decrypt(ecps), Map.class);
-      }catch (Exception e2){
         logger.error("Unable to read the encrypted connector parameter settings.");
-        throw new RuntimeException(e2);
-      }
+        throw new RuntimeException(e);
     }
   }
 
@@ -317,89 +305,6 @@ class PSQLConfig {
     return null;
   }
 
-
-  public static class AESHelper {
-
-    private static Map<String, AESHelper> helpers = new HashMap<>();
-    private byte[] key;
-
-    /**
-     * Returns an instance helper for this passphrase.
-     *
-     * @param passphrase The passphrase from which to derive a key.
-     */
-    @SuppressWarnings("WeakerAccess")
-    protected static AESHelper getInstance(String passphrase) {
-      if (helpers.get(passphrase) == null) {
-        helpers.put(passphrase, new AESHelper(passphrase));
-      }
-      return helpers.get(passphrase);
-    }
-
-    @Deprecated
-    /** Can get removed after transition to new ECPS Strings encrypted with AesGce*/
-    protected AESHelper(String passphrase) {
-      //noinspection UnstableApiUsage
-      this.key = Arrays.copyOf(Hashing.sha256().newHasher().putBytes(passphrase.getBytes()).hash().asBytes(), 16);
-    }
-
-    /**
-     * Decrypts the given string.
-     *
-     * @param data The Base 64 encoded string representation of the encrypted bytes.
-     */
-    protected String decrypt(String data) throws IllegalBlockSizeException, BadPaddingException {
-      return new String(decrypt(Base64.getDecoder().decode(data)));
-    }
-
-    /**
-     * Decrypts the given bytes.
-     */
-    private byte[] decrypt(byte[] data) throws IllegalBlockSizeException, BadPaddingException {
-      return decryptCipher.get().doFinal(data);
-    }
-
-    /**
-     * Encrypts the provided string.
-     *
-     * @param data The string to encode
-     * @return A Base 64 encoded string, which represents the encoded bytes.
-     */
-    protected String encrypt(String data) throws IllegalBlockSizeException, BadPaddingException {
-      return new String(Base64.getEncoder().encode(encrypt(data.getBytes())));
-    }
-
-    /**
-     * Encrypts the provided byte array.
-     */
-    private byte[] encrypt(byte[] data) throws IllegalBlockSizeException, BadPaddingException {
-      final Cipher ec = encryptCipher.get();
-      return ec.doFinal(data);
-    }
-
-    private final ThreadLocal<Cipher> decryptCipher = ThreadLocal.withInitial(() -> {
-      try {
-        Cipher dc = Cipher.getInstance("AES/ECB/PKCS5Padding");
-        dc.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "AES"));
-        return dc;
-      } catch (Exception e) {
-        logger.error("Exception when initializing the decrypt cypher.", e);
-        return null;
-      }
-    });
-
-    private final ThreadLocal<Cipher> encryptCipher = ThreadLocal.withInitial(() -> {
-      try {
-        Cipher ec = Cipher.getInstance("AES/ECB/PKCS5Padding");
-        ec.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"));
-        return ec;
-      } catch (Exception e) {
-        logger.error("Exception when initializing the decrypt cypher.", e);
-        return null;
-      }
-    });
-  }
-
   /**
    * Encrypt and decrypt ECPS Strings by using AesGcm
    */
@@ -428,8 +333,8 @@ class PSQLConfig {
     }
 
     protected AESGCMHelper(String passphrase) throws GeneralSecurityException {
-      /** If required - adjust passphrase to 256bit length */
-      this.key = new AesGcmJce( Arrays.copyOfRange((passphrase == null ? "" : passphrase).getBytes(), 0, 16) );    
+      /** If required - adjust passphrase to 128bit length */
+      this.key = new AesGcmJce( Arrays.copyOfRange((passphrase == null ? "" : passphrase).getBytes(), 0, 16) );
     }
 
     /**
