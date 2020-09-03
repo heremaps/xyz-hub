@@ -326,5 +326,10 @@
       <scope>test</scope>
     </dependency>
 
+    <dependency>
+      <groupId>org.mapdb</groupId>
+      <artifactId>mapdb</artifactId>
+    </dependency>
+
   </dependencies>
 </project>
