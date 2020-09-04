@@ -102,6 +102,7 @@ public interface MessageBroker {
     if (hubRemoteUrls != null && !hubRemoteUrls.isEmpty()) {
       synchronized (Service.webClient) {
         for (String remoteUrl : hubRemoteUrls) {
+          if (remoteUrl.isEmpty()) continue;
           try {
             Service.webClient
                 .postAbs(remoteUrl + AdminApi.ADMIN_MESSAGES_ENDPOINT)
