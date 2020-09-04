@@ -494,6 +494,12 @@ public class Service {
      * Whether to publish custom service metrics like JVM memory utilization or Major GC count.
      */
     public boolean PUBLISH_METRICS;
+
+    /**
+     * The AWS region this service is running in.
+     * Value is <code>null</code> if not running in AWS.
+     */
+    public String AWS_REGION;
   }
 
   /**
