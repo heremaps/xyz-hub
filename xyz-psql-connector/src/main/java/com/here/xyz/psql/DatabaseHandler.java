@@ -625,16 +625,35 @@ public abstract class DatabaseHandler extends StorageConnector {
      *
      * @throws SQLException if the table does not exist and can't be created or alter failed.
      */
+
+    private static String lockSql   = "select pg_advisory_lock( ('x' || left(md5('%s'),15) )::bit(60)::bigint )",
+                          unlockSql = "select pg_advisory_unlock( ('x' || left(md5('%s'),15) )::bit(60)::bigint )";
+                          
+    private static void _advisory(String tablename, Connection connection,boolean lock ) throws SQLException 
+    {
+     boolean cStateFlag = connection.getAutoCommit();
+     connection.setAutoCommit(true);
+     
+     try(Statement stmt = connection.createStatement()) 
+     { stmt.executeQuery(String.format( lock? lockSql : unlockSql,tablename)); }
+
+     connection.setAutoCommit(cStateFlag);
+    }
+
+    private static void advisoryLock(String tablename, Connection connection ) throws SQLException { _advisory(tablename,connection,true); }
+
+    private static void advisoryUnlock(String tablename, Connection connection ) throws SQLException { _advisory(tablename,connection,false); }
+
     protected void ensureSpace() throws SQLException {
         // Note: We can assume that when the table exists, the postgis extensions are installed.
-        if (hasTable()) {
-            return;
-        }
+        if (hasTable()) return;
+        
+        final String tableName = config.table(event);
 
         try (final Connection connection = dataSource.getConnection()) {
+            advisoryLock( tableName, connection );
             boolean cStateFlag = connection.getAutoCommit();
             try {
-                final String tableName = config.table(event);
 
                 if (cStateFlag) 
                   connection.setAutoCommit(false);
@@ -647,7 +666,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                     logger.info("{} - Successfully created table for space '{}'", streamId, event.getSpace());
                 }
             } catch (Exception e) {
-                final String tableName = config.table(event);
+
                 logger.error("{} - Failed to create table '{}': {}", streamId, tableName, e);
                 connection.rollback();
                 // check if the table was created in the meantime, by another instance.
@@ -656,6 +675,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 }
                 throw new SQLException("Missing table " + SQLQuery.sqlQuote(tableName) + " and creation failed: " + e.getMessage(), e);
             } finally {
+                advisoryUnlock( tableName, connection );
                 if (cStateFlag) 
                  connection.setAutoCommit(true);
             }
@@ -697,11 +717,11 @@ public abstract class DatabaseHandler extends StorageConnector {
         final String tableName = config.table(event);
 
         try (final Connection connection = dataSource.getConnection()) {
+            advisoryLock( tableName, connection );
             boolean cStateFlag = connection.getAutoCommit();
             try {
                 if (cStateFlag) 
                  connection.setAutoCommit(false);
-                
 
                 try (Statement stmt = connection.createStatement()) {
                     /** Create Space-Table */
@@ -736,6 +756,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             } catch (Exception e) {
                 throw new SQLException("Creation of history table for " + SQLQuery.sqlQuote(tableName) + "  has failed: " + e.getMessage(), e);
             } finally {
+              advisoryUnlock( tableName, connection );                
               if (cStateFlag) 
                 connection.setAutoCommit(true);
             }
