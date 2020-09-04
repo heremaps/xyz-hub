@@ -22,9 +22,9 @@ package com.here.xyz.hub.config;
 import static com.here.xyz.hub.config.JDBCConfig.SPACE_TABLE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.connectors.models.Space;
+import com.here.xyz.hub.rest.ApiParam.SpaceQuery;
 import com.here.xyz.psql.SQLQuery;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -121,7 +121,7 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
 
   @Override
   protected void getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition,
-      SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery, 
+      SpaceSelectionCondition selectedCondition,
       Handler<AsyncResult<List<Space>>> handler) {
     //BUILD THE QUERY
     List<String> whereConjunctions = new ArrayList<>();
@@ -142,16 +142,13 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
     if (!selectionWhereClauses.isEmpty()) {
       whereConjunctions.add("(" + StringUtils.join(selectionWhereClauses, " OR ") + ")");
     }
-    if (propsQuery != null) {
-      propsQuery.forEach(conjunctions -> {
-        List<String> contentUpdatedAtConjunctions = new ArrayList<>();
-        conjunctions.forEach(conj -> {
-            conj.getValues().forEach(v -> {
-              contentUpdatedAtConjunctions.add("(cast(config->>'contentUpdatedAt' AS TEXT) "+ SQLQuery.getOperation(conj.getOperation()) + "'" +v + "' )");
-            });
+    if (selectedCondition.contentUpdatedAt != null) {
+      List<String> contentUpdatedAtConjunctions = new ArrayList<>();
+      SpaceQuery contentUpdatedAt = selectedCondition.contentUpdatedAt;
+        contentUpdatedAt.getValues().forEach(v -> {
+          contentUpdatedAtConjunctions.add("(cast(config->>'contentUpdatedAt' AS TEXT) "+ contentUpdatedAt.getOperation() + "'" + v + "' )");
         });
-        whereConjunctions.add(StringUtils.join(contentUpdatedAtConjunctions, " OR "));
-      });
+      whereConjunctions.add(StringUtils.join(contentUpdatedAtConjunctions, " OR "));
     }
 
     String query = baseQuery + (whereConjunctions.isEmpty() ? "" :

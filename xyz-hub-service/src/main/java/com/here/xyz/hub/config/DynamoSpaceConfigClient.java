@@ -35,11 +35,10 @@ import com.amazonaws.services.dynamodbv2.model.PutItemRequest;
 import com.amazonaws.services.dynamodbv2.model.PutItemResult;
 import com.amazonaws.util.CollectionUtils;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.here.xyz.psql.SQLQuery;
-import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Space;
+import com.here.xyz.hub.rest.ApiParam.SpaceQuery;
 import com.here.xyz.hub.util.ARN;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -286,7 +285,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
   @Override
   public void getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition, SpaceSelectionCondition selectedCondition,
-      PropertiesQuery propsQuery, Handler<AsyncResult<List<Space>>> handler) {
+      Handler<AsyncResult<List<Space>>> handler) {
     logger.info(marker, "Getting selected spaces");
 
     if (authorizedCondition == null || selectedCondition == null)
@@ -310,29 +309,30 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
               logger.debug(marker, "Number of space IDs after addition of shared spaces: {}", authorizedSpaces.size());
             }
             
-            if (propsQuery != null) {
+            if (selectedCondition.contentUpdatedAt != null) {
               final Set<String> contentUpdatedSpaces = new HashSet<>();
+              SpaceQuery contentUpdatedAt = selectedCondition.contentUpdatedAt;
 
-              propsQuery.forEach(conjunctions -> {
-                List<String> contentUpdatedAtConjunctions = new ArrayList<>();
-                Map<String, Object> expressionAttributeValues = new HashMap<String, Object>();
-                conjunctions.forEach(conj -> {
-                    conj.getValues().forEach(v -> {
-                      int size = contentUpdatedAtConjunctions.size();
-                      contentUpdatedAtConjunctions.add("contentUpdatedAt " + SQLQuery.getOperation(conj.getOperation()) + " :" + size);
-                      expressionAttributeValues.put(":" + size, v );
-                    });
-                });
 
-                // filter out spaces with contentUpatedAt property
-                spaces.scan(
-                  new ScanSpec()
-                  .withProjectionExpression("id, contentUpdatedAt")
-                  .withFilterExpression(StringUtils.join(contentUpdatedAtConjunctions, " OR "))
-                  .withValueMap(expressionAttributeValues)
-                ).pages()
-                .forEach(p -> p.forEach(i -> contentUpdatedSpaces.add(i.getString("id"))));
+              List<String> contentUpdatedAtConjunctions = new ArrayList<>();
+              Map<String, Object> expressionAttributeValues = new HashMap<String, Object>();
+
+              contentUpdatedAt.getValues().forEach(v -> {
+                int size = contentUpdatedAtConjunctions.size();
+                contentUpdatedAtConjunctions.add("contentUpdatedAt " + contentUpdatedAt.getOperation() + " :" + size);
+                expressionAttributeValues.put(":" + size, v );
               });
+
+
+              // filter out spaces with contentUpdatedAt property
+              spaces.scan(
+                new ScanSpec()
+                .withProjectionExpression("id, contentUpdatedAt")
+                .withFilterExpression(StringUtils.join(contentUpdatedAtConjunctions, " OR "))
+                .withValueMap(expressionAttributeValues)
+              ).pages()
+              .forEach(p -> p.forEach(i -> contentUpdatedSpaces.add(i.getString("id"))));
+
 
               // filter out spaces which are not present in contentUpdateSpaces
               authorizedSpaces.removeIf(i -> !contentUpdatedSpaces.contains(i));

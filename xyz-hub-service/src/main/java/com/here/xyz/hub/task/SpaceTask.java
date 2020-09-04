@@ -29,12 +29,12 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
 import com.google.common.base.Strings;
 import com.here.xyz.events.Event;
-import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.auth.SpaceAuthorization;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceAuthorizationCondition;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceSelectionCondition;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.Api;
+import com.here.xyz.hub.rest.ApiParam.SpaceQuery;
 import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.ModifyOp.IfExists;
@@ -76,7 +76,6 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
 
     public SpaceAuthorizationCondition authorizedCondition;
     public SpaceSelectionCondition selectedCondition;
-    public PropertiesQuery propertiesQuery;
 
     public ReadQuery(RoutingContext context, ApiResponseType returnType, List<String> spaceIds, List<String> ownerIds) {
       super(context, returnType);
@@ -101,9 +100,9 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
     public static final String OTHERS = "others";
     public static final String ALL = "*";
 
-    public MatrixReadQuery(RoutingContext context, ApiResponseType returnType, boolean includeRights, boolean includeConnectors, String owner, PropertiesQuery propsQuery) {
+    public MatrixReadQuery(RoutingContext context, ApiResponseType returnType, boolean includeRights, boolean includeConnectors, String owner, SpaceQuery contentUpdatedAt) {
       super(context, returnType, null, null);
-      if (!Strings.isNullOrEmpty(owner)) {
+      if (!Strings.isNullOrEmpty(owner) || contentUpdatedAt != null) {
         selectedCondition = new SpaceSelectionCondition();
         String ownOwnerId = Api.Context.getJWT(context).aid;
         switch (owner) {
@@ -122,6 +121,8 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
             //Assuming a specific ownerId has been defined
             selectedCondition.ownerIds = Collections.singleton(owner);
         }
+
+        selectedCondition.contentUpdatedAt = contentUpdatedAt;
       }
 
       if (includeRights) {
@@ -129,9 +130,6 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
       }
 
       this.canReadConnectorsProperties = includeConnectors;
-      if( propsQuery != null ) {
-        propertiesQuery = propsQuery;
-      }
     }
 
     @Override

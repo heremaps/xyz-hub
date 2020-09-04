@@ -26,6 +26,7 @@ import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.events.TagsQuery;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;
+import com.here.xyz.psql.SQLQuery;
 import io.vertx.ext.web.RoutingContext;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
@@ -94,6 +95,33 @@ public class ApiParam {
     static final String TILE_TYPE = "type";
   }
 
+  public static class SpaceQuery {
+
+    private String key;
+    private QueryOperation operation;
+    private List<Object> values;
+
+    public void setKey(String key) { this.key = key; }
+
+    public String getKey() {
+      return this.key;
+    }
+
+    public void setOperation(QueryOperation operation) {
+      this.operation = operation;
+    }
+
+    public String getOperation() {
+      return SQLQuery.getOperation(this.operation);
+    }
+
+    public void setValues(List<Object> values) { this.values = values;}
+
+    public List<Object> getValues() {
+      return this.values;
+    }
+  }
+
   public static class Query {
 
     public static final String ACCESS_TOKEN = "access_token";
@@ -159,7 +187,7 @@ public class ApiParam {
     }};
 
     private static List<String> shortOperators = new ArrayList<>(operators.keySet());
-    
+
 
     /**
      * Get access to the custom parsed query parameters. Used as a temporary replacement for context.queryParam until
@@ -248,13 +276,29 @@ public class ApiParam {
     /**
      * Retures the parsed query parameter for space
      */
-    static PropertiesQuery getSpacePropertiesQuery(RoutingContext context, String param) {
-      PropertiesQuery propertyQuery = context.get("propertyQuery");
-      if (propertyQuery == null) {
-        propertyQuery = parsePropertiesQuery(context.request().query(), param, true);
-        context.put("propertyQuery", propertyQuery);
+    static SpaceQuery getSpacesQuery(RoutingContext context, String param) {
+      SpaceQuery contentUpdatedAt = context.get(ApiParam.Query.CONTENT_UPDATED_AT);
+
+      if (contentUpdatedAt == null) {
+        PropertiesQuery propertiesQuery = parsePropertiesQuery(context.request().query(), param, true);
+
+        if(propertiesQuery != null ) {
+          PropertyQuery propertyQuery = propertiesQuery.get(0).get(0);
+
+          QueryOperation operation = propertyQuery.getOperation();
+
+          if(!operation.equals(QueryOperation.CONTAINS) && param.equals(ApiParam.Query.CONTENT_UPDATED_AT)) {
+            contentUpdatedAt = new SpaceQuery();
+            contentUpdatedAt.setKey(propertyQuery.getKey());
+            contentUpdatedAt.setOperation(operation);
+            contentUpdatedAt.setValues(propertyQuery.getValues());
+
+            context.put(ApiParam.Query.CONTENT_UPDATED_AT, contentUpdatedAt);
+          }
+        }
       }
-      return propertyQuery;
+
+      return contentUpdatedAt;
     }
 
     /**

@@ -20,8 +20,8 @@
 package com.here.xyz.hub.config;
 
 import com.here.xyz.psql.SQLQuery;
-import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.connectors.models.Space;
+import com.here.xyz.hub.rest.ApiParam.SpaceQuery;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -68,7 +68,7 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
 
   @Override
   public void getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition, SpaceSelectionCondition selectedCondition,
-    PropertiesQuery propsQuery, Handler<AsyncResult<List<Space>>> handler) {
+    Handler<AsyncResult<List<Space>>> handler) {
     //Sets are not even defined that means all access
     Predicate<Space> authorizationFilter = s -> authorizedCondition.spaceIds == null && authorizedCondition.ownerIds == null
         || authorizedCondition.spaceIds != null && authorizedCondition.spaceIds.contains(s.getId())
@@ -79,22 +79,19 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
         || selectedCondition.spaceIds != null && selectedCondition.spaceIds.contains(s.getId())
         || selectedCondition.ownerIds != null && selectedCondition.ownerIds.contains(s.getOwner())
         || selectedCondition.shared && s.isShared();
-    
+
 
     List<String> contentUpdatedAtList = new ArrayList<>();
-    if (propsQuery != null) {
-      propsQuery.forEach(conjunctions -> {
-        conjunctions.forEach(conj -> {
-            conj.getValues().forEach(v -> {
-              String operator = SQLQuery.getOperation(conj.getOperation());
-              contentUpdatedAtList.add(operator);
-              contentUpdatedAtList.add(v.toString());
-            });
-        });
+    if (selectedCondition.contentUpdatedAt != null) {
+      SpaceQuery contentUpdatedAt = selectedCondition.contentUpdatedAt;
+      contentUpdatedAt.getValues().forEach(v -> {
+          String operator = contentUpdatedAt.getOperation();
+          contentUpdatedAtList.add(operator);
+          contentUpdatedAtList.add(v.toString());
       });
     }
 
-    Predicate<Space> contentUpdatedAtFilter = s -> propsQuery != null? contentUpdatedAtOperation(s.contentUpdatedAt, contentUpdatedAtList, 1) : true; 
+    Predicate<Space> contentUpdatedAtFilter = s -> selectedCondition.contentUpdatedAt != null? contentUpdatedAtOperation(s.contentUpdatedAt, contentUpdatedAtList, 1) : true;
 
     List<Space> spaces = spaceMap.values().stream()
         .filter(authorizationFilter)
