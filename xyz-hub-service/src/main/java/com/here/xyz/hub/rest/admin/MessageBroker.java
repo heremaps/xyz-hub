@@ -45,7 +45,7 @@ public interface MessageBroker {
   Logger logger = LogManager.getLogger();
   ThreadLocal<ObjectMapper> mapper = ThreadLocal.withInitial(ObjectMapper::new);
 
-  List<String> hubRemoteUrls = Arrays.asList(Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS.split(";"));
+  List<String> hubRemoteUrls = Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS == "" ? null: Arrays.asList(Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS.split(";"));
 
   void sendRawMessage(String jsonMessage);
 
