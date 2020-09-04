@@ -1,13 +1,12 @@
 package com.here.xyz.hub.util.metrics;
 
-import com.amazonaws.regions.Region;
-import com.amazonaws.regions.Regions;
 import com.amazonaws.services.cloudwatch.AmazonCloudWatch;
 import com.amazonaws.services.cloudwatch.AmazonCloudWatchAsyncClientBuilder;
 import com.amazonaws.services.cloudwatch.model.Dimension;
 import com.amazonaws.services.cloudwatch.model.MetricDatum;
 import com.amazonaws.services.cloudwatch.model.PutMetricDataRequest;
 import com.amazonaws.services.cloudwatch.model.StandardUnit;
+import com.here.xyz.hub.Service;
 import java.util.Collection;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -26,6 +25,7 @@ public class CloudWatchMetricPublisher extends MetricPublisher {
   public CloudWatchMetricPublisher(String namespace, String metricName, String dimensionName, String dimensionValue, StandardUnit unit) {
     this(namespace, metricName, dimensionName, dimensionValue);
     this.unit = unit;
+    region = Service.configuration != null && Service.configuration.AWS_REGION != null ? Service.configuration.AWS_REGION : "none";
   }
 
   public CloudWatchMetricPublisher(String namespace, String metricName, String dimensionName, String dimensionValue) {
@@ -38,15 +38,6 @@ public class CloudWatchMetricPublisher extends MetricPublisher {
 
   @Override
   void publishValues(Collection<Double> values) {
-    if (region == null) {
-      try {
-        Region r = Regions.getCurrentRegion();
-        region = r == null ? "none" : r.getName();
-      }
-      catch (Exception e) {
-        region = "none";
-      }
-    }
     MetricDatum datum = new MetricDatum()
         .withMetricName(getMetricName())
         .withUnit(unit)
