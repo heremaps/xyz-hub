@@ -36,8 +36,8 @@ public interface CacheClient {
 	void remove(String key);
 
 	static CacheClient create() {
-		return new MultiLevelCacheClient(MapDBCacheClient.get(), RedisCacheClient.get());
-
+		return RedisCacheClient.get();
+//		return new MultiLevelCacheClient(MapDBCacheClient.get(), RedisCacheClient.get());
 	}
 
 	void shutdown();
