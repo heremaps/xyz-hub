@@ -388,9 +388,9 @@
         <version>0.5.9</version>
       </dependency>
       <dependency>
-        <groupId>org.mapdb</groupId>
-        <artifactId>mapdb</artifactId>
-        <version>3.0.8</version>
+        <groupId>org.caffinitas.ohc</groupId>
+        <artifactId>ohc-core</artifactId>
+        <version>0.7.0</version>
       </dependency>
 
 
