@@ -102,6 +102,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
         .withRegion(extractRegionFromArn(((AWSLambda) remoteFunction).lambdaARN))
         .withCredentials(getAWSCredentialsProvider())
         .withClientConfiguration(new ClientConfiguration()
+            .withTcpKeepAlive(true)
             .withMaxConnections(maxConnections)
             .withConnectionTimeout(CONNECTION_ESTABLISH_TIMEOUT)
             .withRequestTimeout(REQUEST_TIMEOUT)
