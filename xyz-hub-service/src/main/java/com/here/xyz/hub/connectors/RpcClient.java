@@ -55,6 +55,7 @@ import java.io.InputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
+import javax.xml.ws.http.HTTPException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -191,20 +192,23 @@ public class RpcClient {
 
   private void relocateAsync(Marker marker, byte[] bytes, Handler<AsyncResult<byte[]>> callback) {
     logger.info(marker, "Relocating event. Total event byte size: {}", bytes.length);
-    Service.vertx.executeBlocking(future -> {
-      try {
-        future.complete(relocationClient.relocate(marker.getName(), bytes));
-      }
-      catch (Exception e) {
-        logger.error("An error occurred when trying to relocate the event.", e);
-        future.fail(new HttpException(BAD_GATEWAY, "Unable to relocate event.", e));
-      }
-    }, ar -> {
-      if (ar.failed())
-        callback.handle(Future.failedFuture(ar.cause()));
-      else
-        callback.handle(Future.succeededFuture((byte[]) ar.result()));
-    });
+    Service.vertx.executeBlocking(
+        future -> {
+          try {
+            future.complete(relocationClient.relocate(marker.getName(), bytes));
+          }
+          catch (Exception e) {
+            logger.error("An error occurred when trying to relocate the event.", e);
+            future.fail(new HttpException(BAD_GATEWAY, "Unable to relocate event.", e));
+          }
+        },
+        ar -> {
+          if (ar.failed())
+            callback.handle(Future.failedFuture(ar.cause()));
+          else
+            callback.handle(Future.succeededFuture((byte[]) ar.result()));
+        }
+    );
   }
 
   /**
@@ -270,7 +274,12 @@ public class RpcClient {
     RpcContext context = new RpcContext().withRequestSize(eventBytes.length);
     invokeWithRelocation(marker, context, eventBytes, true, r -> {
       if (r.failed()) {
-        logger.error(marker, "Failed to send event to remote function {}.", connector.remoteFunction.id, r.cause());
+        if (r.cause() instanceof HTTPException
+            && ((HTTPException) r.cause()).getStatusCode() >= 400 && ((HTTPException) r.cause()).getStatusCode() <= 499) {
+          logger.warn(marker, "Failed to send event to remote function {}.", connector.remoteFunction.id, r.cause());
+        }
+        else
+          logger.error(marker, "Failed to send event to remote function {}.", connector.remoteFunction.id, r.cause());
       }
     });
     return context;
@@ -313,7 +322,8 @@ public class RpcClient {
 
       logger.warn(marker, "The connector responded with an unexpected response type {}", payload.getClass().getSimpleName());
       callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "The connector responded with unexpected response type.")));
-    } catch (HttpException e) {
+    }
+    catch (HttpException e) {
       callback.handle(Future.failedFuture(e));
     }
   }
@@ -329,10 +339,11 @@ public class RpcClient {
       Typed payload;
       try {
         payload = XyzSerializable.deserialize(stringResponse);
-      } catch (InvalidTypeIdException e) {
+      }
+      catch (InvalidTypeIdException e) {
         JsonObject response = new JsonObject( stringResponse );
-        // Keep backward compatibility
-        if( response.containsKey("status") && !response.containsKey("type")){
+        //Keep backward compatibility for old HealthStatus responses
+        if (response.containsKey("status") && !response.containsKey("type")) {
           payload = new HealthStatus().withStatus(response.getString("status"));
         }
         else throw e;
@@ -350,41 +361,49 @@ public class RpcClient {
       else {
         parseResponse(marker, payload, callback);
       }
-    } catch (NullPointerException e) {
+    }
+    catch (NullPointerException e) {
       logger.warn(marker, "Received empty response from connector \"{}\", but expected a JSON response.", getConnector().id, e);
       callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Received an empty response from the connector.")));
-    } catch (JsonMappingException e) {
+    }
+    catch (JsonMappingException e) {
       logger.warn(marker, "Mapping error in the provided content {} from connector \"{}\".", stringResponse, getConnector().id, e);
       callback.handle(Future.failedFuture(getJsonMappingErrorMessage(stringResponse)));
-    } catch (JsonParseException e) {
+    }
+    catch (JsonParseException e) {
       logger.warn(marker, "Parsing error in the provided content {} from connector \"{}\".", stringResponse, getConnector().id, e);
       callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Invalid content provided by the connector: Invalid JSON string. "
           + "Error at line " + e.getLocation().getLineNr() + ", column " + e.getLocation().getColumnNr() + ".")));
-    } catch (Exception e) {
+    }
+    catch (Exception e) {
       logger.error(marker, "Unexpected exception while processing connector \"{}\" response: {}.", getConnector().id, stringResponse, e);
       callback.handle(
           Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unexpected exception while processing connector response.")));
     }
+
   }
 
   private void processRelocatedEventAsync(RelocatedEvent relocatedEvent, Handler<AsyncResult<byte[]>> callback) {
-    Service.vertx.executeBlocking(future -> {
-      try {
-        InputStream input = relocationClient.processRelocatedEvent(relocatedEvent);
-        future.complete(ByteStreams.toByteArray(input));
-      }
-      catch (Exception e) {
-        logger.error("An error when processing a relocated response.", e);
-        future.fail(new HttpException(BAD_GATEWAY, "Unable to load the relocated event.", e));
-      }
-    }, ar -> {
-      if (ar.failed()) {
-        callback.handle(Future.failedFuture(ar.cause()));
-      }
-      else {
-        callback.handle(Future.succeededFuture((byte[]) ar.result()));
-      }
-    });
+    Service.vertx.executeBlocking(
+        future -> {
+          try {
+            InputStream input = relocationClient.processRelocatedEvent(relocatedEvent);
+            future.complete(ByteStreams.toByteArray(input));
+          }
+          catch (Exception e) {
+            logger.error("An error when processing a relocated response.", e);
+            future.fail(new HttpException(BAD_GATEWAY, "Unable to load the relocated event.", e));
+          }
+        },
+        ar -> {
+          if (ar.failed()) {
+            callback.handle(Future.failedFuture(ar.cause()));
+          }
+          else {
+            callback.handle(Future.succeededFuture((byte[]) ar.result()));
+          }
+        }
+    );
   }
 
   /**
@@ -403,7 +422,8 @@ public class RpcClient {
           return new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.");
         }
       }
-    } catch (Exception e) {
+    }
+    catch (Exception e) {
       logger.warn("Unable to parse error response from connector", e);
     }
 
