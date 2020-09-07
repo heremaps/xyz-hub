@@ -55,7 +55,6 @@ import java.io.InputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
-import javax.xml.ws.http.HTTPException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -274,8 +273,8 @@ public class RpcClient {
     RpcContext context = new RpcContext().withRequestSize(eventBytes.length);
     invokeWithRelocation(marker, context, eventBytes, true, r -> {
       if (r.failed()) {
-        if (r.cause() instanceof HTTPException
-            && ((HTTPException) r.cause()).getStatusCode() >= 400 && ((HTTPException) r.cause()).getStatusCode() <= 499) {
+        if (r.cause() instanceof HttpException
+            && ((HttpException) r.cause()).status.code() >= 400 && ((HttpException) r.cause()).status.code() <= 499) {
           logger.warn(marker, "Failed to send event to remote function {}.", connector.remoteFunction.id, r.cause());
         }
         else
