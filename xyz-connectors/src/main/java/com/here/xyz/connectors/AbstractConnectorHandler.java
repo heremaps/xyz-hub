@@ -287,6 +287,10 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    * the connection to the database open.
    */
   protected XyzResponse processHealthCheckEvent(HealthCheckEvent event) {
+    if (event.getWarmupCount() > 0) {
+      //TODO: Use Lambda client to call this lambda <event.getWarmupCount()>-times in parallel using the same minResponseTime
+      return new HealthStatus();
+    }
     if (event.getMinResponseTime() > 0) {
       try {
         Thread.sleep(event.getMinResponseTime());
