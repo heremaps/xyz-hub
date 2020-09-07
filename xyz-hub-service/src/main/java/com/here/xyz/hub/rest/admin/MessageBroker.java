@@ -32,6 +32,8 @@ import java.util.List;
 
 import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
+import io.vertx.ext.web.client.WebClient;
+import io.vertx.ext.web.client.WebClientOptions;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -45,6 +47,7 @@ public interface MessageBroker {
   Logger logger = LogManager.getLogger();
   ThreadLocal<ObjectMapper> mapper = ThreadLocal.withInitial(ObjectMapper::new);
 
+  ThreadLocal<WebClient> webClient = ThreadLocal.withInitial(() -> WebClient.create(Service.vertx, new WebClientOptions().setUserAgent(Service.XYZ_HUB_USER_AGENT)));
   List<String> hubRemoteUrls = Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS == "" ?
       null : Arrays.asList(Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS.split(";"));
 
@@ -101,11 +104,11 @@ public interface MessageBroker {
 
   default void sendRawMessagesToRemoteCluster(String jsonMessage, Future<Object> future) {
     if (hubRemoteUrls != null && !hubRemoteUrls.isEmpty()) {
-      synchronized (Service.webClient) {
+      synchronized (webClient) {
         for (String remoteUrl : hubRemoteUrls) {
           if (remoteUrl.isEmpty()) continue;
           try {
-            Service.webClient
+            webClient.get()
                 .postAbs(remoteUrl + AdminApi.ADMIN_MESSAGES_ENDPOINT)
                 .timeout(Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT)
                 .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
