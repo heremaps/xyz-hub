@@ -139,7 +139,7 @@ public class BurstAndUpdateThread extends Thread {
               healthCheck.setStreamId(healthCheckStreamId);
               client.execute(new Log4jMarker(healthCheckStreamId), healthCheck, r -> {
                 if (r.failed()) {
-                  logger.error("Warmup-healtcheck failed for connector with ID " + oldConnector.id, r.cause());
+                  logger.warn("Warmup-healtcheck failed for connector with ID " + oldConnector.id, r.cause());
                 }
                 synchronized (requestCount) {
                   requestCount.decrementAndGet();

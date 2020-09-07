@@ -343,6 +343,7 @@ public class RpcClient {
         JsonObject response = new JsonObject( stringResponse );
         //Keep backward compatibility for old HealthStatus responses
         if (response.containsKey("status") && !response.containsKey("type")) {
+          logger.warn(marker, "Connector {} responds with an old version of the HealthStatus response.", getConnector().id);
           payload = new HealthStatus().withStatus(response.getString("status"));
         }
         else throw e;
