@@ -164,7 +164,7 @@ public class Service {
 
     vertx = Vertx.vertx(vertxOptions);
     webClient = WebClient.create(Service.vertx, new WebClientOptions()
-        .setMaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CONNECTIONS)
+        .setMaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)
         .setUserAgent(XYZ_HUB_USER_AGENT)
         .setTcpKeepAlive(true)
         .setTcpQuickAck(true)
@@ -346,7 +346,7 @@ public class Service {
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class Config {
 
-    public int MAX_GLOBAL_HTTP_CONNECTIONS;
+    public int MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS;
 
     public int OFF_HEAP_CACHE_SIZE_MB;
 
