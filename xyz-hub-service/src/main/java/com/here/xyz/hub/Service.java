@@ -163,14 +163,6 @@ public class Service {
     }
 
     vertx = Vertx.vertx(vertxOptions);
-    webClient = WebClient.create(Service.vertx, new WebClientOptions()
-        .setMaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)
-        .setUserAgent(XYZ_HUB_USER_AGENT)
-        .setTcpKeepAlive(true)
-        .setTcpQuickAck(true)
-        .setTcpFastOpen(true)
-        .setTryUseCompression(true)
-    );
     ConfigRetriever retriever = ConfigRetriever.create(vertx, options);
     retriever.getConfig(Service::onConfigLoaded);
   }
@@ -195,6 +187,15 @@ public class Service {
 
     spaceConfigClient = SpaceConfigClient.getInstance();
     connectorConfigClient = ConnectorConfigClient.getInstance();
+
+    webClient = WebClient.create(Service.vertx, new WebClientOptions()
+        .setMaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)
+        .setUserAgent(XYZ_HUB_USER_AGENT)
+        .setTcpKeepAlive(true)
+        .setTcpQuickAck(true)
+        .setTcpFastOpen(true)
+        .setTryUseCompression(true)
+    );
 
     spaceConfigClient.init(spaceConfigReady -> {
       if (spaceConfigReady.succeeded()) {
