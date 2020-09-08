@@ -841,6 +841,8 @@ public class FeatureTaskHandler {
     } catch (ModifyOpError e) {
       logger.info(task.getMarker(), "ConditionalOperationError: {}", e.getMessage(), e);
       throw new HttpException(CONFLICT, e.getMessage());
+    } catch (IllegalArgumentException e) {
+      throw new HttpException(BAD_REQUEST, "Invalid argument! Geometry must be a valid GeoJSON geometry");
     }
   }
 
