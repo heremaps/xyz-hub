@@ -406,11 +406,17 @@ public class PSQLXyzConnector extends DatabaseHandler {
       return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
                                 .withErrorMessage(String.format("clustering.property: string(%s) can not be converted to numeric",( m.find() ? m.group(1) : "" ))); 
 
-     case "SNULL" :
-      if(e.getMessage() == null || e.getMessage().indexOf("An attempt by a client to checkout a Connection has timed out.") == -1) break;
-
-      return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
+     case "SNULL" : if(e.getMessage() == null ) break; 
+      // handle some dedicated messages
+      if( e.getMessage().indexOf("An attempt by a client to checkout a Connection has timed out.") > -1 ) 
+       return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
                                  .withErrorMessage("Cant get a Connection to the database.");
+
+      if( e.getMessage().indexOf("Maxchar limit") > -1 ) 
+        return new ErrorResponse().withStreamId(streamId).withError(XyzError.PAYLOAD_TO_LARGE)
+                                                         .withErrorMessage("Database result - Maxchar limit exceed");
+
+      break; //others
 
      default: break;
     }

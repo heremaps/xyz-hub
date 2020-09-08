@@ -758,7 +758,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         final FeatureCollection featureCollection = new FeatureCollection();
         featureCollection._setFeatures(sb.toString());
 
-        if( MaxResultChars <= sb.length() ) featureCollection.setPartial( true );
+        if( MaxResultChars <= sb.length() ) throw new SQLException(String.format("Maxchar limit(%d) reached",MaxResultChars));
 
         if (isIterate) {
             if (numFeatures > 0 && numFeatures == ((IterateFeaturesEvent) event).getLimit()) {

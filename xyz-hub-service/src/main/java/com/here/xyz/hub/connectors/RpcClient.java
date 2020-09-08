@@ -44,9 +44,11 @@ import com.here.xyz.hub.connectors.RemoteFunctionClient.FunctionCall;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.hub.rest.Api;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.XyzResponse;
+
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -303,6 +305,8 @@ public class RpcClient {
           case EXCEPTION:
           case BAD_GATEWAY:
             throw new HttpException(BAD_GATEWAY, "Connector error.");
+          case PAYLOAD_TO_LARGE:
+            throw new  HttpException( Api.RESPONSE_PAYLOAD_TOO_LARGE, String.format("%s %s",Api.RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE,errorResponse.getErrorMessage()) );
         }
       }
       if (payload instanceof XyzResponse) {

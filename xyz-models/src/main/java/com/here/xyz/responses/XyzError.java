@@ -90,7 +90,14 @@ public enum XyzError {
    *
    * This will result in a HTTP 504 Gateway Timeout response.
    */
-  TIMEOUT("Timeout");
+  TIMEOUT("Timeout"),
+
+  /**
+   * The request was aborted due to PayloadToLarge.
+   *
+   * This will result in a HTTP 513 response.
+   */
+  PAYLOAD_TO_LARGE("PayloadToLarge");
 
   /**
    * The error code.
