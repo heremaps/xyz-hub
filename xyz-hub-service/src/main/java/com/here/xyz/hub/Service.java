@@ -389,7 +389,7 @@ public class Service {
     /**
      * The urls of remote hub services, separated by semicolon ';'
      */
-    public String XYZ_HUB_REMOTE_SERVICE_URLS = "";
+    public String XYZ_HUB_REMOTE_SERVICE_URLS;
 
     /**
      * The redis auth token.
