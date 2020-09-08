@@ -47,7 +47,6 @@ public interface MessageBroker {
   Logger logger = LogManager.getLogger();
   ThreadLocal<ObjectMapper> mapper = ThreadLocal.withInitial(ObjectMapper::new);
 
-  ThreadLocal<WebClient> webClient = ThreadLocal.withInitial(() -> WebClient.create(Service.vertx, new WebClientOptions().setUserAgent(Service.XYZ_HUB_USER_AGENT)));
   List<String> hubRemoteUrls = Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS == "" ?
       null : Arrays.asList(Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS.split(";"));
 
@@ -67,7 +66,7 @@ public interface MessageBroker {
           jsonMessage = mapper.get().writeValueAsString(message);
           //Re-set the relay value to its original value
           rm.relay = originalRelay;
-          sendRawMessagesToRemoteClusterAsync(jsonMessage);
+          sendRawMessagesToRemoteCluster(jsonMessage);
         }
 
         //Send the local version of the message
@@ -89,40 +88,25 @@ public interface MessageBroker {
     receiveMessage(message);
   }
 
-  default void sendRawMessagesToRemoteClusterAsync(String jsonMessage) {
-    Service.vertx.executeBlocking(
-        future -> {
-          sendRawMessagesToRemoteCluster(jsonMessage, future);
-        },
-        ar -> {
-          if (ar.failed())
-            logger.error("Failed to sent message to remote cluster. URLs: {}" + Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS,
-                ar.cause());
-        }
-    );
-  }
-
-  default void sendRawMessagesToRemoteCluster(String jsonMessage, Future<Object> future) {
+  default void sendRawMessagesToRemoteCluster(String jsonMessage) {
     if (hubRemoteUrls != null && !hubRemoteUrls.isEmpty()) {
-      synchronized (webClient) {
-        for (String remoteUrl : hubRemoteUrls) {
-          if (remoteUrl.isEmpty()) continue;
-          try {
-            webClient.get()
-                .postAbs(remoteUrl + AdminApi.ADMIN_MESSAGES_ENDPOINT)
-                .timeout(Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT)
-                .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
-                .putHeader("Authorization", "Bearer " + Service.configuration.ADMIN_MESSAGE_JWT)
-                .sendBuffer(Buffer.buffer(jsonMessage), ar -> {
-                  if (ar.failed())
-                    future.fail(ar.cause());
-                  else
-                    future.complete();
-                });
-          }
-          catch (Exception e) {
-            future.fail(e);
-          }
+      for (String remoteUrl : hubRemoteUrls) {
+        if (remoteUrl.isEmpty()) continue;
+        try {
+          Service.webClient
+              .postAbs(remoteUrl + AdminApi.ADMIN_MESSAGES_ENDPOINT)
+              .timeout(Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT)
+              .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
+              .putHeader("Authorization", "Bearer " + Service.configuration.ADMIN_MESSAGE_JWT)
+              .sendBuffer(Buffer.buffer(jsonMessage), ar -> {
+                if (ar.failed())
+                  logger.error("Failed to sent message to remote cluster. URLs: {}" + Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS,
+                          ar.cause());
+              });
+        }
+        catch (Exception e) {
+          logger.error("Failed to sent message to remote cluster. URLs: {}" + Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS,
+                  e.getCause());
         }
       }
     }
