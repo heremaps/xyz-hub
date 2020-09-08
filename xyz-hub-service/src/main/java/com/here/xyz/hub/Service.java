@@ -163,7 +163,14 @@ public class Service {
     }
 
     vertx = Vertx.vertx(vertxOptions);
-    webClient = WebClient.create(Service.vertx, new WebClientOptions().setUserAgent(XYZ_HUB_USER_AGENT));
+    webClient = WebClient.create(Service.vertx, new WebClientOptions()
+        .setMaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CONNECTIONS)
+        .setUserAgent(XYZ_HUB_USER_AGENT)
+        .setTcpKeepAlive(true)
+        .setTcpQuickAck(true)
+        .setTcpFastOpen(true)
+        .setTryUseCompression(true)
+    );
     ConfigRetriever retriever = ConfigRetriever.create(vertx, options);
     retriever.getConfig(Service::onConfigLoaded);
   }
@@ -339,7 +346,10 @@ public class Service {
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class Config {
 
+    public int MAX_GLOBAL_HTTP_CONNECTIONS;
+
     public int OFF_HEAP_CACHE_SIZE_MB;
+
     /**
      * The port of the HTTP server.
      */
