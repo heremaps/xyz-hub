@@ -140,6 +140,7 @@ public class ApiParam {
     static final String TWEAKS_PARAM_STRENGTH  = "strength";
     static final String TWEAKS_PARAM_ALGORITHM = "algorithm";
     static final String TWEAKS_PARAM_DEFAULT_SELECTION = "defaultselection";
+    static final String TWEAKS_PARAM_CHUNKSIZE = "chunksize";
 
     static final String FORCE_2D = "force2D";
 
@@ -444,9 +445,12 @@ public class ApiParam {
            throw new Exception("Invalid tweaks.defaultselection value. Expect true or false.");
           break;
          
-         case TWEAKS_PARAM_ALGORITHM : 
-         
-         break;
+         case TWEAKS_PARAM_ALGORITHM : break;
+
+         case TWEAKS_PARAM_CHUNKSIZE : // testing, parameter evaluation
+          if(!(value instanceof Long))
+           throw new Exception(String.format("Invalid type tweaks.%s. Expect Integer.",key));
+          break; 
 
          default:
           throw new Exception("Invalid Tweaks Parameter! Expect one of [" + TWEAKS_PARAM_STRENGTH + "," 
