@@ -99,12 +99,15 @@ public class BurstAndUpdateThread extends Thread {
         continue;
       }
 
-      // when the connector is responding with unhealthy status, disable it momentarily, until next BurstAndUpdateThread round.
-      long now = Instant.now().getEpochSecond();
-      long lastHealthyTimestamp = client.getFunctionClient().getLastHealthyTimestamp();
-      if (lastHealthyTimestamp != 0 && lastHealthyTimestamp < now - CONNECTOR_UNHEALTHY_INTERVAL) {
-        logger.warn("Connector {} last healthy timestamp {} is greater than {}s ago, now is {}.", oldConnector.id, lastHealthyTimestamp, CONNECTOR_UNHEALTHY_INTERVAL, now);
-        connectorMap.remove(oldConnector.id);
+      if (!connectorMap.get(oldConnector.id).skipAutoDisable) {
+        //When the connector is responding with unhealthy status, disable it momentarily, until next BurstAndUpdateThread round.
+        long now = Instant.now().getEpochSecond();
+        long lastHealthyTimestamp = client.getFunctionClient().getLastHealthyTimestamp();
+        if (lastHealthyTimestamp != 0 && lastHealthyTimestamp < now - CONNECTOR_UNHEALTHY_INTERVAL) {
+          logger.warn("Connector {} last healthy timestamp {} is greater than {}s ago, now is {}.", oldConnector.id, lastHealthyTimestamp,
+              CONNECTOR_UNHEALTHY_INTERVAL, now);
+          connectorMap.remove(oldConnector.id);
+        }
       }
 
       if (!connectorMap.containsKey(oldConnector.id)) {

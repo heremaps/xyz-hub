@@ -45,7 +45,17 @@ public class Connector {
    */
   public String id;
 
+  /**
+   * Whether this connector is activated.
+   * If this flag is set to false, no connector client will be available for it. That means no requests can be performed to the connector.
+   */
   public boolean active = true;
+
+  /**
+   * Whether to skip the automatic disabling of this connector even when being not healthy.
+   * If this flag is set to true the connector will keep accepting requests even if its health-check is not OK.
+   */
+  public boolean skipAutoDisable;
 
   /**
    * Whether the connector is a trusted connector. Trusted connectors will receive more information than normal connectors. This might be
@@ -98,7 +108,8 @@ public class Connector {
         && Objects.equals(capabilities, other.capabilities)
         && Objects.equals(remoteFunction, other.remoteFunction)
         && Objects.equals(connectionSettings, other.connectionSettings)
-        && Objects.equals(defaultEventTypes, other.defaultEventTypes);
+        && Objects.equals(defaultEventTypes, other.defaultEventTypes)
+        && Objects.equals(skipAutoDisable, other.skipAutoDisable);
   }
 
   @JsonIgnore
