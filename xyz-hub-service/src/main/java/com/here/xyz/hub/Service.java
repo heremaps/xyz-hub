@@ -39,11 +39,14 @@ import io.vertx.config.ConfigRetriever;
 import io.vertx.config.ConfigRetrieverOptions;
 import io.vertx.config.ConfigStoreOptions;
 import io.vertx.core.AsyncResult;
+import io.vertx.core.CompositeFuture;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
+import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.web.Router;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.WebClientOptions;
 import java.io.IOException;
@@ -52,13 +55,16 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.Hashtable;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -94,6 +100,16 @@ public class Service {
   public static final String HOST_ID = UUID.randomUUID().toString();
 
   /**
+   * The shared map used across verticles
+   */
+  public static final String SHARED_DATA = "SHARED_DATA";
+
+  /**
+   * The key to access the global router in the shared data
+   */
+  public static final String GLOBAL_ROUTER = "GLOBAL_ROUTER";
+
+  /**
    * The LOG4J configuration file.
    */
   private static final String CONSOLE_LOG_CONFIG = "log4j2-console-plain.json";
@@ -102,6 +118,18 @@ public class Service {
    * The Vertx worker pool size environment variable.
    */
   private static final String VERTX_WORKER_POOL_SIZE = "VERTX_WORKER_POOL_SIZE";
+
+  /**
+   * The http server options to be initialized
+   */
+  private static final HttpServerOptions SERVER_OPTIONS = new HttpServerOptions()
+      .setCompressionSupported(true)
+      .setDecompressionSupported(true)
+      .setHandle100ContinueAutomatically(true)
+      .setTcpQuickAck(true)
+      .setTcpFastOpen(true)
+      .setMaxInitialLineLength(16 * 1024)
+      .setIdleTimeout(300);
 
   /**
    * The entry point to the Vert.x core API.
@@ -139,6 +167,8 @@ public class Service {
   private static String hostname;
 
   private static List<Metric> metrics = new LinkedList<>();
+
+  private static Router globalRouter;
 
   /**
    * The service entry point.
@@ -198,6 +228,8 @@ public class Service {
         .setTryUseCompression(true)
     );
 
+    globalRouter = Router.router(vertx);
+
     spaceConfigClient.init(spaceConfigReady -> {
       if (spaceConfigReady.succeeded()) {
         connectorConfigClient.init(connectorConfigReady -> {
@@ -226,27 +258,107 @@ public class Service {
   private static void onServiceInitialized(AsyncResult<Void> result, JsonObject config) {
     if (result.failed()) {
       logger.error("Failed to initialize Connectors. Service can't be started.", result.cause());
+      return;
     }
-    else {
-      //Start / Deploy the service including all endpoints and listeners
-      vertx.deployVerticle(XYZHubRESTVerticle.class, new DeploymentOptions()
+
+    if (StringUtils.isEmpty(Service.configuration.VERTICLES_CLASS_NAMES)) {
+      logger.error("At least one Verticle class name should be specified on VERTICLES_CLASS_NAMES. Service can't be started");
+      return;
+    }
+
+    final List<String> verticlesClassNames = Arrays.asList(Service.configuration.VERTICLES_CLASS_NAMES.split(","));
+    int numInstances = Runtime.getRuntime().availableProcessors() * 2 / verticlesClassNames.size();
+    final DeploymentOptions options = new DeploymentOptions()
           .setConfig(config)
           .setWorker(false)
-          .setInstances(Runtime.getRuntime().availableProcessors()*2));
+          .setInstances(numInstances);
+
+    final Future<AsyncResult<Void>> sharedDataFuture = Future.future();
+    final Hashtable<String, Object> sharedData = new Hashtable<String, Object>() {{
+      put(GLOBAL_ROUTER, globalRouter);
+    }};
+
+    sharedDataFuture.compose(r -> {
+      final List<Future> futures = new ArrayList<>();
+
+      verticlesClassNames.forEach(className -> {
+        final Future<AsyncResult<String>> deployVerticleFuture = Future.future();
+        futures.add(deployVerticleFuture);
+
+        logger.info("Deploying verticle: " + className);
+        vertx.deployVerticle(className, options, deployVerticleHandler -> {
+          if (deployVerticleHandler.failed())
+            logger.warn("Unable to load verticle class:" + className);
+          deployVerticleFuture.complete();
+        });
+      });
+
+      return CompositeFuture.all(futures);
+    }).setHandler(done -> {
+      // at this point all verticles were initiated and all routers added as subrouter of globalRouter.
+      vertx.eventBus().publish(SHARED_DATA, GLOBAL_ROUTER);
 
       logger.info("XYZ Hub " + BUILD_VERSION + " was started at " + new Date().toString());
-      logger.info("Native transport enabled: " + vertx.isNativeTransportEnabled() );
+      logger.info("Native transport enabled: " + vertx.isNativeTransportEnabled());
+    });
 
-      Thread.setDefaultUncaughtExceptionHandler((thread, t) -> logger.error("Uncaught exception: ", t));
+    // shared data initialization
+    vertx.sharedData().getAsyncMap(SHARED_DATA, asyncMapResult -> asyncMapResult.result().put(SHARED_DATA, sharedData, sharedDataFuture::complete));
 
-      Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+    Thread.setDefaultUncaughtExceptionHandler((thread, t) -> logger.error("Uncaught exception: ", t));
+
+    Runtime.getRuntime().addShutdownHook(new Thread(() -> {
         stopMetricPublishers();
-        //This may fail, if we are OOM, but lets at least try.
-        logger.warn("XYZ Service is going down at " + new Date().toString());
-      }));
+      //This may fail, if we are OOM, but lets at least try.
+      logger.warn("XYZ Service is going down at " + new Date().toString());
+    }));
 
-      startMetricPublishers();
+    startMetricPublishers();
+  }
+
+  public static Future<Void> createDefaultHttpServer(Router router) {
+    final Future<Void> future = Future.future();
+
+    vertx.createHttpServer(SERVER_OPTIONS)
+        .requestHandler(router)
+        .listen(
+            Service.configuration.HTTP_PORT, result -> {
+              if (result.succeeded()) {
+                future.complete();
+              } else {
+                logger.error("An error occurred, during the initialization of the server.", result.cause());
+                future.fail(result.cause());
+              }
+            });
+
+    return future;
+  }
+
+  public static Future<Void> createAdminHttpServer(Router router) {
+    final int messagePort = Service.configuration.ADMIN_MESSAGE_PORT;
+    if (messagePort == Service.configuration.HTTP_PORT) {
+      return Future.succeededFuture();
     }
+
+    final Future<Void> future = Future.future();
+
+    //Create 2nd HTTP server for admin-messaging
+    vertx.createHttpServer(SERVER_OPTIONS)
+      .requestHandler(router)
+      .listen(messagePort, result -> {
+        if (result.succeeded()) {
+          logger.debug("HTTP server also listens on admin-messaging port {}.", messagePort);
+        }
+        else {
+          logger.error("An error occurred, during the initialization of admin-messaging http port" + messagePort
+                  + ". Messaging won't work correctly.",
+              result.cause());
+        }
+        //Complete in any case as the admin-messaging is not essential
+        future.complete();
+      });
+
+    return future;
   }
 
   private static void decryptSecrets() {
@@ -523,6 +635,11 @@ public class Service {
      * Value is <code>null</code> if not running in AWS.
      */
     public String AWS_REGION;
+
+    /**
+     * The verticles class names to be deployed, separated by comma
+     */
+    public String VERTICLES_CLASS_NAMES;
   }
 
   /**
