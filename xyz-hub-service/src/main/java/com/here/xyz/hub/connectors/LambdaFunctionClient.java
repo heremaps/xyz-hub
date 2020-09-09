@@ -97,6 +97,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
     List<String> references = clientReferences.get(client);
     references.remove(getConnectorConfig().id);
     if (references.isEmpty()) {
+      logger.info("Destroying Lambda Function Client for client key {}", clientKey);
       //No connector client is referencing the lambda client it can be destroyed
       lambdaClients.remove(clientKey);
       clientReferences.remove(client);
@@ -116,7 +117,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
   }
 
   private static AWSLambdaAsync createClient(AWSLambda remoteFunction) {
-    logger.info("Gathering Lambda Function Client for function {} lambda ARN {}, role ARN: {}",
+    logger.info("Creating Lambda Function Client for function {} lambda ARN {}, role ARN: {}",
         remoteFunction.id, remoteFunction.lambdaARN, remoteFunction.roleARN);
 
     return AWSLambdaAsyncClientBuilder
