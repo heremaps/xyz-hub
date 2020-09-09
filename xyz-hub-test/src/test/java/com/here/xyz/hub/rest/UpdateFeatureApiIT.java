@@ -84,7 +84,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         contentType(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
-        body(content("/xyz/hub/WrongType.json")).
+        body(content("/xyz/hub/wrongType.json")).
         when().
         post("/spaces/x-psql-test/features").
         prettyPeek().
