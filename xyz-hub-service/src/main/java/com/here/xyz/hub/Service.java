@@ -477,9 +477,17 @@ public class Service {
     public int REMOTE_FUNCTION_REQUEST_TIMEOUT; //seconds
 
     /**
-     * The amount of executor threads of the pool being shared by all LambdaFunctionClients.
+     * The maximum amount of RemoteFunction connections to be opened by this node.
      */
-    public int LAMBDA_REMOTE_FUNCTION_EXECUTORS;
+    public int REMOTE_FUNCTION_MAX_CONNECTIONS;
+
+    /**
+     * A value between 0 and 1 defining a threshold as percentage of utilized RemoteFunction max-connections after which
+     * to start prioritizing more important connectors over less important ones.
+     *
+     * @see Config#REMOTE_FUNCTION_MAX_CONNECTIONS
+     */
+    public float REMOTE_FUNCTION_CONNECTION_HIGH_UTILIZATION_THRESHOLD;
 
     /**
      * The web root for serving static resources from the file system.

@@ -42,13 +42,23 @@ import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLambda;
 import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.hub.rest.admin.Node;
+import com.here.xyz.hub.util.ARN;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Context;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import java.nio.ByteBuffer;
-import java.util.concurrent.Executors;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -57,15 +67,15 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
 
   private static final Logger logger = LogManager.getLogger();
   private static final int CONNECTION_ESTABLISH_TIMEOUT = 5_000;
-//  private static final int CLIENT_REQUEST_TIMEOUT = REQUEST_TIMEOUT + 3_000;
-  private static final int CONNECTION_TTL = 60_000;
+  //  private static final int CLIENT_REQUEST_TIMEOUT = REQUEST_TIMEOUT + 3_000;
+  private static final int CONNECTION_TTL = 60_000; //ms
   private static final int MIN_THREADS_PER_CLIENT = 5;
 
-  /**
-   * The maximal response size in bytes that can be sent back without relocating the response.
-   */
   private AWSLambdaAsync asyncClient;
-  private AWSCredentialsProvider awsCredentialsProvider;
+  private static ConcurrentHashMap<String, AWSLambdaAsync> lambdaClients = new ConcurrentHashMap<>();
+  private static Map<AWSLambdaAsync, List<String>> clientReferences = new HashMap<>();
+  private static ExecutorService threadPool = new ThreadPoolExecutor(MIN_THREADS_PER_CLIENT,
+      Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS, CONNECTION_TTL, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
 
   /**
    * @param connectorConfig The connector configuration.
@@ -76,54 +86,66 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
 
   @Override
   synchronized void setConnectorConfig(final Connector newConnectorConfig) throws NullPointerException, IllegalArgumentException {
+    Connector oldConnectorConfig = getConnectorConfig();
     super.setConnectorConfig(newConnectorConfig);
     shutdownLambdaClient(asyncClient);
-    createClient();
+    updateClient(oldConnectorConfig);
   }
 
-  private void createClient() {
-    final Connector connectorConfig = getConnectorConfig();
-    final RemoteFunctionConfig remoteFunction = connectorConfig.remoteFunction;
+  private void releaseClient(String clientKey) {
+    AWSLambdaAsync client = lambdaClients.get(clientKey);
+    List<String> references = clientReferences.get(client);
+    references.remove(getConnectorConfig().id);
+    if (references.isEmpty()) {
+      //No connector client is referencing the lambda client it can be destroyed
+      lambdaClients.remove(clientKey);
+      clientReferences.remove(client);
+      //TODO: make sure the threadPool doesn't get shutdown!
+      client.shutdown();
+    }
+  }
 
+  private void updateClient(Connector oldConnectorConfig) {
+    RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
     if (!(remoteFunction instanceof AWSLambda)) {
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of AWSLambda");
     }
+    AWSLambdaAsync oldClient = asyncClient;
+    asyncClient = getLambdaClient((AWSLambda) remoteFunction, getConnectorConfig().id);
+    releaseClient(getClientKey((AWSLambda) oldConnectorConfig.remoteFunction));
+  }
 
-    int maxConnections = getMaxConnections();
-    double priority = getPriority();
-    int desiredNumberOfThreads = Math.max(MIN_THREADS_PER_CLIENT, (int) (priority * Service.configuration.LAMBDA_REMOTE_FUNCTION_EXECUTORS));
-    int numberOfThreads = Math.min(desiredNumberOfThreads, maxConnections);
+  private static AWSLambdaAsync createClient(AWSLambda remoteFunction) {
+    logger.info("Gathering Lambda Function Client for function {} lambda ARN {}, role ARN: {}",
+        remoteFunction.id, remoteFunction.lambdaARN, remoteFunction.roleARN);
 
-    logger.info("Creating Lambda Function Client: {}. CONNECTION_ESTABLISH_TIMEOUT: {}, REQUEST_TIMEOUT: {}, CONNECTION_TTL: {}, "
-        + "MIN_THREADS_PER_CLIENT: {}, maxConnections: {}, priority: {}, desiredNumberOfThreads: {}, numberOfThreads: {}",
-        connectorConfig.id, CONNECTION_ESTABLISH_TIMEOUT, REQUEST_TIMEOUT, CONNECTION_TTL, MIN_THREADS_PER_CLIENT,
-        maxConnections, priority, desiredNumberOfThreads, numberOfThreads);
-
-    asyncClient = AWSLambdaAsyncClientBuilder
+    return AWSLambdaAsyncClientBuilder
         .standard()
-        .withRegion(extractRegionFromArn(((AWSLambda) remoteFunction).lambdaARN))
-        .withCredentials(getAWSCredentialsProvider())
+        .withRegion(ARN.fromString(remoteFunction.lambdaARN).getRegion())
+        .withCredentials(getAWSCredentialsProvider(remoteFunction))
         .withClientConfiguration(new ClientConfiguration()
             .withTcpKeepAlive(true)
-            .withMaxConnections(maxConnections)
+            .withMaxConnections(Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS)
             .withConnectionTimeout(CONNECTION_ESTABLISH_TIMEOUT)
             .withRequestTimeout(REQUEST_TIMEOUT)
             .withMaxErrorRetry(0)
 //            .withClientExecutionTimeout(CLIENT_REQUEST_TIMEOUT)
             .withConnectionTTL(CONNECTION_TTL))
-        .withExecutorFactory(() -> Executors.newFixedThreadPool(numberOfThreads))
+        .withExecutorFactory(() -> threadPool)
         .build();
   }
 
   private static void shutdownLambdaClient(AWSLambdaAsync lambdaClient) {
-    if (lambdaClient == null) return;
+    if (lambdaClient == null)
+      return;
     //Shutdown the lambda client after the request timeout
     //TODO: Use CompletableFuture.delayedExecutor() after switching to Java 9
     new Thread(() -> {
       try {
         Thread.sleep(REQUEST_TIMEOUT);
       }
-      catch (InterruptedException ignored) {}
+      catch (InterruptedException ignored) {
+      }
       lambdaClient.shutdown();
     }).start();
   }
@@ -131,7 +153,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
   @Override
   synchronized void destroy() {
     super.destroy();
-    shutdownLambdaClient(asyncClient);
+    releaseClient(getClientKey((AWSLambda) getConnectorConfig().remoteFunction));
   }
 
   /**
@@ -174,30 +196,18 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
   /**
    * Returns the AWS credentials provider for this lambda executor service.
    *
+   * @param remoteFunction The remote function config containing the credentials information
    * @return the AWS credentials provider.
    */
-  private String extractRegionFromArn(String lambdaARN) throws NullPointerException {
-    return lambdaARN.split(":")[3];
-  }
-
-  /**
-   * Returns the AWS credentials provider for this lambda executor service.
-   *
-   * @return the AWS credentials provider.
-   */
-  private AWSCredentialsProvider getAWSCredentialsProvider() {
-    final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
-    if (awsCredentialsProvider == null) {
-      if (((AWSLambda) remoteFunction).roleARN != null) {
-        awsCredentialsProvider = new STSAssumeRoleSessionCredentialsProvider.Builder(((AWSLambda) remoteFunction).roleARN,
-            "" + this.hashCode())
-            .withStsClient(AWSSecurityTokenServiceClientBuilder.defaultClient())
-            .build();
-      } else {
-        awsCredentialsProvider = new DefaultAWSCredentialsProviderChain();
-      }
+  private static AWSCredentialsProvider getAWSCredentialsProvider(AWSLambda remoteFunction) {
+    if (remoteFunction.roleARN != null) {
+      return new STSAssumeRoleSessionCredentialsProvider.Builder(remoteFunction.roleARN, Node.OWN_INSTANCE.id)
+          .withStsClient(AWSSecurityTokenServiceClientBuilder.defaultClient())
+          .build();
     }
-    return awsCredentialsProvider;
+    else {
+      return new DefaultAWSCredentialsProviderChain();
+    }
   }
 
   private HttpException getHttpException(Marker marker, Throwable e) {
@@ -217,4 +227,33 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
 
     return new HttpException(BAD_GATEWAY, "Unable to parse the response of the connector.", e);
   }
+
+  private static AWSLambdaAsync getLambdaClient(AWSLambda remoteFunction, String forConnectorId) {
+    String clientKey = getClientKey(remoteFunction);
+    AWSLambdaAsync client;
+    if (!lambdaClients.containsKey(clientKey)) {
+      client = createClient(remoteFunction);
+      if (lambdaClients.putIfAbsent(clientKey, client) != null) {
+        //TODO: make sure the threadPool doesn't get shutdown!
+        client.shutdown();
+        client = lambdaClients.get(clientKey);
+      }
+    }
+    else
+      client = lambdaClients.get(clientKey);
+
+    //Register the connector to reference the client
+    if (!clientReferences.containsKey(client)) {
+      clientReferences.put(client, new LinkedList<>());
+    }
+    clientReferences.get(client).add(forConnectorId);
+
+    return client;
+  }
+
+  private static String getClientKey(AWSLambda remoteFunction) {
+    ARN lambdaArn = ARN.fromString(remoteFunction.lambdaARN);
+    return lambdaArn.getRegion() + (remoteFunction.roleARN != null ? "_" + remoteFunction.roleARN : "");
+  }
+
 }
