@@ -37,6 +37,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
@@ -52,9 +53,13 @@ import org.apache.logging.log4j.Marker;
 public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
 
   private static final Logger logger = LogManager.getLogger();
-  public static final long CONTENT_UPDATED_AT_INTERVAL_MILLIS = TimeUnit.MINUTES.toMillis(1);
-  private final static long MAX_SLIDING_WINDOW = TimeUnit.DAYS.toMillis(10);
+  public static final long DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS = TimeUnit.MINUTES.toMillis(1);
+  public static final long NO_CACHE_INTERVAL_MILLIS = DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS * 2;
+  // Add random 20 seconds offset to avoid all service nodes sending cache invalidation for the space at the same time
+  public static final long CONTENT_UPDATED_AT_INTERVAL_MILLIS = DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS
+      - TimeUnit.SECONDS.toMillis((long) (Math.random() * 20));
 
+  private final static long MAX_SLIDING_WINDOW = TimeUnit.DAYS.toMillis(10);
   /**
    * Indicates the last time the content of a space was updated.
    */
@@ -177,7 +182,7 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
     long timeSinceLastUpdate = Service.currentTimeMillis() - getContentUpdatedAt();
 
     // 0 min to 2 min -> no cache
-    if (timeSinceLastUpdate < 2 * CONTENT_UPDATED_AT_INTERVAL_MILLIS) {
+    if (timeSinceLastUpdate < NO_CACHE_INTERVAL_MILLIS) {
       return CacheProfile.NO_CACHE;
     }
 
