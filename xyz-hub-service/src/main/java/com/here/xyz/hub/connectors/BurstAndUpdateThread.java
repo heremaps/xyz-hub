@@ -99,7 +99,7 @@ public class BurstAndUpdateThread extends Thread {
         continue;
       }
 
-      if (!connectorMap.get(oldConnector.id).skipAutoDisable) {
+      if (!connectorMap.get(oldConnector.id).skipAutoDisable && !Service.configuration.DEFAULT_STORAGE_ID.equals(oldConnector.id)) {
         //When the connector is responding with unhealthy status, disable it momentarily, until next BurstAndUpdateThread round.
         long now = Instant.now().getEpochSecond();
         long lastHealthyTimestamp = client.getFunctionClient().getLastHealthyTimestamp();
