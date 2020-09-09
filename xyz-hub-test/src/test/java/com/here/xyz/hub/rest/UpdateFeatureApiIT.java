@@ -22,6 +22,7 @@ package com.here.xyz.hub.rest;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.jayway.restassured.RestAssured.given;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
@@ -75,6 +76,20 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         then().
         statusCode(OK.code()).
         body("features[0].id", equalTo("1234"));
+  }
+
+  @Test
+  public void postFeatureWithWrongType() {
+    given().
+        accept(APPLICATION_GEO_JSON).
+        contentType(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        body(content("/xyz/hub/WrongType.json")).
+        when().
+        post("/spaces/x-psql-test/features").
+        prettyPeek().
+        then().
+        statusCode(BAD_REQUEST.code());
   }
 
   @Test
