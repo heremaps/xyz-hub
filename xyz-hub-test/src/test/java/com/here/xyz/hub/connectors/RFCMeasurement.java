@@ -47,6 +47,8 @@ public class RFCMeasurement {
         Service.configuration = new Config();
         Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT = 26;
         Service.configuration.INSTANCE_COUNT = 1;
+        Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS = 256;
+        Service.configuration.REMOTE_FUNCTION_CONNECTION_HIGH_UTILIZATION_THRESHOLD = 0.75f;
 
         Connector s = new Connector();
         TEST_START = Service.currentTimeMillis();

@@ -180,7 +180,7 @@ public abstract class RemoteFunctionClient {
     invokeStarted();
 
     FunctionCall fc = new FunctionCall(marker, bytes, fireAndForget, cb);
-    if (!compareAndIncrementUpTo(getMaxConnections(), usedConnections)) {
+    if (!compareAndIncrementUpTo(getWeightedMaxConnections(), usedConnections)) {
       enqueue(fc);
       return fc;
     }
@@ -346,6 +346,14 @@ public abstract class RemoteFunctionClient {
     return clientInstances.stream().mapToLong(RemoteFunctionClient::getUsedConnections).sum();
   }
 
+  public static float getGlobalUsedConnectionsPercentage() {
+    return getGlobalUsedConnections() / Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS;
+  }
+
+  public static int getGlobalFunctionClientCount() {
+    return clientInstances.size();
+  }
+
   public static Set<RemoteFunctionClient> getInstances() {
     return Collections.unmodifiableSet(clientInstances);
   }
@@ -411,6 +419,17 @@ public abstract class RemoteFunctionClient {
 
   public int getMaxConnections() {
     return connectorConfig == null ? MIN_CONNECTIONS_PER_NODE : Math.max(MIN_CONNECTIONS_PER_NODE, connectorConfig.getMaxConnectionsPerInstance());
+  }
+
+  public int getWeightedMaxConnections() {
+    if (getGlobalUsedConnectionsPercentage() > Service.configuration.REMOTE_FUNCTION_CONNECTION_HIGH_UTILIZATION_THRESHOLD) {
+      //Distribute available connections based on the client's priority
+      return (int) (Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS * getPriority());
+    }
+    else {
+      //Distribute available connections evenly across all clients
+      return Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS / getGlobalFunctionClientCount();
+    }
   }
 
   public int getUsedConnections() {
