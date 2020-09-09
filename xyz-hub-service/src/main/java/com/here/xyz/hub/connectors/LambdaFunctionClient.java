@@ -37,6 +37,7 @@ import com.amazonaws.services.lambda.model.InvocationType;
 import com.amazonaws.services.lambda.model.InvokeRequest;
 import com.amazonaws.services.lambda.model.InvokeResult;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
+import com.google.common.util.concurrent.ForwardingExecutorService;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
@@ -50,6 +51,7 @@ import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -74,8 +76,20 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
   private AWSLambdaAsync asyncClient;
   private static ConcurrentHashMap<String, AWSLambdaAsync> lambdaClients = new ConcurrentHashMap<>();
   private static Map<AWSLambdaAsync, List<String>> clientReferences = new HashMap<>();
-  private static ExecutorService threadPool = new ThreadPoolExecutor(MIN_THREADS_PER_CLIENT,
-      Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS, CONNECTION_TTL, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
+  private static ExecutorService executors = new ForwardingExecutorService() {
+    private ExecutorService threadPool = new ThreadPoolExecutor(MIN_THREADS_PER_CLIENT,
+        Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS, CONNECTION_TTL, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
+
+    @Override
+    protected ExecutorService delegate() {
+      return threadPool;
+    }
+
+    @Override
+    public List<Runnable> shutdownNow() {
+      return Collections.emptyList();
+    }
+  };
 
   /**
    * @param connectorConfig The connector configuration.
@@ -88,7 +102,6 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
   synchronized void setConnectorConfig(final Connector newConnectorConfig) throws NullPointerException, IllegalArgumentException {
     Connector oldConnectorConfig = getConnectorConfig();
     super.setConnectorConfig(newConnectorConfig);
-    shutdownLambdaClient(asyncClient);
     updateClient(oldConnectorConfig);
   }
 
@@ -101,8 +114,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
       //No connector client is referencing the lambda client it can be destroyed
       lambdaClients.remove(clientKey);
       clientReferences.remove(client);
-      //TODO: make sure the threadPool doesn't get shutdown!
-      client.shutdown();
+      shutdownLambdaClient(client);
     }
   }
 
@@ -111,7 +123,6 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
     if (!(remoteFunction instanceof AWSLambda)) {
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of AWSLambda");
     }
-    AWSLambdaAsync oldClient = asyncClient;
     asyncClient = getLambdaClient((AWSLambda) remoteFunction, getConnectorConfig().id);
     releaseClient(getClientKey((AWSLambda) oldConnectorConfig.remoteFunction));
   }
@@ -132,7 +143,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
             .withMaxErrorRetry(0)
 //            .withClientExecutionTimeout(CLIENT_REQUEST_TIMEOUT)
             .withConnectionTTL(CONNECTION_TTL))
-        .withExecutorFactory(() -> threadPool)
+        .withExecutorFactory(() -> executors)
         .build();
   }
 
@@ -235,7 +246,6 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
     if (!lambdaClients.containsKey(clientKey)) {
       client = createClient(remoteFunction);
       if (lambdaClients.putIfAbsent(clientKey, client) != null) {
-        //TODO: make sure the threadPool doesn't get shutdown!
         client.shutdown();
         client = lambdaClients.get(clientKey);
       }

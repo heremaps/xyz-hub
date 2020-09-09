@@ -22,6 +22,7 @@ package com.here.xyz.hub.util.health.checks;
 import static com.here.xyz.hub.util.health.schema.Status.Result.ERROR;
 import static com.here.xyz.hub.util.health.schema.Status.Result.OK;
 
+import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.RemoteFunctionClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.util.health.GroupedHealthCheck;
@@ -95,13 +96,15 @@ public class RemoteFunctionHealthAggregator extends GroupedHealthCheck {
 
     //Gather further global statistics
     try {
+      res.setAdditionalProperty("globalFunctionClientCount", RemoteFunctionClient.getGlobalFunctionClientCount());
       res.setAdditionalProperty("globalMaxQueueByteSize", RemoteFunctionClient.GLOBAL_MAX_QUEUE_BYTE_SIZE);
       res.setAdditionalProperty("globalQueueByteSize", RemoteFunctionClient.getGlobalUsedQueueMemory());
       res.setAdditionalProperty("globalArrivalRate", RemoteFunctionClient.getGlobalArrivalRate());
       res.setAdditionalProperty("globalThroughput", RemoteFunctionClient.getGlobalThroughput());
       res.setAdditionalProperty("globalMinConnections", RemoteFunctionClient.getGlobalMinConnections());
-      res.setAdditionalProperty("globalMaxConnections", RemoteFunctionClient.getGlobalMaxConnections());
+      res.setAdditionalProperty("globalMaxConnections", Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS);
       res.setAdditionalProperty("globalUsedConnections", RemoteFunctionClient.getGlobalUsedConnections());
+      res.setAdditionalProperty("globalUsedConnectionsPercentage", RemoteFunctionClient.getGlobalUsedConnectionsPercentage());
       setResponse(res);
       return s.withResult(getWorseResult(OK, s.getResult()));
     }

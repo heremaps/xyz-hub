@@ -347,7 +347,7 @@ public abstract class RemoteFunctionClient {
   }
 
   public static float getGlobalUsedConnectionsPercentage() {
-    return getGlobalUsedConnections() / Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS;
+    return (float) getGlobalUsedConnections() / (float) Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS;
   }
 
   public static int getGlobalFunctionClientCount() {
@@ -424,11 +424,11 @@ public abstract class RemoteFunctionClient {
   public int getWeightedMaxConnections() {
     if (getGlobalUsedConnectionsPercentage() > Service.configuration.REMOTE_FUNCTION_CONNECTION_HIGH_UTILIZATION_THRESHOLD) {
       //Distribute available connections based on the client's priority
-      return (int) (Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS * getPriority());
+      return Math.min((int) (Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS * getPriority()), getMaxConnections());
     }
     else {
       //Distribute available connections evenly across all clients
-      return Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS / getGlobalFunctionClientCount();
+      return Math.min(Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS / getGlobalFunctionClientCount(), getMaxConnections());
     }
   }
 

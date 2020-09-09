@@ -118,10 +118,12 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
       rfcData.put("queueByteSize", rfc.getQueueByteSize());
       rfcData.put("minConnections", rfc.getMinConnections());
       rfcData.put("maxConnections", rfc.getMaxConnections());
+      rfcData.put("weightedMaxConnections", rfc.getWeightedMaxConnections());
       rfcData.put("usedConnections", rfc.getUsedConnections());
       rfcData.put("rateOfService", rfc.getRateOfService());
       rfcData.put("arrivalRate", rfc.getArrivalRate());
       rfcData.put("throughput", rfc.getThroughput());
+      rfcData.put("priority", rfc.getPriority());
       rfcData.put("lastHealthyTimestamp", rfc.getLastHealthyTimestamp());
 
       return r.withAdditionalProperty("statistics", rfcData);
