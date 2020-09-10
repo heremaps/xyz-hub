@@ -350,6 +350,10 @@ public abstract class RemoteFunctionClient {
     return (float) getGlobalUsedConnections() / (float) Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS;
   }
 
+  public static int getGlobalFunctionClientCount() {
+    return clientInstances.size();
+  }
+
   public static Set<RemoteFunctionClient> getInstances() {
     return Collections.unmodifiableSet(clientInstances);
   }
