@@ -176,6 +176,8 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
             .withStreamId(streamId)
             .withError(XyzError.EXCEPTION)
             .withErrorMessage("Unexpected exception occurred.");
+      } catch (OutOfMemoryError e) {
+       throw e; 
       }
       writeDataOut(output, dataOut, ifNoneMatch);
     } catch (Exception e) {

@@ -409,11 +409,17 @@ public class PSQLXyzConnector extends DatabaseHandler {
      case "42P01" :
       return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT).withErrorMessage(e.getMessage());
 
-     case "SNULL" :
-      if(e.getMessage() == null || e.getMessage().indexOf("An attempt by a client to checkout a Connection has timed out.") == -1) break;
-
-      return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
+     case "SNULL" : if(e.getMessage() == null ) break; 
+      // handle some dedicated messages
+      if( e.getMessage().indexOf("An attempt by a client to checkout a Connection has timed out.") > -1 ) 
+       return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
                                  .withErrorMessage("Cant get a Connection to the database.");
+
+      if( e.getMessage().indexOf("Maxchar limit") > -1 ) 
+        return new ErrorResponse().withStreamId(streamId).withError(XyzError.PAYLOAD_TO_LARGE)
+                                                         .withErrorMessage("Database result - Maxchar limit exceed");
+
+      break; //others
 
      default: break;
     }
