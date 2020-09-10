@@ -405,6 +405,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
       Matcher m = ERRVALUE_22P02.matcher(e.getMessage());
       return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
                                 .withErrorMessage(String.format("clustering.property: string(%s) can not be converted to numeric",( m.find() ? m.group(1) : "" ))); 
+                                
+     case "42P01" :
+      return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT).withErrorMessage(e.getMessage());
 
      case "SNULL" :
       if(e.getMessage() == null || e.getMessage().indexOf("An attempt by a client to checkout a Connection has timed out.") == -1) break;
