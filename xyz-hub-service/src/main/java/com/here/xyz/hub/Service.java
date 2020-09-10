@@ -31,6 +31,7 @@ import com.here.xyz.hub.util.ARN;
 import com.here.xyz.hub.util.ConfigDecryptor;
 import com.here.xyz.hub.util.ConfigDecryptor.CryptoException;
 import com.here.xyz.hub.util.metrics.CloudWatchMetricPublisher;
+import com.here.xyz.hub.util.metrics.GlobalUsedRfcConnections;
 import com.here.xyz.hub.util.metrics.MajorGcCountMetric;
 import com.here.xyz.hub.util.metrics.MemoryMetric;
 import com.here.xyz.hub.util.metrics.Metric;
@@ -330,10 +331,13 @@ public class Service {
 
   private static void startMetricPublishers() {
     if (configuration.PUBLISH_METRICS) {
-      metrics.add(new MemoryMetric(new CloudWatchMetricPublisher("XYZ/Hub", "JvmMemoryUtilization",
-          "ServiceName", "XYZ-Hub-" + configuration.ENVIRONMENT_NAME, StandardUnit.Percent)));
-      metrics.add(new MajorGcCountMetric(new CloudWatchMetricPublisher("XYZ/Hub", "MajorGcCount",
-          "ServiceName", "XYZ-Hub-" + configuration.ENVIRONMENT_NAME, StandardUnit.Count)));
+      String ns = "XYZ/Hub", serviceName = "XYZ-Hub-" + configuration.ENVIRONMENT_NAME;
+      metrics.add(new MemoryMetric(new CloudWatchMetricPublisher(ns, "JvmMemoryUtilization",
+          "ServiceName", serviceName, StandardUnit.Percent)));
+      metrics.add(new MajorGcCountMetric(new CloudWatchMetricPublisher(ns, "MajorGcCount",
+          "ServiceName", serviceName, StandardUnit.Count)));
+      metrics.add(new GlobalUsedRfcConnections(new CloudWatchMetricPublisher(ns, "GlobalUsedRfcConnections",
+          "ServiceName", serviceName, StandardUnit.Percent)));
     }
   }
 
