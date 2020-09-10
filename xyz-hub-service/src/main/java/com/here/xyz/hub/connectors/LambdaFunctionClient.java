@@ -124,7 +124,8 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of AWSLambda");
     }
     asyncClient = getLambdaClient((AWSLambda) remoteFunction, getConnectorConfig().id);
-    releaseClient(getClientKey((AWSLambda) oldConnectorConfig.remoteFunction));
+    if (oldConnectorConfig != null)
+      releaseClient(getClientKey((AWSLambda) oldConnectorConfig.remoteFunction));
   }
 
   private static AWSLambdaAsync createClient(AWSLambda remoteFunction) {
