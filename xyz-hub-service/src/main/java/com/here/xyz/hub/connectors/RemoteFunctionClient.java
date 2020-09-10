@@ -350,10 +350,6 @@ public abstract class RemoteFunctionClient {
     return (float) getGlobalUsedConnections() / (float) Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS;
   }
 
-  public static int getGlobalFunctionClientCount() {
-    return clientInstances.size();
-  }
-
   public static Set<RemoteFunctionClient> getInstances() {
     return Collections.unmodifiableSet(clientInstances);
   }
@@ -427,8 +423,7 @@ public abstract class RemoteFunctionClient {
       return Math.min((int) (Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS * getPriority()), getMaxConnections());
     }
     else {
-      //Distribute available connections evenly across all clients
-      return Math.min(Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS / getGlobalFunctionClientCount(), getMaxConnections());
+      return getMaxConnections();
     }
   }
 
