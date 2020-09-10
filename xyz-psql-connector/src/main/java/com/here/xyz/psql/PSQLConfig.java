@@ -76,7 +76,7 @@ class PSQLConfig {
 
   protected static final String ECPS_PHRASE = "ECPS_PHRASE";
 
-  private final static String DEFAULT_ECPS = "default";
+  protected final static String DEFAULT_ECPS = "default";
 
   /**
    * The maximal amount of concurrent connections, default is one, normally only increased for embedded lambda.
