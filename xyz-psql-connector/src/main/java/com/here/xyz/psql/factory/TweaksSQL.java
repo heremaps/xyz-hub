@@ -40,6 +40,7 @@ public class TweaksSQL
   public static final String SIMPLIFICATION_ALGORITHM_A04 = "merge";
   public static final String ENSURE = "ensure";
   public static final String ENSURE_DEFAULT_SELECTION = "defaultselection";
+  public static final String ENSURE_CHUNKSIZE = "chunksize";
   
   /*
    [  1     |   (1) | 1/3    | ~ md5( '' || i) < '5'   ]
@@ -74,14 +75,15 @@ public class TweaksSQL
    return String.format("%s < '%s'",DstFunctIndexExpr,s);
   }
 
-  public static int calculateDistributionStrength(int rCount) 
-  { int CHNKSZ = 10000;
-    if( rCount <= (   3 * CHNKSZ ) ) return  1;
-    if( rCount <= (   4 * CHNKSZ ) ) return  5;
-    if( rCount <= (   8 * CHNKSZ ) ) return 10;
-    if( rCount <= (  32 * CHNKSZ ) ) return 30;
-    if( rCount <= ( 128 * CHNKSZ ) ) return 50;
-    if( rCount <= (1024 * CHNKSZ ) ) return 75;
+  public static int calculateDistributionStrength(int rCount, int chunkSize) 
+  { 
+    if( rCount <= (       chunkSize ) ) return  0;
+    if( rCount <= (   3 * chunkSize ) ) return  1;
+    if( rCount <= (   4 * chunkSize ) ) return  5;
+    if( rCount <= (   8 * chunkSize ) ) return 10;
+    if( rCount <= (  32 * chunkSize ) ) return 30;
+    if( rCount <= ( 128 * chunkSize ) ) return 50;
+    if( rCount <= (1024 * chunkSize ) ) return 75;
     return 100;
   }
  

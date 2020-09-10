@@ -117,11 +117,14 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
             if( event.getSelection() == null && !bDefaultSelectionHandling )
              event.setSelection(Arrays.asList("id","type"));
+                        
+            int chunkSize    = Math.max(Math.min((int) tweakParams.getOrDefault(TweaksSQL.ENSURE_CHUNKSIZE,10000),100000),10000),
+                distStrength = TweaksSQL.calculateDistributionStrength( rCount, chunkSize );
 
-            if( rCount < 10000 ) break; // fall back to non-tweaks usage.
+            if( distStrength == 0 ) break; // NrOfObjects less than chunkSize -> fall back to non-tweaks usage 
             HashMap<String, Object> hmap = new HashMap<String, Object>();
             hmap.put("algorithm", new String("distribution"));
-            hmap.put("strength", new Integer( TweaksSQL.calculateDistributionStrength( rCount ) ));
+            hmap.put("strength", new Integer( distStrength ));
             tweakParams = hmap;
             // fall thru tweaks=sampling
           }

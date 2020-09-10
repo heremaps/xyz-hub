@@ -343,7 +343,7 @@ public class SQLQueryBuilder {
          break;
 
          case TweaksSQL.SIMPLIFICATION_ALGORITHM_A05 : // gridbylevel - convert to/from mvt
-         { int extend = 4096, extendPerMargin = extend / WebMercatorTile.TileSizeInPixel, extendWithMargin = 4096, level = -1, tileX = -1, tileY = -1, margin = 0;
+         { int extend = 512, extendPerMargin = extend / WebMercatorTile.TileSizeInPixel, extendWithMargin = extend, level = -1, tileX = -1, tileY = -1, margin = 0;
            
            if( event instanceof GetFeaturesByTileEvent ) 
            { GetFeaturesByTileEvent tevnt = (GetFeaturesByTileEvent) event;
