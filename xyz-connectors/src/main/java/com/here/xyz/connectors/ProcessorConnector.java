@@ -72,7 +72,7 @@ public abstract class ProcessorConnector extends AbstractConnectorHandler {
         eventDecryptor.decryptParams(notification.getParams()),
         eventDecryptor.decryptParams(notification.getConnectorParams()),
         eventDecryptor.decryptParams(notification.getMetadata()),
-        notification.getTid());
+        notification.getTid(), notification.getAid(), notification.getJwt());
 
     if (notification.getEvent() instanceof ErrorResponse) {
       return processErrorResponse((ErrorResponse) notification.getEvent(), notification.getEventType(), notificationParams);
