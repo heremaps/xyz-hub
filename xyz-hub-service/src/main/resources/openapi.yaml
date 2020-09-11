@@ -315,6 +315,8 @@ paths:
         Defines, if modifying of the features, is executed as a single
         transactional batch operation (_true_:default) or as independent
         operations (_false_).
+        
+        There is a limit of 10 megs of data allowed for this operation.
       operationId: postFeatures
       parameters:
         - $ref: '#/components/parameters/SpaceId'
