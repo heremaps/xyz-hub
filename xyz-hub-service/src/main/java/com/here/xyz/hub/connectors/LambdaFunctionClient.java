@@ -43,8 +43,10 @@ import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLambda;
 import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.AsyncResult;
+import io.vertx.core.Context;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.Vertx;
 import java.nio.ByteBuffer;
 import java.util.concurrent.Executors;
 import org.apache.logging.log4j.LogManager;
@@ -145,6 +147,8 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
         .withPayload(ByteBuffer.wrap(fc.bytes))
         .withInvocationType(fc.fireAndForget ? InvocationType.Event : InvocationType.RequestResponse);
 
+    final Context context = Vertx.currentContext();
+
     java.util.concurrent.Future<InvokeResult> future = asyncClient.invokeAsync(invokeReq, new AsyncHandler<InvokeRequest, InvokeResult>() {
       @Override
       public void onError(Exception exception) {
@@ -152,7 +156,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
           logger.error(fc.marker, "Error sending event to remote lambda function", exception);
         }
         else {
-          callback.handle(Future.failedFuture(getHttpException(fc.marker, exception)));
+          context.runOnContext(v->callback.handle(Future.failedFuture(getHttpException(fc.marker, exception))));
         }
       }
 
@@ -160,7 +164,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
       public void onSuccess(InvokeRequest request, InvokeResult result) {
         byte[] responseBytes = new byte[result.getPayload().remaining()];
         result.getPayload().get(responseBytes);
-        callback.handle(Future.succeededFuture(responseBytes));
+        context.runOnContext(v->callback.handle(Future.succeededFuture(responseBytes)));
       }
     });
 
