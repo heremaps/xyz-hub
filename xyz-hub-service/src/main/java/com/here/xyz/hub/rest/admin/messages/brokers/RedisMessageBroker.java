@@ -34,6 +34,7 @@ public class RedisMessageBroker implements MessageBroker {
       // use redis auth token when available
       if (!StringUtils.isEmpty(Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN)) {
         config.setAuth(Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN);
+        config.setSsl(true);
       }
 
       config.setTcpKeepAlive(true);
