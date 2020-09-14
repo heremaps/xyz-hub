@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
@@ -47,6 +48,7 @@ public interface MessageBroker {
   Logger logger = LogManager.getLogger();
   ThreadLocal<ObjectMapper> mapper = ThreadLocal.withInitial(ObjectMapper::new);
 
+  int requestTimeout = (int) TimeUnit.SECONDS.toMillis(Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT);
   List<String> hubRemoteUrls = Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS == null ?
       null : Arrays.asList(Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS.split(";"));
 
@@ -95,17 +97,17 @@ public interface MessageBroker {
         try {
           Service.webClient
               .postAbs(remoteUrl + AdminApi.ADMIN_MESSAGES_ENDPOINT)
-              .timeout(Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT)
+              .timeout(requestTimeout)
               .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
               .putHeader("Authorization", "Bearer " + Service.configuration.ADMIN_MESSAGE_JWT)
               .sendBuffer(Buffer.buffer(jsonMessage), ar -> {
                 if (ar.failed())
-                  logger.error("Failed to sent message to remote cluster. URLs: {}" + Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS,
+                  logger.error("Failed to sent message to remote cluster. URLs: " + remoteUrl,
                           ar.cause());
               });
         }
         catch (Exception e) {
-          logger.error("Failed to sent message to remote cluster. URLs: {}" + Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS,
+          logger.error("Failed to sent message to remote cluster. URLs: " + remoteUrl,
                   e.getCause());
         }
       }
