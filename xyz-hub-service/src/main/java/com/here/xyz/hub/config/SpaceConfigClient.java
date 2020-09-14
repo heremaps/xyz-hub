@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,9 +19,10 @@
 
 package com.here.xyz.hub.config;
 
+import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Space;
-import com.here.xyz.hub.rest.admin.AdminMessage;
+import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -90,7 +91,7 @@ public abstract class SpaceConfigClient implements Initializable {
         cache.put(spaceId, space);
         handlersToCall.forEach(h -> h.handle(Future.succeededFuture(ar.result())));
       } else {
-        logger.info(marker, "space[{}]: Failed to load the space, reason: {}", spaceId, ar.cause());
+        logger.error(marker, "space[{}]: Failed to load the space, reason: {}", spaceId, ar.cause());
         handlersToCall.forEach(h -> h.handle(Future.failedFuture(ar.cause())));
       }
     });
@@ -107,7 +108,7 @@ public abstract class SpaceConfigClient implements Initializable {
         logger.info(marker, "space[{}]: Stored successfully with title: \"{}\"", space.getId(), space.getTitle());
         handler.handle(Future.succeededFuture(ar.result()));
       } else {
-        logger.info(marker, "space[{}]: Failed storing the space", space.getId(), ar.cause());
+        logger.error(marker, "space[{}]: Failed storing the space", space.getId(), ar.cause());
         handler.handle(Future.failedFuture(ar.cause()));
       }
     });
@@ -120,22 +121,22 @@ public abstract class SpaceConfigClient implements Initializable {
         logger.info(marker, "space[{}]: Deleted space", spaceId);
         handler.handle(Future.succeededFuture(ar.result()));
       } else {
-        logger.info(marker, "space[{}]: Failed deleting the space", spaceId, ar.cause());
+        logger.error(marker, "space[{}]: Failed deleting the space", spaceId, ar.cause());
         handler.handle(Future.failedFuture(ar.cause()));
       }
     });
   }
 
   public void getSelected(Marker marker, SpaceAuthorizationCondition authorizedCondition, SpaceSelectionCondition selectedCondition,
-      Handler<AsyncResult<List<Space>>> handler) {
-    getSelectedSpaces(marker, authorizedCondition, selectedCondition, ar -> {
+    PropertiesQuery propsQuery, Handler<AsyncResult<List<Space>>> handler) {
+    getSelectedSpaces(marker, authorizedCondition, selectedCondition, propsQuery, ar -> {
       if (ar.succeeded()) {
         List<Space> spaces = ar.result();
         spaces.forEach(s -> cache.put(s.getId(), s));
         logger.info(marker, "Loaded spaces by condition");
         handler.handle(Future.succeededFuture(ar.result()));
       } else {
-        logger.info(marker, "Failed to load spaces by condition", ar.cause());
+        logger.error(marker, "Failed to load spaces by condition", ar.cause());
         handler.handle(Future.failedFuture(ar.cause()));
       }
     });
@@ -145,7 +146,7 @@ public abstract class SpaceConfigClient implements Initializable {
     SpaceSelectionCondition selectedCondition = new SpaceSelectionCondition();
     selectedCondition.ownerIds = Collections.singleton(ownerId);
     selectedCondition.shared = false;
-    getSelected(marker, emptySpaceCondition, selectedCondition, handler);
+    getSelected(marker, emptySpaceCondition, selectedCondition, null, handler);
   }
 
   protected abstract void getSpace(Marker marker, String spaceId, Handler<AsyncResult<Space>> handler);
@@ -155,11 +156,11 @@ public abstract class SpaceConfigClient implements Initializable {
   protected abstract void deleteSpace(Marker marker, String spaceId, Handler<AsyncResult<Space>> handler);
 
   protected abstract void getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition,
-      SpaceSelectionCondition selectedCondition, Handler<AsyncResult<List<Space>>> handler);
+      SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery, Handler<AsyncResult<List<Space>>> handler);
 
   public void invalidateCache(String spaceId) {
     cache.remove(spaceId);
-    new InvalidateSpaceCacheMessage().withId(spaceId).broadcast();
+    new InvalidateSpaceCacheMessage().withId(spaceId).withGlobalRelay(true).broadcast();
   }
 
   public static class SpaceAuthorizationCondition {
@@ -175,7 +176,7 @@ public abstract class SpaceConfigClient implements Initializable {
     public boolean negateOwnerIds = false;
   }
 
-  public static class InvalidateSpaceCacheMessage extends AdminMessage {
+  public static class InvalidateSpaceCacheMessage extends RelayedMessage {
 
     private String id;
 
@@ -193,7 +194,7 @@ public abstract class SpaceConfigClient implements Initializable {
     }
 
     @Override
-    protected void handle() {
+    protected void handleAtDestination() {
       cache.remove(id);
     }
   }

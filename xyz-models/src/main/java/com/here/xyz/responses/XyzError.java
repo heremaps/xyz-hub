@@ -53,6 +53,13 @@ public enum XyzError {
   /**
    * Indicates an authorization error.
    *
+   * This will result in a 401 Unauthorized response.
+   */
+  UNAUTHORIZED("Unauthorized"),
+
+  /**
+   * Indicates an authorization error.
+   *
    * This will result in an 403 Forbidden response.
    */
   FORBIDDEN("Forbidden"),
@@ -83,7 +90,14 @@ public enum XyzError {
    *
    * This will result in a HTTP 504 Gateway Timeout response.
    */
-  TIMEOUT("Timeout");
+  TIMEOUT("Timeout"),
+
+  /**
+   * The request was aborted due to PayloadToLarge.
+   *
+   * This will result in a HTTP 513 response.
+   */
+  PAYLOAD_TO_LARGE("PayloadToLarge");
 
   /**
    * The error code.

@@ -27,6 +27,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -44,9 +45,16 @@ import org.junit.Test;
 public class AuthTestsIT extends RestAssuredTest {
 
   private static String cleanUpId;
+  private static boolean zeroSpaces = true;
 
   @BeforeClass
   public static void setupClass() {
+    removeAllSpaces();
+    zeroSpaces = zeroSpaces();
+  }
+
+  @After
+  public void tearDown() {
     removeAllSpaces();
   }
 
@@ -63,9 +71,21 @@ public class AuthTestsIT extends RestAssuredTest {
     removeSpace("x-auth-test-space");
     removeSpace("x-auth-test-space-shared");
 
-    if (cleanUpId != null) {
-      removeSpace(cleanUpId);
-    }
+    if (cleanUpId != null 
+        && !"x-auth-test-space".equals(cleanUpId) 
+        && !"x-auth-test-space-shared".equals(cleanUpId)
+    ) removeSpace(cleanUpId);
+    
+  }
+
+  private static boolean zeroSpaces()
+  {
+    int nrCurrentSpaces = 
+     getSpacesList("*", AuthProfile.ACCESS_ALL)
+      .statusCode(OK.code())
+       .extract().path("$.size()");
+
+    return nrCurrentSpaces == 0;
   }
 
   @SuppressWarnings("SameParameterValue")
@@ -158,11 +178,6 @@ public class AuthTestsIT extends RestAssuredTest {
     return testSpaceListWithShared(owner, AuthProfile.ACCESS_OWNER_2);
   }
 
-  @After
-  public void tearDown() {
-    removeAllSpaces();
-  }
-
   @Test
   public void createDefaultSpaceNegative() {
     createSpace("/xyz/hub/auth/createDefaultSpace.json", AuthProfile.ACCESS_OWNER_1_WITH_FEATURES_ONLY)
@@ -194,6 +209,25 @@ public class AuthTestsIT extends RestAssuredTest {
         .statusCode(FORBIDDEN.code());
   }
 
+  @Test
+  public void createSpaceWithCustomIdNegative1() {
+    createSpace("/xyz/hub/auth/createDefaultSpace.json", AuthProfile.ACCESS_OWNER_3)
+        .statusCode(FORBIDDEN.code());
+  }
+
+  @Test
+  public void createSpaceWithCustomIdNegative2() {
+    createSpace("/xyz/hub/auth/createCustomIdSpace.json", AuthProfile.ACCESS_OWNER_3)
+        .statusCode(FORBIDDEN.code());
+  }
+
+  @Test
+  public void createSpaceWithCustomIdPositive() {
+    cleanUpId = createSpace("/xyz/hub/auth/createCustomIdSpace.json", AuthProfile.ACCESS_OWNER_3_WITH_CUSTOM_SPACE_IDS)
+        .statusCode(OK.code())
+        .extract()
+        .path("id");
+  }
   @Test
   public void createTestStorageSpaceNegative() {
     createSpace("/xyz/hub/auth/createTestStorageSpace.json", AuthProfile.STORAGE_AUTH_TEST_PSQL_ONLY)
@@ -331,7 +365,7 @@ public class AuthTestsIT extends RestAssuredTest {
   public void testSpaceListWithAccessAll() {
     testSpaceListWithShared("*", AuthProfile.ACCESS_ALL)
         .statusCode(OK.code())
-        .body("$.size()", equalTo(2))
+        .body("$.size()", zeroSpaces ? equalTo(2) : greaterThanOrEqualTo(2) )
         .body("id", hasItems("x-auth-test-space", "x-auth-test-space-shared"));
   }
 

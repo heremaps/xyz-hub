@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,17 +34,16 @@ import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.ErrorResponse;
-import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.ModifiedEventResponse;
 import com.here.xyz.responses.ModifiedResponseResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.SuccessResponse;
+import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 
 /**
- * This class could be extended by any listener connector implementations.
+ * This class could be extended by any processor connector implementations.
  */
 @SuppressWarnings({"WeakerAccess", "unused"})
 public abstract class ProcessorConnector extends AbstractConnectorHandler {
@@ -69,8 +68,11 @@ public abstract class ProcessorConnector extends AbstractConnectorHandler {
       throw new ErrorResponseException(streamId, XyzError.NOT_IMPLEMENTED, "Unknown event type");
     }
 
-    final NotificationParams notificationParams = new NotificationParams(notification.getParams(), notification.getConnectorParams(),
-        notification.getMetadata(), notification.getTid());
+    final NotificationParams notificationParams = new NotificationParams(
+        eventDecryptor.decryptParams(notification.getParams()),
+        eventDecryptor.decryptParams(notification.getConnectorParams()),
+        eventDecryptor.decryptParams(notification.getMetadata()),
+        notification.getTid());
 
     if (notification.getEvent() instanceof ErrorResponse) {
       return processErrorResponse((ErrorResponse) notification.getEvent(), notification.getEventType(), notificationParams);
@@ -155,16 +157,6 @@ public abstract class ProcessorConnector extends AbstractConnectorHandler {
   @SuppressWarnings("RedundantThrows")
   @Override
   protected void initialize(Event event) throws Exception {
-  }
-
-  protected XyzResponse processHealthCheckEvent(HealthCheckEvent event) {
-    if (event.getMinResponseTime() != 0) {
-      try {
-        Thread.sleep(event.getMinResponseTime());
-      } catch (InterruptedException ignored) {
-      }
-    }
-    return new HealthStatus();
   }
 
   protected GetFeaturesByIdEvent processGetFeaturesById(GetFeaturesByIdEvent event, NotificationParams notificationParams)

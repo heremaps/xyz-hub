@@ -6,7 +6,7 @@
     "packages": "com.here.xyz",
 
     "ThresholdFilter": {
-      "level": "info"
+      "level": "stream"
     },
     "CustomLevels": {
       "CustomLevel": [{

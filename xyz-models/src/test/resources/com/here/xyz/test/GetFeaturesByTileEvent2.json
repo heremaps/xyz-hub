@@ -22,7 +22,6 @@
   "selection": null,
   "limit": 30000,
   "clip": false,
-  "simplificationLevel": -1,
   "clusteringType": null,
   "clusteringParams": null,
   "level": 16,

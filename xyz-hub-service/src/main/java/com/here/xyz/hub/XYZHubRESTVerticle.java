@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ package com.here.xyz.hub;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
+import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_INFO;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.vertx.core.http.HttpHeaders.AUTHORIZATION;
@@ -39,15 +40,15 @@ import static io.vertx.core.http.HttpMethod.POST;
 import static io.vertx.core.http.HttpMethod.PUT;
 
 import com.here.xyz.hub.auth.Authorization.AuthorizationType;
-import com.here.xyz.hub.auth.CompressedJWTAuthProvider;
 import com.here.xyz.hub.auth.JWTURIHandler;
 import com.here.xyz.hub.auth.JwtDummyHandler;
+import com.here.xyz.hub.auth.XyzAuthProvider;
+import com.here.xyz.hub.rest.AdminApi;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.FeatureApi;
 import com.here.xyz.hub.rest.FeatureQueryApi;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.rest.SpaceApi;
-import com.here.xyz.hub.rest.admin.AdminApi;
 import com.here.xyz.hub.rest.health.HealthApi;
 import com.here.xyz.hub.util.OpenApiTransformer;
 import com.here.xyz.hub.util.logging.LogUtil;
@@ -86,7 +87,10 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
       .setCompressionSupported(true)
       .setDecompressionSupported(true)
       .setHandle100ContinueAutomatically(true)
-      .setMaxInitialLineLength(16 * 1024);
+      .setTcpQuickAck(true)
+      .setTcpFastOpen(true)
+      .setMaxInitialLineLength(16 * 1024)
+      .setIdleTimeout(300);
 
   private static String FULL_API;
   private static String STABLE_API;
@@ -115,7 +119,7 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
   /**
    * The headers, which can be exposed as part of the response.
    */
-  private final List<CharSequence> exposeHeaders = Arrays.asList(STREAM_ID, ETAG);
+  private final List<CharSequence> exposeHeaders = Arrays.asList(STREAM_ID, STREAM_INFO, ETAG);
 
   /**
    * The headers the client is allowed to send.
@@ -161,20 +165,29 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
    * Creates and sends an error response to the client.
    */
   public static void sendErrorResponse(final RoutingContext context, final Throwable exception) {
-    final ErrorMessage error = new ErrorMessage(context, exception);
+    ErrorMessage error;
+
     try {
       final Marker marker = Api.Context.getMarker(context);
-      if (error.statusCode >= 500) {
-        logger.error(marker, "sendErrorResponse: {} {} {}", error.statusCode, error.reasonPhrase, exception);
-        if (error.statusCode == 500) {
-          error.message = null;
-        }
-      } else {
-        logger.warn(marker, "sendErrorResponse: {} {} {}", error.statusCode, error.reasonPhrase, exception);
+
+      error = new ErrorMessage(context, exception);
+      if (error.statusCode == 500) {
+        error.message = null;
+        logger.error(marker, "Sending error response: {} {} {}", error.statusCode, error.reasonPhrase, exception);
+        logger.error(marker, "Error:", exception);
       }
-    } catch (Exception e) {
-      e.printStackTrace(System.err);
+      else {
+        logger.warn(marker, "Sending error response: {} {} {}", error.statusCode, error.reasonPhrase, exception);
+        logger.warn(marker, "Error:", exception);
+      }
     }
+    catch (Exception e) {
+      logger.error("Error {} while preparing error response {}", e, exception);
+      logger.error("Error:", e);
+      logger.error("Original error:", exception);
+      error = new ErrorMessage();
+    }
+
     context.response()
         .putHeader(CONTENT_TYPE, APPLICATION_JSON)
         .setStatusCode(error.statusCode)
@@ -192,7 +205,6 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
 
     //Log the request information.
     LogUtil.addRequestInfo(context);
-    LogUtil.logRequest(context);
 
     context.response().putHeader(STREAM_ID, context.request().getHeader(STREAM_ID));
     context.response().endHandler(ar -> XYZHubRESTVerticle.onResponseSent(context));
@@ -226,6 +238,7 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
         //OpenAPI resources
         router.route("/hub/static/openapi/*").handler(createCorsHandler()).handler((routingContext -> {
           final HttpServerResponse res = routingContext.response();
+          res.putHeader("content-type", "application/yaml");
           final String path = routingContext.request().path();
           if (path.endsWith("full.yaml")) {
             res.headers().add(CONTENT_LENGTH, String.valueOf(FULL_API.getBytes().length));
@@ -260,36 +273,43 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
         router.route().last().handler(XYZHubRESTVerticle::notFoundHandler);
 
         vertx.createHttpServer(SERVER_OPTIONS)
-            .requestHandler(router::accept)
+            .requestHandler(router)
             .listen(
                 Service.configuration.HTTP_PORT, result -> {
                   if (result.succeeded()) {
-                    fut.complete();
+                    createMessageServer(router, fut);
                   } else {
                     logger.error("An error occurred, during the initialization of the server.", result.cause());
                     fut.fail(result.cause());
                   }
                 });
-
-        int messagePort = Service.configuration.ADMIN_MESSAGE_PORT;
-        if (messagePort != Service.configuration.HTTP_PORT) {
-          //Create 2nd HTTP server for admin-messaging
-          vertx.createHttpServer(SERVER_OPTIONS)
-              .requestHandler(router::accept)
-              .listen(messagePort, result -> {
-                if (result.succeeded()) {
-                  logger.debug("HTTP server also listens on admin-messaging port {}.", messagePort);
-                } else {
-                  logger.error("An error occurred, during the initialization of admin-messaging http port" + messagePort
-                          + ". Messaging won't work correctly.",
-                      result.cause());
-                }
-              });
-        }
       } else {
         logger.error("An error occurred, during the creation of the router from the Open API specification file.", ar.cause());
       }
     });
+  }
+
+  protected void createMessageServer(Router router, Future<Void> fut) {
+    int messagePort = Service.configuration.ADMIN_MESSAGE_PORT;
+    if (messagePort != Service.configuration.HTTP_PORT) {
+      //Create 2nd HTTP server for admin-messaging
+      vertx.createHttpServer(SERVER_OPTIONS)
+          .requestHandler(router)
+          .listen(messagePort, result -> {
+            if (result.succeeded()) {
+              logger.debug("HTTP server also listens on admin-messaging port {}.", messagePort);
+            }
+            else {
+              logger.error("An error occurred, during the initialization of admin-messaging http port" + messagePort
+                      + ". Messaging won't work correctly.",
+                  result.cause());
+            }
+            //Complete in any case as the admin-messaging is not essential
+            fut.complete();
+          });
+    }
+    else
+      fut.complete();
   }
 
   /**
@@ -311,7 +331,7 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
         new PubSecKeyOptions().setAlgorithm("RS256")
             .setPublicKey(Service.configuration.JWT_PUB_KEY));
 
-    JWTAuth authProvider = new CompressedJWTAuthProvider(vertx, authConfig);
+    JWTAuth authProvider = new XyzAuthProvider(vertx, authConfig);
 
     ChainAuthHandler authHandler = ChainAuthHandler.create()
         .append(JWTAuthHandler.create(authProvider))
@@ -330,10 +350,12 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
   private static class ErrorMessage {
 
     public String type = "error";
-    public int statusCode;
-    public String reasonPhrase;
+    public int statusCode = INTERNAL_SERVER_ERROR.code();
+    public String reasonPhrase = INTERNAL_SERVER_ERROR.reasonPhrase();
     public String message;
     public String streamId;
+
+    public ErrorMessage() {}
 
     public ErrorMessage(RoutingContext context, Throwable e) {
       Marker marker = Api.Context.getMarker(context);
@@ -342,9 +364,6 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
       if (e instanceof HttpException) {
         this.statusCode = ((HttpException) e).status.code();
         this.reasonPhrase = ((HttpException) e).status.reasonPhrase();
-      } else {
-        this.statusCode = INTERNAL_SERVER_ERROR.code();
-        this.reasonPhrase = INTERNAL_SERVER_ERROR.reasonPhrase();
       }
 
       // The authentication providers do not pass the exception message

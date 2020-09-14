@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,28 +20,35 @@
 package com.here.xyz.hub.connectors;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
+import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
 import static io.netty.handler.codec.http.HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE;
 
 import com.amazonaws.ClientConfiguration;
+import com.amazonaws.SdkClientException;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.auth.STSAssumeRoleSessionCredentialsProvider;
 import com.amazonaws.handlers.AsyncHandler;
+import com.amazonaws.http.exception.HttpRequestTimeoutException;
 import com.amazonaws.services.lambda.AWSLambdaAsync;
 import com.amazonaws.services.lambda.AWSLambdaAsyncClientBuilder;
 import com.amazonaws.services.lambda.model.AWSLambdaException;
+import com.amazonaws.services.lambda.model.InvocationType;
 import com.amazonaws.services.lambda.model.InvokeRequest;
 import com.amazonaws.services.lambda.model.InvokeResult;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
+import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLambda;
 import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.AsyncResult;
+import io.vertx.core.Context;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
-import java.io.IOException;
+import io.vertx.core.Vertx;
 import java.nio.ByteBuffer;
+import java.util.concurrent.Executors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -49,6 +56,10 @@ import org.apache.logging.log4j.Marker;
 public class LambdaFunctionClient extends RemoteFunctionClient {
 
   private static final Logger logger = LogManager.getLogger();
+  private static final int CONNECTION_ESTABLISH_TIMEOUT = 5_000;
+//  private static final int CLIENT_REQUEST_TIMEOUT = REQUEST_TIMEOUT + 3_000;
+  private static final int CONNECTION_TTL = 60_000;
+  private static final int MIN_THREADS_PER_CLIENT = 5;
 
   /**
    * The maximal response size in bytes that can be sent back without relocating the response.
@@ -73,15 +84,34 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
   private void createClient() {
     final Connector connectorConfig = getConnectorConfig();
     final RemoteFunctionConfig remoteFunction = connectorConfig.remoteFunction;
+
     if (!(remoteFunction instanceof AWSLambda)) {
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of AWSLambda");
     }
-    int maxConnections = connectorConfig.getMaxConnectionsPerInstance();
+
+    int maxConnections = getMaxConnections();
+    double priority = getPriority();
+    int desiredNumberOfThreads = Math.max(MIN_THREADS_PER_CLIENT, (int) (priority * Service.configuration.LAMBDA_REMOTE_FUNCTION_EXECUTORS));
+    int numberOfThreads = Math.min(desiredNumberOfThreads, maxConnections);
+
+    logger.info("Creating Lambda Function Client: {}. CONNECTION_ESTABLISH_TIMEOUT: {}, REQUEST_TIMEOUT: {}, CONNECTION_TTL: {}, "
+        + "MIN_THREADS_PER_CLIENT: {}, maxConnections: {}, priority: {}, desiredNumberOfThreads: {}, numberOfThreads: {}",
+        connectorConfig.id, CONNECTION_ESTABLISH_TIMEOUT, REQUEST_TIMEOUT, CONNECTION_TTL, MIN_THREADS_PER_CLIENT,
+        maxConnections, priority, desiredNumberOfThreads, numberOfThreads);
+
     asyncClient = AWSLambdaAsyncClientBuilder
         .standard()
         .withRegion(extractRegionFromArn(((AWSLambda) remoteFunction).lambdaARN))
         .withCredentials(getAWSCredentialsProvider())
-        .withClientConfiguration(new ClientConfiguration().withMaxConnections(maxConnections))
+        .withClientConfiguration(new ClientConfiguration()
+            .withTcpKeepAlive(true)
+            .withMaxConnections(maxConnections)
+            .withConnectionTimeout(CONNECTION_ESTABLISH_TIMEOUT)
+            .withRequestTimeout(REQUEST_TIMEOUT)
+            .withMaxErrorRetry(0)
+//            .withClientExecutionTimeout(CLIENT_REQUEST_TIMEOUT)
+            .withConnectionTTL(CONNECTION_TTL))
+        .withExecutorFactory(() -> Executors.newFixedThreadPool(numberOfThreads))
         .build();
   }
 
@@ -108,33 +138,37 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
    * Invokes the remote lambda function and returns the decompressed response as bytes.
    */
   @Override
-  protected void invoke(final Marker marker, byte[] bytes, final Handler<AsyncResult<byte[]>> callback) {
+  protected void invoke(final FunctionCall fc, final Handler<AsyncResult<byte[]>> callback) {
     final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
-    logger.debug(marker, "Invoking remote lambda function with id '{}' Event size is: {}", remoteFunction.id, bytes.length);
+    logger.debug(fc.marker, "Invoking remote lambda function with id '{}' Event size is: {}", remoteFunction.id, fc.bytes.length);
 
     InvokeRequest invokeReq = new InvokeRequest()
         .withFunctionName(((AWSLambda) remoteFunction).lambdaARN)
-        .withPayload(ByteBuffer.wrap(bytes));
+        .withPayload(ByteBuffer.wrap(fc.bytes))
+        .withInvocationType(fc.fireAndForget ? InvocationType.Event : InvocationType.RequestResponse);
 
-    asyncClient.invokeAsync(invokeReq, new AsyncHandler<InvokeRequest, InvokeResult>() {
+    final Context context = Vertx.currentContext();
+
+    java.util.concurrent.Future<InvokeResult> future = asyncClient.invokeAsync(invokeReq, new AsyncHandler<InvokeRequest, InvokeResult>() {
       @Override
       public void onError(Exception exception) {
-        callback.handle(Future.failedFuture(getWHttpException(marker, exception)));
+        if (callback == null) {
+          logger.error(fc.marker, "Error sending event to remote lambda function", exception);
+        }
+        else {
+          context.runOnContext(v->callback.handle(Future.failedFuture(getHttpException(fc.marker, exception))));
+        }
       }
 
       @Override
       public void onSuccess(InvokeRequest request, InvokeResult result) {
-        try {
-          //TODO: Refactor to move decompression into the base-class RemoteFunctionClient as it's not Lambda specific
-          byte[] responseBytes = new byte[result.getPayload().remaining()];
-          result.getPayload().get(responseBytes);
-          checkResponseSize(responseBytes);
-          callback.handle(Future.succeededFuture(getDecompressed(responseBytes)));
-        } catch (IOException | HttpException e) {
-          callback.handle(Future.failedFuture(e));
-        }
+        byte[] responseBytes = new byte[result.getPayload().remaining()];
+        result.getPayload().get(responseBytes);
+        context.runOnContext(v->callback.handle(Future.succeededFuture(responseBytes)));
       }
     });
+
+    fc.setCancelHandler(() -> future.cancel(true));
   }
 
   /**
@@ -166,8 +200,8 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
     return awsCredentialsProvider;
   }
 
-  private HttpException getWHttpException(Marker marker, Throwable e) {
-    logger.info(marker, "Unexpected exception while contacting lambda provider", e);
+  private HttpException getHttpException(Marker marker, Throwable e) {
+    logger.error(marker, "Unexpected exception while contacting lambda provider", e);
 
     if (e instanceof HttpException) {
       return (HttpException) e;
@@ -175,10 +209,12 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
     if (e instanceof AWSLambdaException) {
       AWSLambdaException le = (AWSLambdaException) e;
       if (le.getStatusCode() == 413) {
-        return new HttpException(REQUEST_ENTITY_TOO_LARGE, "The compressed request must be smaller than 6291456 bytes.");
+        return new HttpException(REQUEST_ENTITY_TOO_LARGE, "The compressed request must be smaller than 6291456 bytes.", e);
       }
     }
+    if (e instanceof HttpRequestTimeoutException || e instanceof SdkClientException && e.getCause() instanceof HttpRequestTimeoutException)
+      return new HttpException(GATEWAY_TIMEOUT, "The connector did not respond in time.", e);
 
-    return new HttpException(BAD_GATEWAY, "Unable to parse the response of the connector.");
+    return new HttpException(BAD_GATEWAY, "Unable to parse the response of the connector.", e);
   }
 }

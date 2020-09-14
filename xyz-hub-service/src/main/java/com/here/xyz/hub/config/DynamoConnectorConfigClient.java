@@ -56,45 +56,112 @@ public class DynamoConnectorConfigClient extends ConnectorConfigClient {
 
   @Override
   protected void getConnector(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler) {
-    logger.debug(marker, "Getting connectorId {} from Dynamo Table {}", connectorId, dynamoClient.tableName);
-    final Item item = connectors.getItem("id", connectorId);
+    DynamoClient.dynamoWorkers.executeBlocking(
+        future -> {
+          try {
+            logger.debug(marker, "Getting connectorId {} from Dynamo Table {}", connectorId, dynamoClient.tableName);
+            final Item item = connectors.getItem("id", connectorId);
+            future.complete(item);
+          }
+          catch (Exception e) {
+            future.fail(e);
+          }
+        },
+        ar -> {
+          if (ar.failed()) {
+            logger.error(marker, "Error getting connector with ID {}", connectorId, ar.cause());
+            handler.handle(Future.failedFuture("Error getting connector with ID " + connectorId));
+          }
+          else {
+            Item item = (Item) ar.result();
+            if (item == null) {
+              logger.debug(marker, "connector ID [{}]: This configuration does not exist", connectorId);
+              handler.handle(Future.failedFuture("The connector config was not found for connector ID: " + connectorId));
+              return;
+            }
 
-    if (item == null) {
-      logger.debug(marker, "connector ID [{}]: This configuration does not exist", connectorId);
-      handler.handle(Future.failedFuture("The connector config was not found for connector ID: " + connectorId));
-      return;
-    }
-
-    final Connector connector = Json.decodeValue(item.toJSON(), Connector.class);
-    handler.handle(Future.succeededFuture(connector));
+            final Connector connector = Json.decodeValue(item.toJSON(), Connector.class);
+            handler.handle(Future.succeededFuture(connector));
+          }
+        }
+    );
   }
 
   @Override
   protected void storeConnector(Marker marker, Connector connector, Handler<AsyncResult<Connector>> handler) {
     logger.debug(marker, "Storing connector ID {} into Dynamo Table {}", connector.id, dynamoClient.tableName);
-    connectors.putItem(Item.fromJSON(Json.encode(connector)));
-    handler.handle(Future.succeededFuture());
+    DynamoClient.dynamoWorkers.executeBlocking(
+        future -> {
+          try {
+            connectors.putItem(Item.fromJSON(Json.encode(connector)));
+            future.complete();
+          }
+          catch (Exception e) {
+            future.fail(e);
+          }
+        },
+        ar -> {
+          if (ar.failed()) {
+            logger.error(marker, "Error while storing connector.", ar.cause());
+            handler.handle(Future.failedFuture("Error while storing connector."));
+          }
+          else {
+            handler.handle(Future.succeededFuture());
+          }
+        }
+    );
   }
 
   @Override
   protected void deleteConnector(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler) {
     logger.debug(marker, "Removing connector with ID {} from Dynamo Table {}", connectorId, dynamoClient.tableName);
-    connectors.deleteItem("id", connectorId);
-    handler.handle(Future.succeededFuture());
+    DynamoClient.dynamoWorkers.executeBlocking(
+        future -> {
+          try {
+            connectors.deleteItem("id", connectorId);
+            future.complete();
+          }
+          catch (Exception e) {
+            future.fail(e);
+          }
+        },
+        ar -> {
+          if (ar.failed()) {
+            logger.error(marker, "Error while deleting connector.", ar.cause());
+            handler.handle(Future.failedFuture("Error while deleting connector."));
+          }
+          else {
+            handler.handle(Future.succeededFuture());
+          }
+        }
+    );
   }
 
   @Override
   protected void getAllConnectors(Marker marker, Handler<AsyncResult<List<Connector>>> handler) {
-    final List<Connector> result = new ArrayList<>();
-    try {
-      connectors.scan().pages().forEach(p -> p.forEach(i -> {
-        final Connector connector = Json.decodeValue(i.toJSON(), Connector.class);
-        result.add(connector);
-      }));
-      handler.handle(Future.succeededFuture(result));
-    }
-    catch (Exception e) {
-      handler.handle(Future.failedFuture(new RuntimeException("Error retrieving all connectors.", e)));
-    }
+    DynamoClient.dynamoWorkers.executeBlocking(
+        future -> {
+          try {
+            final List<Connector> result = new ArrayList<>();
+            connectors.scan().pages().forEach(p -> p.forEach(i -> {
+              final Connector connector = Json.decodeValue(i.toJSON(), Connector.class);
+              result.add(connector);
+            }));
+            future.complete(result);
+          }
+          catch (Exception e) {
+            future.fail(e);
+          }
+        },
+        ar -> {
+          if (ar.failed()) {
+            logger.error(marker, "Error retrieving all connectors.", ar.cause());
+            handler.handle(Future.failedFuture(new RuntimeException("Error retrieving all connectors.", ar.cause())));
+          }
+          else {
+            handler.handle(Future.succeededFuture((List<Connector>) ar.result()));
+          }
+        }
+    );
   }
 }

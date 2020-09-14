@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,15 +19,21 @@
 
 package com.here.xyz.hub;
 
+import com.amazonaws.services.cloudwatch.model.StandardUnit;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.cache.CacheClient;
 import com.here.xyz.hub.config.ConnectorConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.BurstAndUpdateThread;
+import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.hub.util.ARN;
 import com.here.xyz.hub.util.ConfigDecryptor;
 import com.here.xyz.hub.util.ConfigDecryptor.CryptoException;
+import com.here.xyz.hub.util.metrics.CloudWatchMetricPublisher;
+import com.here.xyz.hub.util.metrics.MajorGcCountMetric;
+import com.here.xyz.hub.util.metrics.MemoryMetric;
+import com.here.xyz.hub.util.metrics.Metric;
 import io.vertx.config.ConfigRetriever;
 import io.vertx.config.ConfigRetrieverOptions;
 import io.vertx.config.ConfigStoreOptions;
@@ -47,9 +53,13 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import org.apache.commons.lang3.math.NumberUtils;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.Configurator;
@@ -88,6 +98,11 @@ public class Service {
   private static final String CONSOLE_LOG_CONFIG = "log4j2-console-plain.json";
 
   /**
+   * The Vertx worker pool size environment variable.
+   */
+  private static final String VERTX_WORKER_POOL_SIZE = "VERTX_WORKER_POOL_SIZE";
+
+  /**
    * The entry point to the Vert.x core API.
    */
   public static Vertx vertx;
@@ -122,6 +137,8 @@ public class Service {
    */
   private static String hostname;
 
+  private static List<Metric> metrics = new LinkedList<>();
+
   /**
    * The service entry point.
    */
@@ -133,7 +150,9 @@ public class Service {
     final ConfigRetrieverOptions options = new ConfigRetrieverOptions().addStore(fileStore).addStore(envConfig).addStore(sysConfig);
     boolean debug = Arrays.asList(arguments).contains("--debug");
 
-    final VertxOptions vertxOptions = new VertxOptions();
+    final VertxOptions vertxOptions = new VertxOptions()
+      .setWorkerPoolSize(NumberUtils.toInt(System.getenv(VERTX_WORKER_POOL_SIZE), 128))
+      .setPreferNativeTransport(true);
 
     if (debug) {
       vertxOptions
@@ -144,7 +163,6 @@ public class Service {
     }
 
     vertx = Vertx.vertx(vertxOptions);
-    webClient = WebClient.create(Service.vertx, new WebClientOptions().setUserAgent(XYZ_HUB_USER_AGENT));
     ConfigRetriever retriever = ConfigRetriever.create(vertx, options);
     retriever.getConfig(Service::onConfigLoaded);
   }
@@ -154,6 +172,12 @@ public class Service {
    */
   private static void onConfigLoaded(AsyncResult<JsonObject> ar) {
     final JsonObject config = ar.result();
+    //Convert empty string values to null
+    config.forEach(e -> {
+      if (e.getValue() != null && e.getValue().equals("")) {
+        config.put(e.getKey(), (String) null);
+      }
+    });
     configuration = config.mapTo(Config.class);
 
     initializeLogger(configuration);
@@ -163,6 +187,15 @@ public class Service {
 
     spaceConfigClient = SpaceConfigClient.getInstance();
     connectorConfigClient = ConnectorConfigClient.getInstance();
+
+    webClient = WebClient.create(Service.vertx, new WebClientOptions()
+        .setMaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)
+        .setUserAgent(XYZ_HUB_USER_AGENT)
+        .setTcpKeepAlive(true)
+        .setTcpQuickAck(true)
+        .setTcpFastOpen(true)
+        .setTryUseCompression(true)
+    );
 
     spaceConfigClient.init(spaceConfigReady -> {
       if (spaceConfigReady.succeeded()) {
@@ -195,16 +228,23 @@ public class Service {
     }
     else {
       //Start / Deploy the service including all endpoints and listeners
-      vertx.deployVerticle(XYZHubRESTVerticle.class, new DeploymentOptions().setConfig(config).setWorker(true).setInstances(8));
+      vertx.deployVerticle(XYZHubRESTVerticle.class, new DeploymentOptions()
+          .setConfig(config)
+          .setWorker(false)
+          .setInstances(Runtime.getRuntime().availableProcessors()*2));
 
       logger.info("XYZ Hub " + BUILD_VERSION + " was started at " + new Date().toString());
+      logger.info("Native transport enabled: " + vertx.isNativeTransportEnabled() );
 
       Thread.setDefaultUncaughtExceptionHandler((thread, t) -> logger.error("Uncaught exception: ", t));
 
       Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+        stopMetricPublishers();
         //This may fail, if we are OOM, but lets at least try.
-        logger.info("XYZ Service is going down at " + new Date().toString());
+        logger.warn("XYZ Service is going down at " + new Date().toString());
       }));
+
+      startMetricPublishers();
     }
   }
 
@@ -274,8 +314,31 @@ public class Service {
     }
   }
 
+  public static long getUsedMemoryBytes() {
+    return Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
+  }
+
+  public static float getUsedMemoryPercent() {
+    float used = getUsedMemoryBytes();
+    float total = Runtime.getRuntime().totalMemory();
+    return used / total * 100;
+  }
+
   public static long currentTimeMillis() {
     return clock.currentTimeMillis();
+  }
+
+  private static void startMetricPublishers() {
+    if (configuration.PUBLISH_METRICS) {
+      metrics.add(new MemoryMetric(new CloudWatchMetricPublisher("XYZ/Hub", "JvmMemoryUtilization",
+          "ServiceName", "XYZ-Hub-" + configuration.ENVIRONMENT_NAME, StandardUnit.Percent)));
+      metrics.add(new MajorGcCountMetric(new CloudWatchMetricPublisher("XYZ/Hub", "MajorGcCount",
+          "ServiceName", "XYZ-Hub-" + configuration.ENVIRONMENT_NAME, StandardUnit.Count)));
+    }
+  }
+
+  private static void stopMetricPublishers() {
+    metrics.forEach(Metric::stop);
   }
 
   /**
@@ -283,6 +346,10 @@ public class Service {
    */
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class Config {
+
+    public int MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS;
+
+    public int OFF_HEAP_CACHE_SIZE_MB;
 
     /**
      * The port of the HTTP server.
@@ -318,6 +385,16 @@ public class Service {
      * The redis port.
      */
     public int XYZ_HUB_REDIS_PORT;
+
+    /**
+     * The urls of remote hub services, separated by semicolon ';'
+     */
+    public String XYZ_HUB_REMOTE_SERVICE_URLS;
+
+    /**
+     * The redis auth token.
+     */
+    public String XYZ_HUB_REDIS_AUTH_TOKEN;
 
     /**
      * The authorization type.
@@ -400,6 +477,11 @@ public class Service {
     public int REMOTE_FUNCTION_REQUEST_TIMEOUT; //seconds
 
     /**
+     * The amount of executor threads of the pool being shared by all LambdaFunctionClients.
+     */
+    public int LAMBDA_REMOTE_FUNCTION_EXECUTORS;
+
+    /**
      * The web root for serving static resources from the file system.
      */
     public String FS_WEB_ROOT;
@@ -413,5 +495,49 @@ public class Service {
      * The value of the health check header to instruct for additional health status information.
      */
     public String HEALTH_CHECK_HEADER_VALUE;
+
+    /**
+     * An identifier for the service environment.
+     */
+    public String ENVIRONMENT_NAME;
+
+    /**
+     * Whether to publish custom service metrics like JVM memory utilization or Major GC count.
+     */
+    public boolean PUBLISH_METRICS;
+
+    /**
+     * The AWS region this service is running in.
+     * Value is <code>null</code> if not running in AWS.
+     */
+    public String AWS_REGION;
+  }
+
+  /**
+   * That message can be used to change the log-level of one or more service-nodes.
+   * The specified level must be a valid log-level.
+   * As this is a {@link RelayedMessage} it can be sent to a specific service-node or to all service-nodes regardless of the first service
+   * node by which it was received.
+   *
+   * Specifying the property {@link RelayedMessage#relay} to true will relay the message to the specified destination.
+   * If no destination is specified the message will be relayed to all service-nodes (broadcast).
+   */
+  static class ChangeLogLevelMessage extends RelayedMessage {
+    private String level;
+
+    public String getLevel() {
+      return level;
+    }
+
+    public void setLevel(String level) {
+      this.level = level;
+    }
+
+    @Override
+    protected void handleAtDestination() {
+      logger.info("LOG LEVEL UPDATE requested. New level will be: " + level);
+      Configurator.setAllLevels(LogManager.getRootLogger().getName(), Level.getLevel(level));
+      logger.info("LOG LEVEL UPDATE performed. New level is now: " + level);
+    }
   }
 }

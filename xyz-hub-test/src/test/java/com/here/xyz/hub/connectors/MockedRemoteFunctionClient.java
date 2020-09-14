@@ -59,7 +59,7 @@ public class MockedRemoteFunctionClient extends RemoteFunctionClient {
     }
 
     @Override
-    protected void invoke(Marker marker, byte[] bytes, Handler<AsyncResult<byte[]>> callback) {
+    protected void invoke(FunctionCall fc, Handler<AsyncResult<byte[]>> callback) {
         long executionTime = (long) (Math.random() * (double) (maxExecutionTime - minExecutionTime) + minExecutionTime);
 
         MockedRequest req = new MockedRequest(callback) {

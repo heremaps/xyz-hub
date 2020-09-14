@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,13 +29,15 @@ import com.here.xyz.hub.util.health.Config;
 import com.here.xyz.hub.util.health.MainHealthCheck;
 import com.here.xyz.hub.util.health.checks.ExecutableCheck;
 import com.here.xyz.hub.util.health.checks.JDBCHealthCheck;
+import com.here.xyz.hub.util.health.checks.MemoryHealthCheck;
 import com.here.xyz.hub.util.health.checks.RedisHealthCheck;
-import com.here.xyz.hub.util.health.checks.RemoteFunctionHealthChecks;
+import com.here.xyz.hub.util.health.checks.RemoteFunctionHealthAggregator;
 import com.here.xyz.hub.util.health.schema.Reporter;
 import com.here.xyz.hub.util.health.schema.Response;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpMethod;
+import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import java.net.URI;
@@ -59,23 +61,27 @@ public class HealthApi extends Api {
               .withEndpoint(getPublicServiceEndpoint())
       )
       .add(new RedisHealthCheck(Service.configuration.XYZ_HUB_REDIS_HOST, Service.configuration.XYZ_HUB_REDIS_PORT))
-      .add(new RemoteFunctionHealthChecks());
+      .add(new RemoteFunctionHealthAggregator())
+      .add(new MemoryHealthCheck());
+
+  static {
+    if (Service.configuration.STORAGE_DB_URL != null) {
+      healthCheck.add(
+          (ExecutableCheck) new JDBCHealthCheck(getStorageDbUri(), Service.configuration.STORAGE_DB_USER,
+              Service.configuration.STORAGE_DB_PASSWORD)
+              .withName("Configuration DB Postgres")
+              .withEssential(true)
+      );
+    }
+  }
 
   public HealthApi(Vertx vertx, Router router) {
     //The main health check endpoint
     router.route(HttpMethod.GET, MAIN_HEALTCHECK_ENDPOINT).handler(HealthApi::onHealthStatus);
     router.route(HttpMethod.GET, "/hub").handler(HealthApi::onHealthStatus);
-    router.route(HttpMethod.GET, "/").handler(HealthApi::onHealthStatus); // TODO: Maybe better replace that one by a redirect to /hub/
+    router.route(HttpMethod.GET, "/").handler(HealthApi::onHealthStatus); //TODO: Maybe better replace that one by a redirect to /hub/
     //Legacy:
     router.route(HttpMethod.GET, "/hub/health-status").handler(HealthApi::onHealthStatus);
-
-    if (Service.configuration.STORAGE_DB_URL != null) {
-      healthCheck.add(
-          (ExecutableCheck) new JDBCHealthCheck(getStorageDbUri(), Service.configuration.STORAGE_DB_USER,
-              Service.configuration.STORAGE_DB_PASSWORD)
-              .withEssential(true)
-      );
-    }
   }
 
   private static URI getStorageDbUri() {
@@ -100,20 +106,28 @@ public class HealthApi extends Api {
     }
   }
 
-  private static void onHealthStatus(final RoutingContext context) {
-    Response r = healthCheck.getResponse();
-    r.setEndpoint(NODE_HEALTHCHECK_ENDPOINT);
-    r.setNode(Node.OWN_INSTANCE.id);
+  public static void onHealthStatus(final RoutingContext context) {
+    try {
+      Response r = healthCheck.getResponse();
+      r.setEndpoint(NODE_HEALTHCHECK_ENDPOINT);
+      r.setNode(Node.OWN_INSTANCE.id);
 
-    String secretHeaderValue = context.request().getHeader(Config.getHealthCheckHeaderName());
+      String secretHeaderValue = context.request().getHeader(Config.getHealthCheckHeaderName());
 
-    //Always respond with 200 for public HC requests for now
-    int statusCode = r.isPublicRequest(secretHeaderValue) ?
-        OK.code() : r.getStatus().getSuggestedHTTPStatusCode();
-    String responseString = r.toResponseString(secretHeaderValue);
+      //Always respond with 200 for public HC requests for now
+      int statusCode = r.isPublicRequest(secretHeaderValue) ?
+          OK.code() : r.getStatus().getSuggestedHTTPStatusCode();
+      String responseString = r.toResponseString(secretHeaderValue);
 
-    context.response().setStatusCode(statusCode)
-        .putHeader(HttpHeaders.CONTENT_TYPE, APPLICATION_JSON)
-        .end(responseString);
+      context.response().setStatusCode(statusCode)
+          .putHeader(HttpHeaders.CONTENT_TYPE, APPLICATION_JSON)
+          .end(responseString);
+    }
+    catch (Exception e) {
+      logger.error(Context.getMarker(context), "Error while doing the health-check: ", e);
+      context.response().setStatusCode(OK.code())
+          .putHeader(HttpHeaders.CONTENT_TYPE, APPLICATION_JSON)
+          .end(new JsonObject().put("status", new JsonObject().put("result", "WARNING")).encode());
+    }
   }
 }

@@ -284,7 +284,7 @@ public class Check {
 
     @Override
     public int hashCode() {
-        return new HashCodeBuilder().append(role).append(response).append(name).append(additionalProperties).append(essential).append(target).append(status).toHashCode();
+        return new HashCodeBuilder().append(role).append(name).append(additionalProperties).append(essential).append(target).toHashCode();
     }
 
     @Override

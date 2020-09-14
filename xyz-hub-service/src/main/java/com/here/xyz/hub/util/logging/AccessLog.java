@@ -19,8 +19,11 @@
 
 package com.here.xyz.hub.util.logging;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.here.xyz.XyzSerializable;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -30,6 +33,9 @@ public class AccessLog extends AccessLogExtended {
   public ClientInfo clientInfo;
   public RequestInfo reqInfo;
   public ResponseInfo respInfo;
+
+  @JsonIgnore
+  public String[] classified;
 
   public AccessLog() {
     super();
@@ -50,6 +56,20 @@ public class AccessLog extends AccessLogExtended {
     respInfo.responseSize = respInfo.size;
   }
 
+  public String serialize() {
+    return stripClassified(XyzSerializable.serialize(this, new TypeReference<AccessLog>() {}));
+  }
+
+  private String stripClassified(String original) {
+    if (classified == null)
+      return original;
+    for (String c : classified) {
+      if (c == null) continue;
+      original = original.replace(c, c.substring(0, c.length() / 2) + "*****");
+    }
+    return original;
+  }
+
   @JsonInclude(Include.ALWAYS)
   public static class RequestInfo extends RequestInfoExtended {
     public String method;
@@ -66,6 +86,7 @@ public class AccessLog extends AccessLogExtended {
     public long statusCode;
     public String statusMsg;
     public long size;
+    public String streamInfo;
   }
 
   @JsonInclude(Include.ALWAYS)
@@ -86,6 +107,7 @@ class AccessLogExtended {
   public String t = "STREAM";
   public String src;
   public String streamId;
+  public String streamInfo;
   public long unixtime;
   public long timestamp;
   public String time;

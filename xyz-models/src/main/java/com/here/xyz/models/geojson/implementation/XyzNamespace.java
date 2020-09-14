@@ -36,29 +36,42 @@ public class XyzNamespace implements XyzSerializable {
   @JsonProperty("_inputPosition")
   @JsonInclude(Include.NON_NULL)
   private Long inputPosition;
+
+  /**
+   * The space ID the feature belongs to.
+   */
   private String space;
+
   /**
    * The timestamp, when a feature was created.
    */
   @JsonInclude(Include.NON_DEFAULT)
   private long createdAt;
+
   /**
    * The timestamp, when a feature was last updated.
    */
   @JsonInclude(Include.NON_DEFAULT)
   private long updatedAt;
+
   /**
    * The uuid of the feature. When the client modifies the feature it must not modify the uuid.
    */
   private String uuid;
+
   /**
    * The previous uuid of the feature.
    */
   private String puuid;
+
   /**
    * The uuid of the merged feature, in case a merge was performed.
    */
   private String muuid;
+
+  /**
+   * The list of tags being attached to the feature.
+   */
   private List<String> tags;
 
   /**
@@ -67,6 +80,13 @@ public class XyzNamespace implements XyzSerializable {
    */
   @JsonInclude(Include.NON_DEFAULT)
   private boolean deleted;
+
+  /**
+   * The space-version of the feature within the history of its space.
+   * Multiple features could be part of a single space-version if they have been edited in one transaction.
+   */
+  @JsonInclude(Include.NON_EMPTY)
+  private Integer version;
 
   /**
    * A method to normalize and lower case a tag.
@@ -367,6 +387,20 @@ public class XyzNamespace implements XyzSerializable {
   @SuppressWarnings("unused")
   public XyzNamespace withDeleted(boolean deleted) {
     setDeleted(deleted);
+    return this;
+  }
+
+  public Integer getVersion() {
+    return version;
+  }
+
+  public void setVersion(Integer version) {
+    this.version = version;
+  }
+
+  @SuppressWarnings("unused")
+  public XyzNamespace withVersion(int version) {
+    setVersion(version);
     return this;
   }
 }

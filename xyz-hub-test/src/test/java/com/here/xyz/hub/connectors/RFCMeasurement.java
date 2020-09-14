@@ -43,15 +43,17 @@ public class RFCMeasurement {
 
     @Before
     public void setup() {
+        //Mock necessary configuration values
+        Service.configuration = new Config();
+        Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT = 26;
+        Service.configuration.INSTANCE_COUNT = 1;
+
         Connector s = new Connector();
         TEST_START = Service.currentTimeMillis();
         MockedRemoteFunctionClient.MockedRequest.testStart = TEST_START;
         s.id = "testStorage";
         s.connectionSettings = new Connector.ConnectionSettings();
         s.connectionSettings.maxConnections = RFC_MAX_CONNECTIONS;
-        Service.configuration = new Config();
-        Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT = 20;
-        Service.configuration.INSTANCE_COUNT = 1;
         rfc = new MockedRemoteFunctionClient(s, 10);
 
         requesterPool = new ScheduledThreadPoolExecutor(20);
@@ -71,7 +73,7 @@ public class RFCMeasurement {
         ScheduledFuture<?> f = requesterPool.scheduleAtFixedRate(() -> {
             for (int i = 0; i < concurrency; i++) {
                 long now = Service.currentTimeMillis();
-                rfc.submit(null, null, r -> {
+                rfc.submit(null, null, false, r -> {
                     //Nothing to do
                 });
             }

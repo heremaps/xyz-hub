@@ -9,8 +9,9 @@
       "searchablePropertiesConfiguration": true,
       "preserializedResponseSupport": true,
       "enableAutoCache": true,
+      "maxPayloadSize": 1073741824,
       "clusteringTypes": [
-        "hexbin"
+        "hexbin", "quadbin"
       ]
     },
     "connectionSettings": {
@@ -24,8 +25,10 @@
       "env": {
         "PSQL_HOST": "${PSQL_HOST}",
         "PSQL_PORT": "${PSQL_PORT}",
+        "PSQL_DB"  : "${PSQL_DB}",
         "PSQL_USER": "${PSQL_USER}",
-        "PSQL_PASSWORD": "${PSQL_PASSWORD}"
+        "PSQL_PASSWORD": "${PSQL_PASSWORD}",
+        "PSQL_MAX_CONN": 32
       }
     }
   },
@@ -155,8 +158,10 @@
       "className": "com.here.xyz.psql.PSQLXyzConnector",
       "env": {
         "PSQL_HOST": "${PSQL_HOST}",
-        "PSQL_USER": "postgres",
-        "PSQL_PASSWORD": "password"
+        "PSQL_PORT": "${PSQL_PORT}",
+        "PSQL_DB"  : "${PSQL_DB}",
+        "PSQL_USER": "${PSQL_USER}",
+        "PSQL_PASSWORD": "${PSQL_PASSWORD}"
       }
     }
   },

@@ -26,6 +26,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -271,30 +272,35 @@ public class OpenApiTransformer {
 
   public static void main(String... args) {
     try {
-      OpenApiTransformer OpenApiTransformer = prepare(args);
-      OpenApiTransformer.transform();
+      final String[] validArgs = prepare(args);
+      try(
+          FileInputStream fin = new FileInputStream(validArgs[0]);
+          FileOutputStream fout = new FileOutputStream(validArgs[1])
+      ) {
+        String[] tags = ArrayUtils.subarray(validArgs, 2, validArgs.length);
+        new OpenApiTransformer(fin, fout, tags).transform();
+      }
     } catch (Exception e) {
       System.out.println("OpenAPI tools:\n" +
           "Arguments: src dest " + VALID_OPTIONS);
     }
   }
 
-  private static OpenApiTransformer prepare(String... args) throws Exception {
-    String src = args[0];
-    String dest = args[1];
+  private static String[] prepare(String... args) {
+    List<String> result = new ArrayList<String>() {{
+      add(args[0]);
+      add(args[1]);
+    }};
 
-    String[] tags = new String[args.length-2];
     if (args.length > 2) {
       for (int i=2; i<args.length; i++) {
         final String stage = args[i];
         if (VALID_OPTIONS.contains(stage)) {
-          tags[i-2] = X + stage;
+          result.add(X + stage);
         }
       }
     }
 
-    try (FileInputStream fin = new FileInputStream(src); FileOutputStream fout = new FileOutputStream(dest)) {
-      return new OpenApiTransformer(fin, fout, tags);
-    }
+    return result.toArray(new String[0]);
   }
 }

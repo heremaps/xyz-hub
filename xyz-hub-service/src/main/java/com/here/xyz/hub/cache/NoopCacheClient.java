@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,24 +24,13 @@ import io.vertx.core.Handler;
 public class NoopCacheClient implements CacheClient {
 
 	@Override
-	public void get(String key, Handler<String> handler) {
+	public void get(String key, Handler<byte[]> handler) {
 		handler.handle(null);
 		return;
 	}
 
 	@Override
-	public void getBinary(String key, Handler<byte[]> handler) {
-		handler.handle(null);
-		return;
-	}
-
-	@Override
-	public void set(String key, String value, long ttl) {
-		return;
-	}
-
-	@Override
-	public void setBinary(String key, byte[] value, long ttl) {
+	public void set(String key, byte[] value, long ttl) {
 		return;
 	}
 
@@ -54,5 +43,4 @@ public class NoopCacheClient implements CacheClient {
 	public void shutdown() {
 		//Nothing to do.
 	}
-
 }

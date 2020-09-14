@@ -19,14 +19,25 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.hub.task.ModifyOp.IfExists.DELETE;
+import static com.here.xyz.hub.task.ModifyOp.IfExists.MERGE;
+import static com.here.xyz.hub.task.ModifyOp.IfExists.PATCH;
+import static com.here.xyz.hub.task.ModifyOp.IfExists.REPLACE;
+import static com.here.xyz.hub.task.ModifyOp.IfExists.RETAIN;
+
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.util.diff.Difference;
 import com.here.xyz.hub.util.diff.Patcher;
+import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
 import io.vertx.core.json.JsonObject;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * A modify operation
@@ -34,15 +45,62 @@ import java.util.Objects;
 public abstract class ModifyOp<T, K extends Entry<T>> {
 
   public final List<K> entries;
-  public final IfExists ifExists;
-  public final IfNotExists ifNotExists;
   public final boolean isTransactional;
 
-  public ModifyOp(List<K> entries, IfNotExists ifNotExists, IfExists ifExists, boolean isTransactional) {
-    this.ifExists = ifExists;
-    this.ifNotExists = ifNotExists;
+  private Set<Operation> usedOperations;
+
+  public enum Operation {
+    READ,
+    CREATE,
+    UPDATE,
+    DELETE,
+    WRITE //Reserved for future use
+  }
+
+  private static final List<IfExists> UPDATE_OPS = Arrays.asList(PATCH, MERGE, REPLACE);
+
+  public ModifyOp(List<K> entries, boolean isTransactional) {
     this.isTransactional = isTransactional;
     this.entries = entries;
+  }
+
+  public Set<Operation> getUsedOperations() {
+    if (usedOperations == null) {
+      usedOperations = new HashSet<>();
+      entries.forEach(e -> {
+        if (e.head != null && e.ifExists.equals(RETAIN))
+          usedOperations.add(Operation.READ);
+        else if (e.head == null && e.ifNotExists.equals(IfNotExists.CREATE))
+          usedOperations.add(Operation.CREATE);
+        else if (e.head != null && e.ifExists.equals(DELETE))
+          usedOperations.add(Operation.DELETE);
+        else if (e.head != null && UPDATE_OPS.contains(e.ifExists))
+          usedOperations.add(Operation.UPDATE);
+      });
+    }
+    if (!Collections.disjoint(usedOperations, Arrays.asList(Operation.CREATE, Operation.UPDATE, Operation.DELETE)))
+      usedOperations.add(Operation.WRITE);
+    return usedOperations;
+  }
+
+  public boolean isRead() {
+    return getUsedOperations().contains(Operation.READ);
+  }
+
+  public boolean isCreate() {
+    return getUsedOperations().contains(Operation.CREATE);
+  }
+
+  public boolean isDelete() {
+    return getUsedOperations().contains(Operation.DELETE);
+  }
+
+  public boolean isUpdate() {
+    return getUsedOperations().contains(Operation.UPDATE);
+  }
+
+  public boolean isWrite() { //Reserved for future use
+    return getUsedOperations().contains(Operation.WRITE);
   }
 
   /**
@@ -54,9 +112,9 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
   public void process() throws ModifyOpError, HttpException {
     for (K entry : entries) {
       try {
-        // IF NOT EXISTS
+        //IF NOT EXISTS
         if (entry.head == null) {
-          switch (ifNotExists) {
+          switch (entry.ifNotExists) {
             case RETAIN:
               entry.result = null;
               break;
@@ -67,9 +125,9 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
               throw new ModifyOpError("The record does not exist.");
           }
         }
-        // IF EXISTS
+        //IF EXISTS
         else {
-          switch (ifExists) {
+          switch (entry.ifExists) {
             case RETAIN:
               entry.result = entry.transform();
               break;
@@ -86,17 +144,18 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
               entry.result = entry.delete();
               break;
             case ERROR:
-              throw new ModifyOpError("The record exists.");
+              throw new ModifyOpError("The record {" + entry.getId(entry.head) + "} exists.");
           }
         }
 
-        // Check if the isModified flag is not already set. Compare the objects in case it is not set yet.
+        //Check if the isModified flag is not already set. Compare the objects in case it is not set yet.
         entry.isModified = entry.isModified || entry.isModified();
-      } catch (ModifyOpError e) {
+      }
+      catch (ModifyOpError e) {
         if (isTransactional) {
           throw e;
         }
-        // TODO: Check if this is included in the failed array
+        //TODO: Check if this is included in the failed array
         entry.exception = e;
       }
     }
@@ -141,7 +200,6 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
 
   public static abstract class Entry<T> {
 
-    public boolean isModified;
     /**
      * The input as it comes from the caller
      */
@@ -151,15 +209,6 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
      * The latest state the object currently has in the data storage
      */
     public T head;
-
-    private Map<String, Object> headMap;
-
-    private Map<String, Object> getHeadMap() throws HttpException, ModifyOpError {
-      if( headMap == null && head != null){
-          headMap = toMap(head);
-      }
-      return headMap;
-    }
 
     /**
      * The state onto which the caller made the modifications
@@ -171,22 +220,37 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
      */
     public T result;
 
+    public final IfExists ifExists;
+    public final IfNotExists ifNotExists;
+
+    private final ConflictResolution cr;
+    private Map<String, Object> headMap;
+    public boolean isModified;
+    public Exception exception;
+    public String inputUUID;
     private Map<String, Object> resultMap;
 
+    public Entry(Map<String, Object> input, IfNotExists ifNotExists, IfExists ifExists, ConflictResolution cr) {
+      this.inputUUID = getUuid(input);
+      this.input = filterMetadata(input);
+      this.cr = cr;
+      this.ifExists = ifExists;
+      this.ifNotExists = ifNotExists;
+    }
+
+    private Map<String, Object> getHeadMap() throws HttpException, ModifyOpError {
+      if (headMap == null && head != null) {
+          headMap = toMap(head);
+      }
+      return headMap;
+    }
+
     private Map<String, Object> getResultMap() throws HttpException, ModifyOpError {
-      if( resultMap == null && result!=null){
+      if (resultMap == null && result!=null) {
         resultMap = toMap(result);
       }
       return resultMap;
     };
-
-    public Exception exception;
-    public String inputUUID;
-
-    public Entry(Map<String, Object> input) {
-      this.inputUUID = getUuid(input);
-      this.input = filterMetadata(input);
-    }
 
     protected abstract String getId(T record);
 
@@ -219,11 +283,12 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
       }
       final Difference diffHead = Patcher.getDifference(resultMap, getHeadMap());
       try {
-        final Difference mergedDiff = Patcher.mergeDifferences(diffInput, diffHead);
+        final Difference mergedDiff = Patcher.mergeDifferences(diffHead, diffInput, cr);
         Patcher.patch(resultMap, mergedDiff);
         this.resultMap = resultMap;
         return fromMap(resultMap);
-      } catch (Exception e) {
+      }
+      catch (Exception e) {
         throw new ModifyOpError(e.getMessage());
       }
     }
@@ -285,7 +350,7 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
   }
 
   /**
-   * Filter recursively all properties from the provided filter, where the value is set to 'true'.
+   * Filter out recursively all properties from the provided filter, where the value is set to 'true'.
    *
    * @param map the object to filter
    * @param filter the filter to apply

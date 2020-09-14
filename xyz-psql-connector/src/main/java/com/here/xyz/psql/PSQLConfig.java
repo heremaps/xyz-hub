@@ -21,18 +21,17 @@ package com.here.xyz.psql;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.hash.Hashing;
+import com.google.crypto.tink.aead.AeadConfig;
+import com.google.crypto.tink.subtle.AesGcmJce;
 import com.here.xyz.connectors.SimulatedContext;
 import com.here.xyz.events.Event;
-import java.nio.charset.StandardCharsets;
+
+import java.io.UnsupportedEncodingException;
+import java.security.GeneralSecurityException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
-import javax.crypto.BadPaddingException;
-import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.spec.SecretKeySpec;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -43,12 +42,12 @@ class PSQLConfig {
   /**
    * A constant that is normally used as environment variable name for the host.
    */
-  static final String PSQL_HOST = "PSQL_HOST";
+  protected static final String PSQL_HOST = "PSQL_HOST";
 
   /**
    * A constant that is normally used as environment variable name for the port.
    */
-  static final String PSQL_PORT = "PSQL_PORT";
+  protected static final String PSQL_PORT = "PSQL_PORT";
 
   /**
    * A constant that is normally used as environment variable name for the host.
@@ -63,21 +62,21 @@ class PSQLConfig {
   /**
    * A constant that is normally used as environment variable name for the user.
    */
-  static final String PSQL_USER = "PSQL_USER";
+  protected static final String PSQL_USER = "PSQL_USER";
 
   /**
    * A constant that is normally used as environment variable name for the password.
    */
-  static final String PSQL_PASSWORD = "PSQL_PASSWORD";
+  protected static final String PSQL_PASSWORD = "PSQL_PASSWORD";
 
   /**
    * A constant that is normally used as environment variable name for the schema.
    */
   private static final String PSQL_SCHEMA = "PSQL_SCHEMA";
 
-  static final String ECPS_PHRASE = "ECPS_PHRASE";
+  protected static final String ECPS_PHRASE = "ECPS_PHRASE";
 
-  private final static String DEFAULT_ECPS = "default";
+  protected final static String DEFAULT_ECPS = "default";
 
   /**
    * The maximal amount of concurrent connections, default is one, normally only increased for embedded lambda.
@@ -90,6 +89,8 @@ class PSQLConfig {
   private final Map<String, Object> connectorParams;
 
   private Context context;
+  private boolean propertySearch;
+  private boolean autoIndexing;
 
   private Map<String, Object> readECPS(String ecps) {
     if (DEFAULT_ECPS.equals(ecps)) {
@@ -103,12 +104,12 @@ class PSQLConfig {
    * Decodes the connector parameters.
    */
   @SuppressWarnings("unchecked")
-  static Map<String, Object> decryptECPS(String ecps, String phrase) {
+  private static Map<String, Object> decryptECPS(String ecps, String phrase) {
     try {
-      return new ObjectMapper().readValue(AESHelper.getInstance(phrase).decrypt(ecps), Map.class);
+      return new ObjectMapper().readValue(AESGCMHelper.getInstance(phrase).decrypt(ecps), Map.class);
     } catch (Exception e) {
-      logger.error("Unable to read the encrypted connector parameter settings.");
-      throw new RuntimeException(e);
+        logger.error("Unable to read the encrypted connector parameter settings.");
+        throw new RuntimeException(e);
     }
   }
 
@@ -116,11 +117,11 @@ class PSQLConfig {
    * A method to decode connector parameters.
    */
   @SuppressWarnings("unused")
-  static String encryptCPS(String connectorParams, String phrase) throws Exception {
-    return new AESHelper(phrase).encrypt(connectorParams);
+  protected static String encryptCPS(String connectorParams, String phrase) throws Exception {
+    return new AESGCMHelper(phrase).encrypt(connectorParams);
   }
 
-  static String getECPS(Event event) {
+  protected static String getECPS(Event event) {
     if (event == null || event.getConnectorParams() == null || event.getConnectorParams().get("ecps") == null) {
       return DEFAULT_ECPS;
     }
@@ -133,7 +134,7 @@ class PSQLConfig {
    *
    * @return the maximal amount of concurrent connections to be used.
    */
-  int maxPostgreSQLConnections() {
+  protected int maxPostgreSQLConnections() {
     try {
       return Integer.parseInt(readEnv(PSQL_MAX_CONN), 10);
     } catch (Exception e) {
@@ -146,7 +147,7 @@ class PSQLConfig {
    *
    * @return the host of the PostgreSQL service.
    */
-  String host() {
+  protected String host() {
     final String host = readEnv(PSQL_HOST);
     if (host != null) {
       return host;
@@ -159,7 +160,7 @@ class PSQLConfig {
    *
    * @return the host of the PostgreSQL service.
    */
-  String replica() {
+  protected String replica() {
     return readEnv(PSQL_REPLICA_HOST);
   }
 
@@ -168,7 +169,7 @@ class PSQLConfig {
    *
    * @return the port of the PostgreSQL service.
    */
-  int port() {
+  protected int port() {
     final String portText = readEnv(PSQL_PORT);
     if (portText != null) {
       try {
@@ -188,7 +189,7 @@ class PSQLConfig {
    *
    * @return the database to connect to.
    */
-  String database() {
+  protected String database() {
     final String db = readEnv(PSQL_DB);
     if (db != null) {
       return db;
@@ -201,7 +202,7 @@ class PSQLConfig {
    *
    * @return the user to connect with.
    */
-  String user() {
+  protected String user() {
     final String user = readEnv(PSQL_USER);
     if (user != null) {
       return user;
@@ -214,7 +215,7 @@ class PSQLConfig {
    *
    * @return the password to connect with.
    */
-  String password() {
+  protected String password() {
     final String password = readEnv(PSQL_PASSWORD);
     if (password != null) {
       return password;
@@ -227,10 +228,17 @@ class PSQLConfig {
 
   private String applicationName;
 
-  PSQLConfig(Event event, Context context) {
+  public PSQLConfig(Event event, Context context) {
     this.context = context;
     this.connectorParams = readECPS(getECPS(event));
     this.applicationName = context.getFunctionName();
+
+    if(event.getConnectorParams() != null){
+      if(event.getConnectorParams().get("autoIndexing") == Boolean.TRUE)
+        this.autoIndexing = true;
+      if(event.getConnectorParams().get("propertySearch") == Boolean.TRUE)
+        this.propertySearch = true;
+    }
   }
 
   private String readEnv(String name) {
@@ -257,12 +265,12 @@ class PSQLConfig {
   }
 
 
-  boolean isReadOnly() {
+  protected boolean isReadOnly() {
     String READ_ONLY = "READ_ONLY";
     return "true".equals(readEnv(READ_ONLY));
   }
 
-  String schema() {
+  protected String schema() {
     final String schema = readEnv(PSQL_SCHEMA);
     if (schema != null) {
       return schema;
@@ -271,7 +279,7 @@ class PSQLConfig {
     return "public";
   }
 
-  String table(Event event) {
+  protected String table(Event event) {
     if (event != null && event.getSpace() != null && event.getSpace().length() > 0) {
       return event.getSpace();
     }
@@ -279,88 +287,73 @@ class PSQLConfig {
     return null;
   }
 
-  String applicationName() {
+  protected String applicationName() {
     return applicationName;
   }
 
-  public static class AESHelper {
+  protected boolean isPropertySearchActivated(){
+    return propertySearch;
+  }
 
-    private static Map<String, AESHelper> helpers = new HashMap<>();
-    public byte[] key;
+  protected boolean isAutoIndexingActivated(){
+    return autoIndexing;
+  }
+
+  protected Integer onDemandLimit(){
+    if(connectorParams != null && connectorParams.get("onDemandIdxLimit") != null)
+      return  (Integer) connectorParams.get("onDemandIdxLimit");
+    return null;
+  }
+
+  /**
+   * Encrypt and decrypt ECPS Strings by using AesGcm
+   */
+  public static class AESGCMHelper {
+    private static Map<String, AESGCMHelper> helpers = new HashMap<>();
+    private AesGcmJce key;
+
+    {
+      try {
+        AeadConfig.register();
+      }catch (Exception e){
+        logger.error("Cant register AeadConfig",e);
+      }
+    }
 
     /**
      * Returns an instance helper for this passphrase.
-     *
      * @param passphrase The passphrase from which to derive a key.
      */
     @SuppressWarnings("WeakerAccess")
-    public static AESHelper getInstance(String passphrase) {
+    protected static AESGCMHelper getInstance(String passphrase) throws GeneralSecurityException {
       if (helpers.get(passphrase) == null) {
-        helpers.put(passphrase, new AESHelper(passphrase));
+        helpers.put(passphrase, new AESGCMHelper(passphrase));
       }
       return helpers.get(passphrase);
     }
 
-
-    public AESHelper(String passphrase) {
-      //noinspection UnstableApiUsage
-      this.key = Arrays.copyOf(Hashing.sha256().newHasher().putBytes(passphrase.getBytes()).hash().asBytes(), 16);
+    protected AESGCMHelper(String passphrase) throws GeneralSecurityException {
+      /** If required - adjust passphrase to 128bit length */
+      this.key = new AesGcmJce( Arrays.copyOfRange((passphrase == null ? "" : passphrase).getBytes(), 0, 16) );
     }
 
     /**
      * Decrypts the given string.
-     *
      * @param data The Base 64 encoded string representation of the encrypted bytes.
      */
-    String decrypt(String data) throws IllegalBlockSizeException, BadPaddingException {
-      return new String(decrypt(Base64.getDecoder().decode(data)), StandardCharsets.UTF_8);
-    }
-
-    /**
-     * Decrypts the given bytes.
-     */
-    byte[] decrypt(byte[] data) throws IllegalBlockSizeException, BadPaddingException {
-      return decryptCipher.get().doFinal(data);
+    protected String decrypt(String data) throws GeneralSecurityException {
+      byte[] decrypted = key.decrypt(Base64.getDecoder().decode(data), null);
+      return new String(decrypted);
     }
 
     /**
      * Encrypts the provided string.
-     *
      * @param data The string to encode
      * @return A Base 64 encoded string, which represents the encoded bytes.
      */
-    String encrypt(String data) throws IllegalBlockSizeException, BadPaddingException {
-      return new String(Base64.getEncoder().encode(encrypt(data.getBytes())));
+    protected String encrypt(String data) throws UnsupportedEncodingException, GeneralSecurityException {
+      byte[] encrypted = key.encrypt(data.getBytes(), null);
+      return new String(Base64.getEncoder().encode(encrypted));
     }
-
-    /**
-     * Encrypts the provided byte array.
-     */
-    byte[] encrypt(byte[] data) throws IllegalBlockSizeException, BadPaddingException {
-      final Cipher ec = encryptCipher.get();
-      return ec.doFinal(data);
-    }
-
-    private final ThreadLocal<Cipher> decryptCipher = ThreadLocal.withInitial(() -> {
-      try {
-        Cipher dc = Cipher.getInstance("AES/ECB/PKCS5Padding");
-        dc.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "AES"));
-        return dc;
-      } catch (Exception e) {
-        logger.error("Exception when initializing the decrypt cypher.", e);
-        return null;
-      }
-    });
-
-    private final ThreadLocal<Cipher> encryptCipher = ThreadLocal.withInitial(() -> {
-      try {
-        Cipher ec = Cipher.getInstance("AES/ECB/PKCS5Padding");
-        ec.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"));
-        return ec;
-      } catch (Exception e) {
-        logger.error("Exception when initializing the decrypt cypher.", e);
-        return null;
-      }
-    });
   }
 }

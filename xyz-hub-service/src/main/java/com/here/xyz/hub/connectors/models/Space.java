@@ -74,7 +74,7 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
   public static void resolveConnector(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler) {
     Service.connectorConfigClient.get(marker, connectorId, arStorage -> {
       if (arStorage.failed()) {
-        logger.info(marker, "Unable to load the connector definition for storage '{}'",
+        logger.error(marker, "Unable to load the connector definition for storage '{}'",
             connectorId, arStorage.cause());
       } else {
         final Connector storage = arStorage.result();

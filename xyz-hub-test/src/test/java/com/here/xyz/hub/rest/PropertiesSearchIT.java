@@ -26,6 +26,9 @@ import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.equalTo;
 
 import java.util.concurrent.TimeUnit;
+
+import com.jayway.restassured.RestAssured;
+
 import org.awaitility.Durations;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -47,6 +50,84 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
   }
 
   @Test
+  public void testContains() {
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.stringArray@>foo1").
+            then().
+            body("features.size()", equalTo(1));
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.stringArray=cs=foo2").
+            then().
+            body("features.size()", equalTo(2));
+
+    boolean bFlag = RestAssured.urlEncodingEnabled;
+    RestAssured.urlEncodingEnabled = false;
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.stringArray=cs=foo1,NA").
+            then().
+            body("features.size()", equalTo(1));
+    RestAssured.urlEncodingEnabled = bFlag;
+
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.stringArray=cs=NA").
+            then().
+            body("features.size()", equalTo(0));
+
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.intArray@>1").
+            then().
+            body("features.size()", equalTo(1));
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.intArray=cs=2").
+            then().
+            body("features.size()", equalTo(2));
+
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            queryParam("p.objectArray@>{\"foo1\":1}").
+            get("/spaces/x-psql-test/search").
+            then().
+            body("features.size()", equalTo(1));
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            queryParam("p.objectArray=cs={\"foo2\":2}").
+            get("/spaces/x-psql-test/search").
+            then().
+            body("features.size()", equalTo(2));
+
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            queryParam("p.nestedObjectArray@>{\"foo\":{\"foo1\":{\"foo2\":2}}}").
+            get("/spaces/x-psql-test/search").
+            then().
+            body("features.size()", equalTo(1));
+  }
+
+  @Test
   public void testGreaterThan() {
     given().
         accept(APPLICATION_GEO_JSON).
@@ -63,6 +144,33 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
         get("/spaces/x-psql-test/search?p.capacity=gt=50000").
         then().
         body("features.size()", equalTo(133));
+
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        when().
+        get("/spaces/x-psql-test/search?p.capacity>50000=").
+        then().
+        body("features.size()", equalTo(133));
+  }
+
+  @Test
+  public void testGreaterThanEquals() {
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        when().
+        get("/spaces/x-psql-test/search?p.capacity>=50000").
+        then().
+        body("features.size()", equalTo(150));
+
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        when().
+        get("/spaces/x-psql-test/search?p.capacity=gte=50000").
+        then().
+        body("features.size()", equalTo(150));
   }
 
   @Test
@@ -71,17 +179,44 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         when().
-        get("/spaces/x-psql-test/search?p.capacity>50000").
+        get("/spaces/x-psql-test/search?p.capacity<50000").
         then().
-        body("features.size()", equalTo(133));
+        body("features.size()", equalTo(102));
 
     given().
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         when().
-        get("/spaces/x-psql-test/search?p.capacity=gt=50000").
+        get("/spaces/x-psql-test/search?p.capacity=lt=50000").
         then().
-        body("features.size()", equalTo(133));
+        body("features.size()", equalTo(102));
+
+    given().
+       accept(APPLICATION_GEO_JSON).
+       headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+       when().
+       get("/spaces/x-psql-test/search?p.capacity<50000=").
+       then().
+       body("features.size()", equalTo(102));
+  }
+
+  @Test
+  public void testLessThanEquals() {
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        when().
+        get("/spaces/x-psql-test/search?p.capacity<=50000").
+        then().
+        body("features.size()", equalTo(119));
+
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        when().
+        get("/spaces/x-psql-test/search?p.capacity=lte=50000").
+        then().
+        body("features.size()", equalTo(119));
   }
 
   @Test
@@ -102,6 +237,42 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
         then().
         body("features.size()", equalTo(1)).
         body("features[0].properties.name", equalTo("Arizona Stadium"));
+
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        when().
+        get("/spaces/x-psql-test/search?p.name=").
+        then().
+        body("features.size()", equalTo(1)).
+        body("features[0].properties.name", equalTo(""));
+  }
+
+  @Test
+  public void testNotEquals() {
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.capacity!=50000").
+            then().
+            body("features.size()", equalTo(235));
+
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.name!=Arizona Stadium").
+            then().
+            body("features.size()", equalTo(251));
+
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.name!=").
+            then().
+            body("features.size()", equalTo(251));
   }
 
   @Test
@@ -159,7 +330,53 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
         body("features.size()", equalTo(252));
   }
 
-  /*
+  @Test
+  public void testSpecialCharactersProperty() {
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.sport=association = football").
+            then().
+            body("features.size()", equalTo(1));
+
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.sport=association <= football").
+            then().
+            body("features.size()", equalTo(1));
+
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.sport=association =gte= football").
+            then().
+            body("features.size()", equalTo(1));
+
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.sport=association --> football").
+            then().
+            body("features.size()", equalTo(1));
+  }
+
+  @Test
+  public void testSearchWithoutValues() {
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/search?p.sport=&p.sport>=&p.sport=gte=&foo=bar").
+            then().
+            body("features.size()", equalTo(0));
+  }
+
+    /*
    * Test is commented out because it takes too long to execute, since the indexes should be created by the connector for the test be valid.
    * Only kept here for future reference
    */

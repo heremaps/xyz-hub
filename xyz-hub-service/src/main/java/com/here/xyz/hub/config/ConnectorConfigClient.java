@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@ public abstract class ConnectorConfigClient implements Initializable {
         cache.put(connectorId, connector);
         handler.handle(Future.succeededFuture(connector));
       } else {
-        logger.info(marker, "storageId[{}]: Connector not found", connectorId);
+        logger.error(marker, "storageId[{}]: Connector not found", connectorId);
         handler.handle(Future.failedFuture(ar.cause()));
       }
     });
@@ -104,7 +104,7 @@ public abstract class ConnectorConfigClient implements Initializable {
         }
         handler.handle(Future.succeededFuture(connectorResult));
       } else {
-        logger.info(marker, "storageId[{}]: Failed to store connector configuration, reason: ", connector.id, ar.cause());
+        logger.error(marker, "storageId[{}]: Failed to store connector configuration, reason: ", connector.id, ar.cause());
         handler.handle(Future.failedFuture(ar.cause()));
       }
     });
@@ -117,7 +117,7 @@ public abstract class ConnectorConfigClient implements Initializable {
         invalidateCache(connectorId);
         handler.handle(Future.succeededFuture(connectorResult));
       } else {
-        logger.info(marker, "storageId[{}]: Failed to store connector configuration, reason: ", connectorId, ar.cause());
+        logger.error(marker, "storageId[{}]: Failed to store connector configuration, reason: ", connectorId, ar.cause());
         handler.handle(Future.failedFuture(ar.cause()));
       }
     });
@@ -130,7 +130,7 @@ public abstract class ConnectorConfigClient implements Initializable {
         connectors.forEach(c -> cache.put(c.id, c));
         handler.handle(Future.succeededFuture(connectors));
       } else {
-        logger.info(marker, "Failed to load connectors, reason: ", ar.cause());
+        logger.error(marker, "Failed to load connectors, reason: ", ar.cause());
         handler.handle(Future.failedFuture(ar.cause()));
       }
     });
@@ -168,7 +168,7 @@ public abstract class ConnectorConfigClient implements Initializable {
         return null;
       });
     } catch (IOException e) {
-      logger.info("Unable to insert the local connectors.");
+      logger.error("Unable to insert the local connectors.");
       handler.handle(Future.failedFuture(e));
     }
   }
@@ -187,6 +187,9 @@ public abstract class ConnectorConfigClient implements Initializable {
         map.put("PSQL_PORT", String.valueOf(uri.getPort() == -1 ? 5432 : uri.getPort()));
         map.put("PSQL_USER", Service.configuration.STORAGE_DB_USER);
         map.put("PSQL_PASSWORD", Service.configuration.STORAGE_DB_PASSWORD);
+        String[] pathComponent = ( uri.getPath() == null ? null : uri.getPath().split("/") );
+        if( pathComponent != null && pathComponent.length > 1 )
+         map.put("PSQL_DB", pathComponent[1]);
       }
 
       final Embedded embedded = (Embedded) connector.remoteFunction;

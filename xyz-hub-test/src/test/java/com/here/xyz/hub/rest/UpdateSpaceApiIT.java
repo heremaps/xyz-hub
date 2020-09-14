@@ -21,6 +21,7 @@ package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.jayway.restassured.RestAssured.given;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -62,5 +63,14 @@ public class UpdateSpaceApiIT extends TestSpaceWithFeature {
             body("storage.id", equalTo("psql")).
             body("updatedAt", not(equalTo(createdAt))).
             body("tags.size", equalTo(2));
+
+        /** Test immutable UUID */
+        given().
+            accept(APPLICATION_JSON).
+            contentType(APPLICATION_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            body(content("/xyz/hub/createSpaceWithUUID.json")).
+            when().patch("/spaces/x-psql-test").then()
+                .statusCode(BAD_REQUEST.code());
     }
 }

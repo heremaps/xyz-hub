@@ -1,10 +1,28 @@
+--
+-- Copyright (C) 2017-2019 HERE Europe B.V.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+-- http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+-- SPDX-License-Identifier: Apache-2.0
+-- License-Filename: LICENSE
+--
 -- SET search_path=xyz,h3,public,topology
 -- CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;
 -- CREATE EXTENSION IF NOT EXISTS postgis_topology;
 -- CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;
 
 -- DROP FUNCTION xyz_index_status();
--- DROP FUNCTION xyz_create_idxs_over_dblink(text, integer, integer, integer, text[], text, text, text, integer, text);
+-- DROP FUNCTION xyz_create_idxs_over_dblink(text, integer, integer, integer, text[], text, text, text,text, integer, text);
 -- DROP FUNCTION xyz_space_bbox(text, text, integer);
 -- DROP FUNCTION xyz_update_dummy_v5();
 -- DROP FUNCTION xyz_index_check_comments(text, text);
@@ -35,6 +53,8 @@
 -- DROP FUNCTION xyz_statistic_xs_space(text, text);
 -- DROP FUNCTION xyz_create_idxs_for_space(text, text);
 -- DROP FUNCTION xyz_remove_unnecessary_idx(text, integer);
+-- DROP FUNCTION xyz_index_dissolve_datatype(text);
+-- DROP FUNCTION xyz_index_get_plain_propkey(text);
 -- DROP FUNCTION IF EXISTS xyz_qk_point2lrc(geometry, integer);
 -- DROP FUNCTION IF EXISTS xyz_qk_lrc2qk(integer,integer,integer);
 -- DROP FUNCTION IF EXISTS xyz_qk_qk2lrc(text );
@@ -47,7 +67,7 @@
 ------ ENV: XYZ-CIT ; SPACE: QgQCHStH ; OWNER: psql
 ---------------------------------------------------------------------------------
 -- xyz_index_status							:	select * from xyz_index_status();
--- xyz_create_idxs_over_dblink				:	select xyz_create_idxs_over_dblink('xyz', 20, 0, 2, ARRAY['postgres'], 'psql', 'xxx', 'xyz', 5432, 'xyz,h3,public,topology');
+-- xyz_create_idxs_over_dblink				:	select xyz_create_idxs_over_dblink('xyz', 20, 0, 2, ARRAY['postgres'], 'psql', 'xxx', 'xyz', 'localhost', 5432, 'xyz,h3,public,topology');
 -- xyz_space_bbox							:	select * from xyz_space_bbox('xyz', 'QgQCHStH', 1000);
 -- xyz_update_dummy_v5						:	select xyz_update_dummy_v5();
 -- xyz_index_check_comments					:	select xyz_index_check_comments('xyz', 'QgQCHStH');
@@ -83,6 +103,8 @@
 -- xyz_qk_grird								:	select xyz_qk_grird(3)
 -- xyz_qk_child_calculation					:	select select * from xyz_qk_child_calculation('012',3,null)
 -- xyz_count_estimation                     :   select xyz_count_estimation('select 1')
+-- xyz_index_get_plain_propkey              : select xyz_index_get_plain_propkey('foo.bar::string')
+-- xyz_index_dissolve_datatype              : select xyz_index_dissolve_datatype('foo.bar::array')
 ---------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------
 -- xyz_qk_point2lrc							:	select * from xyz_qk_point2lrc( ST_GeomFromText( 'POINT( -64.78767  32.29703)' ), 3 );
@@ -121,16 +143,192 @@
 --			where spaceid != 'idx_in_progess' order by count desc
 ------------------------------------------------------------------------------------------------
 ------------------------------------------------
-DROP FUNCTION IF EXISTS xyz_create_idxs_v2(text, integer, integer);
-DROP FUNCTION IF EXISTS xyz_create_idxs_over_dblink(text, integer, integer, text, text, text, integer, text);
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 123
+ select 132
 $BODY$
   LANGUAGE sql IMMUTABLE;
+------------------------------------------------
+------------------------------------------------
+-- Function: xyz_index_dissolve_datatype(text)
+-- DROP FUNCTION xyz_index_dissolve_datatype(text);
+CREATE OR REPLACE FUNCTION xyz_index_dissolve_datatype(propkey text)
+  RETURNS text AS
+$BODY$
+	/**
+	* Description: Get a specified datatype from a propkey.
+	*
+	*		prefix = foo.bar::array => array
+	*
+	* Parameters:
+	*   		@propkey - path of json-key inside jsondata->'properties' object (eg. foo | foo.bar)
+	*
+	* Returns:
+	*   datatype	- array / object / string / number / boolean
+	*/
+	DECLARE datatype TEXT;
+
+	BEGIN
+		IF (POSITION('::' in propkey) > 0) THEN
+			datatype :=  lower(substring(propkey, position('::' in propkey)+2));
+			IF datatype IN ('object','array','number','string','boolean') THEN
+				RETURN datatype;
+			END IF;
+		END IF;
+		RETURN NULL;
+	END;
+$BODY$
+  LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+-- Function: xyz_index_get_plain_propkey(text)
+-- DROP FUNCTION xyz_index_get_plain_propkey(text);
+CREATE OR REPLACE FUNCTION xyz_index_get_plain_propkey(propkey text)
+  RETURNS text AS
+$BODY$
+	/**
+	* Description: Get the plain propkey.
+	*
+	*		prefix = foo.bar::array => foo.bar
+	*
+	* Parameters:
+	*   		@propkey - path of json-key inside jsondata->'properties' object (eg. foo | foo.bar)
+	*
+	* Returns:
+	*   propkey	- json-key without datatype
+	*/
+	DECLARE datatype TEXT;
+
+	BEGIN
+		IF (POSITION('::' in propkey) > 0) THEN
+			datatype :=  lower(substring(propkey, position('::' in propkey)+2));
+			IF datatype IN ('object','array','number','string','boolean') THEN
+				return substring(propkey, 0, position('::' in propkey));
+			END IF;
+		END IF;
+		RETURN propkey;
+	END;
+$BODY$
+  LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_trigger_historywriter_full()
+  RETURNS trigger AS
+$BODY$
+	DECLARE oldest_uuids text[];
+	DECLARE max_version_cnt integer := COALESCE(TG_ARGV[0]::NUMERIC::INTEGER,10);
+	DECLARE max_version_diff integer;
+	DECLARE uuid_deletes text[];
+
+	BEGIN
+		IF TG_OP = 'INSERT' THEN
+			EXECUTE
+				format('INSERT INTO'
+					||' %s."%s_hst" (uuid,jsondata,geo)'
+					||' VALUES( %L,%L,%L)',TG_TABLE_SCHEMA, TG_TABLE_NAME, NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo);
+			RETURN NEW;
+		END IF;
+
+		IF max_version_cnt != -1 THEN
+			--IF MORE THAN max_version_cnt ARE EXISTING DELETE OLDEST ENTRIES
+			EXECUTE
+				format('SELECT array_agg(uuid)'
+					|| 'FROM( '
+					|| '	select uuid FROM %s."%s_hst" '
+					|| '		WHERE jsondata->>''id'' = %L ORDER BY jsondata->''properties''->''@ns:com:here:xyz''->''updatedAt'' ASC'
+					|| ') A',TG_TABLE_SCHEMA, TG_TABLE_NAME, OLD.jsondata->>'id'
+				) into oldest_uuids;
+
+			max_version_diff := array_length(oldest_uuids,1) - max_version_cnt;
+
+			IF max_version_diff >= 0 THEN
+				-- DELETE OLDEST ENTRIES
+				FOR i IN 1..max_version_diff+1 LOOP
+					select array_append(uuid_deletes, oldest_uuids[i])
+						INTO uuid_deletes;
+				END LOOP;
+				EXECUTE
+					format('DELETE FROM %s."%s_hst" WHERE uuid = ANY(%L)',TG_TABLE_SCHEMA, TG_TABLE_NAME, uuid_deletes);
+			END IF;
+		END IF;
+
+		IF TG_OP = 'UPDATE' THEN
+			EXECUTE
+				format('INSERT INTO'
+					||' %s."%s_hst" (uuid,jsondata,geo)'
+					||' VALUES( %L,%L,%L)',TG_TABLE_SCHEMA, TG_TABLE_NAME, NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo);
+			RETURN NEW;
+
+		ELSEIF TG_OP = 'DELETE' THEN
+			EXECUTE
+				format('INSERT INTO'
+					||' %s."%s_hst" (uuid,jsondata,geo)'
+					||' VALUES( %L,%L,%L)',TG_TABLE_SCHEMA, TG_TABLE_NAME,
+					OLD.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' || '_deleted',
+					jsonb_set(OLD.jsondata,'{properties,@ns:com:here:xyz}', ('{"deleted":true}'::jsonb  || (OLD.jsondata->'properties'->'@ns:com:here:xyz')::jsonb)),
+					OLD.geo);
+			RETURN OLD;
+		END IF;
+	END;
+$BODY$
+language plpgsql;
+
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_trigger_historywriter()
+  RETURNS trigger AS
+$BODY$
+	DECLARE path text[];
+	DECLARE max_version_cnt integer := COALESCE(TG_ARGV[0]::NUMERIC::INTEGER,10);
+	DECLARE max_version_diff integer;
+	DECLARE uuid_deletes text[];
+
+	BEGIN
+        IF max_version_cnt != -1 THEN
+            --IF MORE THAN max_version_cnt ARE EXISTING DELETE OLDEST ENTRIES
+            EXECUTE
+                format('SELECT array_agg(uuid)'
+                    || 'FROM( '
+                    || '	select uuid FROM %s."%s_hst" '
+                    || '		WHERE jsondata->>''id'' = %L ORDER BY jsondata->''properties''->''@ns:com:here:xyz''->''updatedAt'' ASC'
+                    || ') A',TG_TABLE_SCHEMA, TG_TABLE_NAME, OLD.jsondata->>'id'
+                ) into path;
+
+            max_version_diff := array_length(path,1) - max_version_cnt;
+
+            IF max_version_diff >= 0 THEN
+                -- DELETE OLDEST ENTRIES
+                FOR i IN 1..max_version_diff+1 LOOP
+                    select array_append(uuid_deletes, path[i])
+                        INTO uuid_deletes;
+                END LOOP;
+                EXECUTE
+                    format('DELETE FROM %s."%s_hst" WHERE uuid = ANY(%L)',TG_TABLE_SCHEMA, TG_TABLE_NAME, uuid_deletes);
+            END IF;
+        END IF;
+
+		IF TG_OP = 'UPDATE' THEN
+			EXECUTE
+				format('INSERT INTO'
+					||' %s."%s_hst" (uuid,jsondata,geo)'
+					||' VALUES( %L,%L,%L)',TG_TABLE_SCHEMA, TG_TABLE_NAME, OLD.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', OLD.jsondata, OLD.geo);
+			RETURN NEW;
+		ELSEIF TG_OP = 'DELETE' THEN
+			EXECUTE
+				format('INSERT INTO'
+					||' %s."%s_hst" (uuid,jsondata,geo)'
+                    ||' VALUES( %L,%L,%L)',TG_TABLE_SCHEMA, TG_TABLE_NAME,
+						OLD.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid',
+						jsonb_set(OLD.jsondata,'{properties,@ns:com:here:xyz}', ('{"deleted":true}'::jsonb  || (OLD.jsondata->'properties'->'@ns:com:here:xyz')::jsonb)),
+						OLD.geo);
+			RETURN OLD;
+		END IF;
+	END;
+$BODY$
+language plpgsql;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_count_estimation(query text)
@@ -205,13 +403,12 @@ $BODY$
 
 		/**
 		* If count is set to 16, whole indexing (auto / on-demand) is deactivated
-		* If count is set to 32, only on-demand indexing is activated. (auto-indexing disabled)
 		*/
 		SELECT count into status
 			from xyz_config.xyz_idxs_status
 				WHERE spaceid='idx_in_progress';
 
-		IF status != 0 THEN
+		IF status = 16 THEN
 			RETURN status;
 		END IF;
 
@@ -237,17 +434,18 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_create_idxs_over_dblink(text, integer, integer, integer, text[], text, text, text, integer, text)
--- DROP FUNCTION xyz_create_idxs_over_dblink(text, integer, integer, integer, text[], text, text, text, integer, text);
+-- Function: xyz_create_idxs_over_dblink(text, integer, integer, integer, text[], text, text, text, text, integer, text)
+-- DROP FUNCTION xyz_create_idxs_over_dblink(text, integer, integer, integer, text[], text, text, text, text, integer, text);
 CREATE OR REPLACE FUNCTION xyz_create_idxs_over_dblink(
 	schema text,
 	lim integer,
 	off integer,
 	mode integer,
-    	owner_list text[],
+    owner_list text[],
 	usr text,
 	pwd text,
 	dbname text,
+	host text,
 	port integer,
 	searchp text)
 		RETURNS void AS
@@ -259,7 +457,7 @@ CREATE OR REPLACE FUNCTION xyz_create_idxs_over_dblink(
 		*   @schema	- schema in which the xyz-spaces are located
 		*   @lim 	- max amount of spaces to iterate over
 		*   @off 	- offset, required for parallel executions
-		*   @mode 	- 0 = only indexing, 1 = statistics+indexing , 2 = statistic, analyzing, indexing
+		*   @mode 	- 0 = only indexing, 1 = statistics+indexing, 2 = statistic, analyzing, indexing (auto-indexing)
 		*   @owner_list	- list of database users which has the tables created (owner). Normally is this only one user.
 		*   @usr 	- database user
 		*   @pwd	- database user password
@@ -269,7 +467,7 @@ CREATE OR REPLACE FUNCTION xyz_create_idxs_over_dblink(
 		*/
 
 		DECLARE
-			v_conn_str  text := 'port='||port||' dbname='||dbname||' host=localhost user='||usr||' password='||pwd||' options=-csearch_path='||searchp||'';
+			v_conn_str  text := 'port='||port||' dbname='||dbname||' host='||host||' user='||usr||' password='||pwd||' options=-csearch_path='||searchp||'';
 			v_query     text;
 		BEGIN
 			v_query := 'select xyz_create_idxs('''||schema||''',100, 0, '||mode||', '''||owner_list::text||''')';
@@ -447,7 +645,7 @@ $BODY$
 		idx_type text := 'btree';
 	BEGIN
 		source = lower(source);
-		select into prop_path concat('''',replace(propkey, '.', '''->'''),'''');
+		select into prop_path concat('''',replace(xyz_index_get_plain_propkey(propkey), '.', '''->'''),'''');
 
 		IF source not in ('a','m') THEN
 			RAISE NOTICE 'Source ''%'' not supported. Use ''m'' for manual or ''a'' for automatic!',source;
@@ -465,7 +663,7 @@ $BODY$
 
 		EXECUTE format('COMMENT ON INDEX %s."%s" '
 				||'IS ''p.name=%s''',
-			schema, idx_name, propkey);
+			schema, idx_name, xyz_index_get_plain_propkey(propkey));
 
 		RETURN idx_name;
 	END
@@ -491,6 +689,7 @@ $BODY$
 	*   @schema	- schema in which the XYZ-spaces are located
 	*   @space - id of the XYZ-space (tablename)
 	*/
+    DECLARE xyz_space_exists record;
 
 	DECLARE xyz_space_stat record;
 	DECLARE xyz_manual_idx record;
@@ -500,6 +699,17 @@ $BODY$
 	DECLARE idx_false_list TEXT[];
 
 	BEGIN
+		/** Check if table is present */
+		select 1 into xyz_space_exists
+			from pg_tables WHERE tablename =space and schemaname = schema;
+		IF xyz_space_exists IS NULL THEN
+			DELETE FROM xyz_config.xyz_idxs_status
+				WHERE spaceid = space
+					AND schem = schema;
+			RAISE NOTICE 'SPACE DOES NOT EXIST %."%" ', schema, space;
+			RETURN;
+		END IF;
+
 		/** set indication that idx creation is running */
 		UPDATE xyz_config.xyz_idxs_status
 			SET idx_creation_finished = false
@@ -522,7 +732,6 @@ $BODY$
 					(jsonb_each(idx_manual)).value::text::boolean as idx_required
 						FROM xyz_config.xyz_idxs_status
 					WHERE idx_creation_finished = false
-						--AND count >= 10
 						AND spaceid = space
 			) A
 		LOOP
@@ -550,21 +759,19 @@ $BODY$
 
 		/** Search created ON-DEMAND IDXs which are no longer getting used */
 		FOR xyz_needless_manual_idx IN
-			SELECT idx_property as prop, idx_name FROM (
-				SELECT idx_property,idx_name,
-				(
-					SELECT property=idx_property as idx_manual_prop FROM (
-						SELECT  (jsonb_each(idx_manual)).key as property,
-							(jsonb_each(idx_manual)).value::text::boolean as idx_required
-						FROM xyz_config.xyz_idxs_status
-							where spaceid = space
-					)A WHERE property=idx_property
-				)
+			SELECT idx_name, idx_property
 				FROM xyz_index_list_all_available(schema,space)
-				      WHERE src='m'
-			) A WHERE idx_manual_prop is null
+					WHERE src='m'
+			EXCEPT
+			SELECT idx_name, idx_property FROM(
+				SELECT  xyz_index_get_plain_propkey((jsonb_each(idx_manual)).key) as idx_property,
+					xyz_index_name_for_property(space, (jsonb_each(idx_manual)).key, 'm') as idx_name,
+					(jsonb_each(idx_manual)).value::text::boolean as idx_required
+					FROM xyz_config.xyz_idxs_status
+						where spaceid = space
+			) A WHERE idx_required = true
 		LOOP
-			RAISE NOTICE '-- PROPERTY: % | SPACE: % |> DELETE UNWANTED IDX: %!',xyz_needless_manual_idx.prop, space, xyz_needless_manual_idx.idx_name;
+			RAISE NOTICE '-- PROPERTY: % | SPACE: % |> DELETE UNWANTED IDX: %!',xyz_needless_manual_idx.idx_property, space, xyz_needless_manual_idx.idx_name;
 			EXECUTE FORMAT ('DROP INDEX IF EXISTS %s."%s" ', schema, xyz_needless_manual_idx.idx_name);
 		END LOOP;
 
@@ -653,13 +860,14 @@ $BODY$
 		END IF;
 
 		FOR xyz_space_stat IN
-			SELECT * FROM xyz_config.xyz_idxs_status
-				WHERE count > 0
-					AND idx_creation_finished = false
-					AND count < 5000000
-					AND schem = schema
-				 ORDER BY count, spaceid
-					LIMIT lim OFFSET off
+			SELECT * FROM xyz_config.xyz_idxs_status A
+				LEFT JOIN pg_tables B ON (B.tablename = A.spaceid)
+			WHERE
+				idx_creation_finished = false
+				AND b.tablename is not null
+				AND schem = schema
+			 ORDER BY count, spaceid
+				LIMIT lim OFFSET off
 		LOOP
 			RAISE NOTICE 'MAINTAIN IDX FOR: % !',xyz_space_stat.spaceid;
 			PERFORM xyz_maintain_idxs_for_space(schema, xyz_space_stat.spaceid);
@@ -755,10 +963,14 @@ $BODY$
 	*	datatype		- string | number | boolean | object | array | null
 	*/
 
-	DECLARE datatype TEXT;
+	DECLARE datatype TEXT := xyz_index_dissolve_datatype(propertypath);
 	DECLARE json_proppath TEXT;
 
 	BEGIN
+		IF (datatype IS NOT NULL) THEN
+			RETURN datatype;
+		END IF;
+
 		SELECT xyz_property_path(propertypath) into json_proppath;
 
 		EXECUTE format('SELECT jsonb_typeof((jsondata->''properties''->%s)::jsonb)::text '
@@ -832,7 +1044,7 @@ $BODY$
 					|| '	UNION '
 					|| '	SELECT  propkey, '
 					|| '		COALESCE(COUNT(*)::numeric::INTEGER, 0) as count, '
-					|| '		(SELECT '''||idxlist||''' @> (format(''"%s"'',replace(propkey,''"'',''\"'')))::jsonb) as searchable, '
+					|| '		(SELECT '''||idxlist||''' @>  to_jsonb(propkey)) as searchable, '
 					|| '		(SELECT * from xyz_property_datatype('''||schema||''','''||spaceid||''',propkey,1000)) as datatype '
 					|| '			FROM( 	'
 					|| '				SELECT jsonb_object_keys(jsondata->''properties'') as propkey '
@@ -858,7 +1070,7 @@ $BODY$
 				|| '	UNION '
 				|| '	SELECT  propkey, '
 				|| '		TRUNC(((COUNT(*)/1000::real) * '||estimate_cnt||')::numeric, 0)::INTEGER as count, '
-				|| '		(SELECT '''||idxlist||''' @> (format(''"%s"'',replace(propkey,''"'',''\"'')))::jsonb) as searchable, '
+				|| '		(SELECT '''||idxlist||''' @>  to_jsonb(propkey)) as searchable, '
 				|| '		(SELECT * from xyz_property_datatype('''||schema||''','''||spaceid||''',propkey,'||tablesamplecnt||')) as datatype '
 				|| '			FROM( '
 				|| '				SELECT jsonb_object_keys(jsondata->''properties'') as propkey '
@@ -921,11 +1133,15 @@ $BODY$
 			AND relname != 'spatial_ref_sys'
 			ORDER BY reltuples
 	LOOP
-		spaceid := xyz_spaces.spaceid;
+		BEGIN
+			spaceid := xyz_spaces.spaceid;
 
-		EXECUTE format('SELECT tablesize, geometrytypes, properties, tags, count, bbox from xyz_statistic_space(''%s'',''%s'')',schema , xyz_spaces.spaceid)
-			INTO tablesize, geometrytypes, properties, tags, count, bbox;
-		RETURN NEXT;
+			EXECUTE format('SELECT tablesize, geometrytypes, properties, tags, count, bbox from xyz_statistic_space(''%s'',''%s'')',schema , xyz_spaces.spaceid)
+				INTO tablesize, geometrytypes, properties, tags, count, bbox;
+			RETURN NEXT;
+			EXCEPTION WHEN OTHERS THEN
+				RAISE NOTICE 'ERROR CREATING STATISTIC ON SPACE %',  xyz_spaces.spaceid;
+		END;
 	END LOOP;
 	END;
 $BODY$
@@ -1635,7 +1851,7 @@ $BODY$
 		SELECT * INTO idx_split FROM regexp_split_to_array(substring(idx_name from char_length(space_id) + 6), '_');
 
 		spaceid := space_id;
-		propkey := idx_split[1];
+		propkey := xyz_index_get_plain_propkey(idx_split[1]);
 		source := idx_split[2];
 
 		RETURN NEXT;
@@ -2392,3 +2608,21 @@ $body$ -- select round( ( ln( 360 ) - ln( st_xmax(i.env) - st_xmin(i.env) )  )/ 
 $body$
 LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
+------ftm - fast tile mode ------------------------------------------
+CREATE OR REPLACE FUNCTION ftm_SimplifyPreserveTopology( geo geometry, tolerance float)
+  RETURNS geometry AS
+$BODY$
+ select case ST_NPoints( geo ) < 20 when true then geo else st_simplifypreservetopology( geo, tolerance ) end
+$BODY$
+  LANGUAGE sql IMMUTABLE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION ftm_Simplify( geo geometry, tolerance float)
+  RETURNS geometry AS
+$BODY$
+ select case ST_NPoints( geo ) < 20 when true then geo else (select case st_issimple( i.g ) when true then i.g else null end from ( select st_simplify( geo, tolerance,false ) as g ) i ) end
+$BODY$
+  LANGUAGE sql IMMUTABLE;
+------------------------------------------------
+------------------------------------------------
+

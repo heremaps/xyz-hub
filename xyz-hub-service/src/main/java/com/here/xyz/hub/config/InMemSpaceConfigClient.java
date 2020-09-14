@@ -19,15 +19,19 @@
 
 package com.here.xyz.hub.config;
 
+import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.connectors.models.Space;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.Marker;
 
@@ -64,7 +68,7 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
 
   @Override
   public void getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition, SpaceSelectionCondition selectedCondition,
-      Handler<AsyncResult<List<Space>>> handler) {
+    PropertiesQuery propsQuery, Handler<AsyncResult<List<Space>>> handler) {
     //Sets are not even defined that means all access
     Predicate<Space> authorizationFilter = s -> authorizedCondition.spaceIds == null && authorizedCondition.ownerIds == null
         || authorizedCondition.spaceIds != null && authorizedCondition.spaceIds.contains(s.getId())
@@ -75,11 +79,51 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
         || selectedCondition.spaceIds != null && selectedCondition.spaceIds.contains(s.getId())
         || selectedCondition.ownerIds != null && selectedCondition.ownerIds.contains(s.getOwner())
         || selectedCondition.shared && s.isShared();
+    
+
+    List<String> contentUpdatedAtList = new ArrayList<>();
+    if (propsQuery != null) {
+      propsQuery.forEach(conjunctions -> {
+        conjunctions.forEach(conj -> {
+            conj.getValues().forEach(v -> {
+              String operator = SQLQuery.getOperation(conj.getOperation());
+              contentUpdatedAtList.add(operator);
+              contentUpdatedAtList.add(v.toString());
+            });
+        });
+      });
+    }
+
+    Predicate<Space> contentUpdatedAtFilter = s -> propsQuery != null? contentUpdatedAtOperation(s.contentUpdatedAt, contentUpdatedAtList, 1) : true; 
 
     List<Space> spaces = spaceMap.values().stream()
         .filter(authorizationFilter)
         .filter(selectionFilter)
+        .filter(contentUpdatedAtFilter)
         .collect(Collectors.toList());
     handler.handle(Future.succeededFuture(spaces));
+  }
+
+  private boolean contentUpdatedAtOperation(long contentUpdatedAt, List<String> contentUpdatedAtList, int idx) {
+    if(idx > contentUpdatedAtList.size())
+      return false;
+    else {
+      switch (contentUpdatedAtList.get(0)) {
+        case "=":
+          return Long.toString(contentUpdatedAt).equals(contentUpdatedAtList.get(idx)) || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
+        case "<>":
+          return contentUpdatedAt != Long.parseLong(contentUpdatedAtList.get(idx)) || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
+        case "<":
+          return contentUpdatedAt < Long.parseLong(contentUpdatedAtList.get(idx)) || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
+        case ">":
+          return contentUpdatedAt > Long.parseLong(contentUpdatedAtList.get(idx)) || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
+        case "<=":
+          return contentUpdatedAt <= Long.parseLong(contentUpdatedAtList.get(idx)) || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
+        case ">=":
+          return contentUpdatedAt >= Long.parseLong(contentUpdatedAtList.get(idx)) || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
+      }
+
+      return false;
+    }
   }
 }

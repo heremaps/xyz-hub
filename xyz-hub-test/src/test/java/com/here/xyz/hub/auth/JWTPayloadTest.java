@@ -19,11 +19,13 @@
 
 package com.here.xyz.hub.auth;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import org.junit.Test;
-
-import static org.junit.Assert.*;
 
 public class JWTPayloadTest {
 
@@ -54,5 +56,14 @@ public class JWTPayloadTest {
     assertNotNull(jwtPayload.limits);
     assertEquals(-1, jwtPayload.limits.maxSpaces);
     assertEquals(-1, jwtPayload.limits.maxFeaturesPerSpace);
+  }
+
+  @Test
+  public void fromJsonWithRawJWT() {
+    String jwtString = "{\"jwt\":\"raw_jwt_to_be_included\"}";
+    JsonObject jwtJson = new JsonObject(jwtString);
+    JWTPayload jwtPayload = Json.mapper.convertValue(jwtJson,JWTPayload.class);
+    assertNotNull(jwtPayload.jwt);
+    assertEquals("raw_jwt_to_be_included", jwtPayload.jwt);
   }
 }

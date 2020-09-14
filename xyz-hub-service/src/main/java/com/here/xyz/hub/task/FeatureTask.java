@@ -102,8 +102,11 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
 
   private FeatureTask(T event, RoutingContext context, ApiResponseType responseType, boolean skipCache) {
     super(event, context, responseType, skipCache);
-    event.withStreamId(getMarker().getName())
-        .withSpace(context.pathParam(ApiParam.Path.SPACE_ID));
+    event.setStreamId(getMarker().getName());
+
+    if (context.pathParam(ApiParam.Path.SPACE_ID) != null) {
+      event.setSpace(context.pathParam(ApiParam.Path.SPACE_ID));
+    }
   }
 
   public CacheProfile getCacheProfile() {
@@ -140,7 +143,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
   }
 
   @Override
-  public String etag() {
+  public String getEtag() {
     if (response == null) {
       return null;
     }
@@ -205,6 +208,10 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public Space refSpace;
     private Connector refConnector;
 
+    public GeometryQuery(GetFeaturesByGeometryEvent event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
+      this(event, context, apiResponseTypeType, skipCache, null, null);
+    }
+
     public GeometryQuery(GetFeaturesByGeometryEvent event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache,
         String refSpaceId, String refFeatureId) {
       super(event, context, apiResponseTypeType, skipCache);
@@ -222,7 +229,9 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(this::loadObject)
           .then(this::verifyResourceExists)
           .then(FeatureTaskHandler::validate)
-          .then(FeatureTaskHandler::invoke);
+          .then(FeatureTaskHandler::readCache)
+          .then(FeatureTaskHandler::invoke)
+          .then(FeatureTaskHandler::writeCache);
     }
 
     private void verifyResourceExists(GeometryQuery task, Callback<GeometryQuery> callback) {
@@ -352,8 +361,17 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
 
   public static class TileQuery extends ReadQuery<GetFeaturesByTileEvent, TileQuery> {
 
+    /**
+     * A local copy of some transformation-relevant properties from the event object.
+     * NOTE: The event object is not in memory in the response-phase anymore.
+     *
+     * @see Task#consumeEvent()
+     */
+    TransformationContext transformationContext;
+
     public TileQuery(GetFeaturesByTileEvent event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
       super(event, context, apiResponseTypeType, skipCache);
+      transformationContext = new TransformationContext(event.getX(), event.getY(), event.getLevel(), event.getMargin());
     }
 
     @Override
@@ -366,6 +384,20 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::invoke)
           .then(FeatureTaskHandler::transformResponse)
           .then(FeatureTaskHandler::writeCache);
+    }
+
+    static class TransformationContext {
+      TransformationContext(int x, int y, int level, int margin) {
+        this.x = x;
+        this.y = y;
+        this.level = level;
+        this.margin = margin;
+      }
+
+      int x;
+      int y;
+      int level;
+      int margin;
     }
   }
 
@@ -383,6 +415,29 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::invoke)
           .then(FeatureTaskHandler::convertResponse)
           .then(FeatureTaskHandler::writeCache);
+    }
+  }
+
+  public static class LoadFeaturesQuery extends FeatureTask<LoadFeaturesEvent, LoadFeaturesQuery> {
+
+    public LoadFeaturesQuery(LoadFeaturesEvent event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
+      super(event, context, apiResponseTypeType, skipCache);
+    }
+
+    public TaskPipeline<LoadFeaturesQuery> getPipeline() {
+      return TaskPipeline.create(this)
+          .then(FeatureTaskHandler::resolveSpace)
+          .then(this::postResolveSpace)
+          .then(FeatureAuthorization::authorize)
+          .then(FeatureTaskHandler::readCache)
+          .then(FeatureTaskHandler::invoke)
+          .then(FeatureTaskHandler::convertResponse)
+          .then(FeatureTaskHandler::writeCache);
+    }
+
+    private void postResolveSpace(LoadFeaturesQuery task, Callback<LoadFeaturesQuery> callback) {
+      task.getEvent().setEnableHistory(task.space.isEnableHistory());
+      callback.call(task);
     }
   }
 
@@ -510,8 +565,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public boolean hasNonModified;
 
     public ConditionalOperation(ModifyFeaturesEvent event, RoutingContext context, ApiResponseType apiResponseTypeType,
-        ModifyFeatureOp modifyOp,
-        boolean requireResourceExists) {
+        ModifyFeatureOp modifyOp, boolean requireResourceExists) {
       super(event, context, apiResponseTypeType, true);
       this.modifyOp = modifyOp;
       this.requireResourceExists = requireResourceExists;
@@ -577,6 +631,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .withStreamId(getMarker().getName())
           .withSpace(space.getId())
           .withParams(space.getStorage().getParams())
+          .withEnableHistory(space.isEnableHistory())
           .withIdsMap(idsMap);
 
       loadFeaturesEvent = event;
@@ -661,6 +716,31 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       }
 
       return positionById.get(id) == null ? -1 : positionById.get(id);
+    }
+  }
+
+  /**
+   * Minimal version of Conditional Operation used on admin events endpoint.
+   * Contains some limitations because doesn't implement the full pipeline.
+   * If you want to use the full conditional operation pipeline, you should request
+   * through Features API.
+   * Known limitations:
+   * - Cannot perform validation of existing resources per operation type
+   */
+  public static class ModifyFeaturesTask extends FeatureTask<ModifyFeaturesEvent, ModifyFeaturesTask> {
+
+    public ModifyFeaturesTask(ModifyFeaturesEvent event, RoutingContext context, ApiResponseType responseType, boolean skipCache) {
+      super(event, context, responseType, skipCache);
+    }
+
+    @Override
+    public TaskPipeline<ModifyFeaturesTask> getPipeline() {
+      return TaskPipeline.create(this)
+          .then(FeatureTaskHandler::resolveSpace)
+          .then(FeatureTaskHandler::checkPreconditions)
+          .then(FeatureAuthorization::authorize)
+          .then(FeatureTaskHandler::enforceUsageQuotas)
+          .then(FeatureTaskHandler::invoke);
     }
   }
 }

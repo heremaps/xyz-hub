@@ -17,20 +17,20 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.psql;
+package com.here.xyz.psql.factory;
 
 import com.here.xyz.models.geojson.coordinates.BBox;
 
-class H3
+public class H3SQL
 {
-//Clustering constants
-  static final String HEXBIN = "hexbin";
-  static final String HEXBIN_RESOLUTION = "resolution";
-  static final String HEXBIN_PROPERTY = "property";
-  static final String HEXBIN_POINTMODE = "pointmode";
-    /**** Begin - HEXBIN related section ******/
+  public static final String HEXBIN = "hexbin";
+  public static final String HEXBIN_RESOLUTION = "resolution";
+  public static final String HEXBIN_RESOLUTION_ABSOLUTE = "absoluteResolution";
+  public static final String HEXBIN_RESOLUTION_RELATIVE = "relativeResolution";
+  public static final String HEXBIN_PROPERTY = "property";
+  public static final String HEXBIN_POINTMODE = "pointmode";
 
-  static String h3sqlBegin =
+  public static String h3sqlBegin =
       "  select "
           + "  ( "
           + "   select row_to_json(ftr) from "
@@ -57,13 +57,12 @@ class H3
           + "   with h3cluster as "
           + "   ( select oo.h3, "
           + "           ( select row_to_json( t1 ) from ( select qty %4$s ) t1 ) as agg, "
-          + "           st_containsproperly( ",
-  //+"                  st_envelope( st_buffer( ST_MakeEnvelope( 45, 21.943045533438177, 67.49999999999997, 40.97989806962013, 4326 )::geography, ( 2.5 * edgeLengthM( 2 )) )::geometry )"
+          + "                    st_containsproperly( %9$s, oo.geo ) as omni,"
+          + "                    oo.geo "
+          + "     from ",
+  
   h3sqlMid =
-      "                    , oo.geo ) as omni, "
-          + "           oo.geo "
-          + "     from "
-          + "     ( "
+            "     ( "
           + "      select to_hex(cc.h3) as h3,"
           + "              count(1) as qty,"
           + "              min(cc.unnest) as min,"
@@ -100,13 +99,20 @@ class H3
           + "            select cval, st_x(in_data.refpt) as lon, st_y(in_data.refpt) as lat, refpt "
           + "            from "
           + "            ( "
-          + "              select %2$s as cval,",
-  /*
-  +"         and geo && st_envelope( st_buffer( ST_MakeEnvelope( 45, 21.943045533438177, 67.49999999999997, 40.97989806962013, 4326 )::geography, ( 2.5 * edgeLengthM( 2 )) )::geometry ) "
-  +"         AND st_intersects( geo , st_envelope( st_buffer( ST_MakeEnvelope( 45, 21.943045533438177, 67.49999999999997, 40.97989806962013, 4326 )::geography, ( 2.5 * edgeLengthM( 2 )) )::geometry )) "
-  */
+          + "              select %2$s as cval, coalesce( l.geoh3, v.geo ) as refpt"
+          + "              from ${schema}.${table} v " 
+          + "               left join lateral "
+          + "                ( select st_force3d(st_setsrid( h3ToGeoDeg( coveringDeg( case ST_Within(geo, %5$s ) " 
+          + "                                                                          when true then geo "
+          + "                                                                          else ST_Intersection( ST_MakeValid(geo), %5$s ) "
+          + "                                                                         end, %1$d)), st_srid(geo))) "
+          + "                  where st_geometrytype(v.geo) != 'ST_Point'"
+          + "                ) l(geoh3) "
+          + "                on ( true ) "
+          + "              where 1 = 1 and st_intersects( geo , %5$s ) ",          
+
   h3sqlEnd =
-            "             ) in_data "
+            "            ) in_data "
           + "          ) q2 "
           + "          group by px, py "
           + "        ) a_data "
@@ -123,20 +129,26 @@ class H3
           + "  ) outer_v ";
 
 
-  static int[] MaxResForZoom = {2, 2, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8, 9, 9, 10, 11, 11, 12, 13, 14, 14, 15, 15};
+  public static int[] MaxResForZoom = {2, 2, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8, 9, 9, 10, 11, 11, 12, 13, 14, 14, 15, 15};
 
-  static int zoom2resolution(int zoom) {
+  public static int zoom2resolution(int zoom) {
     return (MaxResForZoom[zoom]);
   }
 
-  static int bbox2zoom(BBox bbox) {
+  public static int bbox2zoom(BBox bbox) {
     return ((int) Math.round((5.88610403145016 - Math.log(bbox.maxLon() - bbox.minLon())) / 0.693147180559945));
   }
 
-  static int pxSize = 64;
+  public static int adjPixelSize(int h3res, int maxResForLevel)
+  {
+   int pxSize = 64,   // 64 in general, but clashes when h3 res is to fine grained (e.g. resulting in holes in hex areas). 
+       pdiff = (h3res - maxResForLevel);
 
-  /**** End - HEXBIN related section ******/
+   if(  pdiff == 2 ) pxSize = 88;
+   else if (  pdiff >= 3 ) pxSize = 256;
 
+   return( pxSize );
+  }
 }
 
 

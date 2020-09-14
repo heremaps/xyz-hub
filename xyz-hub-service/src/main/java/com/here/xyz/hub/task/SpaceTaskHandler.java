@@ -79,9 +79,9 @@ public class SpaceTaskHandler {
   private static final int CLIENT_VALUE_MAX_SIZE = 1024;
 
   static <X extends ReadQuery<?>> void readSpaces(final X task, final Callback<X> callback) {
-    Service.spaceConfigClient.getSelected(task.getMarker(), task.authorizedCondition, task.selectedCondition, ar -> {
+    Service.spaceConfigClient.getSelected(task.getMarker(), task.authorizedCondition, task.selectedCondition, task.propertiesQuery, ar -> {
       if (ar.failed()) {
-        logger.info(task.getMarker(), "Unable to load space definitions.'", ar.cause());
+        logger.error(task.getMarker(), "Unable to load space definitions.'", ar.cause());
         callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the space definitions", ar.cause()));
         return;
       }
@@ -136,7 +136,7 @@ public class SpaceTaskHandler {
     input.remove("createdAt");
     input.remove("updatedAt");
 
-    if (task.modifyOp.entries.get(0).head == null && task.modifyOp.ifNotExists.equals(IfNotExists.CREATE)) {
+    if (task.modifyOp.isCreate()) {
       String owner = task.getJwt().aid;
       String cid = task.getJwt().cid;
       task.template = getSpaceTemplate(owner, cid);
@@ -155,9 +155,25 @@ public class SpaceTaskHandler {
 
   static void processModifyOp(ConditionalOperation task, Callback<ConditionalOperation> callback) throws Exception {
     try {
+      if (task.isUpdate()) {
+        /** enableUUID is immutable and it is only allowed to set it during the space creation */
+        Space spaceHead = task.modifyOp.entries.get(0).head;
+
+        if(spaceHead != null && spaceHead.isEnableUUID() == Boolean.TRUE && task.modifyOp.entries.get(0).input.get("enableUUID") == Boolean.TRUE )
+          task.modifyOp.entries.get(0).input.put("enableUUID",true);
+        else if(spaceHead != null && task.modifyOp.entries.get(0).input.get("enableUUID") != null )
+          throw new HttpException(BAD_REQUEST, "Validation failed. The property 'enableUUID' can only get set on space creation!");
+
+        /** enableHistory is immutable and it is only allowed to set it during the space creation */
+        if(spaceHead != null && spaceHead.isEnableHistory() == Boolean.TRUE && task.modifyOp.entries.get(0).input.get("enableHistory") == Boolean.TRUE )
+          task.modifyOp.entries.get(0).input.put("enableHistory",true);
+        else if(spaceHead != null && task.modifyOp.entries.get(0).input.get("enableHistory") != null )
+          throw new HttpException(BAD_REQUEST, "Validation failed. The property 'enableHistory' can only get set on space creation!");
+      }
       task.modifyOp.process();
       callback.call(task);
-    } catch (ModifyOpError e) {
+    }
+    catch (ModifyOpError e) {
       logger.info(task.getMarker(), "ConditionalOperationError: {}", e.getMessage(), e);
       throw new HttpException(CONFLICT, e.getMessage());
     }
@@ -170,6 +186,19 @@ public class SpaceTaskHandler {
     }
 
     Space space = task.modifyOp.entries.get(0).result;
+
+    if(space.getMaxVersionCount() != null){
+      if(!space.isEnableHistory())
+        throw new HttpException(BAD_REQUEST, "Validation failed. The property 'maxVersionCount' can only get set if 'enableHistory' is set.");
+      if(space.getMaxVersionCount() < -1)
+        throw new HttpException(BAD_REQUEST, "Validation failed. The property 'maxVersionCount' must be greater or equal to -1.");
+    }
+
+    if (task.isCreate() && space.isEnableHistory()) {
+      if(!space.isEnableUUID())
+        task.modifyOp.entries.get(0).result.setEnableUUID(true);
+    }
+
     if (space.getId() == null) {
       throw new HttpException(BAD_REQUEST, "Validation failed. The property 'id' cannot be empty.");
     }
@@ -349,14 +378,13 @@ public class SpaceTaskHandler {
         .withOperation(op)
         .withSpaceDefinition(space)
         .withStreamId(task.getMarker().getName())
-        .withSpace(space.getId())
         .withParams(space.getStorage().getParams())
-        .withIfNoneMatch(task.context.request().headers().get("If-None-Match"));
+        .withIfNoneMatch(task.context.request().headers().get("If-None-Match"))
+        .withSpace(space.getId());
 
     ModifySpaceQuery query = new ModifySpaceQuery(event, task.context, ApiResponseType.EMPTY);
-
-    query.space = task.isDelete() ? entry.head : entry.result;
-    query.getEvent().setSpace(query.space.getId());
+    query.space = space;
+    event.setSpace(space.getId());
 
     C1<ModifySpaceQuery> onEventProcessed = (t) -> {
       //Currently it's not supported that the connector changes the space modification operation
@@ -364,13 +392,13 @@ public class SpaceTaskHandler {
         throw new HttpException(BAD_GATEWAY, "Connector error.");
       }
       if ((task.isCreate() || task.isUpdate()) && query.manipulatedSpaceDefinition != null) {
-        // Treat the manipulated space definition as a partial update.
+        //Treat the manipulated space definition as a partial update.
         Map<String,Object> newInput = JsonObject.mapFrom(query.manipulatedSpaceDefinition).getMap();
         Map<String,Object> resultClone = entry.result.asMap();
         final Difference difference = Patcher.calculateDifferenceOfPartialUpdate(resultClone, newInput, null, true);
-        if( difference != null ){
+        if (difference != null) {
           entry.isModified = true;
-          Patcher.patch(resultClone,difference);
+          Patcher.patch(resultClone, difference);
           entry.result = Json.mapper.readValue(Json.encode(resultClone), Space.class);
         }
       }
@@ -396,17 +424,17 @@ public class SpaceTaskHandler {
       if (task.isCreate()) {
         entry.result.setCreatedAt(entry.result.getUpdatedAt());
       }
-      else if( task.isUpdate()){
+      else if (task.isUpdate()) {
         // Do not allow updating the createdAt value
         entry.result.setCreatedAt(entry.head.getCreatedAt());
 
         // Do not allow removing the owner property
-        if( entry.result.getOwner()==null){
+        if (entry.result.getOwner() == null) {
           entry.result.setOwner(entry.head.getOwner());
         }
 
         // Do not allow removing the cid property
-        if( entry.result.getCid()==null){
+        if (entry.result.getCid() == null) {
           entry.result.setCid(entry.head.getCid());
         }
       }

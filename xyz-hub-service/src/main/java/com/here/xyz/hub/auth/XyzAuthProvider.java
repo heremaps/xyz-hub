@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,14 +30,23 @@ import io.vertx.ext.auth.jwt.JWTAuthOptions;
 import io.vertx.ext.auth.jwt.impl.JWTAuthProviderImpl;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.DataFormatException;
+import net.jodah.expiringmap.ExpirationPolicy;
+import net.jodah.expiringmap.ExpiringMap;
 import org.apache.commons.lang3.StringUtils;
 
-public class CompressedJWTAuthProvider extends JWTAuthProviderImpl {
+public class XyzAuthProvider extends JWTAuthProviderImpl {
 
-  public CompressedJWTAuthProvider(Vertx vertx, JWTAuthOptions config) {
+  public XyzAuthProvider(Vertx vertx, JWTAuthOptions config) {
     super(vertx, config);
   }
+
+  protected final ExpiringMap<String, User> usersCache = ExpiringMap.builder()
+      .maxSize(8*1024)
+      .expirationPolicy(ExpirationPolicy.CREATED)
+      .expiration(10, TimeUnit.MINUTES)
+      .build();
 
   @Override
   public void authenticate(JsonObject authInfo, Handler<AsyncResult<User>> resultHandler) {
@@ -55,7 +64,24 @@ public class CompressedJWTAuthProvider extends JWTAuthProviderImpl {
       }
     }
 
-    super.authenticate(authInfo, resultHandler);
+    User cachedUser = usersCache.get(jwt);
+    if( cachedUser != null ){
+      resultHandler.handle(Future.succeededFuture(cachedUser));
+      return;
+    }
+
+    super.authenticate(authInfo, (authResult) -> {
+      if (authResult.failed()) {
+        resultHandler.handle(Future.failedFuture(authResult.cause()));
+        return;
+      }
+
+      final User user = authResult.result();
+      user.principal().put("jwt", jwt);
+
+      usersCache.put(jwt,user);
+      resultHandler.handle(Future.succeededFuture(user));
+    });
   }
 
   private boolean isJWT(final String jwt) {

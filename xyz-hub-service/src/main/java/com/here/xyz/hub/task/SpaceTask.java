@@ -29,6 +29,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
 import com.google.common.base.Strings;
 import com.here.xyz.events.Event;
+import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.auth.SpaceAuthorization;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceAuthorizationCondition;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceSelectionCondition;
@@ -75,6 +76,7 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
 
     public SpaceAuthorizationCondition authorizedCondition;
     public SpaceSelectionCondition selectedCondition;
+    public PropertiesQuery propertiesQuery;
 
     public ReadQuery(RoutingContext context, ApiResponseType returnType, List<String> spaceIds, List<String> ownerIds) {
       super(context, returnType);
@@ -99,7 +101,7 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
     public static final String OTHERS = "others";
     public static final String ALL = "*";
 
-    public MatrixReadQuery(RoutingContext context, ApiResponseType returnType, boolean includeRights, boolean includeConnectors, String owner) {
+    public MatrixReadQuery(RoutingContext context, ApiResponseType returnType, boolean includeRights, boolean includeConnectors, String owner, PropertiesQuery propsQuery) {
       super(context, returnType, null, null);
       if (!Strings.isNullOrEmpty(owner)) {
         selectedCondition = new SpaceSelectionCondition();
@@ -127,6 +129,9 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
       }
 
       this.canReadConnectorsProperties = includeConnectors;
+      if( propsQuery != null ) {
+        propertiesQuery = propsQuery;
+      }
     }
 
     @Override
@@ -141,7 +146,6 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
 
   public static class ConditionalOperation extends SpaceTask<ConditionalOperation> {
 
-    private static final List<IfExists> UPDATE_OPS = Arrays.asList(PATCH, MERGE, REPLACE);
     public final boolean requireResourceExists;
     public ModifySpaceOp modifyOp;
     public Space template;
@@ -161,35 +165,19 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
     }
 
     public boolean isRead() {
-      try {
-        return modifyOp.entries.get(0).head != null && modifyOp.ifExists.equals(RETAIN);
-      } catch (NullPointerException e) {
-        return false;
-      }
+      return modifyOp.isRead();
     }
 
     public boolean isCreate() {
-      try {
-        return modifyOp.entries.get(0).head == null && modifyOp.entries.get(0).result != null;
-      } catch (NullPointerException e) {
-        return false;
-      }
+      return modifyOp.isCreate();
     }
 
     public boolean isDelete() {
-      try {
-        return modifyOp.entries.get(0).head != null && modifyOp.ifExists.equals(DELETE);
-      } catch (NullPointerException e) {
-        return false;
-      }
+      return modifyOp.isDelete();
     }
 
     public boolean isUpdate() {
-      try {
-        return modifyOp.entries.get(0).head != null && UPDATE_OPS.contains(modifyOp.ifExists);
-      } catch (NullPointerException e) {
-        return false;
-      }
+      return modifyOp.isUpdate();
     }
 
     @Override

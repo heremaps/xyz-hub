@@ -148,7 +148,7 @@ public class ServiceHealthCheck extends ExecutableCheck {
 				status.setResult(ERROR);
 			}
 			
-			if (response != null && response.getStatus() != null) {
+			if (response.getStatus() != null) {
 				status.setResult(getWorseResult(status.getResult(), response.getStatus().getResult()));
 			}
 		}

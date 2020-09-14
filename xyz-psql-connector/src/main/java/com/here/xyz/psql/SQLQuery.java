@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,14 +19,31 @@
 
 package com.here.xyz.psql;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import com.here.xyz.events.PropertyQuery;
+
+import javax.sql.DataSource;
+import java.sql.Array;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+import static com.here.xyz.psql.DatabaseHandler.HISTORY_TABLE_SUFFIX;
 
 /**
  * A struct like object that contains the string for a prepared statement and the respective parameters for replacement.
  */
 public class SQLQuery {
+  private StringBuilder statement;
+  private List<Object> parameters;
+
+  private static final String PREFIX = "\\$\\{";
+  private static final String SUFFIX = "\\}";
+  private static final String VAR_SCHEMA = "${schema}";
+  private static final String VAR_TABLE = "${table}";
+  private static final String VAR_HST_TABLE = "${hsttable}";
 
   public SQLQuery() {
     this.statement = new StringBuilder();
@@ -73,20 +90,34 @@ public class SQLQuery {
     return join(Arrays.asList(queries), delimiter, false);
   }
 
+  public static SQLQuery replaceNamedParameters( String query, Map<String, Object> namedParameters )
+  {  // replace #{namedVar} in query with ? and appends corresponding parameter from map namedParameters
+   Pattern p = Pattern.compile("#\\{\\s*([^\\s\\}]+)\\s*\\}");
+   SQLQuery qry = new SQLQuery();
+   Matcher m = p.matcher( query );
+
+   while( m.find() )
+   { String nParam = m.group(1);
+     if( !namedParameters.containsKey(nParam) )
+      throw new IllegalArgumentException("sql: named Parameter ["+ nParam +"] missing");
+     qry.addParameter( namedParameters.get(nParam) );
+   }
+
+   qry.append( m.replaceAll("?") );
+
+   return qry;
+  }
+
   public void append(String text, Object... parameters) {
     addText(text);
     if (parameters != null) {
-      for (Object p : parameters) {
-        this.parameters.add(p);
-      }
+      Collections.addAll(this.parameters, parameters);
     }
   }
 
   public void append(SQLQuery other) {
     addText(other.statement);
-    for (Object p : other.parameters) {
-      parameters.add(p);
-    }
+    parameters.addAll(other.parameters);
   }
 
   private void addText(CharSequence text) {
@@ -107,9 +138,7 @@ public class SQLQuery {
 
   public void addParameters(Object... values) {
     if (values != null) {
-      for (Object value : values) {
-        parameters.add(value);
-      }
+      Collections.addAll(parameters, values);
     }
   }
 
@@ -130,6 +159,95 @@ public class SQLQuery {
     this.parameters = parameters;
   }
 
-  private StringBuilder statement;
-  private List<Object> parameters;
+
+  /**
+   * Quote the given string so that it can be inserted into an SQL statement.
+   *
+   * @param text the text to escape.
+   * @return the escaped text surrounded with quotes.
+   */
+  public static String sqlQuote(final String text) {
+    return text == null ? "" : '"' + text.replace("\"", "\"\"") + '"';
+  }
+
+  public static String replaceVars(String query, String schema, String table) {
+    return query
+            .replace(VAR_SCHEMA, sqlQuote(schema))
+            .replace(VAR_TABLE, sqlQuote(table))
+            .replace(VAR_HST_TABLE, sqlQuote(table+HISTORY_TABLE_SUFFIX));
+  }
+
+  protected static String replaceVars(String query, Map<String, String> replacements, String schema, String table) {
+    String replaced = replaceVars(query, schema, table);
+    for (String key : replacements.keySet()) {
+      replaced = replaced.replaceAll(PREFIX + key + SUFFIX, sqlQuote(replacements.get(key)));
+    }
+    return replaced;
+  }
+
+  protected static SQLQuery selectJson(List<String> selection, DataSource dataSource) throws SQLException {
+    if (selection == null) {
+      return new SQLQuery("jsondata");
+    }
+    if (!selection.contains("type")) {
+      selection.add("type");
+    }
+
+    return new SQLQuery("prj_build(?,jsondata)", createSQLArray(selection.toArray(new String[0]), "text", dataSource));
+  }
+
+  /**
+   * Creates a SQL Array of the given type.
+   */
+  protected static Array createSQLArray(final String[] strings, String type, DataSource dataSource) throws SQLException {
+    try (Connection conn = dataSource.getConnection()) {
+      return conn.createArrayOf(type, strings);
+    }
+  }
+
+  public static String getOperation(PropertyQuery.QueryOperation op) {
+    if (op == null) {
+      throw new NullPointerException("op is required");
+    }
+
+    switch (op) {
+      case EQUALS:
+        return "=";
+      case NOT_EQUALS:
+        return "<>";
+      case LESS_THAN:
+        return "<";
+      case GREATER_THAN:
+        return ">";
+      case LESS_THAN_OR_EQUALS:
+        return "<=";
+      case GREATER_THAN_OR_EQUALS:
+        return ">=";
+      case CONTAINS:
+        return "@>";
+    }
+
+    return "";
+  }
+
+  protected static SQLQuery createKey(String key) {
+    String[] results = key.split("\\.");
+    return new SQLQuery(
+            "jsondata->" + Collections.nCopies(results.length, "?").stream().collect(Collectors.joining("->")), results);
+  }
+
+  protected static String getValue(Object value, PropertyQuery.QueryOperation op) {
+    if (value instanceof String) {
+      if(op.equals(PropertyQuery.QueryOperation.CONTAINS) && ((String) value).startsWith("{") && ((String) value).endsWith("}"))
+        return "(?::jsonb || '[]'::jsonb)";
+      return "to_jsonb(?::text)";
+    }
+    if (value instanceof Number) {
+      return "to_jsonb(?::numeric)";
+    }
+    if (value instanceof Boolean) {
+      return "to_jsonb(?::boolean)";
+    }
+    return "";
+  }
 }

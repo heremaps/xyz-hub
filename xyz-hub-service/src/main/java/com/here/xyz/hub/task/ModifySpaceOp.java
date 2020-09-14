@@ -25,6 +25,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.ModifySpaceOp.SpaceEntry;
+import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.Feature;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
@@ -36,14 +37,14 @@ import java.util.stream.Collectors;
 public class ModifySpaceOp extends ModifyOp<Space, SpaceEntry> {
 
   public ModifySpaceOp(List<Map<String, Object>> inputStates, IfNotExists ifNotExists, IfExists ifExists, boolean isTransactional) {
-    super((inputStates == null) ? Collections.emptyList() : inputStates.stream().map(SpaceEntry::new).collect(Collectors.toList()),
-        ifNotExists, ifExists, isTransactional);
+    super((inputStates == null) ? Collections.emptyList() : inputStates.stream().map(input -> new SpaceEntry(input, ifNotExists, ifExists))
+            .collect(Collectors.toList()), isTransactional);
   }
 
   public static class SpaceEntry extends ModifyOp.Entry<Space> {
 
-    public SpaceEntry(Map<String, Object> input) {
-      super(input);
+    public SpaceEntry(Map<String, Object> input, IfNotExists ifNotExists, IfExists ifExists) {
+      super(input, ifNotExists, ifExists, ConflictResolution.ERROR);
     }
 
     @Override

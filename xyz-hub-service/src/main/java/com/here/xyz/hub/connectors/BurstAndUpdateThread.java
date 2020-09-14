@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.MarkerManager;
+import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 
 /**
  * The background thread that keeps track of the configurations and keeps the executor services in sync.
@@ -79,11 +79,14 @@ public class BurstAndUpdateThread extends Thread {
         logger.error("Found null entry (or without ID) in connector list, see stack trace");
         continue;
       }
-      connectorMap.put(connector.id, connector);
-      try { //Try to initialize the connector client
-        RpcClient.getInstanceFor(connector, true);
-      } catch (Exception e) {
-        logger.error("Error while trying to get RpcClient for connector with ID " + connector.id);
+      if (connector.active) {
+        connectorMap.put(connector.id, connector);
+        try { //Try to initialize the connector client
+          RpcClient.getInstanceFor(connector, true);
+        }
+        catch (Exception e) {
+          logger.error("Error while trying to get / create RpcClient for connector with ID " + connector.id, e);
+        }
       }
     }
 
@@ -98,6 +101,7 @@ public class BurstAndUpdateThread extends Thread {
       if (!connectorMap.containsKey(oldConnector.id)) {
         //Client needs to be destroyed, the connector configuration with the given ID has been removed.
         try {
+          logger.warn("Connector with ID {} was removed or deactivated. Destroying the according client.", oldConnector.id);
           client.destroy();
         } catch (Exception e) {
           logger.error("Unexpected exception while destroying RPC client", e);
@@ -133,9 +137,9 @@ public class BurstAndUpdateThread extends Thread {
               //Just generate a stream ID here as the stream actually "begins" here
               final String healthCheckStreamId = UUID.randomUUID().toString();
               healthCheck.setStreamId(healthCheckStreamId);
-              client.execute(MarkerManager.getMarker(healthCheckStreamId), healthCheck, r -> {
+              client.execute(new Log4jMarker(healthCheckStreamId), healthCheck, r -> {
                 if (r.failed()) {
-                  logger.error("Warmup-healtcheck failed for connector with ID " + oldConnector.id, r.cause());
+                  logger.warn("Warmup-healtcheck failed for connector with ID " + oldConnector.id, r.cause());
                 }
                 synchronized (requestCount) {
                   requestCount.decrementAndGet();
@@ -161,6 +165,7 @@ public class BurstAndUpdateThread extends Thread {
   @Override
   public void run() {
     //Stay alive as long as the executor (our parent) is alive.
+    //noinspection InfiniteLoopStatement
     while (true) {
       try {
         final long start = Service.currentTimeMillis();

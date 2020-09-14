@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,9 @@
 
 package com.here.xyz.hub.connectors;
 
+import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
+import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
 
 import com.here.xyz.hub.Service;
@@ -30,21 +33,17 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
+import io.vertx.core.net.impl.ConnectionBase;
 import io.vertx.ext.web.client.WebClient;
-import io.vertx.ext.web.client.WebClientOptions;
-import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.concurrent.TimeoutException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.Marker;
 
 public class HTTPFunctionClient extends RemoteFunctionClient {
 
   private static final Logger logger = LogManager.getLogger();
-
-  private volatile WebClient webClient;
-  private static volatile String url;
+  private volatile String url;
 
   HTTPFunctionClient(Connector connectorConfig) {
     super(connectorConfig);
@@ -53,7 +52,6 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
   @Override
   synchronized void setConnectorConfig(final Connector newConnectorConfig) throws NullPointerException, IllegalArgumentException {
     super.setConnectorConfig(newConnectorConfig);
-    shutdownWebClient(webClient);
     createClient();
   }
 
@@ -64,55 +62,69 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
     }
     Http httpRemoteFunction = (Http) remoteFunction;
     url = httpRemoteFunction.url.toString();
-    webClient = WebClient.create(Service.vertx, new WebClientOptions()
-        .setUserAgent(Service.XYZ_HUB_USER_AGENT)
-        .setMaxPoolSize(getMaxConnections()));
   }
 
   @Override
   void destroy() {
     super.destroy();
-    shutdownWebClient(webClient);
   }
 
   private static void shutdownWebClient(WebClient webClient) {
-    if (webClient == null) return;
+    if (webClient == null) {
+      return;
+    }
     //Shutdown the web client after the request timeout
     //TODO: Use CompletableFuture.delayedExecutor() after switching to Java 9
     new Thread(() -> {
       try {
         Thread.sleep(REQUEST_TIMEOUT);
+      } catch (InterruptedException ignored) {
       }
-      catch (InterruptedException ignored) {}
       webClient.close();
     }).start();
   }
 
   @Override
-  protected void invoke(Marker marker, byte[] bytes, Handler<AsyncResult<byte[]>> callback) {
+  protected void invoke(FunctionCall fc, Handler<AsyncResult<byte[]>> callback) {
+    //TODO: respect fc.fireAndForget parameter
     final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
-    logger.debug(marker, "Invoke http remote function '{}' Event size is: {}", remoteFunction.id, bytes.length);
+    logger.info(fc.marker, "Invoke http remote function '{}' URL is: {} Event size is: {}", remoteFunction.id, url, fc.bytes.length);
 
-    webClient.postAbs(url)
-        .timeout(REQUEST_TIMEOUT)
-        .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
-        .sendBuffer(Buffer.buffer(bytes), ar -> {
-          if (ar.failed()) {
-            if (ar.cause() instanceof TimeoutException) {
-              callback.handle(Future.failedFuture(new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.")));
-            } else {
-              callback.handle(Future.failedFuture(ar.cause()));
-            }
-          } else {
-            try {
-              //TODO: Refactor to move decompression into the base-class RemoteFunctionClient as it's not HTTP specific
-              byte[] responseBytes = ar.result().body().getBytes();
-              checkResponseSize(responseBytes);
-              callback.handle(Future.succeededFuture(getDecompressed(responseBytes)));
-            } catch (IOException | HttpException e) {
-              callback.handle(Future.failedFuture(e));
-            }
+    int tryCount = 0;
+    boolean retry;
+    do {
+      retry = false;
+      tryCount++;
+      try {
+        Service.webClient.postAbs(url)
+            .timeout(REQUEST_TIMEOUT)
+            .putHeader(CONTENT_TYPE, "application/json; charset=" + Charset.defaultCharset().name())
+            .putHeader(STREAM_ID, fc.marker.getName())
+            .sendBuffer(Buffer.buffer(fc.bytes), ar -> {
+              if (ar.failed()) {
+                if (ar.cause() instanceof TimeoutException) {
+                  callback.handle(Future.failedFuture(new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.")));
+                } else {
+                  callback.handle(Future.failedFuture(ar.cause()));
+                }
+              } else {
+                byte[] responseBytes = ar.result().body().getBytes();
+                callback.handle(Future.succeededFuture(responseBytes));
+              }
+            });
+      } catch (Exception e) {
+        if (e == ConnectionBase.CLOSED_EXCEPTION) {
+          e = new RuntimeException("Connection was already closed.", e);
+          if (tryCount <= 1) {
+            retry = true;
           }
-        });
+          logger.error(e.getMessage() + (retry ? " Retrying ..." : ""), e);
+        }
+        if (!retry) {
+          logger.error(fc.marker, "Error sending event to remote http service", e);
+          callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Connector error.", e)));
+        }
+      }
+    } while (retry && tryCount <= 1);
   }
 }

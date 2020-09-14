@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,15 +21,21 @@ package com.here.xyz.connectors;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.google.common.hash.Hashing;
 import com.here.xyz.Payload;
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.connectors.decryptors.EventDecryptor;
+import com.here.xyz.connectors.decryptors.EventDecryptor.Decryptors;
 import com.here.xyz.events.Event;
+import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.RelocatedEvent;
-import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.NotModifiedResponse;
+import com.here.xyz.responses.XyzError;
+import com.here.xyz.responses.XyzResponse;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -41,9 +47,10 @@ import org.apache.logging.log4j.Logger;
  * A default implementation of a request handler that can be reused. It supports out of the box caching via e-tag.
  */
 public abstract class AbstractConnectorHandler implements RequestStreamHandler {
-
+  /**
+   * Logger
+   */
   private static final Logger logger = LogManager.getLogger();
-
   /**
    * The event-type-suffix for response notifications.
    */
@@ -61,7 +68,14 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    * The number of the bytes to read from an input stream and preview as a String in the logs.
    */
   private static final int INPUT_PREVIEW_BYTE_SIZE = 4 * 1024; // 4K
+  /**
+   * The etag string
+   */
   private static final String ETAG_STRING = ",\"etag\":\"_\"}";
+  /**
+   * Environment variable for setting the custom event decryptor. Currently only KMS, PRIVATE_KEY, or DUMMY is supported
+   */
+  public static final String ENV_DECRYPTOR = "EVENT_DECRYPTOR";
   /**
    * The maximal response size in bytes that can be sent back without relocating the response.
    */
@@ -81,11 +95,33 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    * The stream-id that should be added to every log output.
    */
   protected String streamId;
+  /**
+   * Start timestamp for logging.
+   */
   private long start;
   /**
    * A flag to inform, if the lambda is running in embedded mode.
    */
   private boolean embedded = false;
+  /**
+   * {@link EventDecryptor} used for decrypting the parameters.
+   */
+  final protected EventDecryptor eventDecryptor;
+
+  /**
+   * Default constructor that sets the correct decryptor based on the {@see ENV_DECRYPTOR} environment variable.
+   */
+  public AbstractConnectorHandler() {
+    Decryptors decryptor = Decryptors.DUMMY;
+    if (System.getenv(ENV_DECRYPTOR) != null) {
+      try {
+        decryptor = Decryptors.valueOf(System.getenv(ENV_DECRYPTOR));
+      } catch (IllegalArgumentException e) {
+        logger.warn("Unknown decryptor" + System.getenv(ENV_DECRYPTOR) + ". Using DummyDecryptor instead.", e);
+      }
+    }
+    eventDecryptor = EventDecryptor.getInstance(decryptor);
+  }
 
   /**
    * Returns the number of milliseconds that have passed since the request started (for time measuring inside the lambda).
@@ -140,10 +176,14 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
             .withStreamId(streamId)
             .withError(XyzError.EXCEPTION)
             .withErrorMessage("Unexpected exception occurred.");
+      } catch (OutOfMemoryError e) {
+       throw e; 
       }
       writeDataOut(output, dataOut, ifNoneMatch);
     } catch (Exception e) {
       logger.error("{} - Unexpected exception occurred: {}\n{}", streamId, e.getMessage(), e.getStackTrace());
+    } catch (OutOfMemoryError e) {
+      logger.error("{} - Unexpected exception occurred (heap space): {}\n{}", streamId, e.getMessage(), e.getStackTrace());
     }
   }
 
@@ -154,18 +194,22 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    * @return the event
    */
   Event readEvent(InputStream input) throws ErrorResponseException {
+    String streamPreview = null;
     try {
       input = Payload.prepareInputStream(input);
-      String streamPreview = previewInput(input);
+      streamPreview = previewInput(input);
 
       Event receivedEvent = XyzSerializable.deserialize(input);
       logger.info("{} [{} ms] - Parsed event: {}", receivedEvent.getStreamId(), ms(), streamPreview);
       return receivedEvent;
+    } catch (JsonMappingException e) {
+      logger.error("{} [{} ms] - Exception {} occurred while reading the event: {}", "FATAL", ms(), e.getMessage(), streamPreview, e);
+      throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "Unknown event type");
     } catch (ClassCastException e) {
-      logger.error("{} [{} ms] - Exception occurred while reading the event: {}", "FATAL", ms(), e);
-      throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "The input is doesn't have known type.");
+      logger.error("{} [{} ms] - Exception {} occurred while reading the event: {}", "FATAL", ms(), e.getMessage(), streamPreview, e);
+      throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "The input should be of type Event");
     } catch (Exception e) {
-      logger.error("{} [{} ms] - Exception occurred while reading the event: {}", "FATAL", ms(), e);
+      logger.error("{} [{} ms] - Exception {} occurred while reading the event: {}", "FATAL", ms(), e.getMessage(), streamPreview, e);
       throw new ErrorResponseException(streamId, XyzError.EXCEPTION, e);
     }
   }
@@ -222,6 +266,22 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
   protected abstract Typed processEvent(Event event) throws Exception;
 
   /**
+   * Processes a HealthCheckEvent event.
+   *
+   * This type of events are sent in regular intervals to the lambda handler and could be used to keep the handler's container active and
+   * the connection to the database open.
+   */
+  protected XyzResponse processHealthCheckEvent(HealthCheckEvent event) {
+    if (event.getMinResponseTime() > 0) {
+      try {
+        Thread.sleep(event.getMinResponseTime());
+      }
+      catch (InterruptedException ignored) {}
+    }
+    return new HealthStatus();
+  }
+
+  /**
    * Initializes this handler.
    *
    * @param event The event
@@ -238,6 +298,4 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
 
     return new String(bytes, 0, limit);
   }
-
-
 }

@@ -1,0 +1,7 @@
+{
+  "type": "ModifySpaceEvent",
+  "params": {},
+  "space": "foo-test",
+  "operation":  "DELETE",
+  "tags": null
+}

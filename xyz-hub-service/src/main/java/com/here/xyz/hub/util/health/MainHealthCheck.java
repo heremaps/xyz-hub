@@ -39,35 +39,18 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 import org.apache.logging.log4j.core.util.CachedClock;
 
-public class MainHealthCheck extends ExecutableCheck {
+public class MainHealthCheck extends GroupedHealthCheck {
 
-  private Set<ExecutableCheck> checks = new LinkedHashSet<>();
   private Reporter reporter;
   private long graceUntil;
   private boolean autoCommence;
-  private boolean commenced = false;
 
   public MainHealthCheck(boolean autoCommence) {
     this.autoCommence = autoCommence;
     initialize();
   }
 
-  /**
-   * Adds another check as dependency to this MainHealthCheck. If this MainHealthCheck already has commenced the added check will
-   * automatically be commenced as well. Following responses of this MainHealthCheck will then include also the result of the new check.
-   *
-   * @param c The check to be added and checked from then on
-   * @return This check for chaining
-   */
-  public MainHealthCheck add(ExecutableCheck c) {
-    checks.add(c);
-		if (commenced) {
-			c.commence();
-		}
-    return this;
-  }
-
-  public void initialize() {
+  public final void initialize() {
     if (isGracePeriodActivated()) {
       if (autoCommence) {
         System.err.println("WARNING: \"autoCommencing\" is activated in combination with "
@@ -119,48 +102,24 @@ public class MainHealthCheck extends ExecutableCheck {
    * {@inheritDoc}
    */
   @Override
-  public Status execute() {
-    Status status = new Status();
-    Response response = new Response();
-
+  public final Status execute() {
     if (isGracePeriodActivated() && !isGraceTimeElapsed()) {
+      Status status = new Status();
+      Response response = new Response();
       status.setResult(OK);
       response.setStatus(status);
       setResponse(response);
       return status;
     }
 
-    Result r = OK;
-    for (ExecutableCheck check : checks) {
-      Status checkStatus = check.getStatus();
-      if (check.getEssential()) {
-				if (checkStatus.getResult().compareTo(UNKNOWN) >= 0) {
-					r = CRITICAL;
-				} else {
-					r = getWorseResult(r, checkStatus.getResult());
-				}
-      } else if (checkStatus.getResult() != OK) {
-        r = getWorseResult(r, WARNING);
-      }
-    }
-
-    //Report the new status
-    status.setResult(r);
-
-    //Collect all checks & their responses and report the new response
-
-    response.getChecks().addAll(checks);
-    response.setStatus(status);
-    setResponse(response);
-
-    return status;
+    return super.execute();
   }
 
   /**
    * {@inheritDoc}
    */
   @Override
-  public Response getResponse() {
+  public final Response getResponse() {
     /*
      * Directly do the execution of this MainHealthCheck here on-demand
      * as it's only about collecting the sub-results.
@@ -169,6 +128,7 @@ public class MainHealthCheck extends ExecutableCheck {
         .withTimestamp(CachedClock.instance().currentTimeMillis());
     setStatus(s);
     Response r = super.getResponse();
+    r.setStatus(s);
     r.setReporter(reporter);
     return r;
   }
@@ -190,28 +150,39 @@ public class MainHealthCheck extends ExecutableCheck {
    * {@inheritDoc}
    */
   @Override
-  public MainHealthCheck commence() {
-    commenced = true;
-    checks.forEach(ExecutableCheck::commence);
+  public final MainHealthCheck commence() {
+    if (!commenced) {
+      commenced = true;
+      checks.forEach(ExecutableCheck::commence);
+    }
     return this;
   }
 
   //----- Some convenience methods -----
 
+  @Override
+  public MainHealthCheck add(ExecutableCheck c) {
+    return (MainHealthCheck) super.add(c);
+  }
+
+  @Override
+  public MainHealthCheck remove(ExecutableCheck c) {
+    return (MainHealthCheck) super.remove(c);
+  }
+
   public MainHealthCheck add(BooleanSupplier bs) {
-    return add(new FunctionCheck(bs));
+    return (MainHealthCheck) add(new FunctionCheck(bs));
   }
 
   public MainHealthCheck add(BooleanSupplier bs, String name) {
-    return add(new FunctionCheck(bs, name));
+    return (MainHealthCheck) add(new FunctionCheck(bs, name));
   }
 
   public MainHealthCheck add(String otherServiceEndpoint) throws MalformedURLException {
-    return add(new ServiceHealthCheck(otherServiceEndpoint, null));
+    return (MainHealthCheck) add(new ServiceHealthCheck(otherServiceEndpoint, null));
   }
 
   public MainHealthCheck add(String otherServiceEndpoint, String name) throws MalformedURLException {
-    return add(new ServiceHealthCheck(otherServiceEndpoint, name));
+    return (MainHealthCheck) add(new ServiceHealthCheck(otherServiceEndpoint, name));
   }
-
 }

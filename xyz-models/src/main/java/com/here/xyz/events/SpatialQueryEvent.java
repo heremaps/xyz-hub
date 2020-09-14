@@ -27,26 +27,10 @@ import java.util.Map;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class SpatialQueryEvent<T extends SpatialQueryEvent> extends SearchForFeaturesEvent<T> {
 
-  private long simplificationLevel;
   private String clusteringType;
   private Map<String, Object> clusteringParams;
-
-  @SuppressWarnings("unused")
-  public long getSimplificationLevel() {
-    return this.simplificationLevel;
-  }
-
-  @SuppressWarnings("WeakerAccess")
-  public void setSimplificationLevel(long simplificationLevel) {
-    this.simplificationLevel = simplificationLevel;
-  }
-
-  @SuppressWarnings("unused")
-  public T withSimplificationLevel(long simplificationLevel) {
-    setSimplificationLevel(simplificationLevel);
-    //noinspection unchecked
-    return (T) this;
-  }
+  private String tweakType;
+  private Map<String, Object> tweakParams;
 
   @SuppressWarnings("unused")
   public String getClusteringType() {
@@ -77,6 +61,38 @@ public class SpatialQueryEvent<T extends SpatialQueryEvent> extends SearchForFea
   @SuppressWarnings({"unused", "unchecked"})
   public T withClusteringParams(Map<String, Object> clusteringParams) {
     this.clusteringParams = clusteringParams;
+    return (T) this;
+  }
+
+  @SuppressWarnings("unused")
+  public Map<String, Object> getTweakParams() {
+    return this.tweakParams;
+  }
+
+  public void setTweakParams(Map<String, Object> tweakParams) {
+    this.tweakParams = tweakParams;
+  }
+
+  @SuppressWarnings({"unused", "unchecked"})
+  public T withTweakParams(Map<String, Object> tweakParams) {
+    this.tweakParams = tweakParams;
+    return (T) this;
+  }
+
+  @SuppressWarnings("unused")
+  public String getTweakType() {
+    return this.tweakType;
+  }
+
+  @SuppressWarnings("WeakerAccess")
+  public void setTweakType(String tweakType) {
+    this.tweakType = tweakType;
+  }
+
+  @SuppressWarnings("unused")
+  public T withTweakType(String tweakType) {
+    setTweakType(tweakType);
+    //noinspection unchecked
     return (T) this;
   }
 }

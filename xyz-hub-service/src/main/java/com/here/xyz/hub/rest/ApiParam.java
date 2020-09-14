@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -105,11 +105,12 @@ public class ApiParam {
     static final String IF_EXISTS = "e";
     static final String IF_NOT_EXISTS = "ne";
     static final String TRANSACTIONAL = "transactional";
+    static final String CONFLICT_RESOLUTION = "cr";
     static final String PREFIX_ID = "prefixId";
-    static final String SIMPLIFICATION_LEVEL = "simplificationLevel";
     static final String CLIP = "clip";
     static final String SKIP_CACHE = "skipCache";
     static final String CLUSTERING = "clustering";
+    static final String TWEAKS = "tweaks";
     static final String LIMIT = "limit";
     static final String WEST = "west";
     static final String NORTH = "north";
@@ -126,8 +127,23 @@ public class ApiParam {
     static final String RADIUS = "radius";
     static final String REF_SPACE_ID = "refSpaceId";
     static final String REF_FEATURE_ID = "refFeatureId";
+    static final String CONTENT_UPDATED_AT = "contentUpdatedAt";
 
-    private static List<String> shortOperators = Arrays.asList("!=", ">=", "=gte=", "<=", "=lte=", ">", "=gt=", "<", "=lt=", "=");
+    static final String CLUSTERING_PARAM_RESOLUTION = "resolution";
+    static final String CLUSTERING_PARAM_RESOLUTION_RELATIVE = "relativeResolution";
+    static final String CLUSTERING_PARAM_RESOLUTION_ABSOLUTE = "absoluteResolution";
+    static final String CLUSTERING_PARAM_NOBUFFER = "noBuffer";
+    static final String CLUSTERING_PARAM_PROPERTY = "property";
+    static final String CLUSTERING_PARAM_POINTMODE = "pointmode";
+    static final String CLUSTERING_PARAM_COUNTMODE = "countmode";
+
+    static final String TWEAKS_PARAM_STRENGTH  = "strength";
+    static final String TWEAKS_PARAM_ALGORITHM = "algorithm";
+    static final String TWEAKS_PARAM_DEFAULT_SELECTION = "defaultselection";
+    static final String TWEAKS_PARAM_CHUNKSIZE = "chunksize";
+
+    static final String FORCE_2D = "force2D";
+
     private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{
       put("!=", QueryOperation.NOT_EQUALS);
       put(">=", QueryOperation.GREATER_THAN_OR_EQUALS);
@@ -139,7 +155,12 @@ public class ApiParam {
       put("<", QueryOperation.LESS_THAN);
       put("=lt=", QueryOperation.LESS_THAN);
       put("=", QueryOperation.EQUALS);
+      put("@>", QueryOperation.CONTAINS);
+      put("=cs=", QueryOperation.CONTAINS);
     }};
+
+    private static List<String> shortOperators = new ArrayList<>(operators.keySet());
+    
 
     /**
      * Get access to the custom parsed query parameters. Used as a temporary replacement for context.queryParam until
@@ -225,6 +246,17 @@ public class ApiParam {
 
       return selection;
     }
+    /**
+     * Retures the parsed query parameter for space
+     */
+    static PropertiesQuery getSpacePropertiesQuery(RoutingContext context, String param) {
+      PropertiesQuery propertyQuery = context.get("propertyQuery");
+      if (propertyQuery == null) {
+        propertyQuery = parsePropertiesQuery(context.request().query(), param, true);
+        context.put("propertyQuery", propertyQuery);
+      }
+      return propertyQuery;
+    }
 
     /**
      * Returns the parsed tags parameter
@@ -232,52 +264,72 @@ public class ApiParam {
     static PropertiesQuery getPropertiesQuery(RoutingContext context) {
       PropertiesQuery propertyQuery = context.get("propertyQuery");
       if (propertyQuery == null) {
-        propertyQuery = parsePropertiesQuery(context.request().query());
+        propertyQuery = parsePropertiesQuery(context.request().query(), "", false);
         context.put("propertyQuery", propertyQuery);
       }
       return propertyQuery;
     }
 
-    protected static PropertiesQuery parsePropertiesQuery(String query) {
+    protected static PropertiesQuery parsePropertiesQuery(String query, String property, boolean spaceProperties) {
       if (query == null || query.length() == 0) {
         return null;
       }
 
       PropertyQueryList pql = new PropertyQueryList();
       Stream.of(query.split("&"))
-          .filter(k -> k.startsWith("p.") || k.startsWith("f."))
+          .filter(k -> k.startsWith("p.") || k.startsWith("f.") || spaceProperties)
           .forEach(keyValuePair -> {
             PropertyQuery propertyQuery = new PropertyQuery();
 
+            String operatorComma = "-#:comma:#-";
             try {
+              keyValuePair = keyValuePair.replaceAll(",", operatorComma);
               keyValuePair = URLDecoder.decode(keyValuePair, "utf-8");
             } catch (UnsupportedEncodingException e) {
               e.printStackTrace();
             }
 
+            int position=0;
+            String op=null;
+
+            /** store "main" operator. Needed for such cases foo=bar-->test*/
             for (String shortOperator : shortOperators) {
-              if (keyValuePair.contains(shortOperator)) {
-                // If the original parameter expression doesn't contain the equal sign API GW appends it at the end
-                String[] keyVal = keyValuePair.split(shortOperator);
-                if (keyVal.length < 2) {
-                  break;
+              int currentPositionOfOp = keyValuePair.indexOf(shortOperator);
+              if (currentPositionOfOp != -1) {
+                if( 
+                  // feature properties query
+                  (!spaceProperties && (op == null || currentPositionOfOp < position || ( currentPositionOfOp == position && op.length() < shortOperator.length() ))) ||
+                  // space properties query
+                  (keyValuePair.substring(0,currentPositionOfOp).equals(property) && spaceProperties && (op == null || currentPositionOfOp < position || ( currentPositionOfOp == position && op.length() < shortOperator.length() )))
+                ) {
+                  op = shortOperator;
+                  position = currentPositionOfOp;
                 }
-                if ((">".equals(shortOperator) || "<".equals(shortOperator)) && keyVal[1].endsWith("=")) {
+              }
+            }
+
+            if(op != null){
+                String[] keyVal = new String[]{keyValuePair.substring(0, position).replaceAll(operatorComma,","), 
+                                               keyValuePair.substring(position + op.length())
+                                              };
+                /** Cut from API-Gateway appended "=" */
+                if ((">".equals(op) || "<".equals(op)) && keyVal[1].endsWith("=")) {
                   keyVal[1] = keyVal[1].substring(0, keyVal[1].length() - 1);
                 }
-                propertyQuery.setKey(getConvertedKey(keyVal[0]));
-                propertyQuery.setOperation(operators.get(shortOperator));
-                String[] rawValues = keyVal[1].split(",");
+
+                propertyQuery.setKey(spaceProperties ? keyVal[0] : getConvertedKey(keyVal[0]));
+                propertyQuery.setOperation(operators.get(op));
+                String[] rawValues = keyVal[1].split( operatorComma );
+
                 ArrayList<Object> values = new ArrayList<>();
                 for (String rawValue : rawValues) {
                   values.add(getConvertedValue(rawValue));
                 }
                 propertyQuery.setValues(values);
                 pql.add(propertyQuery);
-                break;
               }
-            }
           });
+
       PropertiesQuery pq = new PropertiesQuery();
       pq.add(pql);
 
@@ -287,42 +339,126 @@ public class ApiParam {
       return pq;
     }
 
-    static Map<String, Object> getClusteringParams(RoutingContext context) {
-      Map<String, Object> clusteringParams = context.get("clusteringParams");
+    static Map<String, Object> getAdditionalParams(RoutingContext context, String type) throws Exception{
+      Map<String, Object> clusteringParams = context.get(type);
+
       if (clusteringParams == null) {
-        clusteringParams = parseClusteringParams(context.request().query());
-        context.put("clusteringParams", clusteringParams);
+        clusteringParams = parseAdditionalParams(context.request().query(), type);
+        context.put(type, clusteringParams);
       }
       return clusteringParams;
     }
 
-    static Map<String, Object> parseClusteringParams(String query) {
+    static Map<String, Object> parseAdditionalParams(String query, String type) throws Exception{
       if (query == null || query.length() == 0) {
         return null;
       }
 
-      final String clusterPrefix = Query.CLUSTERING + ".";
+      final String paramPrefix = type + ".";
+
       Map<String, Object> cp = new HashMap<>();
       Stream.of(query.split("&"))
-          .filter(k -> k.startsWith(clusterPrefix))
-          .forEach(keyValuePair -> {
-            try {
-              keyValuePair = URLDecoder.decode(keyValuePair, "utf-8");
-            } catch (UnsupportedEncodingException e) {
-              e.printStackTrace();
-            }
+              .filter(k -> k.startsWith(paramPrefix))
+              .forEach(keyValuePair -> {
+                try {
+                  keyValuePair = URLDecoder.decode(keyValuePair, "utf-8");
+                } catch (UnsupportedEncodingException e) {
+                  e.printStackTrace();
+                }
 
-            if (keyValuePair.contains("=")) {
-              // If the original parameter expression doesn't contain the equal sign API GW appends it at the end
-              String[] keyVal = keyValuePair.split("=");
-              if (keyVal.length < 2) {
-                return;
-              }
-              cp.put(keyVal[0].substring(clusterPrefix.length()), getConvertedValue(keyVal[1]));
-            }
-          });
+                if (keyValuePair.contains("=")) {
+                  // If the original parameter expression doesn't contain the equal sign API GW appends it at the end
+                  String[] keyVal = keyValuePair.split("=");
+                  if (keyVal.length < 2) {
+                    return;
+                  }
+                  String key = keyVal[0].substring(paramPrefix.length());
+                  Object value =  getConvertedValue(keyVal[1]);
+                  try {
+                    validateAdditionalParams(type,key,value);
+                  }catch (Exception e){
+                    throw new RuntimeException(e.getMessage());
+                  }
+                  cp.put(keyVal[0].substring(paramPrefix.length()), getConvertedValue(keyVal[1]));
+                }
+              });
 
       return cp;
+    }
+
+    private static void validateAdditionalParams(String type, String key, Object value) throws  Exception{
+      if(type.equals(CLUSTERING)){
+        switch (key){
+          case CLUSTERING_PARAM_RESOLUTION_ABSOLUTE:
+          case CLUSTERING_PARAM_RESOLUTION_RELATIVE:
+          case CLUSTERING_PARAM_RESOLUTION:
+            if(!(value instanceof Long))
+              throw new Exception(String.format("Invalid clustering.%s value. Expect Integer.",key));
+            else if((long)value < 0 || (long)value > 15)
+              throw new Exception(String.format("Invalid clustering.%s value. Expect Integer [0,15].",key));
+            break;
+          case CLUSTERING_PARAM_PROPERTY:
+            if(!(value instanceof String))
+              throw new Exception(String.format("Invalid clustering.%s value. Expect String.",key));
+            break;
+          case CLUSTERING_PARAM_POINTMODE:
+            if(!(value instanceof Boolean))
+              throw new Exception("Invalid clustering.pointmode value. Expect true or false.");
+            break;
+            case CLUSTERING_PARAM_NOBUFFER:
+            if(!(value instanceof Boolean))
+              throw new Exception("Invalid clustering.noBuffer value. Expect true or false.");
+            break;
+          case CLUSTERING_PARAM_COUNTMODE:
+            if(!(value instanceof String))
+              throw new Exception("Invalid clustering.count value. Expect one of [real,estimated,mixed].");
+            break;
+          default: throw new Exception("Invalid Clustering Parameter! Expect one of ["
+                          +CLUSTERING_PARAM_RESOLUTION+","+CLUSTERING_PARAM_RESOLUTION_RELATIVE+","+CLUSTERING_PARAM_RESOLUTION_ABSOLUTE+","
+                          +CLUSTERING_PARAM_PROPERTY+","+CLUSTERING_PARAM_POINTMODE+","+CLUSTERING_PARAM_COUNTMODE+","
+                          +CLUSTERING_PARAM_NOBUFFER+"].");
+        }
+      }else if(type.equals(TWEAKS)){
+        switch( key )
+        {
+         case TWEAKS_PARAM_STRENGTH :
+           if(value instanceof String)
+           { String keyS = ((String) value).toLowerCase();
+             switch (keyS)
+             { case "low": case "lowmed": case "med": case "medhigh": case "high": break;
+               default:
+                throw new Exception("Invalid tweaks.strength value. Expect [low,lowmed,med,medhigh,high]");
+             }
+           }
+           else if(value instanceof Long)
+           {
+            if((long)value < 1 || (long)value > 100)
+             throw new Exception("Invalid tweaks.strength value. Expect Integer [1,100].");
+           }
+           else
+            throw new Exception("Invalid tweaks.strength value. Expect String or Integer.");
+
+         break;
+
+         case TWEAKS_PARAM_DEFAULT_SELECTION:
+          if(!(value instanceof Boolean))
+           throw new Exception("Invalid tweaks.defaultselection value. Expect true or false.");
+          break;
+         
+         case TWEAKS_PARAM_ALGORITHM : break;
+
+         case TWEAKS_PARAM_CHUNKSIZE : // testing, parameter evaluation
+          if(!(value instanceof Long))
+           throw new Exception(String.format("Invalid type tweaks.%s. Expect Integer.",key));
+          break; 
+
+         default:
+          throw new Exception("Invalid Tweaks Parameter! Expect one of [" + TWEAKS_PARAM_STRENGTH + "," 
+                                                                          + TWEAKS_PARAM_ALGORITHM + ","
+                                                                          + TWEAKS_PARAM_DEFAULT_SELECTION + "]");
+        }
+
+      }
     }
 
     public static Point getCenter(RoutingContext context)

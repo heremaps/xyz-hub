@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_INFO;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.BBOX;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.ID;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
@@ -38,8 +39,10 @@ import com.here.xyz.events.Event;
 import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
+import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.RpcClient;
+import com.here.xyz.hub.connectors.RpcClient.RpcContext;
 import com.here.xyz.hub.connectors.models.BinaryResponse;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
@@ -53,6 +56,8 @@ import com.here.xyz.hub.task.FeatureTask.ConditionalOperation;
 import com.here.xyz.hub.task.FeatureTask.DeleteOperation;
 import com.here.xyz.hub.task.FeatureTask.ReadQuery;
 import com.here.xyz.hub.task.FeatureTask.TileQuery;
+import com.here.xyz.hub.task.FeatureTask.TileQuery.TransformationContext;
+import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
 import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.task.ModifyOp.ModifyOpError;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
@@ -62,6 +67,7 @@ import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.geojson.implementation.FeatureCollection.ModificationFailure;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
@@ -71,6 +77,7 @@ import com.here.xyz.responses.ModifiedResponseResponse;
 import com.here.xyz.responses.NotModifiedResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse.PropertiesStatistics.Searchable;
+import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzResponse;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -80,6 +87,7 @@ import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
@@ -113,7 +121,13 @@ public class FeatureTaskHandler {
    * @param <T> the type of the FeatureTask
    */
   public static <T extends FeatureTask> void invoke(T task, Callback<T> callback) {
-    Event event = task.getEvent();
+    /**
+     * NOTE: The event may only be consumed once. Once it was consumed it should only be referenced in the request-phase. Referencing it in the
+     *     response-phase will keep the whole event-data in the memory and could cause many major GCs to because of large request-payloads.
+     *
+     * @see Task#consumeEvent()
+     */
+    Event event = task.consumeEvent();
     /*
     In case there is already, nothing has to be done here (happens if the response was set by an earlier process in the task pipeline
     e.g. when having a cache hit)
@@ -122,7 +136,25 @@ public class FeatureTaskHandler {
       callback.call(task);
       return;
     }
+
+    if (!task.storage.active) {
+      if (event instanceof ModifySpaceEvent && ((ModifySpaceEvent) event).getOperation() == ModifySpaceEvent.Operation.DELETE) {
+        /*
+        If connector is inactive we allow space deletions. In this case only the space configuration gets deleted. The
+        deactivated connector does not get invoked so the dataset behind stays untouched.
+        */
+        task.setResponse(new SuccessResponse().withStatus("OK"));
+        callback.call(task);
+      }
+      else {
+        //Abort further processing - do not: notifyProcessors, notifyListeners, invoke connector
+        callback.exception(new HttpException(BAD_REQUEST, "Related connector is not active: " + task.storage.id));
+      }
+      return;
+    }
+
     String eventType = event.getClass().getSimpleName();
+
     //Pre-process the event by executing potentially registered processors
     notifyProcessors(task, eventType, event, preProcessingResult -> {
       if (preProcessingResult.failed() || preProcessingResult.result() instanceof ErrorResponse) {
@@ -143,15 +175,16 @@ public class FeatureTaskHandler {
       Event<? extends Event> requestListenerPayload = eventToExecute.copy();
       //}
 
-      // CMEKB-2779 Remove failed entries before calling storage client
+      //CMEKB-2779 Remove failed entries before calling storage client
       if (eventToExecute instanceof ModifyFeaturesEvent) {
         ((ModifyFeaturesEvent) eventToExecute).setFailed(null);
       }
       //Do the actual storage call
-      setAdditionalEventProps(task, task.storage, eventToExecute);
-
       try {
-        RpcClient.getInstanceFor(task.storage).execute(task.getMarker(), eventToExecute, storageResult -> {
+        setAdditionalEventProps(task, task.storage, eventToExecute);
+        final long storageRequestStart = Service.currentTimeMillis();
+        responseContext.rpcContext = RpcClient.getInstanceFor(task.storage).execute(task.getMarker(), eventToExecute, storageResult -> {
+          addStoragePerformanceInfo(task, Service.currentTimeMillis() - storageRequestStart, responseContext.rpcContext);
           if (storageResult.failed()) {
             handleFailure(task.getMarker(), storageResult.cause(), callback);
             return;
@@ -174,24 +207,47 @@ public class FeatureTaskHandler {
             notifyListeners(task, eventType, responseToSend);
           });
         });
-      } catch (Exception e) {
-        callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to create an instance for the provided storage definition", e));
+      }
+      catch (IllegalStateException e) {
+        cancelRPC(responseContext.rpcContext);
+        logger.error(task.getMarker(), e.getMessage(), e);
+        callback.exception(new HttpException(BAD_REQUEST, e.getMessage(), e));
+        return;
+      }
+      catch (Exception e) {
+        cancelRPC(responseContext.rpcContext);
+        logger.error(task.getMarker(), "Unexpected error executing the storage event.", e);
+        callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unexpected error executing the storage event.", e));
         return;
       }
 
-      // update the contentUpdatedAt timestamp to indicate that the data in this space was modified
+      //Update the contentUpdatedAt timestamp to indicate that the data in this space was modified
       if (task instanceof FeatureTask.ConditionalOperation || task instanceof FeatureTask.DeleteOperation) {
         long now = Service.currentTimeMillis();
         if (now - task.space.contentUpdatedAt > Space.CONTENT_UPDATED_AT_INTERVAL_MILLIS) {
           task.space.contentUpdatedAt = Service.currentTimeMillis();
           task.space.volatilityAtLastContentUpdate = task.space.getVolatility();
           Service.spaceConfigClient.store(task.getMarker(), task.space,
-              (ar) -> logger.info(task.getMarker(), "Updated contentUpdatedAt for space {}", task.getEvent().getSpace()));
+              (ar) -> logger.info(task.getMarker(), "Updated contentUpdatedAt for space {}", task.space.getId()));
         }
       }
       //Send event to potentially registered request-listeners
       notifyListeners(task, eventType, requestListenerPayload);
     });
+  }
+
+  private static void cancelRPC(RpcContext rpcContext) {
+    if (rpcContext != null) {
+      rpcContext.cancelRequest();
+    }
+  }
+
+  private static <T extends FeatureTask> void addStoragePerformanceInfo(T task, long storageTime,
+      RpcContext rpcContext) {
+    String connectorPerformanceValues = "STime=" + storageTime + ";";
+    if (rpcContext != null)
+      connectorPerformanceValues += "SReqSize=" + rpcContext.getRequestSize() + ";SResSize=" + rpcContext.getResponseSize() + ";";
+    addStreamInfo(task, connectorPerformanceValues);
   }
 
   private static XyzResponse transform(byte[] value) throws JsonProcessingException {
@@ -227,16 +283,18 @@ public class FeatureTaskHandler {
       String cacheKey = task.getCacheKey();
 
       //Check the cache
-      Service.cacheClient.getBinary(cacheKey, cacheResult -> {
+      Service.cacheClient.get(cacheKey, cacheResult -> {
         if (cacheResult == null) {
           //Cache MISS: Just go on in the task pipeline
+          addStreamInfo(task, "CH=0;");
           logger.info(task.getMarker(), "Cache MISS for cache key {}", cacheKey);
         } else {
           //Cache HIT: Set the response for the task to the result from the cache so invoke (in the task pipeline) won't have anything to do
-          task.setCacheHit(true);
-          logger.info(task.getMarker(), "Cache HIT for cache key {}", cacheKey);
           try {
             task.setResponse(transform(cacheResult));
+            task.setCacheHit(true);
+            addStreamInfo(task, "CH=1;");
+            logger.info(task.getMarker(), "Cache HIT for cache key {}", cacheKey);
           } catch (JsonProcessingException e) {
             //Actually, this should never happen as we're controlling how the data is written to the cache, but you never know ;-)
             //Treating an error as a Cache MISS
@@ -259,8 +317,13 @@ public class FeatureTaskHandler {
     if (cacheProfile.serviceTTL > 0 && response != null && !task.isCacheHit()
         && !(response instanceof NotModifiedResponse) && !(response instanceof ErrorResponse)) {
       String cacheKey = task.getCacheKey();
+      if (cacheKey == null) {
+        String npe = "cacheKey is null. Couldn't write cache.";
+        logger.error(task.getMarker(), npe);
+        throw new NullPointerException(npe);
+      }
       logger.debug(task.getMarker(), "Writing entry with cache key {} to cache", cacheKey);
-      Service.cacheClient.setBinary(cacheKey, transform(response), cacheProfile.serviceTTL);
+      Service.cacheClient.set(cacheKey, transform(response), cacheProfile.serviceTTL);
     }
   }
 
@@ -323,6 +386,7 @@ public class FeatureTaskHandler {
     if (connector.trusted) {
       event.setTid(task.getJwt().tid);
       event.setAid(task.getJwt().aid);
+      event.setJwt(task.getJwt().jwt);
     }
   }
 
@@ -532,6 +596,7 @@ public class FeatureTaskHandler {
     logger.debug(task.getMarker(), "Given space configuration is: {}", Json.encode(task.space));
 
     final String storageId = task.space.getStorage().getId();
+    addStreamInfo(task, "SID=" + storageId + ";");
     Space.resolveConnector(task.getMarker(), storageId, (arStorage) -> {
       if (arStorage.failed()) {
         callback.exception(new InvalidStorageException("Unable to load the definition for this storage."));
@@ -550,7 +615,7 @@ public class FeatureTaskHandler {
           callback.call(task);
         });
       } catch (Exception e) {
-        logger.info(task.getMarker(), "The listeners for this space cannot be initialized", e);
+        logger.error(task.getMarker(), "The listeners for this space cannot be initialized", e);
         callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "The listeners for this space cannot be initialized"));
       }
     });
@@ -618,10 +683,18 @@ public class FeatureTaskHandler {
         }
         entry.input.put(ID, id);
 
-        if (id != null) { // Test for duplicate IDs
+        if (id != null) { 
+          // Minimum length of id should be 1
+          if (id.length() < 1) {
+            logger.info(task.getMarker(), "Minimum length of object id should be 1.");
+            callback.exception(new HttpException(BAD_REQUEST, "Minimum length of object id should be 1."));
+            return;
+          }
+          // Test for duplicate IDs
           if (ids.containsKey(id)) {
             logger.info(task.getMarker(), "Objects with the same ID {} are included in the request.", id);
-            throw new HttpException(BAD_REQUEST, "Objects with the same ID " + id + " is included in the request.");
+            callback.exception(new HttpException(BAD_REQUEST, "Objects with the same ID " + id + " is included in the request."));
+            return;
           }
           ids.put(id, true);
         }
@@ -637,7 +710,7 @@ public class FeatureTaskHandler {
         properties.putIfAbsent(XyzNamespace.XYZ_NAMESPACE, new HashMap<String, Object>());
       }
     } catch (Exception e) {
-      logger.error(e);
+      logger.error(task.getMarker(), e.getMessage(), e);
       callback.exception(new HttpException(BAD_REQUEST, "Unable to process the request input."));
       return;
     }
@@ -650,15 +723,35 @@ public class FeatureTaskHandler {
       final List<Feature> insert = new ArrayList<>();
       final List<Feature> update = new ArrayList<>();
       final Map<String, String> delete = new HashMap<>();
+      List<FeatureCollection.ModificationFailure> fails = new ArrayList<>();
 
       long now = Service.currentTimeMillis();
 
-      for (int i = 0; i < task.modifyOp.entries.size(); i++) {
-        final Entry<Feature> entry = task.modifyOp.entries.get(i);
-        if (!entry.isModified) {
-          task.hasNonModified = true;
+      Iterator<FeatureEntry> it = task.modifyOp.entries.iterator();
+      int i=-1;
+      while( it.hasNext() ){
+        FeatureEntry entry = it.next();
+        i++;
+
+        if(entry.exception != null){
+          ModificationFailure failure = new ModificationFailure()
+              .withMessage(entry.exception.getMessage())
+              .withPosition((long) i);
+          if (entry.input.get("id") instanceof String) {
+            failure.setId((String) entry.input.get("id"));
+          }
+          fails.add(failure);
           continue;
         }
+
+        if (!entry.isModified) {
+          task.hasNonModified = true;
+          /** Entry does not exist - remove it to prevent null references */
+          if(entry.head == null && entry.base == null)
+            it.remove();
+          continue;
+        }
+
         final Feature result = entry.result;
 
         // Insert or update
@@ -719,7 +812,6 @@ public class FeatureTaskHandler {
 
         // DELETE
         else if (entry.head != null) {
-          final String id = entry.head.getId();
           delete.put(entry.head.getId(), entry.inputUUID);
         }
       }
@@ -727,6 +819,7 @@ public class FeatureTaskHandler {
       task.getEvent().setInsertFeatures(insert);
       task.getEvent().setUpdateFeatures(update);
       task.getEvent().setDeleteFeatures(delete);
+      task.getEvent().setFailed(fails);
 
       // In case nothing was changed, set the response directly to skip calling the storage connector.
       if (insert.size() == 0 && update.size() == 0 && delete.size() == 0) {
@@ -734,10 +827,13 @@ public class FeatureTaskHandler {
         if( task.hasNonModified ){
           task.modifyOp.entries.stream().filter(e -> !e.isModified).forEach(e -> {
             try {
-              fc.getFeatures().add(e.result);
+              if(e.result != null)
+                fc.getFeatures().add(e.result);
             } catch (JsonProcessingException ignored) {}
           });
         }
+        if(fails.size() > 0)
+          fc.setFailed(fails);
         task.setResponse(fc);
       }
 
@@ -781,7 +877,7 @@ public class FeatureTaskHandler {
     callback.call(task);
   }
 
-  static void enforceUsageQuotas(ConditionalOperation task, Callback<ConditionalOperation> callback) {
+  static <X extends FeatureTask<?, X>> void enforceUsageQuotas(X task, Callback<X> callback) {
     final long maxFeaturesPerSpace = task.getJwt().limits != null ? task.getJwt().limits.maxFeaturesPerSpace : -1;
     if (maxFeaturesPerSpace <= 0) {
       callback.call(task);
@@ -807,10 +903,10 @@ public class FeatureTaskHandler {
     });
   }
 
-  private static void checkFeaturesPerSpaceQuota(ConditionalOperation task, Callback<ConditionalOperation> callback,
+  private static <X extends FeatureTask<?, X>> void checkFeaturesPerSpaceQuota(X task, Callback<X> callback,
       long maxFeaturesPerSpace, Long count) {
     try {
-      ModifyFeaturesEvent modifyEvent = task.getEvent();
+      ModifyFeaturesEvent modifyEvent = (ModifyFeaturesEvent) task.getEvent();
       if (modifyEvent != null) {
         final List<Feature> insertFeaturesList = modifyEvent.getInsertFeatures();
         final int insertFeaturesSize = insertFeaturesList == null ? 0 : insertFeaturesList.size();
@@ -830,7 +926,7 @@ public class FeatureTaskHandler {
     }
   }
 
-  private static void getCountForSpace(FeatureTask<ModifyFeaturesEvent, ConditionalOperation> task, Handler<AsyncResult<Long>> handler) {
+  private static <X extends FeatureTask<?, X>>void getCountForSpace(X task, Handler<AsyncResult<Long>> handler) {
     final CountFeaturesEvent countEvent = new CountFeaturesEvent();
     countEvent.setSpace(task.getEvent().getSpace());
     countEvent.setParams(task.getEvent().getParams());
@@ -868,19 +964,20 @@ public class FeatureTaskHandler {
 
     BinaryResponse binaryResponse = new BinaryResponse();
     binaryResponse.setEtag(task.getResponse().getEtag());
+    TransformationContext tc = task.transformationContext;
 
-    // The mvt transformation is not executed, if the source feature collection is the same.
-    if (task.getEvent().getIfNoneMatch() == null || !task.getEvent().getIfNoneMatch().equals(task.getResponse().getEtag())) {
+    //The mvt transformation is not executed, if the source feature collection is the same.
+    if (!task.etagMatches()) {
       try {
         byte[] mvt;
         if (ApiResponseType.MVT == task.responseType) {
           mvt = new MapBoxVectorTileBuilder()
-              .build(WebMercatorTile.forWeb(task.getEvent().getLevel(), task.getEvent().getX(), task.getEvent().getY()),
-                  task.getEvent().getMargin(), task.space.getId(), ((FeatureCollection) task.getResponse()).getFeatures());
+              .build(WebMercatorTile.forWeb(tc.level, tc.x, tc.y), tc.margin, task.space.getId(),
+                  ((FeatureCollection) task.getResponse()).getFeatures());
         } else {
           mvt = new MapBoxVectorTileFlattenedBuilder()
-              .build(WebMercatorTile.forWeb(task.getEvent().getLevel(), task.getEvent().getX(), task.getEvent().getY()),
-                  task.getEvent().getMargin(), task.space.getId(), ((FeatureCollection) task.getResponse()).getFeatures());
+              .build(WebMercatorTile.forWeb(tc.level, tc.x, tc.y), tc.margin, task.space.getId(),
+                  ((FeatureCollection) task.getResponse()).getFeatures());
         }
         binaryResponse.setBytes(mvt);
       } catch (Exception e) {
@@ -891,7 +988,15 @@ public class FeatureTaskHandler {
     }
 
     task.setResponse(binaryResponse);
+
     callback.call(task);
+  }
+
+  private static <T extends FeatureTask> void addStreamInfo(T task, String streamInfoValues) {
+    if (task.context.response().headers().contains(STREAM_INFO))
+      streamInfoValues = task.context.response().headers().get(STREAM_INFO) + streamInfoValues;
+
+    task.context.response().putHeader(STREAM_INFO, streamInfoValues);
   }
 
   public static <X extends FeatureTask<?, X>> void validate(X task, Callback<X> callback) {
@@ -967,6 +1072,7 @@ public class FeatureTaskHandler {
 
     List<FeatureCollection.ModificationFailure> failedModifications;
     Class<? extends Event> eventType;
+    RpcContext rpcContext;
 
     EventResponseContext(Event event) {
       eventType = event.getClass();

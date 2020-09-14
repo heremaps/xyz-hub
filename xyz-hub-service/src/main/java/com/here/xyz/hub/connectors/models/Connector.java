@@ -25,10 +25,10 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLambda;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
+import com.here.xyz.hub.rest.admin.Node;
 import java.net.URL;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +44,8 @@ public class Connector {
    * The unique identifier of this connector configuration.
    */
   public String id;
+
+  public boolean active = true;
 
   /**
    * Whether the connector is a trusted connector. Trusted connectors will receive more information than normal connectors. This might be
@@ -77,6 +79,12 @@ public class Connector {
   public List<String> defaultEventTypes;
 
   /**
+   * A list of email addresses of responsible owners for this connector.
+   * These email addresses will be used to send potential health warnings and other notifications.
+   */
+  public List<String> contactEmails;
+
+  /**
    * Returns the maximal amount of requests to queue.
    *
    * @return the maximal amount of requests to queue.
@@ -89,23 +97,24 @@ public class Connector {
 
   public <T extends Connector> boolean equalTo(T other) {
     return (other != null
-        && Objects.equals(remoteFunction.id, other.remoteFunction.id)
-        && Objects.equals(connectionSettings, other.connectionSettings)
-        && Objects.equals(remoteFunction, other.remoteFunction)
+        && Objects.equals(id, other.id)
+        && active == other.active
+        && trusted == other.trusted)
         && Objects.equals(params, other.params)
         && Objects.equals(capabilities, other.capabilities)
-        && Objects.equals(defaultEventTypes, other.defaultEventTypes)
-        && trusted == other.trusted);
+        && Objects.equals(remoteFunction, other.remoteFunction)
+        && Objects.equals(connectionSettings, other.connectionSettings)
+        && Objects.equals(defaultEventTypes, other.defaultEventTypes);
   }
 
   @JsonIgnore
   public int getMinConnectionsPerInstance() {
-    return connectionSettings.getMinConnections() / Service.configuration.INSTANCE_COUNT;
+    return connectionSettings.getMinConnections() / Node.count();
   }
 
   @JsonIgnore
   public int getMaxConnectionsPerInstance() {
-    return connectionSettings.maxConnections / Service.configuration.INSTANCE_COUNT;
+    return connectionSettings.maxConnections / Node.count();
   }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
@@ -160,7 +169,11 @@ public class Connector {
       return preserializedResponseSupport == that.preserializedResponseSupport &&
           relocationSupport == that.relocationSupport &&
           maxUncompressedSize == that.maxUncompressedSize &&
-          maxPayloadSize == that.maxPayloadSize;
+          maxPayloadSize == that.maxPayloadSize &&
+          propertySearch == that.propertySearch &&
+          searchablePropertiesConfiguration == that.searchablePropertiesConfiguration &&
+          enableAutoCache == that.enableAutoCache &&
+          Objects.equals(clusteringTypes, that.clusteringTypes);
     }
 
   }
@@ -215,7 +228,8 @@ public class Connector {
       if (o == null || getClass() != o.getClass()) return false;
       RemoteFunctionConfig that = (RemoteFunctionConfig) o;
       return warmUp == that.warmUp &&
-          id.equals(that.id);
+          Objects.equals(id, that.id) &&
+          warmUp == that.warmUp;
     }
 
     @JsonTypeName(value = "AWSLambda")
@@ -255,6 +269,21 @@ public class Connector {
 
       public String className;
       public Map<String, String> env;
+
+      @Override
+      public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Embedded)) return false;
+        if (!super.equals(o)) return false;
+        Embedded embedded = (Embedded) o;
+        return className.equals(embedded.className) &&
+            Objects.equals(env, embedded.env);
+      }
+
+      @Override
+      public int hashCode() {
+        return Objects.hash(className, env);
+      }
     }
 
     @JsonTypeName(value = "Http")
@@ -264,6 +293,20 @@ public class Connector {
        * The URL of the endpoint to POST events to.
        */
       public URL url;
+
+      @Override
+      public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Http)) return false;
+        if (!super.equals(o)) return false;
+        Http http = (Http) o;
+        return url.equals(http.url);
+      }
+
+      @Override
+      public int hashCode() {
+        return Objects.hash(url);
+      }
     }
   }
 

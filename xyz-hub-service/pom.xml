@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (C) 2017-2019 HERE Europe B.V.
+  ~ Copyright (C) 2017-2020 HERE Europe B.V.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -24,8 +24,8 @@
   <parent>
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
-    <relativePath>../</relativePath>
-    <version>1.3.1-SNAPSHOT</version>
+    <relativePath>../pom.xml</relativePath>
+    <version>1.10.13-SNAPSHOT</version>
   </parent>
 
   <licenses>
@@ -243,6 +243,18 @@
       <groupId>io.vertx</groupId>
     </dependency>
 
+    <!-- Netty native transport -->
+    <dependency>
+      <groupId>io.netty</groupId>
+      <artifactId>netty-transport-native-kqueue</artifactId>
+      <classifier>osx-x86_64</classifier>
+    </dependency>
+    <dependency>
+      <groupId>io.netty</groupId>
+      <artifactId>netty-transport-native-epoll</artifactId>
+      <classifier>linux-x86_64</classifier>
+    </dependency>
+
     <!-- AWS SDK -->
     <dependency>
       <artifactId>aws-java-sdk-s3</artifactId>
@@ -264,6 +276,10 @@
       <artifactId>aws-java-sdk-sns</artifactId>
       <groupId>com.amazonaws</groupId>
     </dependency>
+    <dependency>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>aws-java-sdk-cloudwatch</artifactId>
+    </dependency>
 
     <!--  GeoTools libraries -->
     <dependency>
@@ -283,15 +299,21 @@
       <groupId>org.geotools</groupId>
     </dependency>
 
+    <!-- Cache -->
+    <dependency>
+      <artifactId>expiringmap</artifactId>
+      <groupId>net.jodah</groupId>
+    </dependency>
+    <dependency>
+      <groupId>org.caffinitas.ohc</groupId>
+      <artifactId>ohc-core</artifactId>
+    </dependency>
+
     <!-- External libraries -->
     <dependency>
       <artifactId>mapbox-vector-tile</artifactId>
       <groupId>com.wdtinc</groupId>
       <version>2.0.0</version>
-    </dependency>
-    <dependency>
-      <artifactId>expiringmap</artifactId>
-      <groupId>net.jodah</groupId>
     </dependency>
 
     <!-- Test -->
@@ -300,6 +322,5 @@
       <groupId>junit</groupId>
       <scope>test</scope>
     </dependency>
-
   </dependencies>
 </project>

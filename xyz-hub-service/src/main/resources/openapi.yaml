@@ -56,6 +56,39 @@ paths:
           schema:
             type: string
             default: me
+        - name: contentUpdatedAt
+          x-experimental: true
+          in: query
+          description: >
+            Additional space filter which compares the space's contentUpdatedAt timestamp with the one
+            specified in the query, resulting in a subset of spaces.
+    
+    
+            The usage of a comma (,) separating the timestamps, represents
+            an OR operation.
+
+    
+            The format should follow the specification below
+              * ?contentUpdatedAt=timestamp
+    
+            While in the following example
+              * ?contentUpdatedAt=timestamp_1,timestamp_2
+    
+    
+            The resulting spaces list will contain all contentUpdatedAt having timestamp_1 OR timestamp_2
+    
+            
+            The available operators are:
+              - "=" - equals
+              - "!=" - not equals
+              - ">=" or "=gte=" - greater than or equals
+              - "<=" or "=lte=" - less than or equals
+              - ">" or "=gt=" - greater than
+              - "<" or "=lt=" - less than
+          required: false
+          schema:
+            type: string
+            example: 1597092085740
       responses:
         '200':
           $ref: '#/components/responses/SpacesResponse'
@@ -165,12 +198,13 @@ paths:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/RequiredIdList'
         - $ref: '#/components/parameters/PropertiesSelection'
+        - $ref: '#/components/parameters/Force2D'
       responses:
         '200':
           content:
             application/geo+json:
               schema:
-                $ref: '#/components/schemas/FeatureCollection'
+                $ref: '#/components/schemas/FeatureCollectionResponse'
           description: >-
             The FeatureCollection containing all of the features, found for the
             provided list of ids.
@@ -326,12 +360,14 @@ paths:
           x-experimental: true
         - $ref: '#/components/parameters/IfNotExists'
           x-experimental: true
+        - $ref: '#/components/parameters/ConflictResolution'
+          x-experimental: true
         - $ref: '#/components/parameters/Transactional'
           x-experimental: true
         - $ref: '#/components/parameters/PrefixId'
           x-experimental: true
       requestBody:
-        $ref: '#/components/requestBodies/FeatureCollection'
+        $ref: '#/components/requestBodies/FeatureCollectionOrFeatureModificationList'
       responses:
         '200':
           $ref: '#/components/responses/ModifyFCResponse'
@@ -381,6 +417,7 @@ paths:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/FeatureId'
         - $ref: '#/components/parameters/PropertiesSelection'
+        - $ref: '#/components/parameters/Force2D'
       responses:
         '200':
           $ref: '#/components/responses/SingleFeatureResponse'
@@ -531,6 +568,11 @@ paths:
         - $ref: '#/components/parameters/SkipCache'
         - $ref: '#/components/parameters/Clustering'
         - $ref: '#/components/parameters/ClusteringParams'
+        - $ref: '#/components/parameters/Tweaks'
+          x-experimental: true
+        - $ref: '#/components/parameters/TweaksParams'
+          x-experimental: true
+        - $ref: '#/components/parameters/Force2D'
       responses:
         '200':
           $ref: '#/components/responses/QueryFCResponse'
@@ -590,6 +632,10 @@ paths:
         - $ref: '#/components/parameters/SkipCache'
         - $ref: '#/components/parameters/Clustering'
         - $ref: '#/components/parameters/ClusteringParams'
+        - $ref: '#/components/parameters/Tweaks'
+          x-experimental: true
+        - $ref: '#/components/parameters/TweaksParams'
+          x-experimental: true
         - name: margin
           in: query
           description: >-
@@ -600,6 +646,7 @@ paths:
             type: integer
             minimum: 0
         - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Force2D'
       responses:
         '200':
           $ref: '#/components/responses/TileResponse'
@@ -656,6 +703,7 @@ paths:
         - $ref: '#/components/parameters/PropertiesQuery'
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/SkipCache'
+        - $ref: '#/components/parameters/Force2D'
       responses:
         '200':
           $ref: '#/components/responses/QueryFCResponse'
@@ -686,6 +734,7 @@ paths:
         - $ref: '#/components/parameters/PropertiesQuery'
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/SkipCache'
+        - $ref: '#/components/parameters/Force2D'
       requestBody:
         description: A Geometry object which is getting used for the spatial search.
         content:
@@ -720,6 +769,7 @@ paths:
         - $ref: '#/components/parameters/PropertiesQuery'
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/SkipCache'
+        - $ref: '#/components/parameters/Force2D'
       responses:
         '200':
           $ref: '#/components/responses/QueryFCResponse'
@@ -755,9 +805,10 @@ paths:
           required: false
           schema:
             type: string
+        - $ref: '#/components/parameters/Force2D'
       responses:
         '200':
-          $ref: '#/components/responses/QueryFCResponse'
+          $ref: '#/components/responses/IterateResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse400'
         '401':
@@ -842,14 +893,7 @@ components:
         Default is _patch_
       required: false
       schema:
-        type: string
-        enum:
-          - patch
-          - replace
-          - merge
-          - delete
-          - retain
-          - error
+        $ref: '#/components/schemas/OnFeatureExists'
     IfNotExists:
       x-experimental: true
       name: ne
@@ -859,11 +903,19 @@ components:
         exist or the feature contains no ID. Default is _create_
       required: false
       schema:
-        type: string
-        enum:
-          - retain
-          - error
-          - create
+        $ref: '#/components/schemas/OnFeatureNotExists'
+    ConflictResolution:
+      x-experimental: true
+      name: cr
+      in: query
+      description: >-
+        The resolution strategy when a conflicting update of the same attribute occurs.
+        To keep the value of the head state select _retain_.
+        To overwrite the value of the head state select _replace_.
+        To abort the entry update select _error_.
+      required: false
+      schema:
+        $ref: '#/components/schemas/OnMergeConflict'
     Limit:
       name: limit
       in: query
@@ -871,6 +923,72 @@ components:
       required: false
       schema:
         type: integer
+    Tweaks:
+      x-experimental: true
+      name: tweaks
+      in: query
+      x-experimental-description: >-
+        Providing this query parameter only a subset of the data will be returned. This can be used for rendering higher zoom levels.
+
+        Possible values are:
+
+          * "sampling"
+            Delivery of geometry distributed data-samples.
+
+          * "simplification"
+            Delivery of simplified geometries
+
+      required: false
+      schema:
+        type: string
+        enum:
+          - sampling
+          - simplification
+          - ensure
+    TweaksParams:
+      x-experimental: true
+      name: tweaksParams
+      in: query
+      required: false
+      x-experimental-description: |
+        Providing this query parameter only a subset of the data will be returned. This can be used for rendering higher zoom levels.
+
+        ### Tweaks-Parameter reference
+
+        **Tweaks-type: "sampling":**
+
+        With the strength parameter it is possibile to control the behavior of the tweaks-sampling algorithm.
+
+        | Parameter   | Type    | Mandatory | Meaning                                                               |
+        |-------------|---------|-----------|-----------------------------------------------------------------------|
+        | algorithm   | String  | NO        | distribution, geometrysize     |
+        | strength    | String  | NO        | Use presets: low, lowmed, med, medhigh, high or define strengh in percentage 1-100     |
+
+        **Tweaks-type: "simplification":**
+
+        With the strength parameter it is possibile to control the behavior of the tweaks-simplification algorithm.
+
+        | Parameter   | Type    | Mandatory | Meaning                                                               |
+        |-------------|---------|-----------|-----------------------------------------------------------------------|
+        | algorithm   | String  | NO        | grid, gridbytilelevel, simplifiedkeeptopology, simplified, merge      |
+        | strength    | String  | NO        | Use presets: low, med, high or define strengh in percentage 1-100     |
+
+        **Tweaks-type: "ensure":**
+
+        With the strength parameter it is possibile to control the behavior of the tweaks-simplification algorithm.
+
+        | Parameter   | Type    | Mandatory | Meaning                                                               |
+        |-------------|---------|-----------|-----------------------------------------------------------------------|
+        | defaultselection | boolean  | NO        | use standard selection behaviour  [default: false]              |
+
+      style: form
+      explode: true
+      schema:
+        type: object
+        example:
+          tweaks.strength: "1-100 | [low,lowmed,med,medhigh,high]"
+        additionalProperties:
+          type: string
     Clustering:
       name: clustering
       in: query
@@ -902,7 +1020,7 @@ components:
         type: string
         enum:
           - hexbin
-          - quad
+          - quadbin
     ClusteringParams:
       name: clusteringParams
       in: query
@@ -924,7 +1042,9 @@ components:
 
         | Parameter   | Type    | Mandatory | Meaning                                                               |
         |-------------|---------|-----------|-----------------------------------------------------------------------|
-        | resolution  | Number  | NO        | The H3 hexagon resolution                                             |
+        | absoluteResolution  | Number  | NO        | The H3 hexagon resolution                                             |
+        | resolution  | Number  | NO        | deprecated, renamed to absoluteResolution                             |
+        | relativeResolution | Number  | NO        | integer value [0-4] to be added to current used resolution  |
         | property    | String  | NO        | A property of the original features for which to calculate statistics |
         | pointmode   | Boolean | NO        | retuns the centroid of hexagons as geojson feature                    |
 
@@ -935,17 +1055,19 @@ components:
 
         | Parameter   | Type    | Mandatory | Meaning                                                               |
         |-------------|---------|-----------|-----------------------------------------------------------------------|
-        | resolution  | Number  | NO        | The quad resolution [0-4]                                             |
-        | countmode   | String  | NO        | [real, estimated, mixed]						                        |
+        | relativeResolution | Number  | NO        | The quad resolution [0-4]                                             |
+        | noBuffer    | Boolean | NO        | do not place a buffer around quad polygons, default: false            |
+        | resolution  | Number  | NO        | deprecated, renamed to resolutionRelative             |
+        | countmode   | String  | NO        | [real, estimated, mixed]                                    |
         |             |         |           | real = real feature counts. Best accuracy, but slow.                  |
-        |             |         |           | 		Not recommended for big result sets 			                |
+        |             |         |           |     Not recommended for big result sets                       |
         |             |         |           |                                                                       |
-        |             |         |           | estimated = estimated feature counts. Low accuracy, but very fast	    |
-        |             |         |           | 		Recommended for big result sets 			                    |
+        |             |         |           | estimated = estimated feature counts. Low accuracy, but very fast      |
+        |             |         |           |     Recommended for big result sets                           |
         |             |         |           |                                                                       |
-        |             |         |           | mixed = estimated feature counts combined with real ones. If the 	    |
-        |             |         |           | 		estimation is low a real count gets applied. Fits to the        |
-        |             |         |           | 		most use cases						                            |
+        |             |         |           | mixed (default) = estimated feature counts combined with real ones.   |
+        |             |         |           |     If the estimation is low a real count gets applied. Fits to the |
+        |             |         |           |     most use cases                                        |
       style: form
       explode: true
       schema:
@@ -995,7 +1117,7 @@ components:
       in: query
       description: >-
         A comma separated list of tags or combination of tags concatenated with
-        a plus sign (+). A comma separated list of tags means any tag may be 
+        a plus sign (+). A comma separated list of tags means any tag may be
         found. A plus sign concatenated list means every tag is required.
       allowEmptyValue: true
       style: form
@@ -1037,6 +1159,7 @@ components:
           - "<=" or "=lte=" - less than or equals
           - ">" or "=gt=" - greater than
           - "<" or "=lt=" - less than
+          - "@>" or "=cs=" - contains
       style: form
       explode: true
       schema:
@@ -1063,6 +1186,14 @@ components:
       name: transactional
       in: query
       description: Defines, if this is a transactional operation. Default is _true_.
+      required: false
+      schema:
+        type: boolean
+    Force2D:
+      name: force2D
+      in: query
+      description: >-
+        If set to _true_ the features in the response will have only X's and Y's as coordinates.
       required: false
       schema:
         type: boolean
@@ -1157,7 +1288,7 @@ components:
       content:
         application/geo+json:
           schema:
-            $ref: '#/components/schemas/FeatureCollection'
+            $ref: '#/components/schemas/FeatureCollectionResponse'
           example:
             type: FeatureCollection
             etag: b9be03f253c53c23
@@ -1196,14 +1327,22 @@ components:
       content:
         application/geo+json:
           schema:
-            $ref: '#/components/schemas/FeatureCollection'
+            $ref: '#/components/schemas/FeatureCollectionResponse'
+    IterateResponse:
+      description: >-
+        A FeatureCollection with handle, containing all features found for the provided
+        parameters.
+      content:
+        application/geo+json:
+          schema:
+            $ref: '#/components/schemas/FeatureCollectionIterable'
     TileResponse:
       description: >-
         A FeatureCollection, containing all features found for the provided parameters.
       content:
         application/geo+json:
           schema:
-            $ref: '#/components/schemas/FeatureCollection'
+            $ref: '#/components/schemas/FeatureCollectionResponse'
         application/vnd.mapbox-vector-tile:
           x-experimental: true
           schema:
@@ -1215,7 +1354,7 @@ components:
       content:
         application/geo+json:
           schema:
-            $ref: '#/components/schemas/Feature'
+            $ref: '#/components/schemas/FeatureResponse'
     SpaceResponse:
       description: The space
       content:
@@ -1267,14 +1406,24 @@ components:
       content:
         application/geo+json:
           schema:
-            $ref: '#/components/schemas/Feature'
+            $ref: '#/components/schemas/FeatureRequest'
     FeatureCollection:
       description: A FeatureCollection object.
       required: true
       content:
         application/geo+json:
           schema:
-            $ref: '#/components/schemas/FeatureCollection'
+            $ref: '#/components/schemas/FeatureCollectionRequest'
+    FeatureCollectionOrFeatureModificationList:
+      description: A FeatureCollection object or a FeatureModificationList object.
+      required: true
+      content:
+        application/geo+json:
+          schema:
+            $ref: '#/components/schemas/FeatureCollectionRequest'
+        application/vnd.here.feature-modification-list:
+          schema:
+            $ref: '#/components/schemas/FeatureModificationList'
     Space:
       required: true
       content:
@@ -1517,7 +1666,10 @@ components:
         dot-notation e.g.: some.nested.property) and the value is a boolean telling whether the
         property should be searchable or not.
         Setting the value to `false` the property won't be searchable at all. (Even if the  property
-        was chosen to be searchable by the automated property-search algorithm before)
+        was chosen to be searchable by the automated property-search algorithm before). Optional it is
+        possible to define the datatype (object,array,string,number,boolean) of the property
+        eg.: some.nested.property::array. If the datatype is not given, an attempt is made to determine
+        it automatically.
       type: object
       additionalProperties:
         type: boolean
@@ -1548,10 +1700,44 @@ components:
         url: 'https://tools.ietf.org/html/rfc7946'
       required:
         - type
+      discriminator:
+        propertyName: type
       properties:
         type:
           type: string
-    Feature:
+    FeatureRequest:
+      allOf:
+        - $ref: '#/components/schemas/GeoJSONObject'
+        - type: object
+          description: A Feature object represents a spatially bounded thing.
+          properties:
+            id:
+              description: The unique identifier of the feature.
+              type: string
+            geometry:
+              $ref: '#/components/schemas/Geometry'
+            properties:
+              $ref: '#/components/schemas/Properties'
+            bbox:
+              $ref: '#/components/schemas/BBox'
+          example:
+            type: Feature
+            id: BfiimUxHjj
+            geometry:
+              type: Point
+              coordinates:
+                - -2.960847
+                - 53.430828
+            properties:
+              name: Anfield
+              '@ns:com:here:xyz':
+                tags:
+                  - football
+                  - stadium
+              amenity: Football Stadium
+              capacity: 54074
+              description: Home of Liverpool Football Club
+    FeatureResponse:
       allOf:
         - $ref: '#/components/schemas/GeoJSONObject'
         - type: object
@@ -1592,26 +1778,29 @@ components:
           description: >-
             A Geometry object represents points, curves, and surfaces in coordinate
             space.
+          properties:
+            bbox:
+              $ref: '#/components/schemas/BBox'
           example:
             type: Point
             coordinates:
               - -2.960847
               - 53.430828
-    Linestring:
+    LineString:
       allOf:
         - $ref: '#/components/schemas/Geometry'
         - type: object
-          description: A Linestring geometry.
+          description: A LineString geometry.
           properties:
             coordinates:
               items:
                 $ref: '#/components/schemas/Position'
               type: array
-    MultiLinestring:
+    MultiLineString:
       allOf:
         - $ref: '#/components/schemas/Geometry'
         - type: object
-          description: A MultiLinestring geometry.
+          description: A MultiLineString geometry.
           properties:
             coordinates:
               items:
@@ -1668,6 +1857,16 @@ components:
     XyzResponse:
       type: object
       description: The base type for all possible responses returned by the XYZ Hub.
+      required:
+        - type
+      properties:
+        etag:
+          description: The HTTP entity tag ID.
+          type: string
+        type:
+          type: string
+      discriminator:
+        propertyName: type
     CountResponse:
       x-deprecated: true
       allOf:
@@ -1822,9 +2021,6 @@ components:
               type: string
               description: Specifies the scope of searchability of the properties. One of NONE, PARTIAL, ALL.
               example: PARTIAL
-            etag:
-              type: string
-              description: The HTTP entity tag ID.
           example:
             type: StatisticsResponse
             count:
@@ -1859,7 +2055,50 @@ components:
                 - key: PuneBusStop
                   count: 29208
             etag: 072d3ec0f881b4e7
-    FeatureCollection:
+    FeatureCollectionRequest:
+      allOf:
+        - type: object
+          description: A FeatureCollection GeoJSON object.
+          required:
+            - features
+          properties:
+            inserted:
+              type: array
+              description: List of inserted feature IDs.
+              items:
+                type: string
+            updated:
+              type: array
+              description: List of updated features IDs.
+              items:
+                type: string
+            features:
+              type: array
+              description: Features included in the collection.
+              items:
+                $ref: '#/components/schemas/FeatureRequest'
+            bbox:
+              $ref: '#/components/schemas/BBox'
+          example:
+            type: FeatureCollection
+            features:
+              - type: Feature
+                id: BfiimUxHjj
+                geometry:
+                  type: Point
+                  coordinates:
+                    - -2.960847
+                    - 53.430828
+                properties:
+                  name: Anfield
+                  '@ns:com:here:xyz':
+                    tags:
+                      - football
+                      - stadium
+                  amenity: Football Stadium
+                  capacity: 54074
+                  description: Home of Liverpool Football Club
+    FeatureCollectionResponse:
       allOf:
         - $ref: '#/components/schemas/XyzResponse'
         - type: object
@@ -1867,20 +2106,21 @@ components:
           required:
             - features
           properties:
-            etag:
-              type: string
-              description: The HTTP entity tag ID.
             inserted:
-              type: string
+              type: array
               description: List of inserted feature IDs.
+              items:
+                type: string
             updated:
-              type: string
+              type: array
               description: List of updated features IDs.
+              items:
+                type: string
             features:
               type: array
               description: Features included in the collection.
               items:
-                $ref: '#/components/schemas/Feature'
+                $ref: '#/components/schemas/FeatureResponse'
             bbox:
               $ref: '#/components/schemas/BBox'
           example:
@@ -1904,6 +2144,155 @@ components:
                   amenity: Football Stadium
                   capacity: 54074
                   description: Home of Liverpool Football Club
+    FeatureCollectionIterable:
+      allOf:
+        - $ref: '#/components/schemas/FeatureCollectionResponse'
+        - type: object
+          description: A FeatureCollection GeoJSON object with handle.
+          properties:
+            handle:
+              type: string
+              description: The handle of the next batch.
+          example:
+            type: FeatureCollection
+            handle: 1000
+            features:
+              - type: Feature
+                id: BfiimUxHjj
+                geometry:
+                  type: Point
+                  coordinates:
+                    - -2.960847
+                    - 53.430828
+                properties:
+                  name: Anfield
+                  '@ns:com:here:xyz':
+                    createdAt: 1517504700726
+                    updatedAt: 1517504700726
+                    tags:
+                      - football
+                      - stadium
+                  amenity: Football Stadium
+                  capacity: 54074
+                  description: Home of Liverpool Football Club
+    FeatureModificationList:
+      x-experimental: true
+      type: object
+      description: |
+        An object describing modifications of features. It contains feature data being provided as
+        GeoJSON FeatureCollections (see [RFC-7946](https://tools.ietf.org/html/rfc7946))
+        or (in case if deletions) a list of feature IDs.
+      externalDocs:
+        url: 'https://tools.ietf.org/html/rfc7946'
+      required:
+        - type
+      discriminator:
+        propertyName: type
+      properties:
+        type:
+          type: string
+        modifications:
+          type: array
+          description: A list of FeatureModification objects
+          items:
+            $ref: '#/components/schemas/FeatureModification'
+      example:
+        type: FeatureModificationList
+        modifications:
+          - type: FeatureModification
+            featureData:
+              type: FeatureCollection
+              features:
+                - type: Feature
+                  id: BfiimUxHjj
+                  geometry:
+                    type: Point
+                    coordinates:
+                      - -2.960847
+                      - 53.430828
+                  properties:
+                    name: Anfield
+                    '@ns:com:here:xyz':
+                      tags:
+                        - football
+                        - stadium
+                    amenity: Football Stadium
+                    capacity: 54074
+                    description: Home of Liverpool Football Club
+    FeatureModification:
+      x-experimental: true
+      type: object
+      description: A FeatureModification object containing GeoJSON FeatureCollections
+        (see [RFC-7946](https://tools.ietf.org/html/rfc7946)) or (in case if deletions) a list of
+        feature IDs.
+      required:
+        - type
+      discriminator:
+        propertyName: type
+      properties:
+        type:
+          type: string
+        featureData:
+          $ref: '#/components/schemas/FeatureCollectionRequest'
+        featureIds:
+          type: array
+          description: A list of feature IDs (strings)
+          items:
+            type: string
+        onFeatureNotExists:
+          $ref: '#/components/schemas/OnFeatureNotExists'
+        onFeatureExists:
+          $ref: '#/components/schemas/OnFeatureExists'
+        onMergeConflict:
+          $ref: '#/components/schemas/OnMergeConflict'
+      example:
+        type: FeatureModification
+        featureData:
+          type: FeatureCollection
+          features:
+              - type: Feature
+                id: BfiimUxHjj
+                geometry:
+                  type: Point
+                  coordinates:
+                    - -2.960847
+                    - 53.430828
+                properties:
+                  name: Anfield
+                  '@ns:com:here:xyz':
+                    tags:
+                      - football
+                      - stadium
+                  amenity: Football Stadium
+                  capacity: 54074
+                  description: Home of Liverpool Football Club
+    OnFeatureNotExists:
+      x-experimental: true
+      type: string
+      enum:
+        - retain
+        - error
+        - create
+      default: create
+    OnFeatureExists:
+      x-experimental: true
+      type: string
+      enum:
+        - patch
+        - replace
+        - merge
+        - delete
+        - retain
+        - error
+      default: patch
+    OnMergeConflict:
+      x-experimental: true
+      type: string
+      enum:
+        - error
+        - retain
+        - replace
+      default: error
   securitySchemes:
     authToken:
       bearerFormat: JWTPayload
@@ -1919,7 +2308,7 @@ tags:
 x-suppress:
   - $ref: '#/components/schemas/Point'
   - $ref: '#/components/schemas/MultiPoint'
-  - $ref: '#/components/schemas/Linestring'
-  - $ref: '#/components/schemas/MultiLinestring'
+  - $ref: '#/components/schemas/LineString'
+  - $ref: '#/components/schemas/MultiLineString'
   - $ref: '#/components/schemas/Polygon'
   - $ref: '#/components/schemas/MultiPolygon'

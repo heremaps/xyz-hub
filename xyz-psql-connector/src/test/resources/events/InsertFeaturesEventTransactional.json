@@ -20,7 +20,7 @@
           "space" : "foo",
           "createdAt" : 1517504700726,
           "updatedAt" : 1517504700726,
-          "uuid": "f0a76613-7343-41a1-8607-5420cda214c7",
+          "uuid": "1e16d729-e4f7-4ea9-b0da-4af4ac53c5c1",
           "tags": [
             "yellow"
           ]
@@ -42,7 +42,7 @@
           "space" : "foo",
           "createdAt" : 1517504700726,
           "updatedAt" : 1517504700726,
-          "uuid": "d7be0c03-0e8c-472c-9d14-3140c3a8fe1a",
+          "uuid": "2e16d729-e4f7-4ea9-b0da-4af4ac53c5c2",
           "tags": [
             "red"
           ]
@@ -64,7 +64,7 @@
           "space" : "foo",
           "createdAt" : 1517504700726,
           "updatedAt" : 1517504700726,
-          "uuid": "2f851970-4c2b-4a9f-94cd-eb9969eb7711",
+          "uuid": "3e16d729-e4f7-4ea9-b0da-4af4ac53c5c3",
           "tags": [
             "green"
           ]

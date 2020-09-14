@@ -27,6 +27,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import com.amazonaws.util.IOUtils;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -36,17 +37,28 @@ import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
+import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.events.PropertyQueryList;
+import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.coordinates.LineStringCoordinates;
 import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
 import com.here.xyz.models.geojson.coordinates.MultiPolygonCoordinates;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
 import com.here.xyz.models.geojson.coordinates.Position;
-import com.here.xyz.models.geojson.implementation.*;
+import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.xyz.models.geojson.implementation.LineString;
+import com.here.xyz.models.geojson.implementation.MultiPolygon;
+import com.here.xyz.models.geojson.implementation.Point;
+import com.here.xyz.models.geojson.implementation.Polygon;
+import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse.PropertiesStatistics;
@@ -61,6 +73,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -104,7 +117,11 @@ public class PSQLXyzConnectorIT {
     logger.info("Setup...");
 
     // DELETE EXISTING FEATURES TO START FRESH
-    invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
+    String response = invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
+    assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
+
+    response = invokeLambdaFromFile("/events/DeleteSpaceFooTestEvent.json");
+    assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
 
     logger.info("Setup Completed.");
   }
@@ -113,13 +130,8 @@ public class PSQLXyzConnectorIT {
   public void shutdown() throws Exception {
     logger.info("Shutdown...");
     invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
+    invokeLambdaFromFile("/events/DeleteSpaceFooTestEvent.json");
     logger.info("Shutdown Completed.");
-  }
-
-  @Test
-  public void testHealthCheck() throws Exception {
-    String response = invokeLambdaFromFile("/events/HealthCheckEvent.json");
-    assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
   }
 
   @Test
@@ -362,9 +374,655 @@ public class PSQLXyzConnectorIT {
     logger.info("Area Query with MULTIPOLYGON + SELECTION tested successfully");
   }
 
-  /**
-   * Test all branches of the BBox query.
-   */
+  @Test
+  public void testHistoryTableCreation() throws Exception {
+    // =========== CREATE SPACE with UUID support ==========
+    ModifySpaceEvent mse = new ModifySpaceEvent()
+            .withSpace("foo")
+            .withOperation(ModifySpaceEvent.Operation.CREATE)
+            .withSpaceDefinition(new Space().withId("foo")
+                    .withEnableUUID(true)
+                    .withEnableHistory(true));
+    String response = invokeLambda(mse.serialize());
+
+    try (final Connection connection = lambda.dataSource.getConnection()) {
+      Statement stmt = connection.createStatement();
+      String sql = "SELECT pg_get_triggerdef(oid)," +
+              "(SELECT (to_regclass('\"foo\"') IS NOT NULL) as hst_table_exists) " +
+              "FROM pg_trigger " +
+              "WHERE tgname = 'tr_foo_history_writer';";
+
+      ResultSet resultSet = stmt.executeQuery(sql);
+      if(!resultSet.next()) {
+        throw new Exception("History Trigger/Table is missing!");
+      }else{
+        assertTrue(resultSet.getBoolean("hst_table_exists"));
+      }
+    }
+  }
+
+  @Test
+  public void testFullHistoryTableWriting() throws Exception {
+    // =========== CREATE SPACE with UUID support ==========
+    ModifySpaceEvent mse = new ModifySpaceEvent()
+            .withSpace("foo")
+            .withOperation(ModifySpaceEvent.Operation.CREATE)
+            .withConnectorParams(new HashMap<String,Object>(){{put("compactHistory", false);}})
+            .withSpaceDefinition(new Space()
+                    .withId("foo")
+                    .withEnableUUID(true)
+                    .withEnableHistory(true)
+            );
+
+    String response = invokeLambda(mse.serialize());
+
+    // ============= INSERT ======================
+    XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
+    FeatureCollection collection = new FeatureCollection();
+    List<Feature> featureList = new ArrayList<>();
+
+    Point point = new Point().withCoordinates(new PointCoordinates(50, 8));
+    Feature f = new Feature()
+            .withId("1234")
+            .withGeometry(point)
+            .withProperties(new Properties().with("foo", 0).withXyzNamespace(xyzNamespace));
+    featureList.add(f);
+    collection.setFeatures(featureList);
+
+    ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
+    mfevent.setSpace("foo");
+    mfevent.setTransaction(true);
+    mfevent.setEnableUUID(true);
+    setPUUID(collection);
+    mfevent.setInsertFeatures(collection.getFeatures());
+    invokeLambda(mfevent.serialize());
+
+    // ============= UPDATE FEATURE 10 Times ======================
+    mfevent.setInsertFeatures(null);
+    for (int i = 1; i <= 5; i++) {
+      f.getProperties().with("foo", i);
+      mfevent.setUpdateFeatures(collection.getFeatures());
+      setPUUID(collection);
+      invokeLambda(mfevent.serialize());
+    }
+
+    // ============= DELETE ======================
+    mfevent.setDeleteFeatures(new HashMap<String,String>(){{put("1234",null);}});
+    mfevent.setUpdateFeatures(null);
+    setPUUID(collection);
+    invokeLambda(mfevent.serialize());
+
+    try (final Connection connection = lambda.dataSource.getConnection()) {
+      Statement stmt = connection.createStatement();
+      String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt' DESC;";
+
+      ResultSet resultSet = stmt.executeQuery(sql);
+      int oldestFooValue = 0;
+      int rowCount = 0;
+
+      // Check if 5 last versions are available in history table
+      while (resultSet.next()) {
+        Feature feature = XyzSerializable.deserialize(resultSet.getString("jsondata"));
+
+        rowCount++;
+        if(rowCount == 6){
+          // Here we will find the deleted object which has the foo=5 from the last version.
+          assertEquals(oldestFooValue, (int) feature.getProperties().get("foo"));
+        }
+        else
+          assertEquals(oldestFooValue++, (int) feature.getProperties().get("foo"));
+      }
+      // Check if history table has 7 entries (1x insert +5x update +1x delete)
+      assertEquals(7, rowCount);
+    }
+  }
+
+  @Test
+  public void testHistoryTableWriting() throws Exception {
+    int maxVersionCount = 5;
+    // =========== CREATE SPACE with UUID support ==========
+    ModifySpaceEvent mse = new ModifySpaceEvent()
+            .withSpace("foo")
+            .withOperation(ModifySpaceEvent.Operation.CREATE)
+            .withSpaceDefinition(new Space()
+                    .withId("foo")
+                    .withEnableUUID(true)
+                    .withEnableHistory(true)
+                    .withMaxVersionCount(maxVersionCount)
+            );
+
+    String response = invokeLambda(mse.serialize());
+
+    // ============= INSERT ======================
+    XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
+    FeatureCollection collection = new FeatureCollection();
+    List<Feature> featureList = new ArrayList<>();
+
+    Point point = new Point().withCoordinates(new PointCoordinates(50,8));
+    Feature f = new Feature()
+            .withId("1234")
+            .withGeometry(point)
+      .withProperties(new Properties().with("foo", 0).withXyzNamespace(xyzNamespace));
+    featureList.add(f);
+    collection.setFeatures(featureList);
+
+    ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
+    mfevent.setSpace("foo");
+    mfevent.setTransaction(true);
+    mfevent.setEnableUUID(true);
+    setPUUID(collection);
+    mfevent.setInsertFeatures(collection.getFeatures());
+    invokeLambda(mfevent.serialize());
+
+    // ============= UPDATE FEATURE 10 Times ======================
+    mfevent.setInsertFeatures(null);
+    for (int i = 1; i <= 10 ; i++) {
+      f.getProperties().with("foo",i);
+      mfevent.setUpdateFeatures(collection.getFeatures());
+      setPUUID(collection);
+      invokeLambda(mfevent.serialize());
+    }
+
+    try (final Connection connection = lambda.dataSource.getConnection()) {
+      Statement stmt = connection.createStatement();
+      String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt' DESC;";
+
+      ResultSet resultSet = stmt.executeQuery(sql);
+      int oldestFooValue = 5;
+      int rowCount = 0;
+
+      // Check if 5 last versions are available in history table
+      while (resultSet.next()){
+        Feature feature = XyzSerializable.deserialize(resultSet.getString("jsondata"));
+        assertEquals(oldestFooValue++,(int)feature.getProperties().get("foo"));
+        rowCount++;
+      }
+      // Check if history table has only 5 entries
+      assertEquals(5,rowCount);
+    }
+
+    // set history to infinite
+    mse = new ModifySpaceEvent()
+            .withSpace("foo")
+            .withOperation(ModifySpaceEvent.Operation.UPDATE)
+            .withSpaceDefinition(new Space()
+                    .withId("foo")
+                    .withEnableUUID(true)
+                    .withEnableHistory(true)
+                    .withMaxVersionCount(-1)
+            );
+    invokeLambda(mse.serialize());
+
+    // ============= UPDATE FEATURE 10 Times ======================
+    for (int i = 11; i <= 20 ; i++) {
+      f.getProperties().with("foo",i);//(new Properties().with("foo", i).withXyzNamespace(xyzNamespace));
+      mfevent.setUpdateFeatures(collection.getFeatures());
+      setPUUID(collection);
+      invokeLambda(mfevent.serialize());
+    }
+
+    try (final Connection connection = lambda.dataSource.getConnection()) {
+      Statement stmt = connection.createStatement();
+      String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt' DESC;";
+
+      ResultSet resultSet = stmt.executeQuery(sql);
+      //Oldes history item has foo=9
+      int oldestFooValue = 5;
+      int rowCount = 0;
+
+      // Check if all versions are available
+      while (resultSet.next()){
+        Feature feature = XyzSerializable.deserialize(resultSet.getString("jsondata"));
+        assertEquals(oldestFooValue++,(int)feature.getProperties().get("foo"));
+        rowCount++;
+      }
+      // Check if history table has 15 entries
+      assertEquals(15,rowCount);
+    }
+
+    // set withMaxVersionCount to 2
+    mse = new ModifySpaceEvent()
+            .withSpace("foo")
+            .withOperation(ModifySpaceEvent.Operation.UPDATE)
+            .withSpaceDefinition(new Space()
+                    .withId("foo")
+                    .withEnableUUID(true)
+                    .withEnableHistory(true)
+                    .withMaxVersionCount(2)
+            );
+    invokeLambda(mse.serialize());
+
+    //Do one Update to fire the updated trigger
+    f.getProperties().with("foo",21);
+    mfevent.setUpdateFeatures(collection.getFeatures());
+    setPUUID(collection);
+    invokeLambda(mfevent.serialize());
+
+    try (final Connection connection = lambda.dataSource.getConnection()) {
+      Statement stmt = connection.createStatement();
+      String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt' DESC;";
+
+      ResultSet resultSet = stmt.executeQuery(sql);
+      //Oldest history item has foo=19 - all other should be deleted related to maxVersionCount=2 update
+      int oldestFooValue = 19;
+      int rowCount = 0;
+
+      // Check if only two versions are left in the history
+      while (resultSet.next()) {
+        Feature feature = XyzSerializable.deserialize(resultSet.getString("jsondata"));
+        assertEquals(oldestFooValue++, (int) feature.getProperties().get("foo"));
+        rowCount++;
+      }
+      // Check if history table has 2 entries
+      assertEquals(2,rowCount);
+    }
+  }
+
+  @Test
+  public void testHistoryTableDeletedFlag() throws Exception {
+    int maxVersionCount = 5;
+    // =========== CREATE SPACE with UUID support ==========
+    ModifySpaceEvent mse = new ModifySpaceEvent()
+            .withSpace("foo")
+            .withOperation(ModifySpaceEvent.Operation.CREATE)
+            .withParams(new HashMap<String,Object>(){{put("maxVersionCount", maxVersionCount);}})
+            .withSpaceDefinition(new Space()
+                    .withId("foo")
+                    .withEnableUUID(true)
+                    .withEnableHistory(true));
+
+    String response = invokeLambda(mse.serialize());
+
+    // ============= INSERT ======================
+    XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
+    FeatureCollection collection = new FeatureCollection();
+    List<Feature> featureList = new ArrayList<>();
+
+    Point point = new Point().withCoordinates(new PointCoordinates(50,8));
+    Feature f = new Feature()
+            .withId("1234")
+            .withGeometry(point)
+            .withProperties(new Properties().with("foo", 0).withXyzNamespace(xyzNamespace));
+    featureList.add(f);
+    collection.setFeatures(featureList);
+
+    ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
+    mfevent.setSpace("foo");
+    mfevent.setTransaction(true);
+    mfevent.setEnableUUID(true);
+    setPUUID(collection);
+    mfevent.setInsertFeatures(collection.getFeatures());
+    invokeLambda(mfevent.serialize());
+
+    //DELETE feature
+    mfevent.setUpdateFeatures(null);
+    mfevent.setDeleteFeatures(new HashMap<String,String>(){{put("1234",null);}});
+    invokeLambda(mfevent.serialize());
+
+    try (final Connection connection = lambda.dataSource.getConnection()) {
+      Statement stmt = connection.createStatement();
+      String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt' DESC LIMIT 1;";
+
+      ResultSet resultSet = stmt.executeQuery(sql);
+      resultSet.next();
+      Feature feature = XyzSerializable.deserialize(resultSet.getString("jsondata"));
+      assertTrue(feature.getProperties().getXyzNamespace().isDeleted());
+    }
+  }
+
+  @Test
+  public void testHistoryTableTrigger() throws Exception {
+    int maxVersionCount = 8;
+    // =========== CREATE SPACE with UUID support ==========
+    ModifySpaceEvent mse = new ModifySpaceEvent()
+            .withSpace("foo")
+            .withOperation(ModifySpaceEvent.Operation.CREATE)
+            .withSpaceDefinition(new Space()
+                    .withId("foo")
+                    .withEnableUUID(true)
+                    .withEnableHistory(true)
+                    .withMaxVersionCount(maxVersionCount)
+            );
+
+    String response = invokeLambda(mse.serialize());
+
+    try (final Connection connection = lambda.dataSource.getConnection()) {
+      Statement stmt = connection.createStatement();
+      String sql = "SELECT pg_get_triggerdef(oid) as trigger_def " +
+              "FROM pg_trigger " +
+              "WHERE tgname = 'tr_foo_history_writer';";
+
+      ResultSet resultSet = stmt.executeQuery(sql);
+      if(!resultSet.next()) {
+        throw new Exception("History Trigger/Table is missing!");
+      }else{
+        assertTrue(resultSet.getString("trigger_def").contains("xyz_trigger_historywriter('"+maxVersionCount+"')"));
+      }
+    }
+  }
+
+  @Test
+  public void testFullHistoryTableTrigger() throws Exception {
+    int maxVersionCount = -1;
+    // =========== CREATE SPACE with UUID support ==========
+    ModifySpaceEvent mse = new ModifySpaceEvent()
+            .withSpace("foo")
+            .withOperation(ModifySpaceEvent.Operation.CREATE)
+            .withConnectorParams(new HashMap<String,Object>(){{put("compactHistory", false);}})
+            .withSpaceDefinition(new Space()
+                    .withId("foo")
+                    .withEnableUUID(true)
+                    .withEnableHistory(true)
+                    .withMaxVersionCount(maxVersionCount)
+            );
+
+    String response = invokeLambda(mse.serialize());
+
+    try (final Connection connection = lambda.dataSource.getConnection()) {
+      Statement stmt = connection.createStatement();
+      String sql = "SELECT pg_get_triggerdef(oid) as trigger_def " +
+              "FROM pg_trigger " +
+              "WHERE tgname = 'tr_foo_history_writer';";
+
+      ResultSet resultSet = stmt.executeQuery(sql);
+      if(!resultSet.next()) {
+        throw new Exception("History Trigger/Table is missing!");
+      }else{
+        assertTrue(resultSet.getString("trigger_def").contains("xyz_trigger_historywriter_full('"+maxVersionCount+"')"));
+      }
+    }
+  }
+
+  @Test
+  public void testTransactionalUUIDCases() throws Exception {
+    XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
+
+    // =========== INSERT ==========
+    String insertJsonFile = "/events/InsertFeaturesEventTransactional.json";
+    String insertResponse = invokeLambdaFromFile(insertJsonFile);
+    String insertRequest = IOUtils.toString(GSContext.class.getResourceAsStream(insertJsonFile));
+    assertRead(insertRequest, insertResponse, true);
+    logger.info("Insert feature tested successfully");
+
+    // =========== UPDATE With wrong UUID ==========
+    FeatureCollection featureCollection = XyzSerializable.deserialize(insertResponse);
+    for (Feature feature : featureCollection.getFeatures()) {
+      feature.getProperties().put("foo","bar");
+    }
+
+    String modifiedFeatureId = featureCollection.getFeatures().get(1).getId();
+    featureCollection.getFeatures().get(1).getProperties().getXyzNamespace().setUuid("wrong");
+
+    Feature newFeature = new Feature().withId("test2").withProperties(new Properties().withXyzNamespace(xyzNamespace));
+    List<Feature> insertFeatureList = new ArrayList<>();
+    insertFeatureList.add(newFeature);
+
+    List<String> idList = featureCollection.getFeatures().stream().map(Feature::getId).collect(Collectors.toList());
+    idList.add("test2");
+
+    setPUUID(featureCollection);
+
+    ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
+    mfevent.setSpace("foo");
+    mfevent.setTransaction(true);
+    mfevent.setEnableUUID(true);
+    mfevent.setUpdateFeatures(featureCollection.getFeatures());
+    mfevent.setInsertFeatures(insertFeatureList);
+    String response = invokeLambda(mfevent.serialize());
+    FeatureCollection responseCollection = XyzSerializable.deserialize(response);
+
+    assertEquals(0, responseCollection.getFeatures().size());
+    assertEquals(4, responseCollection.getFailed().size());
+
+    // Transaction should have failed
+    for (FeatureCollection.ModificationFailure failure : responseCollection.getFailed()) {
+      if(failure.getId().equalsIgnoreCase(modifiedFeatureId))
+        assertEquals("Object does not exist or UUID mismatch",failure.getMessage());
+      else
+        assertEquals("Transaction has failed",failure.getMessage());
+      // Check if Id correct
+      assertTrue(idList.contains(failure.getId()));
+    }
+
+    //Check if nothing got written
+    SearchForFeaturesEvent searchEvent = new SearchForFeaturesEvent();
+    searchEvent.setSpace("foo");
+    searchEvent.setStreamId(RandomStringUtils.randomAlphanumeric(10));
+    String eventJson = searchEvent.serialize();
+    String searchResponse = invokeLambda(eventJson);
+    responseCollection = XyzSerializable.deserialize(searchResponse);
+
+    for (Feature feature : responseCollection.getFeatures()) {
+      assertNull(feature.getProperties().get("foo"));
+    }
+
+    // =========== UPDATE With correct UUID ==========
+    for (Feature feature : responseCollection.getFeatures()) {
+      feature.getProperties().put("foo","bar");
+    }
+
+    setPUUID(responseCollection);
+
+    mfevent.setUpdateFeatures(responseCollection.getFeatures());
+    mfevent.setInsertFeatures(new ArrayList<>());
+
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+    assertEquals(3, responseCollection.getFeatures().size());
+    assertEquals(3, responseCollection.getUpdated().size());
+    assertNull(responseCollection.getFailed());
+
+    // Check returned FeatureCollection
+    for (Feature feature : responseCollection.getFeatures()) {
+      assertEquals("bar",feature.getProperties().get("foo"));
+    }
+
+    // Check if updates got performed
+    searchResponse = invokeLambda(eventJson);
+    responseCollection = XyzSerializable.deserialize(searchResponse);
+    assertEquals(3, responseCollection.getFeatures().size());
+
+    for (Feature feature : responseCollection.getFeatures()) {
+      assertEquals("bar",feature.getProperties().get("foo"));
+    }
+
+    // =========== Delete With wrong UUID ==========
+    Map<String,String> idUUIDMap = new HashMap<>();
+    Map<String,String> idMap = new HashMap<>();
+    //get current UUIDS
+    for (Feature feature : responseCollection.getFeatures()) {
+      idUUIDMap.put(feature.getId(),feature.getProperties().getXyzNamespace().getUuid());
+      idMap.put(feature.getId(),null);
+    }
+
+    idUUIDMap.put(modifiedFeatureId, "wrong");
+    mfevent.setUpdateFeatures(new ArrayList<>());
+    mfevent.setDeleteFeatures(idUUIDMap);
+
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+
+    assertEquals(0, responseCollection.getFeatures().size());
+    assertEquals(3, responseCollection.getFailed().size());
+
+    // Transaction should have failed
+    for (FeatureCollection.ModificationFailure failure : responseCollection.getFailed()) {
+      if(failure.getId().equalsIgnoreCase(modifiedFeatureId))
+        assertEquals("Object does not exist or UUID mismatch",failure.getMessage());
+      else
+        assertEquals("Transaction has failed",failure.getMessage());
+      // Check if Id correct
+      assertTrue(idList.contains(failure.getId()));
+    }
+
+    // Check if deletes has failed
+    searchResponse = invokeLambda(eventJson);
+    responseCollection = XyzSerializable.deserialize(searchResponse);
+    assertEquals(3, responseCollection.getFeatures().size());
+
+    // =========== Delete without UUID ==========
+    mfevent.setDeleteFeatures(idMap);
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+
+    assertEquals(0, responseCollection.getFeatures().size());
+    assertNull(responseCollection.getFailed());
+
+    // Check if deletes are got performed
+    searchResponse = invokeLambda(eventJson);
+    responseCollection = XyzSerializable.deserialize(searchResponse);
+    assertEquals(0, responseCollection.getFeatures().size());
+  }
+
+  @Test
+  public void testStreamUUIDCases() throws Exception {
+    XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L).withUuid("4e16d729-e4f7-4ea9-b0da-4af4ac53c5c4");
+
+    // =========== INSERT ==========
+    String insertJsonFile = "/events/InsertFeaturesEventTransactional.json";
+    String insertResponse = invokeLambdaFromFile(insertJsonFile);
+    String insertRequest = IOUtils.toString(GSContext.class.getResourceAsStream(insertJsonFile));
+    assertRead(insertRequest, insertResponse, true);
+    logger.info("Insert feature tested successfully");
+
+    // =========== UPDATE With wrong UUID ==========
+    FeatureCollection featureCollection = XyzSerializable.deserialize(insertResponse);
+    for (Feature feature : featureCollection.getFeatures()) {
+      feature.getProperties().put("foo", "bar");
+    }
+
+    String modifiedFeatureId = featureCollection.getFeatures().get(1).getId();
+    featureCollection.getFeatures().get(1).getProperties().getXyzNamespace().setUuid("wrong");
+
+    Feature newFeature = new Feature().withId("test2").withProperties(new Properties().withXyzNamespace(xyzNamespace));
+    List<Feature> insertFeatureList = new ArrayList<>();
+    insertFeatureList.add(newFeature);
+
+    List<String> idList = featureCollection.getFeatures().stream().map(Feature::getId).collect(Collectors.toList());
+    idList.add("test2");
+
+    setPUUID(featureCollection);
+
+    ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
+    mfevent.setSpace("foo");
+    mfevent.setTransaction(false);
+    mfevent.setEnableUUID(true);
+    mfevent.setUpdateFeatures(featureCollection.getFeatures());
+    mfevent.setInsertFeatures(insertFeatureList);
+    String response = invokeLambda(mfevent.serialize());
+    FeatureCollection responseCollection = XyzSerializable.deserialize(response);
+
+    assertEquals(3, responseCollection.getFeatures().size());
+    assertEquals(1, responseCollection.getFailed().size());
+    assertTrue(responseCollection.getFailed().get(0).getId().equalsIgnoreCase(modifiedFeatureId));
+
+    List<String> inserted = responseCollection.getInserted();
+
+    FeatureCollection.ModificationFailure failure = responseCollection.getFailed().get(0);
+    assertEquals(DatabaseWriter.UPDATE_ERROR_UUID,failure.getMessage());
+    assertEquals(modifiedFeatureId,failure.getId());
+
+    //Check if updates got written (correct UUID)
+    SearchForFeaturesEvent searchEvent = new SearchForFeaturesEvent();
+    searchEvent.setSpace("foo");
+    searchEvent.setStreamId(RandomStringUtils.randomAlphanumeric(10));
+    String eventJson = searchEvent.serialize();
+    String searchResponse = invokeLambda(eventJson);
+    responseCollection = XyzSerializable.deserialize(searchResponse);
+
+    for (Feature feature : responseCollection.getFeatures()) {
+      // The new Feature and the failed updated one should not have the property foo
+      if(feature.getId().equalsIgnoreCase(modifiedFeatureId) || feature.getId().equalsIgnoreCase(inserted.get(0)))
+        assertNull(feature.getProperties().get("foo"));
+      else
+        assertEquals("bar",feature.getProperties().get("foo"));
+      assertTrue(idList.contains(failure.getId()));
+    }
+
+    // =========== UPDATE With correct UUID ==========
+    for (Feature feature : responseCollection.getFeatures()) {
+      feature.getProperties().put("foo","bar2");
+    }
+
+    setPUUID(responseCollection);
+
+    mfevent.setUpdateFeatures(responseCollection.getFeatures());
+    mfevent.setInsertFeatures(new ArrayList<>());
+
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+    assertEquals(4, responseCollection.getFeatures().size());
+    assertEquals(4, responseCollection.getUpdated().size());
+    assertNull(responseCollection.getFailed());
+
+    for (Feature feature : responseCollection.getFeatures()) {
+      assertEquals("bar2",feature.getProperties().get("foo"));
+    }
+
+    // =========== Delete With wrong UUID ==========
+    Map<String,String> idUUIDMap = new HashMap<>();
+    Map<String,String> idMap = new HashMap<>();
+    //get current UUIDS
+    for (Feature feature : responseCollection.getFeatures()) {
+      idUUIDMap.put(feature.getId(),feature.getProperties().getXyzNamespace().getUuid());
+      idMap.put(feature.getId(),null);
+    }
+
+    idUUIDMap.put(modifiedFeatureId, "wrong");
+    mfevent.setUpdateFeatures(new ArrayList<>());
+    mfevent.setDeleteFeatures(idUUIDMap);
+
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+
+    assertEquals(0, responseCollection.getFeatures().size());
+    assertEquals(3, responseCollection.getDeleted().size());
+    assertEquals(1, responseCollection.getFailed().size());
+
+    // Only the feature with wrong UUID should have failed
+    failure = responseCollection.getFailed().get(0);
+    assertEquals(DatabaseWriter.UPDATE_ERROR_UUID,failure.getMessage());
+    assertEquals(modifiedFeatureId, failure.getId());
+
+    // Check if deletes are got performed
+    searchResponse = invokeLambda(eventJson);
+    responseCollection = XyzSerializable.deserialize(searchResponse);
+    assertEquals(1, responseCollection.getFeatures().size());
+
+    // =========== Delete without UUID ==========
+    mfevent.setDeleteFeatures(idMap);
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+
+    assertEquals(0, responseCollection.getFeatures().size());
+    assertEquals(1, responseCollection.getDeleted().size());
+    assertEquals(modifiedFeatureId, (responseCollection.getDeleted().get(0)));
+    // Check if deletes are got performed
+    searchResponse = invokeLambda(eventJson);
+    responseCollection = XyzSerializable.deserialize(searchResponse);
+    assertEquals(0, responseCollection.getFeatures().size());
+  }
+
+  private void setPUUID(FeatureCollection featureCollection) throws JsonProcessingException {
+    for (Feature feature : featureCollection.getFeatures()){
+      feature.getProperties().getXyzNamespace().setPuuid(feature.getProperties().getXyzNamespace().getUuid());
+      feature.getProperties().getXyzNamespace().setUuid(UUID.randomUUID().toString());
+    }
+  }
+
+  @Test
+  public void testModifyFeatureFailuresWithUUID() throws Exception {
+    testModifyFeatureFailures(true);
+  }
+
+  @Test
+  public void testModifyFeatureFailuresWithoutUUID() throws Exception {
+    testModifyFeatureFailures(false);
+  }
+
+    /**
+     * Test all branches of the BBox query.
+     */
   @Test
   public void testBBoxQuery() throws Exception {
     // =========== INSERT ==========
@@ -383,7 +1041,6 @@ public class PSQLXyzConnectorIT {
         + "\t\"type\": \"GetFeaturesByBBoxEvent\",\n"
         + "\t\"space\": \"foo\",\n"
         + "\t\"tags\": [],\n"
-        + "\t\"simplificationLevel\": -1,\n"
         + "\t\"limit\": 30000,\n"
         + "\t\"clip\": false\n"
         + "}";
@@ -404,7 +1061,6 @@ public class PSQLXyzConnectorIT {
         + "\t\"type\": \"GetFeaturesByBBoxEvent\",\n"
         + "\t\"space\": \"foo\",\n"
         + "\t\"tags\": [[\"yellow\"]],\n"
-        + "\t\"simplificationLevel\": -1,\n"
         + "\t\"limit\": 30000,\n"
         + "\t\"clip\": false\n"
         + "}";
@@ -425,7 +1081,6 @@ public class PSQLXyzConnectorIT {
         + "\"type\": \"GetFeaturesByBBoxEvent\",\n"
         + "\"space\": \"foo\",\n"
         + "\"tags\": [[\"yellow\"]],\n"
-        + "\"simplificationLevel\": -1,\n"
         + "\"limit\": 30000,\n"
         + "\"selection\": [\"id\",\"type\",\"geometry\",\"properties.name\"],\n"
         + "\"clip\": false\n"
@@ -452,7 +1107,6 @@ public class PSQLXyzConnectorIT {
         + "\"type\": \"GetFeaturesByBBoxEvent\",\n"
         + "\"space\": \"foo\",\n"
         + "\"tags\": [[\"yellow\"]],\n"
-        + "\"simplificationLevel\": -1,\n"
         + "\"limit\": 30000,\n"
         + "\"selection\": [\"properties.@ns:com:here:xyz.tags\"],\n"
         + "\"clip\": false\n"
@@ -476,7 +1130,6 @@ public class PSQLXyzConnectorIT {
         + "\"type\": \"GetFeaturesByBBoxEvent\",\n"
         + "\"space\": \"foo\",\n"
         + "\"tags\": [[\"yellow\"]],\n"
-        + "\"simplificationLevel\": -1,\n"
         + "\"limit\": 30000,\n"
         + "\"selection\": [\"properties\"],\n"
         + "\"clip\": false\n"
@@ -499,7 +1152,6 @@ public class PSQLXyzConnectorIT {
         + "\t\"type\": \"GetFeaturesByBBoxEvent\",\n"
         + "\t\"space\": \"foo\",\n"
         + "\t\"tags\": [[\"yellow\"]],\n"
-        + "\t\"simplificationLevel\": -1,\n"
         + "\t\"limit\": 30000,\n"
         + "\t\"clip\": false\n"
         + "}";
@@ -511,7 +1163,7 @@ public class PSQLXyzConnectorIT {
     assertNotNull(features);
     assertEquals(1, features.size());
 
-    // =========== QUERY BBOX - +TAGS, +simplificationLevel ==========
+    // =========== QUERY BBOX - +TAGS ==========
     queryEvent = "{\n"
         + "\t\"margin\": 20,\n"
         + "\t\"streamId\": \"Z1YaJv1PCHCl00000waR\",\n"
@@ -520,7 +1172,6 @@ public class PSQLXyzConnectorIT {
         + "\t\"type\": \"GetFeaturesByBBoxEvent\",\n"
         + "\t\"space\": \"foo\",\n"
         + "\t\"tags\": [[\"yellow\"]],\n"
-        + "\t\"simplificationLevel\": 2,\n"
         + "\t\"limit\": 30000,\n"
         + "\t\"clip\": false\n"
         + "}";
@@ -541,7 +1192,6 @@ public class PSQLXyzConnectorIT {
         + "\t\"type\": \"GetFeaturesByBBoxEvent\",\n"
         + "\t\"space\": \"foo\",\n"
         + "\t\"tags\": [[\"yellow\"]],\n"
-        + "\t\"simplificationLevel\": -1,\n"
         + "\t\"limit\": 30000,\n"
         + "\t\"clip\": true\n"
         + "}";
@@ -552,32 +1202,6 @@ public class PSQLXyzConnectorIT {
     features = featureCollection.getFeatures();
     assertNotNull(features);
     assertEquals(1, features.size());
-
-    // =========== QUERY BBOX - +TAGS, +simplificationLevel, +clip ==========
-    queryEvent = "{\n"
-        + "\t\"margin\": 20,\n"
-        + "\t\"streamId\": \"Z1YaJv1PCHCl00000waR\",\n"
-        + "\t\"level\": 3,\n"
-        + "\t\"bbox\": [-170, -170, 170, 170],\n"
-        + "\t\"type\": \"GetFeaturesByBBoxEvent\",\n"
-        + "\t\"space\": \"foo\",\n"
-        + "\t\"tags\": [[\"yellow\"]],\n"
-        + "\t\"simplificationLevel\": 2,\n"
-        + "\t\"limit\": 30000,\n"
-        + "\t\"clip\": true\n"
-        + "}";
-    queryResponse = invokeLambda(queryEvent);
-    assertNotNull(queryResponse);
-    featureCollection = XyzSerializable.deserialize(queryResponse);
-    assertNotNull(featureCollection);
-    features = featureCollection.getFeatures();
-    assertNotNull(features);
-    assertEquals(1, features.size());
-
-    // =========== DELETE SPACE ==========
-    String deleteSpaceResponse = invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
-    assertDeleteSpaceResponse(deleteSpaceResponse);
-    logger.info("Delete space tested successfully - " + deleteSpaceResponse);
   }
 
 
@@ -592,6 +1216,7 @@ public class PSQLXyzConnectorIT {
 
     // =========== UPDATE ==========
     FeatureCollection featureCollection = XyzSerializable.deserialize(insertResponse);
+    setPUUID(featureCollection);
     String featuresList = XyzSerializable.serialize(featureCollection.getFeatures(), new TypeReference<List<Feature>>() {
     });
     String updateRequest = "{\n" +
@@ -603,6 +1228,10 @@ public class PSQLXyzConnectorIT {
         "}";
     updateRequest = updateRequest.replaceAll("Tesla", "Honda");
     String updateResponse = invokeLambda(updateRequest);
+
+    FeatureCollection responseCollection = XyzSerializable.deserialize(updateResponse);
+    setPUUID(responseCollection);
+
     assertUpdate(updateRequest, updateResponse, true);
     assertUpdate(updateRequest, updateResponse, true);
     logger.info("Update feature tested successfully");
@@ -619,13 +1248,9 @@ public class PSQLXyzConnectorIT {
 
     // =========== UPDATE ==========
     FeatureCollection featureCollection = XyzSerializable.deserialize(insertResponse);
-    featureCollection.getFeatures().forEach(f->{
-      f.getProperties().getXyzNamespace().setPuuid(f.getProperties().getXyzNamespace().getUuid());
-      f.getProperties().getXyzNamespace().setUuid(UUID.randomUUID().toString());
+    setPUUID(featureCollection);
+    String featuresList = XyzSerializable.serialize(featureCollection.getFeatures(), new TypeReference<List<Feature>>() {
     });
-
-    String featuresList = XyzSerializable.serialize(featureCollection.getFeatures(), new TypeReference<List<Feature>>() {});
-
     String updateRequest = "{\n" +
         "    \"type\": \"ModifyFeaturesEvent\",\n" +
         "    \"space\": \"foo\",\n" +
@@ -634,7 +1259,10 @@ public class PSQLXyzConnectorIT {
         "    \"updateFeatures\": " + featuresList + "\n" +
         "}";
     updateRequest = updateRequest.replaceAll("Tesla", "Honda");
+
     String updateResponse = invokeLambda(updateRequest);
+    FeatureCollection responseCollection = XyzSerializable.deserialize(updateResponse);
+
     assertUpdate(updateRequest, updateResponse, true);
     logger.info("Update feature tested successfully");
 
@@ -659,9 +1287,11 @@ public class PSQLXyzConnectorIT {
     String deleteResponse = invokeLambda(deleteRequest);
   }
 
+  @Test
   public void testGetStatisticsEvent() throws Exception {
 
     // =========== INSERT ==========
+    XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
     String insertJsonFile = "/events/InsertFeaturesEventTransactional.json";
     String insertResponse = invokeLambdaFromFile(insertJsonFile);
     String insertRequest = IOUtils.toString(GSContext.class.getResourceAsStream(insertJsonFile));
@@ -669,7 +1299,6 @@ public class PSQLXyzConnectorIT {
     logger.info("Insert feature tested successfully");
 
     // =========== GetStatistics ==========
-    invokeLambdaFromFile("/events/HealthCheckEvent.json");
     GetStatisticsEvent event = new GetStatisticsEvent();
     event.setSpace("foo");
     event.setStreamId(RandomStringUtils.randomAlphanumeric(10));
@@ -713,7 +1342,7 @@ public class PSQLXyzConnectorIT {
           Feature f = new Feature()
               .withGeometry(
                   new Point().withCoordinates(new PointCoordinates(360d * random.nextDouble() - 180d, 180d * random.nextDouble() - 90d)))
-              .withProperties(new Properties());
+              .withProperties(new Properties().withXyzNamespace(xyzNamespace));
           pKeys.forEach(p -> f.getProperties().put(p, RandomStringUtils.randomAlphanumeric(8)));
           return f;
         }).limit(11000).collect(Collectors.toList()));
@@ -728,7 +1357,7 @@ public class PSQLXyzConnectorIT {
     /* Needed to trigger update on pg_stat*/
     try (final Connection connection = lambda.dataSource.getConnection()) {
       Statement stmt = connection.createStatement();
-      stmt.execute("ANALYZE public.\"foo\";");
+      stmt.execute("ANALYZE \"foo\";");
     }
 
     statisticsJson = invokeLambda(eventJson);
@@ -746,18 +1375,17 @@ public class PSQLXyzConnectorIT {
     assertEquals(PropertiesStatistics.Searchable.PARTIAL, response.getProperties().getSearchable());
 
     for (PropertyStatistics prop : response.getProperties().getValue()) {
+      if(prop.getKey().equalsIgnoreCase("name"))
+        continue;
       assertTrue(pKeys.contains(prop.getKey()));
-      assertEquals(prop.getCount(), 11003);
+      assertEquals(prop.getCount() > 10000, true);
     }
-    // =========== DELETE SPACE ==========
-    String deleteSpaceResponse = invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
-    assertDeleteSpaceResponse(deleteSpaceResponse);
-    logger.info("Delete space tested successfully - " + deleteSpaceResponse);
   }
 
-  //  @Test
+  @Test
   public void testAutoIndexing() throws Exception {
-    // =========== INSERT further 11k ==========
+
+    XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
     FeatureCollection collection = new FeatureCollection();
     Random random = new Random();
 
@@ -770,53 +1398,78 @@ public class PSQLXyzConnectorIT {
           Feature f = new Feature()
               .withGeometry(
                   new Point().withCoordinates(new PointCoordinates(360d * random.nextDouble() - 180d, 180d * random.nextDouble() - 90d)))
-              .withProperties(new Properties());
+              .withProperties(new Properties().withXyzNamespace(xyzNamespace));
           pKeys.forEach(p -> f.getProperties().put(p, RandomStringUtils.randomAlphanumeric(3)));
           return f;
         }).limit(11000).collect(Collectors.toList()));
 
+    /** This property does not get auto-indexed */
+    for (int i = 0; i < 11000 ; i++) {
+      if(i % 5 == 0)
+        collection.getFeatures().get(i).getProperties().with("test",1);
+    }
+
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
     mfevent.setSpace("foo");
     mfevent.setTransaction(true);
-    mfevent.setEnableUUID(true);
     mfevent.setInsertFeatures(collection.getFeatures());
     invokeLambda(mfevent.serialize());
 
-    /* Needed to trigger update on pg_stat*/
+    /** Needed to trigger update on pg_stat */
     try (final Connection connection = lambda.dataSource.getConnection()) {
       Statement stmt = connection.createStatement();
       stmt.execute("DELETE FROM xyz_config.xyz_idxs_status WHERE spaceid='foo';");
-      stmt.execute("ANALYZE public.\"foo\";");
+      stmt.execute("ANALYZE \"foo\";");
     }
 
-    HealthCheckEvent health = new HealthCheckEvent();
-    health.setConnectorParams(new HashMap<String, Object>() {{
-      put("propertySearch", true);
-    }});
-    invokeLambda(health.serialize());
+    //Triggers dbMaintenance
+    invokeLambdaFromFile("/events/HealthCheckEvent.json");
+
+    // =========== GetStatistics ==========
+    GetStatisticsEvent event = new GetStatisticsEvent();
+    event.setSpace("foo");
+    event.setStreamId(RandomStringUtils.randomAlphanumeric(10));
+    String eventJson = event.serialize();
+    String statisticsJson = invokeLambda(eventJson);
+    StatisticsResponse response = XyzSerializable.deserialize(statisticsJson);
+
+    assertNotNull(response);
+
+    assertEquals(new Long(11000), response.getCount().getValue());
+    assertEquals(true,  response.getCount().getEstimated());
+    assertEquals(PropertiesStatistics.Searchable.PARTIAL, response.getProperties().getSearchable());
+
+    List<PropertyStatistics> propStatistics = response.getProperties().getValue();
+    for (PropertyStatistics propStat: propStatistics ) {
+      if(propStat.getKey().equalsIgnoreCase("test")){
+        assertEquals("number", propStat.getDatatype());
+        assertEquals(false, propStat.isSearchable());
+        assertTrue(propStat.getCount() < 11000);
+      }else{
+        assertEquals("string", propStat.getDatatype());
+        assertEquals(true, propStat.isSearchable());
+        assertEquals(11000 , propStat.getCount());
+      }
+    }
+
+    /* Clean-up maintenance entry */
+    try (final Connection connection = lambda.dataSource.getConnection()) {
+      Statement stmt = connection.createStatement();
+      stmt.execute("DELETE FROM xyz_config.xyz_idxs_status WHERE spaceid='foo';");
+    }
   }
 
   @Test
-  public void testUpsertFeature() {
-/*
-    // =========== INSERT ==========
-    String insertJsonFile = "/UpsertFeaturesEvent.json";
-    String insertResponse = invokeLambdaFromFile(insertJsonFile);
-    String insertRequest = IOTools.toString(GSContext.class.getResourceAsStream(insertJsonFile));
-    assertRead(insertRequest, insertResponse, false);
-    logger.info("Insert of upsert-operation successful");
+  public void testUpsertFeature() throws Exception {
+    invokeLambdaFromFile("/events/InsertFeaturesEvent.json");
 
-    // =========== UPDATE ==========
-    FeatureCollection featureCollection = new FeatureCollection().capture(Json.parse(insertResponse));
-    featureCollection.features().get(0).properties().put("name", "Toyota");
-    featureCollection.features().get(0).properties().nsXyz().tags().add("green");
-    featureCollection.features().get(1).properties().put("name", "Tesla");
-    featureCollection.features().get(1).properties().nsXyz().tags().add("green");
-    final String updateRequest = Json.stringify(featureCollection);
-    String updateResponse = invokeLambda(updateRequest);
-    assertUpdate(updateRequest, updateResponse, false);
-    logger.info("Update of upsert-operation successful");
-*/
+    // =========== UPSERT ==========
+    String jsonFile = "/events/UpsertFeaturesEvent.json";
+    String response = invokeLambdaFromFile(jsonFile);
+    logger.info("RAW RESPONSE: " + response);
+    String request = IOUtils.toString(GSContext.class.getResourceAsStream(jsonFile));
+    assertRead(request, response, false);
+    logger.info("Upsert feature tested successfully");
   }
 
   @Test
@@ -862,11 +1515,6 @@ public class PSQLXyzConnectorIT {
     // =========== DELETE FEATURES ==========
     invokeLambdaFromFile("/events/DeleteFeaturesByTagEvent.json");
     logger.info("Delete feature tested successfully");
-
-    // =========== DELETE SPACE ==========
-    String deleteSpaceResponse = invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
-    assertDeleteSpaceResponse(deleteSpaceResponse);
-    logger.info("Delete space tested successfully - " + deleteSpaceResponse);
   }
 
   @Test
@@ -1183,6 +1831,149 @@ public class PSQLXyzConnectorIT {
   @Test
   public void testModifyFeaturesWithOldStates() throws Exception {
     testModifyFeatures(true);
+  }
+
+  @Test
+  public void testDeleteFeatures() throws Exception {
+    // =========== INSERT ==========
+    String insertJsonFile = "/events/InsertFeaturesEvent.json";
+    String insertResponse = invokeLambdaFromFile(insertJsonFile);
+    logger.info("RAW RESPONSE: " + insertResponse);
+    String insertRequest = IOUtils.toString(GSContext.class.getResourceAsStream(insertJsonFile));
+    assertRead(insertRequest, insertResponse, false);
+    final JsonPath jsonPathFeatures = JsonPath.compile("$.features");
+    List<Map> originalFeatures = jsonPathFeatures.read(insertResponse, jsonPathConf);
+
+    final JsonPath jsonPathFeatureIds = JsonPath.compile("$.features..id");
+    List<String> ids = jsonPathFeatureIds.read(insertResponse, jsonPathConf);
+    logger.info("Preparation: Inserted features {}", ids);
+
+    // =========== DELETE ==========
+    final DocumentContext modifyFeaturesEventDoc = getEventFromResource("/events/InsertFeaturesEvent.json");
+    modifyFeaturesEventDoc.delete("$.insertFeatures");
+
+    Map<String, String> idsMap = new HashMap<>();
+    ids.forEach(id -> idsMap.put(id, null));
+    modifyFeaturesEventDoc.put("$", "deleteFeatures", idsMap);
+
+    String deleteEvent = modifyFeaturesEventDoc.jsonString();
+    String deleteResponse = invokeLambda(deleteEvent);
+    assertNoErrorInResponse(deleteResponse);
+    logger.info("Modify features tested successfully");
+
+  }
+
+  private void testModifyFeatureFailures(boolean withUUID) throws Exception {
+    XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
+
+    // =========== INSERT ==========
+    String insertJsonFile = withUUID ? "/events/InsertFeaturesEventTransactional.json" : "/events/InsertFeaturesEvent.json";
+    final String insertResponse = invokeLambdaFromFile(insertJsonFile);
+    final String insertRequest = IOUtils.toString(GSContext.class.getResourceAsStream(insertJsonFile));
+    final FeatureCollection insertRequestCollection = XyzSerializable.deserialize(insertResponse);
+    assertRead(insertRequest, insertResponse, withUUID);
+    logger.info("Insert feature tested successfully");
+
+    // =========== DELETE NOT EXISTING FEATURE ==========
+    //Stream
+    ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
+    if(withUUID)
+      mfevent.setEnableUUID(true);
+
+    mfevent.setSpace("foo");
+    mfevent.setTransaction(false);
+    mfevent.setDeleteFeatures(Collections.singletonMap("doesnotexist", null));
+    String response = invokeLambda(mfevent.serialize());
+    FeatureCollection responseCollection = XyzSerializable.deserialize(response);
+    assertEquals("doesnotexist", responseCollection.getFailed().get(0).getId());
+    assertEquals(0,responseCollection.getFeatures().size());
+    assertNull(responseCollection.getUpdated());
+    assertNull(responseCollection.getInserted());
+    assertNull(responseCollection.getDeleted());
+
+    if(withUUID)
+      assertEquals(DatabaseWriter.DELETE_ERROR_UUID, responseCollection.getFailed().get(0).getMessage());
+    else
+      assertEquals(DatabaseWriter.DELETE_ERROR_NOT_EXISTS, responseCollection.getFailed().get(0).getMessage());
+
+    //Transactional
+    mfevent.setTransaction(true);
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+    assertEquals("doesnotexist", responseCollection.getFailed().get(0).getId());
+    assertEquals(0,responseCollection.getFeatures().size());
+    assertNull(responseCollection.getUpdated());
+    assertNull(responseCollection.getInserted());
+    assertNull(responseCollection.getDeleted());
+
+    if(withUUID)
+      assertEquals(DatabaseWriter.DELETE_ERROR_UUID, responseCollection.getFailed().get(0).getMessage());
+    else
+      assertEquals(DatabaseWriter.DELETE_ERROR_NOT_EXISTS, responseCollection.getFailed().get(0).getMessage());
+
+    // =========== INSERT EXISTING FEATURE ==========
+    //Stream
+    Feature existing = insertRequestCollection.getFeatures().get(0);
+    existing.getProperties().getXyzNamespace().setPuuid(existing.getProperties().getXyzNamespace().getUuid());
+
+    mfevent.setInsertFeatures(new ArrayList<Feature>(){{add(existing);}});
+    mfevent.setDeleteFeatures(new HashMap<>());
+    mfevent.setTransaction(false);
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+    assertEquals(existing.getId(), responseCollection.getFailed().get(0).getId());
+    assertEquals(DatabaseWriter.INSERT_ERROR_GENERAL, responseCollection.getFailed().get(0).getMessage());
+    assertEquals(0,responseCollection.getFeatures().size());
+    assertNull(responseCollection.getUpdated());
+    assertNull(responseCollection.getInserted());
+    assertNull(responseCollection.getDeleted());
+
+    //Transactional
+    mfevent.setTransaction(true);
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+    assertEquals(existing.getId(), responseCollection.getFailed().get(0).getId());
+    assertEquals(DatabaseWriter.TRANSACTION_ERROR_GENERAL, responseCollection.getFailed().get(0).getMessage());
+    assertEquals(0,responseCollection.getFeatures().size());
+    assertNull(responseCollection.getUpdated());
+    assertNull(responseCollection.getInserted());
+    assertNull(responseCollection.getDeleted());
+
+    // =========== UPDATE NOT EXISTING FEATURE ==========
+    //Stream
+    //Change ID to not existing one
+    existing.setId("doesnotexist");
+    mfevent.setInsertFeatures(new ArrayList<>());
+    mfevent.setUpdateFeatures(new ArrayList<Feature>(){{add(existing);}});
+    mfevent.setTransaction(false);
+
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+    assertEquals(existing.getId(), responseCollection.getFailed().get(0).getId());
+    assertEquals(0,responseCollection.getFeatures().size());
+    assertNull(responseCollection.getUpdated());
+    assertNull(responseCollection.getInserted());
+    assertNull(responseCollection.getDeleted());
+
+    if(withUUID)
+      assertEquals(DatabaseWriter.UPDATE_ERROR_UUID, responseCollection.getFailed().get(0).getMessage());
+    else
+      assertEquals(DatabaseWriter.UPDATE_ERROR_NOT_EXISTS, responseCollection.getFailed().get(0).getMessage());
+
+    //Transactional
+    mfevent.setTransaction(true);
+    response = invokeLambda(mfevent.serialize());
+    responseCollection = XyzSerializable.deserialize(response);
+    assertEquals(existing.getId(), responseCollection.getFailed().get(0).getId());
+    assertEquals(0,responseCollection.getFeatures().size());
+    assertNull(responseCollection.getUpdated());
+    assertNull(responseCollection.getInserted());
+    assertNull(responseCollection.getDeleted());
+
+    if(withUUID)
+      assertEquals(DatabaseWriter.UPDATE_ERROR_UUID, responseCollection.getFailed().get(0).getMessage());
+    else
+      assertEquals(DatabaseWriter.UPDATE_ERROR_NOT_EXISTS, responseCollection.getFailed().get(0).getMessage());
   }
 
   @SuppressWarnings({"rawtypes", "unchecked"})

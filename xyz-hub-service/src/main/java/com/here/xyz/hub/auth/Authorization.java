@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,11 +39,14 @@ public abstract class Authorization {
   }
 
   protected static void evaluateRights(Marker marker, ActionMatrix requestRights, ActionMatrix tokenRights) throws HttpException {
-    logger.info(marker, "Token access rights: {}", Json.encode(tokenRights));
-    logger.info(marker, "Request access rights: {}", Json.encode(requestRights));
-
     if (tokenRights == null || !tokenRights.matches(requestRights)) {
+      logger.warn(marker, "Token access rights: {}", Json.encode(tokenRights));
+      logger.warn(marker, "Request access rights: {}", Json.encode(requestRights));
       throw new HttpException(FORBIDDEN, getForbiddenMessage(requestRights, tokenRights));
+    }
+    else {
+      logger.info(marker, "Token access rights: {}", Json.encode(tokenRights));
+      logger.info(marker, "Request access rights: {}", Json.encode(requestRights));
     }
   }
 

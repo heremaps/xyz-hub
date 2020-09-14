@@ -32,7 +32,9 @@ import com.here.xyz.hub.util.health.schema.Status;
 import com.here.xyz.hub.util.health.schema.Status.Result;
 import java.util.UUID;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.apache.logging.log4j.LogManager;
@@ -50,19 +52,27 @@ import org.apache.logging.log4j.Logger;
 public abstract class ExecutableCheck extends Check implements Runnable {
 	private static final Logger logger = LogManager.getLogger();
 
-	protected static ScheduledExecutorService executorService = Executors.newScheduledThreadPool(4);
+	protected static final int MIN_EXEC_POOL_SIZE = 10;
+	protected static ScheduledThreadPoolExecutor executorService = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(MIN_EXEC_POOL_SIZE);
+
+	static {
+		ScheduledThreadPoolExecutor executor = executorService;
+		executor.setRemoveOnCancelPolicy(true);
+		executor.setKeepAliveTime(Config.getInt(CHECK_DEFAULT_INTERVAL) + Config.getInt(CHECK_DEFAULT_TIMEOUT), TimeUnit.MILLISECONDS);
+	}
 	
 	protected int checkInterval = Config.getInt(CHECK_DEFAULT_INTERVAL);
 	protected int timeout = Config.getInt(CHECK_DEFAULT_TIMEOUT);
-	
-	private boolean commenced = false;
+	protected ScheduledFuture<?> executionHandle;
+
+	protected boolean commenced = false;
 	
 	private String id = UUID.randomUUID().toString();
 	
 	public ExecutableCheck() {
 		setStatus(new Status());
 	}
-	
+
 	/**
 	 * Begins executing this check periodically and asynchronously.
 	 * Will only be called once by {@link MainHealthCheck#commence()},
@@ -73,7 +83,21 @@ public abstract class ExecutableCheck extends Check implements Runnable {
 	public ExecutableCheck commence() {
 		if (!commenced) {
 			commenced = true;
-			executorService.scheduleWithFixedDelay(this, 0, checkInterval, TimeUnit.MILLISECONDS);
+			executionHandle = executorService.scheduleWithFixedDelay(this, 0, checkInterval, TimeUnit.MILLISECONDS);
+		}
+		return this;
+	}
+
+	/**
+	 * Stops the periodic execution of this check.
+	 * Once it has been calls subsequent calls won't have an effect before {@link #commence()} has been called.
+	 *
+	 * @return This check for chaining
+	 */
+	public ExecutableCheck quit() {
+		if (commenced) {
+			executionHandle.cancel(false);
+			commenced = false;
 		}
 		return this;
 	}
@@ -81,26 +105,35 @@ public abstract class ExecutableCheck extends Check implements Runnable {
 	public void run() {
 		try {
 			final long t1 = Service.currentTimeMillis();
-			try {
-				executorService.submit(() -> {
-					Status s = execute();
-					final long t2 = Service.currentTimeMillis();
-					s.setCheckDuration(t2 - t1);
-					s.setTimestamp(t2);
+			Future<?> f = executorService.submit(() -> {
+				Status s = null;
+				try {
+					s = execute();
 					setStatus(s);
-				}).get(timeout, TimeUnit.MILLISECONDS);
+				}
+				catch (InterruptedException ignored) {
+					//Nothing to do here.
+				}
+				final long t2 = Service.currentTimeMillis();
+				s.setCheckDuration(t2 - t1);
+				s.setTimestamp(t2);
+			});
+			try {
+				f.get(timeout, TimeUnit.MILLISECONDS);
 			}
 			catch (TimeoutException e) {
+				f.cancel(true);
 				Status s = new Status();
 				s.setResult(Result.TIMEOUT);
 				final long t2 = Service.currentTimeMillis();
 				s.setCheckDuration(t2 - t1);
 				s.setTimestamp(t2);
 				setStatus(s);
+				setResponse(null);
 			}
 		}
-		catch (Throwable t) {
-			logger.error("{}: Error when executing check", this.getClass().getSimpleName(), t );
+		catch (Exception e) {
+			logger.error("{}: Error when executing check", this.getClass().getSimpleName(), e);
 		}
 	}
 	
@@ -122,9 +155,10 @@ public abstract class ExecutableCheck extends Check implements Runnable {
 	 * - {@link Check#setRole(Role)}
 	 * 
 	 * @see Check#getRole()
+	 * @throws InterruptedException when the execution was interrupted by the health-check system. (e.g. for timed out executions)
 	 * @return A {@link Status} object reflecting the minimal required result of a check.
 	 */
-	public abstract Status execute();
+	public abstract Status execute() throws InterruptedException;
 	
 	protected Result getWorseResult(Result r1, Result r2) {
 		if (r1.compareTo(r2) > 0) return r1;
@@ -156,7 +190,7 @@ public abstract class ExecutableCheck extends Check implements Runnable {
 	public void setTimeout(int timeout) {
 		this.timeout = timeout;
 	}
-	
+
 	private static class CheckIntervalValueFilter {
 		@Override
 		public boolean equals(Object obj) {
@@ -173,5 +207,4 @@ public abstract class ExecutableCheck extends Check implements Runnable {
 	public void setCheckInterval(int checkInterval) {
 		this.checkInterval = checkInterval;
 	}
-	
 }
