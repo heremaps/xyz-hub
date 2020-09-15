@@ -19,10 +19,6 @@
 
 package com.here.xyz.psql.factory;
 
-import com.here.xyz.events.GetFeaturesByBBoxEvent;
-import com.here.xyz.models.geojson.coordinates.BBox;
-import com.here.xyz.psql.PSQLXyzConnector;
-
 public class TweaksSQL
 {
   public static final String SAMPLING = "sampling";
