@@ -157,8 +157,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
       try {
         Thread.sleep(REQUEST_TIMEOUT);
       }
-      catch (InterruptedException ignored) {
-      }
+      catch (InterruptedException ignored) {}
       lambdaClient.shutdown();
     }).start();
   }
@@ -182,7 +181,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
         .withPayload(ByteBuffer.wrap(fc.bytes))
         .withInvocationType(fc.fireAndForget ? InvocationType.Event : InvocationType.RequestResponse);
 
-    final Context context = Vertx.currentContext();
+    final Context context = Service.vertx.getOrCreateContext();
 
     java.util.concurrent.Future<InvokeResult> future = asyncClient.invokeAsync(invokeReq, new AsyncHandler<InvokeRequest, InvokeResult>() {
       @Override
@@ -191,7 +190,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
           logger.error(fc.marker, "Error sending event to remote lambda function", exception);
         }
         else {
-          context.runOnContext(v->callback.handle(Future.failedFuture(getHttpException(fc.marker, exception))));
+          context.runOnContext(v -> callback.handle(Future.failedFuture(getHttpException(fc.marker, exception))));
         }
       }
 
@@ -199,7 +198,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
       public void onSuccess(InvokeRequest request, InvokeResult result) {
         byte[] responseBytes = new byte[result.getPayload().remaining()];
         result.getPayload().get(responseBytes);
-        context.runOnContext(v->callback.handle(Future.succeededFuture(responseBytes)));
+        context.runOnContext(v -> callback.handle(Future.succeededFuture(responseBytes)));
       }
     });
 
