@@ -114,8 +114,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private boolean retryAttempted;
 
-    @Override
-    protected XyzResponse processHealthCheckEvent(HealthCheckEvent event) {
+    protected XyzResponse processHealthCheckEventImpl(HealthCheckEvent event) {
         long targetResponseTime = event.getMinResponseTime() + System.currentTimeMillis();
         SQLQuery query = new SQLQuery("SELECT 1");
         try {
@@ -140,31 +139,30 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     private static MessageDigest md;
-    static { 
+    static {
       try{ md = MessageDigest.getInstance("MD5"); }
       catch( NoSuchAlgorithmException e)
       { logger.error("MessageDigest md5 init failed"); }
     }
-    
+
     private String idFromPsqlEnv( final SimulatedContext ctx )
     { if(ctx == null || md == null ) return PSQLConfig.DEFAULT_ECPS;
       md.reset();
       String[] sArr = { PSQLConfig.PSQL_HOST, PSQLConfig.PSQL_PORT, PSQLConfig.PSQL_USER, "PSQL_DB" };
       String msg = "";
       for( String s : sArr)
-       msg += ( ctx.getEnv(s) == null ? "mxm" : ctx.getEnv(s) ); 
-      
+       msg += ( ctx.getEnv(s) == null ? "mxm" : ctx.getEnv(s) );
+
       return Hex.encodeHexString( md.digest(msg.getBytes()) );
     }
 
     @Override
     protected synchronized void initialize(Event event) {
-
         this.event = event;
         String ecps = PSQLConfig.getECPS(event);
 
         if( PSQLConfig.DEFAULT_ECPS.equals(ecps) && context instanceof SimulatedContext )
-         ecps = idFromPsqlEnv((SimulatedContext) context);         
+            ecps = idFromPsqlEnv((SimulatedContext) context);
 
         if (!dbInstanceMap.containsKey(ecps)) {
             /** Init dataSource, readDataSource ..*/
@@ -469,28 +467,27 @@ public abstract class DatabaseHandler extends StorageConnector {
                 connection.setAutoCommit(true);
 
             try {
-                DatabaseWriter.TIMEOUT = calculateTimeout();
-
+                //DatabaseWriter.TIMEOUT = calculateTimeout();
                 if (deletes.size() > 0) {
-                    DatabaseWriter.deleteFeatures(schema, table, streamId, fails, deletes, connection, transactional, handleUUID);
+                    DatabaseWriter.deleteFeatures(this, schema, table, streamId, fails, deletes, connection, transactional, handleUUID);
                 }
                 if (inserts.size() > 0) {
-                    DatabaseWriter.insertFeatures(schema, table, streamId, collection, fails, inserts, connection, transactional);
+                    DatabaseWriter.insertFeatures(this, schema, table, streamId, collection, fails, inserts, connection, transactional);
                 }
                 if (updates.size() > 0) {
-                    DatabaseWriter.updateFeatures(schema, table, streamId, collection, fails, updates, connection, transactional, handleUUID);
+                    DatabaseWriter.updateFeatures(this, schema, table, streamId, collection, fails, updates, connection, transactional, handleUUID);
                 }
 
                 if (transactional) {
                     /** Commit SQLS in one transaction */
                     connection.commit();
                 }
-                
             } catch (Exception e) {
                 /** No time left for processing */
                 if(e instanceof SQLException && ((SQLException)e).getSQLState() !=null
-                        &&((SQLException)e).getSQLState().equalsIgnoreCase("54000"))
-                 throw e;
+                        &&((SQLException)e).getSQLState().equalsIgnoreCase("54000")) {
+                    throw e;
+                }
 
                 /** Add objects which are responsible for the failed operation */
                 event.setFailed(fails);
@@ -501,11 +498,10 @@ public abstract class DatabaseHandler extends StorageConnector {
                     if(!connection.isClosed())
                     { connection.setAutoCommit(cStateFlag);
                       connection.close();
-                    } 
+                    }
 
                     return executeModifyFeatures(event);
                 }
-
 
                 if (transactional) {
                     connection.rollback();
@@ -514,13 +510,15 @@ public abstract class DatabaseHandler extends StorageConnector {
                             && ((SQLException)e).getSQLState().equalsIgnoreCase("42P01")))
                         ;//Table does not exist yet - create it!
                     else {
-      
+
                         /** Add all other Objects to failed list */
                         addAllToFailedList(fails, getAllIds(inserts, updates, upserts, deletes));
 
                         /** Reset the rest */
                         collection.setFeatures(new ArrayList<>());
                         collection.setFailed(fails);
+
+                        connection.close();
                         return collection;
                     }
                 }
@@ -530,7 +528,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                     if(!connection.isClosed())
                     { connection.setAutoCommit(cStateFlag);
                       connection.close();
-                    } 
+                    }
 
                     canRetryAttempt();
 
@@ -542,7 +540,7 @@ public abstract class DatabaseHandler extends StorageConnector {
              if(!connection.isClosed())
               connection.setAutoCommit(cStateFlag);
             }
-            
+
             /** filter out failed ids */
             final List<String> failedIds = fails.stream().map(FeatureCollection.ModificationFailure::getId).filter(Objects::nonNull).collect(Collectors.toList());
             final List<String> insertIds = inserts.stream().map(Feature::getId).filter(x -> !failedIds.contains(x)).collect(Collectors.toList());
@@ -572,6 +570,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 }
                 collection.getDeleted().addAll(deleteIds);
             }
+            connection.close();
 
             return collection;
         }
@@ -639,6 +638,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             query = SQLQuery.replaceVars(query, config.schema(), config.table(event));
             ResultSet rs;
 
+            stmt.setQueryTimeout(calculateTimeout());
             if ((rs = stmt.executeQuery(query)).next()) {
                 logger.info("{} - Time for table check: " + (System.currentTimeMillis() - start) + "ms", streamId);
                 String oid = rs.getString(1);
@@ -657,13 +657,13 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private static String lockSql   = "select pg_advisory_lock( ('x' || left(md5('%s'),15) )::bit(60)::bigint )",
                           unlockSql = "select pg_advisory_unlock( ('x' || left(md5('%s'),15) )::bit(60)::bigint )";
-                          
-    private static void _advisory(String tablename, Connection connection,boolean lock ) throws SQLException 
+
+    private static void _advisory(String tablename, Connection connection,boolean lock ) throws SQLException
     {
      boolean cStateFlag = connection.getAutoCommit();
      connection.setAutoCommit(true);
-     
-     try(Statement stmt = connection.createStatement()) 
+
+     try(Statement stmt = connection.createStatement())
      { stmt.executeQuery(String.format( lock? lockSql : unlockSql,tablename)); }
 
      connection.setAutoCommit(cStateFlag);
@@ -676,7 +676,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     protected void ensureSpace() throws SQLException {
         // Note: We can assume that when the table exists, the postgis extensions are installed.
         if (hasTable()) return;
-        
+
         final String tableName = config.table(event);
 
         try (final Connection connection = dataSource.getConnection()) {
@@ -684,12 +684,13 @@ public abstract class DatabaseHandler extends StorageConnector {
             boolean cStateFlag = connection.getAutoCommit();
             try {
 
-                if (cStateFlag) 
+                if (cStateFlag)
                   connection.setAutoCommit(false);
 
                 try (Statement stmt = connection.createStatement()) {
                     createSpaceStatement(stmt,tableName);
 
+                    stmt.setQueryTimeout(calculateTimeout());
                     stmt.executeBatch();
                     connection.commit();
                     logger.info("{} - Successfully created table for space '{}'", streamId, event.getSpace());
@@ -705,7 +706,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 throw new SQLException("Missing table " + SQLQuery.sqlQuote(tableName) + " and creation failed: " + e.getMessage(), e);
             } finally {
                 advisoryUnlock( tableName, connection );
-                if (cStateFlag) 
+                if (cStateFlag)
                  connection.setAutoCommit(true);
             }
         }
@@ -740,6 +741,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         query = "CREATE INDEX IF NOT EXISTS ${idx_createdAt} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'createdAt'))";
         query = SQLQuery.replaceVars(query, replacements, config.schema(), tableName);
         stmt.addBatch(query);
+        stmt.setQueryTimeout(calculateTimeout());
     }
 
     protected void ensureHistorySpace(Integer maxVersionCount, boolean compactHistory) throws SQLException {
@@ -749,7 +751,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             advisoryLock( tableName, connection );
             boolean cStateFlag = connection.getAutoCommit();
             try {
-                if (cStateFlag) 
+                if (cStateFlag)
                  connection.setAutoCommit(false);
 
                 try (Statement stmt = connection.createStatement()) {
@@ -778,6 +780,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                     query = SQLQueryBuilder.addHistoryTriggerSQL(config.schema(),config.table(event), maxVersionCount, compactHistory);
                     stmt.addBatch(query);
 
+                    stmt.setQueryTimeout(calculateTimeout());
                     stmt.executeBatch();
                     connection.commit();
                     logger.info("{} - Successfully created history table for space '{}'", streamId, event.getSpace());
@@ -785,11 +788,10 @@ public abstract class DatabaseHandler extends StorageConnector {
             } catch (Exception e) {
                 throw new SQLException("Creation of history table for " + SQLQuery.sqlQuote(tableName) + "  has failed: " + e.getMessage(), e);
             } finally {
-              advisoryUnlock( tableName, connection );                
-              if (cStateFlag) 
+              advisoryUnlock( tableName, connection );
+              if (cStateFlag)
                 connection.setAutoCommit(true);
             }
-
         }
     }
 
@@ -827,7 +829,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 nextHandle = rs.getLong(3);
             }
         }
-        
+
         if (sb.length() > prefix.length()) {
             sb.setLength(sb.length() - 1);
         }
@@ -919,7 +921,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         int timeout = remainingSeconds >= STATEMENT_TIMEOUT_SECONDS ? STATEMENT_TIMEOUT_SECONDS :
                 (remainingSeconds - 2);
 
-        logger.info("{} - New timeout for query set to '{}'", streamId,  timeout);
+        logger.info("{} - New timeout for query set to '{}'", streamId, timeout);
         return timeout;
     }
 

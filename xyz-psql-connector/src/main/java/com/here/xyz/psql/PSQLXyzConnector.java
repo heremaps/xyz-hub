@@ -28,6 +28,7 @@ import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.GetStatisticsEvent;
+import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
@@ -67,6 +68,11 @@ public class PSQLXyzConnector extends DatabaseHandler {
    */
   @SuppressWarnings("WeakerAccess")
   protected Context context;
+
+  @Override
+  protected XyzResponse processHealthCheckEvent(HealthCheckEvent event) {
+    return processHealthCheckEventImpl(event);
+  }
 
   @Override
   protected XyzResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
@@ -264,7 +270,6 @@ public class PSQLXyzConnector extends DatabaseHandler {
       Stream.of(inserts, updates, upserts)
           .flatMap(Collection::stream)
           .forEach(feature -> Feature.finalizeFeature(feature, event.getSpace(), addUUID));
-
       return executeModifyFeatures(event);
     } catch (SQLException e) {
       return checkSQLException(e, config.table(event));
