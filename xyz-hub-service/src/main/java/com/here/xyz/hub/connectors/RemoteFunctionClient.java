@@ -436,7 +436,8 @@ public abstract class RemoteFunctionClient {
   }
 
   public double getPriority() {
-    return (double) getMinConnections() / globalMinConnectionSum.doubleValue();
+    double minConnectionSum = globalMinConnectionSum.doubleValue();
+    return minConnectionSum == 0 ? 0 : (double) getMinConnections() / minConnectionSum;
   }
 
   public long getMaxQueueSize() {
