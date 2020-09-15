@@ -24,6 +24,7 @@ import static org.junit.Assert.assertEquals;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.Service.Config;
 import com.here.xyz.hub.connectors.models.Connector;
+import io.vertx.core.Vertx;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -44,6 +45,7 @@ public class RFCMeasurement {
     @Before
     public void setup() {
         //Mock necessary configuration values
+        Service.vertx = Vertx.vertx();
         Service.configuration = new Config();
         Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT = 26;
         Service.configuration.INSTANCE_COUNT = 1;
