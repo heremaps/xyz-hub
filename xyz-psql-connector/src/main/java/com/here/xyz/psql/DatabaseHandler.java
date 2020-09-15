@@ -229,7 +229,8 @@ public abstract class DatabaseHandler extends StorageConnector {
         cpds.setPassword(password);
 
         cpds.setInitialPoolSize(1);
-        cpds.setMinPoolSize(1);
+        cpds.setMinPoolSize(0);
+        cpds.setMaxIdleTime(30);
         cpds.setAcquireIncrement(1);
         cpds.setAcquireRetryAttempts(5);
         cpds.setTestConnectionOnCheckout(true);
