@@ -645,6 +645,14 @@ public abstract class DatabaseHandler extends StorageConnector {
                 return oid != null ? true : false;
             }
             return false;
+        }catch (Exception e){
+            if(!retryAttempted) {
+                retryAttempted = true;
+                logger.info("{} - Retry table check.", streamId);
+                return hasTable();
+            }
+            else
+                throw e;
         }
     }
 
