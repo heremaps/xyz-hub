@@ -36,18 +36,16 @@ import java.util.Set;
 
 public class DatabaseTransactionalWriter extends  DatabaseWriter{
 
-    public static FeatureCollection insertFeatures(String schema, String table, String streamId, FeatureCollection collection,
-                                                   List<Feature> inserts, Connection connection)
+    public static FeatureCollection insertFeatures(DatabaseHandler dbh, String schema, String table, String streamId,
+                FeatureCollection collection, List<FeatureCollection.ModificationFailure> fails,
+                List<Feature> inserts, Connection connection)
             throws SQLException, JsonProcessingException {
-
-        boolean batchInsert = false;
-        boolean batchInsertWithoutGeometry = false;
 
         final PreparedStatement insertStmt = createInsertStatement(connection,schema,table);
         final PreparedStatement insertWithoutGeometryStmt = createInsertWithoutGeometryStatement(connection,schema,table);
 
-        insertStmt.setQueryTimeout(TIMEOUT);
-        insertWithoutGeometryStmt.setQueryTimeout(TIMEOUT);
+        List<String> insertIdList = new ArrayList<>();
+        List<String> insertWithoutGeometryIdList = new ArrayList<>();
 
         for (int i = 0; i < inserts.size(); i++) {
             final Feature feature = inserts.get(i);
@@ -57,7 +55,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
             if (feature.getGeometry() == null) {
                 insertWithoutGeometryStmt.setObject(1, jsonbObject);
                 insertWithoutGeometryStmt.addBatch();
-                batchInsertWithoutGeometry = true;
+                insertWithoutGeometryIdList.add(feature.getId());
             } else {
                 insertStmt.setObject(1, jsonbObject);
 
@@ -68,22 +66,18 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
                 insertStmt.setBytes(2, wkbWriter.write(jtsGeometry));
 
                 insertStmt.addBatch();
-                batchInsert = true;
+                insertIdList.add(feature.getId());
             }
             collection.getFeatures().add(feature);
         }
 
-        if (batchInsert) {
-            insertStmt.executeBatch();
-        }
-        if (batchInsertWithoutGeometry) {
-            insertWithoutGeometryStmt.executeBatch();
-        }
+        executeBatchesAndCheckOnFailures(dbh, insertIdList, insertWithoutGeometryIdList,
+                insertStmt, insertWithoutGeometryStmt, fails, false, streamId, table );
 
         return collection;
     }
 
-    public static FeatureCollection updateFeatures(String schema, String table, String streamId, FeatureCollection collection,
+    public static FeatureCollection updateFeatures(DatabaseHandler dbh, String schema, String table, String streamId, FeatureCollection collection,
                                                    List<FeatureCollection.ModificationFailure> fails, List<Feature> updates,
                                                    Connection connection, boolean handleUUID)
             throws SQLException, JsonProcessingException {
@@ -91,14 +85,8 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         final PreparedStatement updateStmt = createUpdateStatement(connection, schema, table, handleUUID);
         final PreparedStatement updateWithoutGeometryStmt = createUpdateWithoutGeometryStatement(connection,schema,table,handleUUID);
 
-        updateStmt.setQueryTimeout(TIMEOUT);
-        updateWithoutGeometryStmt.setQueryTimeout(TIMEOUT);
-
         List<String> updateIdList = new ArrayList<>();
         List<String> updateWithoutGeometryIdList = new ArrayList<>();
-
-        int[] batchUpdateResult = null;
-        int[] batchUpdateWithoutGeometryResult = null;
 
         for (int i = 0; i < updates.size(); i++) {
             final Feature feature = updates.get(i);
@@ -138,31 +126,24 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
             collection.getFeatures().add(feature);
         }
 
-        if (updateIdList.size() > 0) {
-            batchUpdateResult = updateStmt.executeBatch();
-            fillFailList(batchUpdateResult, fails, updateIdList, handleUUID);
-        }
-        if (updateWithoutGeometryIdList.size() > 0) {
-            batchUpdateWithoutGeometryResult = updateWithoutGeometryStmt.executeBatch();
-            fillFailList(batchUpdateWithoutGeometryResult, fails, updateWithoutGeometryIdList, handleUUID);
-        }
+        executeBatchesAndCheckOnFailures(dbh, updateIdList, updateWithoutGeometryIdList,
+                updateStmt, updateWithoutGeometryStmt, fails, handleUUID, streamId, table );
 
-        if(fails.size() > 0)
+        if(fails.size() > 0) {
+            logException(null, streamId, 0 , LOG_EXCEPTION_UPDATE, table);
             throw new SQLException(UPDATE_ERROR_GENERAL);
+        }
 
         return collection;
     }
 
-    protected static void deleteFeatures(String schema, String table, String streamId,
+    protected static void deleteFeatures(DatabaseHandler dbh, String schema, String table, String streamId,
                                          List<FeatureCollection.ModificationFailure> fails, Map<String, String> deletes,
                                          Connection connection, boolean handleUUID)
             throws SQLException {
 
         final PreparedStatement batchDeleteStmt = deleteStmtSQLStatement(connection,schema,table,handleUUID);
         final PreparedStatement batchDeleteStmtWithoutUUID = deleteStmtSQLStatement(connection,schema,table,false);
-
-        batchDeleteStmt.setQueryTimeout(TIMEOUT);
-        batchDeleteStmtWithoutUUID.setQueryTimeout(TIMEOUT);
 
         Set<String> idsToDelete = deletes.keySet();
 
@@ -186,15 +167,36 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
                 batchDeleteStmt.addBatch();
             }
         }
+        executeBatchesAndCheckOnFailures(dbh, deleteIdList, deleteIdListWithoutUUID,
+                batchDeleteStmt, batchDeleteStmtWithoutUUID, fails, handleUUID, streamId, table );
 
-        int[] batchDeleteStmtResult = batchDeleteStmt.executeBatch();
-        int[] batchDeleteStmtWithoutUUIDResult = batchDeleteStmtWithoutUUID.executeBatch();
-
-        fillFailList(batchDeleteStmtResult, fails, deleteIdList, handleUUID);
-        fillFailList(batchDeleteStmtWithoutUUIDResult, fails, deleteIdListWithoutUUID, handleUUID);
-
-        if(fails.size() > 0)
+        if(fails.size() > 0) {
+            logException(null, streamId, 0 , LOG_EXCEPTION_DELETE, table);
             throw new SQLException(DELETE_ERROR_GENERAL);
+        }
+    }
+
+    private static void executeBatchesAndCheckOnFailures(DatabaseHandler dbh, List<String> idList, List<String> idList2,
+                                                         PreparedStatement batchStmt, PreparedStatement batchStmt2,
+                                                         List<FeatureCollection.ModificationFailure> fails,
+                                                         boolean handleUUID, String streamId, String table) throws SQLException {
+        int[] batchStmtResult;
+        int[] batchStmtResult2;
+
+        if(idList.size() > 0) {
+            batchStmt.setQueryTimeout(dbh.calculateTimeout());
+            batchStmtResult = batchStmt.executeBatch();
+            fillFailList(batchStmtResult, fails, idList, handleUUID);
+        }
+
+        if(idList2.size() > 0) {
+            batchStmt2.setQueryTimeout(dbh.calculateTimeout());
+            batchStmtResult2 = batchStmt2.executeBatch();
+            fillFailList(batchStmtResult2, fails, idList2, handleUUID);
+        }
+
+        batchStmt.close();
+        batchStmt2.close();
     }
 
     private static void fillFailList(int[] batchResult, List<FeatureCollection.ModificationFailure> fails,  List<String> idList, boolean handleUUID){
