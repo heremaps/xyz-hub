@@ -30,6 +30,7 @@ import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.util.ByteSizeAware;
 import com.here.xyz.hub.util.LimitedQueue;
 import io.vertx.core.AsyncResult;
+import io.vertx.core.Context;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.impl.ConcurrentHashSet;
@@ -485,6 +486,7 @@ public abstract class RemoteFunctionClient {
     final Marker marker;
     final byte[] bytes;
     final boolean fireAndForget;
+    final Context context = Service.vertx.getOrCreateContext();
 
     private final Handler<AsyncResult<byte[]>> callback;
     private Runnable cancelHandler;
