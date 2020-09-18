@@ -17,3 +17,6 @@ script:
 
 after_script:
   - docker-compose --file docker-compose-dynamodb.yml down
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash)
