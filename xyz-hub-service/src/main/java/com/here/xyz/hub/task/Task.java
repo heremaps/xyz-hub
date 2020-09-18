@@ -19,6 +19,13 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.hub.task.Task.TaskState.CANCELLED;
+import static com.here.xyz.hub.task.Task.TaskState.ERROR;
+import static com.here.xyz.hub.task.Task.TaskState.INIT;
+import static com.here.xyz.hub.task.Task.TaskState.IN_PROGRESS;
+import static com.here.xyz.hub.task.Task.TaskState.RESPONSE_SENT;
+import static com.here.xyz.hub.task.Task.TaskState.STARTED;
+
 import com.here.xyz.events.Event;
 import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.connectors.models.Space.CacheProfile;
@@ -26,7 +33,10 @@ import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.task.TaskPipeline.C1;
 import com.here.xyz.hub.task.TaskPipeline.C2;
+import io.netty.util.internal.ConcurrentSet;
 import io.vertx.ext.web.RoutingContext;
+import java.util.Objects;
+import java.util.function.Consumer;
 import org.apache.logging.log4j.Marker;
 
 /**
@@ -43,6 +53,7 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
    * Describes, if cache should be ignored.
    */
   public final boolean skipCache;
+
   /**
    * The response type that should be produced by this task.
    */
@@ -74,6 +85,16 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
    * Indicates, if the task was executed.
    */
   private boolean executed = false;
+
+  /**
+   * The current state / phase of this task. The state can be read to know whether an action should still be performed or may be cancelled.
+   * E.g. if the task is in a final state already it doesn't make sense to send a(nother) response or fail with another exception.
+   *
+   * @see TaskState
+   */
+  private TaskState state = INIT;
+
+  private ConcurrentSet<Consumer<Task<T, X>>> cancellingHandlers = new ConcurrentSet<>();
 
   /**
    * @throws NullPointerException if the given context or responseType are null.
@@ -111,6 +132,7 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
     T event = getEvent();
     eventConsumed = true;
     this.event = null;
+    state = IN_PROGRESS;
     return event;
   }
 
@@ -126,7 +148,16 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
     if (!executed) {
       executed = true;
       getPipeline()
-          .finish(onSuccess, onException)
+          .finish(
+              a -> {
+                onSuccess.call(a);
+                state = RESPONSE_SENT;
+              },
+              (a, b) -> {
+                state = ERROR;
+                onException.call(a, b);
+              }
+          )
           .execute();
     }
   }
@@ -180,5 +211,75 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
 
   public void setCacheHit(boolean cacheHit) {
     this.cacheHit = cacheHit;
+  }
+
+  public TaskState getState() {
+    if (state == INIT && executed) return STARTED;
+    return state;
+  }
+
+  public void addCancellingHandler(Consumer<Task<T, X>> cancellingHandler) {
+    Objects.requireNonNull(cancellingHandler);
+    cancellingHandlers.add(cancellingHandler);
+  }
+
+  /**
+   * The state can be read to know whether an action should still be performed or may be cancelled.
+   * E.g. when the task is in a final state already, it doesn't make sense to send a(nother) response or fail with another exception.
+   *
+   * Final states are: {@link TaskState#RESPONSE_SENT}
+   * The following is true for final states:
+   *  No further action should be started and pending actions should be cancelled / killed.
+   *  If cancelling of some asynchronous action is not possible the action's handler should do nothing in case it still gets called.
+   */
+  public enum TaskState {
+
+    /**
+     * Init is the first state right after the task has been created. The execution of the task has not started yet.
+     */
+    INIT,
+
+    /**
+     * The execution of the task has been started by the {@link TaskPipeline}.
+     */
+    STARTED,
+
+    /**
+     * The main action of this task is in progress. This could be a running request the system is waiting for to succeed or fail.
+     */
+    IN_PROGRESS,
+
+    /**
+     * The task's actions have been performed and the response has been sent to the client.
+     * This is a final state.
+     */
+    RESPONSE_SENT,
+
+    /**
+     * The task's execution has been cancelled. E.g. due to the request has been cancelled by the client.
+     * This is a final state.
+     */
+    CANCELLED,
+
+    /**
+     * An error happened during the execution of one of this task's actions. This could happen either during the request- or response-phase.
+     * This is a final state.
+     */
+    ERROR;
+
+    public boolean isFinal() {
+      return this == RESPONSE_SENT || this == CANCELLED || this == ERROR;
+    }
+  }
+
+  public void cancel() {
+    if (!state.isFinal()) {
+      state = CANCELLED;
+      callCancellingHandlers();
+    }
+  }
+
+  private void callCancellingHandlers() {
+    cancellingHandlers.forEach(cH -> cH.accept(this));
   }
 }
