@@ -975,11 +975,10 @@ components:
 
         **Tweaks-type: "ensure":**
 
-        With the strength parameter it is possibile to control the behavior of the tweaks-simplification algorithm.
-
         | Parameter   | Type    | Mandatory | Meaning                                                               |
         |-------------|---------|-----------|-----------------------------------------------------------------------|
         | defaultselection | boolean  | NO        | use standard selection behaviour  [default: false]              |
+        | samplingthreshold | Number  | NO        | integer 10-100, size of samples (x1000) [default: 10]           |
 
       style: form
       explode: true

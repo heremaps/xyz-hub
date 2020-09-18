@@ -40,7 +40,7 @@ public class TweaksSQL
   public static final String SIMPLIFICATION_ALGORITHM_A04 = "merge";
   public static final String ENSURE = "ensure";
   public static final String ENSURE_DEFAULT_SELECTION = "defaultselection";
-  public static final String ENSURE_CHUNKSIZE = "chunksize";
+  public static final String ENSURE_SAMPLINGTHRESHOLD = "samplingthreshold";
   
   /*
    [  1     |   (1) | 1/3    | ~ md5( '' || i) < '5'   ]
