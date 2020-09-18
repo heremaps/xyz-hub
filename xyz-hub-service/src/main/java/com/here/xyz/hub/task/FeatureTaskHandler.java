@@ -169,11 +169,11 @@ public class FeatureTaskHandler {
       }
       EventResponseContext responseContext = new EventResponseContext(eventToExecute);
 
-      //Clone the request-event to be used for request-listener notifications (see below) if there are some to be performed
-      //TODO: Only clone the event if necessary (e.g. if listeners or processors are registered)
-      //if (task.space.listeners != null && !task.space.listeners.isEmpty()) {
-      Event<? extends Event> requestListenerPayload = eventToExecute.copy();
-      //}
+      Event<? extends Event> requestListenerPayload = null;
+      if (task.space.hasRequestListeners()) {
+        //Clone the request-event to be used for request-listener notifications (see below) if there are some to be performed
+        requestListenerPayload = eventToExecute.copy();
+      }
 
       //CMEKB-2779 Remove failed entries before calling storage client
       if (eventToExecute instanceof ModifyFeaturesEvent) {
@@ -232,7 +232,8 @@ public class FeatureTaskHandler {
         }
       }
       //Send event to potentially registered request-listeners
-      notifyListeners(task, eventType, requestListenerPayload);
+      if (requestListenerPayload != null)
+        notifyListeners(task, eventType, requestListenerPayload);
     });
   }
 
