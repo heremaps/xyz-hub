@@ -208,6 +208,7 @@ public class FeatureTaskHandler {
             notifyListeners(task, eventType, responseToSend);
           });
         });
+        addStreamInfo(task, "SReqSize=" + responseContext.rpcContext.getRequestSize() + ";");
       }
       catch (IllegalStateException e) {
         cancelRPC(responseContext.rpcContext);
@@ -253,11 +254,10 @@ public class FeatureTaskHandler {
     }
   }
 
-  private static <T extends FeatureTask> void addStoragePerformanceInfo(T task, long storageTime,
-      RpcContext rpcContext) {
+  private static <T extends FeatureTask> void addStoragePerformanceInfo(T task, long storageTime, RpcContext rpcContext) {
     String connectorPerformanceValues = "STime=" + storageTime + ";";
     if (rpcContext != null)
-      connectorPerformanceValues += "SReqSize=" + rpcContext.getRequestSize() + ";SResSize=" + rpcContext.getResponseSize() + ";";
+      connectorPerformanceValues += "SResSize=" + rpcContext.getResponseSize() + ";";
     addStreamInfo(task, connectorPerformanceValues);
   }
 
