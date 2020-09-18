@@ -161,6 +161,13 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
         .collect(Collectors.toList());
   }
 
+  public boolean hasRequestListeners() {
+    if (getListeners() == null || getListeners().isEmpty()) return false;
+    List<Space.ListenerConnectorRef> listeners = getConnectorRefs(ConnectorType.LISTENER);
+    return listeners.stream().anyMatch(l -> l.getEventTypes() != null &&
+        l.getEventTypes().stream().anyMatch(et -> et.endsWith(".request")));
+  }
+
   @JsonIgnore
   public CacheProfile getCacheProfile(boolean skipCache, boolean autoConfig) {
     // Cache is manually deactivated, either for the space or for this specific request
