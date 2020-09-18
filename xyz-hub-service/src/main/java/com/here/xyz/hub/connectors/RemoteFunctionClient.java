@@ -160,19 +160,17 @@ public abstract class RemoteFunctionClient {
     }
   }
 
-  protected FunctionCall submit(final Marker marker, byte[] bytes, boolean fireAndForget, final Handler<AsyncResult<byte[]>> callback) {
+  protected FunctionCall submit(final Marker marker, byte[] bytes, boolean fireAndForget, boolean hasPriority, final Handler<AsyncResult<byte[]>> callback) {
     Handler<AsyncResult<byte[]>> cb = r -> {
       //This is the point where the request's response came back so measure the throughput
       invokeCompleted();
       if (r.succeeded()) {
         try {
           callback.handle(Future.succeededFuture(handleByteResponse(r.result())));
-        }
-        catch (HttpException | IOException e) {
+        } catch (HttpException | IOException e) {
           callback.handle(Future.failedFuture(e));
         }
-      }
-      else {
+      } else {
         callback.handle(r);
       }
     };
@@ -180,11 +178,15 @@ public abstract class RemoteFunctionClient {
     //This is the point where new requests arrive so measure the arrival time
     invokeStarted();
 
-    FunctionCall fc = new FunctionCall(marker, bytes, fireAndForget, cb);
-    if (!compareAndIncrementUpTo(getWeightedMaxConnections(), usedConnections)) {
-      enqueue(fc);
-      return fc;
+    FunctionCall fc = new FunctionCall(marker, bytes, fireAndForget, hasPriority, cb);
+
+    if (!hasPriority){
+      if (!compareAndIncrementUpTo(getWeightedMaxConnections(), usedConnections)) {
+        enqueue(fc);
+        return fc;
+      }
     }
+
     _invoke(fc);
     return fc;
   }
@@ -369,8 +371,10 @@ public abstract class RemoteFunctionClient {
       //recalculatePerformance(end - start, TimeUnit.NANOSECONDS);
       //Look into queue if there is something further to do
       FunctionCall nextFc = queue.remove();
-      if (nextFc == null) {
-        usedConnections.getAndDecrement(); //Free the connection only in case it's not needed for the next invocation
+      if (nextFc == null && !fc.hasPriority) {
+        if(usedConnections.intValue() > 0) {
+          usedConnections.getAndDecrement(); //Free the connection only in case it's not needed for the next invocation
+        }
       }
       try {
         fc.callback.handle(r);
@@ -486,17 +490,19 @@ public abstract class RemoteFunctionClient {
     final Marker marker;
     final byte[] bytes;
     final boolean fireAndForget;
+    final boolean hasPriority;
     final Context context = Service.vertx.getOrCreateContext();
 
     private final Handler<AsyncResult<byte[]>> callback;
     private Runnable cancelHandler;
     private volatile boolean cancelled;
 
-    public FunctionCall(Marker marker, byte[] bytes, boolean fireAndForget, Handler<AsyncResult<byte[]>> callback) {
+    public FunctionCall(Marker marker, byte[] bytes, boolean fireAndForget, boolean hasPriority, Handler<AsyncResult<byte[]>> callback) {
       this.marker = marker;
       this.bytes = bytes;
       this.callback = callback;
       this.fireAndForget = fireAndForget;
+      this.hasPriority = hasPriority;
     }
 
     @Override
@@ -521,7 +527,9 @@ public abstract class RemoteFunctionClient {
         logger.error(marker, "Error cancelling call to Remote Function.");
       }
       finally {
-        usedConnections.getAndDecrement(); //Free the connection
+        if(!hasPriority && usedConnections.intValue() > 0) {
+          usedConnections.getAndDecrement(); //Free the connection
+        }
       }
     }
   }

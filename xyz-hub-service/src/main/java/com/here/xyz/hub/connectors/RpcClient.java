@@ -162,7 +162,7 @@ public class RpcClient {
     return functionClient;
   }
 
-  private void invokeWithRelocation(final Marker marker, RpcContext context, byte[] bytes, boolean fireAndForget, final Handler<AsyncResult<byte[]>> callback) {
+  private void invokeWithRelocation(final Marker marker, RpcContext context, byte[] bytes, boolean fireAndForget, boolean hasPriority, final Handler<AsyncResult<byte[]>> callback) {
     try {
       final Connector connector = getConnector();
       if (bytes.length > connector.capabilities.maxPayloadSize) { // If the payload is too large to send directly to the connector
@@ -179,11 +179,11 @@ public class RpcClient {
             callback.handle(Future.failedFuture(ar.cause()));
             return;
           }
-          context.functionCall = functionClient.submit(marker, ar.result(), fireAndForget, callback);
+          context.functionCall = functionClient.submit(marker, ar.result(), fireAndForget, hasPriority, callback);
         });
       }
       else {
-        context.functionCall = functionClient.submit(marker, bytes, fireAndForget, callback);
+        context.functionCall = functionClient.submit(marker, bytes, fireAndForget, hasPriority, callback);
       }
     }
     catch (Exception e) {
@@ -218,19 +218,20 @@ public class RpcClient {
    * @param marker the log marker
    * @param event the event
    * @param callback the callback handler
+   * @param hasPriority if true the enqueuing get bypassed
    * @return The rpc context belonging to the request
    */
   @SuppressWarnings("rawtypes")
-  public RpcContext execute(final Marker marker, final Event event, final Handler<AsyncResult<XyzResponse>> callback) {
+  public RpcContext execute(final Marker marker, final Event event, final boolean hasPriority, final Handler<AsyncResult<XyzResponse>> callback) {
     final Connector connector = getConnector();
     event.setConnectorParams(connector.params);
     final String eventJson = event.serialize();
     final byte[] eventBytes = eventJson.getBytes();
     final RpcContext context = new RpcContext().withRequestSize(eventBytes.length);
     logger.info(marker, "Invoking remote function \"{}\". Total uncompressed event size: {}, Event: {}", connector.id, eventBytes.length,
-        preview(eventJson, 4092));
+            preview(eventJson, 4092));
 
-    invokeWithRelocation(marker, context, eventBytes, false, bytesResult -> {
+    invokeWithRelocation(marker, context, eventBytes, false, hasPriority, bytesResult -> {
       if (context.cancelled)
         return;
       if (bytesResult.failed()) {
@@ -249,6 +250,18 @@ public class RpcClient {
       });
     });
     return context;
+  }
+  /**
+   * Executes an event and returns the parsed FeatureCollection response.
+   *
+   * @param marker the log marker
+   * @param event the event
+   * @param callback the callback handler
+   * @return The rpc context belonging to the request
+   */
+  @SuppressWarnings("rawtypes")
+  public RpcContext execute(final Marker marker, final Event event, final Handler<AsyncResult<XyzResponse>> callback) {
+    return execute(marker, event, false, callback);
   }
 
   private String preview(String eventJson, @SuppressWarnings("SameParameterValue") int previewLength) {
@@ -273,7 +286,7 @@ public class RpcClient {
     event.setConnectorParams(connector.params);
     final byte[] eventBytes = event.serialize().getBytes();
     RpcContext context = new RpcContext().withRequestSize(eventBytes.length);
-    invokeWithRelocation(marker, context, eventBytes, true, r -> {
+    invokeWithRelocation(marker, context, eventBytes, true, false, r -> {
       if (r.failed()) {
         if (r.cause() instanceof HttpException
             && ((HttpException) r.cause()).status.code() >= 400 && ((HttpException) r.cause()).status.code() <= 499) {

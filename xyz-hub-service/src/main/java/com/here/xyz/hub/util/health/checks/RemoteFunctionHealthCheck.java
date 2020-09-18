@@ -65,7 +65,7 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
     healthCheck.setStreamId(healthCheckStreamId);
     try {
       RpcClient client = getClient();
-      client.execute(new Log4jMarker(healthCheckStreamId), healthCheck, ar -> {
+      client.execute(new Log4jMarker(healthCheckStreamId), healthCheck, true, ar -> {
         if (ar.failed()) {
           setResponse(generateResponse().withMessage("Error in connector health-check: " + ar.cause().getMessage()));
           s.setResult(ERROR);
