@@ -37,12 +37,17 @@ import io.netty.util.internal.ConcurrentSet;
 import io.vertx.ext.web.RoutingContext;
 import java.util.Objects;
 import java.util.function.Consumer;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
 /**
  * A task for processing of an event.
  */
 public abstract class Task<T extends Event, X extends Task<T, ?>> {
+
+  public static final String TASK = "task";
+  private static final Logger logger = LogManager.getLogger();
 
   /**
    * The corresponding routing context.
@@ -112,6 +117,7 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
     this.event = event;
     this.ifNoneMatch = event.getIfNoneMatch();
     this.context = context;
+    context.put(TASK, this);
     this.responseType = responseType;
     this.skipCache = skipCache;
   }
@@ -150,10 +156,12 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
       getPipeline()
           .finish(
               a -> {
+                if (state.isFinal()) return;
                 onSuccess.call(a);
                 state = RESPONSE_SENT;
               },
               (a, b) -> {
+                if (state.isFinal()) return;
                 state = ERROR;
                 onException.call(a, b);
               }
@@ -275,7 +283,18 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
   public void cancel() {
     if (!state.isFinal()) {
       state = CANCELLED;
-      callCancellingHandlers();
+      try {
+        //Cancel all further steps in the pipeline
+        getPipeline().cancel();
+        /*
+        Call all registered CancellingHandlers
+        (e.g. to cancel running / pending requests which might have been started by previous actions already)
+         */
+        callCancellingHandlers();
+      }
+      catch (Exception e) {
+        logger.error(getMarker(), "Error cancelling the task.", e);
+      }
     }
   }
 
