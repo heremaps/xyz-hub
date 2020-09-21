@@ -104,6 +104,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
       if (tryCount <= 1) {
         logger.error(e.getMessage() + " Retrying ...", e);
         invokeWithRetry(fc, tryCount, callback);
+        return;
       }
     }
     logger.error(fc.marker, "Error sending event to remote http service", e);
