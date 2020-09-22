@@ -25,7 +25,7 @@ import com.google.crypto.tink.aead.AeadConfig;
 import com.google.crypto.tink.subtle.AesGcmJce;
 import com.here.xyz.connectors.SimulatedContext;
 import com.here.xyz.events.Event;
-
+import com.here.xyz.util.Hasher;
 import java.io.UnsupportedEncodingException;
 import java.security.GeneralSecurityException;
 import java.util.Arrays;
@@ -91,6 +91,7 @@ class PSQLConfig {
   private Context context;
   private boolean propertySearch;
   private boolean autoIndexing;
+  private boolean enableHashedSpaceId;
 
   private Map<String, Object> readECPS(String ecps) {
     if (DEFAULT_ECPS.equals(ecps)) {
@@ -233,11 +234,13 @@ class PSQLConfig {
     this.connectorParams = readECPS(getECPS(event));
     this.applicationName = context.getFunctionName();
 
-    if(event.getConnectorParams() != null){
-      if(event.getConnectorParams().get("autoIndexing") == Boolean.TRUE)
+    if (event.getConnectorParams() != null) {
+      if (event.getConnectorParams().get("autoIndexing") == Boolean.TRUE)
         this.autoIndexing = true;
-      if(event.getConnectorParams().get("propertySearch") == Boolean.TRUE)
+      if (event.getConnectorParams().get("propertySearch") == Boolean.TRUE)
         this.propertySearch = true;
+      if (event.getConnectorParams().get("enableHashedSpaceId") == Boolean.TRUE)
+        this.enableHashedSpaceId = true;
     }
   }
 
@@ -281,10 +284,18 @@ class PSQLConfig {
 
   protected String table(Event event) {
     if (event != null && event.getSpace() != null && event.getSpace().length() > 0) {
-      return event.getSpace();
+      return compareAndConvertTableName(event.getSpace());
     }
 
     return null;
+  }
+
+  private String compareAndConvertTableName(String spaceId) {
+    if (this.enableHashedSpaceId)
+      spaceId = Hasher.getHash(spaceId);
+    return spaceId;
+
+
   }
 
   protected String applicationName() {

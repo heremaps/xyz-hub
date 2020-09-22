@@ -40,7 +40,6 @@ import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.mchange.v2.c3p0.AbstractConnectionCustomizer;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
-
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
@@ -59,7 +58,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.sql.DataSource;
-
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
@@ -87,7 +85,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     /**
      * The data source connections factory.
      */
-    private static Map<String, XYZDBInstance> dbInstanceMap = new HashMap<>();
+    private Map<String, XYZDBInstance> dbInstanceMap = new HashMap<>();
 
     /**
      * Current event.
@@ -162,7 +160,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         String ecps = PSQLConfig.getECPS(event);
 
         if( PSQLConfig.DEFAULT_ECPS.equals(ecps) && context instanceof SimulatedContext )
-            ecps = idFromPsqlEnv((SimulatedContext) context);
+         ecps = idFromPsqlEnv((SimulatedContext) context);
 
         if (!dbInstanceMap.containsKey(ecps)) {
             /** Init dataSource, readDataSource ..*/
@@ -378,7 +376,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                     (e instanceof SQLException  && ((SQLException)e).getSQLState() != null
                             && ((SQLException)e).getSQLState().equalsIgnoreCase("42P01"))
                             && e.getMessage() != null && e.getMessage().indexOf("_hst") != 0){
-                logger.log(Level.WARN,"{} History Table for space {} is missing! Try to create it! ",streamId,event.getSpace());
+                logger.log(Level.WARN, "{} History Table '{}' for space id '{}' is missing! Try to create it! ", streamId, config.table(event) + HISTORY_TABLE_SUFFIX, event.getSpace());
                 Boolean compactHistory = null;
 
                 if(event.getConnectorParams() != null) {
@@ -701,11 +699,10 @@ public abstract class DatabaseHandler extends StorageConnector {
                     stmt.setQueryTimeout(calculateTimeout());
                     stmt.executeBatch();
                     connection.commit();
-                    logger.info("{} - Successfully created table for space '{}'", streamId, event.getSpace());
+                    logger.info("{} - Successfully created table '{}' for space id '{}'", streamId, tableName, event.getSpace());
                 }
             } catch (Exception e) {
-
-                logger.error("{} - Failed to create table '{}': {}", streamId, tableName, e);
+                logger.error("{} - Failed to create table '{}' for space id: '{}': {}", streamId, tableName, event.getSpace(), e);
                 connection.rollback();
                 // check if the table was created in the meantime, by another instance.
                 if (hasTable()) {
@@ -764,7 +761,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
                 try (Statement stmt = connection.createStatement()) {
                     /** Create Space-Table */
-                    createSpaceStatement(stmt, config.table(event));
+                    createSpaceStatement(stmt, tableName);
 
                     String query = "CREATE TABLE IF NOT EXISTS ${schema}.${hsttable} (uuid text NOT NULL, jsondata jsonb, geo geometry(GeometryZ,4326), CONSTRAINT \""+tableName+"_pkey\" PRIMARY KEY (uuid))";
                     query = SQLQuery.replaceVars(query, config.schema(), tableName);
@@ -782,16 +779,16 @@ public abstract class DatabaseHandler extends StorageConnector {
                     query = SQLQuery.replaceVars(query, replacements, config.schema(), tableName);
                     stmt.addBatch(query);
 
-                    query = SQLQueryBuilder.deleteHistoryTriggerSQL(config.schema(),config.table(event));
+                    query = SQLQueryBuilder.deleteHistoryTriggerSQL(config.schema(), tableName);
                     stmt.addBatch(query);
 
-                    query = SQLQueryBuilder.addHistoryTriggerSQL(config.schema(),config.table(event), maxVersionCount, compactHistory);
+                    query = SQLQueryBuilder.addHistoryTriggerSQL(config.schema(), tableName, maxVersionCount, compactHistory);
                     stmt.addBatch(query);
 
                     stmt.setQueryTimeout(calculateTimeout());
                     stmt.executeBatch();
                     connection.commit();
-                    logger.info("{} - Successfully created history table for space '{}'", streamId, event.getSpace());
+                    logger.info("{} - Successfully created history table '{}' for space id '{}'", streamId, tableName, event.getSpace());
                 }
             } catch (Exception e) {
                 throw new SQLException("Creation of history table for " + SQLQuery.sqlQuote(tableName) + "  has failed: " + e.getMessage(), e);
