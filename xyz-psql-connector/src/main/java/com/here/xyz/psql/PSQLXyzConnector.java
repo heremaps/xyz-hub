@@ -124,7 +124,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
             if( event.getSelection() == null && !bDefaultSelectionHandling )
              event.setSelection(Arrays.asList("id","type"));
                         
-            int chunkSize    = Math.max(Math.min((int) tweakParams.getOrDefault(TweaksSQL.ENSURE_CHUNKSIZE,10000),100000),10000),
+            int chunkSize    = Math.max(Math.min((int) tweakParams.getOrDefault(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD,10),100),10) * 1000,
                 distStrength = TweaksSQL.calculateDistributionStrength( rCount, chunkSize );
 
             if( distStrength == 0 ) break; // NrOfObjects less than chunkSize -> fall back to non-tweaks usage 
