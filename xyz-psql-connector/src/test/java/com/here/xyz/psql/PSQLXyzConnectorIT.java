@@ -89,6 +89,7 @@ public class PSQLXyzConnectorIT extends PSQLAbstractIT {
     logger.info("Setup environment...");
 
     lambda = new PSQLXyzConnector();
+    lambda.reset();
     lambda.setEmbedded(true);
 
     invokeLambdaFromFile("/events/HealthCheckEvent.json");

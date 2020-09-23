@@ -50,6 +50,7 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
     logger.info("Setup environment...");
 
     lambda = new PSQLXyzConnector();
+    lambda.reset();
     lambda.setEmbedded(true);
 
     invokeLambdaFromFile("/events/HealthCheckWithEnableHashedSpaceIdEvent.json");

@@ -40,6 +40,7 @@ import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.mchange.v2.c3p0.AbstractConnectionCustomizer;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
+import com.mchange.v2.c3p0.PooledDataSource;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
@@ -85,7 +86,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     /**
      * The data source connections factory.
      */
-    private Map<String, XYZDBInstance> dbInstanceMap = new HashMap<>();
+    private static Map<String, XYZDBInstance> dbInstanceMap = new HashMap<>();
 
     /**
      * Current event.
@@ -152,6 +153,19 @@ public abstract class DatabaseHandler extends StorageConnector {
        msg += ( ctx.getEnv(s) == null ? "mxm" : ctx.getEnv(s) );
 
       return Hex.encodeHexString( md.digest(msg.getBytes()) );
+    }
+
+    void reset() {
+      dbInstanceMap.values().forEach(dbInstance -> {
+        try {
+          ((PooledDataSource) dbInstance.dataSource).close();
+        } catch (SQLException e) {
+          logger.warn("Error while closing connections: ", e);
+        }
+      });
+
+      // clear the map and free resources for GC
+      dbInstanceMap.clear();
     }
 
     @Override
