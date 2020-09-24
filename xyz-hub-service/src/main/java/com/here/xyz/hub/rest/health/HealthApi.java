@@ -28,6 +28,7 @@ import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.hub.util.health.Config;
 import com.here.xyz.hub.util.health.MainHealthCheck;
+import com.here.xyz.hub.util.health.checks.ClusterHealthCheck;
 import com.here.xyz.hub.util.health.checks.ExecutableCheck;
 import com.here.xyz.hub.util.health.checks.JDBCHealthCheck;
 import com.here.xyz.hub.util.health.checks.MemoryHealthCheck;
@@ -63,7 +64,8 @@ public class HealthApi extends Api {
       )
       .add(new RedisHealthCheck(Service.configuration.XYZ_HUB_REDIS_HOST, Service.configuration.XYZ_HUB_REDIS_PORT))
       .add(new RemoteFunctionHealthAggregator())
-      .add(new MemoryHealthCheck());
+      .add(new MemoryHealthCheck())
+      .add(new ClusterHealthCheck());
 
   static {
     if (Service.configuration.STORAGE_DB_URL != null) {
@@ -95,7 +97,8 @@ public class HealthApi extends Api {
   }
 
   private static URI getPublicServiceEndpoint() {
-    return URI.create(Service.configuration.XYZ_HUB_PUBLIC_ENDPOINT + MAIN_HEALTCHECK_ENDPOINT);
+    return URI.create("http://" + Service.configuration.XYZ_HUB_PUBLIC_HOST + ":" + Service.configuration.XYZ_HUB_PUBLIC_PORT
+        + MAIN_HEALTCHECK_ENDPOINT);
   }
 
   private static URI getNodeHealthCheckEndpoint() {

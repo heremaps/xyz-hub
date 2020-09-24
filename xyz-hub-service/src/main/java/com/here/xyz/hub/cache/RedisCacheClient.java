@@ -52,7 +52,7 @@ public class RedisCacheClient implements CacheClient {
     });
   }
 
-  public static CacheClient get() {
+  public static CacheClient getInstance() {
     if (Service.configuration.XYZ_HUB_REDIS_HOST == null) {
       return new NoopCacheClient();
     }
