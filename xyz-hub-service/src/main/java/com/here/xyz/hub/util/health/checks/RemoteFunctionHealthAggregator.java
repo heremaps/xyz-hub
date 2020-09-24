@@ -25,16 +25,22 @@ import static com.here.xyz.hub.util.health.schema.Status.Result.OK;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.RemoteFunctionClient;
 import com.here.xyz.hub.connectors.models.Connector;
+import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.hub.util.health.GroupedHealthCheck;
 import com.here.xyz.hub.util.health.schema.Response;
 import com.here.xyz.hub.util.health.schema.Status;
+import io.vertx.core.buffer.Buffer;
+import io.vertx.core.json.JsonObject;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 public class RemoteFunctionHealthAggregator extends GroupedHealthCheck {
 
+  private static final String RFC_HC_CACHE_KEY = "RFC_HC_RESPONSE";
   private Set<String> connectorIds = new HashSet<>();
 
   public RemoteFunctionHealthAggregator() {
@@ -60,38 +66,57 @@ public class RemoteFunctionHealthAggregator extends GroupedHealthCheck {
 
   @Override
   public Status execute() {
-    Status s = super.execute();
-    Response res = getResponse();
+    Status s;
+    Response res;
 
-    try {
-      List<Connector> activeConnectors = RemoteFunctionClient.getInstances()
-          .stream()
-          .map(RemoteFunctionClient::getConnectorConfig)
-          .collect(Collectors.toList());
-
-      Set<String> activeConnectorIds = activeConnectors.stream().map(c -> c.id).collect(Collectors.toSet());
-      Set<String> toDelete = new HashSet<>();
-      Set<Connector> toAdd = new HashSet<>();
-
-      connectorIds.forEach(connectorId -> {
-        if (!activeConnectorIds.contains(connectorId)) {
-          toDelete.add(connectorId);
-        }
-      });
-
-      activeConnectors.forEach(connector -> {
-        if (!connectorIds.contains(connector.id)) {
-          toAdd.add(connector);
-        }
-      });
-
-
-      toDelete.forEach(this::removeRfcHc);
-      toAdd.forEach(this::addRfcHc);
+    //Check whether some node created an RFC health-check response recently
+    Response cachedResponse = fetchResponseFromCache();
+    if (cachedResponse != null && cachedResponse.getStatus() != null
+        && cachedResponse.getStatus().getTimestamp() != null
+        && cachedResponse.getStatus().getTimestamp() > Service.currentTimeMillis() - getCheckInterval()) {
+      //Use the cached response as it's still fresh
+      res = cachedResponse;
+      s = cachedResponse.getStatus();
     }
-    catch (Exception e) {
-      res = res.withMessage("Error when trying to gather remote functions info: " + e.getMessage());
-      s.setResult(ERROR);
+    else {
+      //There was no cached response or it was too old, so this node will create a new health-check response
+      s = super.execute().withTimestamp(Service.currentTimeMillis());
+      res = getResponse().withNode(Node.OWN_INSTANCE.id);
+      res.setStatus(s);
+
+      try {
+        List<Connector> activeConnectors = RemoteFunctionClient.getInstances()
+            .stream()
+            .map(RemoteFunctionClient::getConnectorConfig)
+            .collect(Collectors.toList());
+
+        Set<String> activeConnectorIds = activeConnectors.stream().map(c -> c.id).collect(Collectors.toSet());
+        Set<String> toDelete = new HashSet<>();
+        Set<Connector> toAdd = new HashSet<>();
+
+        connectorIds.forEach(connectorId -> {
+          if (!activeConnectorIds.contains(connectorId)) {
+            toDelete.add(connectorId);
+          }
+        });
+
+        activeConnectors.forEach(connector -> {
+          if (!connectorIds.contains(connector.id)) {
+            toAdd.add(connector);
+          }
+        });
+
+        toDelete.forEach(this::removeRfcHc);
+        toAdd.forEach(this::addRfcHc);
+      }
+      catch (Exception e) {
+        res = res.withMessage("Error when trying to gather remote functions info: " + e.getMessage());
+        s.setResult(ERROR);
+      }
+      if (Service.cacheClient != null) {
+        //Write the new health-check response to the cache
+        Service.cacheClient.set(RFC_HC_CACHE_KEY, res.toInternalResponseString().getBytes(), 24 * 3600);
+      }
     }
 
     //Gather further global statistics
@@ -111,6 +136,31 @@ public class RemoteFunctionHealthAggregator extends GroupedHealthCheck {
     catch (Exception e) {
       setResponse(res.withMessage("Error when trying to gather global remote functions info: " + e.getMessage()));
       return s.withResult(ERROR);
+    }
+  }
+
+  private Response fetchResponseFromCache() {
+    if (Service.cacheClient == null)
+      return null;
+
+    CompletableFuture<Response> f = new CompletableFuture<>();
+    Service.cacheClient.get(RFC_HC_CACHE_KEY, r -> {
+      Response response = null;
+
+      try {
+        if (r != null)
+          response = new JsonObject(Buffer.buffer(r)).mapTo(Response.class);
+      }
+      catch (Exception ignored) {}
+
+      f.complete(response);
+    });
+
+    try {
+      return f.get();
+    }
+    catch (ExecutionException | InterruptedException e) {
+      return null;
     }
   }
 }

@@ -34,7 +34,7 @@ public class OHCacheClient implements CacheClient {
   private static OHCacheClient client;
   private static OHCache<byte[], byte[]> cache;
 
-  public static synchronized OHCacheClient get() {
+  public static synchronized OHCacheClient getInstance() {
     if (client == null) {
       client = new OHCacheClient();
     }

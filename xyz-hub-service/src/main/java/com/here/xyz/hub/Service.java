@@ -141,7 +141,7 @@ public class Service extends Core {
   private static void onConfigLoaded(JsonObject jsonConfig) {
     configuration = jsonConfig.mapTo(Config.class);
 
-    cacheClient = CacheClient.create();
+    cacheClient = CacheClient.getInstance();
 
     spaceConfigClient = SpaceConfigClient.getInstance();
     connectorConfigClient = ConnectorConfigClient.getInstance();
@@ -340,14 +340,19 @@ public class Service extends Core {
     public int INSTANCE_COUNT;
 
     /**
-     * The S3 Bucket, which connectors with transfer limitations, could use to relocate responses.
+     * The S3 Bucket which could be used by connectors with transfer limitations to relocate responses.
      */
     public String XYZ_HUB_S3_BUCKET;
 
     /**
-     * The public endpoint.
+     * The public hostname of the service.
      */
-    public String XYZ_HUB_PUBLIC_ENDPOINT;
+    public String XYZ_HUB_PUBLIC_HOST;
+
+    /**
+     * The outer port of the service.
+     */
+    public int XYZ_HUB_PUBLIC_PORT;
 
     /**
      * The redis host.
