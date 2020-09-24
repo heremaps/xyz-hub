@@ -52,7 +52,7 @@ import org.apache.logging.log4j.Logger;
 public abstract class ExecutableCheck extends Check implements Runnable {
 	private static final Logger logger = LogManager.getLogger();
 
-	protected static final int MIN_EXEC_POOL_SIZE = 10;
+	protected static final int MIN_EXEC_POOL_SIZE = 30;
 	protected static ScheduledThreadPoolExecutor executorService = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(MIN_EXEC_POOL_SIZE);
 
 	static {
