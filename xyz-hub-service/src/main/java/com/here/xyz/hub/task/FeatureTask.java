@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.task;
 
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
@@ -186,6 +187,15 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     return null;
   }
 
+  private static RpcClient getRpcClient(Connector refConnector) throws HttpException {
+    try {
+      return RpcClient.getInstanceFor(refConnector);
+    }
+    catch (IllegalStateException e) {
+      throw new HttpException(BAD_GATEWAY, "Connector not ready.");
+    }
+  }
+
   abstract static class ReadQuery<T extends QueryEvent<?>, X extends FeatureTask<T, ?>> extends FeatureTask<T, X> {
 
     private ReadQuery(T event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
@@ -305,8 +315,9 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           }});
 
       try {
-        RpcClient.getInstanceFor(refConnector).execute(getMarker(), event, r -> processLoadEvent(c, event, r));
-      } catch (Exception e) {
+        getRpcClient(refConnector).execute(getMarker(), event, r -> processLoadEvent(c, event, r));
+      }
+      catch (Exception e) {
         c.exception(e);
       }
     }
@@ -602,8 +613,9 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       }
       FeatureTaskHandler.setAdditionalEventProps(s, s.storage, event);
       try {
-        RpcClient.getInstanceFor(s.storage).execute(getMarker(), event, r -> processLoadEvent(c, event, r));
-      } catch (Exception e) {
+        getRpcClient(s.storage).execute(getMarker(), event, r -> processLoadEvent(c, event, r));
+      }
+      catch (Exception e) {
         c.exception(e);
       }
     }
