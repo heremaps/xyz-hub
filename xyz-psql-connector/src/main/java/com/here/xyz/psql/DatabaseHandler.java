@@ -512,14 +512,12 @@ public abstract class DatabaseHandler extends StorageConnector {
                     else {
 
                         /** Add all other Objects to failed list */
-                        addAllToFailedList(fails, getAllIds(inserts, updates, upserts, deletes));
 
-                        /** Reset the rest */
-                        collection.setFeatures(new ArrayList<>());
-                        collection.setFailed(fails);
+                        Map<String, Object> errorDetails = new HashMap<>();
+                        errorDetails.put("FailedList",fails);
 
                         connection.close();
-                        return collection;
+                        return new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.CONFLICT).withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL);
                     }
                 }
 
