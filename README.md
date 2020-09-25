@@ -1,10 +1,10 @@
 ![XYZ Hub](xyz.svg)
----
+
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Build Status](https://travis-ci.com/heremaps/xyz-hub.svg?branch=master)](https://travis-ci.com/heremaps/xyz-hub)
 
-XYZ Hub is a RESTful web service for the access and management of geospatial data. 
+XYZ Hub is a RESTful web service for the access and management of geospatial data.
 
 # Overview
 Some of the features of XYZ Hub are:
@@ -25,7 +25,7 @@ XYZ Hub uses [GeoJSON](https://tools.ietf.org/html/rfc79460) as the main geospat
 
 # Prerequisites
 
- * Java 8+
+ * Java 8+ (e.g. Oracle Java 8+, OpenJDK 8+, Amazon Coretto 8+, ...)
  * Maven 3.6+
  * Postgres 10+ with PostGIS 2.5+
  * Redis 5+ (optional)
@@ -140,7 +140,7 @@ The service will respond with the inserted geo features:
 }
 ```
 
-### OpenAPI specification 
+### OpenAPI specification
 
 The OpenAPI specification files are accessible under the following URIs:
 * Stable: `http://<host>:<port>/hub/static/openapi/stable.yaml`
