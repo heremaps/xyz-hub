@@ -138,22 +138,14 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
-    private static MessageDigest md;
-    static {
-      try{ md = MessageDigest.getInstance("MD5"); }
-      catch( NoSuchAlgorithmException e)
-      { logger.error("MessageDigest md5 init failed"); }
-    }
-
     private String idFromPsqlEnv( final SimulatedContext ctx )
-    { if(ctx == null || md == null ) return PSQLConfig.DEFAULT_ECPS;
-      md.reset();
+    { if(ctx == null ) return PSQLConfig.DEFAULT_ECPS;
       String[] sArr = { PSQLConfig.PSQL_HOST, PSQLConfig.PSQL_PORT, PSQLConfig.PSQL_USER, "PSQL_DB" };
       String msg = "";
       for( String s : sArr)
        msg += ( ctx.getEnv(s) == null ? "mxm" : ctx.getEnv(s) );
 
-      return Hex.encodeHexString( md.digest(msg.getBytes()) );
+      return msg;
     }
 
     @Override
