@@ -56,9 +56,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Executors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -75,8 +73,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
   private static ConcurrentHashMap<String, AWSLambdaAsync> lambdaClients = new ConcurrentHashMap<>();
   private static Map<AWSLambdaAsync, List<String>> clientReferences = new HashMap<>();
   private static ExecutorService executors = new ForwardingExecutorService() {
-    private ExecutorService threadPool = new ThreadPoolExecutor(MIN_THREADS_PER_CLIENT,
-        Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS, CONNECTION_TTL, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
+    private ExecutorService threadPool = Executors.newFixedThreadPool(Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS);
 
     @Override
     protected ExecutorService delegate() {

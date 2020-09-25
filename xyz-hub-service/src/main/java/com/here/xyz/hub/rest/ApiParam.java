@@ -140,7 +140,7 @@ public class ApiParam {
     static final String TWEAKS_PARAM_STRENGTH  = "strength";
     static final String TWEAKS_PARAM_ALGORITHM = "algorithm";
     static final String TWEAKS_PARAM_DEFAULT_SELECTION = "defaultselection";
-    static final String TWEAKS_PARAM_CHUNKSIZE = "chunksize";
+    static final String TWEAKS_PARAM_SAMPLINGTHRESHOLD = "samplingthreshold";
 
     static final String FORCE_2D = "force2D";
 
@@ -447,15 +447,16 @@ public class ApiParam {
          
          case TWEAKS_PARAM_ALGORITHM : break;
 
-         case TWEAKS_PARAM_CHUNKSIZE : // testing, parameter evaluation
-          if(!(value instanceof Long))
-           throw new Exception(String.format("Invalid type tweaks.%s. Expect Integer.",key));
+         case TWEAKS_PARAM_SAMPLINGTHRESHOLD : // testing, parameter evaluation
+          if(!(value instanceof Long) || ((long) value < 10) || ((long) value > 100) )
+           throw new Exception(String.format("Invalid tweaks.%s. Expect Integer [10,100].",key));
           break; 
 
          default:
           throw new Exception("Invalid Tweaks Parameter! Expect one of [" + TWEAKS_PARAM_STRENGTH + "," 
                                                                           + TWEAKS_PARAM_ALGORITHM + ","
-                                                                          + TWEAKS_PARAM_DEFAULT_SELECTION + "]");
+                                                                          + TWEAKS_PARAM_DEFAULT_SELECTION + ","
+                                                                          + TWEAKS_PARAM_SAMPLINGTHRESHOLD + "]");
         }
 
       }
