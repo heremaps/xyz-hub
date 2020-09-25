@@ -1046,6 +1046,7 @@ components:
         | relativeResolution | Number  | NO        | integer value [0-4] to be added to current used resolution  |
         | property    | String  | NO        | A property of the original features for which to calculate statistics |
         | pointmode   | Boolean | NO        | retuns the centroid of hexagons as geojson feature                    |
+        | singlecoord | Boolean | NO        | force to evaluate the first object coordinate only (default: false)   |
 
 
         **Clustering-type: "quadbin":**
