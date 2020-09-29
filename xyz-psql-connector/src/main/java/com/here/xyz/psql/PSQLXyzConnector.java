@@ -70,8 +70,12 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected Context context;
 
   @Override
-  protected XyzResponse processHealthCheckEvent(HealthCheckEvent event) {
-    return processHealthCheckEventImpl(event);
+  protected XyzResponse processHealthCheckEvent(HealthCheckEvent event){
+    try {
+      return processHealthCheckEventImpl(event);
+    }catch (SQLException e){
+      return checkSQLException(e, config.table(event));
+    }
   }
 
   @Override
@@ -391,45 +395,48 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   private static final Pattern ERRVALUE_22P02 = Pattern.compile("invalid input syntax for type numeric:\\s+\"([^\"]*)\"\\s+Query:");
 
-  protected XyzResponse checkSQLException(SQLException e, String table) throws Exception{
+  protected XyzResponse checkSQLException(SQLException e, String table) {
     logger.warn("{} - SQL Error ({}) on {} : {}", streamId, e.getSQLState(), table, e);
 
-    String sqlState = ( e.getSQLState() != null ? e.getSQLState().toUpperCase() : "SNULL" );
+    String sqlState = (e.getSQLState() != null ? e.getSQLState().toUpperCase() : "SNULL");
 
-    switch( sqlState ) 
-    {   
-     case "57014" : /* 57014 - query_canceled */
-     case "57P01" : /* 57P01 - admin_shutdown */
-      return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
-                                .withErrorMessage("Database query timed out or got canceled.");
-      
-     case "54000" :
-      return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
-                                .withErrorMessage("No time for retry left for database query.");
+    switch (sqlState) {
+      case "XX000": /* XX000 - internal error */
+        if (e.getMessage() == null || e.getMessage().indexOf("interruptedException") != -1) break;
+      case "57014": /* 57014 - query_canceled */
+      case "57P01": /* 57P01 - admin_shutdown */
+        return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
+                .withErrorMessage("Database query timed out or got canceled.");
 
-     case "22P02" : // specific handling in case to H3 clustering.property
-      if( e.getMessage() == null || e.getMessage().indexOf("'H3'::text") == -1 ) break;
-      
-      Matcher m = ERRVALUE_22P02.matcher(e.getMessage());
-      return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
-                                .withErrorMessage(String.format("clustering.property: string(%s) can not be converted to numeric",( m.find() ? m.group(1) : "" ))); 
-                                
-     case "42P01" :
-      return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT).withErrorMessage(e.getMessage());
+      case "54000":
+        return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
+                .withErrorMessage("No time for retry left for database query.");
 
-     case "SNULL" : if(e.getMessage() == null ) break; 
-      // handle some dedicated messages
-      if( e.getMessage().indexOf("An attempt by a client to checkout a Connection has timed out.") > -1 ) 
-       return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
-                                 .withErrorMessage("Cant get a Connection to the database.");
+      case "22P02": // specific handling in case to H3 clustering.property
+        if (e.getMessage() == null || e.getMessage().indexOf("'H3'::text") == -1) break;
 
-      if( e.getMessage().indexOf("Maxchar limit") > -1 ) 
-        return new ErrorResponse().withStreamId(streamId).withError(XyzError.PAYLOAD_TO_LARGE)
-                                                         .withErrorMessage("Database result - Maxchar limit exceed");
+        Matcher m = ERRVALUE_22P02.matcher(e.getMessage());
+        return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
+                .withErrorMessage(String.format("clustering.property: string(%s) can not be converted to numeric", (m.find() ? m.group(1) : "")));
 
-      break; //others
+      case "42P01":
+        return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT).withErrorMessage(e.getMessage());
 
-     default: break;
+      case "SNULL":
+        if (e.getMessage() == null) break;
+        // handle some dedicated messages
+        if (e.getMessage().indexOf("An attempt by a client to checkout a Connection has timed out.") > -1)
+          return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
+                  .withErrorMessage("Cant get a Connection to the database.");
+
+        if (e.getMessage().indexOf("Maxchar limit") > -1)
+          return new ErrorResponse().withStreamId(streamId).withError(XyzError.PAYLOAD_TO_LARGE)
+                  .withErrorMessage("Database result - Maxchar limit exceed");
+
+        break; //others
+
+      default:
+        break;
     }
 
     return new ErrorResponse().withStreamId(streamId).withError(XyzError.EXCEPTION).withErrorMessage(e.getMessage());
