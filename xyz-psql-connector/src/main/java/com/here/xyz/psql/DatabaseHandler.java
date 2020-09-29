@@ -41,8 +41,6 @@ import com.here.xyz.responses.XyzResponse;
 import com.mchange.v2.c3p0.AbstractConnectionCustomizer;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -60,7 +58,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.sql.DataSource;
 
-import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.commons.dbutils.StatementConfiguration;
@@ -114,28 +111,29 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private boolean retryAttempted;
 
-    protected XyzResponse processHealthCheckEventImpl(HealthCheckEvent event) {
+    protected XyzResponse processHealthCheckEventImpl(HealthCheckEvent event) throws SQLException {
         long targetResponseTime = event.getMinResponseTime() + System.currentTimeMillis();
         SQLQuery query = new SQLQuery("SELECT 1");
-        try {
-            /** run DB-Maintenance */
-            if(event.getMinResponseTime() !=  0)
-                dbMaintainer.run(event, streamId);
 
-            executeQuery(query, (rs) -> null, dataSource);
-            // establish a connection to the replica, if such is set.
-            if (dataSource != readDataSource) {
-                executeQuery(query, (rs) -> null, readDataSource);
-            }
+        /** run DB-Maintenance */
+        if(event.getMinResponseTime() !=  0)
+            dbMaintainer.run(event, streamId);
 
-            long now = System.currentTimeMillis();
-            if (now < targetResponseTime) {
-                Thread.sleep(targetResponseTime - now);
-            }
-            return new HealthStatus().withStatus("OK");
-        } catch (Exception e) {
-            return new ErrorResponse().withStreamId(streamId).withError(XyzError.EXCEPTION).withErrorMessage(e.getMessage());
+        executeQuery(query, (rs) -> null, dataSource);
+        // establish a connection to the replica, if such is set.
+        if (dataSource != readDataSource) {
+            executeQuery(query, (rs) -> null, readDataSource);
         }
+
+        long now = System.currentTimeMillis();
+        if (now < targetResponseTime) {
+            try {
+                Thread.sleep(targetResponseTime - now);
+            }catch (Exception e){
+                return new ErrorResponse().withStreamId(streamId).withError(XyzError.EXCEPTION).withErrorMessage("test");
+            }
+        }
+        return new HealthStatus().withStatus("OK");
     }
 
     private String idFromPsqlEnv( final SimulatedContext ctx )
