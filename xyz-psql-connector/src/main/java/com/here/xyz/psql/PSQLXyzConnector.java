@@ -113,6 +113,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       if(event.getTweakType() != null)
       { Map<String, Object> tweakParams = event.getTweakParams();
+        int distStrength = 0;
 
         switch (event.getTweakType().toLowerCase()) {
 
@@ -124,11 +125,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
             if( event.getSelection() == null && !bDefaultSelectionHandling )
              event.setSelection(Arrays.asList("id","type"));
                         
-            int chunkSize    = Math.max(Math.min((int) tweakParams.getOrDefault(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD,10),100),10) * 1000,
-                distStrength = TweaksSQL.calculateDistributionStrength( rCount, chunkSize );
+            distStrength = TweaksSQL.calculateDistributionStrength( rCount, Math.max(Math.min((int) tweakParams.getOrDefault(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD,10),100),10) * 1000 );
 
-            if( distStrength == 0 ) break; // NrOfObjects less than chunkSize -> fall back to non-tweaks usage 
-            HashMap<String, Object> hmap = new HashMap<String, Object>();
+            HashMap<String, Object> hmap = new HashMap<String, Object>();    
+
             hmap.put("algorithm", new String("distribution"));
             hmap.put("strength", new Integer( distStrength ));
             tweakParams = hmap;
@@ -140,9 +140,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
             collection.setPartial(true);
             return collection;
           }            
-
-          case TweaksSQL.SIMPLIFICATION: {
-            FeatureCollection collection = executeQueryWithRetry(SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams, dataSource));
+          
+          case TweaksSQL.SIMPLIFICATION: { 
+            FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams, dataSource));
             collection.setPartial(true);
             return collection;
           }

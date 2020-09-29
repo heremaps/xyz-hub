@@ -240,6 +240,10 @@ public abstract class DatabaseHandler extends StorageConnector {
         return executeQueryWithRetry(query, this::defaultFeatureResultSetHandler, true);
     }
 
+    protected FeatureCollection executeQueryWithRetrySkipIfGeomIsNull(SQLQuery query) throws SQLException {
+        return executeQueryWithRetry(query, this::defaultFeatureResultSetHandlerSkipIfGeomIsNull, true);
+    }
+
     /**
      *
      * Executes the query and reattempt to execute the query, after
@@ -806,7 +810,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private final long MaxResultChars = 100 * 1024 *1024;
 
-    protected FeatureCollection defaultFeatureResultSetHandler(ResultSet rs) throws SQLException {
+    protected FeatureCollection _defaultFeatureResultSetHandler(ResultSet rs, boolean skipNullGeom) throws SQLException {
         final boolean isIterate = (event instanceof IterateFeaturesEvent);
         long nextHandle = 0;
 
@@ -816,8 +820,9 @@ public abstract class DatabaseHandler extends StorageConnector {
         int numFeatures = 0;
 
         while (rs.next() && (MaxResultChars > sb.length())) {
-            sb.append(rs.getString(1));
             String geom = rs.getString(2);
+            if( skipNullGeom && (geom == null) ) continue;
+            sb.append(rs.getString(1));
             sb.setLength(sb.length() - 1);
             sb.append(",\"geometry\":");
             sb.append(geom == null ? "null" : geom);
@@ -848,6 +853,12 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         return featureCollection;
     }
+
+    protected FeatureCollection defaultFeatureResultSetHandler(ResultSet rs) throws SQLException 
+    { return _defaultFeatureResultSetHandler(rs,false); }
+
+    protected FeatureCollection defaultFeatureResultSetHandlerSkipIfGeomIsNull(ResultSet rs) throws SQLException 
+    { return _defaultFeatureResultSetHandler(rs,true); }
 
     /**
      * handler for delete by tags results.

@@ -247,6 +247,53 @@ public class SQLQueryBuilder {
 
     /***************************************** TWEAKS **************************************************/
 
+    private static String map2MvtGeom( GetFeaturesByBBoxEvent event, BBox bbox, String tweaksGeoSql )
+    {
+     int extend = 512, extendPerMargin = extend / WebMercatorTile.TileSizeInPixel, extendWithMargin = extend, level = -1, tileX = -1, tileY = -1, margin = 0;
+           
+     if( event instanceof GetFeaturesByTileEvent ) 
+     { GetFeaturesByTileEvent tevnt = (GetFeaturesByTileEvent) event;
+       level = tevnt.getLevel();
+       tileX = tevnt.getX();
+       tileY = tevnt.getY();
+       margin = tevnt.getMargin();
+       extendWithMargin = extend + (margin * extendPerMargin);
+     }
+     else
+     { final WebMercatorTile tile = getTileFromBbox(bbox);
+       level = tile.level;
+       tileX = tile.x;
+       tileY = tile.y;
+     }
+     
+     double wgs3857width = 20037508.342789244d,
+            xwidth = 2 * wgs3857width,
+            ywidth = 2 * wgs3857width,
+            gridsize = (1L << level),
+            stretchFactor = 1.0 + ( margin / ((double) WebMercatorTile.TileSizeInPixel)); // xyz-hub uses margin for tilesize of 256 pixel.
+
+     final String 
+      box2d   = String.format( String.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() ),
+      mvtgeom = String.format("st_translate(st_scale(st_translate(st_asmvtgeom(st_force2d(st_transform(%1$s,3857)), st_transform(%2$s,3857),%3$d), %4$d , %4$d, 0.0), st_makepoint(%5$f,%6$f,1.0) ), %7$f , %8$f, 0.0 )",
+                                 tweaksGeoSql, box2d, extendWithMargin, 
+                                 -extendWithMargin/2, // => shift to stretch from tilecenter
+                                 stretchFactor*(xwidth / (gridsize*extend)), stretchFactor * (ywidth / (gridsize*extend)) * -1, // stretch tile to proj. size
+                                  (tileX - gridsize/2 + 0.5) * (xwidth / gridsize), (tileY - gridsize/2 + 0.5) * (ywidth / gridsize) * -1 // shift to proj. position
+                                 );
+      
+      // if geom = point | multipoint then no mvt <-> geo should be done
+      return String.format("case strpos(ST_GeometryType( geo ), 'Point') > 0 when true then geo else %1$s end", String.format("st_transform(ST_SetSRID( %1$s, 3857), 4326)", mvtgeom) );
+    }
+
+    private static String clipProjGeom(BBox bbox, String tweaksGeoSql )
+    {
+     String fmt =  String.format(  " case st_within( %%1$s, ST_MakeEnvelope(%%2$.%1$df,%%3$.%1$df,%%4$.%1$df,%%5$.%1$df, 4326) ) "
+                                 + "  when true then %%1$s "
+                                 + "  else ST_Intersection(%%1$s,ST_MakeEnvelope(%%2$.%1$df,%%3$.%1$df,%%4$.%1$df,%%5$.%1$df, 4326))"
+                                 + " end " , 14 /*GEOMETRY_DECIMAL_DIGITS*/ );
+     return String.format( fmt, tweaksGeoSql, bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());  
+    }
+
     public static SQLQuery buildSamplingTweaksQuery(GetFeaturesByBBoxEvent event, BBox bbox, Map tweakParams, DataSource dataSource) throws SQLException
     {
      int strength = 0;
@@ -274,13 +321,25 @@ public class SQLQueryBuilder {
        }
      }
 
+     boolean bEnsureMode = TweaksSQL.ENSURE.equals( event.getTweakType().toLowerCase() );
 
-     final String twqry = String.format(String.format("ST_Intersects(geo, ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326) ) and %%s", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat(), TweaksSQL.strengthSql(strength,bDistribution) );
+     final String sCondition = ( bEnsureMode && strength == 0 ? "1 = 1" : TweaksSQL.strengthSql(strength,bDistribution)  ),
+                  twqry = String.format(String.format("ST_Intersects(geo, ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326) ) and %%s", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat(), sCondition );
 
-     final SQLQuery searchQuery = generateSearchQuery(event,dataSource);
-     final SQLQuery tweakQuery = new SQLQuery(twqry);
+     final SQLQuery searchQuery = generateSearchQuery(event,dataSource),
+                    tweakQuery = new SQLQuery(twqry);
 
-     return generateCombinedQuery(event, tweakQuery, searchQuery , dataSource);
+     if( !bEnsureMode )
+      return generateCombinedQuery(event, tweakQuery, searchQuery , dataSource);
+     
+     /* TweaksSQL.ENSURE */
+     boolean bTestTweaksGeoIfNull = false;
+     String tweaksGeoSql = clipProjGeom(bbox,"geo");
+     tweaksGeoSql = map2MvtGeom( event, bbox, tweaksGeoSql );
+     //convert to geojson
+     tweaksGeoSql = String.format("replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "( %s ),%d),'nan','0')",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS);
+
+     return generateCombinedQueryTweaks(event, tweakQuery, searchQuery , tweaksGeoSql, bTestTweaksGeoIfNull, dataSource);
 	}
 
     public static SQLQuery buildSimplificationTweaksQuery(GetFeaturesByBBoxEvent event, BBox bbox, Map tweakParams, DataSource dataSource) throws SQLException
@@ -305,13 +364,8 @@ public class SQLQueryBuilder {
        }
 
        // do clip before simplifications
-       if (event.getClip())
-       { String fmt =  String.format(  " case st_within( %%1$s, ST_MakeEnvelope(%%2$.%1$df,%%3$.%1$df,%%4$.%1$df,%%5$.%1$df, 4326) ) "
-                                     + "  when true then %%1$s "
-                                     + "  else ST_Intersection(%%1$s,ST_MakeEnvelope(%%2$.%1$df,%%3$.%1$df,%%4$.%1$df,%%5$.%1$df, 4326))"
-                                     + " end " , 14 /*GEOMETRY_DECIMAL_DIGITS*/ );
-         tweaksGeoSql = String.format( fmt, tweaksGeoSql, bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
-       }
+       if (event.getClip()) 
+        tweaksGeoSql = clipProjGeom(bbox,tweaksGeoSql );
 
        //SIMPLIFICATION_ALGORITHM
        int hint = 0;
@@ -342,41 +396,10 @@ public class SQLQueryBuilder {
          }
          break;
 
-         case TweaksSQL.SIMPLIFICATION_ALGORITHM_A05 : // gridbylevel - convert to/from mvt
-         { int extend = 512, extendPerMargin = extend / WebMercatorTile.TileSizeInPixel, extendWithMargin = extend, level = -1, tileX = -1, tileY = -1, margin = 0;
-           
-           if( event instanceof GetFeaturesByTileEvent ) 
-           { GetFeaturesByTileEvent tevnt = (GetFeaturesByTileEvent) event;
-             level = tevnt.getLevel();
-             tileX = tevnt.getX();
-             tileY = tevnt.getY();
-             margin = tevnt.getMargin();
-             extendWithMargin = extend + (margin * extendPerMargin);
-           }
-           else
-           { final WebMercatorTile tile = getTileFromBbox(bbox);
-             level = tile.level;
-             tileX = tile.x;
-             tileY = tile.y;
-           }
-           
-           double wgs3857width = 20037508.342789244d,
-                  xwidth = 2 * wgs3857width,
-                  ywidth = 2 * wgs3857width,
-                  gridsize = (1L << level),
-                  stretchFactor = 1.0 + ( margin / ((double) WebMercatorTile.TileSizeInPixel)); // xyz-hub uses margin for tilesize of 256 pixel.
-
-           final String 
-            box2d   = String.format( String.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() ),
-            mvtgeom = String.format("st_translate(st_scale(st_translate(st_asmvtgeom(st_force2d(st_transform(%1$s,3857)), st_transform(%2$s,3857),%3$d), %4$d , %4$d, 0.0), st_makepoint(%5$f,%6$f,1.0) ), %7$f , %8$f, 0.0 )",
-                                       tweaksGeoSql, box2d, extendWithMargin, 
-                                       -extendWithMargin/2, // => shift to stretch from tilecenter
-                                       stretchFactor*(xwidth / (gridsize*extend)), stretchFactor * (ywidth / (gridsize*extend)) * -1, // stretch tile to proj. size
-                                        (tileX - gridsize/2 + 0.5) * (xwidth / gridsize), (tileY - gridsize/2 + 0.5) * (ywidth / gridsize) * -1 // shift to proj. position
-                                       );
-            
-            tweaksGeoSql = String.format("st_transform(ST_SetSRID( %1$s, 3857), 4326)", mvtgeom);
-            bTestTweaksGeoIfNull = false;
+         case TweaksSQL.SIMPLIFICATION_ALGORITHM_A05 : // gridbytilelevel - convert to/from mvt
+         {
+          tweaksGeoSql = map2MvtGeom( event, bbox, tweaksGeoSql );
+          bTestTweaksGeoIfNull = false;
          } 
          break;
          
@@ -394,7 +417,7 @@ public class SQLQueryBuilder {
        final SQLQuery searchQuery = generateSearchQuery(event,dataSource);
 
        if( !bMerge )
-        return generateCombinedQuery(event, new SQLQuery(bboxqry), searchQuery , tweaksGeoSql, bTestTweaksGeoIfNull, dataSource);
+        return generateCombinedQueryTweaks(event, new SQLQuery(bboxqry), searchQuery , tweaksGeoSql, bTestTweaksGeoIfNull, dataSource);
 
        // Merge Algorithm - only using low, med, high
 
@@ -647,45 +670,56 @@ public class SQLQueryBuilder {
         return query;
     }
 
-    private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, String tweaksgeo, boolean bTestTweaksGeoIfNull, DataSource dataSource)
-            throws SQLException {
-        final SQLQuery query = new SQLQuery();
+    private static SQLQuery generateCombinedQueryTweaks(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, String tweaksgeo, boolean bTestTweaksGeoIfNull, DataSource dataSource) throws SQLException 
+    {
+     final SQLQuery query = new SQLQuery();
 
+     query.append("select * from ( SELECT");
 
-        if( tweaksgeo != null )
-         query.append("select * from ( SELECT");
-        else
-         query.append("SELECT");
+     query.append(SQLQuery.selectJson(event.getSelection(),dataSource));
 
-        query.append(SQLQuery.selectJson(event.getSelection(),dataSource));
+     query.append(String.format(",%s as twgeo",tweaksgeo));
 
-        if( tweaksgeo != null )
-            query.append(String.format(",%s as twgeo",tweaksgeo));
-        else if (event instanceof GetFeaturesByBBoxEvent) {
-            query.append(",");
-            query.append(geometrySelectorForEvent((GetFeaturesByBBoxEvent) event));
-        }
-        else
-         query.append(",replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0')");
+     query.append("FROM ${schema}.${table} WHERE");
+     query.append(indexedQuery);
 
-        query.append("FROM ${schema}.${table} WHERE");
-        query.append(indexedQuery);
+     if( secondaryQuery != null )
+     { query.append(" and ");
+       query.append(secondaryQuery);
+     }
 
-        if( secondaryQuery != null )
-        { query.append(" and ");
-          query.append(secondaryQuery);
-        }
+     query.append(String.format(" ) tw where %s ", bTestTweaksGeoIfNull ? "twgeo is not null" : "1 = 1" ) );
 
-        if( tweaksgeo != null )
-         query.append(String.format(" ) tw where %s ", bTestTweaksGeoIfNull ? "twgeo is not null" : "1 = 1" ) );
-
-        query.append("LIMIT ?", event.getLimit());
-        return query;
+     query.append("LIMIT ?", event.getLimit());
+     return query;
     }
 
-    private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, DataSource dataSource) throws SQLException
-    { return generateCombinedQuery(event,indexedQuery,secondaryQuery,null, false,dataSource); }
+    private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, DataSource dataSource ) throws SQLException 
+    {
+     final SQLQuery query = new SQLQuery();
 
+     query.append("SELECT");
+
+     query.append(SQLQuery.selectJson(event.getSelection(),dataSource));
+
+     if (event instanceof GetFeaturesByBBoxEvent) {
+         query.append(",");
+         query.append(geometrySelectorForEvent((GetFeaturesByBBoxEvent) event));
+     }
+     else
+      query.append(",replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0')");
+
+     query.append("FROM ${schema}.${table} WHERE");
+     query.append(indexedQuery);
+
+     if( secondaryQuery != null )
+     { query.append(" and ");
+       query.append(secondaryQuery);
+     }
+
+     query.append("LIMIT ?", event.getLimit());
+     return query;
+    }
 
     /**
      * Returns the query, which will contains the geometry object.
