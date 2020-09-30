@@ -128,7 +128,7 @@ public class SQLQueryBuilder {
       h3res = Math.min((Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION_ABSOLUTE), maxResForLevel);
 
      if( clusteringParams.get(H3SQL.HEXBIN_RESOLUTION_RELATIVE) != null )
-      h3res += Math.max(0, Math.min( 4, (Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION_RELATIVE)));
+      h3res += Math.max(-2, Math.min( 2, (Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION_RELATIVE)));
 
      return Math.min( h3res, 13 );
     }
