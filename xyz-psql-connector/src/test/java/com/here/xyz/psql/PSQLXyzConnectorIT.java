@@ -63,6 +63,7 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse.PropertiesStatistics;
 import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
+import com.here.xyz.responses.XyzError;
 import com.jayway.jsonpath.Configuration;
 import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
@@ -769,20 +770,16 @@ public class PSQLXyzConnectorIT {
     mfevent.setUpdateFeatures(featureCollection.getFeatures());
     mfevent.setInsertFeatures(insertFeatureList);
     String response = invokeLambda(mfevent.serialize());
-    FeatureCollection responseCollection = XyzSerializable.deserialize(response);
-
-    assertEquals(0, responseCollection.getFeatures().size());
-    assertEquals(4, responseCollection.getFailed().size());
 
     // Transaction should have failed
-    for (FeatureCollection.ModificationFailure failure : responseCollection.getFailed()) {
-      if(failure.getId().equalsIgnoreCase(modifiedFeatureId))
-        assertEquals("Object does not exist or UUID mismatch",failure.getMessage());
-      else
-        assertEquals("Transaction has failed",failure.getMessage());
-      // Check if Id correct
-      assertTrue(idList.contains(failure.getId()));
-    }
+    ErrorResponse errorResponse = XyzSerializable.deserialize(response);
+    assertEquals(XyzError.CONFLICT, errorResponse.getError());
+    ArrayList failedList = ((ArrayList)errorResponse.getErrorDetails().get("FailedList"));
+    assertEquals(1, failedList.size());
+
+    HashMap<String,String> failure1 = ((HashMap<String,String>)failedList.get(0));
+    assertEquals(modifiedFeatureId, failure1.get("id"));
+    assertEquals(DatabaseWriter.UPDATE_ERROR_UUID, failure1.get("message"));
 
     //Check if nothing got written
     SearchForFeaturesEvent searchEvent = new SearchForFeaturesEvent();
@@ -790,7 +787,7 @@ public class PSQLXyzConnectorIT {
     searchEvent.setStreamId(RandomStringUtils.randomAlphanumeric(10));
     String eventJson = searchEvent.serialize();
     String searchResponse = invokeLambda(eventJson);
-    responseCollection = XyzSerializable.deserialize(searchResponse);
+    FeatureCollection responseCollection = XyzSerializable.deserialize(searchResponse);
 
     for (Feature feature : responseCollection.getFeatures()) {
       assertNull(feature.getProperties().get("foo"));
@@ -840,20 +837,15 @@ public class PSQLXyzConnectorIT {
     mfevent.setDeleteFeatures(idUUIDMap);
 
     response = invokeLambda(mfevent.serialize());
-    responseCollection = XyzSerializable.deserialize(response);
-
-    assertEquals(0, responseCollection.getFeatures().size());
-    assertEquals(3, responseCollection.getFailed().size());
-
     // Transaction should have failed
-    for (FeatureCollection.ModificationFailure failure : responseCollection.getFailed()) {
-      if(failure.getId().equalsIgnoreCase(modifiedFeatureId))
-        assertEquals("Object does not exist or UUID mismatch",failure.getMessage());
-      else
-        assertEquals("Transaction has failed",failure.getMessage());
-      // Check if Id correct
-      assertTrue(idList.contains(failure.getId()));
-    }
+    errorResponse = XyzSerializable.deserialize(response);
+    assertEquals(XyzError.CONFLICT, errorResponse.getError());
+    failedList = ((ArrayList)errorResponse.getErrorDetails().get("FailedList"));
+    assertEquals(1,failedList.size());
+
+    failure1 = ((HashMap<String,String>)failedList.get(0));
+    assertEquals(modifiedFeatureId, failure1.get("id"));
+    assertEquals(DatabaseWriter.DELETE_ERROR_UUID, failure1.get("message"));
 
     // Check if deletes has failed
     searchResponse = invokeLambda(eventJson);
@@ -981,7 +973,7 @@ public class PSQLXyzConnectorIT {
 
     // Only the feature with wrong UUID should have failed
     failure = responseCollection.getFailed().get(0);
-    assertEquals(DatabaseWriter.UPDATE_ERROR_UUID,failure.getMessage());
+    assertEquals(DatabaseWriter.DELETE_ERROR_UUID,failure.getMessage());
     assertEquals(modifiedFeatureId, failure.getId());
 
     // Check if deletes are got performed
@@ -1899,17 +1891,20 @@ public class PSQLXyzConnectorIT {
     //Transactional
     mfevent.setTransaction(true);
     response = invokeLambda(mfevent.serialize());
-    responseCollection = XyzSerializable.deserialize(response);
-    assertEquals("doesnotexist", responseCollection.getFailed().get(0).getId());
-    assertEquals(0,responseCollection.getFeatures().size());
-    assertNull(responseCollection.getUpdated());
-    assertNull(responseCollection.getInserted());
-    assertNull(responseCollection.getDeleted());
+
+    // Transaction should have failed
+    ErrorResponse errorResponse = XyzSerializable.deserialize(response);
+    assertEquals(XyzError.CONFLICT, errorResponse.getError());
+    ArrayList failedList = ((ArrayList)errorResponse.getErrorDetails().get("FailedList"));
+    assertEquals(1, failedList.size());
+
+    HashMap<String,String> failure1 = ((HashMap<String,String>)failedList.get(0));
+    assertEquals("doesnotexist", failure1.get("id"));
 
     if(withUUID)
-      assertEquals(DatabaseWriter.DELETE_ERROR_UUID, responseCollection.getFailed().get(0).getMessage());
+      assertEquals(DatabaseWriter.DELETE_ERROR_UUID, failure1.get("message"));
     else
-      assertEquals(DatabaseWriter.DELETE_ERROR_NOT_EXISTS, responseCollection.getFailed().get(0).getMessage());
+      assertEquals(DatabaseWriter.DELETE_ERROR_NOT_EXISTS, failure1.get("message"));
 
     // =========== INSERT EXISTING FEATURE ==========
     //Stream
@@ -1931,13 +1926,12 @@ public class PSQLXyzConnectorIT {
     //Transactional
     mfevent.setTransaction(true);
     response = invokeLambda(mfevent.serialize());
-    responseCollection = XyzSerializable.deserialize(response);
-    assertEquals(existing.getId(), responseCollection.getFailed().get(0).getId());
-    assertEquals(DatabaseWriter.TRANSACTION_ERROR_GENERAL, responseCollection.getFailed().get(0).getMessage());
-    assertEquals(0,responseCollection.getFeatures().size());
-    assertNull(responseCollection.getUpdated());
-    assertNull(responseCollection.getInserted());
-    assertNull(responseCollection.getDeleted());
+
+    errorResponse = XyzSerializable.deserialize(response);
+    assertEquals(XyzError.CONFLICT, errorResponse.getError());
+    failedList = ((ArrayList)errorResponse.getErrorDetails().get("FailedList"));
+    assertEquals(0, failedList.size());
+    assertEquals(DatabaseWriter.TRANSACTION_ERROR_GENERAL, errorResponse.getErrorMessage());
 
     // =========== UPDATE NOT EXISTING FEATURE ==========
     //Stream
@@ -1963,17 +1957,19 @@ public class PSQLXyzConnectorIT {
     //Transactional
     mfevent.setTransaction(true);
     response = invokeLambda(mfevent.serialize());
-    responseCollection = XyzSerializable.deserialize(response);
-    assertEquals(existing.getId(), responseCollection.getFailed().get(0).getId());
-    assertEquals(0,responseCollection.getFeatures().size());
-    assertNull(responseCollection.getUpdated());
-    assertNull(responseCollection.getInserted());
-    assertNull(responseCollection.getDeleted());
+
+    errorResponse = XyzSerializable.deserialize(response);
+    assertEquals(XyzError.CONFLICT, errorResponse.getError());
+    failedList = ((ArrayList)errorResponse.getErrorDetails().get("FailedList"));
+    assertEquals(1, failedList.size());
+
+    failure1 = ((HashMap<String,String>)failedList.get(0));
+    assertEquals("doesnotexist", failure1.get("id"));
 
     if(withUUID)
-      assertEquals(DatabaseWriter.UPDATE_ERROR_UUID, responseCollection.getFailed().get(0).getMessage());
+      assertEquals(DatabaseWriter.UPDATE_ERROR_UUID, failure1.get("message"));
     else
-      assertEquals(DatabaseWriter.UPDATE_ERROR_NOT_EXISTS, responseCollection.getFailed().get(0).getMessage());
+      assertEquals(DatabaseWriter.UPDATE_ERROR_NOT_EXISTS, failure1.get("message"));
   }
 
   @SuppressWarnings({"rawtypes", "unchecked"})

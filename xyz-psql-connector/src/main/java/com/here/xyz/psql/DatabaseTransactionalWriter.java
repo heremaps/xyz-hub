@@ -35,6 +35,9 @@ import java.util.Map;
 import java.util.Set;
 
 public class DatabaseTransactionalWriter extends  DatabaseWriter{
+    private static final int TYPE_INSERT = 1;
+    private static final int TYPE_UPDATE = 2;
+    private static final int TYPE_DELETE = 3;
 
     public static FeatureCollection insertFeatures(DatabaseHandler dbh, String schema, String table, String streamId,
                 FeatureCollection collection, List<FeatureCollection.ModificationFailure> fails,
@@ -72,7 +75,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         }
 
         executeBatchesAndCheckOnFailures(dbh, insertIdList, insertWithoutGeometryIdList,
-                insertStmt, insertWithoutGeometryStmt, fails, false, streamId, table );
+                insertStmt, insertWithoutGeometryStmt, fails, false, TYPE_INSERT );
 
         return collection;
     }
@@ -127,7 +130,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         }
 
         executeBatchesAndCheckOnFailures(dbh, updateIdList, updateWithoutGeometryIdList,
-                updateStmt, updateWithoutGeometryStmt, fails, handleUUID, streamId, table );
+                updateStmt, updateWithoutGeometryStmt, fails, handleUUID, TYPE_UPDATE);
 
         if(fails.size() > 0) {
             logException(null, streamId, 0 , LOG_EXCEPTION_UPDATE, table);
@@ -168,7 +171,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
             }
         }
         executeBatchesAndCheckOnFailures(dbh, deleteIdList, deleteIdListWithoutUUID,
-                batchDeleteStmt, batchDeleteStmtWithoutUUID, fails, handleUUID, streamId, table );
+                batchDeleteStmt, batchDeleteStmtWithoutUUID, fails, handleUUID, TYPE_DELETE );
 
         if(fails.size() > 0) {
             logException(null, streamId, 0 , LOG_EXCEPTION_DELETE, table);
@@ -179,31 +182,43 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
     private static void executeBatchesAndCheckOnFailures(DatabaseHandler dbh, List<String> idList, List<String> idList2,
                                                          PreparedStatement batchStmt, PreparedStatement batchStmt2,
                                                          List<FeatureCollection.ModificationFailure> fails,
-                                                         boolean handleUUID, String streamId, String table) throws SQLException {
+                                                         boolean handleUUID, int type) throws SQLException {
         int[] batchStmtResult;
         int[] batchStmtResult2;
 
         if(idList.size() > 0) {
             batchStmt.setQueryTimeout(dbh.calculateTimeout());
             batchStmtResult = batchStmt.executeBatch();
-            fillFailList(batchStmtResult, fails, idList, handleUUID);
+            fillFailList(batchStmtResult, fails, idList, handleUUID, type);
         }
 
         if(idList2.size() > 0) {
             batchStmt2.setQueryTimeout(dbh.calculateTimeout());
             batchStmtResult2 = batchStmt2.executeBatch();
-            fillFailList(batchStmtResult2, fails, idList2, handleUUID);
+            fillFailList(batchStmtResult2, fails, idList2, handleUUID, type);
         }
 
         batchStmt.close();
         batchStmt2.close();
     }
 
-    private static void fillFailList(int[] batchResult, List<FeatureCollection.ModificationFailure> fails,  List<String> idList, boolean handleUUID){
+    private static void fillFailList(int[] batchResult, List<FeatureCollection.ModificationFailure> fails,  List<String> idList, boolean handleUUID, int type){
         for (int i= 0; i < batchResult.length; i++) {
             if(batchResult[i] == 0 ) {
-                fails.add(new FeatureCollection.ModificationFailure().withId(idList.get(i)).withMessage(
-                    (handleUUID ? UPDATE_ERROR_UUID : UPDATE_ERROR_NOT_EXISTS)));
+                String message = TRANSACTION_ERROR_GENERAL;
+                switch (type){
+                    case TYPE_INSERT:
+                        message = INSERT_ERROR_GENERAL;
+                        break;
+                    case TYPE_UPDATE:
+                        message = handleUUID ? UPDATE_ERROR_UUID : UPDATE_ERROR_NOT_EXISTS;
+                        break;
+                    case TYPE_DELETE:
+                        message = handleUUID ? DELETE_ERROR_UUID : DELETE_ERROR_NOT_EXISTS;
+                        break;
+                }
+
+                fails.add(new FeatureCollection.ModificationFailure().withId(idList.get(i)).withMessage(message));
             }
         }
     }

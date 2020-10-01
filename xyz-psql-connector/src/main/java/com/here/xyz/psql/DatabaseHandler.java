@@ -41,10 +41,7 @@ import com.here.xyz.responses.XyzResponse;
 import com.mchange.v2.c3p0.AbstractConnectionCustomizer;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
 
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -501,15 +498,20 @@ public abstract class DatabaseHandler extends StorageConnector {
                         ;//Table does not exist yet - create it!
                     else {
 
-                        /** Add all other Objects to failed list */
-                        addAllToFailedList(fails, getAllIds(inserts, updates, upserts, deletes));
-
-                        /** Reset the rest */
-                        collection.setFeatures(new ArrayList<>());
-                        collection.setFailed(fails);
-
+                        logger.warn("{} - Transaction has failed. {]", streamId, e);
                         connection.close();
-                        return collection;
+
+                        Map<String, Object> errorDetails = new HashMap<>();
+
+                        if(e instanceof BatchUpdateException || fails.size() >=1 ){
+                            errorDetails.put("FailedList", fails);
+                            return new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.CONFLICT).withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL);
+                        }else {
+                            errorDetails.put(DatabaseWriter.TRANSACTION_ERROR_GENERAL,
+                                    (e instanceof SQLException && ((SQLException)e).getSQLState() != null)
+                                            ? "SQL-state: "+((SQLException) e).getSQLState() : "Unexpected Error occurred");
+                            return new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.BAD_GATEWAY).withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL);
+                        }
                     }
                 }
 

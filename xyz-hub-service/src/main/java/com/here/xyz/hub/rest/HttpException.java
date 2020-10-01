@@ -20,19 +20,29 @@
 package com.here.xyz.hub.rest;
 
 import io.netty.handler.codec.http.HttpResponseStatus;
+import java.util.Map;
 
 public class HttpException extends Exception {
 
 	private static final long serialVersionUID = 3414027446220801809L;
 	public final HttpResponseStatus status;
+	public final Map<String, Object> errorDetails;
 
 	public HttpException(HttpResponseStatus status, String errorText) {
 		super(errorText);
 		this.status = status;
+		this.errorDetails = null;
+	}
+
+	public HttpException(HttpResponseStatus status, String errorText, Map<String, Object>  errorDetails){
+		super(errorText);
+		this.status = status;
+		this.errorDetails = errorDetails;
 	}
 
 	public HttpException(HttpResponseStatus status, String errorText, Throwable cause) {
 		super(errorText, cause);
 		this.status = status;
+		this.errorDetails = null;
 	}
 }
