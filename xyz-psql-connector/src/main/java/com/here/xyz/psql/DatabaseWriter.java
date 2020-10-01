@@ -160,7 +160,7 @@ public class DatabaseWriter {
     }
 
     protected static void logException(Exception e, String streamId, int i, String action, String table){
-        if(e.getMessage() != null && e.getMessage().contains("does not exist")) {
+        if(e != null && e.getMessage() != null && e.getMessage().contains("does not exist")) {
             /* If table not yet exist */
             logger.warn("{} - Failed to "+action+" object #{}: {} on table {}", streamId, i, table, e);
         }
