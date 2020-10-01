@@ -88,8 +88,12 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
               }
             }
             else {
-              byte[] responseBytes = ar.result().body().getBytes();
-              callback.handle(Future.succeededFuture(responseBytes));
+              try{
+                byte[] responseBytes = ar.result().body().getBytes();
+                callback.handle(Future.succeededFuture(responseBytes));
+              }catch (Exception e) {
+                handleFailure(fc, nextTryCount, callback, ConnectionBase.CLOSED_EXCEPTION);
+              }
             }
           });
     }

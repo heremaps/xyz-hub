@@ -24,6 +24,7 @@ import static com.here.xyz.hub.task.FeatureTask.FeatureKey.BBOX;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.ID;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.TYPE;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
@@ -183,7 +184,7 @@ public class FeatureTaskHandler {
       try {
         setAdditionalEventProps(task, task.storage, eventToExecute);
         final long storageRequestStart = Service.currentTimeMillis();
-        responseContext.rpcContext = RpcClient.getInstanceFor(task.storage).execute(task.getMarker(), eventToExecute, storageResult -> {
+        responseContext.rpcContext = getRpcClient(task.storage).execute(task.getMarker(), eventToExecute, storageResult -> {
           addStoragePerformanceInfo(task, Service.currentTimeMillis() - storageRequestStart, responseContext.rpcContext);
           if (storageResult.failed()) {
             handleFailure(task.getMarker(), storageResult.cause(), callback);
@@ -235,6 +236,15 @@ public class FeatureTaskHandler {
       if (requestListenerPayload != null)
         notifyListeners(task, eventType, requestListenerPayload);
     });
+  }
+
+  private static RpcClient getRpcClient(Connector refConnector) throws HttpException {
+    try {
+      return RpcClient.getInstanceFor(refConnector);
+    }
+    catch (IllegalStateException e) {
+      throw new HttpException(BAD_GATEWAY, "Connector not ready.");
+    }
   }
 
   private static void cancelRPC(RpcContext rpcContext) {
@@ -431,8 +441,9 @@ public class FeatureTaskHandler {
     listeners.forEach(l -> {
       RpcClient client;
       try {
-        client = RpcClient.getInstanceFor(l.resolvedConnector);
-      } catch (Exception e) {
+        client = getRpcClient(l.resolvedConnector);
+      }
+      catch (Exception e) {
         logger.warn(task.getMarker(), "Error when trying to get client for remote function (listener) {}.", l.getId(), e);
         return;
       }
@@ -530,8 +541,9 @@ public class FeatureTaskHandler {
 
     RpcClient client;
     try {
-      client = RpcClient.getInstanceFor(p.resolvedConnector);
-    } catch (Exception e) {
+      client = getRpcClient(p.resolvedConnector);
+    }
+    catch (Exception e) {
       f.completeExceptionally(new Exception("Error when trying to get client for remote function (processor) " + p.getId() + ".", e));
       return f;
     }
@@ -933,7 +945,7 @@ public class FeatureTaskHandler {
     countEvent.setParams(task.getEvent().getParams());
 
     try {
-      RpcClient.getInstanceFor(task.storage)
+      getRpcClient(task.storage)
           .execute(task.getMarker(), countEvent, (AsyncResult<XyzResponse> eventHandler) -> {
             if (eventHandler.failed()) {
               handler.handle(Future.failedFuture((eventHandler.cause())));
@@ -951,7 +963,8 @@ public class FeatureTaskHandler {
             }
             handler.handle(Future.succeededFuture(count));
           });
-    } catch (Exception e) {
+    }
+    catch (Exception e) {
       handler.handle(Future.failedFuture((e)));
     }
   }

@@ -29,6 +29,7 @@ public class H3SQL
   public static final String HEXBIN_RESOLUTION_RELATIVE = "relativeResolution";
   public static final String HEXBIN_PROPERTY = "property";
   public static final String HEXBIN_POINTMODE = "pointmode";
+  public static final String HEXBIN_SINGLECOORD = "singlecoord";
 
   public static String h3sqlBegin =
       "  select "
@@ -61,7 +62,7 @@ public class H3SQL
           + "                    oo.geo "
           + "     from ",
   
-  h3sqlMid =
+  h3sqlMid_0 =
             "     ( "
           + "      select to_hex(cc.h3) as h3,"
           + "              count(1) as qty,"
@@ -98,8 +99,9 @@ public class H3SQL
           + "          ( "
           + "            select cval, st_x(in_data.refpt) as lon, st_y(in_data.refpt) as lat, refpt "
           + "            from "
-          + "            ( "
-          + "              select %2$s as cval, coalesce( l.geoh3, v.geo ) as refpt"
+          + "            ( ",
+ h3sqlMid_1a = // standard flavour
+            "              select %2$s as cval, coalesce( l.geoh3, v.geo ) as refpt"
           + "              from ${schema}.${table} v " 
           + "               left join lateral "
           + "                ( select st_force3d(st_setsrid( h3ToGeoDeg( coveringDeg( case ST_Within(geo, %5$s ) " 
@@ -108,9 +110,12 @@ public class H3SQL
           + "                                                                         end, %1$d)), st_srid(geo))) "
           + "                  where st_geometrytype(v.geo) != 'ST_Point'"
           + "                ) l(geoh3) "
-          + "                on ( true ) "
-          + "              where 1 = 1 and st_intersects( geo , %5$s ) ",          
-
+          + "                on ( true ) ",
+ h3sqlMid_1b = // convert to points flavour          
+            "              select %2$s as cval, st_geometryn(st_points( ST_Intersection( v.geo, %5$s ) ) ,1) as refpt"
+          + "              from ${schema}.${table} v ",
+ h3sqlMid_2 =
+            "              where 1 = 1 and st_intersects( geo , %5$s ) ",          
   h3sqlEnd =
             "            ) in_data "
           + "          ) q2 "
@@ -128,6 +133,9 @@ public class H3SQL
           + "     %1$s "
           + "  ) outer_v ";
 
+
+  public static String h3sqlMid(boolean pointmode) 
+  { return H3SQL.h3sqlMid_0 + ( !pointmode ? H3SQL.h3sqlMid_1a : H3SQL.h3sqlMid_1b ) + H3SQL.h3sqlMid_2; }
 
   public static int[] MaxResForZoom = {2, 2, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8, 9, 9, 10, 11, 11, 12, 13, 14, 14, 15, 15};
 

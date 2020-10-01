@@ -220,9 +220,9 @@ public class Service {
     connectorConfigClient = ConnectorConfigClient.getInstance();
 
     webClient = WebClient.create(Service.vertx, new WebClientOptions()
-        .setMaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)
+//        .setMaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)
         .setUserAgent(XYZ_HUB_USER_AGENT)
-        .setTcpKeepAlive(true)
+//        .setTcpKeepAlive(true)
         .setTcpQuickAck(true)
         .setTcpFastOpen(true)
         .setTryUseCompression(true)
