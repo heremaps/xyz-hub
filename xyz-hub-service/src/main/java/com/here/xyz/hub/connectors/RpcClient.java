@@ -311,23 +311,23 @@ public class RpcClient {
 
         switch (errorResponse.getError()) {
           case NOT_IMPLEMENTED:
-            throw new HttpException(NOT_IMPLEMENTED, "The connector is unable to process this request.");
+            throw new HttpException(NOT_IMPLEMENTED, "The connector is unable to process this request.",errorResponse.getErrorDetails());
           case CONFLICT:
             throw new HttpException(CONFLICT, "A conflict occurred when writing a feature: " + errorResponse.getErrorMessage(), errorResponse.getErrorDetails());
           case FORBIDDEN:
-            throw new HttpException(FORBIDDEN, "The user is not authorized.");
+            throw new HttpException(FORBIDDEN, "The user is not authorized.",errorResponse.getErrorDetails());
           case TOO_MANY_REQUESTS:
             throw new HttpException(TOO_MANY_REQUESTS,
-                "The connector cannot process the message due to a limitation in an upstream service or a database.");
+                "The connector cannot process the message due to a limitation in an upstream service or a database.",errorResponse.getErrorDetails());
           case ILLEGAL_ARGUMENT:
-            throw new HttpException(BAD_REQUEST, errorResponse.getErrorMessage());
+            throw new HttpException(BAD_REQUEST, errorResponse.getErrorMessage(), errorResponse.getErrorDetails());
           case TIMEOUT:
-            throw new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.");
+            throw new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.", errorResponse.getErrorDetails());
           case EXCEPTION:
           case BAD_GATEWAY:
-            throw new HttpException(BAD_GATEWAY, "Connector error.");
+            throw new HttpException(BAD_GATEWAY, "Connector error.", errorResponse.getErrorDetails());
           case PAYLOAD_TO_LARGE:
-            throw new  HttpException( Api.RESPONSE_PAYLOAD_TOO_LARGE, String.format("%s %s",Api.RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE,errorResponse.getErrorMessage()) );
+            throw new  HttpException( Api.RESPONSE_PAYLOAD_TOO_LARGE, String.format("%s %s",Api.RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE, errorResponse.getErrorMessage()) , errorResponse.getErrorDetails());
         }
       }
       if (payload instanceof XyzResponse) {
