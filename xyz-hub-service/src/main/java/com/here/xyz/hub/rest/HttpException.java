@@ -34,10 +34,10 @@ public class HttpException extends Exception {
 		this.errorDetails = null;
 	}
 
-	public HttpException(HttpResponseStatus status, String errorText, Map<String, Object>  fails){
+	public HttpException(HttpResponseStatus status, String errorText, Map<String, Object>  errorDetails){
 		super(errorText);
 		this.status = status;
-		this.errorDetails = fails;
+		this.errorDetails = errorDetails;
 	}
 
 	public HttpException(HttpResponseStatus status, String errorText, Throwable cause) {
