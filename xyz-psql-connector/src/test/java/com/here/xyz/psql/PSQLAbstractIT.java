@@ -18,6 +18,8 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.XyzError;
 import com.jayway.jsonpath.Configuration;
 import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
@@ -78,17 +80,20 @@ public abstract class PSQLAbstractIT {
     //Transactional
     mfevent.setTransaction(true);
     response = invokeLambda(mfevent.serialize());
-    responseCollection = XyzSerializable.deserialize(response);
-    assertEquals("doesnotexist", responseCollection.getFailed().get(0).getId());
-    assertEquals(0,responseCollection.getFeatures().size());
-    assertNull(responseCollection.getUpdated());
-    assertNull(responseCollection.getInserted());
-    assertNull(responseCollection.getDeleted());
+
+    // Transaction should have failed
+    ErrorResponse errorResponse = XyzSerializable.deserialize(response);
+    assertEquals(XyzError.CONFLICT, errorResponse.getError());
+    ArrayList failedList = ((ArrayList)errorResponse.getErrorDetails().get("FailedList"));
+    assertEquals(1, failedList.size());
+
+    HashMap<String,String> failure1 = ((HashMap<String,String>)failedList.get(0));
+    assertEquals("doesnotexist", failure1.get("id"));
 
     if(withUUID)
-      assertEquals(DatabaseWriter.DELETE_ERROR_UUID, responseCollection.getFailed().get(0).getMessage());
+      assertEquals(DatabaseWriter.DELETE_ERROR_UUID, failure1.get("message"));
     else
-      assertEquals(DatabaseWriter.DELETE_ERROR_NOT_EXISTS, responseCollection.getFailed().get(0).getMessage());
+      assertEquals(DatabaseWriter.DELETE_ERROR_NOT_EXISTS, failure1.get("message"));
 
     // =========== INSERT EXISTING FEATURE ==========
     //Stream
@@ -110,13 +115,12 @@ public abstract class PSQLAbstractIT {
     //Transactional
     mfevent.setTransaction(true);
     response = invokeLambda(mfevent.serialize());
-    responseCollection = XyzSerializable.deserialize(response);
-    assertEquals(existing.getId(), responseCollection.getFailed().get(0).getId());
-    assertEquals(DatabaseWriter.TRANSACTION_ERROR_GENERAL, responseCollection.getFailed().get(0).getMessage());
-    assertEquals(0,responseCollection.getFeatures().size());
-    assertNull(responseCollection.getUpdated());
-    assertNull(responseCollection.getInserted());
-    assertNull(responseCollection.getDeleted());
+
+    errorResponse = XyzSerializable.deserialize(response);
+    assertEquals(XyzError.CONFLICT, errorResponse.getError());
+    failedList = ((ArrayList)errorResponse.getErrorDetails().get("FailedList"));
+    assertEquals(0, failedList.size());
+    assertEquals(DatabaseWriter.TRANSACTION_ERROR_GENERAL, errorResponse.getErrorMessage());
 
     // =========== UPDATE NOT EXISTING FEATURE ==========
     //Stream
@@ -142,17 +146,19 @@ public abstract class PSQLAbstractIT {
     //Transactional
     mfevent.setTransaction(true);
     response = invokeLambda(mfevent.serialize());
-    responseCollection = XyzSerializable.deserialize(response);
-    assertEquals(existing.getId(), responseCollection.getFailed().get(0).getId());
-    assertEquals(0,responseCollection.getFeatures().size());
-    assertNull(responseCollection.getUpdated());
-    assertNull(responseCollection.getInserted());
-    assertNull(responseCollection.getDeleted());
+
+    errorResponse = XyzSerializable.deserialize(response);
+    assertEquals(XyzError.CONFLICT, errorResponse.getError());
+    failedList = ((ArrayList)errorResponse.getErrorDetails().get("FailedList"));
+    assertEquals(1, failedList.size());
+
+    failure1 = ((HashMap<String,String>)failedList.get(0));
+    assertEquals("doesnotexist", failure1.get("id"));
 
     if(withUUID)
-      assertEquals(DatabaseWriter.UPDATE_ERROR_UUID, responseCollection.getFailed().get(0).getMessage());
+      assertEquals(DatabaseWriter.UPDATE_ERROR_UUID, failure1.get("message"));
     else
-      assertEquals(DatabaseWriter.UPDATE_ERROR_NOT_EXISTS, responseCollection.getFailed().get(0).getMessage());
+      assertEquals(DatabaseWriter.UPDATE_ERROR_NOT_EXISTS, failure1.get("message"));
   }
 
   @SuppressWarnings({"rawtypes", "unchecked"})
