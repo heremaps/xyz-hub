@@ -35,7 +35,7 @@ public class QuadbinSQL {
     public static final String QUADBIN_RESOLUTION_RELATIVE = H3SQL.HEXBIN_RESOLUTION_RELATIVE;
     public static final String QUADBIN_COUNTMODE = "countmode";
     public static final String QUADBIN_NOBOFFER = "noBuffer";
-    
+
 
     /**
      * Real live counts via count(*)
@@ -57,7 +57,7 @@ public class QuadbinSQL {
     /**
      * Check if request parameters are valid. In case of invalidity throw an Exception
      */
-    public static void checkQuadbinInput(String countMode, int relResolution, GetFeaturesByBBoxEvent event, String streamId, PSQLXyzConnector connector) throws ErrorResponseException
+    public static void checkQuadbinInput(String countMode, int relResolution, GetFeaturesByBBoxEvent event, String spaceId, String streamId, PSQLXyzConnector connector) throws ErrorResponseException
     {
         if(countMode != null && (!countMode.equalsIgnoreCase(QuadbinSQL.COUNTMODE_REAL) && !countMode.equalsIgnoreCase(QuadbinSQL.COUNTMODE_ESTIMATED) && !countMode.equalsIgnoreCase(QuadbinSQL.COUNTMODE_MIXED)) )
             throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
@@ -71,7 +71,7 @@ public class QuadbinSQL {
             throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
                     "Invalid request parameters. Only one Property is allowed");
 
-        if (!Capabilities.canSearchFor(event.getSpace(), event.getPropertiesQuery(), connector)) {
+        if (!Capabilities.canSearchFor(spaceId, event.getPropertiesQuery(), connector)) {
             throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
                     "Invalid request parameters. Search for the provided properties is not supported for this space.");
         }

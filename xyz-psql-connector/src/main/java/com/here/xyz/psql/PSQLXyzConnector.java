@@ -141,11 +141,11 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
             if( event.getSelection() == null && !bDefaultSelectionHandling )
              event.setSelection(Arrays.asList("id","type"));
-                        
+
             int chunkSize    = Math.max(Math.min((int) tweakParams.getOrDefault(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD,10),100),10) * 1000,
                 distStrength = TweaksSQL.calculateDistributionStrength( rCount, chunkSize );
 
-            if( distStrength == 0 ) break; // NrOfObjects less than chunkSize -> fall back to non-tweaks usage 
+            if( distStrength == 0 ) break; // NrOfObjects less than chunkSize -> fall back to non-tweaks usage
             HashMap<String, Object> hmap = new HashMap<String, Object>();
             hmap.put("algorithm", new String("distribution"));
             hmap.put("strength", new Integer( distStrength ));
@@ -157,7 +157,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
             FeatureCollection collection = executeQueryWithRetry(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, dataSource));
             collection.setPartial(true);
             return collection;
-          }            
+          }
 
           case TweaksSQL.SIMPLIFICATION: {
             FeatureCollection collection = executeQueryWithRetry(SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams, dataSource));
@@ -174,7 +174,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
         switch(event.getClusteringType().toLowerCase())
         {
-          case H3SQL.HEXBIN : 
+          case H3SQL.HEXBIN :
            return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource));
 
           case QuadbinSQL.QUAD :
@@ -184,9 +184,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
            final String countMode = (String) clusteringParams.get(QuadbinSQL.QUADBIN_COUNTMODE);
            final boolean noBuffer = (boolean) clusteringParams.getOrDefault(QuadbinSQL.QUADBIN_NOBOFFER,false);
 
-           QuadbinSQL.checkQuadbinInput(countMode, relResolution, event, streamId, this);
+           QuadbinSQL.checkQuadbinInput(countMode, relResolution, event, config.table(event), streamId, this);
            return executeQueryWithRetry(SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config, noBuffer));
-         
+
           default: break; // fall back to non-tweaks usage.
        }
       }
@@ -195,7 +195,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       if(isBigQuery){
         /* Check if Properties are indexed */
-        if (!Capabilities.canSearchFor(event.getSpace(), event.getPropertiesQuery(), this)) {
+        if (!Capabilities.canSearchFor(config.table(event), event.getPropertiesQuery(), this)) {
           throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
                   "Invalid request parameters. Search for the provided properties is not supported for this space.");
         }
@@ -378,9 +378,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
           SQLQuery q = new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};");
           q.append("DROP TABLE IF EXISTS ${schema}.${hsttable}");
           executeUpdateWithRetry(q);
-          logger.debug("{} - Successfully deleted table for space '{}'", streamId, event.getSpace());
+          logger.debug("{} - Successfully deleted table '{}' for space id '{}'", streamId, config.table(event), event.getSpace());
         } else
-          logger.debug("{} - Table not found '{}'", streamId, event.getSpace());
+          logger.debug("{} - Table '{}' not found for space id '{}'", streamId, config.table(event), event.getSpace());
 
         if (event.getConnectorParams() != null && event.getConnectorParams().get("propertySearch") == Boolean.TRUE) {
           executeUpdateWithRetry(SQLQueryBuilder.buildDeleteIDXConfigEntryQuery(config.schema(),config.table(event)));
@@ -410,7 +410,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
                 .withErrorMessage("Invalid request parameters.");
       }
 
-      if (!Capabilities.canSearchFor(event.getSpace(), event.getPropertiesQuery(), this)) {
+      if (!Capabilities.canSearchFor(config.table(event), event.getPropertiesQuery(), this)) {
         return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
                 .withErrorMessage("Invalid request parameters. Search for the provided properties is not supported for this space.");
       }
@@ -440,35 +440,35 @@ public class PSQLXyzConnector extends DatabaseHandler {
     switch (sqlState) {
       case "XX000": /* XX000 - internal error */
         if (e.getMessage() == null || e.getMessage().indexOf("interruptedException") != -1) break;
-      case "57014": /* 57014 - query_canceled */
-      case "57P01": /* 57P01 - admin_shutdown */
-        return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
-                .withErrorMessage("Database query timed out or got canceled.");
+     case "57014" : /* 57014 - query_canceled */
+     case "57P01" : /* 57P01 - admin_shutdown */
+      return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
+                                .withErrorMessage("Database query timed out or got canceled.");
 
-      case "54000":
-        return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
-                .withErrorMessage("No time for retry left for database query.");
+     case "54000" :
+      return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
+                                .withErrorMessage("No time for retry left for database query.");
 
-      case "22P02": // specific handling in case to H3 clustering.property
-        if (e.getMessage() == null || e.getMessage().indexOf("'H3'::text") == -1) break;
+     case "22P02" : // specific handling in case to H3 clustering.property
+      if( e.getMessage() == null || e.getMessage().indexOf("'H3'::text") == -1 ) break;
 
-        Matcher m = ERRVALUE_22P02.matcher(e.getMessage());
-        return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
-                .withErrorMessage(String.format("clustering.property: string(%s) can not be converted to numeric", (m.find() ? m.group(1) : "")));
+      Matcher m = ERRVALUE_22P02.matcher(e.getMessage());
+      return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
+                                .withErrorMessage(String.format("clustering.property: string(%s) can not be converted to numeric",( m.find() ? m.group(1) : "" )));
 
-      case "42P01":
-        return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT).withErrorMessage(e.getMessage());
+     case "42P01" :
+      return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT).withErrorMessage(e.getMessage());
 
       case "SNULL":
         if (e.getMessage() == null) break;
-        // handle some dedicated messages
-        if (e.getMessage().indexOf("An attempt by a client to checkout a Connection has timed out.") > -1)
-          return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
-                  .withErrorMessage("Cant get a Connection to the database.");
+      // handle some dedicated messages
+      if( e.getMessage().indexOf("An attempt by a client to checkout a Connection has timed out.") > -1 )
+       return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
+                                 .withErrorMessage("Cant get a Connection to the database.");
 
-        if (e.getMessage().indexOf("Maxchar limit") > -1)
-          return new ErrorResponse().withStreamId(streamId).withError(XyzError.PAYLOAD_TO_LARGE)
-                  .withErrorMessage("Database result - Maxchar limit exceed");
+      if( e.getMessage().indexOf("Maxchar limit") > -1 )
+        return new ErrorResponse().withStreamId(streamId).withError(XyzError.PAYLOAD_TO_LARGE)
+                                                         .withErrorMessage("Database result - Maxchar limit exceed");
 
         break; //others
 

@@ -1,0 +1,12 @@
+{
+	"type": "HealthCheckEvent",
+	"minResponseTime": 100,
+	"connectorParams": {
+		"propertySearch": true,
+		"autoIndexing" : true,
+    "enableHashedSpaceId": true
+	},
+	"params": {
+		"propertySearch": true
+	}
+}
