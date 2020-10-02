@@ -24,6 +24,8 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.io.WKBWriter;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.postgresql.util.PGobject;
 
 import java.sql.Connection;
@@ -35,6 +37,8 @@ import java.util.Map;
 import java.util.Set;
 
 public class DatabaseTransactionalWriter extends  DatabaseWriter{
+    private static final Logger logger = LogManager.getLogger();
+
     private static final int TYPE_INSERT = 1;
     private static final int TYPE_UPDATE = 2;
     private static final int TYPE_DELETE = 3;
@@ -75,7 +79,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         }
 
         executeBatchesAndCheckOnFailures(dbh, insertIdList, insertWithoutGeometryIdList,
-                insertStmt, insertWithoutGeometryStmt, fails, false, TYPE_INSERT );
+                insertStmt, insertWithoutGeometryStmt, fails, false, TYPE_INSERT, streamId );
 
         return collection;
     }
@@ -130,7 +134,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         }
 
         executeBatchesAndCheckOnFailures(dbh, updateIdList, updateWithoutGeometryIdList,
-                updateStmt, updateWithoutGeometryStmt, fails, handleUUID, TYPE_UPDATE);
+                updateStmt, updateWithoutGeometryStmt, fails, handleUUID, TYPE_UPDATE, streamId);
 
         if(fails.size() > 0) {
             logException(null, streamId, 0 , LOG_EXCEPTION_UPDATE, table);
@@ -171,7 +175,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
             }
         }
         executeBatchesAndCheckOnFailures(dbh, deleteIdList, deleteIdListWithoutUUID,
-                batchDeleteStmt, batchDeleteStmtWithoutUUID, fails, handleUUID, TYPE_DELETE );
+                batchDeleteStmt, batchDeleteStmtWithoutUUID, fails, handleUUID, TYPE_DELETE, streamId );
 
         if(fails.size() > 0) {
             logException(null, streamId, 0 , LOG_EXCEPTION_DELETE, table);
@@ -182,17 +186,21 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
     private static void executeBatchesAndCheckOnFailures(DatabaseHandler dbh, List<String> idList, List<String> idList2,
                                                          PreparedStatement batchStmt, PreparedStatement batchStmt2,
                                                          List<FeatureCollection.ModificationFailure> fails,
-                                                         boolean handleUUID, int type) throws SQLException {
+                                                         boolean handleUUID, int type, String streamId) throws SQLException {
         int[] batchStmtResult;
         int[] batchStmtResult2;
 
         if(idList.size() > 0) {
+            logger.debug("{} - batch execution [{}]: {} ",streamId, type , batchStmt);
+
             batchStmt.setQueryTimeout(dbh.calculateTimeout());
             batchStmtResult = batchStmt.executeBatch();
             fillFailList(batchStmtResult, fails, idList, handleUUID, type);
         }
 
         if(idList2.size() > 0) {
+            logger.debug("{} - batch2 execution [{}]: {} ",streamId, type , batchStmt2);
+
             batchStmt2.setQueryTimeout(dbh.calculateTimeout());
             batchStmtResult2 = batchStmt2.executeBatch();
             fillFailList(batchStmtResult2, fails, idList2, handleUUID, type);
