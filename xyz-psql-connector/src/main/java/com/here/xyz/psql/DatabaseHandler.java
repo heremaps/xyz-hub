@@ -247,12 +247,12 @@ public abstract class DatabaseHandler extends StorageConnector {
         } catch (Exception e) {
             try {
                 if (retryCausedOnServerlessDB(e) || canRetryAttempt()) {
-                    logger.debug("{} - Retry Query permitted.", streamId);
+                    logger.info("{} - Retry Query permitted.", streamId);
                     return executeQuery(query, handler);
                 }
             } catch (Exception e1) {
                 if(retryCausedOnServerlessDB(e1)) {
-                    logger.debug("{} - Retry Query permitted.", streamId);
+                    logger.info("{} - Retry Query permitted.", streamId);
                     return executeQuery(query, handler);
                 }
                 throw e;
@@ -267,12 +267,12 @@ public abstract class DatabaseHandler extends StorageConnector {
         } catch (Exception e) {
             try {
                 if (retryCausedOnServerlessDB(e) || canRetryAttempt()) {
-                    logger.debug("{} - Retry Update permitted.", streamId);
+                    logger.info("{} - Retry Update permitted.", streamId);
                     return executeUpdate(query);
                 }
             } catch (Exception e1) {
                 if (retryCausedOnServerlessDB(e)) {
-                    logger.debug("{} - Retry Update permitted.", streamId);
+                    logger.info("{} - Retry Update permitted.", streamId);
                     return executeUpdate(query);
                 }
                 throw e;
@@ -608,7 +608,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         ensureSpace();
         retryAttempted = true;
 
-        logger.debug("{} - Retry the execution.", streamId);
+        logger.info("{} - Retry the execution.", streamId);
         return true;
     }
 
@@ -642,7 +642,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         }catch (Exception e){
             if(!retryAttempted) {
                 retryAttempted = true;
-                logger.debug("{} - Retry table check.", streamId);
+                logger.info("{} - Retry table check.", streamId);
                 return hasTable();
             }
             else
