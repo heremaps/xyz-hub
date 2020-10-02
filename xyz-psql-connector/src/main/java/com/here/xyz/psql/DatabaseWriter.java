@@ -38,14 +38,14 @@ public class DatabaseWriter {
     private static final Logger logger = LogManager.getLogger();
 
     public static final String UPDATE_ERROR_GENERAL = "Update has failed";
-    public static final String UPDATE_ERROR_NOT_EXISTS = "Object does not exist";
-    public static final String UPDATE_ERROR_UUID = "Object does not exist or UUID mismatch";
-    public static final String UPDATE_ERROR_ID_MISSING = "Feature Id is missing";
-    public static final String UPDATE_ERROR_PUUID_MISSING = "Feature puuid is missing";
+    public static final String UPDATE_ERROR_NOT_EXISTS = UPDATE_ERROR_GENERAL+" - Object does not exist";
+    public static final String UPDATE_ERROR_UUID = UPDATE_ERROR_GENERAL+" - Object does not exist or UUID mismatch";
+    public static final String UPDATE_ERROR_ID_MISSING = UPDATE_ERROR_GENERAL+" - Feature Id is missing";
+    public static final String UPDATE_ERROR_PUUID_MISSING = UPDATE_ERROR_GENERAL+" -  Feature puuid is missing";
 
     public static final String DELETE_ERROR_GENERAL = "Delete has failed";
-    public static final String DELETE_ERROR_NOT_EXISTS = "Object does not exist";
-    public static final String DELETE_ERROR_UUID = "Object does not exist or UUID mismatch";
+    public static final String DELETE_ERROR_NOT_EXISTS = DELETE_ERROR_GENERAL+" - Object does not exist";
+    public static final String DELETE_ERROR_UUID = DELETE_ERROR_GENERAL+" - Object does not exist or UUID mismatch";
 
     public static final String INSERT_ERROR_GENERAL = "Insert has failed";
 
@@ -160,7 +160,7 @@ public class DatabaseWriter {
     }
 
     protected static void logException(Exception e, String streamId, int i, String action, String table){
-        if(e.getMessage() != null && e.getMessage().contains("does not exist")) {
+        if(e != null && e.getMessage() != null && e.getMessage().contains("does not exist")) {
             /* If table not yet exist */
             logger.warn("{} - Failed to "+action+" object #{}: {} on table {}", streamId, i, table, e);
         }

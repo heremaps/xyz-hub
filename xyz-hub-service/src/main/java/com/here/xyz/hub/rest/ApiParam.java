@@ -135,6 +135,7 @@ public class ApiParam {
     static final String CLUSTERING_PARAM_NOBUFFER = "noBuffer";
     static final String CLUSTERING_PARAM_PROPERTY = "property";
     static final String CLUSTERING_PARAM_POINTMODE = "pointmode";
+    static final String CLUSTERING_PARAM_SINGLECOORD = "singlecoord";
     static final String CLUSTERING_PARAM_COUNTMODE = "countmode";
 
     static final String TWEAKS_PARAM_STRENGTH  = "strength";
@@ -401,21 +402,21 @@ public class ApiParam {
             if(!(value instanceof String))
               throw new Exception(String.format("Invalid clustering.%s value. Expect String.",key));
             break;
+
           case CLUSTERING_PARAM_POINTMODE:
-            if(!(value instanceof Boolean))
-              throw new Exception("Invalid clustering.pointmode value. Expect true or false.");
+          case CLUSTERING_PARAM_SINGLECOORD:
+          case CLUSTERING_PARAM_NOBUFFER:
+          if(!(value instanceof Boolean))
+              throw new Exception(String.format("Invalid clustering.%s value. Expect true or false.",key));
             break;
-            case CLUSTERING_PARAM_NOBUFFER:
-            if(!(value instanceof Boolean))
-              throw new Exception("Invalid clustering.noBuffer value. Expect true or false.");
-            break;
+
           case CLUSTERING_PARAM_COUNTMODE:
             if(!(value instanceof String))
               throw new Exception("Invalid clustering.count value. Expect one of [real,estimated,mixed].");
             break;
           default: throw new Exception("Invalid Clustering Parameter! Expect one of ["
                           +CLUSTERING_PARAM_RESOLUTION+","+CLUSTERING_PARAM_RESOLUTION_RELATIVE+","+CLUSTERING_PARAM_RESOLUTION_ABSOLUTE+","
-                          +CLUSTERING_PARAM_PROPERTY+","+CLUSTERING_PARAM_POINTMODE+","+CLUSTERING_PARAM_COUNTMODE+","
+                          +CLUSTERING_PARAM_PROPERTY+","+CLUSTERING_PARAM_POINTMODE+","+CLUSTERING_PARAM_COUNTMODE+"," +CLUSTERING_PARAM_SINGLECOORD+","
                           +CLUSTERING_PARAM_NOBUFFER+"].");
         }
       }else if(type.equals(TWEAKS)){

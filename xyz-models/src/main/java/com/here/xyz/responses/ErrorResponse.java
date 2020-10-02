@@ -22,6 +22,8 @@ package com.here.xyz.responses;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 
+import java.util.Map;
+
 /**
  * An error response.
  */
@@ -32,6 +34,28 @@ public class ErrorResponse extends XyzResponse<ErrorResponse> {
   private XyzError error;
   private String errorMessage;
   private String streamId;
+  private Map<String, Object> errorDetails;
+
+  /**
+   * Returns the errorDetails which can contains additional detail information.
+   *
+   * @return the errorDetails map.
+   */
+  public Map<String, Object>  getErrorDetails(){return this.errorDetails;}
+
+  /**
+   * Set the errorDetails map to the provided value.
+   *
+   * @param errorDetails the map with detailed information to be set.
+   */
+  public void setErrorDetails(final Map<String, Object> errorDetails){
+    this.errorDetails = errorDetails;
+  }
+
+  public ErrorResponse withErrorDetails(final Map<String, Object> errorDetails){
+    setErrorDetails(errorDetails);
+    return this;
+  }
 
   /**
    * Returns the error code as enumeration value.

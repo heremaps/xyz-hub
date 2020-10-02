@@ -352,7 +352,7 @@ public abstract class Api {
 
         //This is an exception sent by intention and nothing special, no need for stacktrace logging.
         logger.warn("Error was handled by Api and will be sent as response: {}", httpException.status.code());
-        sendErrorResponse(context, httpException.status, error, e.getMessage());
+        sendErrorResponse(context, httpException, error);
         return;
       }
     }
@@ -380,6 +380,25 @@ public abstract class Api {
             .withStreamId(Api.Context.getMarker(context).getName())
             .withError(error)
             .withErrorMessage(errorMessage).serialize());
+  }
+
+  /**
+   * Send an error response to the client.
+   *
+   * @param context the routing context for which to return an error response.
+   * @param httpError the HTTPException with all information
+   * @param error the error type that will become part of the {@link ErrorResponse}.
+   */
+  private void sendErrorResponse(final RoutingContext context, final HttpException httpError, final XyzError error) {
+    context.response()
+        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+        .setStatusCode(httpError.status.code())
+        .setStatusMessage(httpError.status.reasonPhrase())
+        .end(new ErrorResponse()
+            .withStreamId(Api.Context.getMarker(context).getName())
+            .withErrorDetails(httpError.errorDetails)
+            .withError(error)
+            .withErrorMessage(httpError.getMessage()).serialize());
   }
 
   /**

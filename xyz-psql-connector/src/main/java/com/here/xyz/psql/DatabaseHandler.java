@@ -41,8 +41,7 @@ import com.here.xyz.responses.XyzResponse;
 import com.mchange.v2.c3p0.AbstractConnectionCustomizer;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
 import com.mchange.v2.c3p0.PooledDataSource;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+import java.sql.BatchUpdateException;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -59,7 +58,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.sql.DataSource;
-import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.commons.dbutils.StatementConfiguration;
@@ -113,46 +111,39 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private boolean retryAttempted;
 
-    protected XyzResponse processHealthCheckEventImpl(HealthCheckEvent event) {
+    protected XyzResponse processHealthCheckEventImpl(HealthCheckEvent event) throws SQLException {
         long targetResponseTime = event.getMinResponseTime() + System.currentTimeMillis();
         SQLQuery query = new SQLQuery("SELECT 1");
-        try {
-            /** run DB-Maintenance */
-            if(event.getMinResponseTime() !=  0)
-                dbMaintainer.run(event, streamId);
 
-            executeQuery(query, (rs) -> null, dataSource);
-            // establish a connection to the replica, if such is set.
-            if (dataSource != readDataSource) {
-                executeQuery(query, (rs) -> null, readDataSource);
-            }
+        /** run DB-Maintenance */
+        if(event.getMinResponseTime() !=  0)
+            dbMaintainer.run(event, streamId);
 
-            long now = System.currentTimeMillis();
-            if (now < targetResponseTime) {
-                Thread.sleep(targetResponseTime - now);
-            }
-            return new HealthStatus().withStatus("OK");
-        } catch (Exception e) {
-            return new ErrorResponse().withStreamId(streamId).withError(XyzError.EXCEPTION).withErrorMessage(e.getMessage());
+        executeQuery(query, (rs) -> null, dataSource);
+        // establish a connection to the replica, if such is set.
+        if (dataSource != readDataSource) {
+            executeQuery(query, (rs) -> null, readDataSource);
         }
-    }
 
-    private static MessageDigest md;
-    static {
-      try{ md = MessageDigest.getInstance("MD5"); }
-      catch( NoSuchAlgorithmException e)
-      { logger.error("MessageDigest md5 init failed"); }
+        long now = System.currentTimeMillis();
+        if (now < targetResponseTime) {
+            try {
+                Thread.sleep(targetResponseTime - now);
+            }catch (Exception e){
+                return new ErrorResponse().withStreamId(streamId).withError(XyzError.EXCEPTION).withErrorMessage("test");
+            }
+        }
+        return new HealthStatus().withStatus("OK");
     }
 
     private String idFromPsqlEnv( final SimulatedContext ctx )
-    { if(ctx == null || md == null ) return PSQLConfig.DEFAULT_ECPS;
-      md.reset();
+    { if(ctx == null ) return PSQLConfig.DEFAULT_ECPS;
       String[] sArr = { PSQLConfig.PSQL_HOST, PSQLConfig.PSQL_PORT, PSQLConfig.PSQL_USER, "PSQL_DB" };
       String msg = "";
       for( String s : sArr)
        msg += ( ctx.getEnv(s) == null ? "mxm" : ctx.getEnv(s) );
 
-      return Hex.encodeHexString( md.digest(msg.getBytes()) );
+      return msg;
     }
 
     void reset() {
@@ -523,15 +514,20 @@ public abstract class DatabaseHandler extends StorageConnector {
                         ;//Table does not exist yet - create it!
                     else {
 
-                        /** Add all other Objects to failed list */
-                        addAllToFailedList(fails, getAllIds(inserts, updates, upserts, deletes));
-
-                        /** Reset the rest */
-                        collection.setFeatures(new ArrayList<>());
-                        collection.setFailed(fails);
-
+                        logger.warn("{} - Transaction has failed. {]", streamId, e);
                         connection.close();
-                        return collection;
+
+                        Map<String, Object> errorDetails = new HashMap<>();
+
+                        if(e instanceof BatchUpdateException || fails.size() >=1 ){
+                            errorDetails.put("FailedList", fails);
+                            return new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.CONFLICT).withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL);
+                        }else {
+                            errorDetails.put(DatabaseWriter.TRANSACTION_ERROR_GENERAL,
+                                    (e instanceof SQLException && ((SQLException)e).getSQLState() != null)
+                                            ? "SQL-state: "+((SQLException) e).getSQLState() : "Unexpected Error occurred");
+                            return new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.BAD_GATEWAY).withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL);
+                        }
                     }
                 }
 
