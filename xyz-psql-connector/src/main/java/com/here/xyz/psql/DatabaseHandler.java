@@ -58,7 +58,6 @@ import javax.sql.DataSource;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.commons.dbutils.StatementConfiguration;
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -113,8 +112,11 @@ public abstract class DatabaseHandler extends StorageConnector {
         SQLQuery query = new SQLQuery("SELECT 1");
 
         /** run DB-Maintenance */
-        if(event.getMinResponseTime() !=  0)
+        if(event.getMinResponseTime() !=  0) {
+            logger.info("{} - dbMaintainer start", streamId);
             dbMaintainer.run(event, streamId);
+            logger.info("{} - dbMaintainer finished", streamId);
+        }
 
         executeQuery(query, (rs) -> null, dataSource);
         // establish a connection to the replica, if such is set.
@@ -153,7 +155,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         if (!dbInstanceMap.containsKey(ecps)) {
             /** Init dataSource, readDataSource ..*/
-            logger.info("{} - Create new config and data source for ECPS string: '{}'", streamId, ecps);
+            logger.debug("{} - Create new config and data source for ECPS string: '{}'", streamId, ecps);
             final PSQLConfig config = new PSQLConfig(event, context);
             final String sName   = ecps.length() <  8 ? ecps : ( ecps.length() < 33 ? ecps.substring(0, 7) : ecps.substring(21, 28) ),
                          appName = String.format("%s[%s]", config.applicationName(), sName );
@@ -245,12 +247,12 @@ public abstract class DatabaseHandler extends StorageConnector {
         } catch (Exception e) {
             try {
                 if (retryCausedOnServerlessDB(e) || canRetryAttempt()) {
-                    logger.info("{} - Retry Query permitted.", streamId);
+                    logger.debug("{} - Retry Query permitted.", streamId);
                     return executeQuery(query, handler);
                 }
             } catch (Exception e1) {
                 if(retryCausedOnServerlessDB(e1)) {
-                    logger.info("{} - Retry Query permitted.", streamId);
+                    logger.debug("{} - Retry Query permitted.", streamId);
                     return executeQuery(query, handler);
                 }
                 throw e;
@@ -265,12 +267,12 @@ public abstract class DatabaseHandler extends StorageConnector {
         } catch (Exception e) {
             try {
                 if (retryCausedOnServerlessDB(e) || canRetryAttempt()) {
-                    logger.info("{} - Retry Update permitted.", streamId);
+                    logger.debug("{} - Retry Update permitted.", streamId);
                     return executeUpdate(query);
                 }
             } catch (Exception e1) {
                 if (retryCausedOnServerlessDB(e)) {
-                    logger.info("{} - Retry Update permitted.", streamId);
+                    logger.debug("{} - Retry Update permitted.", streamId);
                     return executeUpdate(query);
                 }
                 throw e;
@@ -319,7 +321,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             query.setText(SQLQuery.replaceVars(query.text(), config.schema(), config.table(event)));
             final String queryText = query.text();
             final List<Object> queryParameters = query.parameters();
-            logger.info("{} - executeQuery: {} - Parameter: {}", streamId, queryText, queryParameters);
+            logger.debug("{} - executeQuery: {} - Parameter: {}", streamId, queryText, queryParameters);
             return run.query(queryText, handler, queryParameters.toArray());
         } finally {
             final long end = System.currentTimeMillis();
@@ -342,7 +344,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             query.setText(SQLQuery.replaceVars(query.text(),config.schema(), config.table(event)));
             final String queryText = query.text();
             final List<Object> queryParameters = query.parameters();
-            logger.info("{} - executeUpdate: {} - Parameter: {}", streamId, queryText, queryParameters);
+            logger.debug("{} - executeUpdate: {} - Parameter: {}", streamId, queryText, queryParameters);
             return run.update(queryText, queryParameters.toArray());
         } finally {
             final long end = System.currentTimeMillis();
@@ -365,7 +367,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                     (e instanceof SQLException  && ((SQLException)e).getSQLState() != null
                             && ((SQLException)e).getSQLState().equalsIgnoreCase("42P01"))
                             && e.getMessage() != null && e.getMessage().indexOf("_hst") != 0){
-                logger.log(Level.WARN,"{} History Table for space {} is missing! Try to create it! ",streamId,event.getSpace());
+                logger.warn("{} History Table for space {} is missing! Try to create it! ", streamId, event.getSpace());
                 Boolean compactHistory = null;
 
                 if(event.getConnectorParams() != null) {
@@ -606,7 +608,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         ensureSpace();
         retryAttempted = true;
 
-        logger.info("{} - Retry the execution.", streamId);
+        logger.debug("{} - Retry the execution.", streamId);
         return true;
     }
 
@@ -632,7 +634,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
             stmt.setQueryTimeout(calculateTimeout());
             if ((rs = stmt.executeQuery(query)).next()) {
-                logger.info("{} - Time for table check: " + (System.currentTimeMillis() - start) + "ms", streamId);
+                logger.debug("{} - Time for table check: " + (System.currentTimeMillis() - start) + "ms", streamId);
                 String oid = rs.getString(1);
                 return oid != null ? true : false;
             }
@@ -640,7 +642,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         }catch (Exception e){
             if(!retryAttempted) {
                 retryAttempted = true;
-                logger.info("{} - Retry table check.", streamId);
+                logger.debug("{} - Retry table check.", streamId);
                 return hasTable();
             }
             else
@@ -693,7 +695,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                     stmt.setQueryTimeout(calculateTimeout());
                     stmt.executeBatch();
                     connection.commit();
-                    logger.info("{} - Successfully created table for space '{}'", streamId, event.getSpace());
+                    logger.debug("{} - Successfully created table for space '{}'", streamId, event.getSpace());
                 }
             } catch (Exception e) {
 
@@ -783,7 +785,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                     stmt.setQueryTimeout(calculateTimeout());
                     stmt.executeBatch();
                     connection.commit();
-                    logger.info("{} - Successfully created history table for space '{}'", streamId, event.getSpace());
+                    logger.debug("{} - Successfully created history table for space '{}'", streamId, event.getSpace());
                 }
             } catch (Exception e) {
                 throw new SQLException("Creation of history table for " + SQLQuery.sqlQuote(tableName) + "  has failed: " + e.getMessage(), e);
@@ -921,13 +923,13 @@ public abstract class DatabaseHandler extends StorageConnector {
         int timeout = remainingSeconds >= STATEMENT_TIMEOUT_SECONDS ? STATEMENT_TIMEOUT_SECONDS :
                 (remainingSeconds - 2);
 
-        logger.info("{} - New timeout for query set to '{}'", streamId, timeout);
+        logger.debug("{} - New timeout for query set to '{}'", streamId, timeout);
         return timeout;
     }
 
     protected boolean isRemainingTimeSufficient(int remainingSeconds){
         if(remainingSeconds <= MIN_REMAINING_TIME_FOR_RETRY_SECONDS) {
-            logger.info("{} - No time left to execute query '{}' s", streamId, remainingSeconds);
+            logger.warn("{} - No time left to execute query '{}' s", streamId, remainingSeconds);
             return false;
         }
         return true;

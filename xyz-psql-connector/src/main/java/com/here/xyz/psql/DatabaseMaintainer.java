@@ -104,12 +104,12 @@ public class DatabaseMaintainer {
                 try {
                     /** Create Missing Schemas */
                     if (!mainSchema) {
-                        logger.info("{} - Create missing Schema {} on database: {} / {}@{}", streamId, config.schema(), config.database(), config.user(), config.host());
+                        logger.debug("{} - Create missing Schema {} on database: {} / {}@{}", streamId, config.schema(), config.database(), config.user(), config.host());
                         stmt.execute(MaintenanceSQL.generateMainSchemaSQL(config.schema()));
                     }
 
                     if (!configSchema && hasPropertySearch) {
-                        logger.info("{} - Create missing Schema {} on database: {} / {}@{}", streamId, MaintenanceSQL.XYZ_CONFIG_SCHEMA, config.database(), config.user(), config.host());
+                        logger.debug("{} - Create missing Schema {} on database: {} / {}@{}", streamId, MaintenanceSQL.XYZ_CONFIG_SCHEMA, config.database(), config.user(), config.host());
                         stmt.execute(MaintenanceSQL.configSchemaAndSystemTablesSQL);
                     }
 
@@ -143,9 +143,9 @@ public class DatabaseMaintainer {
                 stmt.execute(MaintenanceSQL.generateSearchPathSQL( config.schema() ));
                 stmt.execute(content);
 
-                logger.info("{} - Successfully created missing SQL-Functions on database: {} / {}@{}", streamId, config.database(), config.user(), config.host());
+                logger.debug("{} - Successfully created missing SQL-Functions on database: {} / {}@{}", streamId, config.database(), config.user(), config.host());
             } else {
-                logger.info("{} - All required SQL-Functions are already present on database: {} / {}@{}", streamId, config.database(), config.user(), config.host());
+                logger.debug("{} - All required SQL-Functions are already present on database: {} / {}@{}", streamId, config.database(), config.user(), config.host());
             }
         } catch (Exception e) {
             logger.error("{} - Failed to create missing SQL-Functions on database: {} / {}@{} '{}'", streamId, config.database(), config.user(), config.host(), e);
@@ -181,7 +181,7 @@ public class DatabaseMaintainer {
                 if (needUpdate) {
                     stmt.execute(readResource("/h3Core.sql"));
                     stmt.execute(MaintenanceSQL.generateSearchPathSQL( config.schema() ));
-                    logger.info("{} - Successfully created H3 SQL-Functions on database: {} / {}@{} ", streamId, config.database(), config.user(), config.host());
+                    logger.debug("{} - Successfully created H3 SQL-Functions on database: {} / {}@{} ", streamId, config.database(), config.user(), config.host());
                 }
             } catch (Exception e) {
                 logger.error("{} - Failed run h3 init on database: {} / {}@{} '{}'", streamId, config.database(), config.user(), config.host(), e);
