@@ -130,4 +130,8 @@ public class HealthApi extends Api {
           .end(new JsonObject().put("status", new JsonObject().put("result", "WARNING")).encode());
     }
   }
+
+  public static int getHealthStatusCode() {
+    return healthCheck.getResponse().getStatus().getSuggestedHTTPStatusCode();
+  }
 }

@@ -26,6 +26,8 @@ import java.security.GeneralSecurityException;
 
 /**
  * This tool can be used to prepare a new secret ECPS string for the connectorParams of the PSQL storage connector.
+ * Please escape quotes if you want to encode a String.
+ * e.g: java ECPSTool encrypt secret "{\"foo\":\"bar\"}
  */
 public class ECPSTool {
   public static final String USAGE = "java ECPSTool encrypt|decrypt <ecps_phrase> <data>";
