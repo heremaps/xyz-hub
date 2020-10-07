@@ -33,6 +33,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERR
 
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.ActionMatrix;
 import com.here.xyz.hub.auth.AttributeMap;
@@ -417,7 +418,7 @@ public class SpaceTaskHandler {
       final Entry<Space> entry = task.modifyOp.entries.get(0);
 
       //The current UTC timestamp
-      entry.result.setUpdatedAt(Service.currentTimeMillis());
+      entry.result.setUpdatedAt(Core.currentTimeMillis());
 
       //The same timestamp goes to createdAt when it's a create task
       if (task.isCreate()) {

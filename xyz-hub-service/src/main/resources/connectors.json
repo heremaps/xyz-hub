@@ -191,5 +191,38 @@
       "className": "com.here.xyz.hub.connectors.test.DummyListener",
       "env": {}
     }
+  },
+  {
+    "capabilities": {
+      "clusteringTypes": [
+        "hexbin",
+        "quad",
+        "quadbin"
+      ],
+      "enableAutoCache": true,
+      "maxPayloadSize": 2147483647,
+      "maxUncompressedSize": 1,
+      "preserializedResponseSupport": true,
+      "propertySearch": true,
+      "relocationSupport": false,
+      "searchablePropertiesConfiguration": true
+    },
+    "connectionSettings": {
+      "maxConnections": 1024,
+      "minConnections": 0
+    },
+    "defaultEventTypes": null,
+    "id": "psql-http",
+    "params": {
+      "PSQL_MAX_CONN": 1024,
+      "autoIndexing": true,
+      "propertySearch": true
+    },
+    "remoteFunction": {
+      "id": "psql-http",
+      "type": "Http",
+      "url": "http://localhost:9090/psql"
+    },
+    "trusted": true
   }
 ]

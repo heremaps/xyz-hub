@@ -41,6 +41,7 @@ import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.RpcClient.RpcContext;
@@ -183,10 +184,10 @@ public class FeatureTaskHandler {
       //Do the actual storage call
       try {
         setAdditionalEventProps(task, task.storage, eventToExecute);
-        final long storageRequestStart = Service.currentTimeMillis();
+        final long storageRequestStart = Core.currentTimeMillis();
         responseContext.rpcContext = getRpcClient(task.storage).execute(task.getMarker(), eventToExecute, storageResult -> {
           if (task.getState().isFinal()) return;
-          addStoragePerformanceInfo(task, Service.currentTimeMillis() - storageRequestStart, responseContext.rpcContext);
+          addStoragePerformanceInfo(task, Core.currentTimeMillis() - storageRequestStart, responseContext.rpcContext);
           if (storageResult.failed()) {
             handleFailure(task.getMarker(), storageResult.cause(), callback);
             return;
@@ -234,9 +235,9 @@ public class FeatureTaskHandler {
 
       //Update the contentUpdatedAt timestamp to indicate that the data in this space was modified
       if (task instanceof FeatureTask.ConditionalOperation || task instanceof FeatureTask.DeleteOperation) {
-        long now = Service.currentTimeMillis();
+        long now = Core.currentTimeMillis();
         if (now - task.space.contentUpdatedAt > Space.CONTENT_UPDATED_AT_INTERVAL_MILLIS) {
-          task.space.contentUpdatedAt = Service.currentTimeMillis();
+          task.space.contentUpdatedAt = Core.currentTimeMillis();
           task.space.volatilityAtLastContentUpdate = task.space.getVolatility();
           Service.spaceConfigClient.store(task.getMarker(), task.space,
               (ar) -> logger.info(task.getMarker(), "Updated contentUpdatedAt for space {}", task.space.getId()));
@@ -751,7 +752,7 @@ public class FeatureTaskHandler {
       final Map<String, String> delete = new HashMap<>();
       List<FeatureCollection.ModificationFailure> fails = new ArrayList<>();
 
-      long now = Service.currentTimeMillis();
+      long now = Core.currentTimeMillis();
 
       Iterator<FeatureEntry> it = task.modifyOp.entries.iterator();
       int i=-1;

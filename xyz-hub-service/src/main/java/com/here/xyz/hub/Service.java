@@ -28,23 +28,15 @@ import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.BurstAndUpdateThread;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.hub.util.ARN;
-import com.here.xyz.hub.util.ConfigDecryptor;
-import com.here.xyz.hub.util.ConfigDecryptor.CryptoException;
 import com.here.xyz.hub.util.metrics.CloudWatchMetricPublisher;
 import com.here.xyz.hub.util.metrics.GlobalUsedRfcConnections;
 import com.here.xyz.hub.util.metrics.MajorGcCountMetric;
 import com.here.xyz.hub.util.metrics.MemoryMetric;
 import com.here.xyz.hub.util.metrics.Metric;
-import io.vertx.config.ConfigRetriever;
-import io.vertx.config.ConfigRetrieverOptions;
-import io.vertx.config.ConfigStoreOptions;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
-import io.vertx.core.Vertx;
-import io.vertx.core.VertxOptions;
-import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.client.WebClient;
@@ -63,25 +55,15 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.Configurator;
-import org.apache.logging.log4j.core.util.CachedClock;
-import org.apache.logging.log4j.core.util.NetUtils;
 
-public class Service {
+public class Service extends Core {
 
   private static final Logger logger = LogManager.getLogger();
-  private static final CachedClock clock = CachedClock.instance();
-
-  /**
-   * The service start time.
-   */
-  public static final long START_TIME = Service.currentTimeMillis();
 
   /**
    * The build version.
@@ -108,33 +90,6 @@ public class Service {
    * The key to access the global router in the shared data
    */
   public static final String GLOBAL_ROUTER = "GLOBAL_ROUTER";
-
-  /**
-   * The LOG4J configuration file.
-   */
-  private static final String CONSOLE_LOG_CONFIG = "log4j2-console-plain.json";
-
-  /**
-   * The Vertx worker pool size environment variable.
-   */
-  private static final String VERTX_WORKER_POOL_SIZE = "VERTX_WORKER_POOL_SIZE";
-
-  /**
-   * The http server options to be initialized
-   */
-  private static final HttpServerOptions SERVER_OPTIONS = new HttpServerOptions()
-      .setCompressionSupported(true)
-      .setDecompressionSupported(true)
-      .setHandle100ContinueAutomatically(true)
-      .setTcpQuickAck(true)
-      .setTcpFastOpen(true)
-      .setMaxInitialLineLength(16 * 1024)
-      .setIdleTimeout(300);
-
-  /**
-   * The entry point to the Vert.x core API.
-   */
-  public static Vertx vertx;
 
   /**
    * The service configuration.
@@ -166,60 +121,32 @@ public class Service {
    */
   private static String hostname;
 
-  private static List<Metric> metrics = new LinkedList<>();
+  private static final List<Metric> metrics = new LinkedList<>();
 
   private static Router globalRouter;
+
+  private static final String CONFIG_FILE = "config.json";
 
   /**
    * The service entry point.
    */
   public static void main(String[] arguments) {
-    Configurator.initialize("default", CONSOLE_LOG_CONFIG);
-    final ConfigStoreOptions fileStore = new ConfigStoreOptions().setType("file").setConfig(new JsonObject().put("path", "config.json"));
-    final ConfigStoreOptions envConfig = new ConfigStoreOptions().setType("env");
-    final ConfigStoreOptions sysConfig = new ConfigStoreOptions().setType("sys");
-    final ConfigRetrieverOptions options = new ConfigRetrieverOptions().addStore(fileStore).addStore(envConfig).addStore(sysConfig);
     boolean debug = Arrays.asList(arguments).contains("--debug");
-
-    final VertxOptions vertxOptions = new VertxOptions()
-      .setWorkerPoolSize(NumberUtils.toInt(System.getenv(VERTX_WORKER_POOL_SIZE), 128))
-      .setPreferNativeTransport(true);
-
-    if (debug) {
-      vertxOptions
-          .setBlockedThreadCheckInterval(TimeUnit.MINUTES.toMillis(1))
-          .setMaxEventLoopExecuteTime(TimeUnit.MINUTES.toMillis(1))
-          .setMaxWorkerExecuteTime(TimeUnit.MINUTES.toMillis(1))
-          .setWarningExceptionTime(TimeUnit.MINUTES.toMillis(1));
-    }
-
-    vertx = Vertx.vertx(vertxOptions);
-    ConfigRetriever retriever = ConfigRetriever.create(vertx, options);
-    retriever.getConfig(Service::onConfigLoaded);
+    initialize(debug, CONFIG_FILE, Service::onConfigLoaded);
   }
 
   /**
    *
    */
-  private static void onConfigLoaded(AsyncResult<JsonObject> ar) {
-    final JsonObject config = ar.result();
-    //Convert empty string values to null
-    config.forEach(e -> {
-      if (e.getValue() != null && e.getValue().equals("")) {
-        config.put(e.getKey(), (String) null);
-      }
-    });
-    configuration = config.mapTo(Config.class);
-
-    initializeLogger(configuration);
-    decryptSecrets();
+  private static void onConfigLoaded(JsonObject jsonConfig) {
+    configuration = jsonConfig.mapTo(Config.class);
 
     cacheClient = CacheClient.create();
 
     spaceConfigClient = SpaceConfigClient.getInstance();
     connectorConfigClient = ConnectorConfigClient.getInstance();
 
-    webClient = WebClient.create(Service.vertx, new WebClientOptions()
+    webClient = WebClient.create(vertx, new WebClientOptions()
 //        .setMaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)
         .setUserAgent(XYZ_HUB_USER_AGENT)
 //        .setTcpKeepAlive(true)
@@ -235,10 +162,9 @@ public class Service {
         connectorConfigClient.init(connectorConfigReady -> {
           if (connectorConfigReady.succeeded()) {
             if (Service.configuration.INSERT_LOCAL_CONNECTORS) {
-              connectorConfigClient.insertLocalConnectors(result -> onLocalConnectorsInserted(result, config));
-            }
-            else {
-              onLocalConnectorsInserted(Future.succeededFuture(), config);
+              connectorConfigClient.insertLocalConnectors(result -> onLocalConnectorsInserted(result, jsonConfig));
+            } else {
+              onLocalConnectorsInserted(Future.succeededFuture(), jsonConfig);
             }
           }
         });
@@ -246,11 +172,10 @@ public class Service {
     });
   }
 
-  private static void onLocalConnectorsInserted(AsyncResult<Void> result, JsonObject config)  {
+  private static void onLocalConnectorsInserted(AsyncResult<Void> result, JsonObject config) {
     if (result.failed()) {
       logger.error("Failed to insert local connectors.", result.cause());
-    }
-    else {
+    } else {
       BurstAndUpdateThread.initialize(initializeAr -> onServiceInitialized(initializeAr, config));
     }
   }
@@ -269,9 +194,9 @@ public class Service {
     final List<String> verticlesClassNames = Arrays.asList(Service.configuration.VERTICLES_CLASS_NAMES.split(","));
     int numInstances = Runtime.getRuntime().availableProcessors() * 2 / verticlesClassNames.size();
     final DeploymentOptions options = new DeploymentOptions()
-          .setConfig(config)
-          .setWorker(false)
-          .setInstances(numInstances);
+        .setConfig(config)
+        .setWorker(false)
+        .setInstances(numInstances);
 
     final Future<AsyncResult<Void>> sharedDataFuture = Future.future();
     final Hashtable<String, Object> sharedData = new Hashtable<String, Object>() {{
@@ -287,8 +212,9 @@ public class Service {
 
         logger.info("Deploying verticle: " + className);
         vertx.deployVerticle(className, options, deployVerticleHandler -> {
-          if (deployVerticleHandler.failed())
+          if (deployVerticleHandler.failed()) {
             logger.warn("Unable to load verticle class:" + className);
+          }
           deployVerticleFuture.complete();
         });
       });
@@ -303,89 +229,18 @@ public class Service {
     });
 
     // shared data initialization
-    vertx.sharedData().getAsyncMap(SHARED_DATA, asyncMapResult -> asyncMapResult.result().put(SHARED_DATA, sharedData, sharedDataFuture::complete));
+    vertx.sharedData()
+        .getAsyncMap(SHARED_DATA, asyncMapResult -> asyncMapResult.result().put(SHARED_DATA, sharedData, sharedDataFuture::complete));
 
     Thread.setDefaultUncaughtExceptionHandler((thread, t) -> logger.error("Uncaught exception: ", t));
 
     Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-        stopMetricPublishers();
+      stopMetricPublishers();
       //This may fail, if we are OOM, but lets at least try.
       logger.warn("XYZ Service is going down at " + new Date().toString());
     }));
 
     startMetricPublishers();
-  }
-
-  public static Future<Void> createDefaultHttpServer(Router router) {
-    final Future<Void> future = Future.future();
-
-    vertx.createHttpServer(SERVER_OPTIONS)
-        .requestHandler(router)
-        .listen(
-            Service.configuration.HTTP_PORT, result -> {
-              if (result.succeeded()) {
-                future.complete();
-              } else {
-                logger.error("An error occurred, during the initialization of the server.", result.cause());
-                future.fail(result.cause());
-              }
-            });
-
-    return future;
-  }
-
-  public static Future<Void> createAdminHttpServer(Router router) {
-    final int messagePort = Service.configuration.ADMIN_MESSAGE_PORT;
-    if (messagePort == Service.configuration.HTTP_PORT) {
-      return Future.succeededFuture();
-    }
-
-    final Future<Void> future = Future.future();
-
-    //Create 2nd HTTP server for admin-messaging
-    vertx.createHttpServer(SERVER_OPTIONS)
-      .requestHandler(router)
-      .listen(messagePort, result -> {
-        if (result.succeeded()) {
-          logger.debug("HTTP server also listens on admin-messaging port {}.", messagePort);
-        }
-        else {
-          logger.error("An error occurred, during the initialization of admin-messaging http port" + messagePort
-                  + ". Messaging won't work correctly.",
-              result.cause());
-        }
-        //Complete in any case as the admin-messaging is not essential
-        future.complete();
-      });
-
-    return future;
-  }
-
-  private static void decryptSecrets() {
-    try {
-      configuration.STORAGE_DB_PASSWORD = decryptSecret(configuration.STORAGE_DB_PASSWORD);
-    } catch (CryptoException e) {
-      throw new RuntimeException("Error when trying to decrypt STORAGE_DB_PASSWORD.", e);
-    }
-    try {
-      configuration.ADMIN_MESSAGE_JWT = decryptSecret(configuration.ADMIN_MESSAGE_JWT);
-    } catch (CryptoException e) {
-      configuration.ADMIN_MESSAGE_JWT = null;
-      logger.error("Error when trying to decrypt ADMIN_MESSAGE_JWT. AdminMessaging won't work.", e);
-    }
-  }
-
-  private static String decryptSecret(String encryptedSecret) throws CryptoException {
-    if (ConfigDecryptor.isEncrypted(encryptedSecret)) {
-      return ConfigDecryptor.decryptSecret(encryptedSecret);
-    }
-    return encryptedSecret;
-  }
-
-  private static void initializeLogger(Config config) {
-    if (!CONSOLE_LOG_CONFIG.equals(config.LOG_CONFIG)) {
-      Configurator.reconfigure(NetUtils.toURI(config.LOG_CONFIG));
-    }
   }
 
   public static String getHostname() {
@@ -437,10 +292,6 @@ public class Service {
     return used / total * 100;
   }
 
-  public static long currentTimeMillis() {
-    return clock.currentTimeMillis();
-  }
-
   private static void startMetricPublishers() {
     if (configuration.PUBLISH_METRICS) {
       String ns = "XYZ/Hub", serviceName = "XYZ-Hub-" + configuration.ENVIRONMENT_NAME;
@@ -463,8 +314,14 @@ public class Service {
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class Config {
 
+    /**
+     * The global maximum number of http client connections.
+     */
     public int MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS;
 
+    /**
+     * Size of the off-heap cache in megabytes.
+     */
     public int OFF_HEAP_CACHE_SIZE_MB;
 
     /**
@@ -521,11 +378,6 @@ public class Service {
      * The public key used for verifying the signature of the JWT tokens.
      */
     public String JWT_PUB_KEY;
-
-    /**
-     * The LOG4J config file location.
-     */
-    public String LOG_CONFIG;
 
     /**
      * If set to true, the connectors configuration will be populated with connectors defined in connectors.json.
@@ -598,8 +450,8 @@ public class Service {
     public int REMOTE_FUNCTION_MAX_CONNECTIONS;
 
     /**
-     * A value between 0 and 1 defining a threshold as percentage of utilized RemoteFunction max-connections after which
-     * to start prioritizing more important connectors over less important ones.
+     * A value between 0 and 1 defining a threshold as percentage of utilized RemoteFunction max-connections after which to start
+     * prioritizing more important connectors over less important ones.
      *
      * @see Config#REMOTE_FUNCTION_MAX_CONNECTIONS
      */
@@ -631,8 +483,7 @@ public class Service {
     public boolean PUBLISH_METRICS;
 
     /**
-     * The AWS region this service is running in.
-     * Value is <code>null</code> if not running in AWS.
+     * The AWS region this service is running in. Value is <code>null</code> if not running in AWS.
      */
     public String AWS_REGION;
 
@@ -643,15 +494,16 @@ public class Service {
   }
 
   /**
-   * That message can be used to change the log-level of one or more service-nodes.
-   * The specified level must be a valid log-level.
-   * As this is a {@link RelayedMessage} it can be sent to a specific service-node or to all service-nodes regardless of the first service
-   * node by which it was received.
+   * That message can be used to change the log-level of one or more service-nodes. The specified level must be a valid log-level. As this
+   * is a {@link RelayedMessage} it can be sent to a specific service-node or to all service-nodes regardless of the first service node by
+   * which it was received.
    *
-   * Specifying the property {@link RelayedMessage#relay} to true will relay the message to the specified destination.
-   * If no destination is specified the message will be relayed to all service-nodes (broadcast).
+   * Specifying the property {@link RelayedMessage#relay} to true will relay the message to the specified destination. If no destination is
+   * specified the message will be relayed to all service-nodes (broadcast).
    */
+  @SuppressWarnings("unused")
   static class ChangeLogLevelMessage extends RelayedMessage {
+
     private String level;
 
     public String getLevel() {
