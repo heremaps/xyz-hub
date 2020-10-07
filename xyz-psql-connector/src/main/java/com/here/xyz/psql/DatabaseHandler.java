@@ -114,11 +114,12 @@ public abstract class DatabaseHandler extends StorageConnector {
         long targetResponseTime = event.getMinResponseTime() + System.currentTimeMillis();
         SQLQuery query = new SQLQuery("SELECT 1");
 
-        /** run DB-Maintenance */
+        /** run DB-Maintenance - warmUp request is used */
         if(event.getMinResponseTime() !=  0) {
             logger.info("{} - dbMaintainer start", streamId);
             dbMaintainer.run(event, streamId);
             logger.info("{} - dbMaintainer finished", streamId);
+            return new HealthStatus().withStatus("OK");
         }
 
         executeQuery(query, (rs) -> null, dataSource);
