@@ -52,7 +52,7 @@ public class TestDecryptor extends EventDecryptor {
   }
 
   /**
-   * Test implementation. Replace pre- and postfix markers.
+   * Test implementation. Remove pre- and postfix marker.
    *
    * @param encrypted The string that should be "decrypted".
    * @return Returns the "decrypted" string.
@@ -60,7 +60,7 @@ public class TestDecryptor extends EventDecryptor {
   @Override
   public String decryptAsymmetric(final String encrypted) {
     if (isEncrypted(encrypted)) {
-      return TO_ENCRYPT_PREFIX + encrypted.substring(2, encrypted.length() - 2) + TO_ENCRYPT_POSTFIX;
+      return encrypted.substring(2, encrypted.length() - 2);
     }
     return encrypted;
   }

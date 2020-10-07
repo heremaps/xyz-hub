@@ -45,7 +45,7 @@ import com.here.xyz.responses.XyzResponse;
 /**
  * This class could be extended by any processor connector implementations.
  */
-@SuppressWarnings({"WeakerAccess", "unused"})
+@SuppressWarnings({"WeakerAccess", "unused", "rawtypes"})
 public abstract class ProcessorConnector extends AbstractConnectorHandler {
 
   public static final String REQUEST = ".request";
@@ -69,9 +69,9 @@ public abstract class ProcessorConnector extends AbstractConnectorHandler {
     }
 
     final NotificationParams notificationParams = new NotificationParams(
-        eventDecryptor.decryptParams(notification.getParams()),
-        eventDecryptor.decryptParams(notification.getConnectorParams()),
-        eventDecryptor.decryptParams(notification.getMetadata()),
+        eventDecryptor.decryptParams(notification.getParams(), notification.getSpace()),
+        eventDecryptor.decryptParams(notification.getConnectorParams(), notification.getSpace()),
+        eventDecryptor.decryptParams(notification.getMetadata(), notification.getSpace()),
         notification.getTid(), notification.getAid(), notification.getJwt());
 
     if (notification.getEvent() instanceof ErrorResponse) {
