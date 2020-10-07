@@ -526,6 +526,10 @@ public abstract class DatabaseHandler extends StorageConnector {
                         Map<String, Object> errorDetails = new HashMap<>();
 
                         if(e instanceof BatchUpdateException || fails.size() >=1 ){
+                            //23505 = Object already exists
+                            if(e instanceof BatchUpdateException && !((BatchUpdateException) e).getSQLState().equalsIgnoreCase("23505"))
+                                throw e;
+
                             errorDetails.put("FailedList", fails);
                             return new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.CONFLICT).withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL);
                         }else {
