@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 
 import com.google.common.io.ByteStreams;
 import com.here.xyz.Payload;
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.rest.Api;
@@ -76,10 +77,10 @@ public abstract class RemoteFunctionClient {
   protected Connector connectorConfig;
 
   private final LongAdder requestsSinceLastArrivalRateMeasurement = new LongAdder();
-  private final AtomicLong lastArrivalRateMeasurement = new AtomicLong(Service.currentTimeMillis());
+  private final AtomicLong lastArrivalRateMeasurement = new AtomicLong(Core.currentTimeMillis());
 
   private final LongAdder responsesSinceLastThroughputMeasurement = new LongAdder();
-  private final AtomicLong lastThroughputMeasurement = new AtomicLong(Service.currentTimeMillis());
+  private final AtomicLong lastThroughputMeasurement = new AtomicLong(Core.currentTimeMillis());
   private final LimitedQueue<FunctionCall> queue = new LimitedQueue<>(0, 0);
   private final AtomicInteger usedConnections = new AtomicInteger(0);
 
@@ -202,7 +203,7 @@ public abstract class RemoteFunctionClient {
    * return value is -1.
    */
   protected final double measureDimension(LongAdder eventCount, AtomicLong lastMeasurementTime) {
-    long now = Service.currentTimeMillis();
+    long now = Core.currentTimeMillis();
     long last = lastMeasurementTime.get();
     if (now - last > MEASUREMENT_INTERVAL) {
       //Only if this thread was the one setting the new measurement timestamp it may be the one resetting the event counter
@@ -471,7 +472,7 @@ public abstract class RemoteFunctionClient {
 //  }
 
   private void enqueue(final FunctionCall fc) {
-    /*if (Service.currentTimeMillis() > lastSizeAdjustment.get() + SIZE_ADJUSTMENT_INTERVAL
+    /*if (Core.currentTimeMillis() > lastSizeAdjustment.get() + SIZE_ADJUSTMENT_INTERVAL
         && fc.getByteSize() + queue.getByteSize() > queue.getMaxByteSize()) {
       //Element won't fit into queue so we try to enlarge it
       adjustQueueByteSizes();

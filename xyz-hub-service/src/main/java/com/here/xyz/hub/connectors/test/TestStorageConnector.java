@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -59,8 +60,8 @@ public class TestStorageConnector extends StorageConnector {
       .withId(RandomStringUtils.randomAlphanumeric(16))
       .withGeometry(new Point().withCoordinates(new PointCoordinates(10, 10)))
       .withProperties(new Properties().withXyzNamespace(new XyzNamespace()
-          .withCreatedAt(Service.currentTimeMillis())
-          .withUpdatedAt(Service.currentTimeMillis())));
+          .withCreatedAt(Core.currentTimeMillis())
+          .withUpdatedAt(Core.currentTimeMillis())));
 
   @Override
   protected XyzResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception {

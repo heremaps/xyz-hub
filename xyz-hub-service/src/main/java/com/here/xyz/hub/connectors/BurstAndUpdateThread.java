@@ -20,6 +20,7 @@
 package com.here.xyz.hub.connectors;
 
 import com.here.xyz.events.HealthCheckEvent;
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import io.vertx.core.AsyncResult;
@@ -181,9 +182,9 @@ public class BurstAndUpdateThread extends Thread {
     //noinspection InfiniteLoopStatement
     while (true) {
       try {
-        final long start = Service.currentTimeMillis();
+        final long start = Core.currentTimeMillis();
         Service.connectorConfigClient.getAll(null, this::onConnectorList);
-        final long end = Service.currentTimeMillis();
+        final long end = Core.currentTimeMillis();
         final long runtime = end - start;
         if (runtime < CONNECTOR_UPDATE_INTERVAL) {
           Thread.sleep(CONNECTOR_UPDATE_INTERVAL - runtime);

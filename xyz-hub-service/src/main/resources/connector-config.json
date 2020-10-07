@@ -1,0 +1,4 @@
+{
+  "LOG_CONFIG": "log4j2-console-plain.json",
+  "HTTP_PORT": 9090
+}

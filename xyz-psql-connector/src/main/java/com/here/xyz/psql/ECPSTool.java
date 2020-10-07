@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,9 +33,12 @@ public class ECPSTool {
   public static final String USAGE = "java ECPSTool encrypt|decrypt <ecps_phrase> <data>";
 
   public static void main(String[] args) throws GeneralSecurityException, UnsupportedEncodingException {
-    String action = args[0];
-    String phrase = args[1];
-    String data = args[2];
+//    String action = args[0];
+    String action = "e";
+//    String phrase = args[1];
+    String phrase = "ECPS_PHRASE";
+//    String data = args[2];
+    String data = "{\"PSQL_HOST\":\"localhost:5432\",\"PSQL_DB\":\"postgres\",\"PSQL_USER\":\"psql\",\"PSQL_PASSWORD\":\"password\",\"ECPS_PHRASE\":\"ECPS_PHRASE\"}";
 
     switch (action) {
       case "encrypt":
