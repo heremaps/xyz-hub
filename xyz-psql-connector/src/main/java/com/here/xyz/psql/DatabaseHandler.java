@@ -133,7 +133,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             try {
                 Thread.sleep(targetResponseTime - now);
             }catch (Exception e){
-                return new ErrorResponse().withStreamId(streamId).withError(XyzError.EXCEPTION).withErrorMessage("test");
+                return new ErrorResponse().withStreamId(streamId).withError(XyzError.EXCEPTION);
             }
         }
         return new HealthStatus().withStatus("OK");
