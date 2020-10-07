@@ -51,7 +51,7 @@ public abstract class EncryptingProcessorConnector extends ProcessorConnector {
     if (space != null)  {
       List<ListenerConnectorRef> processors = space.getProcessors().get(connectorId);
       if (processors != null) {
-        processors.forEach(p -> p.setParams(eventDecryptor.encryptParams(p.getParams(), fieldsToEncrypt)));
+        processors.forEach(p -> p.setParams(eventDecryptor.encryptParams(p.getParams(), fieldsToEncrypt, space.getId())));
       }
     }
     event.setSpaceDefinition(space);

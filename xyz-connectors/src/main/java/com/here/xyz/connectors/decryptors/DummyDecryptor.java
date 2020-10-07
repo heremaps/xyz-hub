@@ -41,7 +41,7 @@ public class DummyDecryptor extends EventDecryptor {
    * @return Returns the not-decrypted map.
    */
   @Override
-  public Map<String, Object> decryptParams(final Map<String, Object> params) {
+  public Map<String, Object> decryptParams(final Map<String, Object> params, final String spaceId) {
     return params;
   }
 
@@ -53,7 +53,7 @@ public class DummyDecryptor extends EventDecryptor {
    * @return Returns the not-encrypted map.
    */
   @Override
-  public Map<String, Object> encryptParams(final Map<String, Object> params, final Set<String> fieldsToEncrypt) {
+  public Map<String, Object> encryptParams(final Map<String, Object> params, final Set<String> fieldsToEncrypt, final String spaceId) {
     return params;
   }
 

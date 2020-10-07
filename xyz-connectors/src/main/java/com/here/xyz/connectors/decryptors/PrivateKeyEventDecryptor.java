@@ -107,7 +107,20 @@ public class PrivateKeyEventDecryptor extends EventDecryptor {
    *                 -in secret.txt \
    *                 -pkeyopt rsa_padding_mode:oaep \
    *                 -pkeyopt rsa_oaep_md:sha256 \
+   *                 -pkeyopt rsa_mgf1_md:sha256 \
+   *                 base64 -w 0
+   *
+   * This is how you can decrypt a secret using openssl and the private key:
+   * echo "ENCODED SECRET" | base64 -d > secret.bin
+   * openssl pkeyutl -decrypt \
+   *                 -inkey private_key_pkcs8.pem \
+   *                 -in secret.bin \
+   *                 -pkeyopt rsa_padding_mode:oaep \
+   *                 -pkeyopt rsa_oaep_md:sha256 \
    *                 -pkeyopt rsa_mgf1_md:sha256
+   *
+   * Please note that you need to append "|YOUR_SPACE_ID" to the secrets. We need this
+   * to verify that the encrypted secret was not copied from a different space.
    *
    * Following environment variables need to be set to use this class:
    * - {@link com.here.xyz.connectors.AbstractConnectorHandler#ENV_DECRYPTOR}

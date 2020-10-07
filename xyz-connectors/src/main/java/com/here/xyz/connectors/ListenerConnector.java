@@ -43,7 +43,7 @@ import com.here.xyz.responses.SuccessResponse;
 /**
  * This class could be extended by any listener connector implementations.
  */
-@SuppressWarnings({"WeakerAccess", "EmptyMethod", "unused"})
+@SuppressWarnings({"WeakerAccess", "EmptyMethod", "unused", "rawtypes"})
 public abstract class ListenerConnector extends AbstractConnectorHandler {
 
   @Override
@@ -70,9 +70,9 @@ public abstract class ListenerConnector extends AbstractConnectorHandler {
     }
 
     final NotificationParams notificationParams = new NotificationParams(
-        eventDecryptor.decryptParams(notification.getParams()),
-        eventDecryptor.decryptParams(notification.getConnectorParams()),
-        eventDecryptor.decryptParams(notification.getMetadata()),
+        eventDecryptor.decryptParams(notification.getParams(), notification.getSpace()),
+        eventDecryptor.decryptParams(notification.getConnectorParams(), notification.getSpace()),
+        eventDecryptor.decryptParams(notification.getMetadata(), notification.getSpace()),
         notification.getTid(), notification.getAid(), notification.getJwt());
 
     if (notification.getEvent() instanceof ErrorResponse) {
@@ -187,7 +187,6 @@ public abstract class ListenerConnector extends AbstractConnectorHandler {
   protected void processSearchForFeatures(SearchForFeaturesEvent event, NotificationParams notificationParams) throws Exception {
   }
 
-  @SuppressWarnings("RedundantThrows")
   protected void processSearchForFeatures(FeatureCollection response, NotificationParams notificationParams) throws Exception {
   }
 
@@ -199,7 +198,6 @@ public abstract class ListenerConnector extends AbstractConnectorHandler {
   protected void processDeleteFeaturesByTag(FeatureCollection response, NotificationParams notificationParams) throws Exception {
   }
 
-  @SuppressWarnings("RedundantThrows")
   protected void processModifyFeatures(ModifyFeaturesEvent event, NotificationParams notificationParams) throws Exception {
   }
 

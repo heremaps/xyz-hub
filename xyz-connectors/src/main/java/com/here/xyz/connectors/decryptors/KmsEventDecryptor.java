@@ -68,6 +68,24 @@ public class KmsEventDecryptor extends EventDecryptor {
    * Default constructor to create a new EventDecryptor that uses
    * AWS KMS to decryptPrivateKey secrets.
    *
+   * This is how you can encrypt a secret using AWS CLI:
+   * aws kms encrypt --key-id="KMS_KEY_ARN or alias/KMS_KEY_ALIAS" \
+   *                 --encryption-algorithm=RSAES_OAEP_SHA_256 \
+   *                 --output text \
+   *                 --query CiphertextBlob \
+   *                 --plaintext='YOUR SECRET|YOUR SPACE ID'
+   *
+   * This is how you can decrypt a secret using AWS CLI:
+   * aws kms decrypt --key-id="KMS_KEY_ARN or alias/KMS_KEY_ALIAS" \
+   *                 --encryption-algorithm=RSAES_OAEP_SHA_256 \
+   *                 --ciphertext-blob "$(echo "SECRET" | base64 --decode)" \
+   *                 --output text \
+   *                 --query Plaintext \
+   *                 | base64 --decode
+   *
+   * Please note that you need to append "|YOUR_SPACE_ID" to the secrets. We need this
+   * to verify that the encrypted secret was not copied from a different space.
+   *
    * Following environment variables need to be set to use this class:
    * - {@link com.here.xyz.connectors.AbstractConnectorHandler#ENV_DECRYPTOR}
    * - {@link #ENV_KMS_KEY_ARN}
