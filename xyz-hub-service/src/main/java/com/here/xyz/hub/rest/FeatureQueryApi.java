@@ -260,7 +260,9 @@ public class FeatureQueryApi extends Api {
               .withTags(Query.getTags(context))
               .withPropertiesQuery(Query.getPropertiesQuery(context))
               .withSelection(Query.getSelection(context))
-              .withForce2D(force2D);
+              .withForce2D(force2D)
+              .withOptimizationMode(Query.getString(context, Query.OPTIM_MODE, "raw"))
+              .withVizSampling(Query.getString(context, Query.OPTIM_VIZSAMPLING, "med"));
       } catch (Exception e) {
         throw new HttpException(BAD_REQUEST,e.getMessage());
       }
