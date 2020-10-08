@@ -1208,6 +1208,10 @@ components:
       required: false
       schema:
         type: string
+        enum:
+          - raw
+          - viz
+
     VizSampling:
       name: vizSampling
       in: query
@@ -1216,6 +1220,9 @@ components:
       required: false
       schema:
         type: string
+        enum:
+          - med
+          - "off"
 
   responses:
     CountFeaturesResponse:
