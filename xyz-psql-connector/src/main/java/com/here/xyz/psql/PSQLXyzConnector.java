@@ -114,6 +114,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
       boolean bTweaks = ( event.getTweakType() != null ),
               bOptViz = "viz".equals( event.getOptimizationMode() );
 
+      if( !bOptViz && event.getSelection() != null && "*".equals( event.getSelection().get(0) ) ) //correction for raw usecase
+       event.setSelection(null);
+
       if( bTweaks || bOptViz )
       { String tweakType;
         Map<String, Object> tweakParams;
@@ -137,7 +140,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
             boolean bDefaultSelectionHandling = (tweakParams.get(TweaksSQL.ENSURE_DEFAULT_SELECTION) == Boolean.TRUE );
 
-            if( event.getSelection() == null && !bDefaultSelectionHandling )
+            if( event.getSelection() != null && "*".equals( event.getSelection().get(0) ) )
+             event.setSelection(null);
+            else if( event.getSelection() == null && !bDefaultSelectionHandling )
              event.setSelection(Arrays.asList("id","type"));
                         
             distStrength = TweaksSQL.calculateDistributionStrength( rCount, Math.max(Math.min((int) tweakParams.getOrDefault(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD,10),100),10) * 1000 );
@@ -151,7 +156,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
           case TweaksSQL.SAMPLING: {
             if( bTweaks || !bVizSamplingOff )
-            { FeatureCollection collection = executeQueryWithRetry(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, dataSource));
+            { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, dataSource));
               collection.setPartial(true);
               return collection;
             }

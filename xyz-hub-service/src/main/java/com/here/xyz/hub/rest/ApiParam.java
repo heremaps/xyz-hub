@@ -235,6 +235,9 @@ public class ApiParam {
       }
 
       List<String> input = Query.queryParam(Query.SELECTION, context);
+
+      if(input.size() == 1 && "*".equals( input.get(0).toLowerCase() )) return input;
+
       List<String> selection = new ArrayList<>();
 
       selection.add("id");
