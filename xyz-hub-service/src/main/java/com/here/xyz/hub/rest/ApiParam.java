@@ -144,6 +144,8 @@ public class ApiParam {
     static final String TWEAKS_PARAM_SAMPLINGTHRESHOLD = "samplingthreshold";
 
     static final String FORCE_2D = "force2D";
+    static final String OPTIM_MODE = "mode";
+    static final String OPTIM_VIZSAMPLING = "vizSampling";
 
     private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{
       put("!=", QueryOperation.NOT_EQUALS);
