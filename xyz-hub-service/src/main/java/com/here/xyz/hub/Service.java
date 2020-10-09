@@ -491,6 +491,11 @@ public class Service extends Core {
      * The verticles class names to be deployed, separated by comma
      */
     public String VERTICLES_CLASS_NAMES;
+
+    /**
+     * The default ECPS phrase. (Mainly for testing purposes)
+     */
+    public String DEFAULT_ECPS_PHRASE;
   }
 
   /**

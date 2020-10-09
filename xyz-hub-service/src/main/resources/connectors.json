@@ -214,6 +214,7 @@
     "defaultEventTypes": null,
     "id": "psql-http",
     "params": {
+      "ecps": "$encrypt({\"PSQL_HOST\":\"localhost\",\"PSQL_PORT\":\"5432\",\"PSQL_DB\":\"postgres\",\"PSQL_USER\":\"postgres\",\"PSQL_PASSWORD\":\"password\",\"PSQL_SCHEMA\":\"public\"})",
       "PSQL_MAX_CONN": 1024,
       "autoIndexing": true,
       "propertySearch": true

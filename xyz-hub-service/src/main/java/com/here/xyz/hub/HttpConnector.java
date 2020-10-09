@@ -22,13 +22,17 @@ package com.here.xyz.hub;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.json.JsonObject;
 
-public class Connector extends Core {
+public class HttpConnector extends Core {
+
+  public static JsonObject configuration;
 
   public static void main(String[] args) {
-    initialize(false, "connector-config.json", Connector::onConfigLoaded );
+    initialize(false, "connector-config.json", HttpConnector::onConfigLoaded );
   }
 
   private static void onConfigLoaded(JsonObject jsonConfig) {
+    configuration = jsonConfig;
+
     final DeploymentOptions options = new DeploymentOptions()
         .setConfig(jsonConfig)
         .setWorker(false)
