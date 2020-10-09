@@ -647,6 +647,8 @@ paths:
             minimum: 0
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Force2D'
+        - $ref: '#/components/parameters/Mode'
+        - $ref: '#/components/parameters/VizSampling'
       responses:
         '200':
           $ref: '#/components/responses/TileResponse'
@@ -1198,6 +1200,32 @@ components:
       required: false
       schema:
         type: boolean
+    Mode:
+      name: mode
+      in: query
+      description: >-
+        optimize resultset and geometries for dispaly. mode = [raw|viz]
+      required: false
+      schema:
+        type: string
+        enum:
+          - raw
+          - viz
+
+    VizSampling:
+      name: vizSampling
+      in: query
+      description: >-
+        Choose sampling strength in case of mode = viz.  vizSampling = [low|med|high|off] - default:med
+      required: false
+      schema:
+        type: string
+        enum:
+          - low
+          - med
+          - high
+          - "off"
+
   responses:
     CountFeaturesResponse:
       x-deprecated: true

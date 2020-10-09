@@ -129,24 +129,53 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       final BBox bbox = event.getBbox();
 
-      if(event.getTweakType() != null)
-      { Map<String, Object> tweakParams = event.getTweakParams();
+      boolean bTweaks = ( event.getTweakType() != null ),
+              bOptViz = "viz".equals( event.getOptimizationMode() );
 
-        switch (event.getTweakType().toLowerCase()) {
+      if( !bOptViz && event.getSelection() != null && "*".equals( event.getSelection().get(0) ) ) //correction for raw usecase
+       event.setSelection(null);
+
+      if( bTweaks || bOptViz )
+      { String tweakType;
+        Map<String, Object> tweakParams;
+        boolean bVizSamplingOff = false;
+
+        if( bTweaks )
+        { tweakType   = event.getTweakType().toLowerCase();
+          tweakParams = event.getTweakParams();
+        }
+        else
+        { tweakType   = TweaksSQL.ENSURE;
+          event.setTweakType( TweaksSQL.ENSURE );
+          tweakParams = new HashMap<String, Object>();
+          switch( event.getVizSampling().toLowerCase() )
+          { case "high" : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 10 ) ); break;
+            case "low"  : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 70 ) ); break;    
+            case "off"  : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 100 )); 
+                          bVizSamplingOff = true;
+                          break;    
+            case "med"  : 
+            default     : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 20 ) ); break;    
+          }
+        }
+
+        int distStrength = 0;
+
+        switch (tweakType) {
 
           case TweaksSQL.ENSURE: {
             int rCount = executeQueryWithRetry(SQLQueryBuilder.buildEstimateSamplingStrengthQuery(event, bbox )).getFeatures().get(0).get("rcount");
 
             boolean bDefaultSelectionHandling = (tweakParams.get(TweaksSQL.ENSURE_DEFAULT_SELECTION) == Boolean.TRUE );
 
-            if( event.getSelection() == null && !bDefaultSelectionHandling )
+            if( event.getSelection() != null && "*".equals( event.getSelection().get(0) ) )
+             event.setSelection(null);
+            else if( event.getSelection() == null && !bDefaultSelectionHandling )
              event.setSelection(Arrays.asList("id","type"));
+                        
+            distStrength = TweaksSQL.calculateDistributionStrength( rCount, Math.max(Math.min((int) tweakParams.getOrDefault(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD,10),100),10) * 1000 );
 
-            int chunkSize    = Math.max(Math.min((int) tweakParams.getOrDefault(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD,10),100),10) * 1000,
-                distStrength = TweaksSQL.calculateDistributionStrength( rCount, chunkSize );
-
-            if( distStrength == 0 ) break; // NrOfObjects less than chunkSize -> fall back to non-tweaks usage
-            HashMap<String, Object> hmap = new HashMap<String, Object>();
+            HashMap<String, Object> hmap = new HashMap<String, Object>();    
             hmap.put("algorithm", new String("distribution"));
             hmap.put("strength", new Integer( distStrength ));
             tweakParams = hmap;
@@ -154,13 +183,19 @@ public class PSQLXyzConnector extends DatabaseHandler {
           }
 
           case TweaksSQL.SAMPLING: {
-            FeatureCollection collection = executeQueryWithRetry(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, dataSource));
-            collection.setPartial(true);
-            return collection;
-          }
-
-          case TweaksSQL.SIMPLIFICATION: {
-            FeatureCollection collection = executeQueryWithRetry(SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams, dataSource));
+            if( bTweaks || !bVizSamplingOff )
+            { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, dataSource));
+              collection.setPartial(true);
+              return collection;
+            }
+            else
+            { // fall thru tweaks=simplification e.g. mode=viz and vizSampling=off
+              tweakParams.put("algorithm", new String("gridbytilelevel"));
+            }
+          }            
+          
+          case TweaksSQL.SIMPLIFICATION: { 
+            FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams, dataSource));
             collection.setPartial(true);
             return collection;
           }
