@@ -19,9 +19,13 @@
 
 package com.here.xyz.hub;
 
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
+
 import com.here.xyz.hub.connectors.EmbeddedFunctionClient.EmbeddedContext;
 import com.here.xyz.hub.rest.Api.Context;
 import com.here.xyz.psql.PSQLXyzConnector;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
@@ -32,6 +36,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.HashMap;
+import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -43,7 +48,7 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
   public void start(Future future) {
     Router router = Router.router(vertx);
     router.route().handler(BodyHandler.create());
-    router.route(HttpMethod.POST, "/psql").blockingHandler(PsqlHttpVerticle::lambdaCall);
+    router.route(HttpMethod.POST, "/psql").blockingHandler(PsqlHttpVerticle::connectorCall);
     addDefaultHandlers(router);
     vertx.createHttpServer(SERVER_OPTIONS)
         .requestHandler(router)
@@ -57,13 +62,26 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
         });
   }
 
-  public static void lambdaCall(RoutingContext context) {
+  public static void connectorCall(RoutingContext context) {
     byte[] inputBytes = new byte[context.getBody().length()];
     context.getBody().getBytes(inputBytes);
     InputStream inputStream = new ByteArrayInputStream(inputBytes);
     ByteArrayOutputStream os = new ByteArrayOutputStream();
-    EmbeddedContext embeddedContext = new EmbeddedContext(Context.getMarker(context), "psql", new HashMap<>());
+    EmbeddedContext embeddedContext = new EmbeddedContext(Context.getMarker(context), "psql", getEnvMap());
     new PSQLXyzConnector().handleRequest(inputStream, os, embeddedContext);
-    context.response().write(Buffer.buffer(os.toByteArray()));
+    context.response()
+        .setStatusCode(HttpResponseStatus.OK.code())
+        .setStatusMessage(HttpResponseStatus.OK.reasonPhrase())
+        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+        .end(Buffer.buffer(os.toByteArray()));
+  }
+
+  private static Map<String, String> getEnvMap() {
+    Map<String, String> envMap = new HashMap<>();
+    HttpConnector.configuration.fieldNames().forEach(fieldName -> {
+      Object value = HttpConnector.configuration.getValue(fieldName);
+      if (value != null) envMap.put(fieldName, value.toString());
+    });
+    return envMap;
   }
 }

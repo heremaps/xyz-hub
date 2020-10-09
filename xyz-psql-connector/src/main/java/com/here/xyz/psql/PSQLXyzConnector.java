@@ -70,13 +70,15 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected Context context;
 
   @Override
-  protected XyzResponse processHealthCheckEvent(HealthCheckEvent event){
+  protected XyzResponse processHealthCheckEvent(HealthCheckEvent event) {
     try {
       logger.info("{} - Received HealthCheckEvent", streamId);
       return processHealthCheckEventImpl(event);
-    }catch (SQLException e){
+    }
+    catch (SQLException e) {
       return checkSQLException(e, config.table(event));
-    }finally {
+    }
+    finally {
       logger.info("{} - Finished HealthCheckEvent", streamId);
     }
   }

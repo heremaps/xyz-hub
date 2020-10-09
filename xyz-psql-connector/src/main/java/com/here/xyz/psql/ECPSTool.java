@@ -33,22 +33,27 @@ public class ECPSTool {
   public static final String USAGE = "java ECPSTool encrypt|decrypt <ecps_phrase> <data>";
 
   public static void main(String[] args) throws GeneralSecurityException, UnsupportedEncodingException {
-//    String action = args[0];
-    String action = "e";
-//    String phrase = args[1];
-    String phrase = "ECPS_PHRASE";
-//    String data = args[2];
-    String data = "{\"PSQL_HOST\":\"localhost:5432\",\"PSQL_DB\":\"postgres\",\"PSQL_USER\":\"psql\",\"PSQL_PASSWORD\":\"password\",\"ECPS_PHRASE\":\"ECPS_PHRASE\"}";
+    String action = args[0];
+    String phrase = args[1];
+    String data = args[2];
 
     switch (action) {
       case "encrypt":
-        System.out.println(new AESGCMHelper(phrase).encrypt(data));
+        System.out.println(encrypt(phrase, data));
         break;
       case "decrypt":
-        System.out.println(new AESGCMHelper(phrase).decrypt(data));
+        System.out.println(decrypt(phrase, data));
         break;
       default:
         System.err.println("ERROR: Invalid action provided.\n\n" + USAGE);
     }
+  }
+
+  public static String encrypt(String phrase, String data) throws GeneralSecurityException, UnsupportedEncodingException {
+    return new AESGCMHelper(phrase).encrypt(data);
+  }
+
+  public static String decrypt(String phrase, String data) throws GeneralSecurityException {
+    return new AESGCMHelper(phrase).decrypt(data);
   }
 }
