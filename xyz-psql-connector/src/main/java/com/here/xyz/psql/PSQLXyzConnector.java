@@ -138,6 +138,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       if( bTweaks || bOptViz )
       { String tweakType;
         Map<String, Object> tweakParams;
+        boolean bVizSamplingOff = false;
 
         if( bTweaks )
         { tweakType   = event.getTweakType().toLowerCase();
@@ -147,9 +148,18 @@ public class PSQLXyzConnector extends DatabaseHandler {
         { tweakType   = TweaksSQL.ENSURE;
           event.setTweakType( TweaksSQL.ENSURE );
           tweakParams = new HashMap<String, Object>();
+          switch( event.getVizSampling().toLowerCase() )
+          { case "high" : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 10 ) ); break;
+            case "low"  : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 70 ) ); break;    
+            case "off"  : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 100 )); 
+                          bVizSamplingOff = true;
+                          break;    
+            case "med"  : 
+            default     : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 20 ) ); break;    
+          }
         }
+
         int distStrength = 0;
-        boolean bVizSamplingOff = "off".equals(event.getVizSampling().toLowerCase());
 
         switch (tweakType) {
 
