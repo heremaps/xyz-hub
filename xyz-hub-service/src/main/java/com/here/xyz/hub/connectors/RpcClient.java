@@ -306,7 +306,7 @@ public class RpcClient {
         throw new NullPointerException("Response payload is null");
       if (payload instanceof ErrorResponse) {
         ErrorResponse errorResponse = (ErrorResponse) payload;
-        logger.warn(marker, "The connector {} responded with an error of type {}: {}", getConnector().remoteFunction.id, errorResponse.getError(),
+        logger.warn(marker, "The connector {} responded with an error of type {}: {}", getConnector().id, errorResponse.getError(),
             errorResponse.getErrorMessage());
 
         switch (errorResponse.getError()) {
