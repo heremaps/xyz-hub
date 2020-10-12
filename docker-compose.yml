@@ -2,16 +2,24 @@ version: "3"
 services:
     xyz-hub:
         image: "xyz-hub"
-        build:
-          context: "./"
         container_name: "xyz-hub"
         ports:
             - "8080:8080"
-            - "8181:8181"
         depends_on:
             - "postgres"
             - "redis"
+            - "xyz-psql-connector"
         command: java -jar xyz-hub-service.jar
+    xyz-psql-connector:
+        image: "xyz-hub"
+        build:
+            context: "./"
+        container_name: xyz-psql-connector
+        ports:
+            - "9090:9090"
+        depends_on:
+            - "postgres"
+        command: java -cp xyz-hub-service.jar com.here.xyz.hub.HttpConnector
     postgres:
         image: "xyz-postgres"
         build:
