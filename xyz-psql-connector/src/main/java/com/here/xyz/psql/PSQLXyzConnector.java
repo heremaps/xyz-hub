@@ -131,11 +131,11 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       boolean bTweaks = ( event.getTweakType() != null ),
               bOptViz = "viz".equals( event.getOptimizationMode() ),
-              bSelectStarInTweaks = false;
+              bSelectionStar = false;
 
       if( event.getSelection() != null && "*".equals( event.getSelection().get(0) ))
       { event.setSelection(null);
-        bSelectStarInTweaks = bTweaks; // differetioation needed, due to different semantic of "event.getSelection() == null" tweaks vs. nonTweaks
+        bSelectionStar = true; // differetioation needed, due to different semantic of "event.getSelection() == null" tweaks vs. nonTweaks
       }
 
       if( bTweaks || bOptViz )
@@ -171,7 +171,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
             boolean bDefaultSelectionHandling = (tweakParams.get(TweaksSQL.ENSURE_DEFAULT_SELECTION) == Boolean.TRUE );
 
-            if( event.getSelection() == null && !bDefaultSelectionHandling && !bSelectStarInTweaks ) 
+            if( event.getSelection() == null && !bDefaultSelectionHandling && !bSelectionStar ) 
              event.setSelection(Arrays.asList("id","type"));
                         
             distStrength = TweaksSQL.calculateDistributionStrength( rCount, Math.max(Math.min((int) tweakParams.getOrDefault(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD,10),100),10) * 1000 );
