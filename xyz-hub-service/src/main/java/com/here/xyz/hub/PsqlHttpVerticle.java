@@ -43,6 +43,7 @@ import org.apache.logging.log4j.Logger;
 public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
 
   private static final Logger logger = LogManager.getLogger();
+  private static Map<String, String> envMap;
 
   @Override
   public void start(Future future) {
@@ -77,11 +78,18 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
   }
 
   private static Map<String, String> getEnvMap() {
-    Map<String, String> envMap = new HashMap<>();
+    if (envMap != null)
+      return envMap;
+
+    populateEnvMap();
+    return envMap;
+  }
+
+  private static synchronized void populateEnvMap() {
+    envMap = new HashMap<>();
     HttpConnector.configuration.fieldNames().forEach(fieldName -> {
       Object value = HttpConnector.configuration.getValue(fieldName);
       if (value != null) envMap.put(fieldName, value.toString());
     });
-    return envMap;
   }
 }
