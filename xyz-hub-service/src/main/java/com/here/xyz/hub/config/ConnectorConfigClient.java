@@ -29,6 +29,7 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.json.Json;
+import io.vertx.core.json.JsonObject;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -185,6 +186,12 @@ public abstract class ConnectorConfigClient implements Initializable {
     replaceVarsInMap(connector.params, ecpsJson -> {
       String ecpsPhrase = Service.configuration.DEFAULT_ECPS_PHRASE;
       if (ecpsPhrase == null) return null;
+      //Replace vars in the ECPS JSON
+      JsonObject ecpsValues = new JsonObject(ecpsJson);
+      Map<String, String> varValues = getPsqlVars();
+      replaceVarsInMap(ecpsValues.getMap(), varName -> varValues.get(varName), "${", "}");
+      ecpsJson = ecpsValues.toString();
+      //Encrypt the ECPS JSON
       try {
         return ECPSTool.encrypt(ecpsPhrase, ecpsJson);
       }
@@ -194,21 +201,26 @@ public abstract class ConnectorConfigClient implements Initializable {
     }, "$encrypt(", ")");
 
     if (connector.remoteFunction instanceof Embedded) {
-      final Map<String, String> varValues = new HashMap<>();
-
-      if (Service.configuration.STORAGE_DB_URL != null) {
-        URI uri = URI.create(Service.configuration.STORAGE_DB_URL.substring(5));
-        varValues.put("PSQL_HOST", uri.getHost());
-        varValues.put("PSQL_PORT", String.valueOf(uri.getPort() == -1 ? 5432 : uri.getPort()));
-        varValues.put("PSQL_USER", Service.configuration.STORAGE_DB_USER);
-        varValues.put("PSQL_PASSWORD", Service.configuration.STORAGE_DB_PASSWORD);
-        String[] pathComponent = uri.getPath() == null ? null : uri.getPath().split("/");
-        if (pathComponent != null && pathComponent.length > 1)
-          varValues.put("PSQL_DB", pathComponent[1]);
-      }
-
+      Map<String, String> varValues = getPsqlVars();
       replaceVarsInMap(((Embedded) connector.remoteFunction).env, varName -> varValues.get(varName), "${", "}");
     }
+  }
+
+  private static Map<String, String> getPsqlVars() {
+    Map<String, String> psqlVars = new HashMap<>();
+
+    if (Service.configuration.STORAGE_DB_URL != null) {
+      URI uri = URI.create(Service.configuration.STORAGE_DB_URL.substring(5));
+      psqlVars.put("PSQL_HOST", uri.getHost());
+      psqlVars.put("PSQL_PORT", String.valueOf(uri.getPort() == -1 ? 5432 : uri.getPort()));
+      psqlVars.put("PSQL_USER", Service.configuration.STORAGE_DB_USER);
+      psqlVars.put("PSQL_PASSWORD", Service.configuration.STORAGE_DB_PASSWORD);
+      String[] pathComponent = uri.getPath() == null ? null : uri.getPath().split("/");
+      if (pathComponent != null && pathComponent.length > 1)
+        psqlVars.put("PSQL_DB", pathComponent[1]);
+    }
+
+    return psqlVars;
   }
 
   private <V> void replaceVarsInMap(Map<String, V> map, Function<String, V> resolve, String prefix, String suffix) {
