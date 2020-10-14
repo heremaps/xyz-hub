@@ -56,6 +56,8 @@ import com.here.xyz.models.geojson.implementation.Polygon;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.psql.config.DatabaseSettings;
+import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse.PropertiesStatistics;
@@ -124,19 +126,19 @@ public class PSQLXyzConnectorIT extends PSQLAbstractIT {
   public void testHealthCheckWithConnectorParams() throws Exception {
     Map<String, Object> connectorParams = new HashMap<>();
     Map<String, Object> parametersToEncrypt = new HashMap<>();
-    parametersToEncrypt.put(PSQLConfig.PSQL_HOST, "example.com");
-    parametersToEncrypt.put(PSQLConfig.PSQL_PORT, "1234");
-    parametersToEncrypt.put(PSQLConfig.PSQL_PASSWORD, "1234password");
-    connectorParams.put("ecps", PSQLConfig.encryptCPS(new ObjectMapper().writeValueAsString(parametersToEncrypt), "testing"));
+    parametersToEncrypt.put(DatabaseSettings.PSQL_HOST, "example.com");
+    parametersToEncrypt.put(DatabaseSettings.PSQL_PORT, "1234");
+    parametersToEncrypt.put(DatabaseSettings.PSQL_PASSWORD, "1234password");
+    connectorParams.put("ecps", PSQLConfig.encryptECPS(new ObjectMapper().writeValueAsString(parametersToEncrypt), "testing"));
 
     HealthCheckEvent event = new HealthCheckEvent()
         .withMinResponseTime(100)
         .withConnectorParams(connectorParams);
 
-    PSQLConfig config = new PSQLConfig(event, GSContext.newLocal());
-    assertEquals(config.host(), "example.com");
-    assertEquals(config.port(), 1234);
-    assertEquals(config.password(), "1234password");
+    PSQLConfig config = new PSQLConfig(event, GSContext.newLocal(),"test-stream-id");
+    assertEquals(config.getDatabaseSettings().getHost(), "example.com");
+    assertEquals(config.getDatabaseSettings().getPort(), 1234);
+    assertEquals(config.getDatabaseSettings().getPassword(), "1234password");
   }
 
   @Test

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,9 +17,9 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.psql;
+package com.here.xyz.psql.tools;
 
-import com.here.xyz.psql.PSQLConfig.AESGCMHelper;
+import com.here.xyz.psql.config.PSQLConfig.AESGCMHelper;
 
 import java.io.UnsupportedEncodingException;
 import java.security.GeneralSecurityException;

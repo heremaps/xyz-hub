@@ -24,6 +24,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.here.xyz.events.ModifyFeaturesEvent;
+import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.util.Hasher;
@@ -31,10 +32,7 @@ import com.jayway.jsonpath.JsonPath;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.junit.After;
@@ -75,15 +73,23 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
   @After
   public void shutdown() throws Exception {
     logger.info("Shutdown...");
-    invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
-    invokeLambdaFromFile("/events/DeleteSpaceFooTestEvent.json");
+
+    for (int i = 0; i < spaceMap.size(); i++) {
+      ModifySpaceEvent msevent = new ModifySpaceEvent();
+      msevent.setSpace(spaceMap.get(i));
+      msevent.setOperation(ModifySpaceEvent.Operation.DELETE);
+      invokeLambda(msevent.serialize());
+    }
     logger.info("Shutdown Completed.");
   }
+
+  private static List<String> spaceMap = new ArrayList<>();
 
   @Test
   public void testTableCreation() throws Exception {
     final String spaceId = "foo";
     final String hashedSpaceId = Hasher.getHash(spaceId);
+    spaceMap.add(hashedSpaceId);
     final XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
 
     final List<Feature> features = new ArrayList<Feature>(){{
@@ -94,6 +100,7 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
     mfevent.setSpace(spaceId);
     mfevent.setTransaction(true);
     mfevent.setInsertFeatures(features);
+    mfevent.withConnectorParams(new HashMap<String,Object>(){{put("enableHashedSpaceId", true);}});
     invokeLambda(mfevent.serialize());
 
     /** Needed to trigger update on pg_stat */
@@ -111,12 +118,14 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
   public void testAutoIndexing() throws Exception {
     final String spaceId = "foo";
     final String hashedSpaceId = Hasher.getHash(spaceId);
+    spaceMap.add(hashedSpaceId);
 
     final List<Feature> features = get11kFeatureCollection().getFeatures();
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
     mfevent.setSpace(spaceId);
     mfevent.setTransaction(true);
     mfevent.setInsertFeatures(features);
+    mfevent.withConnectorParams(new HashMap<String,Object>(){{put("enableHashedSpaceId", true);put("autoIndexing", true);}});
     invokeLambda(mfevent.serialize());
 
     /** Needed to trigger update on pg_stat */

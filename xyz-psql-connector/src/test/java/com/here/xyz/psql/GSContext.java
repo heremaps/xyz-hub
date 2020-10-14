@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,9 @@ import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import com.here.xyz.connectors.SimulatedContext;
 import java.util.HashMap;
 import java.util.Map;
+
+import com.here.xyz.psql.config.DatabaseSettings;
+import com.here.xyz.psql.config.PSQLConfig;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,12 +37,9 @@ public class GSContext extends SimulatedContext implements LambdaLogger {
 
   @SuppressWarnings("serial")
   private static final Map<String, String> vars_local = new HashMap<String, String>() {{
-    put(PSQLConfig.PSQL_HOST, "localhost");
-//    put(PSQLConfig.PSQL_REPLICA_HOST, "localhost");
-//    put(PSQLConfig.PSQL_DB, "database");
-//    put(PSQLConfig.PSQL_SCHEMA, "schema");
-    put(PSQLConfig.PSQL_USER, "postgres");
-    put(PSQLConfig.PSQL_PASSWORD, "password");
+    put(DatabaseSettings.PSQL_HOST, "localhost");
+    put(DatabaseSettings.PSQL_USER, "postgres");
+    put(DatabaseSettings.PSQL_PASSWORD, "password");
     put(PSQLConfig.ECPS_PHRASE, "testing");
   }};
 

@@ -75,7 +75,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       logger.info("{} - Received HealthCheckEvent", streamId);
       return processHealthCheckEventImpl(event);
     }catch (SQLException e){
-      return checkSQLException(e, config.table(event));
+      return checkSQLException(e, config.readTableFromEvent(event));
     }finally {
       logger.info("{} - Finished HealthCheckEvent", streamId);
     }
@@ -88,7 +88,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       return executeQueryWithRetry(SQLQueryBuilder.buildGetStatisticsQuery(event,config),
               this::getStatisticsResultSetHandler, true);
     }catch (SQLException e){
-      return checkSQLException(e, config.table(event));
+      return checkSQLException(e, config.readTableFromEvent(event));
     }finally {
       logger.info("{} - Finished GetStatisticsEvent", streamId);
     }
@@ -104,7 +104,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       }
       return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByIdQuery(event, config, dataSource));
     }catch (SQLException e){
-      return checkSQLException(e, config.table(event));
+      return checkSQLException(e, config.readTableFromEvent(event));
     }finally {
       logger.info("{} - Finished GetFeaturesByIdEvent", streamId);
     }
@@ -116,7 +116,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       logger.info("{} - Received GetFeaturesByGeometryEvent", streamId);
       return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByGeometryQuery(event,dataSource));
     }catch (SQLException e){
-      return checkSQLException(e, config.table(event));
+      return checkSQLException(e, config.readTableFromEvent(event));
     }finally {
       logger.info("{} - Finished GetFeaturesByGeometryEvent", streamId);
     }
@@ -219,7 +219,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
            final String countMode = (String) clusteringParams.get(QuadbinSQL.QUADBIN_COUNTMODE);
            final boolean noBuffer = (boolean) clusteringParams.getOrDefault(QuadbinSQL.QUADBIN_NOBOFFER,false);
 
-           QuadbinSQL.checkQuadbinInput(countMode, relResolution, event, config.table(event), streamId, this);
+           QuadbinSQL.checkQuadbinInput(countMode, relResolution, event, config.readTableFromEvent(event), streamId, this);
            return executeQueryWithRetry(SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config, noBuffer));
 
           default: break; // fall back to non-tweaks usage.
@@ -230,7 +230,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       if(isBigQuery){
         /* Check if Properties are indexed */
-        if (!Capabilities.canSearchFor(config.table(event), event.getPropertiesQuery(), this)) {
+        if (!Capabilities.canSearchFor(config.readTableFromEvent(event), event.getPropertiesQuery(), this)) {
           throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
                   "Invalid request parameters. Search for the provided properties is not supported for this space.");
         }
@@ -239,7 +239,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource));
 
     }catch (SQLException e){
-      return checkSQLException(e, config.table(event));
+      return checkSQLException(e, config.readTableFromEvent(event));
     }finally {
       logger.info("{} - Finished "+event.getClass().getSimpleName(), streamId);
     }
@@ -264,7 +264,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processCountFeaturesEvent(CountFeaturesEvent event) throws Exception {
     try {
       logger.info("{} - Received CountFeaturesEvent", streamId);
-      return executeQueryWithRetry(SQLQueryBuilder.buildCountFeaturesQuery(event, dataSource, config.schema(), config.table(event)),
+      return executeQueryWithRetry(SQLQueryBuilder.buildCountFeaturesQuery(event, dataSource, config.getDatabaseSettings().getSchema(), config.readTableFromEvent(event)),
               this::countResultSetHandler, true);
     } catch (SQLException e) {
       // 3F000	INVALID SCHEMA NAME
@@ -286,13 +286,13 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processDeleteFeaturesByTagEvent(DeleteFeaturesByTagEvent event) throws Exception {
     try{
       logger.info("{} - Received DeleteFeaturesByTagEvent", streamId);
-      if (config.isReadOnly()) {
+      if (config.getDatabaseSettings().isReadOnly()) {
         return new ErrorResponse().withStreamId(streamId).withError(XyzError.NOT_IMPLEMENTED)
                 .withErrorMessage("ModifyFeaturesEvent is not supported by this storage connector.");
       }
       return executeDeleteFeaturesByTag(event);
     }catch (SQLException e){
-      return checkSQLException(e, config.table(event));
+      return checkSQLException(e, config.readTableFromEvent(event));
     }finally {
       logger.info("{} - Finished DeleteFeaturesByTagEvent", streamId);
     }
@@ -304,7 +304,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       logger.info("{} - Received LoadFeaturesEvent", streamId);
       return executeLoadFeatures(event);
     }catch (SQLException e){
-      return checkSQLException(e, config.table(event));
+      return checkSQLException(e, config.readTableFromEvent(event));
     }finally {
       logger.info("{} - Finished LoadFeaturesEvent", streamId);
     }
@@ -315,7 +315,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
     try{
       logger.info("{} - Received ModifyFeaturesEvent", streamId);
 
-      if (config.isReadOnly()) {
+      if (config.getDatabaseSettings().isReadOnly()) {
         return new ErrorResponse().withStreamId(streamId).withError(XyzError.NOT_IMPLEMENTED)
                 .withErrorMessage("ModifyFeaturesEvent is not supported by this storage connector.");
       }
@@ -338,7 +338,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
           .forEach(feature -> Feature.finalizeFeature(feature, event.getSpace(), addUUID));
       return executeModifyFeatures(event);
     } catch (SQLException e) {
-      return checkSQLException(e, config.table(event));
+      return checkSQLException(e, config.readTableFromEvent(event));
     }finally {
       logger.info("{} - Finished ModifyFeaturesEvent", streamId);
     }
@@ -350,15 +350,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
       logger.info("{} - Received ModifySpaceEvent", streamId);
 
       if(event.getSpaceDefinition() != null && event.getSpaceDefinition().isEnableUUID()){
-        Integer maxVersionCount;
-        Boolean compactHistory = true;
-
         if(event.getSpaceDefinition().isEnableHistory()){
-          maxVersionCount = event.getSpaceDefinition().getMaxVersionCount();
-          if(event.getConnectorParams() != null){
-            compactHistory = (Boolean)event.getConnectorParams().get("compactHistory");
-            compactHistory = compactHistory == null ? true : compactHistory;
-          }
+          Integer maxVersionCount = event.getSpaceDefinition().getMaxVersionCount();
+          Boolean compactHistory = config.getConnectorParams().isCompactHistory();
+
           if(ModifySpaceEvent.Operation.CREATE == event.getOperation()){
             ensureHistorySpace(maxVersionCount, compactHistory);
           }else if(ModifySpaceEvent.Operation.UPDATE == event.getOperation()){
@@ -370,12 +365,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       if ((ModifySpaceEvent.Operation.UPDATE == event.getOperation()
               || ModifySpaceEvent.Operation.CREATE == event.getOperation())
-              && event.getConnectorParams() != null
-              && event.getConnectorParams().get("propertySearch") == Boolean.TRUE) {
+              && config.getConnectorParams().isPropertySearch()) {
 
         if (event.getSpaceDefinition().getSearchableProperties() != null) {
-          int onDemandLimit = (event.getConnectorParams() != null && event.getConnectorParams().get("onDemandIdxLimit") != null) ?
-                  (Integer) event.getConnectorParams().get("onDemandIdxLimit") : DatabaseMaintainer.ON_DEMAND_IDX_DEFAULT_LIM;
+          int onDemandLimit = config.getConnectorParams().getOnDemandIdxLimit();
 
           int cnt = 0;
           for (String property : event.getSpaceDefinition().getSearchableProperties().keySet()) {
@@ -403,7 +396,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
           executeUpdateWithRetry(  SQLQueryBuilder.buildSearchablePropertiesUpsertQuery(
                   event.getSpaceDefinition().getSearchableProperties(),
                   event.getOperation(),
-                  config.schema(), config.table(event)));
+                  config.getDatabaseSettings().getSchema(), config.readTableFromEvent(event)));
       }
 
       if (ModifySpaceEvent.Operation.DELETE == event.getOperation()) {
@@ -413,17 +406,17 @@ public class PSQLXyzConnector extends DatabaseHandler {
           SQLQuery q = new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};");
           q.append("DROP TABLE IF EXISTS ${schema}.${hsttable}");
           executeUpdateWithRetry(q);
-          logger.debug("{} - Successfully deleted table '{}' for space id '{}'", streamId, config.table(event), event.getSpace());
+          logger.debug("{} - Successfully deleted table '{}' for space id '{}'", streamId, config.readTableFromEvent(event), event.getSpace());
         } else
-          logger.debug("{} - Table '{}' not found for space id '{}'", streamId, config.table(event), event.getSpace());
+          logger.debug("{} - Table '{}' not found for space id '{}'", streamId, config.readTableFromEvent(event), event.getSpace());
 
         if (event.getConnectorParams() != null && event.getConnectorParams().get("propertySearch") == Boolean.TRUE) {
-          executeUpdateWithRetry(SQLQueryBuilder.buildDeleteIDXConfigEntryQuery(config.schema(),config.table(event)));
+          executeUpdateWithRetry(SQLQueryBuilder.buildDeleteIDXConfigEntryQuery(config.getDatabaseSettings().getSchema(),config.readTableFromEvent(event)));
         }
       }
       return new SuccessResponse().withStatus("OK");
     }catch (SQLException e){
-      return checkSQLException(e, config.table(event));
+      return checkSQLException(e, config.readTableFromEvent(event));
     }finally {
       logger.info("{} - Finished ModifySpaceEvent", streamId);
     }
@@ -445,7 +438,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
                 .withErrorMessage("Invalid request parameters.");
       }
 
-      if (!Capabilities.canSearchFor(config.table(event), event.getPropertiesQuery(), this)) {
+      if (!Capabilities.canSearchFor(config.readTableFromEvent(event), event.getPropertiesQuery(), this)) {
         return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
                 .withErrorMessage("Invalid request parameters. Search for the provided properties is not supported for this space.");
       }
@@ -459,7 +452,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       return collection;
     }catch (SQLException e){
-      return checkSQLException(e, config.table(event));
+      return checkSQLException(e, config.readTableFromEvent(event));
     }finally {
       logger.info("{} - Finished "+event.getClass().getSimpleName(), streamId);
     }

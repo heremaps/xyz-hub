@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 package com.here.xyz.psql;
 
 import com.here.xyz.events.Event;
+import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.factory.MaintenanceSQL;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -39,8 +40,6 @@ public class DatabaseMaintainer {
 
     /** Is used to check against xyz_ext_version() */
     private static final int XYZ_EXT_VERSION = 132;
-    /** Can get configured dynamically with storageParam onDemandIdxLimit */
-    protected final static int ON_DEMAND_IDX_DEFAULT_LIM = 4;
 
     private DataSource dataSource;
     private PSQLConfig config;
@@ -51,8 +50,8 @@ public class DatabaseMaintainer {
     }
 
     public synchronized void run(Event event, String streamId) {
-        final boolean hasPropertySearch = config.isPropertySearchActivated();
-        final boolean autoIndexing = config.isAutoIndexingActivated();
+        final boolean hasPropertySearch = config.getConnectorParams().isPropertySearch();
+        final boolean autoIndexing = config.getConnectorParams().isAutoIndexing();
 
         /** Check if all required extensions, schemas, tables and functions are present  */
         this.initialDBSetup(streamId, autoIndexing, hasPropertySearch);
@@ -71,7 +70,7 @@ public class DatabaseMaintainer {
 
             /** Check if database is prepared to work with PSQL Connector. Therefore its needed to check Extensions, Schemas, Tables and Functions.*/
             Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery(MaintenanceSQL.generateCheckExtensionsSQL(hasPropertySearch, config.user(), config.database()));
+            ResultSet rs = stmt.executeQuery(MaintenanceSQL.generateCheckExtensionsSQL(hasPropertySearch, config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getDb()));
 
             if (rs.next()) {
                 userHasCreatePermissions = rs.getBoolean("has_create_permissions");
@@ -81,7 +80,7 @@ public class DatabaseMaintainer {
                         stmt.execute(MaintenanceSQL.generateMandatoryExtensionSQL(hasPropertySearch));
                     } else {
                         logger.error("{} - User permissions missing! Not able to create missing Extensions on database: {}@{} / {}. Installed Extension are: {}",
-                                streamId, config.user(), config.database(), config.host(), rs.getString("ext_av"));
+                                streamId, config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getDb(), rs.getString("ext_av"));
                         /** Cannot proceed without extensions!
                          * postgis,postgis_topology -> provides all GIS functions which are essential!
                          * tsm_system_rows -> Is used for generating statistics
@@ -94,7 +93,7 @@ public class DatabaseMaintainer {
 
             stmt = connection.createStatement();
             /** Find Missing Schemas and check if IDX_Maintenance Table is available */
-            rs = stmt.executeQuery(MaintenanceSQL.generateCheckSchemasAndIdxTableSQL(config.schema()));
+            rs = stmt.executeQuery(MaintenanceSQL.generateCheckSchemasAndIdxTableSQL(config.getDatabaseSettings().getSchema()));
 
             if (rs.next()) {
                 final boolean mainSchema = rs.getBoolean("main_schema");
@@ -104,12 +103,12 @@ public class DatabaseMaintainer {
                 try {
                     /** Create Missing Schemas */
                     if (!mainSchema) {
-                        logger.debug("{} - Create missing Schema {} on database: {} / {}@{}", streamId, config.schema(), config.database(), config.user(), config.host());
-                        stmt.execute(MaintenanceSQL.generateMainSchemaSQL(config.schema()));
+                        logger.debug("{} - Create missing Schema {} on database: {} / {}@{}", streamId, config.getDatabaseSettings().getSchema(), config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost());
+                        stmt.execute(MaintenanceSQL.generateMainSchemaSQL(config.getDatabaseSettings().getSchema()));
                     }
 
                     if (!configSchema && hasPropertySearch) {
-                        logger.debug("{} - Create missing Schema {} on database: {} / {}@{}", streamId, MaintenanceSQL.XYZ_CONFIG_SCHEMA, config.database(), config.user(), config.host());
+                        logger.debug("{} - Create missing Schema {} on database: {} / {}@{}", streamId, MaintenanceSQL.XYZ_CONFIG_SCHEMA, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost());
                         stmt.execute(MaintenanceSQL.configSchemaAndSystemTablesSQL);
                     }
 
@@ -118,18 +117,18 @@ public class DatabaseMaintainer {
                         stmt.execute(MaintenanceSQL.createIDXTableSQL);
                     }
                 } catch (Exception e) {
-                    logger.warn("{} - Failed to create missing Schema(s) on database: {} / {}@{} '{}'", streamId, config.database(), config.user(), config.host(), e);
+                    logger.warn("{} - Failed to create missing Schema(s) on database: {} / {}@{} '{}'", streamId, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost(), e);
                 }
             }
 
-            stmt.execute(MaintenanceSQL.generateSearchPathSQL(config.schema()));
+            stmt.execute(MaintenanceSQL.generateSearchPathSQL(config.getDatabaseSettings().getSchema()));
 
             stmt = connection.createStatement();
-            rs = stmt.executeQuery(MaintenanceSQL.generateEnsureExtVersionSQL(config.schema()));
+            rs = stmt.executeQuery(MaintenanceSQL.generateEnsureExtVersionSQL(config.getDatabaseSettings().getSchema()));
 
             if (rs.next()) {
                 /** If xyz_ext_version exists, use it to evaluate if the functions needs to get updated*/
-                rs = stmt.executeQuery(MaintenanceSQL.generateEnsureCorrectVersionSQL(config.schema()));
+                rs = stmt.executeQuery(MaintenanceSQL.generateEnsureCorrectVersionSQL(config.getDatabaseSettings().getSchema()));
                 if (rs.next()) {
                     functionsUpToDate = (rs.getInt(1) == DatabaseMaintainer.XYZ_EXT_VERSION);
                 }
@@ -140,22 +139,22 @@ public class DatabaseMaintainer {
                 String content = readResource("/xyz_ext.sql");
 
                 stmt = connection.createStatement();
-                stmt.execute(MaintenanceSQL.generateSearchPathSQL( config.schema() ));
+                stmt.execute(MaintenanceSQL.generateSearchPathSQL( config.getDatabaseSettings().getSchema() ));
                 stmt.execute(content);
 
-                logger.debug("{} - Successfully created missing SQL-Functions on database: {} / {}@{}", streamId, config.database(), config.user(), config.host());
+                logger.debug("{} - Successfully created missing SQL-Functions on database: {} / {}@{}", streamId, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost());
             } else {
-                logger.debug("{} - All required SQL-Functions are already present on database: {} / {}@{}", streamId, config.database(), config.user(), config.host());
+                logger.debug("{} - All required SQL-Functions are already present on database: {} / {}@{}", streamId, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost());
             }
         } catch (Exception e) {
-            logger.error("{} - Failed to create missing SQL-Functions on database: {} / {}@{} '{}'", streamId, config.database(), config.user(), config.host(), e);
+            logger.error("{} - Failed to create missing SQL-Functions on database: {} / {}@{} '{}'", streamId, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost(), e);
         }
 
         /** Check if all required H3 related stuff is present */
         if(userHasCreatePermissions)
             this.setupH3( streamId);
         else
-            logger.warn("{} - User permissions missing! Can not update/install H3 related functions on database': {} / {}@{}", streamId,  config.database(), config.user(), config.host());
+            logger.warn("{} - User permissions missing! Can not update/install H3 related functions on database': {} / {}@{}", streamId,  config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost());
     }
 
     private synchronized void setupH3(String streamId){
@@ -180,11 +179,11 @@ public class DatabaseMaintainer {
 
                 if (needUpdate) {
                     stmt.execute(readResource("/h3Core.sql"));
-                    stmt.execute(MaintenanceSQL.generateSearchPathSQL( config.schema() ));
-                    logger.debug("{} - Successfully created H3 SQL-Functions on database: {} / {}@{} ", streamId, config.database(), config.user(), config.host());
+                    stmt.execute(MaintenanceSQL.generateSearchPathSQL( config.getDatabaseSettings().getSchema() ));
+                    logger.debug("{} - Successfully created H3 SQL-Functions on database: {} / {}@{} ", streamId, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost());
                 }
             } catch (Exception e) {
-                logger.error("{} - Failed run h3 init on database: {} / {}@{} '{}'", streamId, config.database(), config.user(), config.host(), e);
+                logger.error("{} - Failed run h3 init on database: {} / {}@{} '{}'", streamId, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost(), e);
             }
         }
     }
@@ -214,10 +213,10 @@ public class DatabaseMaintainer {
                 int mode = autoIndexing == true ? 2 : 0;
 
                 /** Maintain INDICES */
-                stmt.execute(MaintenanceSQL.generateIDXSQL(config.schema(), config.user(), config.password(), config.database(),"localhost", config.port(), mode));
+                stmt.execute(MaintenanceSQL.generateIDXSQL(config.getDatabaseSettings().getSchema(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getPassword(), config.getDatabaseSettings().getDb(),"localhost", config.getDatabaseSettings().getPort(), mode));
             }
         } catch (Exception e) {
-            logger.error("{} - Failed run indexing on database: {} / {}@{} '{}'", streamId, config.database(), config.user(), config.host(), e);
+            logger.error("{} - Failed run indexing on database: {} / {}@{} '{}'", streamId, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost(), e);
         }
     }
 
