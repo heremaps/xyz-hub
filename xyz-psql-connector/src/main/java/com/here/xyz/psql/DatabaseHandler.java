@@ -404,13 +404,6 @@ public abstract class DatabaseHandler extends StorageConnector {
                             && ((SQLException)e).getSQLState().equalsIgnoreCase("42P01"))
                             && e.getMessage() != null && e.getMessage().indexOf("_hst") != 0){
                 logger.warn("{} History Table '{}' for space id '{}' is missing! Try to create it! ", streamId, config.readTableFromEvent(event) + HISTORY_TABLE_SUFFIX, event.getSpace());
-//                Boolean compactHistory = null;
-
-//                if(event.getConnectorParams() != null) {
-//                    compactHistory= (Boolean)event.getConnectorParams().get("compactHistory");
-//                }
-
-//                ensureHistorySpace(null, compactHistory == null ? true : compactHistory);
                 ensureHistorySpace(null, config.getConnectorParams().isCompactHistory());
             }
             throw e;
