@@ -193,7 +193,7 @@ public class SQLQuery {
       selection.add("type");
     }
 
-    return new SQLQuery("( select case when prj_build ?? 'properties' then prj_build else jsonb_set(prj_build,'{properties}','null'::jsonb) end from prj_build(?,jsondata) )", createSQLArray(selection.toArray(new String[0]), "text", dataSource));
+    return new SQLQuery("( select case when prj_build ?? 'properties' then prj_build else jsonb_set(prj_build,'{properties}','{}'::jsonb) end from prj_build(?,jsondata) )", createSQLArray(selection.toArray(new String[0]), "text", dataSource));
   }
 
   /**
