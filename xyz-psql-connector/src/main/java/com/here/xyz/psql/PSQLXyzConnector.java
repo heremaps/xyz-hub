@@ -135,7 +135,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       if( event.getSelection() != null && "*".equals( event.getSelection().get(0) ))
       { event.setSelection(null);
-        bSelectionStar = true; // differetioation needed, due to different semantic of "event.getSelection() == null" tweaks vs. nonTweaks
+        bSelectionStar = true; // differentiation needed, due to different semantic of "event.getSelection() == null" tweaks vs. nonTweaks
       }
 
       if( bTweaks || bOptViz )
