@@ -201,7 +201,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         this.dbMaintainer = dbInstanceMap.get(ecps).getDatabaseMaintainer();
         this.config = dbInstanceMap.get(ecps).getConfig();
 
-        if(event.getPreferPrimaryDataSource() == null || event.getPreferPrimaryDataSource() == Boolean.TRUE){
+        if(event.getPreferPrimaryDataSource() == null && event.getPreferPrimaryDataSource() == Boolean.TRUE){
             this.readDataSource = this.dataSource;
         }
 
