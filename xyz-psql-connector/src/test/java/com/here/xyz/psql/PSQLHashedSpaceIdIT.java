@@ -59,37 +59,32 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
   @Before
   public void setup() throws Exception {
     logger.info("Setup...");
-
     // DELETE EXISTING FEATURES TO START FRESH
-    String response = invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
+    String response = deleteTestSpace();
     assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
-
-    response = invokeLambdaFromFile("/events/DeleteSpaceFooTestEvent.json");
-    assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
-
     logger.info("Setup Completed.");
   }
 
   @After
   public void shutdown() throws Exception {
     logger.info("Shutdown...");
-
-    for (int i = 0; i < spaceMap.size(); i++) {
-      ModifySpaceEvent msevent = new ModifySpaceEvent();
-      msevent.setSpace(spaceMap.get(i));
-      msevent.setOperation(ModifySpaceEvent.Operation.DELETE);
-      invokeLambda(msevent.serialize());
-    }
+    String response = deleteTestSpace();
+    assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
     logger.info("Shutdown Completed.");
   }
 
-  private static List<String> spaceMap = new ArrayList<>();
+  private String deleteTestSpace() throws Exception{
+    ModifySpaceEvent msevent = new ModifySpaceEvent();
+    msevent.setSpace("foo");
+    msevent.withConnectorParams(new HashMap<String,Object>(){{put("enableHashedSpaceId", true);put("autoIndexing", true);}});
+    msevent.setOperation(ModifySpaceEvent.Operation.DELETE);
+    return invokeLambda(msevent.serialize());
+  }
 
   @Test
   public void testTableCreation() throws Exception {
     final String spaceId = "foo";
     final String hashedSpaceId = Hasher.getHash(spaceId);
-    spaceMap.add(hashedSpaceId);
     final XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
 
     final List<Feature> features = new ArrayList<Feature>(){{
@@ -118,7 +113,6 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
   public void testAutoIndexing() throws Exception {
     final String spaceId = "foo";
     final String hashedSpaceId = Hasher.getHash(spaceId);
-    spaceMap.add(hashedSpaceId);
 
     final List<Feature> features = get11kFeatureCollection().getFeatures();
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
