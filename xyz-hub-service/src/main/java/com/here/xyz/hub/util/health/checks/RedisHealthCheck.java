@@ -58,7 +58,7 @@ public class RedisHealthCheck extends ExecutableCheck {
 
 		try {
 			if (client == null) {
-				client = new RedisCacheClient();
+				client = (RedisCacheClient) RedisCacheClient.getInstance();
 			}
 		}
 		catch (Throwable t) {
