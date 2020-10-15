@@ -26,6 +26,7 @@ import com.here.xyz.hub.cache.CacheClient;
 import com.here.xyz.hub.config.ConnectorConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.BurstAndUpdateThread;
+import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.hub.util.ARN;
 import com.here.xyz.hub.util.metrics.CloudWatchMetricPublisher;
@@ -142,7 +143,7 @@ public class Service extends Core {
     configuration = jsonConfig.mapTo(Config.class);
 
     cacheClient = CacheClient.getInstance();
-
+    Node.initialize();
     spaceConfigClient = SpaceConfigClient.getInstance();
     connectorConfigClient = ConnectorConfigClient.getInstance();
 

@@ -54,14 +54,13 @@ public class RFCMeasurement {
         Service.configuration.REMOTE_FUNCTION_CONNECTION_HIGH_UTILIZATION_THRESHOLD = 0.75f;
 
         Connector s = new Connector();
-        TEST_START = Core.currentTimeMillis();
-        MockedRemoteFunctionClient.MockedRequest.testStart = TEST_START;
         s.id = "testStorage";
         s.connectionSettings = new Connector.ConnectionSettings();
         s.connectionSettings.maxConnections = RFC_MAX_CONNECTIONS;
         rfc = new MockedRemoteFunctionClient(s, 10);
-
         requesterPool = new ScheduledThreadPoolExecutor(20);
+        TEST_START = Core.currentTimeMillis();
+        MockedRemoteFunctionClient.MockedRequest.testStart = TEST_START;
     }
 
     @After

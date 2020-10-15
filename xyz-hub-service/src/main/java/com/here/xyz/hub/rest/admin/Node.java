@@ -71,7 +71,7 @@ public class Node {
     this.port = port;
   }
 
-  static {
+  public static void initialize() {
     new NodeInfoNotification().broadcast();
     initNodeCountFetcher();
     initNodeChecker();
