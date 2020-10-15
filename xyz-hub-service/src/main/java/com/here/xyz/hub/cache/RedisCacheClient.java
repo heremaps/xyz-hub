@@ -31,10 +31,11 @@ import org.apache.logging.log4j.Logger;
 
 public class RedisCacheClient implements CacheClient {
 
+  private static CacheClient instance;
   private static final Logger logger = LogManager.getLogger();
   private ThreadLocal<RedisClient> redis;
 
-  public RedisCacheClient() {
+  private RedisCacheClient() {
     redis = ThreadLocal.withInitial(() -> {
       RedisOptions config = new RedisOptions()
           .setHost(Service.configuration.XYZ_HUB_REDIS_HOST)
@@ -52,16 +53,22 @@ public class RedisCacheClient implements CacheClient {
     });
   }
 
-  public static CacheClient getInstance() {
-    if (Service.configuration.XYZ_HUB_REDIS_HOST == null) {
-      return new NoopCacheClient();
+  public static synchronized CacheClient getInstance() {
+    if (instance != null)
+      return instance;
+
+    if (Service.configuration.XYZ_HUB_REDIS_HOST == null)
+      instance = new NoopCacheClient();
+    else {
+      try {
+        instance = new RedisCacheClient();
+      }
+      catch (Exception e) {
+        logger.error("Error when trying to create the Redis client.", e);
+        instance = new NoopCacheClient();
+      }
     }
-    try {
-      return new RedisCacheClient();
-    } catch (Exception e) {
-      logger.error("Error when trying to create the Redis client.", e);
-      return new NoopCacheClient();
-    }
+    return instance;
   }
 
   protected RedisClient getClient() {

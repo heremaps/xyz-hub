@@ -23,6 +23,7 @@ import static com.here.xyz.hub.util.health.schema.Status.Result.ERROR;
 import static com.here.xyz.hub.util.health.schema.Status.Result.OK;
 
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.cache.RedisCacheClient;
 import com.here.xyz.hub.connectors.RemoteFunctionClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.rest.admin.Node;
@@ -36,6 +37,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class RemoteFunctionHealthAggregator extends GroupedHealthCheck {
@@ -73,7 +75,7 @@ public class RemoteFunctionHealthAggregator extends GroupedHealthCheck {
     Response cachedResponse = fetchResponseFromCache();
     if (cachedResponse != null && cachedResponse.getStatus() != null
         && cachedResponse.getStatus().getTimestamp() != null
-        && cachedResponse.getStatus().getTimestamp() > Service.currentTimeMillis() - getCheckInterval()) {
+        && cachedResponse.getStatus().getTimestamp() > Service.currentTimeMillis() - checkInterval) {
       //Use the cached response as it's still fresh
       res = cachedResponse;
       s = cachedResponse.getStatus();
@@ -113,10 +115,9 @@ public class RemoteFunctionHealthAggregator extends GroupedHealthCheck {
         res = res.withMessage("Error when trying to gather remote functions info: " + e.getMessage());
         s.setResult(ERROR);
       }
-      if (Service.cacheClient != null) {
-        //Write the new health-check response to the cache
-        Service.cacheClient.set(RFC_HC_CACHE_KEY, res.toInternalResponseString().getBytes(), 24 * 3600);
-      }
+      //Write the new health-check response to the cache
+      RedisCacheClient.getInstance().set(RFC_HC_CACHE_KEY, res.toInternalResponseString().getBytes(),
+          TimeUnit.MILLISECONDS.toSeconds(checkInterval));
     }
 
     //Gather further global statistics
@@ -140,11 +141,8 @@ public class RemoteFunctionHealthAggregator extends GroupedHealthCheck {
   }
 
   private Response fetchResponseFromCache() {
-    if (Service.cacheClient == null)
-      return null;
-
     CompletableFuture<Response> f = new CompletableFuture<>();
-    Service.cacheClient.get(RFC_HC_CACHE_KEY, r -> {
+    RedisCacheClient.getInstance().get(RFC_HC_CACHE_KEY, r -> {
       Response response = null;
 
       try {
