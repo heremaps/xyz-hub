@@ -1049,6 +1049,7 @@ components:
         | property    | String  | NO        | A property of the original features for which to calculate statistics |
         | pointmode   | Boolean | NO        | retuns the centroid of hexagons as geojson feature                    |
         | singlecoord | Boolean | NO        | force to evaluate the first object coordinate only (default: false)   |
+        | sampling    | String  | NO        | samplingratio of underlying dataset [off,low,lowmed,med,medhigh,high] (default: off) |
 
 
         **Clustering-type: "quadbin":**

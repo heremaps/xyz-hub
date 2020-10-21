@@ -137,6 +137,8 @@ public class ApiParam {
     static final String CLUSTERING_PARAM_POINTMODE = "pointmode";
     static final String CLUSTERING_PARAM_SINGLECOORD = "singlecoord";
     static final String CLUSTERING_PARAM_COUNTMODE = "countmode";
+    static final String CLUSTERING_PARAM_SAMPLING = "sampling";
+
 
     static final String TWEAKS_PARAM_STRENGTH  = "strength";
     static final String TWEAKS_PARAM_ALGORITHM = "algorithm";
@@ -403,6 +405,7 @@ public class ApiParam {
             else if((long)value < 0 || (long)value > 15)
               throw new Exception(String.format("Invalid clustering.%s value. Expect Integer [0,15].",key));
             break;
+           
           case CLUSTERING_PARAM_PROPERTY:
             if(!(value instanceof String))
               throw new Exception(String.format("Invalid clustering.%s value. Expect String.",key));
@@ -417,12 +420,18 @@ public class ApiParam {
 
           case CLUSTERING_PARAM_COUNTMODE:
             if(!(value instanceof String))
-              throw new Exception("Invalid clustering.count value. Expect one of [real,estimated,mixed].");
+              throw new Exception(String.format("Invalid clustering.%s value. Expect one of [real,estimated,mixed].",key));
             break;
+
+          case CLUSTERING_PARAM_SAMPLING:
+            if(!(value instanceof String))
+              throw new Exception(String.format("Invalid clustering.%s value. Expect one of [low,lowmed,med,medhigh,high].",key));
+            break;
+
           default: throw new Exception("Invalid Clustering Parameter! Expect one of ["
                           +CLUSTERING_PARAM_RESOLUTION+","+CLUSTERING_PARAM_RESOLUTION_RELATIVE+","+CLUSTERING_PARAM_RESOLUTION_ABSOLUTE+","
                           +CLUSTERING_PARAM_PROPERTY+","+CLUSTERING_PARAM_POINTMODE+","+CLUSTERING_PARAM_COUNTMODE+"," +CLUSTERING_PARAM_SINGLECOORD+","
-                          +CLUSTERING_PARAM_NOBUFFER+"].");
+                          +CLUSTERING_PARAM_NOBUFFER+","+CLUSTERING_PARAM_SAMPLING +"].");
         }
       }else if(type.equals(TWEAKS)){
         switch( key )
