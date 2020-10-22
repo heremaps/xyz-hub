@@ -52,6 +52,7 @@ public class RFCMeasurement {
         Service.configuration.INSTANCE_COUNT = 1;
         Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS = 256;
         Service.configuration.REMOTE_FUNCTION_CONNECTION_HIGH_UTILIZATION_THRESHOLD = 0.75f;
+        Service.configuration.GLOBAL_MAX_QUEUE_SIZE = 1024;
 
         Connector s = new Connector();
         s.id = "testStorage";
@@ -74,10 +75,11 @@ public class RFCMeasurement {
 
     public void checkMeasuring(int concurrency, long offset, long interval, long measureDelay, int expectedArrivalRate,
                                int expectedThroughput) throws InterruptedException {
+        byte[] payload = new byte[0];
         ScheduledFuture<?> f = requesterPool.scheduleAtFixedRate(() -> {
             for (int i = 0; i < concurrency; i++) {
                 long now = Core.currentTimeMillis();
-                rfc.submit(null, null, false, false, r -> {
+                rfc.submit(null, payload, false, false, r -> {
                     //Nothing to do
                 });
             }

@@ -68,7 +68,8 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
 
   private void invokeWithRetry(FunctionCall fc, int tryCount, Handler<AsyncResult<byte[]>> callback) {
     final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
-    logger.info(fc.marker, "Invoke http remote function '{}' URL is: {} Event size is: {}", remoteFunction.id, url, fc.bytes.length);
+    logger.info(fc.marker, "Invoke http remote function '{}' URL is: {} Event size is: {}",
+        remoteFunction.id, url, fc.getByteSize());
 
     final int nextTryCount = tryCount + 1;
     try {
@@ -76,7 +77,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
           .timeout(REQUEST_TIMEOUT)
           .putHeader(CONTENT_TYPE, "application/json; charset=" + Charset.defaultCharset().name())
           .putHeader(STREAM_ID, fc.marker.getName())
-          .sendBuffer(Buffer.buffer(fc.bytes), ar -> {
+          .sendBuffer(Buffer.buffer(fc.getPayload()), ar -> {
             if (fc.fireAndForget) return;
             if (ar.failed()) {
               if (ar.cause() instanceof TimeoutException) {
