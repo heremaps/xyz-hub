@@ -69,7 +69,6 @@ import java.net.URLDecoder;
 import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.stream.Stream;
-
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -316,7 +315,7 @@ public abstract class Api {
     logger.error(task.getMarker(), "Invalid response for requested type {}: {}, stack-trace: {}", task.responseType,
         task.responseSpaces, new Exception());
     sendErrorResponse(task.context, INTERNAL_SERVER_ERROR, XyzError.EXCEPTION,
-        "Internally generated invalid response for Space-API, expected: " + task.responseType);
+        "Internally generated invalid response, expected: " + task.responseType);
   }
 
   /**
