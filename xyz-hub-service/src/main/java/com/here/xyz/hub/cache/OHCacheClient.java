@@ -32,29 +32,19 @@ import org.caffinitas.ohc.OHCacheBuilder;
 public class OHCacheClient implements CacheClient {
 
   private static OHCacheClient client;
-  private static OHCache<byte[], byte[]> cache;
+
+  private final ScheduledExecutorService executors;
+  private OHCache<byte[], byte[]> cache;
 
   public static synchronized OHCacheClient getInstance() {
-    if (client == null) {
-      client = new OHCacheClient();
-    }
-
+    if (client == null) client = new OHCacheClient();
     return client;
   }
 
   private OHCacheClient() {
-    CacheSerializer<byte[]> serializer = new Serializer();
-    executor = Executors.newScheduledThreadPool(2);
-        OHCacheBuilder<byte[], byte[]> builder = OHCacheBuilder.newBuilder();
-        cache = builder.capacity(Service.configuration.OFF_HEAP_CACHE_SIZE_MB * 1024 * 1024)
-        .eviction(Eviction.W_TINY_LFU)
-        .keySerializer(serializer)
-        .valueSerializer(serializer)
-        .executorService(executor)
-        .build();
+    executors = Executors.newScheduledThreadPool(2);
+    cache = createCache(Service.configuration.OFF_HEAP_CACHE_SIZE_MB, executors);
   }
-
-  private final ScheduledExecutorService executor;
 
   @Override
   public void get(String key, Handler<byte[]> handler) {
@@ -64,7 +54,7 @@ public class OHCacheClient implements CacheClient {
 
   @Override
   public void set(String key, byte[] value, long ttl) {
-    cache.put(key.getBytes(), value);
+    cache.put(key.getBytes(), value, ttl * 1000);
   }
 
   @Override
@@ -74,9 +64,26 @@ public class OHCacheClient implements CacheClient {
 
   @Override
   public void shutdown() {
-    executor.shutdown();
+    executors.shutdown();
   }
-  public static class Serializer implements CacheSerializer<byte[]> {
+
+  /**
+   * Creates an OHCache with the given size in MB
+   * @param size The size of the cache in MB
+   * @return The Cache instance
+   */
+  public static OHCache<byte[], byte[]> createCache(int size, ScheduledExecutorService executors) {
+    CacheSerializer<byte[]> serializer = new Serializer();
+    OHCacheBuilder<byte[], byte[]> builder = OHCacheBuilder.newBuilder();
+    return builder.capacity(size * 1024 * 1024)
+        .eviction(Eviction.W_TINY_LFU)
+        .keySerializer(serializer)
+        .valueSerializer(serializer)
+        .executorService(executors)
+        .build();
+  }
+
+  private static class Serializer implements CacheSerializer<byte[]> {
 
     @Override
     public void serialize(byte[] bytes, ByteBuffer byteBuffer) {

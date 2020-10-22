@@ -47,6 +47,7 @@ import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.hub.util.ARN;
 import io.vertx.core.AsyncResult;
+import io.vertx.core.Context;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import java.nio.ByteBuffer;
@@ -170,21 +171,23 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
   @Override
   protected void invoke(final FunctionCall fc, final Handler<AsyncResult<byte[]>> callback) {
     final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
-    logger.debug(fc.marker, "Invoking remote lambda function with id '{}' Event size is: {}", remoteFunction.id, fc.bytes.length);
+    Marker marker = fc.marker;
+    Context context = fc.context;
+    logger.debug(marker, "Invoking remote lambda function with id '{}' Event size is: {}", remoteFunction.id, fc.getByteSize());
 
     InvokeRequest invokeReq = new InvokeRequest()
         .withFunctionName(((AWSLambda) remoteFunction).lambdaARN)
-        .withPayload(ByteBuffer.wrap(fc.bytes))
+        .withPayload(ByteBuffer.wrap(fc.getPayload()))
         .withInvocationType(fc.fireAndForget ? InvocationType.Event : InvocationType.RequestResponse);
 
     java.util.concurrent.Future<InvokeResult> future = asyncClient.invokeAsync(invokeReq, new AsyncHandler<InvokeRequest, InvokeResult>() {
       @Override
       public void onError(Exception exception) {
         if (callback == null) {
-          logger.error(fc.marker, "Error sending event to remote lambda function", exception);
+          logger.error(marker, "Error sending event to remote lambda function", exception);
         }
         else {
-          fc.context.runOnContext(v -> callback.handle(Future.failedFuture(getHttpException(fc.marker, exception))));
+          fc.context.runOnContext(v -> callback.handle(Future.failedFuture(getHttpException(marker, exception))));
         }
       }
 
@@ -192,7 +195,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
       public void onSuccess(InvokeRequest request, InvokeResult result) {
         byte[] responseBytes = new byte[result.getPayload().remaining()];
         result.getPayload().get(responseBytes);
-        fc.context.runOnContext(v -> callback.handle(Future.succeededFuture(responseBytes)));
+        context.runOnContext(v -> callback.handle(Future.succeededFuture(responseBytes)));
       }
     });
 

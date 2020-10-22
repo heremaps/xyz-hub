@@ -88,7 +88,8 @@ public class EmbeddedFunctionClient extends RemoteFunctionClient {
   @Override
   protected void invoke(FunctionCall fc, Handler<AsyncResult<byte[]>> callback) {
     final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
-    logger.info(fc.marker, "Invoke embedded lambda '{}' for event: {}", remoteFunction.id, new String(fc.bytes));
+    Marker marker = fc.marker;
+    logger.info(marker, "Invoke embedded lambda '{}' for event: {}", remoteFunction.id, new String(fc.getPayload()));
     embeddedExecutor.execute(() -> {
       String className = null;
       try {
@@ -99,22 +100,25 @@ public class EmbeddedFunctionClient extends RemoteFunctionClient {
           ((AbstractConnectorHandler) reqHandler).setEmbedded(true);
         }
         final ByteArrayOutputStream output = new ByteArrayOutputStream();
-        reqHandler.handleRequest(new ByteArrayInputStream(fc.bytes), output,
-            new EmbeddedContext(fc.marker, remoteFunction.id,
+        reqHandler.handleRequest(new ByteArrayInputStream(fc.getPayload()), output,
+            new EmbeddedContext(marker, remoteFunction.id,
                 ((Connector.RemoteFunctionConfig.Embedded) remoteFunction).env));
-        logger.info(fc.marker, "Handling response of embedded lambda call to '{}'.", remoteFunction.id);
+        logger.info(marker, "Handling response of embedded lambda call to '{}'.", remoteFunction.id);
         byte[] responseBytes = output.toByteArray();
         callback.handle(Future.succeededFuture(responseBytes));
-      } catch (ClassNotFoundException e) {
-        logger.error(fc.marker, "Configuration error, the specified class '{}' was not found {}", className, e);
+      }
+      catch (ClassNotFoundException e) {
+        logger.error(marker, "Configuration error, the specified class '{}' was not found {}", className, e);
         callback.handle(Future.failedFuture(e));
-      } catch (NoClassDefFoundError e) {
-        logger.error(fc.marker, "Configuration error, the specified class '{}' is referring to '{}' which does not exist", className,
+      }
+      catch (NoClassDefFoundError e) {
+        logger.error(marker, "Configuration error, the specified class '{}' is referring to '{}' which does not exist", className,
             e.getMessage());
         callback.handle(Future.failedFuture(e));
-      } catch (Throwable e) {
+      }
+      catch (Throwable e) {
         logger
-            .error(fc.marker, "Exception occurred, while trying to execute embedded lambda with id '{}' {}", remoteFunction.id, e);
+            .error(marker, "Exception occurred, while trying to execute embedded lambda with id '{}' {}", remoteFunction.id, e);
         callback.handle(Future.failedFuture(e));
       }
     });
