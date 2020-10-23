@@ -219,6 +219,12 @@ public class FeatureTaskHandler {
         callback.exception(new HttpException(BAD_REQUEST, e.getMessage(), e));
         return;
       }
+      catch (HttpException e) {
+        cancelRPC(responseContext.rpcContext);
+        logger.error(task.getMarker(), e.getMessage(), e);
+        callback.exception(e);
+        return;
+      }
       catch (Exception e) {
         cancelRPC(responseContext.rpcContext);
         logger.error(task.getMarker(), "Unexpected error executing the storage event.", e);
