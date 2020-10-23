@@ -25,7 +25,7 @@ XYZ Hub uses [GeoJSON](https://tools.ietf.org/html/rfc79460) as the main geospat
 
 # Prerequisites
 
- * Java 8+ (e.g. Oracle Java 8+, OpenJDK 8+, Amazon Coretto 8+, ...)
+ * Java 8.x
  * Maven 3.6+
  * Postgres 10+ with PostGIS 2.5+
  * Redis 5+ (optional)
