@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub;
 
+import static com.here.xyz.hub.rest.Api.CLIENT_CLOSED_REQUEST;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
 import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_INFO;
@@ -116,7 +117,7 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
     //Add additional handler to the router
     router.route().failureHandler(createFailureHandler());
     router.route().order(0)
-        .handler(createOnReceivedHandler())
+        .handler(createReceiveHandler())
         .handler(createCorsHandler());
     //Default NotFound handler
     router.route().last().handler(createNotFoundHandler());
@@ -125,18 +126,29 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
   /**
    * The final response handler.
    */
-  protected static void createEndHandler(RoutingContext context) {
+  protected void onResponseEnd(RoutingContext context) {
     final Marker marker = Api.Context.getMarker(context);
+    if (!context.response().headWritten()) {
+      //The response was closed (e.g. by the client) before it could be written
+      logger.info(marker, "The request was cancelled. No response has been sent.");
+      onRequestCancelled(context);
+    }
     logger.info(marker, "{}", LogUtil.responseToLogEntry(context));
     LogUtil.addResponseInfo(context).end();
     LogUtil.writeAccessLog(context);
   }
 
-  protected static Handler<RoutingContext> createFailureHandler() {
+  protected void onRequestCancelled(RoutingContext context) {
+    context.response().setStatusCode(CLIENT_CLOSED_REQUEST.code());
+    context.response().setStatusMessage(CLIENT_CLOSED_REQUEST.reasonPhrase());
+  }
+
+  protected Handler<RoutingContext> createFailureHandler() {
     return context -> {
       if (context.failure() != null) {
         sendErrorResponse(context, context.failure());
-      } else {
+      }
+      else {
         String message = context.statusCode() == 401 ? "Missing auth credentials." : "A failure occurred during the execution.";
         HttpResponseStatus status = context.statusCode() >= 400 ? HttpResponseStatus.valueOf(context.statusCode()) : INTERNAL_SERVER_ERROR;
         sendErrorResponse(context, new HttpException(status, message));
@@ -147,14 +159,14 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
   /**
    * The default NOT FOUND handler.
    */
-  protected static Handler<RoutingContext> createNotFoundHandler() {
+  protected Handler<RoutingContext> createNotFoundHandler() {
     return context -> sendErrorResponse(context, new HttpException(NOT_FOUND, "The requested resource does not exist."));
   }
 
   /**
    * The initial request handler.
    */
-  protected static Handler<RoutingContext> createOnReceivedHandler() {
+  protected Handler<RoutingContext> createReceiveHandler() {
     return context -> {
       if (context.request().getHeader(STREAM_ID) == null) {
         context.request().headers().add(STREAM_ID, RandomStringUtils.randomAlphanumeric(10));
@@ -162,9 +174,8 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
 
       //Log the request information.
       LogUtil.addRequestInfo(context);
-
       context.response().putHeader(STREAM_ID, context.request().getHeader(STREAM_ID));
-      context.response().endHandler(ar -> createEndHandler(context));
+      context.response().endHandler(ar -> onResponseEnd(context));
       context.next();
     };
   }
@@ -183,11 +194,13 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
         error.message = null;
         logger.error(marker, "Sending error response: {} {} {}", error.statusCode, error.reasonPhrase, exception);
         logger.error(marker, "Error:", exception);
-      } else {
+      }
+      else {
         logger.warn(marker, "Sending error response: {} {} {}", error.statusCode, error.reasonPhrase, exception);
         logger.warn(marker, "Error:", exception);
       }
-    } catch (Exception e) {
+    }
+    catch (Exception e) {
       logger.error("Error {} while preparing error response {}", e, exception);
       logger.error("Error:", e);
       logger.error("Original error:", exception);
