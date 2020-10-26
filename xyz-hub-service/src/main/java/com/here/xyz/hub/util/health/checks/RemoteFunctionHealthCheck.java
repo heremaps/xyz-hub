@@ -43,6 +43,9 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
 
   private Map<String, Object> rfcData = new HashMap<>();
   private Connector connector;
+  private Status cachedStatus;
+  private Response cachedResponse;
+  private int consecutiveErrors;
 
   RemoteFunctionHealthCheck(Connector connector) {
     this.connector = connector;
@@ -59,32 +62,45 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
   @Override
   public Status execute() throws InterruptedException {
     Status s = new Status();
-    HealthCheckEvent healthCheck = new HealthCheckEvent();
-    //Just generate a stream ID here as the stream actually "begins" here
-    final String healthCheckStreamId = UUID.randomUUID().toString();
-    healthCheck.setStreamId(healthCheckStreamId);
-    try {
-      RpcClient client = getClient();
-      client.execute(new Log4jMarker(healthCheckStreamId), healthCheck, true, ar -> {
-        if (ar.failed()) {
-          setResponse(generateResponse().withMessage("Error in connector health-check: " + ar.cause().getMessage()));
-          s.setResult(ERROR);
-        }
-        else {
-          client.getFunctionClient().setLastHealthyTimestamp(Instant.now().getEpochSecond());
-          setResponse(generateResponse());
-          s.setResult(OK);
-        }
-        synchronized (s) {
-          s.notify();
-        }
-      });
 
-      while (s.getResult() == UNKNOWN) {
-        synchronized (s) {
-          s.wait();
+    try {
+      if (cachedStatus != null) {
+        Status tmpStatus = cachedStatus;
+        setResponse(cachedResponse);
+        if (tmpStatus.getResult() == ERROR) consecutiveErrors++;
+        else consecutiveErrors = 0;
+        //Reset the injected status / response for the next execution
+        cachedStatus = null;
+        cachedResponse = null;
+        return tmpStatus;
+      }
+      else {
+        HealthCheckEvent healthCheck = new HealthCheckEvent();
+        //Just generate a stream ID here as the stream actually "begins" here
+        final String healthCheckStreamId = UUID.randomUUID().toString();
+        healthCheck.setStreamId(healthCheckStreamId);
+        getClient().execute(new Log4jMarker(healthCheckStreamId), healthCheck, true, ar -> {
+          if (ar.failed()) {
+            setResponse(generateResponse().withMessage("Error in connector health-check: " + ar.cause().getMessage()));
+            s.setResult(ERROR);
+            consecutiveErrors++;
+          }
+          else {
+            setResponse(generateResponse());
+            s.setResult(OK);
+            consecutiveErrors = 0;
+          }
+          synchronized (s) {
+            s.notify();
+          }
+        });
+
+        while (s.getResult() == UNKNOWN) {
+          synchronized (s) {
+            s.wait();
+          }
+          Thread.sleep(100);
         }
-        Thread.sleep(100);
       }
     }
     catch (InterruptedException interruption) {
@@ -97,6 +113,22 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
     }
 
     return s;
+  }
+
+  /**
+   * Used by the parent {@link RemoteFunctionHealthAggregator} to inject a cached response.
+   * When a cached response gets injected this RFC health-check will not execute for the next period and will
+   * use the cached response instead.
+   *
+   * @param r The response being injected
+   */
+  void injectCachedResponse(Status s, Response r) {
+    cachedStatus = s;
+    cachedResponse = r;
+  }
+
+  public int getConsecutiveErrors() {
+    return consecutiveErrors;
   }
 
   private Response generateResponse() {
@@ -124,7 +156,7 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
       rfcData.put("arrivalRate", rfc.getArrivalRate());
       rfcData.put("throughput", rfc.getThroughput());
       rfcData.put("priority", rfc.getPriority());
-      rfcData.put("lastHealthyTimestamp", rfc.getLastHealthyTimestamp());
+      rfcData.put("consecutiveErrors", consecutiveErrors);
 
       return r.withAdditionalProperty("statistics", rfcData);
     }

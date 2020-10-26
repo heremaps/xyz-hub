@@ -32,8 +32,10 @@ import com.here.xyz.hub.util.health.schema.Response;
 import com.here.xyz.hub.util.health.schema.Status;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.JsonObject;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -43,7 +45,7 @@ import java.util.stream.Collectors;
 public class RemoteFunctionHealthAggregator extends GroupedHealthCheck {
 
   private static final String RFC_HC_CACHE_KEY = "RFC_HC_RESPONSE";
-  private Set<String> connectorIds = new HashSet<>();
+  private Map<String, RemoteFunctionHealthCheck> checksByConnectorId = new HashMap<>();
 
   public RemoteFunctionHealthAggregator() {
     setName("Connectors");
@@ -52,15 +54,16 @@ public class RemoteFunctionHealthAggregator extends GroupedHealthCheck {
   }
 
   private void addRfcHc(Connector connector) {
-    connectorIds.add(connector.id);
-    add(new RemoteFunctionHealthCheck(connector));
+    RemoteFunctionHealthCheck rfcHc = new RemoteFunctionHealthCheck(connector);
+    checksByConnectorId.put(connector.id, rfcHc);
+    add(rfcHc);
   }
 
   private void removeRfcHc(String connectorId) {
     checks.forEach(hc -> {
       RemoteFunctionHealthCheck rfcHc = (RemoteFunctionHealthCheck) hc;
       if (rfcHc.getConnectorId().equals(connectorId)) {
-        connectorIds.remove(connectorId);
+        checksByConnectorId.remove(connectorId);
         remove(rfcHc);
       }
     });
@@ -79,6 +82,11 @@ public class RemoteFunctionHealthAggregator extends GroupedHealthCheck {
       //Use the cached response as it's still fresh
       res = cachedResponse;
       s = cachedResponse.getStatus();
+      //Inject the cached sub-responses to the sub-health-checks
+      cachedResponse.getChecks().forEach(c -> {
+        RemoteFunctionHealthCheck check = checksByConnectorId.get(c.getName());
+        check.injectCachedResponse(c.getStatus(), c.getResponse());
+      });
     }
     else {
       //There was no cached response or it was too old, so this node will create a new health-check response
@@ -96,14 +104,14 @@ public class RemoteFunctionHealthAggregator extends GroupedHealthCheck {
         Set<String> toDelete = new HashSet<>();
         Set<Connector> toAdd = new HashSet<>();
 
-        connectorIds.forEach(connectorId -> {
+        checksByConnectorId.forEach((connectorId, rfcHc) -> {
           if (!activeConnectorIds.contains(connectorId)) {
             toDelete.add(connectorId);
           }
         });
 
         activeConnectors.forEach(connector -> {
-          if (!connectorIds.contains(connector.id)) {
+          if (!checksByConnectorId.containsKey(connector.id)) {
             toAdd.add(connector);
           }
         });
@@ -160,5 +168,9 @@ public class RemoteFunctionHealthAggregator extends GroupedHealthCheck {
     catch (ExecutionException | InterruptedException e) {
       return null;
     }
+  }
+
+  public RemoteFunctionHealthCheck getRfcHealthCheck(String connectorId) {
+    return checksByConnectorId.get(connectorId);
   }
 }

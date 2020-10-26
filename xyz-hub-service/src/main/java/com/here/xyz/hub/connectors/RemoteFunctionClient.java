@@ -104,11 +104,6 @@ public abstract class RemoteFunctionClient {
    */
   private double rateOfService;
 
-  /**
-   * The last time this connector has been reported as "Healthy", in Unix timestamp format.
-   */
-  private long lastHealthyTimestamp;
-
   RemoteFunctionClient(Connector connectorConfig) {
     if (connectorConfig == null) {
       throw new NullPointerException();
@@ -414,10 +409,6 @@ public abstract class RemoteFunctionClient {
   public double getRateOfService() {
     return rateOfService;
   }
-
-  public long getLastHealthyTimestamp() { return lastHealthyTimestamp; }
-
-  public void setLastHealthyTimestamp(long lastHealthyTimestamp) { this.lastHealthyTimestamp = lastHealthyTimestamp; }
 
   public int getMinConnections() {
     return connectorConfig == null ? 0 : connectorConfig.getMinConnectionsPerInstance();
