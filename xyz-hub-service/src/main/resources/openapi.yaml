@@ -1205,6 +1205,9 @@ components:
       in: query
       description: >-
         optimize resultset and geometries for dispaly. mode = [raw|viz]
+
+
+        Note: when using mode=viz, then the value of "limit" parameter will be set to its max value (100000) if not specified otherwise.
       required: false
       schema:
         type: string
