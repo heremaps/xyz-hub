@@ -85,7 +85,8 @@ public class RemoteFunctionHealthAggregator extends GroupedHealthCheck {
       //Inject the cached sub-responses to the sub-health-checks
       cachedResponse.getChecks().forEach(c -> {
         RemoteFunctionHealthCheck check = checksByConnectorId.get(c.getName());
-        check.injectCachedResponse(c.getStatus(), c.getResponse());
+        if (check != null)
+          check.injectCachedResponse(c.getStatus(), c.getResponse());
       });
     }
     else {
