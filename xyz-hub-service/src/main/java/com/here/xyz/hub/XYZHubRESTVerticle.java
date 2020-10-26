@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub;
 
+import static com.here.xyz.hub.task.Task.TASK;
 import static io.vertx.core.http.HttpHeaders.CONTENT_LENGTH;
 
 import com.here.xyz.hub.auth.Authorization.AuthorizationType;
@@ -39,6 +40,7 @@ import io.vertx.ext.auth.PubSecKeyOptions;
 import io.vertx.ext.auth.jwt.JWTAuth;
 import io.vertx.ext.auth.jwt.JWTAuthOptions;
 import io.vertx.ext.web.Router;
+import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.api.contract.RouterFactoryOptions;
 import io.vertx.ext.web.api.contract.openapi3.OpenAPI3RouterFactory;
 import io.vertx.ext.web.handler.AuthHandler;
@@ -70,6 +72,16 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
       CONTRACT_LOCATION = openApi.contractLocation;
     } catch (Exception e) {
       logger.error("Unable to generate OpenApi specs.", e);
+    }
+  }
+
+  @Override
+  protected void onRequestCancelled(RoutingContext context) {
+    super.onRequestCancelled(context);
+    Task task = context.get(TASK);
+    if (task != null) {
+      //Cancel all pending actions of the task which might be in progress
+      task.cancel();
     }
   }
 
