@@ -37,8 +37,13 @@ public class RestAssuredConfig {
 
   private static RestAssuredConfig localConfig() {
     RestAssuredConfig config = new RestAssuredConfig();
+    String envPort = System.getenv("HTTP_PORT");
     config.baseURI = "http://localhost/hub";
     config.port = 8080;
+    try {
+      config.port = Integer.parseInt(envPort);
+    }
+    catch (NumberFormatException ignore) {}
     return config;
   }
 }

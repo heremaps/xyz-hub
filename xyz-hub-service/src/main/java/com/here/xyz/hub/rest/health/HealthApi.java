@@ -53,6 +53,7 @@ public class HealthApi extends Api {
 
   public static final String MAIN_HEALTCHECK_ENDPOINT = "/hub/";
   private static final URI NODE_HEALTHCHECK_ENDPOINT = getNodeHealthCheckEndpoint();
+  public static final RemoteFunctionHealthAggregator rfcHcAggregator = new RemoteFunctionHealthAggregator();
   private static MainHealthCheck healthCheck = new MainHealthCheck(true)
       .withReporter(
           new Reporter()
@@ -63,7 +64,7 @@ public class HealthApi extends Api {
               .withEndpoint(getPublicServiceEndpoint())
       )
       .add(new RedisHealthCheck(Service.configuration.XYZ_HUB_REDIS_HOST, Service.configuration.XYZ_HUB_REDIS_PORT))
-      .add(new RemoteFunctionHealthAggregator())
+      .add(rfcHcAggregator)
       .add(new MemoryHealthCheck())
       .add(new ClusterHealthCheck());
 
