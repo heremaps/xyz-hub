@@ -243,8 +243,8 @@ public class SQLQueryBuilder {
             }
         }
         
-        boolean bConvertGeo2Geojson = ( mvtRequested(event) == 0 );
-        
+        //boolean bConvertGeo2Geojson = ( mvtRequested(event) == 0 );
+
         return QuadbinSQL.generateQuadbinClusteringSQL(config.schema(), config.table(event), relResolution, countMode, propQuerySQL, tile, noBuffer);
     }
 
