@@ -249,6 +249,8 @@ public class FeatureQueryApi extends Api {
 
       GetFeaturesByTileEvent event = new GetFeaturesByTileEvent();
 
+      String optimMode = Query.getString(context, Query.OPTIM_MODE, "raw");
+
       try {
         event.withClip(Query.getBoolean(context, Query.CLIP, false) || responseType == ApiResponseType.MVT || responseType == ApiResponseType.MVT_FLATTENED)
               .withMargin(Query.getInteger(context, Query.MARGIN, 0))
@@ -256,12 +258,12 @@ public class FeatureQueryApi extends Api {
               .withClusteringParams(Query.getAdditionalParams(context, Query.CLUSTERING))
               .withTweakType(Query.getString(context, Query.TWEAKS, null))
               .withTweakParams(Query.getAdditionalParams(context, Query.TWEAKS))
-              .withLimit(getLimit(context))
+              .withLimit(getLimit(context, ( "viz".equals(optimMode) ? FeatureQueryApi.HARD_LIMIT :  DEFAULT_FEATURE_LIMIT ) ))
               .withTags(Query.getTags(context))
               .withPropertiesQuery(Query.getPropertiesQuery(context))
               .withSelection(Query.getSelection(context))
               .withForce2D(force2D)
-              .withOptimizationMode(Query.getString(context, Query.OPTIM_MODE, "raw"))
+              .withOptimizationMode(optimMode)
               .withVizSampling(Query.getString(context, Query.OPTIM_VIZSAMPLING, "med"));
       } catch (Exception e) {
         throw new HttpException(BAD_REQUEST,e.getMessage());
@@ -352,8 +354,9 @@ public class FeatureQueryApi extends Api {
   /**
    * Returns the value of the limit parameter of a default value.
    */
-  private int getLimit(RoutingContext context) throws HttpException {
-    int limit = Query.getInteger(context, Query.LIMIT, DEFAULT_FEATURE_LIMIT);
+
+  private int getLimit(RoutingContext context, int defaultLimit ) throws HttpException {
+    int limit = Query.getInteger(context, Query.LIMIT, defaultLimit);
 
     if (limit < FeatureQueryApi.MIN_LIMIT || limit > FeatureQueryApi.HARD_LIMIT) {
       throw new HttpException(BAD_REQUEST,
@@ -362,6 +365,8 @@ public class FeatureQueryApi extends Api {
     }
     return limit;
   }
+
+  private int getLimit(RoutingContext context) throws HttpException { return getLimit(context, DEFAULT_FEATURE_LIMIT ); }
 
   /**
    * Parses the provided latitude and longitude values as a bounding box.
