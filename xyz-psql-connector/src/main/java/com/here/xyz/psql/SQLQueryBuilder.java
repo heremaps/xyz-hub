@@ -184,15 +184,18 @@ public class SQLQueryBuilder {
         int pxSize = H3SQL.adjPixelSize( h3res, defaultResForLevel );
 
         String h3sqlMid = H3SQL.h3sqlMid( clusteringParams.get(H3SQL.HEXBIN_SINGLECOORD) == Boolean.TRUE );
+               
+        int samplingStrength = samplingStrengthFromText((String) clusteringParams.getOrDefault(H3SQL.HEXBIN_SAMPLING, "off"),false);
+        String samplingCondition =  ( samplingStrength <= 0 ? "1 = 1" : TweaksSQL.strengthSql( samplingStrength, true) );
          
         if (!statisticalPropertyProvided) {
-            query.append(new SQLQuery(String.format(h3sqlMid, h3res, "(0.0)::numeric", zLevel, pxSize,expBboxSql)));
+            query.append(new SQLQuery(String.format(h3sqlMid, h3res, "(0.0)::numeric", zLevel, pxSize,expBboxSql,samplingCondition)));
         } else {
             ArrayList<String> jpath = new ArrayList<>();
             jpath.add("properties");
             jpath.addAll(Arrays.asList(statisticalProperty.split("\\.")));
 
-            query.append(new SQLQuery(String.format(h3sqlMid, h3res, "(jsondata#>> ?)::numeric", zLevel, pxSize,expBboxSql)));
+            query.append(new SQLQuery(String.format(h3sqlMid, h3res, "(jsondata#>> ?)::numeric", zLevel, pxSize,expBboxSql,samplingCondition)));
             query.addParameter(SQLQuery.createSQLArray(jpath.toArray(new String[]{}), "text", dataSource));
         }
 
@@ -294,6 +297,22 @@ public class SQLQueryBuilder {
      return String.format( fmt, tweaksGeoSql, bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());  
     }
 
+    private static int samplingStrengthFromText( String sampling, boolean fiftyOnUnset )
+    {
+     int strength = 0;   
+     switch( sampling.toLowerCase() )
+     { case "low"     : strength =  10;  break;
+       case "lowmed"  : strength =  30;  break;
+       case "med"     : strength =  50;  break;
+       case "medhigh" : strength =  75;  break;
+       case "high"    : strength = 100;  break;
+       default: if( fiftyOnUnset ) strength = 50;  break;
+     }
+     
+     return strength;
+ 
+    }
+
     public static SQLQuery buildSamplingTweaksQuery(GetFeaturesByBBoxEvent event, BBox bbox, Map tweakParams, DataSource dataSource) throws SQLException
     {
      int strength = 0;
@@ -304,14 +323,7 @@ public class SQLQueryBuilder {
       if( tweakParams.get(TweaksSQL.SAMPLING_STRENGTH) instanceof Integer )
        strength = (int) tweakParams.get(TweaksSQL.SAMPLING_STRENGTH);
       else
-       switch(((String) tweakParams.getOrDefault(TweaksSQL.SAMPLING_STRENGTH,"default")).toLowerCase() )
-       { case "low"     : strength =  10;  break;
-         case "lowmed"  : strength =  30;  break;
-         case "med"     : strength =  50;  break;
-         case "medhigh" : strength =  75;  break;
-         case "high"    : strength = 100; break;
-         default: strength  = 50; break;
-       }
+       strength = samplingStrengthFromText( (String) tweakParams.getOrDefault(TweaksSQL.SAMPLING_STRENGTH,"default"), true );
 
        switch(((String) tweakParams.getOrDefault(TweaksSQL.SAMPLING_ALGORITHM, TweaksSQL.SAMPLING_ALGORITHM_DST)).toLowerCase() )
        {

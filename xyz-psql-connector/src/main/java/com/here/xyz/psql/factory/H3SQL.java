@@ -30,6 +30,8 @@ public class H3SQL
   public static final String HEXBIN_PROPERTY = "property";
   public static final String HEXBIN_POINTMODE = "pointmode";
   public static final String HEXBIN_SINGLECOORD = "singlecoord";
+  public static final String HEXBIN_SAMPLING = "sampling";
+  
 
   public static String h3sqlBegin =
       "  select "
@@ -115,7 +117,7 @@ public class H3SQL
             "              select %2$s as cval, st_geometryn(st_points( ST_Intersection( v.geo, %5$s ) ) ,1) as refpt"
           + "              from ${schema}.${table} v ",
  h3sqlMid_2 =
-            "              where 1 = 1 and st_intersects( geo , %5$s ) ",          
+            "              where 1 = 1 and st_intersects( geo , %5$s ) and %6$s",          
   h3sqlEnd =
             "            ) in_data "
           + "          ) q2 "
