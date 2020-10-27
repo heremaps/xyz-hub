@@ -1043,9 +1043,9 @@ components:
 
         | Parameter   | Type    | Mandatory | Meaning                                                               |
         |-------------|---------|-----------|-----------------------------------------------------------------------|
-        | absoluteResolution  | Number  | NO        | The H3 hexagon resolution                                             |
+        | absoluteResolution  | Number  | NO        | integer, The H3 hexagon resolution [0,13]                      |
         | resolution  | Number  | NO        | deprecated, renamed to absoluteResolution                             |
-        | relativeResolution | Number  | NO        | integer value [0-4] to be added to current used resolution  |
+        | relativeResolution | Number  | NO        | integer value [-2,2] to be added to current used resolution  |
         | property    | String  | NO        | A property of the original features for which to calculate statistics |
         | pointmode   | Boolean | NO        | retuns the centroid of hexagons as geojson feature                    |
         | singlecoord | Boolean | NO        | force to evaluate the first object coordinate only (default: false)   |
@@ -1057,7 +1057,7 @@ components:
 
         | Parameter   | Type    | Mandatory | Meaning                                                               |
         |-------------|---------|-----------|-----------------------------------------------------------------------|
-        | relativeResolution | Number  | NO        | The quad resolution [0-4]                                             |
+        | relativeResolution | Number  | NO        | integer, The quad resolution [0,4]                                             |
         | noBuffer    | Boolean | NO        | do not place a buffer around quad polygons, default: false            |
         | resolution  | Number  | NO        | deprecated, renamed to resolutionRelative             |
         | countmode   | String  | NO        | [real, estimated, mixed]                                    |

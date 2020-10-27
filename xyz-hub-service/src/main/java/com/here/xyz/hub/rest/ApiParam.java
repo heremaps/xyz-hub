@@ -395,14 +395,20 @@ public class ApiParam {
     private static void validateAdditionalParams(String type, String key, Object value) throws  Exception{
       if(type.equals(CLUSTERING)){
         switch (key){
+
           case CLUSTERING_PARAM_RESOLUTION_ABSOLUTE:
           case CLUSTERING_PARAM_RESOLUTION_RELATIVE:
           case CLUSTERING_PARAM_RESOLUTION:
             if(!(value instanceof Long))
               throw new Exception(String.format("Invalid clustering.%s value. Expect Integer.",key));
-            else if((long)value < 0 || (long)value > 15)
+
+            if( CLUSTERING_PARAM_RESOLUTION_RELATIVE.equals(key) && ((long)value < -2 || (long)value > 2))
+             throw new Exception(String.format("Invalid clustering.%s value. Expect Integer [-2,2].",key));  
+
+            if(!CLUSTERING_PARAM_RESOLUTION_RELATIVE.equals(key) && ((long)value < 0 || (long)value > 15))
               throw new Exception(String.format("Invalid clustering.%s value. Expect Integer [0,15].",key));
             break;
+            
           case CLUSTERING_PARAM_PROPERTY:
             if(!(value instanceof String))
               throw new Exception(String.format("Invalid clustering.%s value. Expect String.",key));
