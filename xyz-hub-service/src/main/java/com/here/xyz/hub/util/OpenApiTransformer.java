@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.here.xyz.hub.XYZHubRESTVerticle;
+import com.here.xyz.hub.Service;
 import io.swagger.v3.parser.ObjectMapperFactory;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -79,6 +79,7 @@ public class OpenApiTransformer {
   }
 
   private void execute() {
+    setVersion();
     removeTaggedObjects();
     replaceTaggedFieldnames();
     cleanupTaggedFieldnames();
@@ -98,6 +99,10 @@ public class OpenApiTransformer {
         traverse(curr, c);
       }
     }
+  }
+
+  private void setVersion() {
+    ((ObjectNode)root.get("info")).put("version", Service.BUILD_VERSION);
   }
 
   private void removeTaggedObjects() {
@@ -213,7 +218,7 @@ public class OpenApiTransformer {
 
   public static OpenApiTransformer generateAll() throws Exception {
     try (
-        InputStream fin = XYZHubRESTVerticle.class.getResourceAsStream("/openapi.yaml");
+        InputStream fin = Service.class.getResourceAsStream("/openapi.yaml");
         InputStream bin = new ByteArrayInputStream(IOUtils.toByteArray(fin));
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
     ) {
