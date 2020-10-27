@@ -37,7 +37,8 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
     @JsonSubTypes.Type(value = StatisticsResponse.class, name = "StatisticsResponse"),
     @JsonSubTypes.Type(value = SuccessResponse.class, name = "SuccessResponse"),
     @JsonSubTypes.Type(value = NotModifiedResponse.class, name = "NotModifiedResponse"),
-    @JsonSubTypes.Type(value = FeatureCollection.class, name = "FeatureCollection")
+    @JsonSubTypes.Type(value = FeatureCollection.class, name = "FeatureCollection"),
+    @JsonSubTypes.Type(value = BinResponse.class, name = "BinResponse")
 })
 public abstract class XyzResponse<T extends XyzResponse> extends Payload {
 

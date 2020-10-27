@@ -113,13 +113,30 @@ public class TweaksSQL
    +"and geo->>'type' != 'GeometryCollection' ";
   
   public static String 
-   estimateBuildBboxSql = String.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/),
+   requestedTileBoundsSql = String.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/),
    estimateCountByBboxesSql =
     " with indata as ( select '${schema}' as schema, '${table}' as space, unnest( array[ %1$s ] ) as tile, 'geo' as colname  ) "
    +" select jsonb_set( '{\"type\":\"Feature\"}', '{rcount}', to_jsonb( max( reltuples * _postgis_selectivity( format('%%s.%%s',r.schema,r.space )::regclass, r.colname, r.tile) )::integer ) ) as rcount, null "
    +" from pg_class l, indata r "
    +" where oid = format('%%s.%%s',r.schema,r.space )::regclass ";
   
+  public static String 
+   mvtPropertiesSql        = "jsonb_set( ( select jsonb_object_agg( key, case when jsonb_typeof( value ) in ('object', 'array') then  to_jsonb( value::text ) else value end ) from jsonb_each( (jsondata)->'properties' ) ) ,'{id}', to_jsonb( jsondata->>'id' ))", 
+   mvtPropertiesFlattenSql = "( select jsonb_object_agg('properties.' || jkey,jval) from prj_flatten( jsonb_set((jsondata)->'properties','{id}', to_jsonb( jsondata->>'id' )) ))",
+   mvtBeginSql = 
+    "with tile as ( select %1$s as bounds, 4096::integer as extend, 256::integer as buffer, true as clip_geom ), "
+   +"mvtdata as "
+   +"( "
+   +" select %2$s as properties, ST_AsMVTGeom( geo, t.bounds, t.extend, t.buffer, t.clip_geom ) as geo "
+   +" from "
+   +" ( ",
+    /** inner sql comes here, like "select jsondata, geo from table " , it is expected that the attributs are named "jsondata" and "geo" */
+   mvtEndSql = 
+    " ) data , tile t "
+   +") "
+   +"select ST_AsMVT( mvtdata , '%1$s' ) as bin from mvtdata";
+   
+
 }
 
 

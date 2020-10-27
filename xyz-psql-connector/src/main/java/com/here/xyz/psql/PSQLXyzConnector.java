@@ -133,6 +133,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
               bOptViz = "viz".equals( event.getOptimizationMode() ),
               bSelectionStar = false;
 
+      int mvtRequested = SQLQueryBuilder.mvtRequested(event);
+              
+
       if( event.getSelection() != null && "*".equals( event.getSelection().get(0) ))
       { event.setSelection(null);
         bSelectionStar = true; // differentiation needed, due to different semantic of "event.getSelection() == null" tweaks vs. nonTweaks
@@ -185,9 +188,15 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
           case TweaksSQL.SAMPLING: {
             if( bTweaks || !bVizSamplingOff )
-            { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, dataSource));
-              collection.setPartial(true);
-              return collection;
+            { 
+              if( mvtRequested == 0 )
+              { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, dataSource));
+                collection.setPartial(true);
+                return collection;
+              }
+              else
+               return executeBinQueryWithRetry( 
+                         SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, dataSource) , bbox, mvtRequested > 1 ) );
             }
             else
             { // fall thru tweaks=simplification e.g. mode=viz and vizSampling=off
@@ -196,9 +205,14 @@ public class PSQLXyzConnector extends DatabaseHandler {
           }            
           
           case TweaksSQL.SIMPLIFICATION: { 
-            FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams, dataSource));
-            collection.setPartial(true);
-            return collection;
+            if( mvtRequested == 0 )
+            { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams, dataSource));
+              collection.setPartial(true);
+              return collection;
+            }
+            else
+             return executeBinQueryWithRetry( 
+               SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams, dataSource) , bbox, mvtRequested > 1 ) );
           }
 
           default: break; // fall back to non-tweaks usage.
@@ -211,7 +225,11 @@ public class PSQLXyzConnector extends DatabaseHandler {
         switch(event.getClusteringType().toLowerCase())
         {
           case H3SQL.HEXBIN :
-           return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource));
+           if( mvtRequested == 0 )
+            return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource)); 
+           else
+            return executeBinQueryWithRetry( 
+             SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource), bbox, mvtRequested > 1 ) );
 
           case QuadbinSQL.QUAD :
            final int relResolution = ( clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) != null ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) :
@@ -221,6 +239,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
            final boolean noBuffer = (boolean) clusteringParams.getOrDefault(QuadbinSQL.QUADBIN_NOBOFFER,false);
 
            QuadbinSQL.checkQuadbinInput(countMode, relResolution, event, config.table(event), streamId, this);
+           /** todo mvt from db*/
            return executeQueryWithRetry(SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config, noBuffer));
 
           default: break; // fall back to non-tweaks usage.
@@ -237,7 +256,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
         }
       }
 
-      return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource));
+      if( mvtRequested == 0 )
+       return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource));
+      else 
+       return executeBinQueryWithRetry( SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource), bbox, mvtRequested > 1 ) );
 
     }catch (SQLException e){
       return checkSQLException(e, config.table(event));

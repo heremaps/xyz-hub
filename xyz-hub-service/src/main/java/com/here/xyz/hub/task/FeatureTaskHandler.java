@@ -70,6 +70,7 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.FeatureCollection.ModificationFailure;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.responses.BinResponse;
 import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.ModifiedEventResponse;
@@ -970,8 +971,13 @@ public class FeatureTaskHandler {
   }
 
   static void transformResponse(TileQuery task, Callback<TileQuery> callback) {
-    if ((ApiResponseType.MVT != task.responseType && ApiResponseType.MVT_FLATTENED != task.responseType)
-        || !(task.getResponse() instanceof FeatureCollection)) {
+    
+    if(!
+       (    ( ApiResponseType.MVT == task.responseType || ApiResponseType.MVT_FLATTENED == task.responseType)  
+         && ((task.getResponse() instanceof FeatureCollection) || (task.getResponse() instanceof BinResponse))
+       )  
+      )
+    {
       callback.call(task);
       return;
     }
@@ -983,17 +989,24 @@ public class FeatureTaskHandler {
     //The mvt transformation is not executed, if the source feature collection is the same.
     if (!task.etagMatches()) {
       try {
-        byte[] mvt;
-        if (ApiResponseType.MVT == task.responseType) {
-          mvt = new MapBoxVectorTileBuilder()
-              .build(WebMercatorTile.forWeb(tc.level, tc.x, tc.y), tc.margin, task.space.getId(),
-                  ((FeatureCollection) task.getResponse()).getFeatures());
-        } else {
-          mvt = new MapBoxVectorTileFlattenedBuilder()
-              .build(WebMercatorTile.forWeb(tc.level, tc.x, tc.y), tc.margin, task.space.getId(),
-                  ((FeatureCollection) task.getResponse()).getFeatures());
+
+        if( task.getResponse() instanceof BinResponse )
+         binaryResponse.setBytes( ((BinResponse) task.getResponse()).getBytes() ) ;
+        else
+        { 
+         byte[] mvt;
+         if (ApiResponseType.MVT == task.responseType) {
+           mvt = new MapBoxVectorTileBuilder()
+               .build(WebMercatorTile.forWeb(tc.level, tc.x, tc.y), tc.margin, task.space.getId(),
+                   ((FeatureCollection) task.getResponse()).getFeatures());
+         } else {
+           mvt = new MapBoxVectorTileFlattenedBuilder()
+               .build(WebMercatorTile.forWeb(tc.level, tc.x, tc.y), tc.margin, task.space.getId(),
+                   ((FeatureCollection) task.getResponse()).getFeatures());
         }
         binaryResponse.setBytes(mvt);
+       }
+
       } catch (Exception e) {
         logger.info(task.getMarker(), "Exception while transforming the response.", e);
         callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Error while transforming the response."));
