@@ -68,7 +68,6 @@ public abstract class MvtTileBuilder implements IUserDataConverter, IGeometryFil
     final MathTransform mathTransform = GeoTools.mathTransform(WGS84_EPSG, WEB_MERCATOR_EPSG);
     final GeometryFactory geomFactory = new GeometryFactory(new PrecisionModel());
 
-    BBox bbox = wmTile.getBBox(false);
     Envelope tileEnvelope = new Envelope(wmTile.left, wmTile.right, wmTile.bottom, wmTile.top);
     Envelope clipEnvelope = new Envelope(tileEnvelope);
     clipEnvelope.expandBy(margin * wmTile.level);
