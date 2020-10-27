@@ -45,7 +45,7 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
 
   private static final Logger logger = LogManager.getLogger();
   private static Map<String, String> envMap;
-  private static AbstractConnectorHandler connector;
+  private AbstractConnectorHandler connector;
 
   @Override
   public void start(Future future) {
@@ -55,8 +55,8 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
     //Initialize the web-server
     Router router = Router.router(vertx);
     router.route().handler(BodyHandler.create());
-    router.route(HttpMethod.POST, "/psql").blockingHandler(PsqlHttpVerticle::connectorCall);
-    router.route(HttpMethod.GET, "/psql").handler(PsqlHttpVerticle::simpleHealthCheck);
+    router.route(HttpMethod.POST, "/psql").blockingHandler(this::connectorCall);
+    router.route(HttpMethod.GET, "/psql").handler(this::simpleHealthCheck);
     addDefaultHandlers(router);
     vertx.createHttpServer(SERVER_OPTIONS)
         .requestHandler(router)
@@ -70,7 +70,7 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
         });
   }
 
-  public static void simpleHealthCheck(RoutingContext context) {
+  public void simpleHealthCheck(RoutingContext context) {
     context.response()
         .setStatusCode(HttpResponseStatus.OK.code())
         .setStatusMessage(HttpResponseStatus.OK.reasonPhrase())
@@ -78,7 +78,7 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
         .end("{\"status\":\"OK\"}");
   }
 
-  public static void connectorCall(RoutingContext context) {
+  public void connectorCall(RoutingContext context) {
     byte[] inputBytes = new byte[context.getBody().length()];
     context.getBody().getBytes(inputBytes);
     InputStream inputStream = new ByteArrayInputStream(inputBytes);
