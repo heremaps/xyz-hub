@@ -115,22 +115,22 @@ public class SQLQueryBuilder {
 
     /***************************************** CLUSTERING ******************************************************/
 
-    private static int evalH3Resolution( Map<String, Object> clusteringParams, int maxResForLevel )
+    private static int evalH3Resolution( Map<String, Object> clusteringParams, int defaultResForLevel )
     {
-     int h3res = maxResForLevel;
+     int h3res = defaultResForLevel, overzoomingRes = 2; // restrict to "defaultResForLevel + 2" as maximum resolution per level
 
      if( clusteringParams == null ) return h3res;
 /** deprecated */
      if( clusteringParams.get(H3SQL.HEXBIN_RESOLUTION) != null )
-      h3res = Math.min((Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION), maxResForLevel);
+      h3res = Math.min((Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION), defaultResForLevel + overzoomingRes);
 /***/
      if( clusteringParams.get(H3SQL.HEXBIN_RESOLUTION_ABSOLUTE) != null )
-      h3res = Math.min((Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION_ABSOLUTE), maxResForLevel);
+      h3res = Math.min((Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION_ABSOLUTE), defaultResForLevel + overzoomingRes);
 
      if( clusteringParams.get(H3SQL.HEXBIN_RESOLUTION_RELATIVE) != null )
-      h3res += Math.max(0, Math.min( 4, (Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION_RELATIVE)));
+      h3res += Math.max(-2, Math.min( 2, (Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION_RELATIVE)));
 
-     return Math.min( h3res, 13 );
+     return Math.min( Math.min( h3res, defaultResForLevel + overzoomingRes ) , 13 ); // cut to maximum res
     }
 
     public static SQLQuery buildHexbinClusteringQuery(
@@ -138,8 +138,8 @@ public class SQLQueryBuilder {
             Map<String, Object> clusteringParams, DataSource dataSource) throws Exception {
 
         int zLevel = (event instanceof GetFeaturesByTileEvent ? ((GetFeaturesByTileEvent) event).getLevel() : H3SQL.bbox2zoom(bbox)),
-            maxResForLevel = H3SQL.zoom2resolution(zLevel),
-            h3res = evalH3Resolution( clusteringParams, maxResForLevel );
+            defaultResForLevel = H3SQL.zoom2resolution(zLevel),
+            h3res = evalH3Resolution( clusteringParams, defaultResForLevel );
 
         if( zLevel == 1)  // prevent ERROR:  Antipodal (180 degrees long) edge detected!
          if( bbox.minLon() == 0.0 ) 
@@ -181,7 +181,7 @@ public class SQLQueryBuilder {
             query.addParameter(SQLQuery.createSQLArray(jpath.toArray(new String[]{}), "text", dataSource));
         }
 
-        int pxSize = H3SQL.adjPixelSize( h3res, maxResForLevel );
+        int pxSize = H3SQL.adjPixelSize( h3res, defaultResForLevel );
 
         String h3sqlMid = H3SQL.h3sqlMid( clusteringParams.get(H3SQL.HEXBIN_SINGLECOORD) == Boolean.TRUE );
                

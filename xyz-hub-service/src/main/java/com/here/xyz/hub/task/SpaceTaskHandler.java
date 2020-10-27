@@ -45,7 +45,6 @@ import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.FeatureTask.ModifySpaceQuery;
 import com.here.xyz.hub.task.ModifyOp.Entry;
-import com.here.xyz.hub.task.ModifyOp.IfNotExists;
 import com.here.xyz.hub.task.ModifyOp.ModifyOpError;
 import com.here.xyz.hub.task.SpaceTask.ConditionalOperation;
 import com.here.xyz.hub.task.SpaceTask.ReadQuery;
@@ -82,7 +81,7 @@ public class SpaceTaskHandler {
     Service.spaceConfigClient.getSelected(task.getMarker(), task.authorizedCondition, task.selectedCondition, task.propertiesQuery, ar -> {
       if (ar.failed()) {
         logger.error(task.getMarker(), "Unable to load space definitions.'", ar.cause());
-        callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the space definitions", ar.cause()));
+        callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definitions.", ar.cause()));
         return;
       }
 
@@ -351,7 +350,7 @@ public class SpaceTaskHandler {
     Service.spaceConfigClient.getOwn(task.getMarker(), jwt.aid, ar -> {
       if (ar.failed()) {
         logger.info(task.getMarker(), "Unable to load the space definitions.", ar.cause());
-        callback.exception(new HttpException(BAD_GATEWAY, "Unable to load the space definitions.", ar.cause()));
+        callback.exception(new HttpException(BAD_GATEWAY, "Unable to load the resource definitions.", ar.cause()));
         return;
       }
 

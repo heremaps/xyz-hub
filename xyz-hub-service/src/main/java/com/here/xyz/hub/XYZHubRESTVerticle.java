@@ -19,9 +19,11 @@
 
 package com.here.xyz.hub;
 
+import static com.here.xyz.hub.rest.Api.CLIENT_CLOSED_REQUEST;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
 import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_INFO;
+import static com.here.xyz.hub.task.Task.TASK;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.vertx.core.http.HttpHeaders.AUTHORIZATION;
@@ -50,6 +52,7 @@ import com.here.xyz.hub.rest.FeatureQueryApi;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.rest.SpaceApi;
 import com.here.xyz.hub.rest.health.HealthApi;
+import com.here.xyz.hub.task.Task;
 import com.here.xyz.hub.util.OpenApiTransformer;
 import com.here.xyz.hub.util.logging.LogUtil;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -128,11 +131,26 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
   /**
    * The final response handler.
    */
-  private static void onResponseSent(RoutingContext context) {
+  private static void onResponseEnd(RoutingContext context) {
     final Marker marker = Api.Context.getMarker(context);
+    if (!context.response().headWritten()) {
+      //The response was closed (e.g. by the client) before it could be written
+      logger.info(marker, "The request was cancelled. No response has been sent.");
+      onRequestCancelled(context);
+    }
     logger.info(marker, "{}", LogUtil.responseToLogEntry(context));
     LogUtil.addResponseInfo(context).end();
     LogUtil.writeAccessLog(context);
+  }
+
+  private static void onRequestCancelled(RoutingContext context) {
+    context.response().setStatusCode(CLIENT_CLOSED_REQUEST.code());
+    context.response().setStatusMessage(CLIENT_CLOSED_REQUEST.reasonPhrase());
+    Task task = context.get(TASK);
+    if (task != null) {
+      //Cancel all pending actions of the task which might be in progress
+      task.cancel();
+    }
   }
 
   private static void failureHandler(RoutingContext context) {
@@ -196,9 +214,8 @@ public class XYZHubRESTVerticle extends AbstractVerticle {
 
     //Log the request information.
     LogUtil.addRequestInfo(context);
-
     context.response().putHeader(STREAM_ID, context.request().getHeader(STREAM_ID));
-    context.response().endHandler(ar -> XYZHubRESTVerticle.onResponseSent(context));
+    context.response().endHandler(ar -> XYZHubRESTVerticle.onResponseEnd(context));
     context.next();
   }
 

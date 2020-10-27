@@ -185,6 +185,7 @@ public class FeatureTaskHandler {
         setAdditionalEventProps(task, task.storage, eventToExecute);
         final long storageRequestStart = Service.currentTimeMillis();
         responseContext.rpcContext = getRpcClient(task.storage).execute(task.getMarker(), eventToExecute, storageResult -> {
+          if (task.getState().isFinal()) return;
           addStoragePerformanceInfo(task, Service.currentTimeMillis() - storageRequestStart, responseContext.rpcContext);
           if (storageResult.failed()) {
             handleFailure(task.getMarker(), storageResult.cause(), callback);
@@ -195,6 +196,7 @@ public class FeatureTaskHandler {
 
           //Do the post-processing here before sending back the response and notifying response-listeners
           notifyProcessors(task, eventType, response, postProcessingResult -> {
+            if (task.getState().isFinal()) return;
             if (postProcessingResult.failed() || postProcessingResult.result() instanceof ErrorResponse) {
               handleProcessorFailure(task.getMarker(), postProcessingResult, callback);
               return;
@@ -209,11 +211,18 @@ public class FeatureTaskHandler {
           });
         });
         addStreamInfo(task, "SReqSize=" + responseContext.rpcContext.getRequestSize() + ";");
+        task.addCancellingHandler(unused -> responseContext.rpcContext.cancelRequest());
       }
       catch (IllegalStateException e) {
         cancelRPC(responseContext.rpcContext);
         logger.error(task.getMarker(), e.getMessage(), e);
         callback.exception(new HttpException(BAD_REQUEST, e.getMessage(), e));
+        return;
+      }
+      catch (HttpException e) {
+        cancelRPC(responseContext.rpcContext);
+        logger.error(task.getMarker(), e.getMessage(), e);
+        callback.exception(e);
         return;
       }
       catch (Exception e) {
@@ -472,6 +481,7 @@ public class FeatureTaskHandler {
           })
           //Execute the processor with the result of the previous processor and inform following stages about the outcome
           .thenAccept(result -> {
+            if (task.getState().isFinal()) return;
             if (result == null) {
               return; //Happens in case of exception. Then the exceptionally handler already took over to inform the following stages.
             }
@@ -482,7 +492,8 @@ public class FeatureTaskHandler {
               //Handle well-thrown connector error by bubbling it through all stages till the end
               nextFuture.complete(result);
               return;
-            } else if (result instanceof ModifiedEventResponse) {
+            }
+            else if (result instanceof ModifiedEventResponse) {
               payloadToSend = ((ModifiedEventResponse) result).getEvent();
               // CMEKB-2779 Store ModificationFailures outside of the event
               if (payloadToSend instanceof ModifyFeaturesEvent) {
@@ -492,7 +503,8 @@ public class FeatureTaskHandler {
                   modifyFeaturesEvent.setFailed(null);
                 }
               }
-            } else {
+            }
+            else {
               payloadToSend = ((ModifiedResponseResponse) result).getResponse();
             }
 
@@ -548,13 +560,14 @@ public class FeatureTaskHandler {
       return f;
     }
     //Execute the processor with the event / response payload (do pre-processing / post-processing)
-    client.execute(task.getMarker(), createNotification(task, payload, notificationEventType, p), ar -> {
+    RpcContext rpcContext = client.execute(task.getMarker(), createNotification(task, payload, notificationEventType, p), ar -> {
       if (ar.failed()) {
         f.completeExceptionally(ar.cause());
       } else {
         f.complete(ar.result());
       }
     });
+    task.addCancellingHandler(unused -> rpcContext.cancelRequest());
     return f;
   }
 
@@ -587,7 +600,7 @@ public class FeatureTaskHandler {
         if (arSpace.failed()) {
           logger
               .info(task.getMarker(), "Unable to load the space definition for space '{}' {}", task.getEvent().getSpace(), arSpace.cause());
-          callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the space definition", arSpace.cause()));
+          callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition", arSpace.cause()));
           return;
         }
         task.space = arSpace.result();
@@ -597,13 +610,13 @@ public class FeatureTaskHandler {
         onSpaceResolved(task, callback);
       });
     } catch (Exception e) {
-      callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the space definition", e));
+      callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition.", e));
     }
   }
 
   private static <X extends FeatureTask> void onSpaceResolved(final X task, final Callback<X> callback) {
     if (task.space == null) {
-      callback.exception(new HttpException(NOT_FOUND, "The space with this ID does not exist."));
+      callback.exception(new HttpException(NOT_FOUND, "The resource with this ID does not exist."));
       return;
     }
     logger.debug(task.getMarker(), "Given space configuration is: {}", Json.encode(task.space));
@@ -696,7 +709,7 @@ public class FeatureTaskHandler {
         }
         entry.input.put(ID, id);
 
-        if (id != null) { 
+        if (id != null) {
           // Minimum length of id should be 1
           if (id.length() < 1) {
             logger.info(task.getMarker(), "Minimum length of object id should be 1.");
@@ -926,10 +939,11 @@ public class FeatureTaskHandler {
         final Map<String, String> deleteFeaturesMap = modifyEvent.getDeleteFeatures();
         final int deleteFeaturesSize = deleteFeaturesMap == null ? 0 : deleteFeaturesMap.size();
         final int featuresDelta = insertFeaturesSize - deleteFeaturesSize;
+        final String spaceId = modifyEvent.getSpace();
         if (featuresDelta > 0 && count + featuresDelta > maxFeaturesPerSpace) {
           callback.exception(new HttpException(FORBIDDEN,
-              "The maximum number of " + maxFeaturesPerSpace + " features per space was reached. The space contains " + count
-                  + " features and cannot store " + featuresDelta + " more features."));
+              "The maximum number of " + maxFeaturesPerSpace + " features for the resource \"" + spaceId + "\" was reached. " +
+              "The resource contains " + count + " features and cannot store " + featuresDelta + " more features."));
           return;
         }
       }
@@ -1067,7 +1081,7 @@ public class FeatureTaskHandler {
   static <X extends FeatureTask<?, X>> void checkPreconditions(X task, Callback<X> callback) throws HttpException {
     if (task.space.isReadOnly() && (task instanceof ConditionalOperation || task instanceof DeleteOperation)) {
       throw new HttpException(METHOD_NOT_ALLOWED,
-          "The method is not allowed, because the space is marked as read-only. Update the space definition to enable editing of features.");
+          "The method is not allowed, because the resource \"" + task.space.getId() + "\" is marked as read-only. Update the resource definition to enable editing of features.");
     }
     callback.call(task);
   }

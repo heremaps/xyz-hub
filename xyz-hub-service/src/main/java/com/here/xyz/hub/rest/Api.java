@@ -69,7 +69,6 @@ import java.net.URLDecoder;
 import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.stream.Stream;
-
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -85,6 +84,7 @@ public abstract class Api {
   public static final HttpResponseStatus RESPONSE_PAYLOAD_TOO_LARGE = new HttpResponseStatus(513, "Response payload too large");
   public static final String RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE =
       "The response payload was too large. Please try to reduce the expected amount of data.";
+  public static final HttpResponseStatus CLIENT_CLOSED_REQUEST = new HttpResponseStatus(499, "Client closed request");
   private static final String DEFAULT_GATEWAY_TIMEOUT_MESSAGE = "The storage connector exceeded the maximum time";
   private static final String DEFAULT_BAD_GATEWAY_MESSAGE = "The storage connector failed to execute the request";
 
@@ -315,7 +315,7 @@ public abstract class Api {
     logger.error(task.getMarker(), "Invalid response for requested type {}: {}, stack-trace: {}", task.responseType,
         task.responseSpaces, new Exception());
     sendErrorResponse(task.context, INTERNAL_SERVER_ERROR, XyzError.EXCEPTION,
-        "Internally generated invalid response for Space-API, expected: " + task.responseType);
+        "Internally generated invalid response, expected: " + task.responseType);
   }
 
   /**

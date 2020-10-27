@@ -139,7 +139,7 @@ public class H3SQL
   public static String h3sqlMid(boolean pointmode) 
   { return H3SQL.h3sqlMid_0 + ( !pointmode ? H3SQL.h3sqlMid_1a : H3SQL.h3sqlMid_1b ) + H3SQL.h3sqlMid_2; }
 
-  public static int[] MaxResForZoom = {2, 2, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8, 9, 9, 10, 11, 11, 12, 13, 14, 14, 15, 15};
+  public static int[] MaxResForZoom = {2, 2, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8, 9, 9, 10, 11, 11, 12, 13, 13, 13, 13, 13};
 
   public static int zoom2resolution(int zoom) {
     return (MaxResForZoom[zoom]);

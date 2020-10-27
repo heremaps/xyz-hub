@@ -107,7 +107,6 @@ class AccessLogExtended {
   public String t = "STREAM";
   public String src;
   public String streamId;
-  public String streamInfo;
   public long unixtime;
   public long timestamp;
   public String time;

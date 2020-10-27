@@ -73,7 +73,7 @@ public class QuadbinSQL {
 
         if (!Capabilities.canSearchFor(spaceId, event.getPropertiesQuery(), connector)) {
             throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-                    "Invalid request parameters. Search for the provided properties is not supported for this space.");
+                    "Invalid request parameters. Search for the provided properties is not supported for this resource.");
         }
     }
 

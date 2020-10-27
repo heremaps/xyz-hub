@@ -66,7 +66,7 @@ public class SpaceAuthorization extends Authorization {
   public static void authorizeReadSpaces(MatrixReadQuery task, Callback<MatrixReadQuery> callback) {
     //Check if anonymous token is being used
     if (task.getJwt().anonymous) {
-      callback.exception(new HttpException(FORBIDDEN, "Accessing spaces isn't possible with an anonymous token."));
+      callback.exception(new HttpException(FORBIDDEN, "Accessing this resource with an anonymous token is not possible."));
     } else if (task.getJwt().getXyzHubMatrix() == null) {
       callback.exception(new HttpException(FORBIDDEN, "Insufficient rights to read the requested resource."));
     } else {
@@ -74,7 +74,7 @@ public class SpaceAuthorization extends Authorization {
         final XyzHubActionMatrix connectorsReadMatrix = new XyzHubActionMatrix().accessConnectors(new XyzHubAttributeMap());
         task.canReadConnectorsProperties = task.getJwt().getXyzHubMatrix().matches(connectorsReadMatrix);
       }
-      
+
       /*
        * No further checks are necessary. Authenticated users generally have access to this resource.
        * The resulting list response will only contain spaces the token has access to.
@@ -98,7 +98,7 @@ public class SpaceAuthorization extends Authorization {
 
     //Check if anonymous token is being used
     if (task.getJwt().anonymous) {
-      callback.exception(new HttpException(FORBIDDEN, "Accessing spaces isn't possible with an anonymous token."));
+      callback.exception(new HttpException(FORBIDDEN, "Accessing this resource with an anonymous token is not possible."));
       return;
     }
 
