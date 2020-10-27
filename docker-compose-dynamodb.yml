@@ -8,18 +8,18 @@ services:
         depends_on:
             - "postgres"
             - "redis"
-            - "xyz-psql-connector"
+            - "xyz-http-connector"
             - "dynamodb"
         environment:
             - SPACES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-spaces
             - CONNECTORS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-connectors
             - PACKAGES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-packages
         command: java -jar xyz-hub-service.jar
-    xyz-psql-connector:
+    xyz-http-connector:
         image: "xyz-hub"
         build:
             context: "./"
-        container_name: xyz-psql-connector
+        container_name: xyz-http-connector
         ports:
             - "9090:9090"
         depends_on:

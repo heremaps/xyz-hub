@@ -22,6 +22,7 @@ package com.here.xyz.hub;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 
+import com.here.xyz.connectors.AbstractConnectorHandler;
 import com.here.xyz.hub.connectors.EmbeddedFunctionClient.EmbeddedContext;
 import com.here.xyz.hub.rest.Api.Context;
 import com.here.xyz.psql.PSQLXyzConnector;
@@ -44,12 +45,18 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
 
   private static final Logger logger = LogManager.getLogger();
   private static Map<String, String> envMap;
+  private static AbstractConnectorHandler connector;
 
   @Override
   public void start(Future future) {
+    //Initialize the connector
+    connector = new PSQLXyzConnector();
+
+    //Initialize the web-server
     Router router = Router.router(vertx);
     router.route().handler(BodyHandler.create());
     router.route(HttpMethod.POST, "/psql").blockingHandler(PsqlHttpVerticle::connectorCall);
+    router.route(HttpMethod.GET, "/psql").handler(PsqlHttpVerticle::simpleHealthCheck);
     addDefaultHandlers(router);
     vertx.createHttpServer(SERVER_OPTIONS)
         .requestHandler(router)
@@ -63,13 +70,21 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
         });
   }
 
+  public static void simpleHealthCheck(RoutingContext context) {
+    context.response()
+        .setStatusCode(HttpResponseStatus.OK.code())
+        .setStatusMessage(HttpResponseStatus.OK.reasonPhrase())
+        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+        .end("{\"status\":\"OK\"}");
+  }
+
   public static void connectorCall(RoutingContext context) {
     byte[] inputBytes = new byte[context.getBody().length()];
     context.getBody().getBytes(inputBytes);
     InputStream inputStream = new ByteArrayInputStream(inputBytes);
     ByteArrayOutputStream os = new ByteArrayOutputStream();
     EmbeddedContext embeddedContext = new EmbeddedContext(Context.getMarker(context), "psql", getEnvMap());
-    new PSQLXyzConnector().handleRequest(inputStream, os, embeddedContext);
+    connector.handleRequest(inputStream, os, embeddedContext);
     context.response()
         .setStatusCode(HttpResponseStatus.OK.code())
         .setStatusMessage(HttpResponseStatus.OK.reasonPhrase())
