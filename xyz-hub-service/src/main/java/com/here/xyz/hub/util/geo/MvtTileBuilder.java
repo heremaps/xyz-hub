@@ -70,7 +70,7 @@ public abstract class MvtTileBuilder implements IUserDataConverter, IGeometryFil
 
     Envelope tileEnvelope = new Envelope(wmTile.left, wmTile.right, wmTile.bottom, wmTile.top);
     Envelope clipEnvelope = new Envelope(tileEnvelope);
-    clipEnvelope.expandBy(margin * wmTile.level);
+    clipEnvelope.expandBy( margin * ( Math.abs(wmTile.left - wmTile.right) / WebMercatorTile.TileSizeInPixel ) );
 
     // Prepare a layer (we will for now only have one layer per tile).
     final MvtLayerParams layerParams = new MvtLayerParams();

@@ -90,8 +90,8 @@ public class SQLQueryBuilder {
         final SQLQuery geoQuery = new SQLQuery("ST_Intersects(geo, ST_MakeEnvelope(?, ?, ?, ?, 4326))",
                 bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
 
-        boolean convertGeo2GeoJson = ( mvtRequested(event) == 0 );
-        return generateCombinedQuery(event, geoQuery, searchQuery,dataSource, convertGeo2GeoJson );
+        boolean bConvertGeo2GeoJson = ( mvtRequested(event) == 0 );
+        return generateCombinedQuery(event, geoQuery, searchQuery,dataSource, bConvertGeo2GeoJson );
     }
 
     protected static SQLQuery buildCountFeaturesQuery(CountFeaturesEvent event, DataSource dataSource, String schema, String table)
@@ -496,10 +496,14 @@ public class SQLQueryBuilder {
      return new SQLQuery( String.format( TweaksSQL.estimateCountByBboxesSql, sb.toString() ) );
     }
 
-    public static SQLQuery buildMvtEncapsuledQuery( String spaceId, SQLQuery dataQry, BBox b, boolean bFlattend ) 
-    { SQLQuery r = new SQLQuery( String.format( TweaksSQL.mvtBeginSql, 
+    public static SQLQuery buildMvtEncapsuledQuery( String spaceId, SQLQuery dataQry, WebMercatorTile mvtTile, int mvtMargin, boolean bFlattend ) 
+    { int extend = 4096, buffer = (extend / WebMercatorTile.TileSizeInPixel) * mvtMargin; 
+      BBox b = mvtTile.getBBox(false); // pg ST_AsMVTGeom expects tiles bbox without buffer.
+      SQLQuery r = new SQLQuery( String.format( TweaksSQL.mvtBeginSql, 
                                    String.format( TweaksSQL.requestedTileBoundsSql , b.minLon(), b.minLat(), b.maxLon(), b.maxLat() ),
-                                   (!bFlattend) ? TweaksSQL.mvtPropertiesSql : TweaksSQL.mvtPropertiesFlattenSql )
+                                   (!bFlattend) ? TweaksSQL.mvtPropertiesSql : TweaksSQL.mvtPropertiesFlattenSql, 
+                                   extend, 
+                                   buffer )
                                );
      r.append(dataQry);
      r.append( String.format( TweaksSQL.mvtEndSql, spaceId ));
@@ -862,4 +866,5 @@ public class SQLQueryBuilder {
     private static String getForceMode(boolean isForce2D) {
       return isForce2D ? "ST_Force2D" : "ST_Force3D";
     }
+
 }

@@ -34,6 +34,7 @@ import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -133,7 +134,17 @@ public class PSQLXyzConnector extends DatabaseHandler {
               bOptViz = "viz".equals( event.getOptimizationMode() ),
               bSelectionStar = false;
 
-      int mvtRequested = SQLQueryBuilder.mvtRequested(event);
+      int mvtRequested = SQLQueryBuilder.mvtRequested(event),
+          mvtMargin = 0;
+      boolean bMvtFlattend = ( mvtRequested > 1 );
+      WebMercatorTile mvtTile = null;
+      
+      if( mvtRequested > 0 )
+      { GetFeaturesByTileEvent e = (GetFeaturesByTileEvent) event; // TileEvent is garanteed 
+        mvtTile = WebMercatorTile.forWeb(e.getLevel(), e.getX(), e.getY());
+        mvtMargin = e.getMargin();
+      }  
+       
               
 
       if( event.getSelection() != null && "*".equals( event.getSelection().get(0) ))
@@ -196,7 +207,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
               }
               else
                return executeBinQueryWithRetry( 
-                         SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, dataSource) , bbox, mvtRequested > 1 ) );
+                         SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, dataSource) , mvtTile, mvtMargin, bMvtFlattend ) );
             }
             else
             { // fall thru tweaks=simplification e.g. mode=viz and vizSampling=off
@@ -212,7 +223,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
             }
             else
              return executeBinQueryWithRetry( 
-               SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams, dataSource) , bbox, mvtRequested > 1 ) );
+               SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams, dataSource) , mvtTile, mvtMargin, bMvtFlattend ) );
           }
 
           default: break; // fall back to non-tweaks usage.
@@ -229,7 +240,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
             return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource)); 
            else
             return executeBinQueryWithRetry( 
-             SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource), bbox, mvtRequested > 1 ) );
+             SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource), mvtTile, mvtMargin, bMvtFlattend ) );
 
           case QuadbinSQL.QUAD :
            final int relResolution = ( clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) != null ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) :
@@ -259,7 +270,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       if( mvtRequested == 0 )
        return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource));
       else 
-       return executeBinQueryWithRetry( SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource), bbox, mvtRequested > 1 ) );
+       return executeBinQueryWithRetry( SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource), mvtTile, mvtMargin, bMvtFlattend ) );
 
     }catch (SQLException e){
       return checkSQLException(e, config.table(event));
