@@ -1716,12 +1716,14 @@ components:
             The calculated volatility at the last content update time.
           type: number
           format: double
+          readOnly: true
         volatility:
           x-experimental: true
           description: >-
             An indicator, if the data in the space is edited often ( value tends to 1 ) or static ( value tends to 0 ).
           type: number
           format: double
+          readOnly: true
         rights:
           description: >-
             The list of rights the current user has when accessing the space. This property
@@ -1729,9 +1731,12 @@ components:
           type: array
           items:
             type: string
+          readOnly: true
         autoCacheProfile:
           x-experimental: true
-          $ref: '#/components/schemas/CacheProfile'
+          allOf:
+            - $ref: '#/components/schemas/CacheProfile'
+          readOnly: true
         listeners:
           x-experimental: true
           description: >-
