@@ -1481,6 +1481,23 @@ components:
         - -1.1
         - 100.1
         - 1.1
+    CacheProfile:
+      x-experimental: true
+      description: >-
+        Provides cache information used to determine where and for how long the content should
+        be held. Each of the properties of this object represents a component and its
+        TTL (time-to-live) in seconds, where zero value means the content should not be cached.
+      type: object
+      properties:
+        browserTTL:
+          type: integer
+          description: For how long, in seconds, the client should hold the content cached.
+        cdnTTL:
+          type: integer
+          description: For how long, in seconds, the CDN should hold the content cached.
+        serviceTTL:
+          type: integer
+          description: For how long, in seconds, Data Hub should hold the content cached.
     Copyright:
       type: object
       description: Provides some information about a copyright
@@ -1676,6 +1693,12 @@ components:
           format: int64
           readOnly: true
           type: integer
+        cacheTTL:
+          x-experimental: true
+          default: -1
+          description: >-
+            The maximum amount of seconds of how long to hold objects of this Space in a cache.
+          type: integer
         contentUpdatedAt:
           default: 1538352000000
           description: >-
@@ -1690,9 +1713,39 @@ components:
         volatilityAtLastContentUpdate:
           x-experimental: true
           description: >-
-            An indicator, if the data in the space is edited often ( value tends to 1 ) or static ( value tends to 0 ).
-          type: integer
+            The calculated volatility at the last content update time.
+          type: number
           format: double
+        volatility:
+          x-experimental: true
+          description: >-
+            An indicator, if the data in the space is edited often ( value tends to 1 ) or static ( value tends to 0 ).
+          type: number
+          format: double
+        rights:
+          description: >-
+            The list of rights the current user has when accessing the space. This property
+            is only shown when listing spaces with the option _includeRights=true_
+          type: array
+          items:
+            type: string
+        autoCacheProfile:
+          x-experimental: true
+          $ref: '#/components/schemas/CacheProfile'
+        listeners:
+          x-experimental: true
+          description: >-
+            A list of connector configurations in which Data Hub sends events asynchronously.
+          type: array
+          items:
+            $ref: '#/components/schemas/Connector'
+        processors:
+          x-experimental: true
+          description: >-
+            A list of connector configurations in which Data Hub sends events synchronously.
+          type: array
+          items:
+            $ref: '#/components/schemas/Connector'
       example:
         title: My Demo Space
         description: Description as markdown
@@ -2340,6 +2393,32 @@ components:
         - retain
         - replace
       default: error
+    Connector:
+      x-experimental: true
+      type: object
+      description: >-
+        A connector configuration which is attached to the space and can act as Listener or Processor.
+      properties:
+        id:
+          type: string
+          description: >-
+            The connector ID, which should correspond to one of the existing connectors in Data Hub.
+        eventTypes:
+          type: array
+          description: >-
+            An array of strings where each of the elements, describes the type of event and in
+            which phase Data Hub should notify the connector.
+          items:
+            type: string
+          example:
+            - ModifyFeaturesEvent.request
+            - ModifyFeaturesEvent.response
+        params:
+          description: >-
+            An arbitrary object containing additional properties which are passed to the connector
+            together within the event sent by Data Hub. It can be used to configure the connector
+            per-space basis.
+          additionalProperties: true
   securitySchemes:
     authToken:
       bearerFormat: JWTPayload
