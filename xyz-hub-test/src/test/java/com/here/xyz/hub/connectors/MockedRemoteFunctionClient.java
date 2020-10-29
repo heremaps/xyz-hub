@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.connectors;
 
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import io.vertx.core.AsyncResult;
@@ -70,7 +71,7 @@ public class MockedRemoteFunctionClient extends RemoteFunctionClient {
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
-                endTime = Service.currentTimeMillis();
+                endTime = Core.currentTimeMillis();
                 long eT = this.endTime - this.startTime;
                 logger.info("Request " + requestId + " was executed with desired executionTime: " + executionTime + "ms and actual eT: " + eT + "ms; relEndTime: " + (endTime - testStart));
                 callback.handle(Future.succeededFuture());
@@ -84,7 +85,7 @@ public class MockedRemoteFunctionClient extends RemoteFunctionClient {
     public static abstract class MockedRequest implements Runnable {
         Handler<AsyncResult<byte[]>> callback;
         String requestId = UUID.randomUUID().toString();
-        long startTime = Service.currentTimeMillis();
+        long startTime = Core.currentTimeMillis();
         long endTime;
         public static long testStart;
 

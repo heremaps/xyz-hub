@@ -133,21 +133,22 @@ public abstract class DatabaseHandler extends StorageConnector {
         if (now < targetResponseTime) {
             try {
                 Thread.sleep(targetResponseTime - now);
-            }catch (Exception e){
+            }
+            catch (Exception e){
                 return new ErrorResponse().withStreamId(streamId).withError(XyzError.EXCEPTION);
             }
         }
         return new HealthStatus().withStatus("OK");
     }
 
-    private String idFromPsqlEnv( final SimulatedContext ctx )
-    { if(ctx == null ) return PSQLConfig.DEFAULT_ECPS;
-      String[] sArr = { PSQLConfig.PSQL_HOST, PSQLConfig.PSQL_PORT, PSQLConfig.PSQL_USER, "PSQL_DB" };
-      String msg = "";
-      for( String s : sArr)
-       msg += ( ctx.getEnv(s) == null ? "mxm" : ctx.getEnv(s) );
-
-      return msg;
+    private String idFromPsqlEnv (final SimulatedContext ctx) {
+        if (ctx == null ) return PSQLConfig.DEFAULT_ECPS;
+        String[] sArr = { PSQLConfig.PSQL_HOST, PSQLConfig.PSQL_PORT, PSQLConfig.PSQL_USER, "PSQL_DB" };
+        String msg = "";
+        for (String s : sArr) {
+            msg += (ctx.getEnv(s) == null ? "mxm" : ctx.getEnv(s));
+        }
+        return msg;
     }
 
     void reset() {
@@ -168,15 +169,15 @@ public abstract class DatabaseHandler extends StorageConnector {
         this.event = event;
         String ecps = PSQLConfig.getECPS(event);
 
-        if( PSQLConfig.DEFAULT_ECPS.equals(ecps) && context instanceof SimulatedContext )
+        if (PSQLConfig.DEFAULT_ECPS.equals(ecps) && context instanceof SimulatedContext)
          ecps = idFromPsqlEnv((SimulatedContext) context);
 
         if (!dbInstanceMap.containsKey(ecps)) {
             /** Init dataSource, readDataSource ..*/
             logger.debug("{} - Create new config and data source for ECPS string: '{}'", streamId, ecps);
             final PSQLConfig config = new PSQLConfig(event, context);
-            final String sName   = ecps.length() <  8 ? ecps : ( ecps.length() < 33 ? ecps.substring(0, 7) : ecps.substring(21, 28) ),
-                         appName = String.format("%s[%s]", config.applicationName(), sName );
+            final String sName = ecps.length() <  8 ? ecps : (ecps.length() < 33 ? ecps.substring(0, 7) : ecps.substring(21, 28)),
+                         appName = String.format("%s[%s]", config.applicationName(), sName);
 
             final ComboPooledDataSource source = getComboPooledDataSource(config.host(), config.port(), config.database(), config.user(),
                     config.password(), appName, config.maxPostgreSQLConnections());
@@ -202,7 +203,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         this.dbMaintainer = dbInstanceMap.get(ecps).getDatabaseMaintainer();
         this.config = dbInstanceMap.get(ecps).getConfig();
 
-        if(event.getPreferPrimaryDataSource() == null || event.getPreferPrimaryDataSource() == Boolean.TRUE){
+        if (event.getPreferPrimaryDataSource() == null && event.getPreferPrimaryDataSource() == Boolean.TRUE) {
             this.readDataSource = this.dataSource;
         }
 
@@ -881,10 +882,10 @@ public abstract class DatabaseHandler extends StorageConnector {
         return featureCollection;
     }
 
-    protected FeatureCollection defaultFeatureResultSetHandler(ResultSet rs) throws SQLException 
+    protected FeatureCollection defaultFeatureResultSetHandler(ResultSet rs) throws SQLException
     { return _defaultFeatureResultSetHandler(rs,false); }
 
-    protected FeatureCollection defaultFeatureResultSetHandlerSkipIfGeomIsNull(ResultSet rs) throws SQLException 
+    protected FeatureCollection defaultFeatureResultSetHandlerSkipIfGeomIsNull(ResultSet rs) throws SQLException
     { return _defaultFeatureResultSetHandler(rs,true); }
 
     protected BinResponse defaultBinaryResultSetHandler(ResultSet rs) throws SQLException 

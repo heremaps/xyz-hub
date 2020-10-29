@@ -22,6 +22,7 @@ package com.here.xyz.hub.rest.health;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.admin.Node;
@@ -57,7 +58,7 @@ public class HealthApi extends Api {
               .withVersion(Service.BUILD_VERSION)
               .withName("HERE XYZ Hub")
               .withBuildDate(Service.BUILD_TIME)
-              .withUpSince(Service.START_TIME)
+              .withUpSince(Core.START_TIME)
               .withEndpoint(getPublicServiceEndpoint())
       )
       .add(new RedisHealthCheck(Service.configuration.XYZ_HUB_REDIS_HOST, Service.configuration.XYZ_HUB_REDIS_PORT))

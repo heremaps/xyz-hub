@@ -21,6 +21,7 @@ package com.here.xyz.hub.connectors;
 
 import static org.junit.Assert.assertEquals;
 
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.Service.Config;
 import com.here.xyz.hub.connectors.models.Connector;
@@ -45,7 +46,7 @@ public class RFCMeasurement {
     @Before
     public void setup() {
         //Mock necessary configuration values
-        Service.vertx = Vertx.vertx();
+        Core.vertx = Vertx.vertx();
         Service.configuration = new Config();
         Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT = 26;
         Service.configuration.INSTANCE_COUNT = 1;
@@ -53,7 +54,7 @@ public class RFCMeasurement {
         Service.configuration.REMOTE_FUNCTION_CONNECTION_HIGH_UTILIZATION_THRESHOLD = 0.75f;
 
         Connector s = new Connector();
-        TEST_START = Service.currentTimeMillis();
+        TEST_START = Core.currentTimeMillis();
         MockedRemoteFunctionClient.MockedRequest.testStart = TEST_START;
         s.id = "testStorage";
         s.connectionSettings = new Connector.ConnectionSettings();
@@ -76,7 +77,7 @@ public class RFCMeasurement {
                                int expectedThroughput) throws InterruptedException {
         ScheduledFuture<?> f = requesterPool.scheduleAtFixedRate(() -> {
             for (int i = 0; i < concurrency; i++) {
-                long now = Service.currentTimeMillis();
+                long now = Core.currentTimeMillis();
                 rfc.submit(null, null, false, false, r -> {
                     //Nothing to do
                 });
