@@ -71,13 +71,15 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected Context context;
 
   @Override
-  protected XyzResponse processHealthCheckEvent(HealthCheckEvent event){
+  protected XyzResponse processHealthCheckEvent(HealthCheckEvent event) {
     try {
       logger.info("{} - Received HealthCheckEvent", streamId);
       return processHealthCheckEventImpl(event);
-    }catch (SQLException e){
+    }
+    catch (SQLException e) {
       return checkSQLException(e, config.table(event));
-    }finally {
+    }
+    finally {
       logger.info("{} - Finished HealthCheckEvent", streamId);
     }
   }
@@ -531,9 +533,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
       case "SNULL":
         if (e.getMessage() == null) break;
       // handle some dedicated messages
-      if( e.getMessage().indexOf("An attempt by a client to checkout a Connection has timed out.") > -1 )
+      if( e.getMessage().indexOf("An attempt by a client to checkout a connection has timed out.") > -1 )
        return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
-                                 .withErrorMessage("Cant get a Connection to the database.");
+                                 .withErrorMessage("Cannot get a connection to the database.");
 
       if( e.getMessage().indexOf("Maxchar limit") > -1 )
         return new ErrorResponse().withStreamId(streamId).withError(XyzError.PAYLOAD_TO_LARGE)

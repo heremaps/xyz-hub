@@ -182,10 +182,14 @@ public class TaskPipeline<V> {
       }
     }
 
-    // Execute the next chain stage, if there is any.
-    if (next != null) {
+    //Execute the next chain stage, if there is any.
+    if (next != null && !state.isCancelled) {
       next._execute();
     }
+  }
+
+  void cancel() {
+    state.isCancelled = true;
   }
 
   /**
@@ -223,12 +227,13 @@ public class TaskPipeline<V> {
   }
 
   /**
-   * The state of the chain that implements as well the callback hadler.
+   * The state of the chain that implements as well the callback handler.
    *
    * @param <V> the type of the value of the chain.
    */
   private static class State<V> implements Callback<V> {
 
+    private boolean isCancelled;
     private boolean isExecuted;
     private V value;
     private Exception exception;
@@ -237,7 +242,7 @@ public class TaskPipeline<V> {
     @Override
     public void exception(Exception e) {
       this.exception = e;
-      if (next != null) {
+      if (next != null && !isCancelled) {
         next._execute();
       }
     }
@@ -245,7 +250,7 @@ public class TaskPipeline<V> {
     @Override
     public void call(V value) {
       this.value = value;
-      if (next != null) {
+      if (next != null && !isCancelled) {
         next._execute();
       }
     }

@@ -34,7 +34,6 @@ import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.net.impl.ConnectionBase;
-import io.vertx.ext.web.client.WebClient;
 import java.nio.charset.Charset;
 import java.util.concurrent.TimeoutException;
 import org.apache.logging.log4j.LogManager;

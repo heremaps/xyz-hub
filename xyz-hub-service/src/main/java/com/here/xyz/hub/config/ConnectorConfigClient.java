@@ -24,21 +24,26 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
 import com.here.xyz.hub.rest.admin.AdminMessage;
+import com.here.xyz.psql.ECPSTool;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.json.Json;
+import io.vertx.core.json.JsonObject;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
 import java.net.URI;
+import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
@@ -144,7 +149,7 @@ public abstract class ConnectorConfigClient implements Initializable {
       final List<CompletableFuture<Void>> futures = new ArrayList<>();
 
       connectors.forEach(c -> {
-        replaceEnvVars(c);
+        replaceConnectorVars(c);
 
         final CompletableFuture<Void> future = new CompletableFuture<>();
         futures.add(future);
@@ -173,39 +178,63 @@ public abstract class ConnectorConfigClient implements Initializable {
     }
   }
 
-  private void replaceEnvVars(final Connector connector) {
+  private void replaceConnectorVars(final Connector connector) {
     if (connector == null) {
       return;
     }
 
-    if (connector.remoteFunction instanceof Embedded) {
-      final Map<String, String> map = new HashMap<>();
-
-      if (Service.configuration.STORAGE_DB_URL != null) {
-        URI uri = URI.create(Service.configuration.STORAGE_DB_URL.substring(5));
-        map.put("PSQL_HOST", uri.getHost());
-        map.put("PSQL_PORT", String.valueOf(uri.getPort() == -1 ? 5432 : uri.getPort()));
-        map.put("PSQL_USER", Service.configuration.STORAGE_DB_USER);
-        map.put("PSQL_PASSWORD", Service.configuration.STORAGE_DB_PASSWORD);
-        String[] pathComponent = ( uri.getPath() == null ? null : uri.getPath().split("/") );
-        if( pathComponent != null && pathComponent.length > 1 )
-         map.put("PSQL_DB", pathComponent[1]);
+    replaceVarsInMap(connector.params, ecpsJson -> {
+      String ecpsPhrase = Service.configuration.DEFAULT_ECPS_PHRASE;
+      if (ecpsPhrase == null) return null;
+      //Replace vars in the ECPS JSON
+      JsonObject ecpsValues = new JsonObject(ecpsJson);
+      Map<String, String> varValues = getPsqlVars();
+      replaceVarsInMap(ecpsValues.getMap(), varName -> varValues.get(varName), "${", "}");
+      ecpsJson = ecpsValues.toString();
+      //Encrypt the ECPS JSON
+      try {
+        return ECPSTool.encrypt(ecpsPhrase, ecpsJson);
       }
+      catch (GeneralSecurityException | UnsupportedEncodingException e) {
+        return null;
+      }
+    }, "$encrypt(", ")");
 
-      final Embedded embedded = (Embedded) connector.remoteFunction;
-      final Map<String, String> replacement = new HashMap<>();
-
-      embedded.env.entrySet().stream()
-          .filter(e -> StringUtils.startsWith(e.getValue(), "${") && StringUtils.endsWith(e.getValue(), "}"))
-          .forEach(e -> {
-            final String placeholder = StringUtils.substringBetween(e.getValue(), "${", "}");
-            if (map.containsKey(placeholder)) {
-              replacement.put(e.getKey(), map.get(placeholder));
-            }
-          });
-
-      embedded.env.putAll(replacement);
+    if (connector.remoteFunction instanceof Embedded) {
+      Map<String, String> varValues = getPsqlVars();
+      replaceVarsInMap(((Embedded) connector.remoteFunction).env, varName -> varValues.get(varName), "${", "}");
     }
+  }
+
+  private static Map<String, String> getPsqlVars() {
+    Map<String, String> psqlVars = new HashMap<>();
+
+    if (Service.configuration.STORAGE_DB_URL != null) {
+      URI uri = URI.create(Service.configuration.STORAGE_DB_URL.substring(5));
+      psqlVars.put("PSQL_HOST", uri.getHost());
+      psqlVars.put("PSQL_PORT", String.valueOf(uri.getPort() == -1 ? 5432 : uri.getPort()));
+      psqlVars.put("PSQL_USER", Service.configuration.STORAGE_DB_USER);
+      psqlVars.put("PSQL_PASSWORD", Service.configuration.STORAGE_DB_PASSWORD);
+      String[] pathComponent = uri.getPath() == null ? null : uri.getPath().split("/");
+      if (pathComponent != null && pathComponent.length > 1)
+        psqlVars.put("PSQL_DB", pathComponent[1]);
+    }
+
+    return psqlVars;
+  }
+
+  private <V> void replaceVarsInMap(Map<String, V> map, Function<String, V> resolve, String prefix, String suffix) {
+    if (map == null || map.isEmpty()) return;
+    final Map<String, V> replacement = new HashMap<>();
+
+    map.entrySet().stream()
+        .filter(e -> e.getValue() instanceof String && ((String) e.getValue()).startsWith(prefix) && ((String) e.getValue()).endsWith(suffix))
+        .forEach(e -> {
+          final String placeholder = StringUtils.substringBetween((String) e.getValue(), prefix, suffix);
+          replacement.put(e.getKey(), resolve.apply(placeholder));
+        });
+
+    map.putAll(replacement);
   }
 
   private void storeConnectorIfNotExists(Marker marker, Connector connector, Handler<AsyncResult<Connector>> handler) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import static com.here.xyz.hub.util.health.schema.Status.Result.OK;
 import static com.here.xyz.hub.util.health.schema.Status.Result.UNKNOWN;
 import static com.here.xyz.hub.util.health.schema.Status.Result.WARNING;
 
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.util.health.checks.ExecutableCheck;
 import com.here.xyz.hub.util.health.checks.FunctionCheck;
@@ -79,7 +80,7 @@ public class MainHealthCheck extends GroupedHealthCheck {
             + Config.getEnvName(BOOT_GRACE_TIME) + "! Otherwise this could lead to blocking health check "
             + "requests which might disturb dependent systems.");
       }
-      graceUntil = Service.currentTimeMillis() + remainingGraceTime;
+      graceUntil = Core.currentTimeMillis() + remainingGraceTime;
     }
 
     Response r = new Response();
@@ -95,7 +96,7 @@ public class MainHealthCheck extends GroupedHealthCheck {
   }
 
   private boolean isGraceTimeElapsed() {
-    return Service.currentTimeMillis() > graceUntil;
+    return Core.currentTimeMillis() > graceUntil;
   }
 
   /**

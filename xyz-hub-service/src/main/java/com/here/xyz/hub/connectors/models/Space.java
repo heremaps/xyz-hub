@@ -27,6 +27,7 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.google.common.primitives.Longs;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
@@ -97,7 +98,7 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
 
   @JsonView(Internal.class)
   public double getVolatility() {
-    long now = Service.currentTimeMillis();
+    long now = Core.currentTimeMillis();
 
     // if the space existed for a shorter period of time, use this as a sliding window.
     long slidingWindow = Math.min(1 + now - getCreatedAt(), MAX_SLIDING_WINDOW);
@@ -186,7 +187,7 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
     }
 
     double volatility = getVolatility();
-    long timeSinceLastUpdate = Service.currentTimeMillis() - getContentUpdatedAt();
+    long timeSinceLastUpdate = Core.currentTimeMillis() - getContentUpdatedAt();
 
     // 0 min to 2 min -> no cache
     if (timeSinceLastUpdate < NO_CACHE_INTERVAL_MILLIS) {

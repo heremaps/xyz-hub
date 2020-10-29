@@ -115,7 +115,7 @@ public class SpaceApi extends Api {
     }
     if (!input.getString("id").equals(pathId)) {
       context.fail(
-          new HttpException(BAD_REQUEST, "The space ID in the body does not match the ID in the resource path."));
+          new HttpException(BAD_REQUEST, "The resource ID in the body does not match the resource ID in the path."));
       return;
     }
 
@@ -148,7 +148,7 @@ public class SpaceApi extends Api {
    */
   public void sendErrorResponseOnEdit(final Task task, final Exception e) {
     if (e instanceof InvalidStorageException) {
-      sendErrorResponse(task.context, new HttpException(BAD_REQUEST, "The space contains an invalid storage ID."));
+      sendErrorResponse(task.context, new HttpException(BAD_REQUEST, "The resource definition contains an invalid storage ID."));
     } else {
       sendErrorResponse(task.context, e);
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,13 +39,21 @@ public class ECPSTool {
 
     switch (action) {
       case "encrypt":
-        System.out.println(new AESGCMHelper(phrase).encrypt(data));
+        System.out.println(encrypt(phrase, data));
         break;
       case "decrypt":
-        System.out.println(new AESGCMHelper(phrase).decrypt(data));
+        System.out.println(decrypt(phrase, data));
         break;
       default:
         System.err.println("ERROR: Invalid action provided.\n\n" + USAGE);
     }
+  }
+
+  public static String encrypt(String phrase, String data) throws GeneralSecurityException, UnsupportedEncodingException {
+    return new AESGCMHelper(phrase).encrypt(data);
+  }
+
+  public static String decrypt(String phrase, String data) throws GeneralSecurityException {
+    return new AESGCMHelper(phrase).decrypt(data);
   }
 }

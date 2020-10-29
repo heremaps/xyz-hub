@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ package com.here.xyz.hub.rest.admin;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.admin.messages.brokers.RedisMessageBroker;
 import com.here.xyz.hub.rest.health.HealthApi;
@@ -68,8 +69,8 @@ public class Node {
   }
 
   private static void initNodeCountFetcher() {
-    if (Service.vertx != null) {
-      Service.vertx.setPeriodic(NODE_COUNT_FETCH_PERIOD, handler -> RedisMessageBroker.getInstance().fetchSubscriberCount(r -> {
+    if (Core.vertx != null) {
+      Core.vertx.setPeriodic(NODE_COUNT_FETCH_PERIOD, handler -> RedisMessageBroker.getInstance().fetchSubscriberCount(r -> {
         if (r.succeeded()) {
           nodeCount = r.result();
           logger.debug("Service node-count: " + nodeCount);

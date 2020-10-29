@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import static com.here.xyz.hub.util.health.Config.Setting.CHECK_DEFAULT_TIMEOUT;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.util.health.Config;
 import com.here.xyz.hub.util.health.MainHealthCheck;
@@ -104,7 +105,7 @@ public abstract class ExecutableCheck extends Check implements Runnable {
 	
 	public void run() {
 		try {
-			final long t1 = Service.currentTimeMillis();
+			final long t1 = Core.currentTimeMillis();
 			Future<?> f = executorService.submit(() -> {
 				Status s = null;
 				try {
@@ -114,7 +115,7 @@ public abstract class ExecutableCheck extends Check implements Runnable {
 				catch (InterruptedException ignored) {
 					//Nothing to do here.
 				}
-				final long t2 = Service.currentTimeMillis();
+				final long t2 = Core.currentTimeMillis();
 				s.setCheckDuration(t2 - t1);
 				s.setTimestamp(t2);
 			});
@@ -125,7 +126,7 @@ public abstract class ExecutableCheck extends Check implements Runnable {
 				f.cancel(true);
 				Status s = new Status();
 				s.setResult(Result.TIMEOUT);
-				final long t2 = Service.currentTimeMillis();
+				final long t2 = Core.currentTimeMillis();
 				s.setCheckDuration(t2 - t1);
 				s.setTimestamp(t2);
 				setStatus(s);
