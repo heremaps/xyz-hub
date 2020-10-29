@@ -48,6 +48,10 @@
       <groupId>com.amazonaws</groupId>
     </dependency>
     <dependency>
+      <artifactId>aws-java-sdk-lambda</artifactId>
+      <groupId>com.amazonaws</groupId>
+    </dependency>
+    <dependency>
       <artifactId>xyz-models</artifactId>
       <groupId>${project.groupId}</groupId>
     </dependency>
