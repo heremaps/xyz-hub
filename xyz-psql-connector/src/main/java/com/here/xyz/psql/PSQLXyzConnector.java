@@ -252,8 +252,12 @@ public class PSQLXyzConnector extends DatabaseHandler {
            final boolean noBuffer = (boolean) clusteringParams.getOrDefault(QuadbinSQL.QUADBIN_NOBOFFER,false);
 
            QuadbinSQL.checkQuadbinInput(countMode, relResolution, event, config.table(event), streamId, this);
-           /** todo mvt from db*/
-           return executeQueryWithRetry(SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config, noBuffer));
+           
+           if( mvtRequested == 0 )
+            return executeQueryWithRetry(SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config, noBuffer));
+           else
+            return executeBinQueryWithRetry( 
+             SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config, noBuffer), mvtTile, mvtMargin, bMvtFlattend ) );
 
           default: break; // fall back to non-tweaks usage.
        }
