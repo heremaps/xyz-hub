@@ -127,14 +127,14 @@ public class TweaksSQL
     "with tile as ( select st_transform(%1$s,3857) as bounds, %3$d::integer as extend, %4$d::integer as buffer, true as clip_geom ), "
    +"mvtdata as "
    +"( "
-   +" select %2$s as properties, ST_AsMVTGeom( st_transform(geo,3857), t.bounds, t.extend, t.buffer, t.clip_geom ) as geo "
+   +" select %2$s as mproperties, ST_AsMVTGeom(st_force2d( st_transform(geo,3857) ), t.bounds, t.extend, t.buffer, t.clip_geom ) as mgeo "
    +" from "
    +" ( ",
     /** inner sql comes here, like "select jsondata, geo from table " , it is expected that the attributs are named "jsondata" and "geo" */
    mvtEndSql = 
     " ) data , tile t "
    +") "
-   +"select ST_AsMVT( mvtdata , '%1$s' ) as bin from mvtdata";
+   +"select ST_AsMVT( mvtdata , '%1$s' ) as bin from mvtdata where mgeo is not null";
    
 
 }
