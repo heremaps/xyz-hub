@@ -90,7 +90,7 @@ public class SQLQueryBuilder {
         final SQLQuery geoQuery = new SQLQuery("ST_Intersects(geo, ST_MakeEnvelope(?, ?, ?, ?, 4326))",
                 bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
 
-        boolean bConvertGeo2GeoJson = ( mvtRequested(event) == 0 );
+        boolean bConvertGeo2GeoJson = ( mvtFromDbRequested(event) == 0 );
         return generateCombinedQuery(event, geoQuery, searchQuery,dataSource, bConvertGeo2GeoJson );
     }
 
@@ -165,7 +165,7 @@ public class SQLQueryBuilder {
 
         String aggField = (statisticalPropertyProvided ? "jsonb_set('{}'::jsonb, ? , agg::jsonb)::json" : "agg");
 
-        boolean bConvertGeo2Geojson = ( mvtRequested(event) == 0 );
+        boolean bConvertGeo2Geojson = ( mvtFromDbRequested(event) == 0 );
 
         final SQLQuery query = new SQLQuery(String.format(H3SQL.h3sqlBegin, h3res,
                 !h3cflip ? "st_centroid(geo)" : "geo",
@@ -246,7 +246,7 @@ public class SQLQueryBuilder {
             }
         }
         
-        boolean bConvertGeo2Geojson = ( mvtRequested(event) == 0 );
+        boolean bConvertGeo2Geojson = ( mvtFromDbRequested(event) == 0 );
 
         return QuadbinSQL.generateQuadbinClusteringSQL(config.schema(), config.table(event), relResolution, countMode, propQuerySQL, tile, noBuffer, bConvertGeo2Geojson);
     }
@@ -255,7 +255,7 @@ public class SQLQueryBuilder {
 
     /***************************************** TWEAKS **************************************************/
 
-    public static int mvtRequested( GetFeaturesByBBoxEvent event )
+    public static int mvtFromDbRequested( GetFeaturesByBBoxEvent event )
     { if( (event instanceof GetFeaturesByTileEvent) && ( event.getBinaryType() != null ))
        switch ( event.getBinaryType() )
        { case "MVT" : return 1;
@@ -332,7 +332,7 @@ public class SQLQueryBuilder {
     {
      int strength = 0;
      boolean bDistribution = true,
-             bConvertGeo2Geojson = ( mvtRequested(event) == 0 );
+             bConvertGeo2Geojson = ( mvtFromDbRequested(event) == 0 );
 
      if( tweakParams != null )
      {
@@ -375,7 +375,7 @@ public class SQLQueryBuilder {
     {
      int strength = 0;
      String tweaksGeoSql = "geo";
-     boolean bMerge = false, bStrength = true, bTestTweaksGeoIfNull = true, bConvertGeo2Geojson = ( mvtRequested(event) == 0 );
+     boolean bMerge = false, bStrength = true, bTestTweaksGeoIfNull = true, bConvertGeo2Geojson = ( mvtFromDbRequested(event) == 0 );
 
      if( tweakParams != null )
      {
