@@ -404,11 +404,11 @@ public class ApiParam {
             if(!(value instanceof Long))
               throw new Exception(String.format("Invalid clustering.%s value. Expect Integer.",key));
 
-            if( CLUSTERING_PARAM_RESOLUTION_RELATIVE.equals(key) && ((long)value < -2 || (long)value > 2))
-             throw new Exception(String.format("Invalid clustering.%s value. Expect Integer [-2,2].",key));  
+            if( CLUSTERING_PARAM_RESOLUTION_RELATIVE.equals(key) && ((long)value < -2 || (long)value > 4))
+             throw new Exception(String.format("Invalid clustering.%s value. Expect Integer hexbin:[-2,2], quadbin:[0-4].",key));  
 
-            if(!CLUSTERING_PARAM_RESOLUTION_RELATIVE.equals(key) && ((long)value < 0 || (long)value > 15))
-              throw new Exception(String.format("Invalid clustering.%s value. Expect Integer [0,15].",key));
+            if(!CLUSTERING_PARAM_RESOLUTION_ABSOLUTE.equals(key) && ((long)value < 0 || (long)value > 18))
+              throw new Exception(String.format("Invalid clustering.%s value. Expect Integer hexbin:[0,13], quadbin:[0,18].",key));
             break;
 
           case CLUSTERING_PARAM_PROPERTY:
