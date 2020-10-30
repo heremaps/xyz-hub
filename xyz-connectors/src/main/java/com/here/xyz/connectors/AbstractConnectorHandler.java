@@ -74,8 +74,9 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
 
   /**
    * The lambda client, used for warmup.
+   * Only used when running in AWS Lambda environment.
    */
-  private static final AWSLambda lambda = AWSLambdaClientBuilder.defaultClient();
+  private static final AWSLambda lambda = System.getenv("AWS_LAMBDA_FUNCTION_NAME") != null ? AWSLambdaClientBuilder.defaultClient(): null;
 
   /**
    * The number of the bytes to read from an input stream and preview as a String in the logs.
@@ -295,7 +296,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    * the connection to the database open.
    */
   protected XyzResponse processHealthCheckEvent(HealthCheckEvent event) {
-    if (event.getWarmupCount() > 0 && this.context != null && this.context.getInvokedFunctionArn() != null) {
+    if (event.getWarmupCount() > 0 && this.context != null && this.context.getInvokedFunctionArn() != null && lambda != null) {
       int warmupCount = event.getWarmupCount();
       event.setWarmupCount(0);
       String newEvent = XyzSerializable.serialize(event);
