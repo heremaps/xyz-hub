@@ -75,10 +75,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
   /**
    * The lambda client, used for warmup.
    */
-  private static final AWSLambda lambda = AWSLambdaClientBuilder.standard()
-          .withClientConfiguration(new ClientConfiguration()
-                  .withMaxErrorRetry(0))
-          .build();
+  private static final AWSLambda lambda = AWSLambdaClientBuilder.defaultClient();
 
   /**
    * The number of the bytes to read from an input stream and preview as a String in the logs.
