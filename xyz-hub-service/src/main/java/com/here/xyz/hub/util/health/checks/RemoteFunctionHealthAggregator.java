@@ -121,7 +121,7 @@ public class RemoteFunctionHealthAggregator extends GroupedHealthCheck {
         toAdd.forEach(this::addRfcHc);
       }
       catch (Exception e) {
-        res = res.withMessage("Error when trying to gather remote functions info: " + e.getMessage());
+        res = res.withMessage("Error when trying to gather remote functions info: (" + e.getClass().getSimpleName() + ") " + e.getMessage());
         s.setResult(ERROR);
       }
       //Write the new health-check response to the cache

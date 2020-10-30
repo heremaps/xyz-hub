@@ -111,14 +111,19 @@ public class Node {
   }
 
   private void callHealthCheck(boolean onlyAliveCheck, Handler<AsyncResult<Void>> callback) {
-    Service.webClient.get(getUrl().getPort() == -1 ? DEFAULT_PORT : getUrl().getPort(), url.getHost(), HealthApi.MAIN_HEALTCHECK_ENDPOINT)
+    Service.webClient.get(port, ip, HealthApi.MAIN_HEALTCHECK_ENDPOINT)
         .timeout(TimeUnit.SECONDS.toMillis(HEALTH_TIMEOUT))
         .putHeader(Config.getHealthCheckHeaderName(), Config.getHealthCheckHeaderValue())
         .send(ar -> {
           if (ar.succeeded()) {
             HttpResponse<Buffer> response = ar.result();
-            if (onlyAliveCheck || response.statusCode() == 200 && id.equals(response.bodyAsJson(Response.class).getNode())) {
-              callback.handle(Future.succeededFuture());
+            if (onlyAliveCheck || response.statusCode() == 200) {
+              Response r = response.bodyAsJson(Response.class);
+              if (id.equals(r.getNode()))
+                callback.handle(Future.succeededFuture());
+              else
+                callback.handle(Future.failedFuture("Node with ID " + id + " and IP " + ip + " is not existing anymore. "
+                    + "IP is now used by node with ID " + r.getNode()));
             }
             else {
               callback.handle(Future.failedFuture("Node with ID " + id + " and IP " + ip + " is not healthy."));
@@ -136,7 +141,7 @@ public class Node {
       url = new URL("http", ip, port, "");
     }
     catch (MalformedURLException e) {
-      logger.error("Unable to create the URL for the local node.", e);
+      logger.error("Unable to create the URL for the node with id " + id + ".", e);
     }
     return url;
   }
