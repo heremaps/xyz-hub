@@ -251,6 +251,8 @@ public class FeatureQueryApi extends Api {
          default : break;
        }
 
+      String HubMvt =  ((( responseType == ApiResponseType.MVT || responseType == ApiResponseType.MVT_FLATTENED ) && !bXperimentalMvt) ? "hubmvt" : null );
+
       GetFeaturesByTileEvent event = new GetFeaturesByTileEvent();
 
       String optimMode = Query.getString(context, Query.OPTIM_MODE, "raw");
@@ -269,7 +271,7 @@ public class FeatureQueryApi extends Api {
               .withForce2D(force2D)
               .withOptimizationMode(optimMode)
               .withVizSampling(Query.getString(context, Query.OPTIM_VIZSAMPLING, "med"))
-              .withBinaryType( bXperimentalMvt ? responseType.name() : null );
+              .withBinaryType( bXperimentalMvt ? responseType.name() : HubMvt );
       } catch (Exception e) {
         throw new HttpException(BAD_REQUEST,e.getMessage());
       }

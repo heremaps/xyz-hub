@@ -90,7 +90,8 @@ public class SQLQueryBuilder {
         final SQLQuery geoQuery = new SQLQuery("ST_Intersects(geo, ST_MakeEnvelope(?, ?, ?, ?, 4326))",
                 bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
 
-        boolean bConvertGeo2GeoJson = ( mvtFromDbRequested(event) == 0 );
+        boolean bConvertGeo2GeoJson = ( mvtFromDbRequested(event) == 0 ),
+                bMvtFromHub = mvtFromHubRequested(event);
         return generateCombinedQuery(event, geoQuery, searchQuery,dataSource, bConvertGeo2GeoJson );
     }
 
@@ -254,6 +255,11 @@ public class SQLQueryBuilder {
     /***************************************** CLUSTERING END **************************************************/
 
     /***************************************** TWEAKS **************************************************/
+
+    public static boolean mvtFromHubRequested( GetFeaturesByBBoxEvent event )
+    { 
+     return( (event instanceof GetFeaturesByTileEvent) && ( event.getBinaryType() != null ) && "hubmvt".equals(event.getBinaryType()) );
+    }
 
     public static int mvtFromDbRequested( GetFeaturesByBBoxEvent event )
     { if( (event instanceof GetFeaturesByTileEvent) && ( event.getBinaryType() != null ))
@@ -775,15 +781,20 @@ public class SQLQueryBuilder {
     private static SQLQuery geometrySelectorForEvent(final GetFeaturesByBBoxEvent event, boolean bGeoJson) {
 
         if (!event.getClip()) {
-                return new SQLQuery( bGeoJson ? ( "replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') as geo" )
-                                              : getForceMode(event.isForce2D()) + "(geo) as geo"
-                                   );
+          String  geoSqlAttrib = ( bGeoJson ? String.format("replace(ST_AsGeojson(%s(geo),%d),'nan','0') as geo", getForceMode(event.isForce2D()), GEOMETRY_DECIMAL_DIGITS ) 
+                                            : String.format("%s(geo) as geo",getForceMode(event.isForce2D())));
+           
+          return new SQLQuery( geoSqlAttrib );
         }
 
         final BBox bbox = event.getBbox();
-            return new SQLQuery( bGeoJson ? ( "replace(ST_AsGeoJson(ST_Intersection(ST_MakeValid(geo),ST_MakeEnvelope(?,?,?,?,4326)),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') as geo" )
-                                          : ( "ST_Intersection( ST_MakeValid(geo),ST_MakeEnvelope(?,?,?,?,4326) ) as geo" )
-                                 ,bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
+        
+        boolean bMvtFromHub = mvtFromHubRequested(event); // in case of mvt requested (non db), do some "gridbytilelevel" optimization with db
+        String geoCol = ( !bMvtFromHub ? "geo" : map2MvtGeom( event, bbox, "geo" ) ),
+               geoSqlAttrib = ( bGeoJson ? String.format("replace(ST_AsGeoJson(ST_Intersection(ST_MakeValid(%s),ST_MakeEnvelope(?,?,?,?,4326)),%d),'nan','0') as geo", geoCol, GEOMETRY_DECIMAL_DIGITS )
+                                         : String.format("ST_Intersection( ST_MakeValid(%s),ST_MakeEnvelope(?,?,?,?,4326) ) as geo", geoCol ) );
+        
+            return new SQLQuery( geoSqlAttrib ,bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
     }
 
     private static SQLQuery geometrySelectorForEvent(final GetFeaturesByBBoxEvent event) { return geometrySelectorForEvent(event,true); }
