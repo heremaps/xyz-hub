@@ -98,8 +98,7 @@ public class HealthApi extends Api {
   }
 
   private static URI getPublicServiceEndpoint() {
-    return URI.create("http://" + Service.configuration.XYZ_HUB_PUBLIC_HOST + ":" + Service.configuration.XYZ_HUB_PUBLIC_PORT
-        + MAIN_HEALTCHECK_ENDPOINT);
+    return URI.create(Service.configuration.XYZ_HUB_PUBLIC_ENDPOINT + MAIN_HEALTCHECK_ENDPOINT);
   }
 
   private static URI getNodeHealthCheckEndpoint() {
