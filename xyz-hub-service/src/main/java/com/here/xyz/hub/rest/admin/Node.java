@@ -55,7 +55,7 @@ public class Node {
   private static final int CLUSTER_NODES_CHECKER_PERIOD = 120_000; //ms
 
   public static final Node OWN_INSTANCE = new Node(Service.HOST_ID, Service.getHostname(),
-      Service.configuration != null ? Service.configuration.XYZ_HUB_PUBLIC_PORT : -1);
+      Service.configuration != null ? Service.getPublicPort() : -1);
   private static final Set<Node> otherClusterNodes = new CopyOnWriteArraySet<>();
   private static final int DEFAULT_PORT = 80;
   private static final String UNKNOWN_ID = "UNKNOWN";

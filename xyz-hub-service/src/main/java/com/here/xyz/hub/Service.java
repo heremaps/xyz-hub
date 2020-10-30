@@ -45,6 +45,8 @@ import io.vertx.ext.web.client.WebClientOptions;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -309,6 +311,18 @@ public class Service extends Core {
     metrics.forEach(Metric::stop);
   }
 
+  public static int getPublicPort() {
+    if (configuration.XYZ_HUB_PUBLIC_ENDPOINT == null) return configuration.HTTP_PORT;
+    try {
+      URI endpoint = new URI(configuration.XYZ_HUB_PUBLIC_ENDPOINT);
+      int port = endpoint.getPort();
+      return port > 0 ? port : 80;
+    }
+    catch (URISyntaxException e) {
+      return configuration.HTTP_PORT;
+    }
+  }
+
   /**
    * The service configuration.
    */
@@ -346,14 +360,9 @@ public class Service extends Core {
     public String XYZ_HUB_S3_BUCKET;
 
     /**
-     * The public hostname of the service.
+     * The public endpoint.
      */
-    public String XYZ_HUB_PUBLIC_HOST;
-
-    /**
-     * The outer port of the service.
-     */
-    public int XYZ_HUB_PUBLIC_PORT;
+    public String XYZ_HUB_PUBLIC_ENDPOINT;
 
     /**
      * The redis host.
