@@ -127,6 +127,7 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
     cachedResponse = r;
   }
 
+  @JsonIgnore
   public int getConsecutiveErrors() {
     return consecutiveErrors;
   }
