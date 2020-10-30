@@ -301,10 +301,11 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
     if (event.getWarmupCount() > 0 && this.context != null && this.context.getInvokedFunctionArn() != null) {
       int warmupCount = event.getWarmupCount();
       event.setWarmupCount(0);
+      String newEvent = XyzSerializable.serialize(event);
       for(int i = 0; i < warmupCount; i++) {
         new Thread(() -> lambda.invoke(new InvokeRequest()
                   .withFunctionName(this.context.getInvokedFunctionArn())
-                  .withPayload(XyzSerializable.serialize(event)))
+                  .withPayload(newEvent))
         ).start();
       }
       return new HealthStatus();
