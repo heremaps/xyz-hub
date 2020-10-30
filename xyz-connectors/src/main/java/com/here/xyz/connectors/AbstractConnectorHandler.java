@@ -75,7 +75,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
   /**
    * The lambda client, used for warmup.
    */
-  private static final AWSLambdaAsync lambda = AWSLambdaAsyncClientBuilder.standard()
+  private static final AWSLambda lambda = AWSLambdaClientBuilder.standard()
           .withClientConfiguration(new ClientConfiguration()
                   .withMaxErrorRetry(0))
           .build();
@@ -302,9 +302,10 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
       int warmupCount = event.getWarmupCount();
       event.setWarmupCount(0);
       for(int i = 0; i < warmupCount; i++) {
-        lambda.invokeAsync(new InvokeRequest()
-                .withFunctionName(this.context.getInvokedFunctionArn())
-                .withPayload(XyzSerializable.serialize(event)));
+        new Thread(() -> lambda.invoke(new InvokeRequest()
+                  .withFunctionName(this.context.getInvokedFunctionArn())
+                  .withPayload(XyzSerializable.serialize(event)))
+        ).start();
       }
       return new HealthStatus();
     }
