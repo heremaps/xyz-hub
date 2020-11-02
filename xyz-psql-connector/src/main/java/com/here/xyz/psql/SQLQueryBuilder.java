@@ -90,8 +90,8 @@ public class SQLQueryBuilder {
         final SQLQuery geoQuery = new SQLQuery("ST_Intersects(geo, ST_MakeEnvelope(?, ?, ?, ?, 4326))",
                 bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
 
-        boolean bConvertGeo2GeoJson = ( mvtFromDbRequested(event) == 0 ),
-                bMvtFromHub = mvtFromHubRequested(event);
+        boolean bConvertGeo2GeoJson = ( mvtFromDbRequested(event) == 0 );
+
         return generateCombinedQuery(event, geoQuery, searchQuery,dataSource, bConvertGeo2GeoJson );
     }
 
@@ -789,8 +789,7 @@ public class SQLQueryBuilder {
 
         final BBox bbox = event.getBbox();
         
-        boolean bMvtFromHub = mvtFromHubRequested(event); // in case of mvt requested (non db), do some "gridbytilelevel" optimization with db
-        String geoCol = ( !bMvtFromHub ? "geo" : map2MvtGeom( event, bbox, "geo" ) ),
+        String geoCol = "geo",
                geoSqlAttrib = ( bGeoJson ? String.format("replace(ST_AsGeoJson(ST_Intersection(ST_MakeValid(%s),ST_MakeEnvelope(?,?,?,?,4326)),%d),'nan','0') as geo", geoCol, GEOMETRY_DECIMAL_DIGITS )
                                          : String.format("ST_Intersection( ST_MakeValid(%s),ST_MakeEnvelope(?,?,?,?,4326) ) as geo", geoCol ) );
         

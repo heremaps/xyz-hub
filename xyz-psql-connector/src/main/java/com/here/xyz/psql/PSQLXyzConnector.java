@@ -138,7 +138,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       int mvtFromDbRequested = SQLQueryBuilder.mvtFromDbRequested(event),
           mvtMargin = 0;
-      boolean bMvtFlattend = ( mvtFromDbRequested > 1 );
+      boolean bMvtFlattend = ( mvtFromDbRequested > 1 ),
+              bMvtFromHub  = SQLQueryBuilder.mvtFromHubRequested(event);
+
       WebMercatorTile mvtTile = null;
       
       if( mvtFromDbRequested > 0 )
@@ -152,18 +154,20 @@ public class PSQLXyzConnector extends DatabaseHandler {
         bSelectionStar = true; // differentiation needed, due to different semantic of "event.getSelection() == null" tweaks vs. nonTweaks
       }
 
-      if( bTweaks || bOptViz )
-      { String tweakType;
+      if( bTweaks || bOptViz || bMvtFromHub )
+      { 
         Map<String, Object> tweakParams;
         boolean bVizSamplingOff = false;
 
         if( bTweaks )
-        { tweakType   = event.getTweakType().toLowerCase();
-          tweakParams = event.getTweakParams();
+         tweakParams = event.getTweakParams();
+        else if ( bMvtFromHub && !bOptViz )
+        { event.setTweakType( TweaksSQL.SIMPLIFICATION );
+          tweakParams = new HashMap<String, Object>();
+          tweakParams.put("algorithm", new String("gridbytilelevel"));
         }
         else
-        { tweakType   = TweaksSQL.ENSURE;
-          event.setTweakType( TweaksSQL.ENSURE );
+        { event.setTweakType( TweaksSQL.ENSURE );
           tweakParams = new HashMap<String, Object>();
           switch( event.getVizSampling().toLowerCase() )
           { case "high" : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 10 ) ); break;
@@ -178,7 +182,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
         int distStrength = 0;
 
-        switch (tweakType) {
+        switch ( event.getTweakType().toLowerCase() )  {
 
           case TweaksSQL.ENSURE: {
             int rCount = executeQueryWithRetry(SQLQueryBuilder.buildEstimateSamplingStrengthQuery(event, bbox )).getFeatures().get(0).get("rcount");
