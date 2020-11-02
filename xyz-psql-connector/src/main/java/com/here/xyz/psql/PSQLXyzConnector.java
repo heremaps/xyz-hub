@@ -154,13 +154,13 @@ public class PSQLXyzConnector extends DatabaseHandler {
           event.setTweakType( TweaksSQL.ENSURE );
           tweakParams = new HashMap<String, Object>();
           switch( event.getVizSampling().toLowerCase() )
-          { case "high" : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 10 ) ); break;
+          { case "high" : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 15 ) ); break;
             case "low"  : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 70 ) ); break;    
             case "off"  : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 100 )); 
                           bVizSamplingOff = true;
                           break;    
             case "med"  : 
-            default     : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 20 ) ); break;    
+            default     : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 30 ) ); break;    
           }
         }
 
