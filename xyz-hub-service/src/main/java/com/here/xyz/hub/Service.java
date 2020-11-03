@@ -511,6 +511,12 @@ public class Service extends Core {
      * The default ECPS phrase. (Mainly for testing purposes)
      */
     public String DEFAULT_ECPS_PHRASE;
+
+    /**
+     * The topic ARN for Space modification notifications. If no value is provided no notifications will be sent.
+     */
+    public String MSE_NOTIFICATION_TOPIC;
+
   }
 
   /**
