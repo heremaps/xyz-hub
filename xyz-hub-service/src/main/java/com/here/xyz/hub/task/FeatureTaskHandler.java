@@ -32,6 +32,11 @@ import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERR
 import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
+import com.amazonaws.handlers.AsyncHandler;
+import com.amazonaws.services.sns.AmazonSNSAsync;
+import com.amazonaws.services.sns.AmazonSNSAsyncClientBuilder;
+import com.amazonaws.services.sns.model.PublishRequest;
+import com.amazonaws.services.sns.model.PublishResult;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
@@ -114,6 +119,7 @@ public class FeatureTaskHandler {
       .build();
   private static final byte JSON_VALUE = 1;
   private static final byte BINARY_VALUE = 2;
+  private static AmazonSNSAsync snsClient;
 
   /**
    * Sends the event to the connector client and write the response as the responseCollection of the task.
@@ -247,6 +253,7 @@ public class FeatureTaskHandler {
       if (requestListenerPayload != null)
         notifyListeners(task, eventType, requestListenerPayload);
     });
+    if (event instanceof ModifySpaceEvent) sendSpaceModificationNotification((ModifySpaceEvent) event);
   }
 
   private static RpcClient getRpcClient(Connector refConnector) throws HttpException {
@@ -1085,6 +1092,35 @@ public class FeatureTaskHandler {
           "The method is not allowed, because the resource \"" + task.space.getId() + "\" is marked as read-only. Update the resource definition to enable editing of features.");
     }
     callback.call(task);
+  }
+
+  private static void sendSpaceModificationNotification(ModifySpaceEvent event) {
+    try {
+      if (Service.configuration.MSE_NOTIFICATION_TOPIC != null) {
+        getSnsClient().publishAsync(Service.configuration.MSE_NOTIFICATION_TOPIC, event.serialize(),
+            new AsyncHandler<PublishRequest, PublishResult>() {
+              @Override
+              public void onError(Exception exception) {
+                logger.error("Unable to send MSE notification for space " + event.getSpace(), exception);
+              }
+
+              @Override
+              public void onSuccess(PublishRequest request, PublishResult publishResult) {
+                logger.info("MSE notification for space " + event.getSpace() + " was sent.");
+              }
+            });
+      }
+    }
+    catch (Exception e) {
+      logger.error("Unable to send MSE notification.", e);
+    }
+  }
+
+  private static AmazonSNSAsync getSnsClient() {
+    if (snsClient == null)
+      snsClient = AmazonSNSAsyncClientBuilder.defaultClient();
+
+    return snsClient;
   }
 
   public static class InvalidStorageException extends Exception {
