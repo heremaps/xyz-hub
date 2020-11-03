@@ -273,7 +273,9 @@ public class SQLQueryBuilder {
 
     private static String map2MvtGeom( GetFeaturesByBBoxEvent event, BBox bbox, String tweaksGeoSql )
     {
-     int extend = 512, extendPerMargin = extend / WebMercatorTile.TileSizeInPixel, extendWithMargin = extend, level = -1, tileX = -1, tileY = -1, margin = 0;
+     boolean bExtend512 = (   "viz".equals(event.getOptimizationMode()) 
+                           || (event.getTweakParams() != null && event.getTweakParams().size() > 0 )); // -> 512 only if tweaks or viz been specified explicit
+     int extend = ( bExtend512 ? 512 : 4096 ), extendPerMargin = extend / WebMercatorTile.TileSizeInPixel, extendWithMargin = extend, level = -1, tileX = -1, tileY = -1, margin = 0;
            
      if( event instanceof GetFeaturesByTileEvent ) 
      { GetFeaturesByTileEvent tevnt = (GetFeaturesByTileEvent) event;
