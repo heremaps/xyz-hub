@@ -34,6 +34,7 @@ import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -135,23 +136,38 @@ public class PSQLXyzConnector extends DatabaseHandler {
               bOptViz = "viz".equals( event.getOptimizationMode() ),
               bSelectionStar = false;
 
+      int mvtFromDbRequested = SQLQueryBuilder.mvtFromDbRequested(event),
+          mvtMargin = 0;
+      boolean bMvtFlattend = ( mvtFromDbRequested > 1 ),
+              bMvtFromHub  = SQLQueryBuilder.mvtFromHubRequested(event);
+
+      WebMercatorTile mvtTile = null;
+      
+      if( mvtFromDbRequested > 0 )
+      { GetFeaturesByTileEvent e = (GetFeaturesByTileEvent) event; // TileEvent is garanteed 
+        mvtTile = WebMercatorTile.forWeb(e.getLevel(), e.getX(), e.getY());
+        mvtMargin = e.getMargin();
+      }  
+
       if( event.getSelection() != null && "*".equals( event.getSelection().get(0) ))
       { event.setSelection(null);
         bSelectionStar = true; // differentiation needed, due to different semantic of "event.getSelection() == null" tweaks vs. nonTweaks
       }
 
-      if( bTweaks || bOptViz )
-      { String tweakType;
+      if( bTweaks || bOptViz || bMvtFromHub )
+      { 
         Map<String, Object> tweakParams;
         boolean bVizSamplingOff = false;
 
         if( bTweaks )
-        { tweakType   = event.getTweakType().toLowerCase();
-          tweakParams = event.getTweakParams();
+         tweakParams = event.getTweakParams();
+        else if ( bMvtFromHub && !bOptViz )
+        { event.setTweakType( TweaksSQL.SIMPLIFICATION );
+          tweakParams = new HashMap<String, Object>();
+          tweakParams.put("algorithm", new String("gridbytilelevel"));
         }
         else
-        { tweakType   = TweaksSQL.ENSURE;
-          event.setTweakType( TweaksSQL.ENSURE );
+        { event.setTweakType( TweaksSQL.ENSURE );
           tweakParams = new HashMap<String, Object>();
           switch( event.getVizSampling().toLowerCase() )
           { case "high" : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 15 ) ); break;
@@ -166,7 +182,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
         int distStrength = 0;
 
-        switch (tweakType) {
+        switch ( event.getTweakType().toLowerCase() )  {
 
           case TweaksSQL.ENSURE: {
             int rCount = executeQueryWithRetry(SQLQueryBuilder.buildEstimateSamplingStrengthQuery(event, bbox )).getFeatures().get(0).get("rcount");
@@ -187,9 +203,15 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
           case TweaksSQL.SAMPLING: {
             if( bTweaks || !bVizSamplingOff )
-            { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, dataSource));
-              collection.setPartial(true);
-              return collection;
+            { 
+              if( mvtFromDbRequested == 0 )
+              { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, dataSource));
+                collection.setPartial(true);
+                return collection;
+              }
+              else
+               return executeBinQueryWithRetry( 
+                         SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, dataSource) , mvtTile, mvtMargin, bMvtFlattend ) );
             }
             else
             { // fall thru tweaks=simplification e.g. mode=viz and vizSampling=off
@@ -198,9 +220,14 @@ public class PSQLXyzConnector extends DatabaseHandler {
           }            
           
           case TweaksSQL.SIMPLIFICATION: { 
-            FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams, dataSource));
-            collection.setPartial(true);
-            return collection;
+            if( mvtFromDbRequested == 0 )
+            { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams, dataSource));
+              collection.setPartial(true);
+              return collection;
+            }
+            else
+             return executeBinQueryWithRetry( 
+               SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams, dataSource) , mvtTile, mvtMargin, bMvtFlattend ) );
           }
 
           default: break; // fall back to non-tweaks usage.
@@ -213,7 +240,11 @@ public class PSQLXyzConnector extends DatabaseHandler {
         switch(event.getClusteringType().toLowerCase())
         {
           case H3SQL.HEXBIN :
-           return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource));
+           if( mvtFromDbRequested == 0 )
+            return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource)); 
+           else
+            return executeBinQueryWithRetry( 
+             SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource), mvtTile, mvtMargin, bMvtFlattend ) );
 
           case QuadbinSQL.QUAD :
            final int relResolution = ( clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) != null ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) :
@@ -223,7 +254,12 @@ public class PSQLXyzConnector extends DatabaseHandler {
            final boolean noBuffer = (boolean) clusteringParams.getOrDefault(QuadbinSQL.QUADBIN_NOBOFFER,false);
 
            QuadbinSQL.checkQuadbinInput(countMode, relResolution, event, config.table(event), streamId, this);
-           return executeQueryWithRetry(SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config, noBuffer));
+           
+           if( mvtFromDbRequested == 0 )
+            return executeQueryWithRetry(SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config, noBuffer));
+           else
+            return executeBinQueryWithRetry( 
+             SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config, noBuffer), mvtTile, mvtMargin, bMvtFlattend ) );
 
           default: break; // fall back to non-tweaks usage.
        }
@@ -239,7 +275,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
         }
       }
 
-      return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource));
+      if( mvtFromDbRequested == 0 )
+       return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource));
+      else 
+       return executeBinQueryWithRetry( SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource), mvtTile, mvtMargin, bMvtFlattend ) );
 
     }catch (SQLException e){
       return checkSQLException(e, config.table(event));

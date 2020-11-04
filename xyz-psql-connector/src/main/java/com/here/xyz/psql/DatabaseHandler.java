@@ -32,6 +32,7 @@ import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.responses.BinResponse;
 import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.HealthStatus;
@@ -257,6 +258,10 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     protected FeatureCollection executeQueryWithRetrySkipIfGeomIsNull(SQLQuery query) throws SQLException {
         return executeQueryWithRetry(query, this::defaultFeatureResultSetHandlerSkipIfGeomIsNull, true);
+    }
+
+    protected BinResponse executeBinQueryWithRetry(SQLQuery query) throws SQLException {
+        return executeQueryWithRetry(query, this::defaultBinaryResultSetHandler, true);
     }
 
     /**
@@ -882,6 +887,18 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     protected FeatureCollection defaultFeatureResultSetHandlerSkipIfGeomIsNull(ResultSet rs) throws SQLException
     { return _defaultFeatureResultSetHandler(rs,true); }
+
+    protected BinResponse defaultBinaryResultSetHandler(ResultSet rs) throws SQLException 
+    {
+     BinResponse br = new BinResponse();     
+     
+     if( rs.next() )
+     { br.setBytes( rs.getBytes(1) ); }
+     
+     if((br.getBytes() != null) && ( MaxResultChars <= br.getBytes().length)) throw new SQLException(String.format("Maxbytes limit(%d) reached",MaxResultChars));
+
+     return br; 
+    }
 
     /**
      * handler for delete by tags results.

@@ -237,15 +237,21 @@ public class FeatureQueryApi extends Api {
         tileId = tileId.substring(0, indexOfPoint);
       }
 
-      ApiResponseType responseType;
-      if ("mvt".equalsIgnoreCase(acceptTypeSuffix) || context.parsedHeaders().accept().stream().map(ParsedHeaderValue::rawValue).anyMatch(
-          APPLICATION_VND_MAPBOX_VECTOR_TILE::equals)) {
-        responseType = ApiResponseType.MVT;
-      } else if ("mvtf".equalsIgnoreCase(acceptTypeSuffix)) {
-        responseType = ApiResponseType.MVT_FLATTENED;
-      } else {
-        responseType = ApiResponseType.FEATURE_COLLECTION;
-      }
+      ApiResponseType responseType = ApiResponseType.FEATURE_COLLECTION;
+      boolean bXperimentalMvt = false;
+      
+      if( context.parsedHeaders().accept().stream().map(ParsedHeaderValue::rawValue).anyMatch( APPLICATION_VND_MAPBOX_VECTOR_TILE::equals) )
+       responseType = ApiResponseType.MVT;
+      else if( acceptTypeSuffix != null ) 
+       switch( acceptTypeSuffix.toLowerCase() )
+       { case "mvt2"  : bXperimentalMvt = true;
+         case "mvt"   : responseType = ApiResponseType.MVT; break; 
+         case "mvtf2" : bXperimentalMvt = true;
+         case "mvtf"  : responseType = ApiResponseType.MVT_FLATTENED; break;
+         default : break;
+       }
+
+      String HubMvt =  ((( responseType == ApiResponseType.MVT || responseType == ApiResponseType.MVT_FLATTENED ) && !bXperimentalMvt) ? "hubmvt" : null );
 
       GetFeaturesByTileEvent event = new GetFeaturesByTileEvent();
 
@@ -264,7 +270,8 @@ public class FeatureQueryApi extends Api {
               .withSelection(Query.getSelection(context))
               .withForce2D(force2D)
               .withOptimizationMode(optimMode)
-              .withVizSampling(Query.getString(context, Query.OPTIM_VIZSAMPLING, "med"));
+              .withVizSampling(Query.getString(context, Query.OPTIM_VIZSAMPLING, "med"))
+              .withBinaryType( bXperimentalMvt ? responseType.name() : HubMvt );
       } catch (Exception e) {
         throw new HttpException(BAD_REQUEST,e.getMessage());
       }
