@@ -71,16 +71,16 @@ public class AuthTestsIT extends RestAssuredTest {
     removeSpace("x-auth-test-space");
     removeSpace("x-auth-test-space-shared");
 
-    if (cleanUpId != null 
-        && !"x-auth-test-space".equals(cleanUpId) 
+    if (cleanUpId != null
+        && !"x-auth-test-space".equals(cleanUpId)
         && !"x-auth-test-space-shared".equals(cleanUpId)
     ) removeSpace(cleanUpId);
-    
+
   }
 
   private static boolean zeroSpaces()
   {
-    int nrCurrentSpaces = 
+    int nrCurrentSpaces =
      getSpacesList("*", AuthProfile.ACCESS_ALL)
       .statusCode(OK.code())
        .extract().path("$.size()");
@@ -461,12 +461,15 @@ public class AuthTestsIT extends RestAssuredTest {
         .statusCode(FORBIDDEN.code());
 
     updateSpace(cleanUpId, "{\"packages\": [\"HERE\"]}", AuthProfile.ACCESS_OWNER_1_MANAGE_PACKAGES_HERE)
-        .statusCode(OK.code());
-
-    updateSpace(cleanUpId, "{\"packages\": [\"HERE\", \"OSM\"]}", AuthProfile.ACCESS_OWNER_1_MANAGE_PACKAGES_HERE)
         .statusCode(FORBIDDEN.code());
 
-    updateSpace(cleanUpId, "{\"packages\": [\"HERE\", \"OSM\"]}", AuthProfile.ACCESS_OWNER_1_MANAGE_PACKAGES_HERE_OSM)
+    updateSpace(cleanUpId, "{\"packages\": [\"OSM\"]}", AuthProfile.ACCESS_OWNER_2_MANAGE_PACKAGES_HERE_OSM)
+        .statusCode(OK.code());
+
+    updateSpace(cleanUpId, "{\"packages\": [\"HERE\"]}", AuthProfile.ACCESS_OWNER_2_MANAGE_PACKAGES_HERE_OSM)
+        .statusCode(OK.code());
+
+    updateSpace(cleanUpId, "{\"packages\": [\"OSM\"]}", AuthProfile.ACCESS_OWNER_1_WITH_MS_PACKAGE_HERE_AND_MP_OSM)
         .statusCode(OK.code());
   }
 
@@ -480,8 +483,11 @@ public class AuthTestsIT extends RestAssuredTest {
     updateSpace(cleanUpId, "{\"packages\": [\"HERE\"]}", AuthProfile.ACCESS_OWNER_1_MANAGE_PACKAGES_HERE_WITH_OWNER)
         .statusCode(FORBIDDEN.code());
 
-    updateSpace(cleanUpId, "{\"packages\": [\"HERE\"]}", AuthProfile.ACCESS_OWNER_1_MANAGE_PACKAGES_HERE)
+    updateSpace(cleanUpId, "{\"packages\": [\"OSM\"]}", AuthProfile.ACCESS_OWNER_1_MANAGE_PACKAGES_HERE)
         .statusCode(OK.code());
+
+    updateSpace(cleanUpId, "{\"packages\": []}", AuthProfile.ACCESS_OWNER_1_MANAGE_PACKAGES_HERE)
+        .statusCode(FORBIDDEN.code());
 
     updateSpace(cleanUpId, "{\"packages\": []}", AuthProfile.ACCESS_OWNER_2)
         .statusCode(OK.code());
