@@ -59,7 +59,7 @@ import java.io.IOException;
 import java.util.List;
 import org.apache.logging.log4j.Marker;
 
-public class FeatureQueryApi extends Api {
+public class FeatureQueryApi extends SpaceBasedApi {
 
   /**
    * The default limit for the number of features to load from the connector.
