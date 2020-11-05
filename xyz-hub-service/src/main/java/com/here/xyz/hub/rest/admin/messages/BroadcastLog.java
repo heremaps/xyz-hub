@@ -19,7 +19,7 @@
 
 package com.here.xyz.hub.rest.admin.messages;
 
-import com.here.xyz.hub.rest.admin.AdminMessage;
+import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.hub.rest.admin.Node;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,7 +27,7 @@ import org.apache.logging.log4j.Logger;
 /**
  * A message which can be used to write a log on all nodes at (nearly) the same time.
  */
-public class BroadcastLog extends AdminMessage {
+public class BroadcastLog extends RelayedMessage {
 
   private static final Logger logger = LogManager.getLogger();
 
@@ -44,7 +44,7 @@ public class BroadcastLog extends AdminMessage {
   }
 
   @Override
-  protected void handle() {
+  protected void handleAtDestination() {
     logger.info("[BROADCAST from " + source.id + " (" + source.ip + ")] " + logMessage);
   }
 }
