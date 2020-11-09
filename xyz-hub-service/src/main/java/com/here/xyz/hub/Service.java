@@ -326,6 +326,15 @@ public class Service extends Core {
   }
 
   /**
+   * @return The "environment ID" of this service deployment.
+   */
+  public static String getEnvironmentIdentifier() {
+    if (configuration.ENVIRONMENT_NAME == null) return "default";
+    if (configuration.AWS_REGION != null) return configuration.ENVIRONMENT_NAME + "_" + configuration.AWS_REGION;
+    return configuration.ENVIRONMENT_NAME;
+  }
+
+  /**
    * The service configuration.
    */
   @JsonIgnoreProperties(ignoreUnknown = true)
@@ -473,6 +482,11 @@ public class Service extends Core {
      * @see Config#REMOTE_FUNCTION_MAX_CONNECTIONS
      */
     public float REMOTE_FUNCTION_CONNECTION_HIGH_UTILIZATION_THRESHOLD;
+
+    /**
+     * The remote function pool ID to be used to select the according remote functions for this Service environment.
+     */
+    public String REMOTE_FUNCTION_POOL_ID;
 
     /**
      * The web root for serving static resources from the file system.
