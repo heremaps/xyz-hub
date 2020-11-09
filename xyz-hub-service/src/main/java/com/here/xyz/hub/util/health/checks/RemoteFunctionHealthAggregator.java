@@ -62,7 +62,7 @@ public class RemoteFunctionHealthAggregator extends GroupedHealthCheck {
   private void removeRfcHc(String connectorId) {
     RemoteFunctionHealthCheck rfcHc = checksByConnectorId.get(connectorId);
     checksByConnectorId.remove(connectorId);
-    checks.remove(rfcHc);
+    remove(rfcHc);
   }
 
   @Override
