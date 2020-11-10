@@ -23,7 +23,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
-import com.here.xyz.hub.rest.admin.AdminMessage;
+import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.psql.ECPSTool;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -264,9 +264,17 @@ public abstract class ConnectorConfigClient implements Initializable {
     new InvalidateConnectorCacheMessage().withId(id).withBroadcastIncludeLocalNode(true).broadcast();
   }
 
-  public static class InvalidateConnectorCacheMessage extends AdminMessage {
+  public static class InvalidateConnectorCacheMessage extends RelayedMessage {
 
     String id;
+
+    public String getId() {
+      return id;
+    }
+
+    public void setId(String id) {
+      this.id = id;
+    }
 
     public InvalidateConnectorCacheMessage withId(String id) {
       this.id = id;
@@ -274,7 +282,7 @@ public abstract class ConnectorConfigClient implements Initializable {
     }
 
     @Override
-    protected void handle() {
+    protected void handleAtDestination() {
       cache.remove(id);
     }
   }
