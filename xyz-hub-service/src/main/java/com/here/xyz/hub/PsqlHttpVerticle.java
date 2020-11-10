@@ -64,7 +64,7 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
           if (result.succeeded()) {
             future.complete();
           } else {
-            logger.error("n error occurred, during the initialization of the server.", result.cause());
+            logger.error("An error occurred, during the initialization of the server.", result.cause());
             future.fail(result.cause());
           }
         });

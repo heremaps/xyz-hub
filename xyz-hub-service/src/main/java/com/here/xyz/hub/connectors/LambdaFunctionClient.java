@@ -36,6 +36,7 @@ import com.amazonaws.services.lambda.model.AWSLambdaException;
 import com.amazonaws.services.lambda.model.InvocationType;
 import com.amazonaws.services.lambda.model.InvokeRequest;
 import com.amazonaws.services.lambda.model.InvokeResult;
+import com.amazonaws.services.lambda.model.ResourceNotFoundException;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
 import com.google.common.util.concurrent.ForwardingExecutorService;
 import com.here.xyz.hub.Service;
@@ -216,8 +217,6 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
   }
 
   private HttpException getHttpException(Marker marker, Throwable e) {
-    logger.error(marker, "Unexpected exception while contacting lambda provider", e);
-
     if (e instanceof HttpException) {
       return (HttpException) e;
     }
@@ -226,11 +225,16 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
       if (le.getStatusCode() == 413) {
         return new HttpException(REQUEST_ENTITY_TOO_LARGE, "The compressed request must be smaller than 6291456 bytes.", e);
       }
+      else if (e instanceof ResourceNotFoundException) {
+        logger.warn(marker, "Lambda function does not exist.", e);
+        return new HttpException(BAD_GATEWAY, "Error while contacting lambda function.", e);
+      }
     }
     if (e instanceof HttpRequestTimeoutException || e instanceof SdkClientException && e.getCause() instanceof HttpRequestTimeoutException)
       return new HttpException(GATEWAY_TIMEOUT, "The connector did not respond in time.", e);
 
-    return new HttpException(BAD_GATEWAY, "Unable to parse the response of the connector.", e);
+    logger.error(marker, "Unexpected exception while contacting lambda function", e);
+    return new HttpException(BAD_GATEWAY, "Error while contacting lambda function.", e);
   }
 
   private static AWSLambdaAsync getLambdaClient(AWSLambda remoteFunction, String forConnectorId) {

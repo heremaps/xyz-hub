@@ -87,10 +87,11 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
               }
             }
             else {
-              try{
+              try {
                 byte[] responseBytes = ar.result().body().getBytes();
                 callback.handle(Future.succeededFuture(responseBytes));
-              }catch (Exception e) {
+              }
+              catch (Exception e) {
                 handleFailure(fc, nextTryCount, callback, ConnectionBase.CLOSED_EXCEPTION);
               }
             }
@@ -105,12 +106,12 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
     if (e == ConnectionBase.CLOSED_EXCEPTION) {
       e = new RuntimeException("Connection was already closed.", e);
       if (tryCount <= 1) {
-        logger.error(e.getMessage() + " Retrying ...", e);
+        logger.warn(fc.marker, e.getMessage() + " Retrying ...", e);
         invokeWithRetry(fc, tryCount, callback);
         return;
       }
     }
-    logger.error(fc.marker, "Error sending event to remote http service", e);
+    logger.warn(fc.marker, "Error sending event to remote http service", e);
     callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Connector error.", e)));
   }
 }
