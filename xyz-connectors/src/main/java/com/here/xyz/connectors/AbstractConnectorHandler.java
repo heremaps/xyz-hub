@@ -19,6 +19,9 @@
 
 package com.here.xyz.connectors;
 
+import com.amazonaws.ClientConfiguration;
+import com.amazonaws.services.lambda.*;
+import com.amazonaws.services.lambda.model.InvokeRequest;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 import com.fasterxml.jackson.databind.JsonMappingException;
@@ -68,6 +71,12 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    * The relocation client
    */
   private static final RelocationClient relocationClient = new RelocationClient(System.getenv("S3_BUCKET"));
+
+  /**
+   * The lambda client, used for warmup.
+   * Only used when running in AWS Lambda environment.
+   */
+  private static final AWSLambda lambda = System.getenv("AWS_LAMBDA_FUNCTION_NAME") != null ? AWSLambdaClientBuilder.defaultClient(): null;
 
   /**
    * The number of the bytes to read from an input stream and preview as a String in the logs.
@@ -287,6 +296,18 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    * the connection to the database open.
    */
   protected XyzResponse processHealthCheckEvent(HealthCheckEvent event) {
+    if (event.getWarmupCount() > 0 && this.context != null && this.context.getInvokedFunctionArn() != null && lambda != null) {
+      int warmupCount = event.getWarmupCount();
+      event.setWarmupCount(0);
+      String newEvent = XyzSerializable.serialize(event);
+      for(int i = 0; i < warmupCount; i++) {
+        new Thread(() -> lambda.invoke(new InvokeRequest()
+                  .withFunctionName(this.context.getInvokedFunctionArn())
+                  .withPayload(newEvent))
+        ).start();
+      }
+      return new HealthStatus();
+    }
     if (event.getMinResponseTime() > 0) {
       try {
         Thread.sleep(event.getMinResponseTime());

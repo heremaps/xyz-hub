@@ -29,8 +29,8 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 @JsonTypeName(value = "HealthCheckEvent")
 public final class HealthCheckEvent extends Event<HealthCheckEvent> {
 
-
   private long minResponseTime = 0L;
+  private int warmupCount = 0;
 
   /**
    * Returns the minimal response time in milliseconds. The storage connector should not send a response until at least the given amount of
@@ -48,6 +48,26 @@ public final class HealthCheckEvent extends Event<HealthCheckEvent> {
 
   public HealthCheckEvent withMinResponseTime(long timeInMilliseconds) {
     setMinResponseTime(timeInMilliseconds);
+    return this;
+  }
+
+  /**
+   * Returns the amount of runtime-environments which should be kept "warmed-up" in order to react
+   * quickly to incoming traffic.
+   * The implementing connector should ensure to keep that amount of runtime-environments ready.
+   *
+   * @return the amount of runtime-environments to keep ready.
+   */
+  public int getWarmupCount() {
+    return warmupCount;
+  }
+
+  public void setWarmupCount(int warmupCount) {
+    this.warmupCount = warmupCount;
+  }
+
+  public HealthCheckEvent withWarmupCount(int warmupCount) {
+    setWarmupCount(warmupCount);
     return this;
   }
 }
