@@ -300,21 +300,22 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
       int warmupCount = event.getWarmupCount();
       event.setWarmupCount(0);
       String newEvent = XyzSerializable.serialize(event);
+      logger.debug("{} - Calling myself. WarmupCount: {}", streamId, warmupCount);
       for(int i = 0; i < warmupCount; i++) {
         new Thread(() -> lambda.invoke(new InvokeRequest()
-                  .withFunctionName(this.context.getInvokedFunctionArn())
-                  .withPayload(newEvent))
+                .withFunctionName(this.context.getInvokedFunctionArn())
+                .withPayload(newEvent))
         ).start();
       }
-      return new HealthStatus();
     }
-    if (event.getMinResponseTime() > 0) {
+
+    if (System.currentTimeMillis() < event.getMinResponseTime() + start) {
       try {
-        Thread.sleep(event.getMinResponseTime());
+        Thread.sleep((event.getMinResponseTime() + start) - System.currentTimeMillis());
       }
       catch (InterruptedException ignored) {}
     }
-    return new HealthStatus();
+    return new HealthStatus().withStatus("OK");
   }
 
   /**
