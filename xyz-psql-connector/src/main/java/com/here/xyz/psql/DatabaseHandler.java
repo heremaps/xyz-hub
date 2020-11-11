@@ -130,7 +130,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             }
         }
 
-        return ((HealthStatus) processHealthCheckEvent(event)).withStatus("OK");
+        return ((HealthStatus) super.processHealthCheckEvent(event)).withStatus("OK");
     }
 
     private String idFromPsqlEnv (final SimulatedContext ctx) {
