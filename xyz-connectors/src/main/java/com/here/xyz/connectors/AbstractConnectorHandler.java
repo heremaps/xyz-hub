@@ -313,9 +313,11 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
       try {
         Thread.sleep((event.getMinResponseTime() + start) - System.currentTimeMillis());
       }
-      catch (InterruptedException ignored) {}
+      catch (InterruptedException e) {
+        return new ErrorResponse().withStreamId(streamId).withError(XyzError.EXCEPTION);
+      }
     }
-    return new HealthStatus().withStatus("OK");
+    return new HealthStatus();
   }
 
   /**
