@@ -19,7 +19,6 @@
 
 package com.here.xyz.connectors;
 
-import com.amazonaws.ClientConfiguration;
 import com.amazonaws.services.lambda.*;
 import com.amazonaws.services.lambda.model.InvokeRequest;
 import com.amazonaws.services.lambda.runtime.Context;
@@ -43,6 +42,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -301,12 +303,14 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
       event.setWarmupCount(0);
       String newEvent = XyzSerializable.serialize(event);
       logger.debug("{} - Calling myself. WarmupCount: {}", streamId, warmupCount);
+      List<Thread> threads = new ArrayList<>(warmupCount);
       for(int i = 0; i < warmupCount; i++) {
-        new Thread(() -> lambda.invoke(new InvokeRequest()
+        threads.add(new Thread(() -> lambda.invoke(new InvokeRequest()
                 .withFunctionName(this.context.getInvokedFunctionArn())
-                .withPayload(newEvent))
-        ).start();
+                .withPayload(newEvent))));
       }
+      threads.forEach(t -> t.start());
+      threads.forEach(t -> {try {t.join();} catch (InterruptedException ignore){}});
     }
 
     if (System.currentTimeMillis() < event.getMinResponseTime() + start) {
