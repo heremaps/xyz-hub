@@ -112,33 +112,25 @@ public abstract class DatabaseHandler extends StorageConnector {
     private boolean retryAttempted;
 
     protected XyzResponse processHealthCheckEventImpl(HealthCheckEvent event) throws SQLException {
-        long targetResponseTime = event.getMinResponseTime() + System.currentTimeMillis();
-        SQLQuery query = new SQLQuery("SELECT 1");
+        if (event.getWarmupCount() == 0) {
+            SQLQuery query = new SQLQuery("SELECT 1");
 
-        /** run DB-Maintenance - warmUp request is used */
-        if(event.getMinResponseTime() !=  0) {
-            logger.info("{} - dbMaintainer start", streamId);
-            dbMaintainer.run(event, streamId);
-            logger.info("{} - dbMaintainer finished", streamId);
-            return new HealthStatus().withStatus("OK");
-        }
-
-        executeQuery(query, (rs) -> null, dataSource);
-        // establish a connection to the replica, if such is set.
-        if (dataSource != readDataSource) {
-            executeQuery(query, (rs) -> null, readDataSource);
-        }
-
-        long now = System.currentTimeMillis();
-        if (now < targetResponseTime) {
-            try {
-                Thread.sleep(targetResponseTime - now);
+            /** run DB-Maintenance - warmUp request is used */
+            if (event.getMinResponseTime() != 0) {
+                logger.info("{} - dbMaintainer start", streamId);
+                dbMaintainer.run(event, streamId);
+                logger.info("{} - dbMaintainer finished", streamId);
+                return new HealthStatus().withStatus("OK");
             }
-            catch (Exception e){
-                return new ErrorResponse().withStreamId(streamId).withError(XyzError.EXCEPTION);
+
+            executeQuery(query, (rs) -> null, dataSource);
+            // establish a connection to the replica, if such is set.
+            if (dataSource != readDataSource) {
+                executeQuery(query, (rs) -> null, readDataSource);
             }
         }
-        return new HealthStatus().withStatus("OK");
+
+        return ((HealthStatus) super.processHealthCheckEvent(event)).withStatus("OK");
     }
 
     private String idFromPsqlEnv (final SimulatedContext ctx) {
