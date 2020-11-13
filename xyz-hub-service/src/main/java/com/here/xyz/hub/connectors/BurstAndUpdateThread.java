@@ -143,8 +143,8 @@ public class BurstAndUpdateThread extends Thread {
         newConnector = oldConnector;
       }
 
-      if (newConnector.remoteFunction.warmUp > 0) {
-        final int minInstances = newConnector.remoteFunction.warmUp;
+      if (newConnector.getRemoteFunction().warmUp > 0) {
+        final int minInstances = newConnector.getRemoteFunction().warmUp;
         try {
           final AtomicInteger requestCount = new AtomicInteger(minInstances);
           logger.info("Send {} health status requests to connector '{}'", requestCount, newConnector.id);

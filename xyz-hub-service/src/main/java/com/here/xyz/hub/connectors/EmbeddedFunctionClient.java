@@ -62,7 +62,7 @@ public class EmbeddedFunctionClient extends RemoteFunctionClient {
   }
 
   private void createExecutorService() {
-    if (!(getConnectorConfig().remoteFunction instanceof RemoteFunctionConfig.Embedded)) {
+    if (!(getConnectorConfig().getRemoteFunction() instanceof RemoteFunctionConfig.Embedded)) {
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of Embedded");
     }
     int maxConnections = getMaxConnections();
@@ -91,7 +91,7 @@ public class EmbeddedFunctionClient extends RemoteFunctionClient {
 
   @Override
   protected void invoke(FunctionCall fc, Handler<AsyncResult<byte[]>> callback) {
-    final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
+    final RemoteFunctionConfig remoteFunction = getConnectorConfig().getRemoteFunction();
     Marker marker = fc.marker;
     byte[] payload;
     try {

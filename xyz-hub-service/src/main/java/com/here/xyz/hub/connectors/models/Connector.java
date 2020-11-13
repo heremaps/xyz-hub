@@ -21,6 +21,8 @@ package com.here.xyz.hub.connectors.models;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
@@ -81,12 +83,13 @@ public class Connector {
    *
    * @see Service#getEnvironmentIdentifier()
    */
-  public Map<String, RemoteFunctionConfig> remoteFunctions = new HashMap<>();
+  protected Map<String, RemoteFunctionConfig> remoteFunctions = new HashMap<>();
 
   /**
    * Arbitrary parameters to be provided to the remote function with the event.
    */
-  public RemoteFunctionConfig remoteFunction;
+  @JsonInclude(Include.NON_NULL)
+  private RemoteFunctionConfig remoteFunction;
 
   /**
    * Returns the remote function pool ID to be used for this Service environment.
@@ -107,7 +110,10 @@ public class Connector {
    */
   @JsonIgnore
   public RemoteFunctionConfig getRemoteFunction() {
-    if (remoteFunctions.isEmpty()) throw new RuntimeException("No remote functions are defined for connector with ID " + id);
+    if (remoteFunctions == null || remoteFunctions.isEmpty()) {
+      if (remoteFunction == null) throw new RuntimeException("No remote functions are defined for connector with ID " + id);
+      return remoteFunction;
+    }
 
     String rfPoolId = getRemoteFunctionPoolId();
     if (!remoteFunctions.containsKey(rfPoolId)) throw new RuntimeException("No matching remote function is defined for connector with ID "

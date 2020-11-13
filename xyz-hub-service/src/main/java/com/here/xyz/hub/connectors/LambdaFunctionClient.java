@@ -118,13 +118,13 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
   }
 
   private void updateClient(Connector oldConnectorConfig) {
-    RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
+    RemoteFunctionConfig remoteFunction = getConnectorConfig().getRemoteFunction();
     if (!(remoteFunction instanceof AWSLambda)) {
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of AWSLambda");
     }
     asyncClient = getLambdaClient((AWSLambda) remoteFunction, getConnectorConfig().id);
     if (oldConnectorConfig != null)
-      releaseClient(getClientKey((AWSLambda) oldConnectorConfig.remoteFunction));
+      releaseClient(getClientKey((AWSLambda) oldConnectorConfig.getRemoteFunction()));
   }
 
   private static AWSLambdaAsync createClient(AWSLambda remoteFunction) {
@@ -164,7 +164,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
   @Override
   synchronized void destroy() {
     super.destroy();
-    releaseClient(getClientKey((AWSLambda) getConnectorConfig().remoteFunction));
+    releaseClient(getClientKey((AWSLambda) getConnectorConfig().getRemoteFunction()));
   }
 
   /**
@@ -172,7 +172,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
    */
   @Override
   protected void invoke(final FunctionCall fc, final Handler<AsyncResult<byte[]>> callback) {
-    final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
+    final RemoteFunctionConfig remoteFunction = getConnectorConfig().getRemoteFunction();
     Marker marker = fc.marker;
     Context context = fc.context;
     logger.debug(marker, "Invoking remote lambda function with id '{}' Event size is: {}", remoteFunction.id, fc.getByteSize());

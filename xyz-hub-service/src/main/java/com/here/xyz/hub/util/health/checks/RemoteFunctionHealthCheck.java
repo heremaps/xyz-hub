@@ -28,12 +28,12 @@ import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.hub.connectors.RemoteFunctionClient;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.Connector;
+import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLambda;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.util.health.schema.Response;
 import com.here.xyz.hub.util.health.schema.Status;
-import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -51,7 +51,7 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
     this.connector = connector;
     setName(connector.id);
     setRole(Role.CUSTOM);
-    setTarget(connector.remoteFunction instanceof Embedded ? Target.LOCAL : Target.REMOTE);
+    setTarget(connector.getRemoteFunction() instanceof Embedded ? Target.LOCAL : Target.REMOTE);
   }
 
   @JsonIgnore
@@ -136,14 +136,15 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
     Response r = new Response();
     try {
       RemoteFunctionClient rfc = getClient().getFunctionClient();
+      final RemoteFunctionConfig remoteFunction = connector.getRemoteFunction();
 
-      rfcData.put("id", connector.remoteFunction.id);
-      rfcData.put("type", connector.remoteFunction.getClass().getSimpleName());
-      if (connector.remoteFunction instanceof AWSLambda) {
-        rfcData.put("lambdaARN", ((AWSLambda) connector.remoteFunction).lambdaARN);
+      rfcData.put("id", remoteFunction.id);
+      rfcData.put("type", remoteFunction.getClass().getSimpleName());
+      if (remoteFunction instanceof AWSLambda) {
+        rfcData.put("lambdaARN", ((AWSLambda) remoteFunction).lambdaARN);
       }
-      else if (connector.remoteFunction instanceof Http) {
-        rfcData.put("url", ((Http) connector.remoteFunction).url);
+      else if (remoteFunction instanceof Http) {
+        rfcData.put("url", ((Http) remoteFunction).url);
       }
       rfcData.put("maxQueueSize", rfc.getMaxQueueSize());
       rfcData.put("queueSize", rfc.getQueueSize());

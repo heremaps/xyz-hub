@@ -201,9 +201,9 @@ public abstract class ConnectorConfigClient implements Initializable {
       }
     }, "$encrypt(", ")");
 
-    if (connector.remoteFunction instanceof Embedded) {
+    if (connector.getRemoteFunction() instanceof Embedded) {
       Map<String, String> varValues = getPsqlVars();
-      replaceVarsInMap(((Embedded) connector.remoteFunction).env, varName -> varValues.get(varName), "${", "}");
+      replaceVarsInMap(((Embedded) connector.getRemoteFunction()).env, varName -> varValues.get(varName), "${", "}");
     }
   }
 
