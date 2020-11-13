@@ -53,10 +53,10 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
   @Override
   synchronized void setConnectorConfig(final Connector newConnectorConfig) throws NullPointerException, IllegalArgumentException {
     super.setConnectorConfig(newConnectorConfig);
-    if (!(getConnectorConfig().remoteFunction instanceof Http)) {
+    if (!(getConnectorConfig().getRemoteFunction() instanceof Http)) {
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of HTTP");
     }
-    url = ((Http) getConnectorConfig().remoteFunction).url.toString();
+    url = ((Http) getConnectorConfig().getRemoteFunction()).url.toString();
   }
 
   @Override
@@ -69,7 +69,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
   }
 
   private void invokeWithRetry(FunctionCall fc, int tryCount, Handler<AsyncResult<byte[]>> callback) {
-    final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
+    final RemoteFunctionConfig remoteFunction = getConnectorConfig().getRemoteFunction();
     logger.info(fc.marker, "Invoke http remote function '{}' URL is: {} Event size is: {}",
         remoteFunction.id, url, fc.getByteSize());
 

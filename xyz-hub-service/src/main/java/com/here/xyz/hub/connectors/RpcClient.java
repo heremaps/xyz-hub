@@ -42,6 +42,7 @@ import com.here.xyz.events.RelocatedEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.RemoteFunctionClient.FunctionCall;
 import com.here.xyz.hub.connectors.models.Connector;
+import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.rest.Api;
@@ -81,13 +82,14 @@ public class RpcClient {
       throw new NullPointerException("Can not create RpcClient without connector configuration.");
     }
 
-    if (connector.remoteFunction instanceof Connector.RemoteFunctionConfig.AWSLambda) {
+    final RemoteFunctionConfig remoteFunction = connector.getRemoteFunction();
+    if (remoteFunction instanceof Connector.RemoteFunctionConfig.AWSLambda) {
       this.functionClient = new LambdaFunctionClient(connector);
     }
-    else if (connector.remoteFunction instanceof Connector.RemoteFunctionConfig.Embedded) {
+    else if (remoteFunction instanceof Connector.RemoteFunctionConfig.Embedded) {
       this.functionClient = new EmbeddedFunctionClient(connector);
     }
-    else if (connector.remoteFunction instanceof Http) {
+    else if (remoteFunction instanceof Http) {
       this.functionClient = new HTTPFunctionClient(connector);
     }
     else {
@@ -291,10 +293,10 @@ public class RpcClient {
       if (r.failed()) {
         if (r.cause() instanceof HttpException
             && ((HttpException) r.cause()).status.code() >= 400 && ((HttpException) r.cause()).status.code() <= 499) {
-          logger.warn(marker, "Failed to send event to remote function {}.", connector.remoteFunction.id, r.cause());
+          logger.warn(marker, "Failed to send event to remote function {}.", connector.getRemoteFunction().id, r.cause());
         }
         else
-          logger.error(marker, "Failed to send event to remote function {}.", connector.remoteFunction.id, r.cause());
+          logger.error(marker, "Failed to send event to remote function {}.", connector.getRemoteFunction().id, r.cause());
       }
     });
     return context;
