@@ -88,8 +88,7 @@ public class Connector {
   /**
    * Arbitrary parameters to be provided to the remote function with the event.
    */
-  @JsonInclude(Include.NON_NULL)
-  private RemoteFunctionConfig remoteFunction;
+  private RemoteFunctionConfig _remoteFunction;
 
   /**
    * Returns the remote function pool ID to be used for this Service environment.
@@ -102,17 +101,21 @@ public class Connector {
     return Service.getEnvironmentIdentifier();
   }
 
+  private void setRemoteFunction(RemoteFunctionConfig remoteFunction) {
+    _remoteFunction = remoteFunction;
+  }
+
   /**
    * @see Service#getEnvironmentIdentifier()
    *
    * @return The according remote function for this environment or - if there is no special function
    * for this environment - any remote function from the {@link #remoteFunctions} map.
    */
-  @JsonIgnore
+  @JsonInclude(Include.NON_NULL)
   public RemoteFunctionConfig getRemoteFunction() {
     if (remoteFunctions == null || remoteFunctions.isEmpty()) {
-      if (remoteFunction == null) throw new RuntimeException("No remote functions are defined for connector with ID " + id);
-      return remoteFunction;
+      if (_remoteFunction == null) throw new RuntimeException("No remote functions are defined for connector with ID " + id);
+      return _remoteFunction;
     }
 
     String rfPoolId = getRemoteFunctionPoolId();
