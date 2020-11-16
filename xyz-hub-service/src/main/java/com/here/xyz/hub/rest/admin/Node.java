@@ -164,7 +164,7 @@ public class Node {
   }
 
   public static int count() {
-    return nodeCount;
+    return Math.max(nodeCount, 1);
   }
 
   public static Set<Node> getClusterNodes() {
