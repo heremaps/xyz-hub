@@ -223,13 +223,13 @@ public class FeatureTaskHandler {
       }
       catch (IllegalStateException e) {
         cancelRPC(responseContext.rpcContext);
-        logger.error(task.getMarker(), e.getMessage(), e);
+        logger.warn(task.getMarker(), e.getMessage(), e);
         callback.exception(new HttpException(BAD_REQUEST, e.getMessage(), e));
         return;
       }
       catch (HttpException e) {
         cancelRPC(responseContext.rpcContext);
-        logger.error(task.getMarker(), e.getMessage(), e);
+        logger.warn(task.getMarker(), e.getMessage(), e);
         callback.exception(e);
         return;
       }
