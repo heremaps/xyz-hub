@@ -52,6 +52,7 @@ import com.here.xyz.responses.XyzResponse;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.JsonObject;
 import java.io.InputStream;
 import java.util.Collection;
@@ -387,15 +388,16 @@ public class RpcClient {
       logger.warn(marker, "Mapping error in the provided content {} from connector \"{}\".", stringResponse, getConnector().id, e);
       callback.handle(Future.failedFuture(getJsonMappingErrorMessage(stringResponse)));
     }
-    catch (JsonParseException e) {
+    catch (JsonParseException | DecodeException e) {
       logger.warn(marker, "Parsing error in the provided content {} from connector \"{}\".", stringResponse, getConnector().id, e);
       callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Invalid content provided by the connector: Invalid JSON string. "
-          + "Error at line " + e.getLocation().getLineNr() + ", column " + e.getLocation().getColumnNr() + ".")));
+          + (e instanceof JsonParseException ? "Error at line " + ((JsonParseException) e).getLocation().getLineNr() + ", column "
+          + ((JsonParseException) e).getLocation().getColumnNr() + "." : ""))));
     }
     catch (Exception e) {
-      logger.error(marker, "Unexpected exception while processing connector \"{}\" response: {}.", getConnector().id, stringResponse, e);
+      logger.warn(marker, "Unexpected exception while processing connector \"{}\" response: {}.", getConnector().id, stringResponse, e);
       callback.handle(
-          Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unexpected exception while processing connector response.")));
+          Future.failedFuture(new HttpException(BAD_GATEWAY, "Unexpected exception while processing connector response.")));
     }
 
   }
