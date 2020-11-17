@@ -43,7 +43,7 @@ public class OHCacheClient implements CacheClient {
 
   private OHCacheClient() {
     executors = Executors.newScheduledThreadPool(2);
-    cache = createCache(Service.configuration.OFF_HEAP_CACHE_SIZE_MB, executors);
+    cache = createCache(Service.configuration.OFF_HEAP_CACHE_SIZE_MB, executors, false);
   }
 
   @Override
@@ -54,7 +54,7 @@ public class OHCacheClient implements CacheClient {
 
   @Override
   public void set(String key, byte[] value, long ttl) {
-    cache.put(key.getBytes(), value, ttl * 1000);
+    cache.put(key.getBytes(), value);
   }
 
   @Override
@@ -72,7 +72,7 @@ public class OHCacheClient implements CacheClient {
    * @param size The size of the cache in MB
    * @return The Cache instance
    */
-  public static OHCache<byte[], byte[]> createCache(int size, ScheduledExecutorService executors) {
+  public static OHCache<byte[], byte[]> createCache(int size, ScheduledExecutorService executors, boolean withTimeouts) {
     CacheSerializer<byte[]> serializer = new Serializer();
     OHCacheBuilder<byte[], byte[]> builder = OHCacheBuilder.newBuilder();
     return builder.capacity(size * 1024 * 1024)
@@ -80,6 +80,7 @@ public class OHCacheClient implements CacheClient {
         .keySerializer(serializer)
         .valueSerializer(serializer)
         .executorService(executors)
+        .timeouts(withTimeouts)
         .build();
   }
 
