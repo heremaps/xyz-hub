@@ -19,11 +19,15 @@
 
 package com.here.xyz.hub.connectors;
 
+import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
+
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 import com.here.xyz.connectors.AbstractConnectorHandler;
 import com.here.xyz.connectors.SimulatedContext;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
+import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.hub.util.LimitedOffHeapQueue.PayloadVanishedException;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -89,7 +93,16 @@ public class EmbeddedFunctionClient extends RemoteFunctionClient {
   protected void invoke(FunctionCall fc, Handler<AsyncResult<byte[]>> callback) {
     final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
     Marker marker = fc.marker;
-    logger.info(marker, "Invoke embedded lambda '{}' for event: {}", remoteFunction.id, new String(fc.getPayload()));
+    byte[] payload;
+    try {
+      payload = fc.getPayload();
+    }
+    catch (PayloadVanishedException e) {
+      callback.handle(Future.failedFuture(new HttpException(TOO_MANY_REQUESTS, "Remote function is busy or cannot be invoked.")));
+      return;
+    }
+    logger.info(marker, "Invoke embedded lambda '{}' for event: {}", remoteFunction.id, new String(payload));
+
     embeddedExecutor.execute(() -> {
       String className = null;
       try {
@@ -100,7 +113,7 @@ public class EmbeddedFunctionClient extends RemoteFunctionClient {
           ((AbstractConnectorHandler) reqHandler).setEmbedded(true);
         }
         final ByteArrayOutputStream output = new ByteArrayOutputStream();
-        reqHandler.handleRequest(new ByteArrayInputStream(fc.getPayload()), output,
+        reqHandler.handleRequest(new ByteArrayInputStream(payload), output,
             new EmbeddedContext(marker, remoteFunction.id,
                 ((Connector.RemoteFunctionConfig.Embedded) remoteFunction).env));
         logger.info(marker, "Handling response of embedded lambda call to '{}'.", remoteFunction.id);
@@ -117,8 +130,7 @@ public class EmbeddedFunctionClient extends RemoteFunctionClient {
         callback.handle(Future.failedFuture(e));
       }
       catch (Throwable e) {
-        logger
-            .error(marker, "Exception occurred, while trying to execute embedded lambda with id '{}' {}", remoteFunction.id, e);
+        logger.error(marker, "Exception occurred, while trying to execute embedded lambda with id '{}' {}", remoteFunction.id, e);
         callback.handle(Future.failedFuture(e));
       }
     });

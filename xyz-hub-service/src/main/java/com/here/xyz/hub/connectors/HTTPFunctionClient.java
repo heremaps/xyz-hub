@@ -23,12 +23,14 @@ import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
 import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
+import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.hub.util.LimitedOffHeapQueue.PayloadVanishedException;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -97,6 +99,9 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
               }
             }
           });
+    }
+    catch (PayloadVanishedException e) {
+      callback.handle(Future.failedFuture(new HttpException(TOO_MANY_REQUESTS, "Remote function is busy or cannot be invoked.")));
     }
     catch (Exception e) {
       handleFailure(fc, nextTryCount, callback, e);
