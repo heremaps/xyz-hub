@@ -361,8 +361,6 @@ public abstract class RemoteFunctionClient {
   private void _invoke(final FunctionCall fc) {
     //long start = System.nanoTime();
     invoke(fc, r -> {
-      if (fc.cancelled)
-        return;
       //long end = System.nanoTime();
       //TODO: Activate performance calculation once it's implemented completely
       //recalculatePerformance(end - start, TimeUnit.NANOSECONDS);
@@ -374,7 +372,8 @@ public abstract class RemoteFunctionClient {
         }
       }
       try {
-        fc.callback.handle(r);
+        if (!fc.cancelled)
+          fc.callback.handle(r);
       }
       catch (Exception e) {
         logger.error(fc.marker, "Error while calling response handler", e);

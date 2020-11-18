@@ -14,11 +14,8 @@ import org.caffinitas.ohc.OHCache;
  * An extended version of the {@link LimitedQueue} which stores binary data held by its elements in an off-heap storage during the time the
  * elements are residing in this queue.
  *
- * When an element gets added to this queue its payload will taken from the heap and gets moved off-heap.
- * Once removing / fetching back the element from this queue it will be restored so that the payload is accessible using
- * {@link OffHeapBuffer#getPayload()}.
- * During the time the element resides in this queue its payload is not accessible. The method {@link OffHeapBuffer#getPayload()} will
- * throw an {@link IllegalStateException} when trying to access it.
+ * When an element gets added to this queue its payload will be taken from the heap and gets moved off-heap.
+ * Once removing / fetching back the element from this queue it will be restored using {@link OffHeapBuffer#getPayload()}.
  *
  * @param <E> The element type.
  */
@@ -36,15 +33,10 @@ public class LimitedOffHeapQueue<E extends OffHeapBuffer> extends LimitedQueue<E
   @Override
   public List<E> add(OffHeapBuffer element) {
     moveOffHeap(element);
-    return super.add((E) element);
-  }
-
-  @Override
-  public E remove() {
-    E removed = super.remove();
-    if (removed != null)
-      ((OffHeapBuffer) removed).unStash();
-    return removed;
+    List<E> discarded = super.add((E) element);
+    //Also discard the according off-heap elements explicitly. Otherwise the OHC would pick the elements to be discarded.
+    discarded.forEach(e -> discardOHElement(e));
+    return discarded;
   }
 
   private void moveOffHeap(OffHeapBuffer element) {
@@ -57,7 +49,7 @@ public class LimitedOffHeapQueue<E extends OffHeapBuffer> extends LimitedQueue<E
       ohStorage.remove(element.ohKey);
   }
 
-  public static class PayloadVanishedException extends RuntimeException {
+  public static class PayloadVanishedException extends Exception {
     public final String ohKey;
 
     private PayloadVanishedException(OffHeapBuffer item) {
@@ -108,11 +100,11 @@ public class LimitedOffHeapQueue<E extends OffHeapBuffer> extends LimitedQueue<E
       payload.set(tmpPayload);
     }
 
-    public final byte[] getPayload() throws IllegalStateException {
+    public final byte[] getPayload() throws PayloadVanishedException {
       byte[] payload = this.payload.get();
       if (payload == null)
-        //Payload is still stashed and can't be accessed right now
-        throw new IllegalStateException("Payload is still stashed off-heap and can not be accessed.");
+        //Payload is stashed and can't be accessed right now. Un-stashing it.
+        unStash();
 
       return payload;
     }
