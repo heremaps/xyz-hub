@@ -85,7 +85,8 @@ public abstract class ConnectorConfigClient implements Initializable {
         final Connector connector = ar.result();
         cache.put(connectorId, connector);
         handler.handle(Future.succeededFuture(connector));
-      } else {
+      }
+      else {
         logger.warn(marker, "storageId[{}]: Connector not found", connectorId);
         handler.handle(Future.failedFuture(ar.cause()));
       }
