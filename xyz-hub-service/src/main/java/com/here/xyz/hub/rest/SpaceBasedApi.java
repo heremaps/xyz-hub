@@ -1,6 +1,7 @@
 package com.here.xyz.hub.rest;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
 import com.here.xyz.hub.task.FeatureTaskHandler.InvalidStorageException;
 import com.here.xyz.hub.task.Task;
@@ -16,7 +17,7 @@ public abstract class SpaceBasedApi extends Api {
   @Override
   public void sendErrorResponse(final Task task, final Exception e) {
     if (e instanceof InvalidStorageException) {
-      super.sendErrorResponse(task.context, new HttpException(BAD_REQUEST, "The resource definition contains an invalid storage ID."));
+      super.sendErrorResponse(task.context, new HttpException(NOT_FOUND, "The resource definition contains an invalid storage ID."));
     }
     else {
       super.sendErrorResponse(task.context, e);
