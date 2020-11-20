@@ -507,7 +507,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
     }
   }
 
-  private static final Pattern ERRVALUE_22P02 = Pattern.compile("invalid input syntax for type numeric:\\s+\"([^\"]*)\"\\s+Query:");
+  private static final Pattern ERRVALUE_22P02 = Pattern.compile("invalid input syntax for type numeric:\\s+\"([^\"]*)\"\\s+Query:"),
+                               ERRVALUE_22P05 = Pattern.compile("ERROR:\\s+(.*)\\s+Detail:\\s+(.*)\\s+Where:");
 
   protected XyzResponse checkSQLException(SQLException e, String table) {
     logger.warn("{} - SQL Error ({}) on {} : {}", streamId, e.getSQLState(), table, e);
@@ -527,11 +528,25 @@ public class PSQLXyzConnector extends DatabaseHandler {
                                 .withErrorMessage("No time for retry left for database query.");
 
      case "22P02" : // specific handling in case to H3 clustering.property
+     {
       if( e.getMessage() == null || e.getMessage().indexOf("'H3'::text") == -1 ) break;
 
       Matcher m = ERRVALUE_22P02.matcher(e.getMessage());
       return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
                                 .withErrorMessage(String.format("clustering.property: string(%s) can not be converted to numeric",( m.find() ? m.group(1) : "" )));
+     }
+
+     case "22P05" :
+     {
+      if( e.getMessage() == null ) break;
+      String eMsg = "untranslatable character in payload";
+      Matcher m = ERRVALUE_22P05.matcher(e.getMessage());
+
+      if( m.find() )
+       eMsg = String.format( eMsg + ": %s - %s",m.group(1), m.group(2));
+
+      return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( eMsg );
+     }
 
      case "42P01" :
       return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT).withErrorMessage(e.getMessage());
