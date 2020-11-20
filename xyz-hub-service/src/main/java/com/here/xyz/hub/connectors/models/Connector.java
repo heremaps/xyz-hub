@@ -83,7 +83,7 @@ public class Connector {
    *
    * @see Service#getEnvironmentIdentifier()
    */
-  protected Map<String, RemoteFunctionConfig> remoteFunctions = new HashMap<>();
+  public Map<String, RemoteFunctionConfig> remoteFunctions = new HashMap<>();
 
   /**
    * Arbitrary parameters to be provided to the remote function with the event.
