@@ -516,8 +516,13 @@ public class PSQLXyzConnector extends DatabaseHandler {
     String sqlState = (e.getSQLState() != null ? e.getSQLState().toUpperCase() : "SNULL");
 
     switch (sqlState) {
-      case "XX000": /* XX000 - internal error */
-        if (e.getMessage() == null || e.getMessage().indexOf("interruptedException") != -1) break;
+     case "XX000": /* XX000 - internal error */
+        if ( e.getMessage() == null ) break;
+        if ( e.getMessage().indexOf("interruptedException") != -1 ) break;
+        if ( e.getMessage().indexOf("ERROR: stats for") != -1 )
+         return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( "statistical data for this space is missing (analyze)" );
+        //fall thru - timeout assuming timeout 
+           
      case "57014" : /* 57014 - query_canceled */
      case "57P01" : /* 57P01 - admin_shutdown */
       return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
