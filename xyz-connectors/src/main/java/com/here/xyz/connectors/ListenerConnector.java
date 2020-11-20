@@ -21,6 +21,7 @@ package com.here.xyz.connectors;
 
 
 import com.here.xyz.Typed;
+import com.here.xyz.events.ContentModifiedNotification;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.EventNotification;
@@ -141,6 +142,9 @@ public abstract class ListenerConnector extends AbstractConnectorHandler {
     if ((DeleteFeaturesByTagEvent.class.getSimpleName() + RESPONSE).equals(eventType)) {
       processDeleteFeaturesByTag((FeatureCollection) notification.getEvent(), notificationParams);
     }
+    if ((ContentModifiedNotification.class.getSimpleName() + REQUEST).equals(eventType)) {
+      processContentModifiedNotification((ContentModifiedNotification) notification.getEvent(), notificationParams);
+    }
   }
 
   @SuppressWarnings("RedundantThrows")
@@ -222,6 +226,12 @@ public abstract class ListenerConnector extends AbstractConnectorHandler {
   }
 
   @SuppressWarnings("RedundantThrows")
+  protected void processContentModifiedNotification(ContentModifiedNotification event, NotificationParams notificationParams)
+      throws Exception {
+  }
+
+  @SuppressWarnings("RedundantThrows")
   protected void processErrorResponse(ErrorResponse response, String eventType, NotificationParams notificationParams) throws Exception {
   }
+
 }

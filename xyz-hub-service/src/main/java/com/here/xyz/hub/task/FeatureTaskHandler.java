@@ -40,6 +40,7 @@ import com.amazonaws.services.sns.model.PublishResult;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.events.ContentModifiedNotification;
 import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.EventNotification;
@@ -48,6 +49,7 @@ import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.RpcClient.RpcContext;
 import com.here.xyz.hub.connectors.models.BinaryResponse;
@@ -101,6 +103,7 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
@@ -121,6 +124,8 @@ public class FeatureTaskHandler {
   private static final byte JSON_VALUE = 1;
   private static final byte BINARY_VALUE = 2;
   private static AmazonSNSAsync snsClient;
+  private static ConcurrentHashMap<String, Long> contentModificationTimers = new ConcurrentHashMap<>();
+  private static final long CONTENT_MODIFICATION_INTERVAL = 1_000; //1s
 
   /**
    * Sends the event to the connector client and write the response as the responseCollection of the task.
@@ -216,6 +221,10 @@ public class FeatureTaskHandler {
             callback.call(task);
             //Send the event's (post-processed) response to potentially registered response-listeners
             notifyListeners(task, eventType, responseToSend);
+            if (ModifyFeaturesEvent.class.getSimpleName().equals(eventType)) {
+              //Send an additional ContentModifiedNotification to all components which are interested
+              scheduleContentModifiedNotification(task);
+            }
           });
         });
         addStreamInfo(task, "SReqSize=" + responseContext.rpcContext.getRequestSize() + ";");
@@ -254,7 +263,7 @@ public class FeatureTaskHandler {
       if (requestListenerPayload != null)
         notifyListeners(task, eventType, requestListenerPayload);
     });
-    if (event instanceof ModifySpaceEvent) sendSpaceModificationNotification((ModifySpaceEvent) event);
+    if (event instanceof ModifySpaceEvent) sendSpaceModificationNotification(event);
   }
 
   private static RpcClient getRpcClient(Connector refConnector) throws HttpException {
@@ -411,27 +420,57 @@ public class FeatureTaskHandler {
   }
 
   static <T extends FeatureTask> void setAdditionalEventProps(T task, Connector connector, Event event) {
-    event.setMetadata(task.getJwt().metadata);
+    setAdditionalEventProps(new NotificationContext(task, false), connector, event);
+  }
+
+  static void setAdditionalEventProps(NotificationContext nc, Connector connector, Event event) {
+    event.setMetadata(nc.jwt.metadata);
     if (connector.trusted) {
-      event.setTid(task.getJwt().tid);
-      event.setAid(task.getJwt().aid);
-      event.setJwt(task.getJwt().jwt);
+      event.setTid(nc.jwt.tid);
+      event.setAid(nc.jwt.aid);
+      event.setJwt(nc.jwt.jwt);
+    }
+  }
+
+  /**
+   * Schedules the sending of a {@link ContentModifiedNotification} to the modification SNS topic and all listeners registered for it.
+   * If some notification was already scheduled in the last time interval (specified by {@link #CONTENT_MODIFICATION_INTERVAL}), no further
+   * notification will be scheduled for the current task.
+   * @param task The {@link FeatureTask} which triggers the notification
+   * @param <T>
+   */
+  private static <T extends FeatureTask> void scheduleContentModifiedNotification(T task) {
+    NotificationContext nc = new NotificationContext(task, false);
+    if (!contentModificationTimers.containsKey(task.space.getId())) {
+      //Schedule a new notification
+      long timerId = Service.vertx.setTimer(CONTENT_MODIFICATION_INTERVAL, tId -> {
+        contentModificationTimers.remove(nc.space.getId());
+        ContentModifiedNotification cmn = new ContentModifiedNotification().withSpace(nc.space.getId()).withStreamId(nc.marker.getName());
+        //Send the notification to all registered listeners
+        notifyConnectors(nc, ConnectorType.LISTENER, ContentModifiedNotification.class.getSimpleName(), cmn, null);
+        //Also send it to the modification SNS topic
+        sendSpaceModificationNotification(cmn);
+      });
+      //Check whether some other thread also just scheduled a new timer
+      if (contentModificationTimers.putIfAbsent(task.space.getId(), timerId) != null)
+        //Another thread scheduled a new timer in the meantime. Cancelling this one ...
+        Service.vertx.cancelTimer(timerId);
     }
   }
 
   private static <T extends FeatureTask> void notifyListeners(T task, String eventType, Payload payload) {
-    notifyConnectors(task, ConnectorType.LISTENER, eventType, payload, null);
+    notifyConnectors(new NotificationContext(task, false), ConnectorType.LISTENER, eventType, payload, null);
   }
 
   private static <T extends FeatureTask> void notifyProcessors(T task, String eventType, Payload payload,
       Handler<AsyncResult<XyzResponse>> callback) {
-    notifyConnectors(task, ConnectorType.PROCESSOR, eventType, payload, callback);
+    notifyConnectors(new NotificationContext(task, true), ConnectorType.PROCESSOR, eventType, payload, callback);
   }
 
-  private static <T extends FeatureTask> void notifyConnectors(T task, ConnectorType connectorType, String eventType,
+  private static <T extends FeatureTask> void notifyConnectors(NotificationContext nc, ConnectorType connectorType, String eventType,
       Payload payload, Handler<AsyncResult<XyzResponse>> callback) {
     //Send the event to all registered & matching listeners / processors
-    Map<String, List<ResolvableListenerConnectorRef>> connectorMap = task.space.getEventTypeConnectorRefsMap(connectorType);
+    Map<String, List<ResolvableListenerConnectorRef>> connectorMap = nc.space.getEventTypeConnectorRefsMap(connectorType);
     if (connectorMap != null && !connectorMap.isEmpty()) {
       String phase = payload instanceof Event ? "request" : "response";
       String notificationEventType = eventType + "." + phase;
@@ -439,12 +478,14 @@ public class FeatureTaskHandler {
       if (connectorMap.containsKey(notificationEventType)) {
         List<ResolvableListenerConnectorRef> connectors = connectorMap.get(notificationEventType);
         if (connectorType == ConnectorType.LISTENER) {
-          notifyListeners(task, connectors, notificationEventType, payload);
+          notifyListeners(nc, connectors, notificationEventType, payload);
           return;
-        } else if (connectorType == ConnectorType.PROCESSOR) {
-          notifyProcessors(task, connectors, notificationEventType, payload, callback);
+        }
+        else if (connectorType == ConnectorType.PROCESSOR) {
+          notifyProcessors(nc, connectors, notificationEventType, payload, callback);
           return;
-        } else {
+        }
+        else {
           throw new RuntimeException("Unsupported connector type.");
         }
       }
@@ -454,7 +495,7 @@ public class FeatureTaskHandler {
     }
   }
 
-  private static <T extends FeatureTask> void notifyListeners(T task, List<ResolvableListenerConnectorRef> listeners,
+  private static void notifyListeners(NotificationContext nc, List<ResolvableListenerConnectorRef> listeners,
       String notificationEventType, Payload payload) {
     listeners.forEach(l -> {
       RpcClient client;
@@ -462,15 +503,15 @@ public class FeatureTaskHandler {
         client = getRpcClient(l.resolvedConnector);
       }
       catch (Exception e) {
-        logger.warn(task.getMarker(), "Error when trying to get client for remote function (listener) {}.", l.getId(), e);
+        logger.warn(nc.marker, "Error when trying to get client for remote function (listener) {}.", l.getId(), e);
         return;
       }
       //Send the event (notify the listener)
-      client.send(task.getMarker(), createNotification(task, payload, notificationEventType, l));
+      client.send(nc.marker, createNotification(nc, payload, notificationEventType, l));
     });
   }
 
-  private static <T extends FeatureTask> void notifyProcessors(T task, List<ResolvableListenerConnectorRef> processors,
+  private static <T extends FeatureTask> void notifyProcessors(NotificationContext nc, List<ResolvableListenerConnectorRef> processors,
       String notificationEventType, Payload payload, Handler<AsyncResult<XyzResponse>> callback) {
 
     //For the first call we're mocking a ModifiedPayloadResponse as if it was coming from a previous processor
@@ -490,7 +531,7 @@ public class FeatureTaskHandler {
           })
           //Execute the processor with the result of the previous processor and inform following stages about the outcome
           .thenAccept(result -> {
-            if (task.getState().isFinal()) return;
+            if (nc.task.getState().isFinal()) return;
             if (result == null) {
               return; //Happens in case of exception. Then the exceptionally handler already took over to inform the following stages.
             }
@@ -518,7 +559,7 @@ public class FeatureTaskHandler {
             }
 
             //Execute the processor with the event / response payload (do pre-processing / post-processing)
-            executeProcessor(task, processor, notificationEventType, payloadToSend)
+            executeProcessor(nc, processor, notificationEventType, payloadToSend)
                 .exceptionally(ex -> {
                   nextFuture.completeExceptionally(ex);
                   return null;
@@ -556,7 +597,7 @@ public class FeatureTaskHandler {
         });
   }
 
-  private static <T extends FeatureTask> CompletableFuture<XyzResponse> executeProcessor(T task,
+  private static <T extends FeatureTask> CompletableFuture<XyzResponse> executeProcessor(NotificationContext nc,
       ResolvableListenerConnectorRef p, String notificationEventType, Payload payload) {
     CompletableFuture<XyzResponse> f = new CompletableFuture<>();
 
@@ -569,27 +610,27 @@ public class FeatureTaskHandler {
       return f;
     }
     //Execute the processor with the event / response payload (do pre-processing / post-processing)
-    RpcContext rpcContext = client.execute(task.getMarker(), createNotification(task, payload, notificationEventType, p), ar -> {
+    RpcContext rpcContext = client.execute(nc.marker, createNotification(nc, payload, notificationEventType, p), ar -> {
       if (ar.failed()) {
         f.completeExceptionally(ar.cause());
       } else {
         f.complete(ar.result());
       }
     });
-    task.addCancellingHandler(unused -> rpcContext.cancelRequest());
+    nc.task.addCancellingHandler(unused -> rpcContext.cancelRequest());
     return f;
   }
 
-  private static <T extends FeatureTask> EventNotification createNotification(T task, Payload payload, String notificationEventType,
+  private static EventNotification createNotification(NotificationContext nc, Payload payload, String notificationEventType,
       ResolvableListenerConnectorRef l) {
     //Create the EventNotification-event
     EventNotification event = new EventNotification()
         .withParams(l.getParams())
         .withEventType(notificationEventType)
         .withEvent(payload)
-        .withSpace(task.space.getId())
-        .withStreamId(task.getMarker().getName());
-    setAdditionalEventProps(task, l.resolvedConnector, event);
+        .withSpace(nc.space.getId())
+        .withStreamId(nc.marker.getName());
+    setAdditionalEventProps(nc, l.resolvedConnector, event);
     return event;
   }
 
@@ -1107,7 +1148,9 @@ public class FeatureTaskHandler {
     callback.call(task);
   }
 
-  private static void sendSpaceModificationNotification(ModifySpaceEvent event) {
+  private static void sendSpaceModificationNotification(Event event) {
+    if (!(event instanceof ModifySpaceEvent || event instanceof ContentModifiedNotification))
+      throw new IllegalArgumentException("Invalid event type was given to send as space modification notification.");
     try {
       if (Service.configuration.MSE_NOTIFICATION_TOPIC != null) {
         getSnsClient().publishAsync(Service.configuration.MSE_NOTIFICATION_TOPIC, event.serialize(),
@@ -1176,6 +1219,21 @@ public class FeatureTaskHandler {
           failed.addAll(failedModifications);
         }
       }
+    }
+  }
+
+  static class NotificationContext {
+    private Marker marker;
+    private Space space;
+    private JWTPayload jwt;
+    private FeatureTask task;
+
+    public NotificationContext(FeatureTask task, boolean keepTask) {
+      marker = task.getMarker();
+      space = task.space;
+      jwt = task.getJwt();
+      if (keepTask)
+        this.task = task;
     }
   }
 }
