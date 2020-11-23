@@ -50,6 +50,8 @@ public class FeatureCollection extends XyzResponse<FeatureCollection> {
   private List<String> deleted;
   private List<Feature> oldFeatures;
   private List<ModificationFailure> failed;
+  @JsonInclude(Include.NON_EMPTY)
+  private Integer version;
 
   public FeatureCollection() {
     setFeatures(new ArrayList<>());
@@ -196,7 +198,7 @@ public class FeatureCollection extends XyzResponse<FeatureCollection> {
   }
 
   @SuppressWarnings("unused")
-  public FeatureCollection withHandle(final Boolean partial) {
+  public FeatureCollection withPartial(final Boolean partial) {
     setPartial(partial);
     return this;
   }
@@ -310,6 +312,24 @@ public class FeatureCollection extends XyzResponse<FeatureCollection> {
   @SuppressWarnings("unused")
   public FeatureCollection withFailed(List<ModificationFailure> failed) {
     setFailed(failed);
+    return this;
+  }
+
+  /**
+   * For FeatureCollection write-responses: If the history of a space is activated and this FeatureCollection is a response to a
+   * modification of the space - contains the (new) space-version which has just been written.
+   * @return The new space-version after some modification
+   */
+  public Integer getVersion() {
+    return version;
+  }
+
+  public void setVersion(int version) {
+    this.version = version;
+  }
+
+  public FeatureCollection withVersion(int version) {
+    setVersion(version);
     return this;
   }
 

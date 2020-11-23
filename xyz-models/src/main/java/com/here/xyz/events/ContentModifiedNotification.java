@@ -28,4 +28,29 @@ package com.here.xyz.events;
  */
 public class ContentModifiedNotification extends Event<ContentModifiedNotification> {
 
+  /**
+   * The latest version of the space contents as it has been seen on the service-node which sent this {@link ContentModifiedNotification}.
+   * There is neither a guarantee that the version value is pointing to the actual latest version of the space's content nor there is a
+   * guarantee that it's defined at all.
+   * If the value exists and it points to a value > 0, that is the version of the latest write to that space as it has been performed by
+   * the triggering service-node.
+   */
+  private int spaceVersion;
+
+  /**
+   * @return The latest space-version as it has been seen on the service-node which sent this {@link ContentModifiedNotification}.
+   */
+  public int getSpaceVersion() {
+    return spaceVersion;
+  }
+
+  public void setSpaceVersion(int spaceVersion) {
+    this.spaceVersion = spaceVersion;
+  }
+
+  public ContentModifiedNotification withSpaceVersion(int spaceVersion) {
+    setSpaceVersion(spaceVersion);
+    return this;
+  }
+
 }
