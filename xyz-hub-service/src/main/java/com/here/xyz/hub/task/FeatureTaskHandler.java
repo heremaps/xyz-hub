@@ -125,7 +125,19 @@ public class FeatureTaskHandler {
   private static final byte BINARY_VALUE = 2;
   private static AmazonSNSAsync snsClient;
   private static ConcurrentHashMap<String, Long> contentModificationTimers = new ConcurrentHashMap<>();
+  private static ConcurrentHashMap<String, Long> contentModificationAdminTimers = new ConcurrentHashMap<>();
   private static final long CONTENT_MODIFICATION_INTERVAL = 1_000; //1s
+  private static final long CONTENT_MODIFICATION_ADMIN_INTERVAL = 300_000; //5min
+
+  /**
+   * The latest versions of the space contents as it has been seen on this service node. The key is the space ID and the value is the
+   * according "latest seen content version".
+   * There is neither a guarantee that the version value is pointing to the actual latest version of the space's content nor there is a
+   * guarantee that it's defined at all.
+   * If the value exists for a space and it points to a value > 0, that is the version of the latest write to that space as it has been
+   * performed by this service-node.
+   */
+  private static ConcurrentHashMap<String, Integer> latestSeenContentVersions = new ConcurrentHashMap<>();
 
   /**
    * Sends the event to the connector client and write the response as the responseCollection of the task.
@@ -222,6 +234,9 @@ public class FeatureTaskHandler {
             //Send the event's (post-processed) response to potentially registered response-listeners
             notifyListeners(task, eventType, responseToSend);
             if (ModifyFeaturesEvent.class.getSimpleName().equals(eventType)) {
+              //Set the latest version as it has been seen on this node, after the modification
+              if (responseToSend instanceof FeatureCollection && ((FeatureCollection) responseToSend).getVersion() != null)
+                setLatestSeenContentVersion(task.space, ((FeatureCollection) responseToSend).getVersion());
               //Send an additional ContentModifiedNotification to all components which are interested
               scheduleContentModifiedNotification(task);
             }
@@ -432,6 +447,11 @@ public class FeatureTaskHandler {
     }
   }
 
+  static void setLatestSeenContentVersion(Space space, int version) {
+    if (space.isEnableHistory() && version > 0)
+      latestSeenContentVersions.computeIfPresent(space.getId(), (spaceId, currentVersion) -> Math.max(currentVersion, version));
+  }
+
   /**
    * Schedules the sending of a {@link ContentModifiedNotification} to the modification SNS topic and all listeners registered for it.
    * If some notification was already scheduled in the last time interval (specified by {@link #CONTENT_MODIFICATION_INTERVAL}), no further
@@ -441,18 +461,30 @@ public class FeatureTaskHandler {
    */
   private static <T extends FeatureTask> void scheduleContentModifiedNotification(T task) {
     NotificationContext nc = new NotificationContext(task, false);
-    if (!contentModificationTimers.containsKey(task.space.getId())) {
+    scheduleContentModificationNotificationIfAbsent(nc, contentModificationTimers, CONTENT_MODIFICATION_INTERVAL, false);
+    scheduleContentModificationNotificationIfAbsent(nc, contentModificationAdminTimers, CONTENT_MODIFICATION_ADMIN_INTERVAL, true);
+  }
+
+  private static void scheduleContentModificationNotificationIfAbsent(NotificationContext nc, ConcurrentHashMap<String, Long> timerMap,
+      long interval, boolean adminNotification) {
+    if (!timerMap.containsKey(nc.space.getId())) {
       //Schedule a new notification
-      long timerId = Service.vertx.setTimer(CONTENT_MODIFICATION_INTERVAL, tId -> {
-        contentModificationTimers.remove(nc.space.getId());
+      long timerId = Service.vertx.setTimer(interval, tId -> {
+        timerMap.remove(nc.space.getId());
         ContentModifiedNotification cmn = new ContentModifiedNotification().withSpace(nc.space.getId()).withStreamId(nc.marker.getName());
-        //Send the notification to all registered listeners
-        notifyConnectors(nc, ConnectorType.LISTENER, ContentModifiedNotification.class.getSimpleName(), cmn, null);
-        //Also send it to the modification SNS topic
-        sendSpaceModificationNotification(cmn);
+        Integer spaceVersion = latestSeenContentVersions.get(nc.space.getId());
+        if (spaceVersion != null) cmn.setSpaceVersion(spaceVersion);
+        if (adminNotification) {
+          //Send it to the modification SNS topic
+          sendSpaceModificationNotification(cmn);
+        }
+        else {
+          //Send the notification to all registered listeners
+          notifyConnectors(nc, ConnectorType.LISTENER, ContentModifiedNotification.class.getSimpleName(), cmn, null);
+        }
       });
       //Check whether some other thread also just scheduled a new timer
-      if (contentModificationTimers.putIfAbsent(task.space.getId(), timerId) != null)
+      if (timerMap.putIfAbsent(nc.space.getId(), timerId) != null)
         //Another thread scheduled a new timer in the meantime. Cancelling this one ...
         Service.vertx.cancelTimer(timerId);
     }
