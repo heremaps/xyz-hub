@@ -159,6 +159,7 @@ public class Connector {
         && trusted == other.trusted)
         && Objects.equals(params, other.params)
         && Objects.equals(capabilities, other.capabilities)
+        && Objects.equals(getRemoteFunction(), other.getRemoteFunction()) //TODO: Kept for backwards compatibility
         && Objects.equals(remoteFunctions, other.remoteFunctions)
         && Objects.equals(connectionSettings, other.connectionSettings)
         && Objects.equals(defaultEventTypes, other.defaultEventTypes)
