@@ -24,7 +24,6 @@ import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
-import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
 import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 import static io.netty.handler.codec.rtsp.RtspResponseStatuses.REQUEST_ENTITY_TOO_LARGE;
@@ -43,12 +42,11 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.RemoteFunctionClient.FunctionCall;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.rest.Api;
+import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.XyzResponse;
-
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -100,7 +98,7 @@ public class RpcClient {
       throw new NullPointerException("connector");
     }
     RpcClient client = connectorIdToClient.get(connector.id);
-    if(connector.active == false)
+    if(!connector.active)
       throw new IllegalStateException("Related connector is not active: " + connector.id);
     if (client == null) {
       if (!createIfNotExists) throw new IllegalStateException("No RpcClient is ready for the given connector with ID " + connector.id);
@@ -233,6 +231,11 @@ public class RpcClient {
             preview(eventJson, 4092));
 
     invokeWithRelocation(marker, context, eventBytes, false, hasPriority, bytesResult -> {
+      if (functionClient == null) {
+        logger.warn("RpcClient for connector with ID {} was destroyed in the meantime, cancelling handling of response.",
+            connector.id);
+        context.cancelRequest();
+      }
       if (context.cancelled)
         return;
       if (bytesResult.failed()) {
