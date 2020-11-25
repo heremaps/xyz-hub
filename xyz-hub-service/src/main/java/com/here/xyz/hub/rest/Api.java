@@ -455,7 +455,6 @@ public abstract class Api {
   }
 
   private void sendResponse(final Task task, HttpResponseStatus status, String contentType, final byte[] response) {
-
     HttpServerResponse httpResponse = task.context.response().setStatusCode(status.code());
 
     CacheProfile cacheProfile = task.getCacheProfile();
@@ -491,7 +490,9 @@ public abstract class Api {
       if (acceptEncoding == null) {
         return false;
       }
-      return instance.determineWrapper(acceptEncoding) != ZlibWrapper.NONE;
+
+      final ZlibWrapper wrapper = instance.determineWrapper(acceptEncoding);
+      return wrapper == ZlibWrapper.GZIP || wrapper == ZlibWrapper.ZLIB;
     }
   }
 

@@ -19,7 +19,8 @@
 
 package com.here.xyz.connectors;
 
-import com.amazonaws.services.lambda.*;
+import com.amazonaws.services.lambda.AWSLambda;
+import com.amazonaws.services.lambda.AWSLambdaClientBuilder;
 import com.amazonaws.services.lambda.model.InvokeRequest;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
@@ -44,7 +45,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -188,7 +188,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
         ifNoneMatch = event.getIfNoneMatch();
 
         if (event instanceof RelocatedEvent) {
-          handleRequest(relocationClient.processRelocatedEvent((RelocatedEvent) event), output, context);
+          handleRequest(Payload.prepareInputStream(relocationClient.processRelocatedEvent((RelocatedEvent) event)), output, context);
           return;
         }
         initialize(event);
@@ -202,7 +202,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
             .withError(XyzError.EXCEPTION)
             .withErrorMessage("Unexpected exception occurred.");
       } catch (OutOfMemoryError e) {
-       throw e; 
+       throw e;
       }
       writeDataOut(output, dataOut, ifNoneMatch);
     } catch (Exception e) {
@@ -272,7 +272,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
 
       //Relocate
       if (!embedded && bytes.length > MAX_RESPONSE_SIZE) {
-        bytes = relocationClient.relocate(streamId, bytes);
+        bytes = relocationClient.relocate(streamId, Payload.isGzipped(bytes) ? bytes : Payload.compress(bytes));
       }
 
       //Write result
