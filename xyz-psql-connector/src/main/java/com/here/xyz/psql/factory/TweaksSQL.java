@@ -88,7 +88,7 @@ public class TweaksSQL
     "select jsondata, geo "
    +"from "
    +"( "
-   +" select jsonb_set('{\"type\": \"Feature\"}'::jsonb,'{properties}', jsonb_set( jsonb_set( '{}'::jsonb, '{gid}', to_jsonb(gid) ),'{gidObjs}', to_jsonb(w) )  ) as jsondata, (%1$s)::jsonb as geo"
+   +" select jsonb_set('{\"type\": \"Feature\"}'::jsonb,'{properties}', jsonb_set( jsonb_set( '{}'::jsonb, '{gid}', to_jsonb(gid) ),'{gidObjs}', to_jsonb(w) )  ) as jsondata, %1$s as geo"
    +" from "
    +" ( "
    +"  select left( md5(gh), 12 ) as gid, case length(gh) > %2$d when true then 0 else i end as gsz, count(1) as w, (st_dump( st_union(oo.geo) )).geom as geo "
@@ -102,15 +102,18 @@ public class TweaksSQL
    +"    where 1 = 1 "
    +"      and %3$s ";  // bboxquery
  
-  public static String mergeEndSql = 
+  private static String _mergeEndSql = 
     "   ) o "
    +"  ) oo "
    +"  group by gh, gsz"
    +" ) ooo "
    +") oooo "
    +"where 1 = 1 "
-   +"and geo is not null "
-   +"and geo->>'type' != 'GeometryCollection' ";
+   +"and geo is not null ";
+   
+
+  public static String mergeEndSql(boolean bGeojson)
+  {  return _mergeEndSql + "and " + ( bGeojson ? "geo->>'type' != 'GeometryCollection' " : "geometrytype(geo) != 'GEOMETRYCOLLECTION'" );  }
   
   public static String 
    requestedTileBoundsSql = String.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/),
