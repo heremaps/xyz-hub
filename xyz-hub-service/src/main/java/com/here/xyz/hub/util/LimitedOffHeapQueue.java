@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.caffinitas.ohc.OHCache;
 
@@ -63,6 +64,7 @@ public class LimitedOffHeapQueue<E extends OffHeapBuffer> extends LimitedQueue<E
     private AtomicReference<byte[]> payload = new AtomicReference<>();
     private byte[] ohKey;
     private long payloadSize;
+    private AtomicBoolean consumed = new AtomicBoolean();
 
     public OffHeapBuffer(byte[] payload) {
       assert payload != null;
@@ -102,10 +104,20 @@ public class LimitedOffHeapQueue<E extends OffHeapBuffer> extends LimitedQueue<E
 
     public final byte[] getPayload() throws PayloadVanishedException {
       byte[] payload = this.payload.get();
-      if (payload == null)
+      if (payload == null) {
         //Payload is stashed and can't be accessed right now. Un-stashing it.
         unStash();
+        return this.payload.get();
+      }
 
+      return payload;
+    }
+
+    public final byte[] consumePayload() throws PayloadVanishedException {
+      if (!consumed.compareAndSet(false, true))
+        throw new IllegalStateException("Payload was already consumed.");
+      byte[] payload = getPayload();
+      this.payload.set(null);
       return payload;
     }
   }

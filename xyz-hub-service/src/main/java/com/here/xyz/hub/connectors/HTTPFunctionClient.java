@@ -91,6 +91,10 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
             }
             else {
               try {
+                fc.consumePayload();
+              }
+              catch (PayloadVanishedException ignore) {}
+              try {
                 byte[] responseBytes = ar.result().body().getBytes();
                 callback.handle(Future.succeededFuture(responseBytes));
               }
