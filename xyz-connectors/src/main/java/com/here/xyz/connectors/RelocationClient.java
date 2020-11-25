@@ -24,18 +24,16 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.AmazonS3URI;
 import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.here.xyz.Payload;
 import com.here.xyz.events.RelocatedEvent;
 import com.here.xyz.responses.XyzError;
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.UUID;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 @SuppressWarnings("WeakerAccess")
-public class RelocationClient{
+public class RelocationClient {
 
   private static final Logger logger = LogManager.getLogger();
 
@@ -60,14 +58,8 @@ public class RelocationClient{
    * @param streamId The streamId of the original request or response
    * @param bytes the bytes of the feature collection to be returned.
    * @return the serialized RelocatedEvent as bytes
-   * @throws Exception if any error occurred.
    */
-  public byte[] relocate(String streamId, byte[] bytes) throws Exception {
-    ByteArrayInputStream is = new ByteArrayInputStream(bytes);
-    if (!Payload.isCompressed(is)) {
-      bytes = Payload.compress(bytes);
-    }
-
+  public byte[] relocate(String streamId, byte[] bytes) {
     String name = UUID.randomUUID().toString();
     RelocatedEvent event = new RelocatedEvent();
     event.setStreamId(streamId);
@@ -90,28 +82,23 @@ public class RelocationClient{
    * @throws ErrorResponseException when any error occurred
    */
   public InputStream processRelocatedEvent(RelocatedEvent event) throws ErrorResponseException {
-    try {
-      if (event.getURI() == null && event.getLocation() != null) {
-        event.setURI("s3://" + bucket + "/" + S3_PATH + event.getLocation());
-      }
-      logger.info("{}, Found relocation event, loading final event from '{}'", event.getStreamId(), event.getURI());
-
-      if (event.getURI().startsWith("s3://")) {
-        return downloadFromS3(new AmazonS3URI(event.getURI()));
-      } else {
-        throw new ErrorResponseException(event.getStreamId(), XyzError.ILLEGAL_ARGUMENT, "Unsupported URI type");
-      }
-
-    } catch (IOException e) {
-      throw new ErrorResponseException(event.getStreamId(), XyzError.BAD_GATEWAY, "Unable to download the relocated event from S3.");
+    if (event.getURI() == null && event.getLocation() != null) {
+      event.setURI("s3://" + bucket + "/" + S3_PATH + event.getLocation());
     }
+    logger.info("{}, Found relocation event, loading final event from '{}'", event.getStreamId(), event.getURI());
+
+    if (event.getURI().startsWith("s3://")) {
+      return downloadFromS3(new AmazonS3URI(event.getURI()));
+    }
+
+    throw new ErrorResponseException(event.getStreamId(), XyzError.ILLEGAL_ARGUMENT, "Unsupported URI type");
   }
 
   /**
    * Downloads the file form S3.
    */
-  public InputStream downloadFromS3(AmazonS3URI amazonS3URI) throws IOException {
-    return Payload.prepareInputStream(getS3client().getObject(amazonS3URI.getBucket(), amazonS3URI.getKey()).getObjectContent());
+  public InputStream downloadFromS3(AmazonS3URI amazonS3URI) {
+    return getS3client().getObject(amazonS3URI.getBucket(), amazonS3URI.getKey()).getObjectContent();
   }
 
   /**

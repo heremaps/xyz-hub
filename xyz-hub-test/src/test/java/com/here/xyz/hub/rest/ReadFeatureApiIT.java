@@ -233,7 +233,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         statusCode(OK.code()).
         body("count", equalTo(41));
 
-    RestAssured.urlEncodingEnabled = bFlag;    
+    RestAssured.urlEncodingEnabled = bFlag;
   }
 
   @Test
@@ -784,7 +784,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
             .when()
             .get("/spaces/x-psql-test/tile/quadkey/120203302032.mvt")
             .getBody().asInputStream();
-    ;
+
     GeometryFactory geomFactory = new GeometryFactory();
     JtsMvt jtsMvt = MvtReader.loadMvt(
             inputStream,

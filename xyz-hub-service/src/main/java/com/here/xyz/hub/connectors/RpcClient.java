@@ -24,7 +24,6 @@ import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
-import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
 import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 import static io.netty.handler.codec.rtsp.RtspResponseStatuses.REQUEST_ENTITY_TOO_LARGE;
@@ -34,6 +33,7 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.exc.InvalidTypeIdException;
 import com.google.common.io.ByteStreams;
+import com.here.xyz.Payload;
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.RelocationClient;
@@ -43,12 +43,11 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.RemoteFunctionClient.FunctionCall;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.rest.Api;
+import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.XyzResponse;
-
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -58,6 +57,7 @@ import java.io.InputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -197,7 +197,7 @@ public class RpcClient {
     Service.vertx.executeBlocking(
         future -> {
           try {
-            future.complete(relocationClient.relocate(marker.getName(), bytes));
+            future.complete(relocationClient.relocate(marker.getName(), Payload.compress(bytes)));
           }
           catch (Exception e) {
             logger.error("An error occurred when trying to relocate the event.", e);
@@ -240,6 +240,7 @@ public class RpcClient {
         return;
       }
 
+      // this is the original event size sent by the connector, it can be different from the payload size, in case of relocation.
       context.setResponseSize(bytesResult.result().length);
       parseResponse(marker, bytesResult.result(), r -> {
         if (r.failed()) {
@@ -328,7 +329,7 @@ public class RpcClient {
           case BAD_GATEWAY:
             throw new HttpException(BAD_GATEWAY, "Connector error.", errorResponse.getErrorDetails());
           case PAYLOAD_TO_LARGE:
-            throw new  HttpException( Api.RESPONSE_PAYLOAD_TOO_LARGE, String.format("%s %s",Api.RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE, errorResponse.getErrorMessage()) , errorResponse.getErrorDetails());
+            throw new HttpException(Api.RESPONSE_PAYLOAD_TOO_LARGE, String.format("%s %s",Api.RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE, errorResponse.getErrorMessage()) , errorResponse.getErrorDetails());
         }
       }
       if (payload instanceof XyzResponse) {
@@ -345,40 +346,50 @@ public class RpcClient {
     }
   }
 
+  private boolean isOldHealthStatus(JsonObject response) {
+    return response.containsKey("status") && !response.containsKey("type");
+  }
+
   @SuppressWarnings({"rawtypes", "UnusedAssignment"})
   private void parseResponse(final Marker marker, byte[] bytes, final Handler<AsyncResult<XyzResponse>> callback) {
-    final String stringResponse = bytes == null ? null : new String(bytes);
-    bytes = null; //GC may collect the bytes now.
+    String stringResponse = null;
+
     try {
-      if (stringResponse == null || stringResponse.length() == 0)
-        throw new NullPointerException("Response string is null or empty");
+      checkResponseSize(bytes);
+
+      if (Payload.isGzipped(bytes))
+        bytes = Payload.decompress(bytes);
+
+      stringResponse = new String(bytes);
+      bytes = null; //GC may collect the bytes now.
 
       Typed payload;
       try {
         payload = XyzSerializable.deserialize(stringResponse);
       }
       catch (InvalidTypeIdException e) {
-        JsonObject response = new JsonObject( stringResponse );
+        JsonObject response = new JsonObject(stringResponse);
+
+        if (!isOldHealthStatus(response)) throw e;
+
         //Keep backward compatibility for old HealthStatus responses
-        if (response.containsKey("status") && !response.containsKey("type")) {
-          logger.warn(marker, "Connector {} responds with an old version of the HealthStatus response.", getConnector().id);
-          payload = new HealthStatus().withStatus(response.getString("status"));
-        }
-        else throw e;
+        logger.warn(marker, "Connector {} responds with an old version of the HealthStatus response.", getConnector().id);
+        payload = new HealthStatus().withStatus(response.getString("status"));
       }
 
-      if (payload instanceof RelocatedEvent) {
-        processRelocatedEventAsync((RelocatedEvent) payload, ar -> {
-          if (ar.failed()) {
-            callback.handle(Future.failedFuture(ar.cause()));
-            return;
-          }
-          parseResponse(marker, ar.result(), callback);
-        });
-      }
-      else {
+      if (!(payload instanceof RelocatedEvent)) {
         parseResponse(marker, payload, callback);
+        return;
       }
+
+      processRelocatedEventAsync((RelocatedEvent) payload, ar -> {
+        if (ar.failed()) {
+          callback.handle(Future.failedFuture(ar.cause()));
+          return;
+        }
+
+        parseResponse(marker, ar.result(), callback);
+      });
     }
     catch (NullPointerException e) {
       logger.warn(marker, "Received empty response from connector \"{}\", but expected a JSON response.", getConnector().id, e);
@@ -394,12 +405,15 @@ public class RpcClient {
           + (e instanceof JsonParseException ? "Error at line " + ((JsonParseException) e).getLocation().getLineNr() + ", column "
           + ((JsonParseException) e).getLocation().getColumnNr() + "." : ""))));
     }
+    catch (HttpException e) {
+      logger.warn(marker, "Too large payload received from the connector \"{}\"", getConnector().id, e);
+      callback.handle(Future.failedFuture(e));
+    }
     catch (Exception e) {
       logger.warn(marker, "Unexpected exception while processing connector \"{}\" response: {}.", getConnector().id, stringResponse, e);
       callback.handle(
           Future.failedFuture(new HttpException(BAD_GATEWAY, "Unexpected exception while processing connector response.")));
     }
-
   }
 
   private void processRelocatedEventAsync(RelocatedEvent relocatedEvent, Handler<AsyncResult<byte[]>> callback) {
@@ -448,6 +462,15 @@ public class RpcClient {
 
     return new HttpException(BAD_GATEWAY,
         "Invalid content provided by the connector: Invalid JSON type. Expected is a sub-type of XyzResponse.");
+  }
+
+  protected static void checkResponseSize(byte[] bytes) throws HttpException {
+    if (ArrayUtils.isEmpty(bytes))
+      throw new NullPointerException("Response string is null or empty");
+
+    if (Payload.isGzipped(bytes) && bytes.length > Api.MAX_COMPRESSED_RESPONSE_LENGTH || bytes.length > Api.MAX_RESPONSE_LENGTH) {
+      throw new HttpException(Api.RESPONSE_PAYLOAD_TOO_LARGE, Api.RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE);
+    }
   }
 
   public static class RpcContext {

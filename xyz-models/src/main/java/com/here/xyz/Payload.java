@@ -22,10 +22,12 @@ package com.here.xyz;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.google.common.io.ByteStreams;
 import com.here.xyz.events.Event;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.Hasher;
 import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -75,9 +77,8 @@ public class Payload implements Typed {
    *
    * @param is an input stream
    * @return true if the array is compressed or false otherwise
-   * @throws java.io.IOException if the byte array couldn't be read
    */
-  public static boolean isCompressed(InputStream is) throws IOException {
+  public static boolean isCompressed(InputStream is) {
     try {
       if (!is.markSupported()) {
         is = new BufferedInputStream(is);
@@ -85,12 +86,16 @@ public class Payload implements Typed {
 
       byte[] bytes = new byte[2];
       is.mark(2);
-      boolean empty = (is.read(bytes) == 0);
+      is.read(bytes);
       is.reset();
-      return empty | (bytes[0] == (byte) GZIPInputStream.GZIP_MAGIC && bytes[1] == (byte) (GZIPInputStream.GZIP_MAGIC >> 8));
+      return isGzipped(bytes);
     } catch (Exception e) {
       return false;
     }
+  }
+
+  public static boolean isGzipped(byte[] bytes) {
+    return bytes != null && bytes.length >= 2 && GZIPInputStream.GZIP_MAGIC == (((int) bytes[0] & 0xff) | ((bytes[1] << 8) & 0xff00));
   }
 
   public static byte[] compress(byte[] bytes) {
@@ -103,6 +108,10 @@ public class Payload implements Typed {
     }
 
     return baos.toByteArray();
+  }
+
+  public static byte[] decompress(final byte[] bytes) throws IOException {
+    return ByteStreams.toByteArray(Payload.prepareInputStream(new ByteArrayInputStream(bytes)));
   }
 
   /**

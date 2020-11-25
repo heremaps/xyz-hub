@@ -26,7 +26,6 @@ import com.here.xyz.Payload;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
-import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.util.LimitedOffHeapQueue;
 import com.here.xyz.hub.util.LimitedOffHeapQueue.OffHeapBuffer;
@@ -44,7 +43,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.zip.GZIPInputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -135,16 +133,6 @@ public abstract class RemoteFunctionClient {
    */
   protected void initialize() {}
 
-  protected static void checkResponseSize(byte[] response) throws HttpException {
-    boolean isGZIP = response != null && response.length >= 2
-        && GZIPInputStream.GZIP_MAGIC == (((int) response[0] & 0xff) | ((response[1] << 8) & 0xff00));
-
-    assert response != null;
-    if (isGZIP && response.length > Api.MAX_COMPRESSED_RESPONSE_LENGTH || response.length > Api.MAX_RESPONSE_LENGTH) {
-      throw new HttpException(Api.RESPONSE_PAYLOAD_TOO_LARGE, Api.RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE);
-    }
-  }
-
   /**
    * Should be overridden in sub-classes to implement clean-up steps (e.g. closing client / connections).
    */
@@ -158,24 +146,19 @@ public abstract class RemoteFunctionClient {
   }
 
   protected FunctionCall submit(final Marker marker, byte[] bytes, boolean fireAndForget, boolean hasPriority, final Handler<AsyncResult<byte[]>> callback) {
-    Handler<AsyncResult<byte[]>> cb = r -> {
-      //This is the point where the request's response came back so measure the throughput
-      invokeCompleted();
-      if (r.succeeded()) {
-        try {
-          callback.handle(Future.succeededFuture(handleByteResponse(r.result())));
-        } catch (HttpException | IOException e) {
-          callback.handle(Future.failedFuture(e));
-        }
-      } else {
-        callback.handle(r);
-      }
-    };
-
     //This is the point where new requests arrive so measure the arrival time
     invokeStarted();
 
-    FunctionCall fc = new FunctionCall(marker, bytes, fireAndForget, hasPriority, cb);
+    FunctionCall fc = new FunctionCall(marker, bytes, fireAndForget, hasPriority, r -> {
+      //This is the point where the request's response came back so measure the throughput
+      invokeCompleted();
+
+      if (r.failed()) {
+        callback.handle(Future.failedFuture(r.cause()));
+        return;
+      }
+      callback.handle(Future.succeededFuture(r.result()));
+    });
 
     if (!hasPriority){
       if (!compareAndIncrementUpTo(getWeightedMaxConnections(), usedConnections)) {
@@ -385,11 +368,6 @@ public abstract class RemoteFunctionClient {
     });
   }
 
-  private static byte[] handleByteResponse(byte[] responseBytes) throws HttpException, IOException {
-    checkResponseSize(responseBytes);
-    return getDecompressed(responseBytes);
-  }
-
 //  private void recalculatePerformance(long executionTime, TimeUnit timeUnit) {
 //    recalculateSARET(executionTime, timeUnit);
 //    recalculateRateOfService();
@@ -519,5 +497,4 @@ public abstract class RemoteFunctionClient {
       }
     }
   }
-
 }
