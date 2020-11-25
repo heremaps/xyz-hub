@@ -181,7 +181,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
     try {
       invokeReq = new InvokeRequest()
           .withFunctionName(((AWSLambda) remoteFunction).lambdaARN)
-          .withPayload(ByteBuffer.wrap(fc.getPayload()))
+          .withPayload(ByteBuffer.wrap(fc.consumePayload()))
           .withInvocationType(fc.fireAndForget ? InvocationType.Event : InvocationType.RequestResponse);
     }
     catch (PayloadVanishedException e) {
