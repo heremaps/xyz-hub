@@ -468,6 +468,9 @@ public class SQLQueryBuilder {
         tweaksGeoSql = ( bConvertGeo2Geojson ? String.format("replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "( %s ),%d),'nan','0')",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS)
                                              : String.format(getForceMode(event.isForce2D()) + "( %s )",tweaksGeoSql) );
 
+       if( bConvertGeo2Geojson ) 
+        tweaksGeoSql = String.format("(%s)::jsonb", tweaksGeoSql);
+
        SQLQuery query = new SQLQuery( String.format( TweaksSQL.mergeBeginSql, tweaksGeoSql, minGeoHashLenToMerge, bboxqry ) );
 
        if (searchQuery != null)
@@ -475,7 +478,7 @@ public class SQLQueryBuilder {
          query.append(searchQuery);
        }
 
-       query.append(TweaksSQL.mergeEndSql);
+       query.append(TweaksSQL.mergeEndSql(bConvertGeo2Geojson));
        query.append("LIMIT ?", event.getLimit());
 
        return query;
