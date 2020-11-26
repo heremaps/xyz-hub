@@ -62,22 +62,22 @@ paths:
           description: >
             Additional space filter which compares the space's contentUpdatedAt timestamp with the one
             specified in the query, resulting in a subset of spaces.
-    
-    
+
+
             The usage of a comma (,) separating the timestamps, represents
             an OR operation.
 
-    
+
             The format should follow the specification below
               * ?contentUpdatedAt=timestamp
-    
+
             While in the following example
               * ?contentUpdatedAt=timestamp_1,timestamp_2
-    
-    
+
+
             The resulting spaces list will contain all contentUpdatedAt having timestamp_1 OR timestamp_2
-    
-            
+
+
             The available operators are:
               - "=" - equals
               - "!=" - not equals
@@ -349,7 +349,7 @@ paths:
         Defines, if modifying of the features, is executed as a single
         transactional batch operation (_true_:default) or as independent
         operations (_false_).
-        
+
         There is a limit of 10 megs of data allowed for this operation.
       operationId: postFeatures
       parameters:
@@ -1455,6 +1455,7 @@ components:
           schema:
             $ref: '#/components/schemas/FeatureCollectionRequest'
         application/vnd.here.feature-modification-list:
+          x-experimental: true
           schema:
             $ref: '#/components/schemas/FeatureModificationList'
     Space:
