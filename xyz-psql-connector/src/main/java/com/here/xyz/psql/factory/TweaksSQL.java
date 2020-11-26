@@ -34,6 +34,7 @@ public class TweaksSQL
   public static final String SIMPLIFICATION_ALGORITHM_A02 = "simplifiedkeeptopology";
   public static final String SIMPLIFICATION_ALGORITHM_A03 = "simplified";
   public static final String SIMPLIFICATION_ALGORITHM_A04 = "merge";
+  public static final String SIMPLIFICATION_ALGORITHM_A06 = "linemerge";
   public static final String ENSURE = "ensure";
   public static final String ENSURE_DEFAULT_SELECTION = "defaultselection";
   public static final String ENSURE_SAMPLINGTHRESHOLD = "samplingthreshold";
@@ -115,6 +116,46 @@ public class TweaksSQL
   public static String mergeEndSql(boolean bGeojson)
   {  return _mergeEndSql + "and " + ( bGeojson ? "geo->>'type' != 'GeometryCollection' " : "geometrytype(geo) != 'GEOMETRYCOLLECTION'" );  }
   
+  public static String linemergeBeginSql = 
+    "with "
+   +"indata as "
+   +"( select i, ST_GeoHash( st_startpoint(geo),9 ) as sp, ST_GeoHash( st_endpoint(geo), 9 ) as ep "
+   +"  from ${schema}.${table} " 
+   +"  where 1 = 1 "
+   +"    and %1$s "  // bboxquery
+   +"    and geometrytype(geo) = 'LINESTRING' ";
+  
+  public static String linemergeEndSql = 
+    "), "
+   +"cxdata as "
+   +"( select distinct on (r_i) l_i, r_i from ( select distinct on (l.i) l.i as l_i, r.i as r_i from indata l join indata r on ( l.ep = r.sp ) ) o ), "
+   +"ccxdata as "
+   +"( select * from cxdata c where not r_i in ( select l_i from cxdata ) ), "
+   +"ccxuniqid as "
+   +"( select distinct unnest( array[ l_i, r_i ] ) as id from ccxdata ), "
+   +"iddata as "
+   +"( select case when r_i is null then array[l_i] else array[l_i, r_i] end as lmerge from "
+   +"  (	select l_i, r_i from ccxdata "
+   +"   union "
+   +"    select i as l_i, null as r_i from indata where not i in (select id from ccxuniqid ) "
+   +"	) o "
+   +"), "
+   +"finaldata as "
+   +"( select "
+   +"   lmerge as ids, "
+   +"   ( select jsondata from ${schema}.${table} where i = lmerge[1] ) as jsondata, "
+   +"   case when lmerge[2] is null "
+   +"   then ( select /*st_astext*/( geo ) from ${schema}.${table} where i = lmerge[1] ) "
+   +" 	 else ( select /*st_astext*/(  ST_LineMerge( st_collect( geo ) ) ) from ${schema}.${table} where i in ( select unnest( lmerge )) ) "
+   +"  end as geo	"
+   +" from iddata "
+   +") "
+   +"select jsondata, %1$s as geo from finaldata ";
+    
+
+
+
+
   public static String 
    requestedTileBoundsSql = String.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/),
    estimateCountByBboxesSql =

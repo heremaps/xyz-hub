@@ -381,9 +381,11 @@ public class SQLQueryBuilder {
 
     public static SQLQuery buildSimplificationTweaksQuery(GetFeaturesByBBoxEvent event, BBox bbox, Map tweakParams, DataSource dataSource) throws SQLException
     {
-     int strength = 0;
+     int strength = 0,
+         iMerge = 0;
      String tweaksGeoSql = "geo";
-     boolean bMerge = false, bStrength = true, bTestTweaksGeoIfNull = true, bConvertGeo2Geojson = ( mvtFromDbRequested(event) == 0 );
+     boolean bStrength = true, bTestTweaksGeoIfNull = true, bConvertGeo2Geojson = ( mvtFromDbRequested(event) == 0 );
+
 
      if( tweakParams != null )
      {
@@ -440,7 +442,8 @@ public class SQLQueryBuilder {
          } 
          break;
          
-         case TweaksSQL.SIMPLIFICATION_ALGORITHM_A04 : bMerge = true; break;
+         case TweaksSQL.SIMPLIFICATION_ALGORITHM_A06 : iMerge++;
+         case TweaksSQL.SIMPLIFICATION_ALGORITHM_A04 : iMerge++; break;
 
          default: break;
        }
@@ -454,7 +457,7 @@ public class SQLQueryBuilder {
 
        final SQLQuery searchQuery = generateSearchQuery(event,dataSource);
 
-       if( !bMerge )
+       if( iMerge == 0 )
         return generateCombinedQueryTweaks(event, new SQLQuery(bboxqry), searchQuery , tweaksGeoSql, bTestTweaksGeoIfNull, dataSource);
 
        // Merge Algorithm - only using low, med, high
@@ -471,14 +474,16 @@ public class SQLQueryBuilder {
        if( bConvertGeo2Geojson ) 
         tweaksGeoSql = String.format("(%s)::jsonb", tweaksGeoSql);
 
-       SQLQuery query = new SQLQuery( String.format( TweaksSQL.mergeBeginSql, tweaksGeoSql, minGeoHashLenToMerge, bboxqry ) );
+        SQLQuery query =
+         ( iMerge == 1 ? new SQLQuery( String.format( TweaksSQL.mergeBeginSql, tweaksGeoSql, minGeoHashLenToMerge, bboxqry ) )
+                       : new SQLQuery( String.format( TweaksSQL.linemergeBeginSql, bboxqry ) ));
 
        if (searchQuery != null)
        { query.append(" and ");
          query.append(searchQuery);
        }
 
-       query.append(TweaksSQL.mergeEndSql(bConvertGeo2Geojson));
+       query.append( iMerge == 1 ? TweaksSQL.mergeEndSql(bConvertGeo2Geojson) : String.format( TweaksSQL.linemergeEndSql, tweaksGeoSql ) );
        query.append("LIMIT ?", event.getLimit());
 
        return query;
