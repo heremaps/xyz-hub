@@ -119,16 +119,15 @@ public class TweaksSQL
   public static String linemergeBeginSql = 
     "with "
    +"indata as "
-   +"( select i, ST_GeoHash( st_startpoint(geo),9 ) as sp, ST_GeoHash( st_endpoint(geo), 9 ) as ep "
+   +"( select i, st_snaptogrid(st_startpoint(geo),0.00005) as sp, st_snaptogrid(st_endpoint(geo),0.00005) as ep, ( geometrytype(geo) = 'LINESTRING' ) as bline "
    +"  from ${schema}.${table} " 
    +"  where 1 = 1 "
-   +"    and %1$s "  // bboxquery
-   +"    and geometrytype(geo) = 'LINESTRING' ";
+   +"    and %1$s ";  // bboxquery
   
   public static String linemergeEndSql = 
     "), "
    +"cxdata as "
-   +"( select distinct on (r_i) l_i, r_i from ( select distinct on (l.i) l.i as l_i, r.i as r_i from indata l join indata r on ( l.ep = r.sp ) ) o ), "
+   +"( select distinct on (r_i) l_i, r_i from ( select distinct on (l.i) l.i as l_i, r.i as r_i from indata l join indata r on ( st_x(l.ep) = st_x(r.sp) and st_y(l.ep) = st_y(r.sp) and l.bline = true and r.bline = true ) ) o ), "
    +"ccxdata as "
    +"( select * from cxdata c where not r_i in ( select l_i from cxdata ) ), "
    +"ccxuniqid as "
@@ -142,11 +141,13 @@ public class TweaksSQL
    +"), "
    +"finaldata as "
    +"( select "
-   +"   lmerge as ids, "
-   +"   ( select jsondata from ${schema}.${table} where i = lmerge[1] ) as jsondata, "
    +"   case when lmerge[2] is null "
-   +"   then ( select /*st_astext*/( geo ) from ${schema}.${table} where i = lmerge[1] ) "
-   +" 	 else ( select /*st_astext*/(  ST_LineMerge( st_collect( geo ) ) ) from ${schema}.${table} where i in ( select unnest( lmerge )) ) "
+   +"    then ( select jsondata from ${schema}.${table} where i = lmerge[1] ) "
+   +"    else ( select jsonb_set( jsonb_set('{\"properties\":{}}'::jsonb,'{id}', to_jsonb( max(jsondata->>'id') )),'{properties,ids}', jsonb_agg( jsondata->>'id' )) from ${schema}.${table} where i in ( select unnest( lmerge ) ) ) "
+   +"   end as jsondata,	"
+   +"   case when lmerge[2] is null "
+   +"    then ( select geo from ${schema}.${table} where i = lmerge[1] ) "
+   +" 	 else ( select ST_LineMerge( st_collect( geo ) ) from ${schema}.${table} where i in ( select unnest( lmerge )) ) "
    +"  end as geo	"
    +" from iddata "
    +") "
