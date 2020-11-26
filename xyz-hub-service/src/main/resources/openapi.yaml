@@ -1455,6 +1455,7 @@ components:
           schema:
             $ref: '#/components/schemas/FeatureCollectionRequest'
         application/vnd.here.feature-modification-list:
+          x-experimental: true
           schema:
             $ref: '#/components/schemas/FeatureModificationList'
     Space:
