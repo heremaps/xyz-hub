@@ -475,7 +475,7 @@ public class RpcClient {
     if (ArrayUtils.isEmpty(bytes))
       throw new NullPointerException("Response string is null or empty");
 
-    if (Payload.isGzipped(bytes) && bytes.length > Api.MAX_COMPRESSED_RESPONSE_LENGTH || bytes.length > Api.MAX_RESPONSE_LENGTH) {
+    if (Payload.isGzipped(bytes) && bytes.length > Api.MAX_HTTP_RESPONSE_SIZE || bytes.length > Api.MAX_SERVICE_RESPONSE_SIZE) {
       throw new HttpException(Api.RESPONSE_PAYLOAD_TOO_LARGE, Api.RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE);
     }
   }

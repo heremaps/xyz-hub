@@ -59,12 +59,12 @@ import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.core.LoggerContext;
-import org.apache.logging.log4j.core.config.Configuration;
-import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.Configuration;
+import org.apache.logging.log4j.core.config.LoggerConfig;
 
 public class Service extends Core {
 
@@ -533,6 +533,16 @@ public class Service extends Core {
      */
     public String MSE_NOTIFICATION_TOPIC;
 
+    /**
+     * The maximum size of an event transiting between connector -> service -> client.
+     */
+    public int MAX_SERVICE_RESPONSE_SIZE;
+
+    /**
+     * The maximum http response size in bytes supported on API calls.
+     * If response size is bigger than MAX_HTTP_RESPONSE_SIZE, an error with status code 513 will be sent.
+     */
+    public int MAX_HTTP_RESPONSE_SIZE;
   }
 
   /**
