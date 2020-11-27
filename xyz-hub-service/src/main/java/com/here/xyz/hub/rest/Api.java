@@ -36,6 +36,7 @@ import static io.vertx.core.http.HttpHeaders.ACCEPT_ENCODING;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.hub.Service;
 import com.here.xyz.hub.XYZHubRESTVerticle;
 import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.connectors.models.BinaryResponse;
@@ -79,8 +80,8 @@ public abstract class Api {
 
   private static final Logger logger = LogManager.getLogger();
 
-  public static final int MAX_RESPONSE_LENGTH = 100 * 1024 * 1024;
-  public static final int MAX_COMPRESSED_RESPONSE_LENGTH = 10 * 1024 * 1024;
+  public static final int MAX_SERVICE_RESPONSE_SIZE = Service.configuration.MAX_SERVICE_RESPONSE_SIZE;
+  public static final int MAX_HTTP_RESPONSE_SIZE = Service.configuration.MAX_HTTP_RESPONSE_SIZE;
   public static final HttpResponseStatus RESPONSE_PAYLOAD_TOO_LARGE = new HttpResponseStatus(513, "Response payload too large");
   public static final String RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE =
       "The response payload was too large. Please try to reduce the expected amount of data.";
@@ -451,7 +452,7 @@ public abstract class Api {
 
   private long getMaxResponseLength(final RoutingContext context) {
     return XYZHttpContentCompressor.isCompressionEnabled(context.request().getHeader(ACCEPT_ENCODING)) ?
-        MAX_RESPONSE_LENGTH : MAX_COMPRESSED_RESPONSE_LENGTH;
+        MAX_SERVICE_RESPONSE_SIZE : MAX_HTTP_RESPONSE_SIZE;
   }
 
   private void sendResponse(final Task task, HttpResponseStatus status, String contentType, final byte[] response) {
