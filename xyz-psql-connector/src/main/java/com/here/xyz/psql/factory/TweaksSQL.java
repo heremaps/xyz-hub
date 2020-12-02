@@ -126,7 +126,7 @@ public class TweaksSQL
   public static String linemergeEndSql =    
     "), "
    +"cx2ids as "
-   +"( select left( gid, 5 ) as region, ids "
+   +"( select left( gid, %2$d ) as region, ids "
    +"  from "
    +"  ( select gid, array_agg( i ) as ids "
    +"    from "

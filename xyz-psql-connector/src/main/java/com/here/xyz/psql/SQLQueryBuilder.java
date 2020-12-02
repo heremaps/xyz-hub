@@ -462,10 +462,13 @@ public class SQLQueryBuilder {
 
        // Merge Algorithm - only using low, med, high
 
-       int minGeoHashLenToMerge = 0;
+       int minGeoHashLenToMerge = 0,
+           minGeoHashLenForLineMerge = 3;
 
-       if( strength <= 20 ) minGeoHashLenToMerge = 7;
-       else if ( strength <= 60 ) minGeoHashLenToMerge = 6;
+       if      ( strength <= 20 ) { minGeoHashLenToMerge = 7; minGeoHashLenForLineMerge = 7; } //low
+       else if ( strength <= 40 ) { minGeoHashLenToMerge = 6; minGeoHashLenForLineMerge = 6; } //lowmed
+       else if ( strength <= 60 ) { minGeoHashLenToMerge = 6; minGeoHashLenForLineMerge = 5; } //med
+       else if ( strength <= 80 ) {                           minGeoHashLenForLineMerge = 4; } //medhigh
 
        if( "geo".equals(tweaksGeoSql) ) // formal, just in case
         tweaksGeoSql = ( bConvertGeo2Geojson ? String.format("replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "( %s ),%d),'nan','0')",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS)
@@ -483,7 +486,7 @@ public class SQLQueryBuilder {
          query.append(searchQuery);
        }
 
-       query.append( iMerge == 1 ? TweaksSQL.mergeEndSql(bConvertGeo2Geojson) : String.format( TweaksSQL.linemergeEndSql, tweaksGeoSql ) );
+       query.append( iMerge == 1 ? TweaksSQL.mergeEndSql(bConvertGeo2Geojson) : String.format( TweaksSQL.linemergeEndSql, tweaksGeoSql, minGeoHashLenForLineMerge ) );
        query.append("LIMIT ?", event.getLimit());
 
        return query;
