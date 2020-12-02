@@ -53,9 +53,11 @@ public final class ModifyFeaturesEvent extends Event<ModifyFeaturesEvent> {
   @JsonInclude(Include.ALWAYS)
   private Map<String, String> deleteFeatures;
   private Boolean transaction;
-  private Boolean enableHistory;
-  private Boolean enableUUID;
+  private boolean enableHistory;
+  private boolean enableUUID;
+  private boolean enableGlobalVersioning;
   private List<ModificationFailure> failed;
+  private Integer maxVersionCount;
 
   /**
    * Returns the list of all features to be inserted.
@@ -174,7 +176,7 @@ public final class ModifyFeaturesEvent extends Event<ModifyFeaturesEvent> {
    * @return true if the history should be maintained, false otherwise.
    */
   @SuppressWarnings("unused")
-  public Boolean getEnableHistory() {
+  public boolean isEnableHistory() {
     return this.enableHistory;
   }
 
@@ -184,12 +186,12 @@ public final class ModifyFeaturesEvent extends Event<ModifyFeaturesEvent> {
    * @param enableHistory if true, then the store history.
    */
   @SuppressWarnings("WeakerAccess")
-  public void setEnableHistory(Boolean enableHistory) {
+  public void setEnableHistory(boolean enableHistory) {
     this.enableHistory = enableHistory;
   }
 
   @SuppressWarnings("unused")
-  public ModifyFeaturesEvent withEnableHistory(Boolean enableHistory) {
+  public ModifyFeaturesEvent withEnableHistory(boolean enableHistory) {
     setEnableHistory(enableHistory);
     return this;
   }
@@ -200,7 +202,7 @@ public final class ModifyFeaturesEvent extends Event<ModifyFeaturesEvent> {
    * @return true if the hash should be maintained, false otherwise.
    */
   @SuppressWarnings("unused")
-  public Boolean getEnableUUID() {
+  public boolean getEnableUUID() {
     return this.enableUUID;
   }
 
@@ -210,12 +212,12 @@ public final class ModifyFeaturesEvent extends Event<ModifyFeaturesEvent> {
    * @param enableUUID if true, then set an uuid for each feature state
    */
   @SuppressWarnings("WeakerAccess")
-  public void setEnableUUID(Boolean enableUUID) {
+  public void setEnableUUID(boolean enableUUID) {
     this.enableUUID = enableUUID;
   }
 
   @SuppressWarnings("unused")
-  public ModifyFeaturesEvent withEnableUUID(Boolean enableUUID) {
+  public ModifyFeaturesEvent withEnableUUID(boolean enableUUID) {
     setEnableUUID(enableUUID);
     return this;
   }
@@ -236,6 +238,32 @@ public final class ModifyFeaturesEvent extends Event<ModifyFeaturesEvent> {
   @SuppressWarnings("unused")
   public ModifyFeaturesEvent withFailed(List<ModificationFailure> failed) {
     setFailed(failed);
+    return this;
+  }
+
+  public Integer getMaxVersionCount() {
+    return maxVersionCount;
+  }
+
+  public void setMaxVersionCount(Integer maxVersionCount) {
+    this.maxVersionCount = maxVersionCount;
+  }
+
+  public ModifyFeaturesEvent withMaxVersionCount(Integer maxVersionCount) {
+    setMaxVersionCount(maxVersionCount);
+    return this;
+  }
+
+  public boolean isEnableGlobalVersioning() {
+    return enableGlobalVersioning;
+  }
+
+  public void setEnableGlobalVersioning(final boolean enableGlobalVersioning) {
+    this.enableGlobalVersioning = enableGlobalVersioning;
+  }
+
+  public ModifyFeaturesEvent withEnableGlobalVersioning(final boolean enableGlobalVersioning) {
+    this.enableGlobalVersioning = enableGlobalVersioning;
     return this;
   }
 }

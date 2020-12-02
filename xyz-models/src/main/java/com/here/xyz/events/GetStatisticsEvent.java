@@ -28,5 +28,18 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "GetStatisticsEvent")
 public final class GetStatisticsEvent extends Event<GetStatisticsEvent> {
+    boolean historyMode;
 
+    public boolean isHistoryMode() {
+        return historyMode;
+    }
+
+    public void setHistoryMode(boolean historyMode) {
+        this.historyMode = historyMode;
+    }
+
+    public GetStatisticsEvent withHistoryMode(boolean historyMode) {
+        setHistoryMode(historyMode);
+        return this;
+    }
 }

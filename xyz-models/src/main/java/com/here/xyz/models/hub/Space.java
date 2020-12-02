@@ -135,11 +135,18 @@ public class Space {
   private boolean enableUUID = false;
 
   /**
-   * If true, history get created
+   * If true, history gets created
    */
   @JsonView({Public.class, Static.class})
   @JsonInclude(Include.NON_DEFAULT)
   private boolean enableHistory = false;
+
+  /**
+   * If true, global versioning gets activated
+   */
+  @JsonView({Public.class, Static.class})
+  @JsonInclude(Include.NON_DEFAULT)
+  private boolean enableGlobalVersioning = false;
 
   /**
    * Can be used to control how many versions should get hold in the history. -1 means infinite
@@ -377,6 +384,19 @@ public class Space {
 
   public Space withEnableHistory(final boolean enableHistory) {
     this.enableHistory = enableHistory;
+    return this;
+  }
+
+  public boolean isEnableGlobalVersioning() {
+    return enableGlobalVersioning;
+  }
+
+  public void setEnableGlobalVersioning(final boolean enableGlobalVersioning) {
+    this.enableGlobalVersioning = enableGlobalVersioning;
+  }
+
+  public Space withEnableGlobalVersioning(final boolean enableGlobalVersioning) {
+    this.enableGlobalVersioning = enableGlobalVersioning;
     return this;
   }
 

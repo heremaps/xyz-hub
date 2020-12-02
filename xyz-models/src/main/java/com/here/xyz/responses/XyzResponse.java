@@ -23,6 +23,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.xyz.Payload;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.responses.changesets.ChangesetCollection;
+import com.here.xyz.responses.changesets.CompactChangeset;
 
 /**
  * All classes that represent a valid response of any remote procedure to the XYZ Hub need to extend this class.
@@ -35,10 +37,13 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
     @JsonSubTypes.Type(value = ModifiedEventResponse.class, name = "ModifiedEventResponse"),
     @JsonSubTypes.Type(value = ModifiedResponseResponse.class, name = "ModifiedResponseResponse"),
     @JsonSubTypes.Type(value = StatisticsResponse.class, name = "StatisticsResponse"),
+    @JsonSubTypes.Type(value = HistoryStatisticsResponse.class, name = "HistoryStatisticsResponse"),
     @JsonSubTypes.Type(value = SuccessResponse.class, name = "SuccessResponse"),
     @JsonSubTypes.Type(value = NotModifiedResponse.class, name = "NotModifiedResponse"),
     @JsonSubTypes.Type(value = FeatureCollection.class, name = "FeatureCollection"),
-    @JsonSubTypes.Type(value = BinResponse.class, name = "BinResponse")
+    @JsonSubTypes.Type(value = BinResponse.class, name = "BinResponse"),
+    @JsonSubTypes.Type(value = CompactChangeset.class, name = "CompactChangeset"),
+    @JsonSubTypes.Type(value = ChangesetCollection.class, name = "ChangesetCollection")
 })
 public abstract class XyzResponse<T extends XyzResponse> extends Payload {
 
