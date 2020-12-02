@@ -55,13 +55,15 @@ public class DatabaseWriter {
     public static final String LOG_EXCEPTION_UPDATE = "update";
     public static final String LOG_EXCEPTION_DELETE = "delete";
 
-    protected static PGobject featureToPGobject(final Feature feature) throws SQLException {
+    protected static PGobject featureToPGobject(final Feature feature, Integer version) throws SQLException {
         final Geometry geometry = feature.getGeometry();
         feature.setGeometry(null); // Do not serialize the geometry in the JSON object
 
         final String json;
 
         try {
+            if(version != null)
+                feature.getProperties().getXyzNamespace().setVersion(version);
             json = feature.serialize();
         } finally {
             feature.setGeometry(geometry);
@@ -103,9 +105,9 @@ public class DatabaseWriter {
         return createStatement(connection, SQLQueryBuilder.deleteStmtSQL(schema,table,handleUUID));
     }
 
-    protected static PreparedStatement deleteIdListStmtSQLStatement(Connection connection, String schema, String table, boolean handleUUID)
+    protected static PreparedStatement versionedDeleteStmtSQLStatement(Connection connection, String schema, String table, boolean handleUUID)
             throws SQLException {
-        return createStatement(connection, SQLQueryBuilder.deleteIdArrayStmtSQL(schema,table,handleUUID));
+        return createStatement(connection, SQLQueryBuilder.versionedDeleteStmtSQL(schema,table,handleUUID));
     }
 
     protected  static void setAutocommit(Connection connection, boolean isActive) throws SQLException {
@@ -115,11 +117,11 @@ public class DatabaseWriter {
     protected static FeatureCollection insertFeatures(DatabaseHandler dbh,String schema, String table, String streamId, FeatureCollection collection,
                                                       List<FeatureCollection.ModificationFailure> fails,
                                                    List<Feature> inserts, Connection connection,
-                                                   boolean transactional)
+                                                   boolean transactional, Integer version)
             throws SQLException, JsonProcessingException {
         if(transactional) {
             setAutocommit(connection,false);
-            return DatabaseTransactionalWriter.insertFeatures(dbh, schema, table, streamId, collection, fails, inserts, connection);
+            return DatabaseTransactionalWriter.insertFeatures(dbh, schema, table, streamId, collection, fails, inserts, connection, version);
         }
         setAutocommit(connection,true);
         return DatabaseStreamWriter.insertFeatures(dbh, schema, table, streamId, collection, fails, inserts, connection);
@@ -128,11 +130,11 @@ public class DatabaseWriter {
     protected static FeatureCollection updateFeatures(DatabaseHandler dbh, String schema, String table, String streamId, FeatureCollection collection,
                                                    List<FeatureCollection.ModificationFailure> fails,
                                                    List<Feature> updates, Connection connection,
-                                                   boolean transactional, boolean handleUUID)
+                                                   boolean transactional, boolean handleUUID, Integer version)
             throws SQLException, JsonProcessingException {
         if(transactional) {
             setAutocommit(connection,false);
-            return DatabaseTransactionalWriter.updateFeatures(dbh, schema, table, streamId, collection, fails, updates, connection,handleUUID);
+            return DatabaseTransactionalWriter.updateFeatures(dbh, schema, table, streamId, collection, fails, updates, connection,handleUUID, version);
         }
         setAutocommit(connection,true);
         return DatabaseStreamWriter.updateFeatures(dbh, schema, table, streamId, collection, fails, updates, connection, handleUUID);
@@ -141,11 +143,11 @@ public class DatabaseWriter {
     protected static void deleteFeatures(DatabaseHandler dbh, String schema, String table, String streamId,
                                                       List<FeatureCollection.ModificationFailure> fails,
                                                       Map<String, String> deletes, Connection connection,
-                                                      boolean transactional, boolean handleUUID)
+                                                      boolean transactional, boolean handleUUID, Integer version)
             throws SQLException {
         if(transactional) {
             setAutocommit(connection,false);
-            DatabaseTransactionalWriter.deleteFeatures(dbh, schema, table, streamId, fails, deletes, connection ,handleUUID);
+            DatabaseTransactionalWriter.deleteFeatures(dbh, schema, table, streamId, fails, deletes, connection ,handleUUID, version);
             return;
         }
         setAutocommit(connection,true);
@@ -165,6 +167,6 @@ public class DatabaseWriter {
             logger.warn("{} - Failed to "+action+" object #{}: {} on table {}", streamId, i, table, e);
         }
         else
-            logger.error("{} - Failed to "+action+" object #{}: {} on table {}", streamId, i, table, e);
+            logger.warn("{} - Failed to "+action+" object #{}: {} on table {}", streamId, i, table, e);
     }
 }

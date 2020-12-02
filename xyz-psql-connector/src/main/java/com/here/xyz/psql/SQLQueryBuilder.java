@@ -24,6 +24,8 @@ import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.GetStatisticsEvent;
+import com.here.xyz.events.IterateHistoryEvent;
+import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.QueryEvent;
@@ -48,14 +50,18 @@ import javax.sql.DataSource;
 
 public class SQLQueryBuilder {
     private static final long GEOMETRY_DECIMAL_DIGITS = 8;
-    private static final String SQL_STATISTIC_FUNCTION = "xyz_statistic_space";
     private static final String IDX_STATUS_TABLE = "xyz_config.xyz_idxs_status";
 
-    public static SQLQuery buildGetStatisticsQuery(GetStatisticsEvent event, PSQLConfig config) throws Exception {
+    public static SQLQuery buildGetStatisticsQuery(GetStatisticsEvent event, PSQLConfig config, boolean historyMode) throws Exception {
+        final String function = !historyMode ? "xyz_statistic_space" : "xyz_statistic_history";
         final String schema = config.schema();
-        final String table = config.table(event);
+        final String table = config.table(event) + (!historyMode ? "" : "_hst");
 
-        return new SQLQuery("SELECT * from " + schema + "."+SQL_STATISTIC_FUNCTION+"('" + schema + "','" + table + "')");
+        return new SQLQuery("SELECT * from " + schema + "."+function+"('" + schema + "','" + table + "')");
+    }
+
+    public static SQLQuery buildGetNextVersionQuery(String table) throws Exception {
+        return new SQLQuery("SELECT nextval('${schema}.\"" + table.replaceAll("-","_") + "_hst_seq\"')");
     }
 
     public static SQLQuery buildGetFeaturesByIdQuery(GetFeaturesByIdEvent event, PSQLConfig config, DataSource dataSource)
@@ -627,6 +633,133 @@ public class SQLQueryBuilder {
         }
     }
 
+    public static SQLQuery buildHistoryQuery(IterateHistoryEvent event) {
+        SQLQuery query = new SQLQuery("SELECT operation, version, vid, (SELECT row_to_json(_) from (select f.type, f.id, f.geometry, f.properties) as _) As feature " +
+                "FROM ( " +
+                "   SELECT 'Feature' As type," +
+                "   ( CASE " +
+                "      WHEN (COALESCE((jsondata->'properties'->'@ns:com:here:xyz'->>'deleted')::boolean, false) IS true) THEN 'DELETED'" +
+                "      WHEN (jsondata->'properties'->'@ns:com:here:xyz'->'puuid' IS NULL" +
+                "          AND" +
+                "          (COALESCE((jsondata->'properties'->'@ns:com:here:xyz'->>'deleted')::boolean, false) IS NOT true)" +
+                "      ) THEN 'INSERTED'" +
+                "      ELSE 'UPDATED' " +
+                "   END) as operation, " +
+                "   jsondata->'properties'->'@ns:com:here:xyz'->>'version' as version," +
+                "   ST_AsGeoJSON(geo)::json As geometry," +
+                "   jsondata->>'id' as id," +
+                "   vid,"+
+                "   row_to_json((SELECT l FROM (SELECT jsondata->'properties' AS prop) As l)) As properties" +
+                "       FROM ${schema}.${hsttable}" +
+                "           WHERE 1=1");
+
+        if (event.getNextPageToken() != null) {
+            query.append(
+               "   AND vid > ?",event.getNextPageToken());
+        }
+
+        if(event.getvStart() != null) {
+            query.append("  AND jsondata->'properties'->'@ns:com:here:xyz'->'version' >= to_jsonb(?::numeric)",event.getvStart());
+        }
+
+        if(event.getvEnd() != null)
+            query.append("  AND jsondata->'properties'->'@ns:com:here:xyz'->'version' <= to_jsonb(?::numeric)", event.getvEnd());
+
+        query.append(" ORDER BY jsondata->'properties'->'@ns:com:here:xyz'->'version' , " +
+                "jsondata->>'id'");
+
+        if(event.getLimit() != 0)
+            query.append("LIMIT ?", event.getLimit());
+        query.append(") as f");
+
+        return query;
+    }
+
+    public static SQLQuery buildSquashHistoryQuery(IterateHistoryEvent event){
+        SQLQuery query = new SQLQuery("SELECT operation, version, (SELECT row_to_json(_) from (select f.type, f.id, f.geometry, f.properties) as _) As feature, id " +
+                "FROM ( " +
+                "   SELECT distinct ON (jsondata->>'id') jsondata->>'id'," +
+                "   'Feature' As type," +
+                "   ( CASE " +
+                "      WHEN (COALESCE((jsondata->'properties'->'@ns:com:here:xyz'->>'deleted')::boolean, false) IS true) THEN 'DELETED'" +
+                "      WHEN (jsondata->'properties'->'@ns:com:here:xyz'->'puuid' IS NULL" +
+                "          AND" +
+                "          (COALESCE((jsondata->'properties'->'@ns:com:here:xyz'->>'deleted')::boolean, false) IS NOT true)" +
+                "      ) THEN 'INSERTED'" +
+                "      ELSE 'UPDATED' " +
+                "   END) as operation, " +
+                "   jsondata->'properties'->'@ns:com:here:xyz'->>'version' as version," +
+                "   ST_AsGeoJSON(geo)::json As geometry," +
+                "   jsondata->>'id' as id," +
+                "   row_to_json((SELECT l FROM (SELECT jsondata->'properties' AS prop) As l)) As properties" +
+                "       FROM ${schema}.${hsttable}" +
+                "           WHERE 1=1");
+
+        if (event.getNextPageToken() != null) {
+            query.append(
+                    "   AND jsondata->>'id' > ?",event.getNextPageToken());
+        }
+
+        if(event.getvStart() != null) {
+            query.append(
+                "  AND jsondata->'properties'->'@ns:com:here:xyz'->'version' >= to_jsonb(?::numeric)",event.getvStart());
+        }
+
+        if(event.getvEnd() != null)
+            query.append(
+                "  AND jsondata->'properties'->'@ns:com:here:xyz'->'version' <= to_jsonb(?::numeric)", event.getvEnd());
+
+        query.append(
+                "   order by jsondata->>'id'," +
+                "jsondata->'properties'->'@ns:com:here:xyz'->'version' DESC");
+
+        if(event.getLimit() != 0)
+            query.append("LIMIT ?", event.getLimit());
+
+        query.append(") as f");
+
+        return query;
+    }
+
+    public static SQLQuery buildLatestHistoryQuery(IterateFeaturesEvent event) {
+        SQLQuery query = new SQLQuery("select jsondata#-'{properties,@ns:com:here:xyz,lastVersion}' as jsondata, geo, id " +
+                "FROM(" +
+                "   select distinct ON (jsondata->>'id') jsondata->>'id' as id," +
+                "   jsondata->'properties'->'@ns:com:here:xyz'->'deleted' as deleted," +
+                "   jsondata," +
+                "   replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') as geo"+
+                "       FROM ${schema}.${hsttable}" +
+                "   WHERE 1=1" );
+
+        if (event.getHandle() != null) {
+            query.append(
+                    "   AND jsondata->>'id' > ?",event.getHandle());
+        }
+
+        query.append(
+                "   AND((" +
+                "       jsondata->'properties'->'@ns:com:here:xyz'->'version' <= to_jsonb(?::numeric)", event.getV());
+        query.append(
+                "       AND " +
+                "       jsondata->'properties'->'@ns:com:here:xyz'->'version' > '0'::jsonb "+
+                "   )"+
+                "OR( "+
+                "       jsondata->'properties'->'@ns:com:here:xyz'->'lastVersion' <= to_jsonb(?::numeric)", event.getV());
+        query.append(
+                "       AND " +
+                "       jsondata->'properties'->'@ns:com:here:xyz'->'version' = '0'::jsonb " +
+                "))");
+        query.append(
+                "   order by jsondata->>'id'," +
+                        "jsondata->'properties'->'@ns:com:here:xyz'->'version' DESC ");
+        query.append(
+                ")A WHERE deleted IS NULL  ");
+        if(event.getLimit() != 0)
+            query.append("LIMIT ?", event.getLimit());
+
+        return query;
+    }
+
     public static SQLQuery buildSearchablePropertiesUpsertQuery(Map<String, Boolean> searchableProperties, ModifySpaceEvent.Operation operation,
                                                                    String schema, String table) throws SQLException {
         String searchablePropertiesJson = "";
@@ -881,6 +1014,77 @@ public class SQLQueryBuilder {
         return SQLQuery.replaceVars(deleteStmtSQL, schema, table);
     }
 
+    protected static String versionedDeleteStmtSQL(final String schema, final String table, final boolean handleUUID){
+        /** Use Update instead of Delete to inject a version. The delete gets performed afterwards from the trigger behind. */
+
+        String updateStmtSQL = "UPDATE  ${schema}.${table} "
+            +"SET jsondata = jsonb_set( jsondata, '{properties,@ns:com:here:xyz}', "
+                +"( (jsondata->'properties'->'@ns:com:here:xyz')::jsonb "
+                +"|| format('{\"uuid\": \"%s_deleted\"}',jsondata->'properties'->'@ns:com:here:xyz'->>'uuid')::jsonb ) "
+                +"|| format('{\"version\": %s}', ? )::jsonb "
+                +"|| format('{\"updatedAt\": %s}', (extract(epoch from now()) * 1000)::bigint )::jsonb "
+                +"|| '{\"deleted\": true }'::jsonb) "
+                +"where jsondata->>'id' = ? ";
+        if(handleUUID) {
+            updateStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ?";
+        }
+        return SQLQuery.replaceVars(updateStmtSQL, schema, table);
+    }
+
+    protected static String deleteOldHistoryEntries(final String schema, final String table, long version){
+        /** Delete rows which have a too old version - only used if maxVersionCount is set */
+
+        String deleteOldHistoryEntriesSQL =
+                "DELETE FROM ${schema}.${table} t " +
+                "USING (" +
+                "   SELECT vid " +
+                "   FROM   ${schema}.${table} " +
+                "   WHERE  1=1 " +
+                "     AND jsondata->'properties'->'@ns:com:here:xyz'->'version' = '0'::jsonb " +
+                "     AND jsondata->>'id' IN ( " +
+                "     SELECT jsondata->>'id' FROM ${schema}.${table} " +
+                "        WHERE 1=1    " +
+                "        AND (jsondata->'properties'->'@ns:com:here:xyz'->'version' <= '"+version+"'::jsonb " +
+                "        AND jsondata->'properties'->'@ns:com:here:xyz'->'version' > '0'::jsonb)" +
+                ")" +
+                "   ORDER  BY vid" +
+                "   FOR    UPDATE" +
+                "   ) del " +
+                "WHERE  t.vid = del.vid;";
+
+        return SQLQuery.replaceVars(deleteOldHistoryEntriesSQL, schema, table);
+    }
+
+    protected static String flagOutdatedHistoryEntries(final String schema, final String table, long version){
+        /** Set version=0 for objects which are too old - only used if maxVersionCount is set */
+
+        String flagOutdatedHistoryEntries =
+                "UPDATE ${schema}.${table} " +
+                "SET jsondata = jsonb_set(jsondata,'{properties,@ns:com:here:xyz}', ( " +
+                "   (jsondata->'properties'->'@ns:com:here:xyz')::jsonb) " +
+                "   || format('{\"lastVersion\" : %s }',(jsondata->'properties'->'@ns:com:here:xyz'->'version'))::jsonb"+
+                "   || '{\"version\": 0}'::jsonb" +
+                ") " +
+                "    WHERE " +
+                "1=1" +
+                "AND jsondata->'properties'->'@ns:com:here:xyz'->'version' <= '"+version+"'::jsonb " +
+                "AND jsondata->'properties'->'@ns:com:here:xyz'->'version' > '0'::jsonb;";
+
+        return SQLQuery.replaceVars(flagOutdatedHistoryEntries, schema, table);
+    }
+
+    protected static String deleteHistoryEntriesWithDeleteFlag(final String schema, final String table){
+        /** Remove deleted objects with version 0 - only used if maxVersionCount is set */
+        String deleteHistoryEntriesWithDeleteFlag =
+                "DELETE FROM ${schema}.${table} " +
+                "WHERE " +
+                "   1=1" +
+                "   AND jsondata->'properties'->'@ns:com:here:xyz'->'version' = '0'::jsonb " +
+                "   AND jsondata->'properties'->'@ns:com:here:xyz'->'deleted' = 'true'::jsonb;";
+
+        return SQLQuery.replaceVars(deleteHistoryEntriesWithDeleteFlag, schema, table);
+    }
+
     protected static String deleteIdArrayStmtSQL(final String schema, final String table, final boolean handleUUID){
         String deleteIdArrayStmtSQL = "DELETE FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?) ";
         if(handleUUID) {
@@ -895,17 +1099,31 @@ public class SQLQueryBuilder {
         return SQLQuery.replaceVars(deleteHistoryTriggerSQL, schema, table);
     }
 
-    protected static String addHistoryTriggerSQL(final String schema, final String table, final Integer maxVersionCount, final boolean compactHistory){
-        String triggerFunction = compactHistory ? "xyz_trigger_historywriter" : "xyz_trigger_historywriter_full";
+    protected static String addHistoryTriggerSQL(final String schema, final String table, final Integer maxVersionCount, final boolean compactHistory, final boolean isEnableGlobalVersioning){
+        String triggerSQL = "";
+        String triggerFunction = "xyz_trigger_historywriter";
+        String triggerActions = "UPDATE OR DELETE ON";
+        String tiggerEvent = "BEFORE";
 
-        String historyTriggerSQL = "CREATE TRIGGER TR_"+table.replaceAll("-","_")+"_HISTORY_WRITER " +
-                "BEFORE "+(compactHistory ? "" : "INSERT OR ")+" UPDATE OR DELETE ON ${schema}.${table} " +
+        if(isEnableGlobalVersioning == true){
+            triggerFunction = "xyz_trigger_historywriter_versioned";
+            tiggerEvent = "AFTER";
+            triggerActions = "INSERT OR UPDATE ON";
+        }else{
+            if(compactHistory == false){
+                triggerFunction = "xyz_trigger_historywriter_full";
+                triggerActions = "INSERT OR UPDATE OR DELETE ON";
+            }
+        }
+
+        triggerSQL = "CREATE TRIGGER TR_"+table.replaceAll("-","_")+"_HISTORY_WRITER " +
+                tiggerEvent+" "+triggerActions+" ${schema}.${table} " +
                 " FOR EACH ROW " +
                 "EXECUTE PROCEDURE "+triggerFunction;
-        historyTriggerSQL+=
-                    maxVersionCount == null ? "()" : "('"+maxVersionCount+"')";
+        triggerSQL+=
+                maxVersionCount == null ? "()" : "('"+maxVersionCount+"')";
 
-        return SQLQuery.replaceVars(historyTriggerSQL, schema, table);
+        return SQLQuery.replaceVars(triggerSQL, schema, table);
     }
 
     private static String getForceMode(boolean isForce2D) {

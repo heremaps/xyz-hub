@@ -45,7 +45,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
 
     public static FeatureCollection insertFeatures(DatabaseHandler dbh, String schema, String table, String streamId,
                 FeatureCollection collection, List<FeatureCollection.ModificationFailure> fails,
-                List<Feature> inserts, Connection connection)
+                List<Feature> inserts, Connection connection, Integer version)
             throws SQLException, JsonProcessingException {
 
         final PreparedStatement insertStmt = createInsertStatement(connection,schema,table);
@@ -57,7 +57,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         for (int i = 0; i < inserts.size(); i++) {
             final Feature feature = inserts.get(i);
 
-            final PGobject jsonbObject= featureToPGobject(feature);
+            final PGobject jsonbObject= featureToPGobject(feature, version);
 
             if (feature.getGeometry() == null) {
                 insertWithoutGeometryStmt.setObject(1, jsonbObject);
@@ -86,7 +86,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
 
     public static FeatureCollection updateFeatures(DatabaseHandler dbh, String schema, String table, String streamId, FeatureCollection collection,
                                                    List<FeatureCollection.ModificationFailure> fails, List<Feature> updates,
-                                                   Connection connection, boolean handleUUID)
+                                                   Connection connection, boolean handleUUID, Integer version)
             throws SQLException, JsonProcessingException {
 
         final PreparedStatement updateStmt = createUpdateStatement(connection, schema, table, handleUUID);
@@ -103,7 +103,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
                 throw new NullPointerException("id");
             }
 
-            final PGobject jsonbObject= featureToPGobject(feature);
+            final PGobject jsonbObject= featureToPGobject(feature, version);
 
             if (feature.getGeometry() == null) {
                 updateWithoutGeometryStmt.setObject(1, jsonbObject);
@@ -146,11 +146,15 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
 
     protected static void deleteFeatures(DatabaseHandler dbh, String schema, String table, String streamId,
                                          List<FeatureCollection.ModificationFailure> fails, Map<String, String> deletes,
-                                         Connection connection, boolean handleUUID)
+                                         Connection connection, boolean handleUUID, Integer version)
             throws SQLException {
 
         final PreparedStatement batchDeleteStmt = deleteStmtSQLStatement(connection,schema,table,handleUUID);
         final PreparedStatement batchDeleteStmtWithoutUUID = deleteStmtSQLStatement(connection,schema,table,false);
+
+        /** If versioning is enabled than we are going to perform an update instead of an delete. The trigger will finally delete the row.*/
+        final PreparedStatement batchDeleteStmtVersioned =  versionedDeleteStmtSQLStatement(connection,schema,table,handleUUID);
+        final PreparedStatement batchDeleteStmtVersionedWithoutUUID =  versionedDeleteStmtSQLStatement(connection,schema,table,false);
 
         Set<String> idsToDelete = deletes.keySet();
 
@@ -160,22 +164,46 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         for (String deleteId : idsToDelete) {
             final String puuid = deletes.get(deleteId);
 
-            if(handleUUID && puuid == null){
-                batchDeleteStmtWithoutUUID.setString(1, deleteId);
-                batchDeleteStmtWithoutUUID.addBatch();
-                deleteIdListWithoutUUID.add(deleteId);
-            }
-            else {
-                batchDeleteStmt.setString(1, deleteId);
-                if(handleUUID) {
-                    batchDeleteStmt.setString(2, puuid);
+            if(version == null){
+                if(handleUUID && puuid == null){
+                    batchDeleteStmtWithoutUUID.setString(1, deleteId);
+                    batchDeleteStmtWithoutUUID.addBatch();
+                    deleteIdListWithoutUUID.add(deleteId);
                 }
-                deleteIdList.add(deleteId);
-                batchDeleteStmt.addBatch();
+                else {
+                    batchDeleteStmt.setString(1, deleteId);
+                    if (handleUUID) {
+                        batchDeleteStmt.setString(2, puuid);
+                    }
+                    deleteIdList.add(deleteId);
+                    batchDeleteStmt.addBatch();
+                }
+            }else{
+                if(handleUUID && puuid == null){
+                    batchDeleteStmtVersionedWithoutUUID.setLong(1, version);
+                    batchDeleteStmtVersionedWithoutUUID.setString(2, deleteId);
+                    deleteIdListWithoutUUID.add(deleteId);
+                    batchDeleteStmtVersionedWithoutUUID.addBatch();
+                }
+                else {
+                    batchDeleteStmtVersioned.setLong(1, version);
+                    batchDeleteStmtVersioned.setString(2, deleteId);
+                    if (handleUUID) {
+                        batchDeleteStmtVersioned.setString(3, puuid);
+                    }
+                    deleteIdList.add(deleteId);
+                    batchDeleteStmtVersioned.addBatch();
+                }
             }
         }
-        executeBatchesAndCheckOnFailures(dbh, deleteIdList, deleteIdListWithoutUUID,
+        if(version != null){
+            executeBatchesAndCheckOnFailures(dbh, deleteIdList, deleteIdListWithoutUUID,
+                    batchDeleteStmtVersioned, batchDeleteStmtVersionedWithoutUUID, fails, handleUUID, TYPE_DELETE, streamId );
+
+        }else{
+            executeBatchesAndCheckOnFailures(dbh, deleteIdList, deleteIdListWithoutUUID,
                 batchDeleteStmt, batchDeleteStmtWithoutUUID, fails, handleUUID, TYPE_DELETE, streamId );
+        }
 
         if(fails.size() > 0) {
             logException(null, streamId, 0 , LOG_EXCEPTION_DELETE, table);
