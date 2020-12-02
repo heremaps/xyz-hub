@@ -56,6 +56,7 @@ import java.util.Map;
     @JsonSubTypes.Type(value = HealthCheckEvent.class, name = "HealthCheckEvent"),
     @JsonSubTypes.Type(value = GetFeaturesByIdEvent.class, name = "GetFeaturesByIdEvent"),
     @JsonSubTypes.Type(value = LoadFeaturesEvent.class, name = "LoadFeaturesEvent"),
+    @JsonSubTypes.Type(value = IterateHistoryEvent.class, name = "IterateHistoryEvent"),
     @JsonSubTypes.Type(value = ContentModifiedNotification.class, name = "ContentModifiedNotification")
 })
 
