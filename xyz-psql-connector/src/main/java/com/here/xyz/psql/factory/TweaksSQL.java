@@ -123,10 +123,10 @@ public class TweaksSQL
    +"  where 1 = 1 "
    +"    and %1$s ";  // bboxquery
 
-  public static String linemergeEndSql =    
+  public static String linemergeEndSql1 =    
     "), "
    +"cx2ids as "
-   +"( select left( gid, %2$d ) as region, ids "
+   +"( select left( gid, %1$d ) as region, ids "
    +"  from "
    +"  ( select gid, array_agg( i ) as ids "
    +"    from "
@@ -165,7 +165,9 @@ public class TweaksSQL
    +"finaldata as "
    +"(	select "
    +"   case when step = 0 "
-   +"    then ( select jsondata from ${schema}.${table} where i = ids[1] ) "
+   +"    then ( select "; /* prj_jsondata */
+  public static String linemergeEndSql2 =    
+                         " from ${schema}.${table} where i = ids[1] ) "
    +"    else ( select jsonb_set( jsonb_set('{\"properties\":{}}'::jsonb,'{id}', to_jsonb( max(jsondata->>'id') )),'{properties,ids}', jsonb_agg( jsondata->>'id' )) from ${schema}.${table} where i in ( select unnest( ids ) ) ) "
    +"   end as jsondata, "
    +"   case when step = 0 "

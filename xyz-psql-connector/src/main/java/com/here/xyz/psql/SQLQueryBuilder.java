@@ -485,12 +485,22 @@ public class SQLQueryBuilder {
        { query.append(" and ");
          query.append(searchQuery);
        }
+        
+       if( iMerge == 1 )
+        query.append( TweaksSQL.mergeEndSql(bConvertGeo2Geojson) );
+       else        
+       { query.append( String.format( TweaksSQL.linemergeEndSql1, minGeoHashLenForLineMerge ) );
+         query.append(SQLQuery.selectJson(event.getSelection(),dataSource));
+         query.append( String.format( TweaksSQL.linemergeEndSql2, tweaksGeoSql ) );
+       } 
 
-       query.append( iMerge == 1 ? TweaksSQL.mergeEndSql(bConvertGeo2Geojson) : String.format( TweaksSQL.linemergeEndSql, tweaksGeoSql, minGeoHashLenForLineMerge ) );
        query.append("LIMIT ?", event.getLimit());
 
        return query;
 	}
+
+    
+
 
     public static SQLQuery buildEstimateSamplingStrengthQuery( GetFeaturesByBBoxEvent event, BBox bbox ) 
     {
