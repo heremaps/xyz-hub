@@ -22,6 +22,9 @@ package com.here.xyz;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
+import com.here.xyz.responses.changesets.ChangesetCollection;
+import com.here.xyz.responses.changesets.Changeset;
+import com.here.xyz.responses.changesets.CompactChangeset;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Geometry;
 
@@ -29,7 +32,10 @@ import com.here.xyz.models.geojson.implementation.Geometry;
 @JsonSubTypes({
     @JsonSubTypes.Type(value = Payload.class),
     @JsonSubTypes.Type(value = Feature.class, name = "Feature"),
-    @JsonSubTypes.Type(value = Geometry.class)
+    @JsonSubTypes.Type(value = Geometry.class),
+    @JsonSubTypes.Type(value = ChangesetCollection.class),
+    @JsonSubTypes.Type(value = CompactChangeset.class),
+    @JsonSubTypes.Type(value = Changeset.class)
 })
 public interface Typed extends XyzSerializable {
 
