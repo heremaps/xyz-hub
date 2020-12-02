@@ -54,6 +54,9 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.responses.HistoryStatisticsResponse;
+import com.here.xyz.responses.changesets.ChangesetCollection;
+import com.here.xyz.responses.changesets.CompactChangeset;
 import io.netty.handler.codec.compression.ZlibWrapper;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -237,8 +240,26 @@ public abstract class Api {
         }
         break;
 
+      case CHANGESET_COLLECTION:
+        if (response instanceof ChangesetCollection) {
+          sendJsonResponse(task, Json.encode(response));
+          return;
+        }
+
+      case COMPACT_CHANGESET:
+        if (response instanceof CompactChangeset) {
+          sendJsonResponse(task, Json.encode(response));
+          return;
+        }
+
       case STATISTICS_RESPONSE:
         if (response instanceof StatisticsResponse) {
+          sendJsonResponse(task, Json.encode(response));
+          return;
+        }
+
+      case HISTORY_STATISTICS_RESPONSE:
+        if (response instanceof HistoryStatisticsResponse) {
           sendJsonResponse(task, Json.encode(response));
           return;
         }
@@ -480,6 +501,8 @@ public abstract class Api {
     public static final String APPLICATION_JSON = "application/json";
     public static final String APPLICATION_VND_MAPBOX_VECTOR_TILE = "application/vnd.mapbox-vector-tile";
     public static final String APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST = "application/vnd.here.feature-modification-list";
+    public static final String APPLICATION_VND_HERE_CHANGESET_COLLECTION = "application/vnd.here.changeset-collection";
+    public static final String APPLICATION_VND_HERE_COMPACT_CHANGESET = "application/vnd.here.compact-changeset";
   }
 
   private static class XYZHttpContentCompressor extends HttpContentCompressor {
