@@ -148,7 +148,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 132
+ select 133
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
@@ -184,6 +184,69 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
+-- Function: xyz_statistic_history(text, text)
+-- DROP FUNCTION xyz_statistic_history(text, text);
+CREATE OR REPLACE FUNCTION xyz_statistic_history(
+    IN schema text,
+    IN spaceid text)
+  RETURNS TABLE(tablesize jsonb, count jsonb, maxversion jsonb) AS
+$BODY$
+	/**
+	* Description: Returns completet statisic about a big xyz-space. Therefor the results are including estimated values to reduce
+	*		the runtime of the query.
+	*
+	* Parameters:
+	*   @schema		- schema in which the XYZ-spaces are located
+	*   @spaceid		- id of the XYZ-space (tablename)
+	*
+	* Returns (table):
+	*   tabelsize		- storage size of space
+	*   count		- number of records found in space
+	*/
+
+	/**  Defines how much records a big table has */
+	DECLARE big_space_threshold integer := 10000;
+
+	/** used for big-spaces and get filled via pg_class */
+	DECLARE estimate_cnt bigint;
+
+	BEGIN
+		IF substring(spaceid,length(spaceid)-3) != '_hst' THEN
+			RETURN;
+		END IF;
+
+		SELECT reltuples into estimate_cnt FROM pg_class WHERE oid = concat('"',$1, '"."', $2, '"')::regclass;
+
+		IF estimate_cnt > big_space_threshold THEN
+			RETURN QUERY EXECUTE
+			'SELECT	format(''{"value": %s, "estimated" : true}'', tablesize)::jsonb as tablesize,  '
+			||'	format(''{"value": %s, "estimated" : true}'', count)::jsonb as count,  '
+			||'	format(''{"value": %s, "estimated" : false}'', maxversion)::jsonb as maxversion  '
+			||'	FROM ('
+			||'		SELECT pg_total_relation_size('''||schema||'."'||spaceid||'"'') AS tablesize, '
+			||'			(SELECT jsondata->''properties''->''@ns:com:here:xyz''->''version'' FROM "'||schema||'"."'||spaceid||'"'
+			||'				order by jsondata->''properties''->''@ns:com:here:xyz''->''version'' DESC limit 1 )::TEXT::INTEGER as maxversion,'
+			||'		       reltuples AS count '
+			||'		FROM pg_class '
+			||'	WHERE oid='''||schema||'."'||spaceid||'"''::regclass) A';
+		ELSE
+			RETURN QUERY EXECUTE
+			'SELECT	format(''{"value": %s, "estimated" : true}'', tablesize)::jsonb as tablesize,  '
+			||'	format(''{"value": %s, "estimated" : false}'', count)::jsonb as count,  '
+			||'	format(''{"value": %s, "estimated" : false}'', maxversion)::jsonb as maxversion  '
+			||'	FROM ('
+			||'		SELECT pg_total_relation_size('''||schema||'."'||spaceid||'"'') AS tablesize, '
+			||'			(SELECT jsondata->''properties''->''@ns:com:here:xyz''->''version'' FROM "'||schema||'"."'||spaceid||'"'
+			||'				order by jsondata->''properties''->''@ns:com:here:xyz''->''version'' DESC limit 1 )::TEXT::INTEGER as maxversion,'
+			||'		       (SELECT count(*) FROM "'||schema||'"."'||spaceid||'") AS count, '
+			||'		FROM pg_class '
+			||'	WHERE oid='''||schema||'."'||spaceid||'"''::regclass) A';
+		END IF;
+        END;
+$BODY$
+  LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
 -- Function: xyz_index_get_plain_propkey(text)
 -- DROP FUNCTION xyz_index_get_plain_propkey(text);
 CREATE OR REPLACE FUNCTION xyz_index_get_plain_propkey(propkey text)
@@ -210,6 +273,44 @@ $BODY$
 			END IF;
 		END IF;
 		RETURN propkey;
+	END;
+$BODY$
+  LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+-- Function: xyz_trigger_historywriter_versioned()
+-- DROP FUNCTION xyz_trigger_historywriter_versioned();
+CREATE OR REPLACE FUNCTION xyz_trigger_historywriter_versioned()
+  RETURNS trigger AS
+$BODY$
+	DECLARE v bigint := COALESCE((NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'version')::bigint, -1);
+
+	BEGIN
+		IF TG_OP = 'INSERT' THEN
+			EXECUTE
+				format('INSERT INTO'
+					||' %s."%s_hst" (uuid,jsondata,geo,vid)'
+					||' VALUES( %L,%L,%L, %L)',TG_TABLE_SCHEMA, TG_TABLE_NAME, NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo,
+						substring('0000000000'::text, 0, 10 - length((NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'version'))) ||
+						(NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'version') || '_' || (NEW.jsondata->>'id'));
+			RETURN NEW;
+		END IF;
+
+		IF TG_OP = 'UPDATE' THEN
+			EXECUTE
+				format('INSERT INTO'
+					||' %s."%s_hst" (uuid,jsondata,geo,vid)'
+					||' VALUES( %L,%L,%L, %L)',TG_TABLE_SCHEMA, TG_TABLE_NAME, NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo,
+						substring('0000000000'::text, 0, 10 - length((NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'version'))) ||
+						(NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'version') || '_' || (NEW.jsondata->>'id'));
+
+			IF NEW.jsondata->'properties'->'@ns:com:here:xyz'->'deleted' IS NOT null AND NEW.jsondata->'properties'->'@ns:com:here:xyz'->'deleted' = 'true'::jsonb THEN
+				EXECUTE
+					format('DELETE FROM %s."%s" WHERE jsondata->>''id'' = %L',TG_TABLE_SCHEMA, TG_TABLE_NAME, NEW.jsondata->>'id');
+			END IF;
+
+			RETURN NEW;
+		END IF;
 	END;
 $BODY$
   LANGUAGE plpgsql VOLATILE;
