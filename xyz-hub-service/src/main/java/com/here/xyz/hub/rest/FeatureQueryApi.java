@@ -61,13 +61,6 @@ import org.apache.logging.log4j.Marker;
 
 public class FeatureQueryApi extends SpaceBasedApi {
 
-  /**
-   * The default limit for the number of features to load from the connector.
-   */
-  private final static int DEFAULT_FEATURE_LIMIT = 30_000;
-  private final static int MIN_LIMIT = 1;
-  private final static int HARD_LIMIT = 100_000;
-
   public FeatureQueryApi(OpenAPI3RouterFactory routerFactory) {
     routerFactory.addHandlerByOperationId("getFeaturesBySpatial", this::getFeaturesBySpatial);
     routerFactory.addHandlerByOperationId("getFeaturesBySpatialPost", this::getFeaturesBySpatial);
@@ -133,6 +126,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
           .withForce2D(force2D)
           .withTags(Query.getTags(context))
           .withSelection(Query.getSelection(context))
+          .withV(Query.getInteger(context, Query.V, null))
           .withHandle(Query.getString(context, Query.HANDLE, null));
 
       final IterateQuery task = new IterateQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache);
@@ -264,7 +258,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
               .withClusteringParams(Query.getAdditionalParams(context, Query.CLUSTERING))
               .withTweakType(Query.getString(context, Query.TWEAKS, null))
               .withTweakParams(Query.getAdditionalParams(context, Query.TWEAKS))
-              .withLimit(getLimit(context, ( "viz".equals(optimMode) ? FeatureQueryApi.HARD_LIMIT :  DEFAULT_FEATURE_LIMIT ) ))
+              .withLimit(getLimit(context, ( "viz".equals(optimMode) ? HARD_LIMIT :  DEFAULT_FEATURE_LIMIT ) ))
               .withTags(Query.getTags(context))
               .withPropertiesQuery(Query.getPropertiesQuery(context))
               .withSelection(Query.getSelection(context))
@@ -358,22 +352,6 @@ public class FeatureQueryApi extends SpaceBasedApi {
     throw new HttpException(BAD_REQUEST, "Invalid or unsupported EPSG code provided, in doubt please use 3785");
   }
 
-  /**
-   * Returns the value of the limit parameter of a default value.
-   */
-
-  private int getLimit(RoutingContext context, int defaultLimit ) throws HttpException {
-    int limit = Query.getInteger(context, Query.LIMIT, defaultLimit);
-
-    if (limit < FeatureQueryApi.MIN_LIMIT || limit > FeatureQueryApi.HARD_LIMIT) {
-      throw new HttpException(BAD_REQUEST,
-          "The parameter limit must be between " + FeatureQueryApi.MIN_LIMIT + " and " + FeatureQueryApi.HARD_LIMIT
-              + ".");
-    }
-    return limit;
-  }
-
-  private int getLimit(RoutingContext context) throws HttpException { return getLimit(context, DEFAULT_FEATURE_LIMIT ); }
 
   /**
    * Parses the provided latitude and longitude values as a bounding box.

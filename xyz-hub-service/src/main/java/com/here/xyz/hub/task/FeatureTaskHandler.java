@@ -45,6 +45,8 @@ import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
+import com.here.xyz.events.IterateFeaturesEvent;
+import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.hub.Core;
@@ -1011,6 +1013,19 @@ public class FeatureTaskHandler {
     });
   }
 
+  static <X extends FeatureTask> void injectSpaceParams(final X task, final Callback<X> callback) {
+    try {
+      if(task.getEvent() instanceof ModifyFeaturesEvent) {
+         ((ModifyFeaturesEvent) task.getEvent()).setMaxVersionCount(task.space.getMaxVersionCount());
+        ((ModifyFeaturesEvent) task.getEvent()).setEnableGlobalVersioning(task.space.isEnableGlobalVersioning());
+        ((ModifyFeaturesEvent) task.getEvent()).setEnableHistory(task.space.isEnableHistory());
+      }
+      callback.call(task);
+    } catch (Exception e) {
+      callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition.", e));
+    }
+  }
+
   private static <X extends FeatureTask<?, X>> void checkFeaturesPerSpaceQuota(X task, Callback<X> callback,
       long maxFeaturesPerSpace, Long count) {
     try {
@@ -1138,6 +1153,25 @@ public class FeatureTaskHandler {
             + "supported by storage connector \"" + task.storage.id + "\"."));
       }
     }
+
+    if (task.getEvent() instanceof IterateHistoryEvent) {
+      if (!task.space.isEnableGlobalVersioning()) {
+        callback.exception(new HttpException(BAD_REQUEST, "This space ["+task.space.getId()+"] does not support version queries."));
+      }
+      Integer vStart = ((IterateHistoryEvent) task.getEvent()).getvStart();
+      Integer vEnd = ((IterateHistoryEvent) task.getEvent()).getvEnd();
+      if(vStart != null && vStart < 1)
+        callback.exception(new HttpException(BAD_REQUEST, "vStart is out or range [1-n]."));
+      if(vStart != null && vEnd != null && vEnd < vStart)
+        callback.exception(new HttpException(BAD_REQUEST, "vEnd has to be smaller than vStart."));
+    }
+
+    if (task.getEvent() instanceof IterateFeaturesEvent) {
+      if (!task.space.isEnableGlobalVersioning() && ((IterateFeaturesEvent) task.getEvent()).getV() != null) {
+        callback.exception(new HttpException(BAD_REQUEST, "This space ["+task.space.getId()+"] does not support version queries."));
+      }
+    }
+
     callback.call(task);
   }
 
@@ -1176,6 +1210,10 @@ public class FeatureTaskHandler {
     if (task.space.isReadOnly() && (task instanceof ConditionalOperation || task instanceof DeleteOperation)) {
       throw new HttpException(METHOD_NOT_ALLOWED,
           "The method is not allowed, because the resource \"" + task.space.getId() + "\" is marked as read-only. Update the resource definition to enable editing of features.");
+    }
+    if (task.space.isEnableGlobalVersioning() && task.getEvent() instanceof  ModifyFeaturesEvent && ((ModifyFeaturesEvent) task.getEvent()).getTransaction() == false) {
+      throw new HttpException(METHOD_NOT_ALLOWED,
+           "The method is not allowed, because the resource \"" + task.space.getId() + "\" has enabledGlobalVersioning. Due to this stream writing is not allowed.");
     }
     callback.call(task);
   }
