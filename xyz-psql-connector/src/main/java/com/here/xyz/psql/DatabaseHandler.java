@@ -988,10 +988,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             id = rs.getString("id");
             numFeatures++;
         }
-        // REMOVE
-        System.out.println("Inserted:"+inserts.size()
-                +"\nUpdated:"+updates.size()
-                +"\nDeleted:"+deletes.size());
+
         cc.setChangeset(
                 new Changeset().withInserted(new FeatureCollection().withFeatures(inserts))
                         .withUpdated(new FeatureCollection().withFeatures(updates))
@@ -1027,8 +1024,6 @@ public abstract class DatabaseHandler extends StorageConnector {
         List<Feature> updates = new ArrayList<>();
         List<Feature> deletes = new ArrayList<>();
 
-        long debugCnt = 0;
-
         while (rs.next()) {
             Feature feature = null;
             String operation = rs.getString("Operation");
@@ -1040,12 +1035,6 @@ public abstract class DatabaseHandler extends StorageConnector {
             }
 
             if(lastVersion !=  null && version > lastVersion) {
-                // REMOVE
-                System.out.println("Version :"+lastVersion+"\nInserted:"+inserts.size()
-                        +"\nUpdated:"+updates.size()
-                        +"\nDeleted:"+deletes.size());
-                debugCnt += inserts.size() + updates.size() + deletes.size();
-
                 Changeset cs = new Changeset().withInserted(new FeatureCollection().withFeatures(inserts))
                         .withUpdated(new FeatureCollection().withFeatures(updates))
                         .withDeleted(new FeatureCollection().withFeatures(deletes));
@@ -1084,11 +1073,6 @@ public abstract class DatabaseHandler extends StorageConnector {
                     .withUpdated(new FeatureCollection().withFeatures(updates))
                     .withDeleted(new FeatureCollection().withFeatures(deletes));
             versions.put(lastVersion, cs);
-            // REMOVE
-            System.out.println("Version :"+lastVersion+"\nInserted:"+inserts.size()
-                    +"\nUpdated:"+updates.size()
-                    +"\nDeleted:"+deletes.size());
-            debugCnt += inserts.size() + updates.size() + deletes.size();
         }
 
         ccol.setVersions(versions);
@@ -1098,8 +1082,6 @@ public abstract class DatabaseHandler extends StorageConnector {
         if (numFeatures > 0 && numFeatures == limit) {
             ccol.setNextPageToken(npt);
         }
-        // REMOVE
-        System.out.println("FEATURE CNT: "+debugCnt);
 
         return ccol;
     }
