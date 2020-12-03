@@ -818,7 +818,7 @@ public class FeatureTaskHandler {
         properties.putIfAbsent(XyzNamespace.XYZ_NAMESPACE, new HashMap<String, Object>());
       }
     } catch (Exception e) {
-      logger.error(task.getMarker(), e.getMessage(), e);
+      logger.warn(task.getMarker(), e.getMessage(), e);
       callback.exception(new HttpException(BAD_REQUEST, "Unable to process the request input."));
       return;
     }
