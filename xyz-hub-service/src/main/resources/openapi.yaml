@@ -972,7 +972,7 @@ components:
 
         | Parameter   | Type    | Mandatory | Meaning                                                               |
         |-------------|---------|-----------|-----------------------------------------------------------------------|
-        | algorithm   | String  | NO        | grid, gridbytilelevel, simplifiedkeeptopology, simplified, merge      |
+        | algorithm   | String  | NO        | grid, gridbytilelevel, simplifiedkeeptopology, simplified, merge, linemerge |
         | strength    | String  | NO        | Use presets: low, med, high or define strengh in percentage 1-100     |
 
         **Tweaks-type: "ensure":**

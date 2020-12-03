@@ -381,9 +381,11 @@ public class SQLQueryBuilder {
 
     public static SQLQuery buildSimplificationTweaksQuery(GetFeaturesByBBoxEvent event, BBox bbox, Map tweakParams, DataSource dataSource) throws SQLException
     {
-     int strength = 0;
+     int strength = 0,
+         iMerge = 0;
      String tweaksGeoSql = "geo";
-     boolean bMerge = false, bStrength = true, bTestTweaksGeoIfNull = true, bConvertGeo2Geojson = ( mvtFromDbRequested(event) == 0 );
+     boolean bStrength = true, bTestTweaksGeoIfNull = true, bConvertGeo2Geojson = ( mvtFromDbRequested(event) == 0 );
+
 
      if( tweakParams != null )
      {
@@ -440,7 +442,8 @@ public class SQLQueryBuilder {
          } 
          break;
          
-         case TweaksSQL.SIMPLIFICATION_ALGORITHM_A04 : bMerge = true; break;
+         case TweaksSQL.SIMPLIFICATION_ALGORITHM_A06 : iMerge++;
+         case TweaksSQL.SIMPLIFICATION_ALGORITHM_A04 : iMerge++; break;
 
          default: break;
        }
@@ -454,15 +457,18 @@ public class SQLQueryBuilder {
 
        final SQLQuery searchQuery = generateSearchQuery(event,dataSource);
 
-       if( !bMerge )
+       if( iMerge == 0 )
         return generateCombinedQueryTweaks(event, new SQLQuery(bboxqry), searchQuery , tweaksGeoSql, bTestTweaksGeoIfNull, dataSource);
 
        // Merge Algorithm - only using low, med, high
 
-       int minGeoHashLenToMerge = 0;
+       int minGeoHashLenToMerge = 0,
+           minGeoHashLenForLineMerge = 3;
 
-       if( strength <= 20 ) minGeoHashLenToMerge = 7;
-       else if ( strength <= 60 ) minGeoHashLenToMerge = 6;
+       if      ( strength <= 20 ) { minGeoHashLenToMerge = 7; minGeoHashLenForLineMerge = 7; } //low
+       else if ( strength <= 40 ) { minGeoHashLenToMerge = 6; minGeoHashLenForLineMerge = 6; } //lowmed
+       else if ( strength <= 60 ) { minGeoHashLenToMerge = 6; minGeoHashLenForLineMerge = 5; } //med
+       else if ( strength <= 80 ) {                           minGeoHashLenForLineMerge = 4; } //medhigh
 
        if( "geo".equals(tweaksGeoSql) ) // formal, just in case
         tweaksGeoSql = ( bConvertGeo2Geojson ? String.format("replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "( %s ),%d),'nan','0')",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS)
@@ -471,18 +477,30 @@ public class SQLQueryBuilder {
        if( bConvertGeo2Geojson ) 
         tweaksGeoSql = String.format("(%s)::jsonb", tweaksGeoSql);
 
-       SQLQuery query = new SQLQuery( String.format( TweaksSQL.mergeBeginSql, tweaksGeoSql, minGeoHashLenToMerge, bboxqry ) );
-
+        SQLQuery query =
+         ( iMerge == 1 ? new SQLQuery( String.format( TweaksSQL.mergeBeginSql, tweaksGeoSql, minGeoHashLenToMerge, bboxqry ) )
+                       : new SQLQuery( String.format( TweaksSQL.linemergeBeginSql, /*(event.getClip() ? clipProjGeom(bbox,"geo") : "geo")*/ "geo" , bboxqry ) ));  // use clipped geom as input (?)
+        
        if (searchQuery != null)
        { query.append(" and ");
          query.append(searchQuery);
        }
+        
+       if( iMerge == 1 )
+        query.append( TweaksSQL.mergeEndSql(bConvertGeo2Geojson) );
+       else        
+       { query.append( String.format( TweaksSQL.linemergeEndSql1, minGeoHashLenForLineMerge ) );
+         query.append(SQLQuery.selectJson(event.getSelection(),dataSource));
+         query.append( String.format( TweaksSQL.linemergeEndSql2, tweaksGeoSql ) );
+       } 
 
-       query.append(TweaksSQL.mergeEndSql(bConvertGeo2Geojson));
        query.append("LIMIT ?", event.getLimit());
 
        return query;
 	}
+
+    
+
 
     public static SQLQuery buildEstimateSamplingStrengthQuery( GetFeaturesByBBoxEvent event, BBox bbox ) 
     {
