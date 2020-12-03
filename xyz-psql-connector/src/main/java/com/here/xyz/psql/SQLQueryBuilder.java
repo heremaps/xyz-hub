@@ -479,8 +479,8 @@ public class SQLQueryBuilder {
 
         SQLQuery query =
          ( iMerge == 1 ? new SQLQuery( String.format( TweaksSQL.mergeBeginSql, tweaksGeoSql, minGeoHashLenToMerge, bboxqry ) )
-                       : new SQLQuery( String.format( TweaksSQL.linemergeBeginSql, bboxqry ) ));
-
+                       : new SQLQuery( String.format( TweaksSQL.linemergeBeginSql, /*(event.getClip() ? clipProjGeom(bbox,"geo") : "geo")*/ "geo" , bboxqry ) ));  // use clipped geom as input (?)
+        
        if (searchQuery != null)
        { query.append(" and ");
          query.append(searchQuery);

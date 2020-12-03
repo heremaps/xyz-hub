@@ -119,9 +119,9 @@ public class TweaksSQL
   public static String linemergeBeginSql = 
     "with "
    +"indata as "
-   +"( select i, geo from ${schema}.${table} "
+   +"( select i, %1$s as geo from ${schema}.${table} "
    +"  where 1 = 1 "
-   +"    and %1$s ";  // bboxquery
+   +"    and %2$s ";  // bboxquery
 
   public static String linemergeEndSql1 =    
     "), "
