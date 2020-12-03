@@ -25,6 +25,7 @@ import io.vertx.core.buffer.Buffer;
 import io.vertx.redis.RedisClient;
 import io.vertx.redis.RedisOptions;
 import io.vertx.redis.op.SetOptions;
+import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -48,6 +49,8 @@ public class RedisCacheClient implements CacheClient {
       }
 
       config.setTcpKeepAlive(true);
+      config.setIdleTimeout(30);
+      config.setIdleTimeoutUnit(TimeUnit.SECONDS);
       config.setConnectTimeout(2000);
       return RedisClient.create(Service.vertx, config);
     });
