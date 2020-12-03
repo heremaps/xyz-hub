@@ -134,7 +134,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       boolean bTweaks = ( event.getTweakType() != null ),
               bOptViz = "viz".equals( event.getOptimizationMode() ),
-              bSelectionStar = false;
+              bSelectionStar = false,
+              bClustering = (event.getClusteringType() != null);
 
       int mvtFromDbRequested = SQLQueryBuilder.mvtFromDbRequested(event),
           mvtMargin = 0;
@@ -154,7 +155,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
         bSelectionStar = true; // differentiation needed, due to different semantic of "event.getSelection() == null" tweaks vs. nonTweaks
       }
 
-      if( bTweaks || bOptViz || bMvtFromHub )
+      if( !bClustering && ( bTweaks || bOptViz || bMvtFromHub ) )
       { 
         Map<String, Object> tweakParams;
         boolean bVizSamplingOff = false;
@@ -234,7 +235,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
         }
       }
 
-      if( event.getClusteringType() != null )
+      if( bClustering )
       { final Map<String, Object> clusteringParams = event.getClusteringParams();
 
         switch(event.getClusteringType().toLowerCase())
