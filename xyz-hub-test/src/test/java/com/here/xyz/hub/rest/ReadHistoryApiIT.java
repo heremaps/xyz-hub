@@ -165,8 +165,8 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
             getBody().asString();
 
     ChangesetCollection cc = XyzSerializable.deserialize(body);
-    assertEquals(new Integer(1), cc.getStartVersion());
-    assertEquals(new Integer(2), cc.getEndVersion());
+    assertEquals(1, cc.getStartVersion());
+    assertEquals(2, cc.getEndVersion());
     assertEquals(2, cc.getVersions().size());
     assertEquals(500, cc.getVersions().get(1).getInserted().getFeatures().size());
     assertEquals(500, cc.getVersions().get(2).getInserted().getFeatures().size());
@@ -194,8 +194,8 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                     getBody().asString();
 
     cc = XyzSerializable.deserialize(body);
-    assertEquals(new Integer(13), cc.getStartVersion());
-    assertEquals(new Integer(14), cc.getEndVersion());
+    assertEquals(13, cc.getStartVersion());
+    assertEquals(14, cc.getEndVersion());
     assertEquals(2, cc.getVersions().size());
     assertEquals(0, cc.getVersions().get(14).getInserted().getFeatures().size());
     assertEquals(0, cc.getVersions().get(14).getUpdated().getFeatures().size());

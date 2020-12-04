@@ -31,8 +31,8 @@ import java.util.Map;
 @JsonTypeName(value = "ChangesetCollection")
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class ChangesetCollection extends XyzResponse<ChangesetCollection> {
-    private Integer startVersion;
-    private Integer endVersion;
+    private int startVersion;
+    private int endVersion;
 
     @JsonTypeInfo( use = JsonTypeInfo.Id.NONE )
     @JsonInclude(JsonInclude.Include.ALWAYS)
@@ -54,11 +54,11 @@ public class ChangesetCollection extends XyzResponse<ChangesetCollection> {
         setNextPageToken(nextPageToken);
         return this;
     }
-    public Integer getStartVersion() {
+    public int getStartVersion() {
         return startVersion;
     }
 
-    public void setStartVersion(Integer startVersion) {
+    public void setStartVersion(int startVersion) {
         this.startVersion = startVersion;
     }
 
@@ -67,7 +67,7 @@ public class ChangesetCollection extends XyzResponse<ChangesetCollection> {
         return this;
     }
 
-    public Integer getEndVersion() {
+    public int getEndVersion() {
         return endVersion;
     }
 

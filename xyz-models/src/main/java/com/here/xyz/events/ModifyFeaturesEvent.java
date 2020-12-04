@@ -53,8 +53,11 @@ public final class ModifyFeaturesEvent extends Event<ModifyFeaturesEvent> {
   @JsonInclude(Include.ALWAYS)
   private Map<String, String> deleteFeatures;
   private Boolean transaction;
+  @JsonInclude(Include.NON_DEFAULT)
   private boolean enableHistory;
+  @JsonInclude(Include.NON_DEFAULT)
   private boolean enableUUID;
+  @JsonInclude(Include.NON_DEFAULT)
   private boolean enableGlobalVersioning;
   private List<ModificationFailure> failed;
   private Integer maxVersionCount;
