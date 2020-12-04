@@ -622,13 +622,13 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<ConditionalOperation> getPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(FeatureTaskHandler::injectSpaceParams)
           .then(FeatureTaskHandler::checkPreconditions)
           .then(FeatureTaskHandler::preprocessConditionalOp)
           .then(this::loadObjects)
           .then(this::verifyResourceExists)
           .then(FeatureTaskHandler::updateTags)
           .then(FeatureTaskHandler::processConditionalOp)
-          .then(FeatureTaskHandler::injectSpaceParams)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::enforceUsageQuotas)
           .then(FeatureTaskHandler::invoke);
