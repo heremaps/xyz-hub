@@ -480,6 +480,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                     }
                     return -1;
                 }, true);
+              collection.setVersion(version);
           }
         } catch (Exception e) {
           if (!retryAttempted) {
@@ -619,6 +620,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 }
                 collection.getDeleted().addAll(deleteIds);
             }
+
             connection.close();
 
             return collection;
