@@ -645,11 +645,11 @@ public class SQLQueryBuilder {
                "   AND vid > ?",event.getNextPageToken());
         }
 
-        if(event.getVStart() != null) {
+        if(event.getVStart() != 0) {
             query.append("  AND jsondata->'properties'->'@ns:com:here:xyz'->'version' >= to_jsonb(?::numeric)",event.getVStart());
         }
 
-        if(event.getVEnd() != null)
+        if(event.getVEnd() != 0)
             query.append("  AND jsondata->'properties'->'@ns:com:here:xyz'->'version' <= to_jsonb(?::numeric)", event.getVEnd());
 
         query.append(" ORDER BY jsondata->'properties'->'@ns:com:here:xyz'->'version' , " +
@@ -687,12 +687,12 @@ public class SQLQueryBuilder {
                     "   AND jsondata->>'id' > ?",event.getNextPageToken());
         }
 
-        if(event.getVStart() != null) {
+        if(event.getVStart() != 0) {
             query.append(
                 "  AND jsondata->'properties'->'@ns:com:here:xyz'->'version' >= to_jsonb(?::numeric)",event.getVStart());
         }
 
-        if(event.getVEnd() != null)
+        if(event.getVEnd() != 0)
             query.append(
                 "  AND jsondata->'properties'->'@ns:com:here:xyz'->'version' <= to_jsonb(?::numeric)", event.getVEnd());
 

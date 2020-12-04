@@ -1158,11 +1158,11 @@ public class FeatureTaskHandler {
       if (!task.space.isEnableGlobalVersioning()) {
         callback.exception(new HttpException(BAD_REQUEST, "This space ["+task.space.getId()+"] does not support version queries."));
       }
-      Integer vStart = ((IterateHistoryEvent) task.getEvent()).getVStart();
-      Integer vEnd = ((IterateHistoryEvent) task.getEvent()).getVEnd();
-      if(vStart != null && vStart < 1)
+      int vStart = ((IterateHistoryEvent) task.getEvent()).getVStart();
+      int vEnd = ((IterateHistoryEvent) task.getEvent()).getVEnd();
+      if(vStart != 0 && vStart < 1)
         callback.exception(new HttpException(BAD_REQUEST, "vStart is out or range [1-n]."));
-      if(vStart != null && vEnd != null && vEnd < vStart)
+      if(vStart != 0 && vEnd != 0 && vEnd < vStart)
         callback.exception(new HttpException(BAD_REQUEST, "vEnd has to be smaller than vStart."));
     }
 

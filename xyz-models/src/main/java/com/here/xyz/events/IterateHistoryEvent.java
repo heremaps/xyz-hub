@@ -20,6 +20,7 @@
 package com.here.xyz.events;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -27,32 +28,34 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 public final class IterateHistoryEvent extends SearchForFeaturesEvent<IterateHistoryEvent> {
 
   private String nextPageToken;
-  private Integer vStart;
-  private Integer vEnd;
+  @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+  private int vStart;
+  @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+  private int vEnd;
   private boolean compact;
 
-  public Integer getVStart() {
+  public int getVStart() {
     return vStart;
   }
 
-  public void setVStart(Integer vStart) {
+  public void setVStart(int vStart) {
     this.vStart = vStart;
   }
 
-  public IterateHistoryEvent withVStart(Integer vEnd) {
+  public IterateHistoryEvent withVStart(int vEnd) {
     setVStart(vEnd);
     return this;
   }
 
-  public Integer getVEnd() {
+  public int getVEnd() {
     return vEnd;
   }
 
-  public void setVEnd(Integer vEnd) {
+  public void setVEnd(int vEnd) {
     this.vEnd = vEnd;
   }
 
-  public IterateHistoryEvent withVEnd(Integer vEnd) {
+  public IterateHistoryEvent withVEnd(int vEnd) {
     setVEnd(vEnd);
     return this;
   }
