@@ -47,7 +47,7 @@ public class HistoryQueryApi extends SpaceBasedApi{
             IterateHistoryEvent event = new IterateHistoryEvent()
                     .withCompact(responseType.equals(ApiResponseType.COMPACT_CHANGESET) ? true : false)
                     .withLimit(getLimit(context))
-                    .withVStart(ApiParam.Query.getInteger(context, ApiParam.Query.VSTART, 00))
+                    .withVStart(ApiParam.Query.getInteger(context, ApiParam.Query.VSTART, 0))
                     .withVEnd(ApiParam.Query.getInteger(context, ApiParam.Query.VEND, 0))
                     .withNextPageToken(ApiParam.Query.getString(context, ApiParam.Query.NEXT_PAGE_TOKEN, null));
 
