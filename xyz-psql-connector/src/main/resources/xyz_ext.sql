@@ -283,7 +283,7 @@ $BODY$
 CREATE OR REPLACE FUNCTION xyz_trigger_historywriter_versioned()
   RETURNS trigger AS
 $BODY$
-	DECLARE v bigint := COALESCE((NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'version')::bigint, -1);
+	DECLARE v text := (NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'version');
 
 	BEGIN
 		IF TG_OP = 'INSERT' THEN
@@ -291,8 +291,8 @@ $BODY$
 				format('INSERT INTO'
 					||' %s."%s_hst" (uuid,jsondata,geo,vid)'
 					||' VALUES( %L,%L,%L, %L)',TG_TABLE_SCHEMA, TG_TABLE_NAME, NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo,
-						substring('0000000000'::text, 0, 10 - length((NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'version'))) ||
-						(NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'version') || '_' || (NEW.jsondata->>'id'));
+						substring('0000000000'::text, 0, 10 - length(v)) ||
+						v || '_' || (NEW.jsondata->>'id'));
 			RETURN NEW;
 		END IF;
 
@@ -301,8 +301,8 @@ $BODY$
 				format('INSERT INTO'
 					||' %s."%s_hst" (uuid,jsondata,geo,vid)'
 					||' VALUES( %L,%L,%L, %L)',TG_TABLE_SCHEMA, TG_TABLE_NAME, NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo,
-						substring('0000000000'::text, 0, 10 - length((NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'version'))) ||
-						(NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'version') || '_' || (NEW.jsondata->>'id'));
+						substring('0000000000'::text, 0, 10 - length(v)) ||
+						v || '_' || (NEW.jsondata->>'id'));
 
 			IF NEW.jsondata->'properties'->'@ns:com:here:xyz'->'deleted' IS NOT null AND NEW.jsondata->'properties'->'@ns:com:here:xyz'->'deleted' = 'true'::jsonb THEN
 				EXECUTE
