@@ -31,29 +31,29 @@ public final class IterateHistoryEvent extends SearchForFeaturesEvent<IterateHis
   private Integer vEnd;
   private boolean compact;
 
-  public Integer getvStart() {
+  public Integer getVStart() {
     return vStart;
   }
 
-  public void setvStart(Integer vStart) {
+  public void setVStart(Integer vStart) {
     this.vStart = vStart;
   }
 
-  public IterateHistoryEvent withvStart(Integer vEnd) {
-    setvStart(vEnd);
+  public IterateHistoryEvent withVStart(Integer vEnd) {
+    setVStart(vEnd);
     return this;
   }
 
-  public Integer getvEnd() {
+  public Integer getVEnd() {
     return vEnd;
   }
 
-  public void setvEnd(Integer vEnd) {
+  public void setVEnd(Integer vEnd) {
     this.vEnd = vEnd;
   }
 
-  public IterateHistoryEvent withvEnd(Integer vEnd) {
-    setvEnd(vEnd);
+  public IterateHistoryEvent withVEnd(Integer vEnd) {
+    setVEnd(vEnd);
     return this;
   }
 
@@ -68,8 +68,8 @@ public final class IterateHistoryEvent extends SearchForFeaturesEvent<IterateHis
   }
 
   @SuppressWarnings("unused")
-  public IterateHistoryEvent withNextPageToken(String handle) {
-    setNextPageToken(handle);
+  public IterateHistoryEvent withNextPageToken(String nextPageToken) {
+    setNextPageToken(nextPageToken);
     return this;
   }
 

@@ -47,8 +47,8 @@ public class HistoryQueryApi extends SpaceBasedApi{
             IterateHistoryEvent event = new IterateHistoryEvent()
                     .withCompact(responseType.equals(ApiResponseType.COMPACT_CHANGESET) ? true : false)
                     .withLimit(getLimit(context))
-                    .withvStart(ApiParam.Query.getInteger(context, ApiParam.Query.VSTART, null))
-                    .withvEnd(ApiParam.Query.getInteger(context, ApiParam.Query.VEND, null))
+                    .withVStart(ApiParam.Query.getInteger(context, ApiParam.Query.VSTART, null))
+                    .withVEnd(ApiParam.Query.getInteger(context, ApiParam.Query.VEND, null))
                     .withNextPageToken(ApiParam.Query.getString(context, ApiParam.Query.NEXT_PAGE_TOKEN, null));
 
             final FeatureTask.IterateHistoryQuery task = new FeatureTask.IterateHistoryQuery(event, context, responseType, skipCache);
