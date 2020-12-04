@@ -20,15 +20,13 @@
 package com.here.xyz.responses.changesets;
 
 import com.fasterxml.jackson.annotation.*;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.XyzSerializable;
-import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.responses.XyzResponse;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "Changeset")
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
-public class Changeset {
+public class Changeset extends XyzResponse<Changeset> {
 
     @JsonTypeInfo( use = JsonTypeInfo.Id.NONE )
     private FeatureCollection inserted;

@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.xyz.Payload;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.responses.changesets.CompactChangeset;
 
@@ -42,6 +43,7 @@ import com.here.xyz.responses.changesets.CompactChangeset;
     @JsonSubTypes.Type(value = NotModifiedResponse.class, name = "NotModifiedResponse"),
     @JsonSubTypes.Type(value = FeatureCollection.class, name = "FeatureCollection"),
     @JsonSubTypes.Type(value = BinResponse.class, name = "BinResponse"),
+    @JsonSubTypes.Type(value = Changeset.class, name = "Changeset"),
     @JsonSubTypes.Type(value = CompactChangeset.class, name = "CompactChangeset"),
     @JsonSubTypes.Type(value = ChangesetCollection.class, name = "ChangesetCollection")
 })

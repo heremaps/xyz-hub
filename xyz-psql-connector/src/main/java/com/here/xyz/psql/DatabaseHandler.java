@@ -989,11 +989,9 @@ public abstract class DatabaseHandler extends StorageConnector {
             numFeatures++;
         }
 
-        cc.setChangeset(
-                new Changeset().withInserted(new FeatureCollection().withFeatures(inserts))
-                        .withUpdated(new FeatureCollection().withFeatures(updates))
-                        .withDeleted(new FeatureCollection().withFeatures(deletes))
-        );
+        cc.setInserted(new FeatureCollection().withFeatures(inserts));
+        cc.setUpdated(new FeatureCollection().withFeatures(updates));
+        cc.setDeleted(new FeatureCollection().withFeatures(deletes));
 
         if (numFeatures > 0 && numFeatures == limit) {
             cc.setNextPageToken(id);

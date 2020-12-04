@@ -32,10 +32,7 @@ import com.here.xyz.models.geojson.implementation.Geometry;
 @JsonSubTypes({
     @JsonSubTypes.Type(value = Payload.class),
     @JsonSubTypes.Type(value = Feature.class, name = "Feature"),
-    @JsonSubTypes.Type(value = Geometry.class),
-    @JsonSubTypes.Type(value = ChangesetCollection.class),
-    @JsonSubTypes.Type(value = CompactChangeset.class),
-    @JsonSubTypes.Type(value = Changeset.class)
+    @JsonSubTypes.Type(value = Geometry.class)
 })
 public interface Typed extends XyzSerializable {
 

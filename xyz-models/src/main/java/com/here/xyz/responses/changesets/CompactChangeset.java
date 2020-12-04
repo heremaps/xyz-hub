@@ -21,20 +21,12 @@ package com.here.xyz.responses.changesets;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.XyzSerializable;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.responses.XyzResponse;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "CompactChangeset")
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class CompactChangeset extends XyzResponse<FeatureCollection> {
-    @JsonTypeInfo( use = JsonTypeInfo.Id.NONE )
-    private Changeset changeset;
-
+public class CompactChangeset extends Changeset {
     private String nextPageToken;
 
     @SuppressWarnings("unused")
@@ -49,19 +41,6 @@ public class CompactChangeset extends XyzResponse<FeatureCollection> {
 
     public CompactChangeset withNextPageToken(final String nextPageToken) {
         setNextPageToken(nextPageToken);
-        return this;
-    }
-
-    public Changeset getChangeset() {
-        return changeset;
-    }
-
-    public void setChangeset(Changeset changeset) {
-        this.changeset = changeset;
-    }
-
-    public CompactChangeset withChangeset(final Changeset changeset) {
-        setChangeset(changeset);
         return this;
     }
 }
