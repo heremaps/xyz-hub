@@ -1158,8 +1158,8 @@ public class FeatureTaskHandler {
       if (!task.space.isEnableGlobalVersioning()) {
         callback.exception(new HttpException(BAD_REQUEST, "This space ["+task.space.getId()+"] does not support version queries."));
       }
-      Integer vStart = ((IterateHistoryEvent) task.getEvent()).getvStart();
-      Integer vEnd = ((IterateHistoryEvent) task.getEvent()).getvEnd();
+      Integer vStart = ((IterateHistoryEvent) task.getEvent()).getVStart();
+      Integer vEnd = ((IterateHistoryEvent) task.getEvent()).getVEnd();
       if(vStart != null && vStart < 1)
         callback.exception(new HttpException(BAD_REQUEST, "vStart is out or range [1-n]."));
       if(vStart != null && vEnd != null && vEnd < vStart)
@@ -1213,7 +1213,7 @@ public class FeatureTaskHandler {
     }
     if (task.space.isEnableGlobalVersioning() && task.getEvent() instanceof  ModifyFeaturesEvent && ((ModifyFeaturesEvent) task.getEvent()).getTransaction() == false) {
       throw new HttpException(METHOD_NOT_ALLOWED,
-           "The method is not allowed, because the resource \"" + task.space.getId() + "\" has enabledGlobalVersioning. Due to this stream writing is not allowed.");
+           "The method is not allowed, because the resource \"" + task.space.getId() + "\" has enabledGlobalVersioning. Due to that, stream writing is not allowed.");
     }
     callback.call(task);
   }
