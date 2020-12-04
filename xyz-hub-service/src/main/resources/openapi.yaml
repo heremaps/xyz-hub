@@ -2393,7 +2393,7 @@ components:
                 $ref: '#/components/schemas/Changeset'
             nextPageToken:
               type: string
-              description: The handel of the next batch.
+              description: The handle of the next batch.
       example:
         type: ChangesetCollection
         startVersion: 1
@@ -2452,7 +2452,7 @@ components:
           properties:
             nextPageToken:
               type: string
-              description: The handel of the next batch.
+              description: The handle of the next batch.
       example:
         type: Changeset
         inserted:
