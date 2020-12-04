@@ -450,8 +450,9 @@ public class FeatureTaskHandler {
   }
 
   static void setLatestSeenContentVersion(Space space, int version) {
-    if (space.isEnableHistory() && version > 0)
-      latestSeenContentVersions.computeIfPresent(space.getId(), (spaceId, currentVersion) -> Math.max(currentVersion, version));
+    if ((space.isEnableHistory() || space.isEnableGlobalVersioning()) && version > 0)
+      latestSeenContentVersions.compute(space.getId(), (spaceId, currentVersion) -> Math.max(currentVersion != null ? currentVersion : 0,
+          version));
   }
 
   /**
