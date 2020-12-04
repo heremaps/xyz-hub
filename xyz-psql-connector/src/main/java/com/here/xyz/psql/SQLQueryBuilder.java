@@ -18,12 +18,13 @@
  */
 package com.here.xyz.psql;
 
+import com.here.xyz.events.Event;
 import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
-import com.here.xyz.events.GetStatisticsEvent;
+import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
@@ -52,8 +53,12 @@ public class SQLQueryBuilder {
     private static final long GEOMETRY_DECIMAL_DIGITS = 8;
     private static final String IDX_STATUS_TABLE = "xyz_config.xyz_idxs_status";
 
-    public static SQLQuery buildGetStatisticsQuery(GetStatisticsEvent event, PSQLConfig config, boolean historyMode) throws Exception {
-        final String function = !historyMode ? "xyz_statistic_space" : "xyz_statistic_history";
+    public static SQLQuery buildGetStatisticsQuery(Event event, PSQLConfig config, boolean historyMode) throws Exception {
+        String function;
+        if(event instanceof GetHistoryStatisticsEvent)
+            function = "xyz_statistic_history";
+        else
+            function = "xyz_statistic_space";
         final String schema = config.schema();
         final String table = config.table(event) + (!historyMode ? "" : "_hst");
 
