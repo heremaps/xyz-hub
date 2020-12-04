@@ -27,6 +27,7 @@ import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.GetStatisticsEvent;
+import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
@@ -89,6 +90,9 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
     if (event instanceof GetStatisticsEvent) {
       return processGetStatistics((GetStatisticsEvent) event);
     }
+    if (event instanceof GetHistoryStatisticsEvent) {
+      return processGetHistoryStatisticsEvent((GetHistoryStatisticsEvent) event);
+    }
     if (event instanceof HealthCheckEvent) {
       return processHealthCheckEvent((HealthCheckEvent) event);
     }
@@ -113,6 +117,12 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
    */
   @SuppressWarnings("WeakerAccess")
   protected abstract XyzResponse processGetStatistics(GetStatisticsEvent event) throws Exception;
+
+  /**
+   * Processes a GetStatistics event.
+   */
+  @SuppressWarnings("WeakerAccess")
+  protected abstract XyzResponse processGetHistoryStatisticsEvent(GetHistoryStatisticsEvent event) throws Exception;
 
   /**
    * Processes a GetFeaturesById event.

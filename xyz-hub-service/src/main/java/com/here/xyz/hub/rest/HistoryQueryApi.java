@@ -18,7 +18,7 @@
  */
 package com.here.xyz.hub.rest;
 
-import com.here.xyz.events.GetStatisticsEvent;
+import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.hub.task.FeatureTask;
 import io.vertx.ext.web.ParsedHeaderValue;
@@ -59,7 +59,7 @@ public class HistoryQueryApi extends SpaceBasedApi{
     }
 
     public void getHistoryStatistics(final RoutingContext context) {
-        new FeatureTask.GetStatistics(new GetStatisticsEvent().withHistoryMode(true), context, ApiResponseType.HISTORY_STATISTICS_RESPONSE, ApiParam.Query.getBoolean(context, SKIP_CACHE, false))
+        new FeatureTask.GetHistoryStatistics(new GetHistoryStatisticsEvent(), context, ApiResponseType.HISTORY_STATISTICS_RESPONSE, ApiParam.Query.getBoolean(context, SKIP_CACHE, false))
                 .execute(this::sendResponse, this::sendErrorResponse);
     }
 }

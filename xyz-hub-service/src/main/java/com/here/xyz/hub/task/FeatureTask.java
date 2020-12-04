@@ -33,6 +33,7 @@ import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
+import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
@@ -538,6 +539,23 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::invoke)
           .then(FeatureTaskHandler::convertResponse)
           .then(FeatureTaskHandler::writeCache);
+    }
+  }
+
+  public static class GetHistoryStatistics extends FeatureTask<GetHistoryStatisticsEvent, GetHistoryStatistics> {
+
+    public GetHistoryStatistics(GetHistoryStatisticsEvent event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
+      super(event, context, apiResponseTypeType, skipCache);
+    }
+
+    @Override
+    public TaskPipeline<GetHistoryStatistics> getPipeline() {
+      return TaskPipeline.create(this)
+              .then(FeatureTaskHandler::resolveSpace)
+              .then(FeatureAuthorization::authorize)
+              .then(FeatureTaskHandler::readCache)
+              .then(FeatureTaskHandler::invoke)
+              .then(FeatureTaskHandler::writeCache);
     }
   }
 

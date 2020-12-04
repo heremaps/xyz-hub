@@ -31,6 +31,7 @@ import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
+import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
@@ -120,13 +121,11 @@ public class AdminApi extends Api {
         new FeatureTask.BBoxQuery((GetFeaturesByBBoxEvent) event, context, ApiResponseType.FEATURE_COLLECTION, skipCache)
             .execute(this::sendResponse, this::sendErrorResponse);
       } else if (event instanceof GetStatisticsEvent) {
-        if(((GetStatisticsEvent) event).isHistoryMode()){
-          new FeatureTask.GetStatistics((GetStatisticsEvent) event, context, ApiResponseType.HISTORY_STATISTICS_RESPONSE, skipCache)
-                  .execute(this::sendResponse, this::sendErrorResponse);
-        }else {
-          new FeatureTask.GetStatistics((GetStatisticsEvent) event, context, ApiResponseType.STATISTICS_RESPONSE, skipCache)
-                  .execute(this::sendResponse, this::sendErrorResponse);
-        }
+        new FeatureTask.GetStatistics((GetStatisticsEvent) event, context, ApiResponseType.STATISTICS_RESPONSE, skipCache)
+             .execute(this::sendResponse, this::sendErrorResponse);
+      } else if (event instanceof GetHistoryStatisticsEvent) {
+        new FeatureTask.GetHistoryStatistics((GetHistoryStatisticsEvent) event, context, ApiResponseType.HISTORY_STATISTICS_RESPONSE, skipCache)
+             .execute(this::sendResponse, this::sendErrorResponse);
       } else if (event instanceof ModifyFeaturesEvent) {
         new FeatureTask.ModifyFeaturesTask((ModifyFeaturesEvent) event, context, ApiResponseType.FEATURE_COLLECTION, skipCache)
             .execute(this::sendResponse, this::sendErrorResponse);

@@ -29,6 +29,7 @@ import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.GetStatisticsEvent;
+import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
@@ -79,6 +80,11 @@ public class TestStorageConnector extends StorageConnector {
 
   @Override
   protected XyzResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
+    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
+  }
+
+  @Override
+  protected XyzResponse processGetHistoryStatisticsEvent(GetHistoryStatisticsEvent event) throws Exception {
     throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
   }
 

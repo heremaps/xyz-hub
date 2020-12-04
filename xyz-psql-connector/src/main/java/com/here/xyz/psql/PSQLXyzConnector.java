@@ -27,6 +27,7 @@ import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
+import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
@@ -84,16 +85,23 @@ public class PSQLXyzConnector extends DatabaseHandler {
       logger.info("{} - Finished HealthCheckEvent", streamId);
     }
   }
+  @Override
+  protected XyzResponse processGetHistoryStatisticsEvent(GetHistoryStatisticsEvent event) throws Exception {
+    try {
+      logger.info("{} - Received HistoryStatisticsEvent", streamId);
+      return executeQueryWithRetry(SQLQueryBuilder.buildGetStatisticsQuery(event, config, true),
+                this::getHistoryStatisticsResultSetHandler, true);
+    }catch (SQLException e){
+      return checkSQLException(e, config.table(event));
+    }finally {
+      logger.info("{} - Finished GetHistoryStatisticsEvent", streamId);
+    }
+  }
 
   @Override
   protected XyzResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
     try {
       logger.info("{} - Received GetStatisticsEvent", streamId);
-
-      if(event.isHistoryMode()){
-        return executeQueryWithRetry(SQLQueryBuilder.buildGetStatisticsQuery(event, config, true),
-                this::getHistoryStatisticsResultSetHandler, true);
-      }
       return executeQueryWithRetry(SQLQueryBuilder.buildGetStatisticsQuery(event, config, false),
               this::getStatisticsResultSetHandler, true);
     }catch (SQLException e){
