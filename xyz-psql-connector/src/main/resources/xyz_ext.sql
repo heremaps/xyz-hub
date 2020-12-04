@@ -148,7 +148,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 133
+ select 134
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
@@ -238,7 +238,7 @@ $BODY$
 			||'		SELECT pg_total_relation_size('''||schema||'."'||spaceid||'"'') AS tablesize, '
 			||'			(SELECT jsondata->''properties''->''@ns:com:here:xyz''->''version'' FROM "'||schema||'"."'||spaceid||'"'
 			||'				order by jsondata->''properties''->''@ns:com:here:xyz''->''version'' DESC limit 1 )::TEXT::INTEGER as maxversion,'
-			||'		       (SELECT count(*) FROM "'||schema||'"."'||spaceid||'") AS count, '
+			||'		       (SELECT count(*) FROM "'||schema||'"."'||spaceid||'") AS count '
 			||'		FROM pg_class '
 			||'	WHERE oid='''||schema||'."'||spaceid||'"''::regclass) A';
 		END IF;
