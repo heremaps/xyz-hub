@@ -314,12 +314,12 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
 
     CompactChangeset cc = XyzSerializable.deserialize(body);
 
-    insertedCount += cc.getChangeset().getInserted().getFeatures().size();
-    deletedCount += cc.getChangeset().getDeleted().getFeatures().size();
-    updatedCount += cc.getChangeset().getUpdated().getFeatures().size();
+    insertedCount += cc.getInserted().getFeatures().size();
+    deletedCount += cc.getDeleted().getFeatures().size();
+    updatedCount += cc.getUpdated().getFeatures().size();
 
     HashSet<Integer> ids = new HashSet<>();
-    List<Integer> idList = Stream.of(cc.getChangeset().getInserted().getFeatures(), cc.getChangeset().getDeleted().getFeatures(), cc.getChangeset().getUpdated().getFeatures())
+    List<Integer> idList = Stream.of(cc.getInserted().getFeatures(), cc.getDeleted().getFeatures(), cc.getUpdated().getFeatures())
             .flatMap(Collection::stream)
             .map(e -> Integer.parseInt(e.getId()))
             .collect(Collectors.toList());
@@ -362,10 +362,10 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
       CompactChangeset cc = XyzSerializable.deserialize(body);
       npt = cc.getNextPageToken();
 
-      insertedCount += cc.getChangeset().getInserted().getFeatures().size();
-      deletedCount += cc.getChangeset().getDeleted().getFeatures().size();
-      updatedCount += cc.getChangeset().getUpdated().getFeatures().size();
-      List<Integer> idList = Stream.of(cc.getChangeset().getInserted().getFeatures(), cc.getChangeset().getDeleted().getFeatures(), cc.getChangeset().getUpdated().getFeatures())
+      insertedCount += cc.getInserted().getFeatures().size();
+      deletedCount += cc.getDeleted().getFeatures().size();
+      updatedCount += cc.getUpdated().getFeatures().size();
+      List<Integer> idList = Stream.of(cc.getInserted().getFeatures(), cc.getDeleted().getFeatures(), cc.getUpdated().getFeatures())
               .flatMap(Collection::stream)
               .map(e -> Integer.parseInt(e.getId()))
               .collect(Collectors.toList());

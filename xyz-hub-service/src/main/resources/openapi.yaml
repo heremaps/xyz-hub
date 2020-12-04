@@ -844,7 +844,7 @@ paths:
         - Read History
       summary: Get historical data.
       description: >-
-        Iterates all features in a given version range. Based on the Accept-Header (vnd.here.changeset-collection or vnd.here.compact-changeset) the result will be a Changeset-Collection or a CompactChangeset. The Space needs to have "enableGolbalVersioning=true" setting.
+        Get  all features in a given version range. Based on the Accept-Header (vnd.here.changeset-collection or vnd.here.compact-changeset) the result will be a Changeset-Collection or a CompactChangeset. The Space needs to have "enableGolbalVersioning=true" setting.
       operationId: iterateHistory
       parameters:
         - $ref: '#/components/parameters/SpaceId'
@@ -869,8 +869,8 @@ paths:
     get:
       tags:
         - Read History
-      summary: Get History statistics.
-      description: Returns statistical information about this history.
+      summary: Get history statistics.
+      description: Returns statistical information about this history. The Space needs to have "enableGolbalVersioning=true" setting.
       operationId: getHistoryStatistics
       parameters:
         - $ref: '#/components/parameters/SpaceId'
@@ -878,6 +878,8 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/StatisticsResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
 components:
@@ -970,7 +972,7 @@ components:
       name: nextPageToken
       in: query
       description: >-
-        The handle to continue the iteration.
+        The nextPageToken to continue the iteration.
       required: false
       schema:
         type: string
@@ -2381,18 +2383,17 @@ components:
             startVersion:
               type: integer
               description: Defines the minimal version.
-              items:
-                type: integer
             endVersion:
               type: integer
               description: Defines the maximial version.
-              items:
-                type: integer
             versions:
               type: object
               description: Map of Versions. Each Version contains a Changeset.
               additionalProperties:
                 $ref: '#/components/schemas/Changeset'
+            nextPageToken:
+              type: string
+              description: The handel of the next batch.
       example:
         type: ChangesetCollection
         startVersion: 1
@@ -2440,15 +2441,18 @@ components:
             deleted:
               type: FeatureCollection
               features: []
+            nextPageToken: 1000
     CompactChangesetResponse:
       x-experimental: true
       allOf:
         - $ref: '#/components/schemas/XyzResponse'
+        - $ref: '#/components/schemas/Changeset'
         - type: object
           description: A Changeset JSON object.
           properties:
-            changes:
-              $ref: '#/components/schemas/Changeset'
+            nextPageToken:
+              type: string
+              description: The handel of the next batch.
       example:
         type: Changeset
         inserted:
@@ -2492,6 +2496,7 @@ components:
         deleted:
           type: FeatureCollection
           features: []
+        nextPageToken: 1000
     FeatureCollectionResponse:
       allOf:
         - $ref: '#/components/schemas/XyzResponse'
