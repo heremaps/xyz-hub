@@ -37,6 +37,7 @@ Clone and install the project using:
 
 ```bash
 git clone https://github.com/heremaps/xyz-hub.git
+cd xyz-hub
 mvn clean install
 ```
 
