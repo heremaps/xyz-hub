@@ -65,6 +65,28 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
         .body("enableGlobalVersioning", equalTo(true))
         .body("storage.id", equalTo("psql"));
 
+    /** Check Empty History */
+    given().
+            accept(APPLICATION_VND_HERE_CHANGESET_COLLECTION).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/history").
+            then().
+            statusCode(OK.code()).
+            body("startVersion", equalTo(0)).
+            body("endVersion", equalTo(0)).
+            body("versions", equalTo(new HashMap()));
+
+    given().
+            accept(APPLICATION_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get("/spaces/x-psql-test/history/statistics").
+            then().
+            statusCode(OK.code()).
+            body("count.value", equalTo(0)).
+            body("maxVersion.value", equalTo(0));
+
     /**
      * Perform:
      * Insert id: 1-500 (v1)
@@ -84,7 +106,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
      * Update id: 100-200 (v.13)
      * Delete ids: 100,150,200,300 (v.14)
      * */
-    modfiyFeatures();
+    modifyFeatures();
   }
 
   @After
@@ -92,7 +114,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
     remove();
   }
 
-  public void modfiyFeatures(){
+  public void modifyFeatures(){
     given().
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
