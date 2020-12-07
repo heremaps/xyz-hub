@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.config;
 
+import com.google.common.util.concurrent.Monitor;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Space;
@@ -50,6 +51,7 @@ public abstract class SpaceConfigClient implements Initializable {
       .build();
 
   private static final Map<String, ConcurrentLinkedQueue<Handler<AsyncResult<Space>>>> pendingHandlers = new ConcurrentHashMap<>();
+  private static final Map<String, Monitor> getSpaceLocks = new ConcurrentHashMap<>();
   private SpaceSelectionCondition emptySpaceCondition = new SpaceSelectionCondition();
 
   public static SpaceConfigClient getInstance() {
@@ -72,14 +74,28 @@ public abstract class SpaceConfigClient implements Initializable {
     In case we get the query for a space of which a previous request is already in flight we wait for its response and call the callback
     then. This is a performance optimization for highly parallel requests coming from the user at once.
      */
-    boolean isFirstRequest = pendingHandlers.putIfAbsent(spaceId, new ConcurrentLinkedQueue<>()) == null;
-    pendingHandlers.get(spaceId).add(handler);
-    if (!isFirstRequest) {
-      return;
+    getSpaceLocks.putIfAbsent(spaceId, new Monitor());
+    try {
+      getSpaceLocks.get(spaceId).enter();
+      boolean isFirstRequest = pendingHandlers.putIfAbsent(spaceId, new ConcurrentLinkedQueue<>()) == null;
+      pendingHandlers.get(spaceId).add(handler);
+      if (!isFirstRequest) {
+        return;
+      }
+    }
+    finally {
+      getSpaceLocks.get(spaceId).leave();
     }
 
     getSpace(marker, spaceId, ar -> {
-      ConcurrentLinkedQueue<Handler<AsyncResult<Space>>> handlersToCall = pendingHandlers.remove(spaceId);
+      ConcurrentLinkedQueue<Handler<AsyncResult<Space>>> handlersToCall;
+      try {
+        getSpaceLocks.get(spaceId).enter();
+        handlersToCall = pendingHandlers.remove(spaceId);
+      }
+      finally {
+        getSpaceLocks.get(spaceId).leave();
+      }
       if (ar.succeeded()) {
         Space space = ar.result();
         if (space != null) {
