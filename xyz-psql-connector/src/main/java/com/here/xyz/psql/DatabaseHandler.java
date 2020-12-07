@@ -1073,11 +1073,11 @@ public abstract class DatabaseHandler extends StorageConnector {
                     .withUpdated(new FeatureCollection().withFeatures(updates))
                     .withDeleted(new FeatureCollection().withFeatures(deletes));
             versions.put(lastVersion, cs);
+            ccol.setStartVersion(startVersion);
+            ccol.setEndVersion(lastVersion);
         }
 
         ccol.setVersions(versions);
-        ccol.setStartVersion(startVersion);
-        ccol.setEndVersion(lastVersion);
 
         if (numFeatures > 0 && numFeatures == limit) {
             ccol.setNextPageToken(npt);
