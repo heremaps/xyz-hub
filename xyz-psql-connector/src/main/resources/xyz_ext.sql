@@ -148,7 +148,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 133
+ select 135
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
@@ -221,7 +221,7 @@ $BODY$
 			RETURN QUERY EXECUTE
 			'SELECT	format(''{"value": %s, "estimated" : true}'', tablesize)::jsonb as tablesize,  '
 			||'	format(''{"value": %s, "estimated" : true}'', count)::jsonb as count,  '
-			||'	format(''{"value": %s, "estimated" : false}'', maxversion)::jsonb as maxversion  '
+			||'	format(''{"value": %s, "estimated" : false}'', COALESCE(maxversion,0))::jsonb as maxversion  '
 			||'	FROM ('
 			||'		SELECT pg_total_relation_size('''||schema||'."'||spaceid||'"'') AS tablesize, '
 			||'			(SELECT jsondata->''properties''->''@ns:com:here:xyz''->''version'' FROM "'||schema||'"."'||spaceid||'"'
@@ -233,12 +233,12 @@ $BODY$
 			RETURN QUERY EXECUTE
 			'SELECT	format(''{"value": %s, "estimated" : true}'', tablesize)::jsonb as tablesize,  '
 			||'	format(''{"value": %s, "estimated" : false}'', count)::jsonb as count,  '
-			||'	format(''{"value": %s, "estimated" : false}'', maxversion)::jsonb as maxversion  '
+			||'	format(''{"value": %s, "estimated" : false}'', COALESCE(maxversion,0))::jsonb as maxversion  '
 			||'	FROM ('
 			||'		SELECT pg_total_relation_size('''||schema||'."'||spaceid||'"'') AS tablesize, '
 			||'			(SELECT jsondata->''properties''->''@ns:com:here:xyz''->''version'' FROM "'||schema||'"."'||spaceid||'"'
 			||'				order by jsondata->''properties''->''@ns:com:here:xyz''->''version'' DESC limit 1 )::TEXT::INTEGER as maxversion,'
-			||'		       (SELECT count(*) FROM "'||schema||'"."'||spaceid||'") AS count, '
+			||'		       (SELECT count(*) FROM "'||schema||'"."'||spaceid||'") AS count '
 			||'		FROM pg_class '
 			||'	WHERE oid='''||schema||'."'||spaceid||'"''::regclass) A';
 		END IF;
