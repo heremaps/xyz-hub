@@ -59,7 +59,7 @@ import javax.annotation.Nonnull;
 public class SpaceAuthorization extends Authorization {
 
   public static List<String> basicEdit = Arrays
-      .asList("id", "title", "description", "client", "copyright", "license", "shared", "enableUUID", "enableHistory", "enableGlobalVersioning", "maxVersionCount",
+      .asList("id", "title", "description", "client", "copyright", "license", "shared", "enableUUID", "enableHistory", "maxVersionCount",
           "cacheTTL", "readOnly", STORAGE, LISTENERS, PROCESSORS, SEARCHABLE_PROPERTIES);
 
   public static List<String> packageEdit = Collections.singletonList(PACKAGES);
