@@ -168,7 +168,7 @@ public class TweaksSQL
    +"    then ( select "; /* prj_jsondata */
   public static String linemergeEndSql2 =    
                          " from ${schema}.${table} where i = ids[1] ) "
-   +"    else ( select jsonb_set( jsonb_set('{\"properties\":{}}'::jsonb,'{id}', to_jsonb( max(jsondata->>'id') )),'{properties,ids}', jsonb_agg( jsondata->>'id' )) from ${schema}.${table} where i in ( select unnest( ids ) ) ) "
+   +"    else ( select jsonb_set( jsonb_set('{\"type\":\"Feature\",\"properties\":{}}'::jsonb,'{id}', to_jsonb( max(jsondata->>'id') )),'{properties,ids}', jsonb_agg( jsondata->>'id' )) from ${schema}.${table} where i in ( select unnest( ids ) ) ) "
    +"   end as jsondata, "
    +"   case when step = 0 "
    +"    then ( select geo from ${schema}.${table} where i = ids[1] ) "
