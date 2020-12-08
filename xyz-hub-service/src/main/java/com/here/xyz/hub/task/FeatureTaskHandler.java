@@ -32,11 +32,6 @@ import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERR
 import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
-import com.amazonaws.handlers.AsyncHandler;
-import com.amazonaws.services.sns.AmazonSNSAsync;
-import com.amazonaws.services.sns.AmazonSNSAsyncClientBuilder;
-import com.amazonaws.services.sns.model.PublishRequest;
-import com.amazonaws.services.sns.model.PublishResult;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
@@ -114,6 +109,8 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
+import software.amazon.awssdk.services.sns.SnsAsyncClient;
+import software.amazon.awssdk.services.sns.model.PublishRequest;
 
 public class FeatureTaskHandler {
 
@@ -126,7 +123,7 @@ public class FeatureTaskHandler {
       .build();
   private static final byte JSON_VALUE = 1;
   private static final byte BINARY_VALUE = 2;
-  private static AmazonSNSAsync snsClient;
+  private static SnsAsyncClient snsClient;
   private static ConcurrentHashMap<String, Long> contentModificationTimers = new ConcurrentHashMap<>();
   private static ConcurrentHashMap<String, Long> contentModificationAdminTimers = new ConcurrentHashMap<>();
   private static final long CONTENT_MODIFICATION_INTERVAL = 1_000; //1s
@@ -475,7 +472,7 @@ public class FeatureTaskHandler {
       //Schedule a new notification
       long timerId = Service.vertx.setTimer(interval, tId -> {
         timerMap.remove(nc.space.getId());
-        ContentModifiedNotification cmn = new ContentModifiedNotification().withSpace(nc.space.getId()).withStreamId(nc.marker.getName());
+        ContentModifiedNotification cmn = new ContentModifiedNotification().withSpace(nc.space.getId());
         Integer spaceVersion = latestSeenContentVersions.get(nc.space.getId());
         if (spaceVersion != null) cmn.setSpaceVersion(spaceVersion);
         if (adminNotification) {
@@ -1231,17 +1228,18 @@ public class FeatureTaskHandler {
       throw new IllegalArgumentException("Invalid event type was given to send as space modification notification.");
     try {
       if (Service.configuration.MSE_NOTIFICATION_TOPIC != null) {
-        getSnsClient().publishAsync(Service.configuration.MSE_NOTIFICATION_TOPIC, event.serialize(),
-            new AsyncHandler<PublishRequest, PublishResult>() {
-              @Override
-              public void onError(Exception exception) {
-                logger.error("Unable to send MSE notification for space " + event.getSpace(), exception);
-              }
-
-              @Override
-              public void onSuccess(PublishRequest request, PublishResult publishResult) {
+        PublishRequest req = PublishRequest.builder()
+            .topicArn(Service.configuration.MSE_NOTIFICATION_TOPIC)
+            .message(event.serialize())
+            .messageGroupId(event.getSpace())
+            .build();
+        getSnsClient()
+            .publish(req)
+            .whenComplete((result, error) -> {
+              if (error != null)
+                logger.error("Unable to send MSE notification for space " + event.getSpace(), error);
+              else
                 logger.info("MSE notification for space " + event.getSpace() + " was sent.");
-              }
             });
       }
     }
@@ -1250,9 +1248,9 @@ public class FeatureTaskHandler {
     }
   }
 
-  private static AmazonSNSAsync getSnsClient() {
+  private static SnsAsyncClient getSnsClient() {
     if (snsClient == null)
-      snsClient = AmazonSNSAsyncClientBuilder.defaultClient();
+      snsClient = SnsAsyncClient.builder().build();
 
     return snsClient;
   }
