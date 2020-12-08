@@ -1446,7 +1446,7 @@ components:
     HistoryResponse:
       x-experimental: true
       description: >-
-        Changesets which are containing FeatureColletions grouped by operation/verisons.
+        Changesets which are containing FeatureCollections grouped by operation/versions.
       content:
         application/vnd.here.changeset-collection:
           schema:
@@ -2338,7 +2338,7 @@ components:
             etag: 072d3ec0f881b4e7
     HistoryStatisticsResponse:
       allOf:
-        - $ref: '#/components/schemas/XyzResponse'
+        - $ref: '#/components/schemas/Response'
         - type: object
           description: The response returned to when counting features in a history.
           properties:
