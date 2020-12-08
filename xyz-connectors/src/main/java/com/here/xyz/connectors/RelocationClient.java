@@ -68,7 +68,7 @@ public class RelocationClient {
     event.setLocation(name);
     event.setURI("s3://" + bucket + "/" + S3_PATH + name);
 
-    logger.info("{} - Relocating data to: {}", streamId, event.getURI());
+    logger.debug("{} - Relocating data to: {}", streamId, event.getURI());
     uploadToS3(new AmazonS3URI(event.getURI()), bytes);
 
     return event.toString().getBytes();
@@ -85,7 +85,7 @@ public class RelocationClient {
     if (event.getURI() == null && event.getLocation() != null) {
       event.setURI("s3://" + bucket + "/" + S3_PATH + event.getLocation());
     }
-    logger.info("{}, Found relocation event, loading final event from '{}'", event.getStreamId(), event.getURI());
+    logger.debug("{}, Found relocation event, loading final event from '{}'", event.getStreamId(), event.getURI());
 
     if (event.getURI().startsWith("s3://")) {
       return downloadFromS3(new AmazonS3URI(event.getURI()));
