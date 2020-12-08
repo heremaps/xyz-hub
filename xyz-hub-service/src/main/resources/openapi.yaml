@@ -877,7 +877,7 @@ paths:
         - $ref: '#/components/parameters/SkipCache'
       responses:
         '200':
-          $ref: '#/components/responses/StatisticsResponse'
+          $ref: '#/components/responses/HistoryStatisticsResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse400'
         '404':
@@ -1525,6 +1525,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/StatisticsResponse'
+    HistoryStatisticsResponse:
+      description: Statistical information about a history.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HistoryStatisticsResponse'
   requestBodies:
     Feature:
       description: A Feature object.
@@ -2330,6 +2336,59 @@ components:
                 - key: PuneBusStop
                   count: 29208
             etag: 072d3ec0f881b4e7
+    HistoryStatisticsResponse:
+      allOf:
+        - $ref: '#/components/schemas/XyzResponse'
+        - type: object
+          description: The response returned to when counting features in a history.
+          properties:
+            count:
+              type: object
+              readOnly: true
+              properties:
+                value:
+                  type: integer
+                  description: The amount of features being in the history.
+                  format: int64
+                  minimum: 0
+                estimated:
+                  $ref: '#/components/schemas/Estimated'
+            byteSize:
+              type: object
+              readOnly: true
+              properties:
+                value:
+                  type: integer
+                  description: >-
+                    The amount of bytes that are allocated in the storage for
+                    this history.
+                  format: int64
+                  minimum: 0
+                estimated:
+                  $ref: '#/components/schemas/Estimated'
+            maxVersion:
+              type: object
+              readOnly: true
+              properties:
+                value:
+                  type: integer
+                  description: >-
+                    The last version which got written into the history.
+                  format: int64
+                  minimum: 0
+                estimated:
+                  $ref: '#/components/schemas/Estimated'
+          example:
+            type: HistoryStatisticsResponse
+            count:
+              value: 29208
+              estimated: true
+            byteSize:
+              value: 108364
+              estimated: true
+            maxVersion:
+              value: 112
+              estimated: true
     FeatureCollectionRequest:
       allOf:
         - type: object
