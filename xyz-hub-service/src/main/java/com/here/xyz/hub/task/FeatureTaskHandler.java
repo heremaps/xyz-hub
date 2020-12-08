@@ -45,6 +45,7 @@ import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
+import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
@@ -1170,6 +1171,12 @@ public class FeatureTaskHandler {
     if (task.getEvent() instanceof IterateFeaturesEvent) {
       if (!task.space.isEnableGlobalVersioning() && ((IterateFeaturesEvent) task.getEvent()).getV() != null) {
         callback.exception(new HttpException(BAD_REQUEST, "This space ["+task.space.getId()+"] does not support version queries."));
+      }
+    }
+
+    if (task.getEvent() instanceof GetHistoryStatisticsEvent) {
+      if (!task.space.isEnableGlobalVersioning()) {
+        callback.exception(new HttpException(BAD_REQUEST, "This space [" + task.space.getId() + "] does not support history."));
       }
     }
 

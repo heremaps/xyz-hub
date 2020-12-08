@@ -554,6 +554,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
               .then(FeatureTaskHandler::resolveSpace)
               .then(FeatureAuthorization::authorize)
               .then(FeatureTaskHandler::readCache)
+              .then(FeatureTaskHandler::validate)
               .then(FeatureTaskHandler::invoke)
               .then(FeatureTaskHandler::writeCache);
     }
