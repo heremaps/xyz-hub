@@ -1227,6 +1227,7 @@ public class FeatureTaskHandler {
     if (!(event instanceof ModifySpaceEvent || event instanceof ContentModifiedNotification))
       throw new IllegalArgumentException("Invalid event type was given to send as space modification notification.");
     String spaceId = event.getSpace();
+    String eventType = event.getClass().getSimpleName();
     try {
       if (Service.configuration.MSE_NOTIFICATION_TOPIC != null) {
         PublishRequest req = PublishRequest.builder()
@@ -1238,14 +1239,14 @@ public class FeatureTaskHandler {
             .publish(req)
             .whenComplete((result, error) -> {
               if (error != null)
-                logger.error(marker,"Unable sending MSE notification for space " + spaceId, error);
+                logger.error(marker,"Error sending MSE notification of type " + eventType + " for space " + spaceId, error);
               else
-                logger.info(marker, "MSE notification for space " + spaceId + " was sent.");
+                logger.info(marker, "MSE notification of type " + eventType + " for space " + spaceId + " was sent.");
             });
       }
     }
     catch (Exception e) {
-      logger.error(marker,"Unable to send MSE notification for space " + spaceId, e);
+      logger.error(marker,"Unable to send MSE notification of type " + eventType + " for space " + spaceId, e);
     }
   }
 
