@@ -420,9 +420,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
           }
           if(ModifySpaceEvent.Operation.CREATE == event.getOperation()){
             ensureHistorySpace(maxVersionCount, compactHistory, isEnableGlobalVersioning);
-          }else if(ModifySpaceEvent.Operation.UPDATE == event.getOperation()){
-            //TODO: ONLY update Trigger
-            ensureHistorySpace(maxVersionCount, compactHistory, isEnableGlobalVersioning);
+          }else if(ModifySpaceEvent.Operation.UPDATE == event.getOperation() && !isEnableGlobalVersioning){
+            //update Trigger to apply maxVersionCount.
+            updateTrigger(maxVersionCount, compactHistory, isEnableGlobalVersioning);
           }
         }
       }

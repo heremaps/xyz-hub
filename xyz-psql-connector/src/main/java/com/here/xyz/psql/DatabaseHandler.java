@@ -866,11 +866,46 @@ public abstract class DatabaseHandler extends StorageConnector {
                     logger.debug("{} - Successfully created history table '{}' for space id '{}'", streamId, tableName, event.getSpace());
                 }
             } catch (Exception e) {
-                throw new SQLException("Creation of history table for " + SQLQuery.sqlQuote(tableName) + "  has failed: " + e.getMessage(), e);
+                throw new SQLException("Creation of history table has failed: "+tableName, e);
             } finally {
               advisoryUnlock( tableName, connection );
               if (cStateFlag)
                 connection.setAutoCommit(true);
+            }
+        }
+    }
+
+    protected void updateTrigger(Integer maxVersionCount, boolean compactHistory, boolean isEnableGlobalVersioning) throws SQLException {
+        final String tableName = config.table(event);
+
+        try (final Connection connection = dataSource.getConnection()) {
+            advisoryLock( tableName, connection );
+            boolean cStateFlag = connection.getAutoCommit();
+            try {
+                if (cStateFlag)
+                    connection.setAutoCommit(false);
+
+                try (Statement stmt = connection.createStatement()) {
+                    /** Create Space-Table */
+                    createSpaceStatement(stmt, tableName);
+
+                    String query = SQLQueryBuilder.deleteHistoryTriggerSQL(config.schema(), tableName);
+                    stmt.addBatch(query);
+
+                    query = SQLQueryBuilder.addHistoryTriggerSQL(config.schema(), tableName, maxVersionCount, compactHistory, isEnableGlobalVersioning);
+                    stmt.addBatch(query);
+
+                    stmt.setQueryTimeout(calculateTimeout());
+                    stmt.executeBatch();
+                    connection.commit();
+                    logger.debug("{} - Updated of trigger has failed: '{}'", streamId, tableName);
+                }
+            } catch (Exception e) {
+                throw new SQLException("Update of trigger has failed: "+tableName, e);
+            } finally {
+                advisoryUnlock( tableName, connection );
+                if (cStateFlag)
+                    connection.setAutoCommit(true);
             }
         }
     }
