@@ -278,7 +278,7 @@ public class FeatureTaskHandler {
       if (requestListenerPayload != null)
         notifyListeners(task, eventType, requestListenerPayload);
     });
-    if (event instanceof ModifySpaceEvent) sendSpaceModificationNotification(event);
+    if (event instanceof ModifySpaceEvent) sendSpaceModificationNotification(task.getMarker(), event);
   }
 
   private static RpcClient getRpcClient(Connector refConnector) throws HttpException {
@@ -477,7 +477,7 @@ public class FeatureTaskHandler {
         if (spaceVersion != null) cmn.setSpaceVersion(spaceVersion);
         if (adminNotification) {
           //Send it to the modification SNS topic
-          sendSpaceModificationNotification(cmn);
+          sendSpaceModificationNotification(nc.marker, cmn);
         }
         else {
           //Send the notification to all registered listeners
@@ -1223,9 +1223,10 @@ public class FeatureTaskHandler {
     callback.call(task);
   }
 
-  private static void sendSpaceModificationNotification(Event event) {
+  private static void sendSpaceModificationNotification(Marker marker, Event event) {
     if (!(event instanceof ModifySpaceEvent || event instanceof ContentModifiedNotification))
       throw new IllegalArgumentException("Invalid event type was given to send as space modification notification.");
+    String spaceId = event.getSpace();
     try {
       if (Service.configuration.MSE_NOTIFICATION_TOPIC != null) {
         PublishRequest req = PublishRequest.builder()
@@ -1237,14 +1238,14 @@ public class FeatureTaskHandler {
             .publish(req)
             .whenComplete((result, error) -> {
               if (error != null)
-                logger.error("Unable to send MSE notification for space " + event.getSpace(), error);
+                logger.error(marker,"Unable sending MSE notification for space " + spaceId, error);
               else
-                logger.info("MSE notification for space " + event.getSpace() + " was sent.");
+                logger.info(marker, "MSE notification for space " + spaceId + " was sent.");
             });
       }
     }
     catch (Exception e) {
-      logger.error("Unable to send MSE notification.", e);
+      logger.error(marker,"Unable to send MSE notification for space " + spaceId, e);
     }
   }
 
