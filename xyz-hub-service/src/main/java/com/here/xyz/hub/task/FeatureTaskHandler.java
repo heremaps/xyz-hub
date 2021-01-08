@@ -35,13 +35,19 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.events.ContentModifiedNotification;
 import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
+import com.here.xyz.events.GetHistoryStatisticsEvent;
+import com.here.xyz.events.IterateFeaturesEvent;
+import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.RpcClient.RpcContext;
 import com.here.xyz.hub.connectors.models.BinaryResponse;
@@ -70,6 +76,7 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.FeatureCollection.ModificationFailure;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.responses.BinResponse;
 import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.ModifiedEventResponse;
@@ -94,6 +101,7 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
@@ -101,6 +109,8 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
+import software.amazon.awssdk.services.sns.SnsAsyncClient;
+import software.amazon.awssdk.services.sns.model.PublishRequest;
 
 public class FeatureTaskHandler {
 
@@ -113,6 +123,21 @@ public class FeatureTaskHandler {
       .build();
   private static final byte JSON_VALUE = 1;
   private static final byte BINARY_VALUE = 2;
+  private static SnsAsyncClient snsClient;
+  private static ConcurrentHashMap<String, Long> contentModificationTimers = new ConcurrentHashMap<>();
+  private static ConcurrentHashMap<String, Long> contentModificationAdminTimers = new ConcurrentHashMap<>();
+  private static final long CONTENT_MODIFICATION_INTERVAL = 1_000; //1s
+  private static final long CONTENT_MODIFICATION_ADMIN_INTERVAL = 300_000; //5min
+
+  /**
+   * The latest versions of the space contents as it has been seen on this service node. The key is the space ID and the value is the
+   * according "latest seen content version".
+   * There is neither a guarantee that the version value is pointing to the actual latest version of the space's content nor there is a
+   * guarantee that it's defined at all.
+   * If the value exists for a space and it points to a value > 0, that is the version of the latest write to that space as it has been
+   * performed by this service-node.
+   */
+  private static ConcurrentHashMap<String, Integer> latestSeenContentVersions = new ConcurrentHashMap<>();
 
   /**
    * Sends the event to the connector client and write the response as the responseCollection of the task.
@@ -183,9 +208,10 @@ public class FeatureTaskHandler {
       //Do the actual storage call
       try {
         setAdditionalEventProps(task, task.storage, eventToExecute);
-        final long storageRequestStart = Service.currentTimeMillis();
+        final long storageRequestStart = Core.currentTimeMillis();
         responseContext.rpcContext = getRpcClient(task.storage).execute(task.getMarker(), eventToExecute, storageResult -> {
-          addStoragePerformanceInfo(task, Service.currentTimeMillis() - storageRequestStart, responseContext.rpcContext);
+          if (task.getState().isFinal()) return;
+          addStoragePerformanceInfo(task, Core.currentTimeMillis() - storageRequestStart, responseContext.rpcContext);
           if (storageResult.failed()) {
             handleFailure(task.getMarker(), storageResult.cause(), callback);
             return;
@@ -195,6 +221,7 @@ public class FeatureTaskHandler {
 
           //Do the post-processing here before sending back the response and notifying response-listeners
           notifyProcessors(task, eventType, response, postProcessingResult -> {
+            if (task.getState().isFinal()) return;
             if (postProcessingResult.failed() || postProcessingResult.result() instanceof ErrorResponse) {
               handleProcessorFailure(task.getMarker(), postProcessingResult, callback);
               return;
@@ -206,14 +233,28 @@ public class FeatureTaskHandler {
             callback.call(task);
             //Send the event's (post-processed) response to potentially registered response-listeners
             notifyListeners(task, eventType, responseToSend);
+            if (ModifyFeaturesEvent.class.getSimpleName().equals(eventType)) {
+              //Set the latest version as it has been seen on this node, after the modification
+              if (responseToSend instanceof FeatureCollection && ((FeatureCollection) responseToSend).getVersion() != null)
+                setLatestSeenContentVersion(task.space, ((FeatureCollection) responseToSend).getVersion());
+              //Send an additional ContentModifiedNotification to all components which are interested
+              scheduleContentModifiedNotification(task);
+            }
           });
         });
         addStreamInfo(task, "SReqSize=" + responseContext.rpcContext.getRequestSize() + ";");
+        task.addCancellingHandler(unused -> responseContext.rpcContext.cancelRequest());
       }
       catch (IllegalStateException e) {
         cancelRPC(responseContext.rpcContext);
-        logger.error(task.getMarker(), e.getMessage(), e);
+        logger.warn(task.getMarker(), e.getMessage(), e);
         callback.exception(new HttpException(BAD_REQUEST, e.getMessage(), e));
+        return;
+      }
+      catch (HttpException e) {
+        cancelRPC(responseContext.rpcContext);
+        logger.warn(task.getMarker(), e.getMessage(), e);
+        callback.exception(e);
         return;
       }
       catch (Exception e) {
@@ -225,9 +266,9 @@ public class FeatureTaskHandler {
 
       //Update the contentUpdatedAt timestamp to indicate that the data in this space was modified
       if (task instanceof FeatureTask.ConditionalOperation || task instanceof FeatureTask.DeleteOperation) {
-        long now = Service.currentTimeMillis();
+        long now = Core.currentTimeMillis();
         if (now - task.space.contentUpdatedAt > Space.CONTENT_UPDATED_AT_INTERVAL_MILLIS) {
-          task.space.contentUpdatedAt = Service.currentTimeMillis();
+          task.space.contentUpdatedAt = Core.currentTimeMillis();
           task.space.volatilityAtLastContentUpdate = task.space.getVolatility();
           Service.spaceConfigClient.store(task.getMarker(), task.space,
               (ar) -> logger.info(task.getMarker(), "Updated contentUpdatedAt for space {}", task.space.getId()));
@@ -237,6 +278,7 @@ public class FeatureTaskHandler {
       if (requestListenerPayload != null)
         notifyListeners(task, eventType, requestListenerPayload);
     });
+    if (event instanceof ModifySpaceEvent) sendSpaceModificationNotification(task.getMarker(), event);
   }
 
   private static RpcClient getRpcClient(Connector refConnector) throws HttpException {
@@ -393,27 +435,75 @@ public class FeatureTaskHandler {
   }
 
   static <T extends FeatureTask> void setAdditionalEventProps(T task, Connector connector, Event event) {
-    event.setMetadata(task.getJwt().metadata);
+    setAdditionalEventProps(new NotificationContext(task, false), connector, event);
+  }
+
+  static void setAdditionalEventProps(NotificationContext nc, Connector connector, Event event) {
+    event.setMetadata(nc.jwt.metadata);
     if (connector.trusted) {
-      event.setTid(task.getJwt().tid);
-      event.setAid(task.getJwt().aid);
-      event.setJwt(task.getJwt().jwt);
+      event.setTid(nc.jwt.tid);
+      event.setAid(nc.jwt.aid);
+      event.setJwt(nc.jwt.jwt);
+    }
+  }
+
+  static void setLatestSeenContentVersion(Space space, int version) {
+    if ((space.isEnableHistory() || space.isEnableGlobalVersioning()) && version > 0)
+      latestSeenContentVersions.compute(space.getId(), (spaceId, currentVersion) -> Math.max(currentVersion != null ? currentVersion : 0,
+          version));
+  }
+
+  /**
+   * Schedules the sending of a {@link ContentModifiedNotification} to the modification SNS topic and all listeners registered for it.
+   * If some notification was already scheduled in the last time interval (specified by {@link #CONTENT_MODIFICATION_INTERVAL}), no further
+   * notification will be scheduled for the current task.
+   * @param task The {@link FeatureTask} which triggers the notification
+   * @param <T>
+   */
+  private static <T extends FeatureTask> void scheduleContentModifiedNotification(T task) {
+    NotificationContext nc = new NotificationContext(task, false);
+    scheduleContentModificationNotificationIfAbsent(nc, contentModificationTimers, CONTENT_MODIFICATION_INTERVAL, false);
+    scheduleContentModificationNotificationIfAbsent(nc, contentModificationAdminTimers, CONTENT_MODIFICATION_ADMIN_INTERVAL, true);
+  }
+
+  private static void scheduleContentModificationNotificationIfAbsent(NotificationContext nc, ConcurrentHashMap<String, Long> timerMap,
+      long interval, boolean adminNotification) {
+    if (!timerMap.containsKey(nc.space.getId())) {
+      //Schedule a new notification
+      long timerId = Service.vertx.setTimer(interval, tId -> {
+        timerMap.remove(nc.space.getId());
+        ContentModifiedNotification cmn = new ContentModifiedNotification().withSpace(nc.space.getId());
+        Integer spaceVersion = latestSeenContentVersions.get(nc.space.getId());
+        if (spaceVersion != null) cmn.setSpaceVersion(spaceVersion);
+        if (adminNotification) {
+          //Send it to the modification SNS topic
+          sendSpaceModificationNotification(nc.marker, cmn);
+        }
+        else {
+          //Send the notification to all registered listeners
+          notifyConnectors(nc, ConnectorType.LISTENER, ContentModifiedNotification.class.getSimpleName(), cmn, null);
+        }
+      });
+      //Check whether some other thread also just scheduled a new timer
+      if (timerMap.putIfAbsent(nc.space.getId(), timerId) != null)
+        //Another thread scheduled a new timer in the meantime. Cancelling this one ...
+        Service.vertx.cancelTimer(timerId);
     }
   }
 
   private static <T extends FeatureTask> void notifyListeners(T task, String eventType, Payload payload) {
-    notifyConnectors(task, ConnectorType.LISTENER, eventType, payload, null);
+    notifyConnectors(new NotificationContext(task, false), ConnectorType.LISTENER, eventType, payload, null);
   }
 
   private static <T extends FeatureTask> void notifyProcessors(T task, String eventType, Payload payload,
       Handler<AsyncResult<XyzResponse>> callback) {
-    notifyConnectors(task, ConnectorType.PROCESSOR, eventType, payload, callback);
+    notifyConnectors(new NotificationContext(task, true), ConnectorType.PROCESSOR, eventType, payload, callback);
   }
 
-  private static <T extends FeatureTask> void notifyConnectors(T task, ConnectorType connectorType, String eventType,
+  private static <T extends FeatureTask> void notifyConnectors(NotificationContext nc, ConnectorType connectorType, String eventType,
       Payload payload, Handler<AsyncResult<XyzResponse>> callback) {
     //Send the event to all registered & matching listeners / processors
-    Map<String, List<ResolvableListenerConnectorRef>> connectorMap = task.space.getEventTypeConnectorRefsMap(connectorType);
+    Map<String, List<ResolvableListenerConnectorRef>> connectorMap = nc.space.getEventTypeConnectorRefsMap(connectorType);
     if (connectorMap != null && !connectorMap.isEmpty()) {
       String phase = payload instanceof Event ? "request" : "response";
       String notificationEventType = eventType + "." + phase;
@@ -421,12 +511,14 @@ public class FeatureTaskHandler {
       if (connectorMap.containsKey(notificationEventType)) {
         List<ResolvableListenerConnectorRef> connectors = connectorMap.get(notificationEventType);
         if (connectorType == ConnectorType.LISTENER) {
-          notifyListeners(task, connectors, notificationEventType, payload);
+          notifyListeners(nc, connectors, notificationEventType, payload);
           return;
-        } else if (connectorType == ConnectorType.PROCESSOR) {
-          notifyProcessors(task, connectors, notificationEventType, payload, callback);
+        }
+        else if (connectorType == ConnectorType.PROCESSOR) {
+          notifyProcessors(nc, connectors, notificationEventType, payload, callback);
           return;
-        } else {
+        }
+        else {
           throw new RuntimeException("Unsupported connector type.");
         }
       }
@@ -436,7 +528,7 @@ public class FeatureTaskHandler {
     }
   }
 
-  private static <T extends FeatureTask> void notifyListeners(T task, List<ResolvableListenerConnectorRef> listeners,
+  private static void notifyListeners(NotificationContext nc, List<ResolvableListenerConnectorRef> listeners,
       String notificationEventType, Payload payload) {
     listeners.forEach(l -> {
       RpcClient client;
@@ -444,15 +536,15 @@ public class FeatureTaskHandler {
         client = getRpcClient(l.resolvedConnector);
       }
       catch (Exception e) {
-        logger.warn(task.getMarker(), "Error when trying to get client for remote function (listener) {}.", l.getId(), e);
+        logger.warn(nc.marker, "Error when trying to get client for remote function (listener) {}.", l.getId(), e);
         return;
       }
       //Send the event (notify the listener)
-      client.send(task.getMarker(), createNotification(task, payload, notificationEventType, l));
+      client.send(nc.marker, createNotification(nc, payload, notificationEventType, l));
     });
   }
 
-  private static <T extends FeatureTask> void notifyProcessors(T task, List<ResolvableListenerConnectorRef> processors,
+  private static <T extends FeatureTask> void notifyProcessors(NotificationContext nc, List<ResolvableListenerConnectorRef> processors,
       String notificationEventType, Payload payload, Handler<AsyncResult<XyzResponse>> callback) {
 
     //For the first call we're mocking a ModifiedPayloadResponse as if it was coming from a previous processor
@@ -472,6 +564,7 @@ public class FeatureTaskHandler {
           })
           //Execute the processor with the result of the previous processor and inform following stages about the outcome
           .thenAccept(result -> {
+            if (nc.task.getState().isFinal()) return;
             if (result == null) {
               return; //Happens in case of exception. Then the exceptionally handler already took over to inform the following stages.
             }
@@ -482,7 +575,8 @@ public class FeatureTaskHandler {
               //Handle well-thrown connector error by bubbling it through all stages till the end
               nextFuture.complete(result);
               return;
-            } else if (result instanceof ModifiedEventResponse) {
+            }
+            else if (result instanceof ModifiedEventResponse) {
               payloadToSend = ((ModifiedEventResponse) result).getEvent();
               // CMEKB-2779 Store ModificationFailures outside of the event
               if (payloadToSend instanceof ModifyFeaturesEvent) {
@@ -492,12 +586,13 @@ public class FeatureTaskHandler {
                   modifyFeaturesEvent.setFailed(null);
                 }
               }
-            } else {
+            }
+            else {
               payloadToSend = ((ModifiedResponseResponse) result).getResponse();
             }
 
             //Execute the processor with the event / response payload (do pre-processing / post-processing)
-            executeProcessor(task, processor, notificationEventType, payloadToSend)
+            executeProcessor(nc, processor, notificationEventType, payloadToSend)
                 .exceptionally(ex -> {
                   nextFuture.completeExceptionally(ex);
                   return null;
@@ -535,7 +630,7 @@ public class FeatureTaskHandler {
         });
   }
 
-  private static <T extends FeatureTask> CompletableFuture<XyzResponse> executeProcessor(T task,
+  private static <T extends FeatureTask> CompletableFuture<XyzResponse> executeProcessor(NotificationContext nc,
       ResolvableListenerConnectorRef p, String notificationEventType, Payload payload) {
     CompletableFuture<XyzResponse> f = new CompletableFuture<>();
 
@@ -548,26 +643,27 @@ public class FeatureTaskHandler {
       return f;
     }
     //Execute the processor with the event / response payload (do pre-processing / post-processing)
-    client.execute(task.getMarker(), createNotification(task, payload, notificationEventType, p), ar -> {
+    RpcContext rpcContext = client.execute(nc.marker, createNotification(nc, payload, notificationEventType, p), ar -> {
       if (ar.failed()) {
         f.completeExceptionally(ar.cause());
       } else {
         f.complete(ar.result());
       }
     });
+    nc.task.addCancellingHandler(unused -> rpcContext.cancelRequest());
     return f;
   }
 
-  private static <T extends FeatureTask> EventNotification createNotification(T task, Payload payload, String notificationEventType,
+  private static EventNotification createNotification(NotificationContext nc, Payload payload, String notificationEventType,
       ResolvableListenerConnectorRef l) {
     //Create the EventNotification-event
     EventNotification event = new EventNotification()
         .withParams(l.getParams())
         .withEventType(notificationEventType)
         .withEvent(payload)
-        .withSpace(task.space.getId())
-        .withStreamId(task.getMarker().getName());
-    setAdditionalEventProps(task, l.resolvedConnector, event);
+        .withSpace(nc.space.getId())
+        .withStreamId(nc.marker.getName());
+    setAdditionalEventProps(nc, l.resolvedConnector, event);
     return event;
   }
 
@@ -587,7 +683,7 @@ public class FeatureTaskHandler {
         if (arSpace.failed()) {
           logger
               .info(task.getMarker(), "Unable to load the space definition for space '{}' {}", task.getEvent().getSpace(), arSpace.cause());
-          callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the space definition", arSpace.cause()));
+          callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition", arSpace.cause()));
           return;
         }
         task.space = arSpace.result();
@@ -597,13 +693,13 @@ public class FeatureTaskHandler {
         onSpaceResolved(task, callback);
       });
     } catch (Exception e) {
-      callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the space definition", e));
+      callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition.", e));
     }
   }
 
   private static <X extends FeatureTask> void onSpaceResolved(final X task, final Callback<X> callback) {
     if (task.space == null) {
-      callback.exception(new HttpException(NOT_FOUND, "The space with this ID does not exist."));
+      callback.exception(new HttpException(NOT_FOUND, "The resource with this ID does not exist."));
       return;
     }
     logger.debug(task.getMarker(), "Given space configuration is: {}", Json.encode(task.space));
@@ -696,7 +792,7 @@ public class FeatureTaskHandler {
         }
         entry.input.put(ID, id);
 
-        if (id != null) { 
+        if (id != null) {
           // Minimum length of id should be 1
           if (id.length() < 1) {
             logger.info(task.getMarker(), "Minimum length of object id should be 1.");
@@ -723,7 +819,7 @@ public class FeatureTaskHandler {
         properties.putIfAbsent(XyzNamespace.XYZ_NAMESPACE, new HashMap<String, Object>());
       }
     } catch (Exception e) {
-      logger.error(task.getMarker(), e.getMessage(), e);
+      logger.warn(task.getMarker(), e.getMessage(), e);
       callback.exception(new HttpException(BAD_REQUEST, "Unable to process the request input."));
       return;
     }
@@ -738,7 +834,7 @@ public class FeatureTaskHandler {
       final Map<String, String> delete = new HashMap<>();
       List<FeatureCollection.ModificationFailure> fails = new ArrayList<>();
 
-      long now = Service.currentTimeMillis();
+      long now = Core.currentTimeMillis();
 
       Iterator<FeatureEntry> it = task.modifyOp.entries.iterator();
       int i=-1;
@@ -916,6 +1012,19 @@ public class FeatureTaskHandler {
     });
   }
 
+  static <X extends FeatureTask> void injectSpaceParams(final X task, final Callback<X> callback) {
+    try {
+      if(task.getEvent() instanceof ModifyFeaturesEvent) {
+         ((ModifyFeaturesEvent) task.getEvent()).setMaxVersionCount(task.space.getMaxVersionCount());
+        ((ModifyFeaturesEvent) task.getEvent()).setEnableGlobalVersioning(task.space.isEnableGlobalVersioning());
+        ((ModifyFeaturesEvent) task.getEvent()).setEnableHistory(task.space.isEnableHistory());
+      }
+      callback.call(task);
+    } catch (Exception e) {
+      callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition.", e));
+    }
+  }
+
   private static <X extends FeatureTask<?, X>> void checkFeaturesPerSpaceQuota(X task, Callback<X> callback,
       long maxFeaturesPerSpace, Long count) {
     try {
@@ -926,10 +1035,11 @@ public class FeatureTaskHandler {
         final Map<String, String> deleteFeaturesMap = modifyEvent.getDeleteFeatures();
         final int deleteFeaturesSize = deleteFeaturesMap == null ? 0 : deleteFeaturesMap.size();
         final int featuresDelta = insertFeaturesSize - deleteFeaturesSize;
+        final String spaceId = modifyEvent.getSpace();
         if (featuresDelta > 0 && count + featuresDelta > maxFeaturesPerSpace) {
           callback.exception(new HttpException(FORBIDDEN,
-              "The maximum number of " + maxFeaturesPerSpace + " features per space was reached. The space contains " + count
-                  + " features and cannot store " + featuresDelta + " more features."));
+              "The maximum number of " + maxFeaturesPerSpace + " features for the resource \"" + spaceId + "\" was reached. " +
+              "The resource contains " + count + " features and cannot store " + featuresDelta + " more features."));
           return;
         }
       }
@@ -970,8 +1080,13 @@ public class FeatureTaskHandler {
   }
 
   static void transformResponse(TileQuery task, Callback<TileQuery> callback) {
-    if ((ApiResponseType.MVT != task.responseType && ApiResponseType.MVT_FLATTENED != task.responseType)
-        || !(task.getResponse() instanceof FeatureCollection)) {
+    
+    if(!
+       (    ( ApiResponseType.MVT == task.responseType || ApiResponseType.MVT_FLATTENED == task.responseType)  
+         && ((task.getResponse() instanceof FeatureCollection) || (task.getResponse() instanceof BinResponse))
+       )  
+      )
+    {
       callback.call(task);
       return;
     }
@@ -983,17 +1098,24 @@ public class FeatureTaskHandler {
     //The mvt transformation is not executed, if the source feature collection is the same.
     if (!task.etagMatches()) {
       try {
-        byte[] mvt;
-        if (ApiResponseType.MVT == task.responseType) {
-          mvt = new MapBoxVectorTileBuilder()
-              .build(WebMercatorTile.forWeb(tc.level, tc.x, tc.y), tc.margin, task.space.getId(),
-                  ((FeatureCollection) task.getResponse()).getFeatures());
-        } else {
-          mvt = new MapBoxVectorTileFlattenedBuilder()
-              .build(WebMercatorTile.forWeb(tc.level, tc.x, tc.y), tc.margin, task.space.getId(),
-                  ((FeatureCollection) task.getResponse()).getFeatures());
+
+        if( task.getResponse() instanceof BinResponse )
+         binaryResponse.setBytes( ((BinResponse) task.getResponse()).getBytes() ) ;
+        else
+        { 
+         byte[] mvt;
+         if (ApiResponseType.MVT == task.responseType) {
+           mvt = new MapBoxVectorTileBuilder()
+               .build(WebMercatorTile.forWeb(tc.level, tc.x, tc.y), tc.margin, task.space.getId(),
+                   ((FeatureCollection) task.getResponse()).getFeatures());
+         } else {
+           mvt = new MapBoxVectorTileFlattenedBuilder()
+               .build(WebMercatorTile.forWeb(tc.level, tc.x, tc.y), tc.margin, task.space.getId(),
+                   ((FeatureCollection) task.getResponse()).getFeatures());
         }
         binaryResponse.setBytes(mvt);
+       }
+
       } catch (Exception e) {
         logger.info(task.getMarker(), "Exception while transforming the response.", e);
         callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Error while transforming the response."));
@@ -1030,6 +1152,31 @@ public class FeatureTaskHandler {
             + "supported by storage connector \"" + task.storage.id + "\"."));
       }
     }
+
+    if (task.getEvent() instanceof IterateHistoryEvent) {
+      if (!task.space.isEnableGlobalVersioning()) {
+        callback.exception(new HttpException(BAD_REQUEST, "This space ["+task.space.getId()+"] does not support version queries."));
+      }
+      int vStart = ((IterateHistoryEvent) task.getEvent()).getVStart();
+      int vEnd = ((IterateHistoryEvent) task.getEvent()).getVEnd();
+      if(vStart != 0 && vStart < 1)
+        callback.exception(new HttpException(BAD_REQUEST, "vStart is out or range [1-n]."));
+      if(vStart != 0 && vEnd != 0 && vEnd < vStart)
+        callback.exception(new HttpException(BAD_REQUEST, "vEnd has to be smaller than vStart."));
+    }
+
+    if (task.getEvent() instanceof IterateFeaturesEvent) {
+      if (!task.space.isEnableGlobalVersioning() && ((IterateFeaturesEvent) task.getEvent()).getV() != null) {
+        callback.exception(new HttpException(BAD_REQUEST, "This space ["+task.space.getId()+"] does not support version queries."));
+      }
+    }
+
+    if (task.getEvent() instanceof GetHistoryStatisticsEvent) {
+      if (!task.space.isEnableGlobalVersioning()) {
+        callback.exception(new HttpException(BAD_REQUEST, "This space [" + task.space.getId() + "] does not support history."));
+      }
+    }
+
     callback.call(task);
   }
 
@@ -1067,9 +1214,47 @@ public class FeatureTaskHandler {
   static <X extends FeatureTask<?, X>> void checkPreconditions(X task, Callback<X> callback) throws HttpException {
     if (task.space.isReadOnly() && (task instanceof ConditionalOperation || task instanceof DeleteOperation)) {
       throw new HttpException(METHOD_NOT_ALLOWED,
-          "The method is not allowed, because the space is marked as read-only. Update the space definition to enable editing of features.");
+          "The method is not allowed, because the resource \"" + task.space.getId() + "\" is marked as read-only. Update the resource definition to enable editing of features.");
+    }
+    if (task.space.isEnableGlobalVersioning() && task.getEvent() instanceof  ModifyFeaturesEvent && ((ModifyFeaturesEvent) task.getEvent()).getTransaction() == false) {
+      throw new HttpException(METHOD_NOT_ALLOWED,
+           "The method is not allowed, because the resource \"" + task.space.getId() + "\" has enabledGlobalVersioning. Due to that, stream writing is not allowed.");
     }
     callback.call(task);
+  }
+
+  private static void sendSpaceModificationNotification(Marker marker, Event event) {
+    if (!(event instanceof ModifySpaceEvent || event instanceof ContentModifiedNotification))
+      throw new IllegalArgumentException("Invalid event type was given to send as space modification notification.");
+    String spaceId = event.getSpace();
+    String eventType = event.getClass().getSimpleName();
+    try {
+      if (Service.configuration.MSE_NOTIFICATION_TOPIC != null) {
+        PublishRequest req = PublishRequest.builder()
+            .topicArn(Service.configuration.MSE_NOTIFICATION_TOPIC)
+            .message(event.serialize())
+            .messageGroupId(event.getSpace())
+            .build();
+        getSnsClient()
+            .publish(req)
+            .whenComplete((result, error) -> {
+              if (error != null)
+                logger.error(marker,"Error sending MSE notification of type " + eventType + " for space " + spaceId, error);
+              else
+                logger.info(marker, "MSE notification of type " + eventType + " for space " + spaceId + " was sent.");
+            });
+      }
+    }
+    catch (Exception e) {
+      logger.error(marker,"Unable to send MSE notification of type " + eventType + " for space " + spaceId, e);
+    }
+  }
+
+  private static SnsAsyncClient getSnsClient() {
+    if (snsClient == null)
+      snsClient = SnsAsyncClient.builder().build();
+
+    return snsClient;
   }
 
   public static class InvalidStorageException extends Exception {
@@ -1112,6 +1297,21 @@ public class FeatureTaskHandler {
           failed.addAll(failedModifications);
         }
       }
+    }
+  }
+
+  static class NotificationContext {
+    private Marker marker;
+    private Space space;
+    private JWTPayload jwt;
+    private FeatureTask task;
+
+    public NotificationContext(FeatureTask task, boolean keepTask) {
+      marker = task.getMarker();
+      space = task.space;
+      jwt = task.getJwt();
+      if (keepTask)
+        this.task = task;
     }
   }
 }

@@ -30,7 +30,6 @@ import io.vertx.ext.web.RoutingContext;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -137,6 +136,8 @@ public class ApiParam {
     static final String CLUSTERING_PARAM_POINTMODE = "pointmode";
     static final String CLUSTERING_PARAM_SINGLECOORD = "singlecoord";
     static final String CLUSTERING_PARAM_COUNTMODE = "countmode";
+    static final String CLUSTERING_PARAM_SAMPLING = "sampling";
+
 
     static final String TWEAKS_PARAM_STRENGTH  = "strength";
     static final String TWEAKS_PARAM_ALGORITHM = "algorithm";
@@ -146,6 +147,11 @@ public class ApiParam {
     static final String FORCE_2D = "force2D";
     static final String OPTIM_MODE = "mode";
     static final String OPTIM_VIZSAMPLING = "vizSampling";
+
+    static final String V = "v";
+    static final String VSTART = "vStart";
+    static final String VEND = "vEnd";
+    static final String NEXT_PAGE_TOKEN = "nextPageToken";
 
     private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{
       put("!=", QueryOperation.NOT_EQUALS);
@@ -193,7 +199,7 @@ public class ApiParam {
      * Returns the first value for a query parameter, if such exists and can be parsed as an integer, or the provided alternative value
      * otherwise.
      */
-    static int getInteger(RoutingContext context, String param, int alt) {
+    static Integer getInteger(RoutingContext context, String param, Integer alt) {
       try {
         return Integer.parseInt(getString(context, param, null));
       } catch (NumberFormatException | NullPointerException e) {
@@ -395,14 +401,20 @@ public class ApiParam {
     private static void validateAdditionalParams(String type, String key, Object value) throws  Exception{
       if(type.equals(CLUSTERING)){
         switch (key){
+
           case CLUSTERING_PARAM_RESOLUTION_ABSOLUTE:
           case CLUSTERING_PARAM_RESOLUTION_RELATIVE:
           case CLUSTERING_PARAM_RESOLUTION:
             if(!(value instanceof Long))
               throw new Exception(String.format("Invalid clustering.%s value. Expect Integer.",key));
-            else if((long)value < 0 || (long)value > 15)
-              throw new Exception(String.format("Invalid clustering.%s value. Expect Integer [0,15].",key));
+
+            if( CLUSTERING_PARAM_RESOLUTION_RELATIVE.equals(key) && ((long)value < -2 || (long)value > 4))
+             throw new Exception(String.format("Invalid clustering.%s value. Expect Integer hexbin:[-2,2], quadbin:[0-4].",key));  
+
+            if(!CLUSTERING_PARAM_RESOLUTION_ABSOLUTE.equals(key) && ((long)value < 0 || (long)value > 18))
+              throw new Exception(String.format("Invalid clustering.%s value. Expect Integer hexbin:[0,13], quadbin:[0,18].",key));
             break;
+
           case CLUSTERING_PARAM_PROPERTY:
             if(!(value instanceof String))
               throw new Exception(String.format("Invalid clustering.%s value. Expect String.",key));
@@ -417,12 +429,18 @@ public class ApiParam {
 
           case CLUSTERING_PARAM_COUNTMODE:
             if(!(value instanceof String))
-              throw new Exception("Invalid clustering.count value. Expect one of [real,estimated,mixed].");
+              throw new Exception(String.format("Invalid clustering.%s value. Expect one of [real,estimated,mixed].",key));
             break;
+
+          case CLUSTERING_PARAM_SAMPLING:
+            if(!(value instanceof String))
+              throw new Exception(String.format("Invalid clustering.%s value. Expect one of [low,lowmed,med,medhigh,high].",key));
+            break;
+
           default: throw new Exception("Invalid Clustering Parameter! Expect one of ["
                           +CLUSTERING_PARAM_RESOLUTION+","+CLUSTERING_PARAM_RESOLUTION_RELATIVE+","+CLUSTERING_PARAM_RESOLUTION_ABSOLUTE+","
                           +CLUSTERING_PARAM_PROPERTY+","+CLUSTERING_PARAM_POINTMODE+","+CLUSTERING_PARAM_COUNTMODE+"," +CLUSTERING_PARAM_SINGLECOORD+","
-                          +CLUSTERING_PARAM_NOBUFFER+"].");
+                          +CLUSTERING_PARAM_NOBUFFER+","+CLUSTERING_PARAM_SAMPLING +"].");
         }
       }else if(type.equals(TWEAKS)){
         switch( key )

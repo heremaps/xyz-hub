@@ -25,7 +25,7 @@
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
     <relativePath>../pom.xml</relativePath>
-    <version>1.11.1-SNAPSHOT</version>
+    <version>1.13.2-SNAPSHOT</version>
   </parent>
 
   <licenses>
@@ -123,6 +123,9 @@
               <transformers>
                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                   <mainClass>com.here.xyz.hub.Service</mainClass>
+                  <manifestEntries>
+                    <Multi-Release>true</Multi-Release>
+                  </manifestEntries>
                 </transformer>
                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
               </transformers>
@@ -275,6 +278,10 @@
     <dependency>
       <artifactId>aws-java-sdk-sns</artifactId>
       <groupId>com.amazonaws</groupId>
+    </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>sns</artifactId>
     </dependency>
     <dependency>
       <groupId>com.amazonaws</groupId>

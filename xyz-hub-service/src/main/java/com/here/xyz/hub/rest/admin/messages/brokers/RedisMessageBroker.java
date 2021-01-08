@@ -11,6 +11,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.redis.RedisClient;
 import io.vertx.redis.RedisOptions;
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -38,6 +39,8 @@ public class RedisMessageBroker implements MessageBroker {
       }
 
       config.setTcpKeepAlive(true);
+      config.setIdleTimeout(30);
+      config.setIdleTimeoutUnit(TimeUnit.SECONDS);
       config.setConnectTimeout(2000);
       redis = RedisClient.create(Service.vertx, config);
 

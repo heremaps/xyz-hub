@@ -28,15 +28,12 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
-import com.here.xyz.hub.task.FeatureTaskHandler.InvalidStorageException;
 import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.task.ModifyOp.IfNotExists;
 import com.here.xyz.hub.task.ModifySpaceOp;
 import com.here.xyz.hub.task.SpaceTask.ConditionalOperation;
 import com.here.xyz.hub.task.SpaceTask.MatrixReadQuery;
-import com.here.xyz.hub.task.Task;
 import com.here.xyz.models.hub.Space.Copyright;
-import com.here.xyz.responses.ErrorResponse;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
@@ -45,7 +42,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class SpaceApi extends Api {
+public class SpaceApi extends SpaceBasedApi {
 
   public SpaceApi(OpenAPI3RouterFactory routerFactory) {
     routerFactory.addHandlerByOperationId("getSpace", this::getSpace);
@@ -94,7 +91,7 @@ public class SpaceApi extends Api {
     ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input.getMap()), IfNotExists.CREATE, IfExists.ERROR, true);
 
     new ConditionalOperation(context, ApiResponseType.SPACE, modifyOp, false)
-        .execute(this::sendResponse, this::sendErrorResponseOnEdit);
+        .execute(this::sendResponse, this::sendErrorResponse);
   }
 
   /**
@@ -115,14 +112,14 @@ public class SpaceApi extends Api {
     }
     if (!input.getString("id").equals(pathId)) {
       context.fail(
-          new HttpException(BAD_REQUEST, "The space ID in the body does not match the ID in the resource path."));
+          new HttpException(BAD_REQUEST, "The resource ID in the body does not match the resource ID in the path."));
       return;
     }
 
     ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input.getMap()), IfNotExists.ERROR, IfExists.PATCH, true);
 
     new ConditionalOperation(context, ApiResponseType.SPACE, modifyOp, true)
-        .execute(this::sendResponse, this::sendErrorResponseOnEdit);
+        .execute(this::sendResponse, this::sendErrorResponse);
 
   }
 
@@ -138,20 +135,6 @@ public class SpaceApi extends Api {
         ? ApiResponseType.SPACE : ApiResponseType.EMPTY;
     new ConditionalOperation(context, responseType, modifyOp, true)
         .execute(this::sendResponse, this::sendErrorResponse);
-  }
-
-  /**
-   * Send an error response to the client when an exception occurred while processing a task.
-   *
-   * @param task the task for which to return an error response.
-   * @param e the exception that should be used to generate an {@link ErrorResponse}, if null an internal server error is returned.
-   */
-  public void sendErrorResponseOnEdit(final Task task, final Exception e) {
-    if (e instanceof InvalidStorageException) {
-      sendErrorResponse(task.context, new HttpException(BAD_REQUEST, "The space contains an invalid storage ID."));
-    } else {
-      sendErrorResponse(task.context, e);
-    }
   }
 
   @JsonIgnoreProperties(ignoreUnknown = true)

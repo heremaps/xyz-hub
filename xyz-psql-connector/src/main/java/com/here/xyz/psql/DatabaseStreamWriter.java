@@ -49,7 +49,7 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                 final Feature feature = inserts.get(i);
                 fId = feature.getId();
 
-                final PGobject jsonbObject= featureToPGobject(feature);
+                final PGobject jsonbObject= featureToPGobject(feature,null);
 
                 if (feature.getGeometry() == null) {
                     insertWithoutGeometryStmt.setObject(1, jsonbObject);
@@ -119,7 +119,7 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                     continue;
                 }
 
-                final PGobject jsonbObject= featureToPGobject(feature);
+                final PGobject jsonbObject= featureToPGobject(feature,null);
 
                 if (feature.getGeometry() == null) {
                     updateWithoutGeometryStmt.setObject(1, jsonbObject);

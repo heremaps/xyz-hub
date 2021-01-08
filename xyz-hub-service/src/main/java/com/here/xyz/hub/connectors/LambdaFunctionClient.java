@@ -22,6 +22,7 @@ package com.here.xyz.hub.connectors;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
 import static io.netty.handler.codec.http.HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE;
+import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.SdkClientException;
@@ -36,6 +37,7 @@ import com.amazonaws.services.lambda.model.AWSLambdaException;
 import com.amazonaws.services.lambda.model.InvocationType;
 import com.amazonaws.services.lambda.model.InvokeRequest;
 import com.amazonaws.services.lambda.model.InvokeResult;
+import com.amazonaws.services.lambda.model.ResourceNotFoundException;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
 import com.google.common.util.concurrent.ForwardingExecutorService;
 import com.here.xyz.hub.Service;
@@ -45,7 +47,9 @@ import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLamb
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.hub.util.ARN;
+import com.here.xyz.hub.util.LimitedOffHeapQueue.PayloadVanishedException;
 import io.vertx.core.AsyncResult;
+import io.vertx.core.Context;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import java.nio.ByteBuffer;
@@ -114,13 +118,13 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
   }
 
   private void updateClient(Connector oldConnectorConfig) {
-    RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
+    RemoteFunctionConfig remoteFunction = getConnectorConfig().getRemoteFunction();
     if (!(remoteFunction instanceof AWSLambda)) {
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of AWSLambda");
     }
     asyncClient = getLambdaClient((AWSLambda) remoteFunction, getConnectorConfig().id);
     if (oldConnectorConfig != null)
-      releaseClient(getClientKey((AWSLambda) oldConnectorConfig.remoteFunction));
+      releaseClient(getClientKey((AWSLambda) oldConnectorConfig.getRemoteFunction()));
   }
 
   private static AWSLambdaAsync createClient(AWSLambda remoteFunction) {
@@ -160,7 +164,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
   @Override
   synchronized void destroy() {
     super.destroy();
-    releaseClient(getClientKey((AWSLambda) getConnectorConfig().remoteFunction));
+    releaseClient(getClientKey((AWSLambda) getConnectorConfig().getRemoteFunction()));
   }
 
   /**
@@ -168,22 +172,31 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
    */
   @Override
   protected void invoke(final FunctionCall fc, final Handler<AsyncResult<byte[]>> callback) {
-    final RemoteFunctionConfig remoteFunction = getConnectorConfig().remoteFunction;
-    logger.debug(fc.marker, "Invoking remote lambda function with id '{}' Event size is: {}", remoteFunction.id, fc.bytes.length);
+    final RemoteFunctionConfig remoteFunction = getConnectorConfig().getRemoteFunction();
+    Marker marker = fc.marker;
+    Context context = fc.context;
+    logger.debug(marker, "Invoking remote lambda function with id '{}' Event size is: {}", remoteFunction.id, fc.getByteSize());
 
-    InvokeRequest invokeReq = new InvokeRequest()
-        .withFunctionName(((AWSLambda) remoteFunction).lambdaARN)
-        .withPayload(ByteBuffer.wrap(fc.bytes))
-        .withInvocationType(fc.fireAndForget ? InvocationType.Event : InvocationType.RequestResponse);
+    InvokeRequest invokeReq = null;
+    try {
+      invokeReq = new InvokeRequest()
+          .withFunctionName(((AWSLambda) remoteFunction).lambdaARN)
+          .withPayload(ByteBuffer.wrap(fc.consumePayload()))
+          .withInvocationType(fc.fireAndForget ? InvocationType.Event : InvocationType.RequestResponse);
+    }
+    catch (PayloadVanishedException e) {
+      callback.handle(Future.failedFuture(new HttpException(TOO_MANY_REQUESTS, "Remote function is busy or cannot be invoked.")));
+      return;
+    }
 
     java.util.concurrent.Future<InvokeResult> future = asyncClient.invokeAsync(invokeReq, new AsyncHandler<InvokeRequest, InvokeResult>() {
       @Override
       public void onError(Exception exception) {
         if (callback == null) {
-          logger.error(fc.marker, "Error sending event to remote lambda function", exception);
+          logger.error(marker, "Error sending event to remote lambda function", exception);
         }
         else {
-          fc.context.runOnContext(v -> callback.handle(Future.failedFuture(getHttpException(fc.marker, exception))));
+          fc.context.runOnContext(v -> callback.handle(Future.failedFuture(getHttpException(marker, exception))));
         }
       }
 
@@ -191,7 +204,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
       public void onSuccess(InvokeRequest request, InvokeResult result) {
         byte[] responseBytes = new byte[result.getPayload().remaining()];
         result.getPayload().get(responseBytes);
-        fc.context.runOnContext(v -> callback.handle(Future.succeededFuture(responseBytes)));
+        context.runOnContext(v -> callback.handle(Future.succeededFuture(responseBytes)));
       }
     });
 
@@ -216,8 +229,6 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
   }
 
   private HttpException getHttpException(Marker marker, Throwable e) {
-    logger.error(marker, "Unexpected exception while contacting lambda provider", e);
-
     if (e instanceof HttpException) {
       return (HttpException) e;
     }
@@ -226,11 +237,16 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
       if (le.getStatusCode() == 413) {
         return new HttpException(REQUEST_ENTITY_TOO_LARGE, "The compressed request must be smaller than 6291456 bytes.", e);
       }
+      else if (e instanceof ResourceNotFoundException) {
+        logger.warn(marker, "Lambda function does not exist.", e);
+        return new HttpException(BAD_GATEWAY, "Error while contacting lambda function.", e);
+      }
     }
     if (e instanceof HttpRequestTimeoutException || e instanceof SdkClientException && e.getCause() instanceof HttpRequestTimeoutException)
       return new HttpException(GATEWAY_TIMEOUT, "The connector did not respond in time.", e);
 
-    return new HttpException(BAD_GATEWAY, "Unable to parse the response of the connector.", e);
+    logger.error(marker, "Unexpected exception while contacting lambda function", e);
+    return new HttpException(BAD_GATEWAY, "Error while contacting lambda function.", e);
   }
 
   private static AWSLambdaAsync getLambdaClient(AWSLambda remoteFunction, String forConnectorId) {

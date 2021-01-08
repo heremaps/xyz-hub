@@ -30,6 +30,8 @@ public class H3SQL
   public static final String HEXBIN_PROPERTY = "property";
   public static final String HEXBIN_POINTMODE = "pointmode";
   public static final String HEXBIN_SINGLECOORD = "singlecoord";
+  public static final String HEXBIN_SAMPLING = "sampling";
+  
 
   public static String h3sqlBegin =
       "  select "
@@ -51,8 +53,8 @@ public class H3SQL
           + "       ) prop "
           + "     ) as properties "
           + "    ) ftr "
-          + "   ) as jsondata, "
-          + "   st_asgeojson( %3$s, 7 )::json as geojson "
+          + "  )::jsonb as jsondata, "
+          + "  %3$s as geo "
           + "  from "
           + "  ( "
           + "   with h3cluster as "
@@ -115,7 +117,7 @@ public class H3SQL
             "              select %2$s as cval, st_geometryn(st_points( ST_Intersection( v.geo, %5$s ) ) ,1) as refpt"
           + "              from ${schema}.${table} v ",
  h3sqlMid_2 =
-            "              where 1 = 1 and st_intersects( geo , %5$s ) ",          
+            "              where 1 = 1 and st_intersects( geo , %5$s ) and %6$s",          
   h3sqlEnd =
             "            ) in_data "
           + "          ) q2 "
@@ -137,7 +139,7 @@ public class H3SQL
   public static String h3sqlMid(boolean pointmode) 
   { return H3SQL.h3sqlMid_0 + ( !pointmode ? H3SQL.h3sqlMid_1a : H3SQL.h3sqlMid_1b ) + H3SQL.h3sqlMid_2; }
 
-  public static int[] MaxResForZoom = {2, 2, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8, 9, 9, 10, 11, 11, 12, 13, 14, 14, 15, 15};
+  public static int[] MaxResForZoom = {2, 2, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8, 9, 9, 10, 11, 11, 12, 13, 13, 13, 13, 13};
 
   public static int zoom2resolution(int zoom) {
     return (MaxResForZoom[zoom]);

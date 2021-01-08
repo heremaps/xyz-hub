@@ -20,7 +20,6 @@
 package com.here.xyz.psql;
 
 import com.here.xyz.events.Event;
-import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.factory.MaintenanceSQL;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -39,7 +38,7 @@ public class DatabaseMaintainer {
     private static final Logger logger = LogManager.getLogger();
 
     /** Is used to check against xyz_ext_version() */
-    private static final int XYZ_EXT_VERSION = 132;
+    private static final int XYZ_EXT_VERSION = 135;
 
     private DataSource dataSource;
     private PSQLConfig config;

@@ -13,7 +13,7 @@ public class MemoryHealthCheck extends ExecutableCheck {
   }
 
   @Override
-  public Status execute() throws InterruptedException {
+  public Status execute() {
     Status s = new Status().withResult(Result.OK);
     Response r = new Response();
     attachMemoryInfo(r);

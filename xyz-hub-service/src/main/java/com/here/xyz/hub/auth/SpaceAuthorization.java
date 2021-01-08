@@ -44,6 +44,7 @@ import com.here.xyz.models.hub.Space.Static;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -66,7 +67,7 @@ public class SpaceAuthorization extends Authorization {
   public static void authorizeReadSpaces(MatrixReadQuery task, Callback<MatrixReadQuery> callback) {
     //Check if anonymous token is being used
     if (task.getJwt().anonymous) {
-      callback.exception(new HttpException(FORBIDDEN, "Accessing spaces isn't possible with an anonymous token."));
+      callback.exception(new HttpException(FORBIDDEN, "Accessing this resource with an anonymous token is not possible."));
     } else if (task.getJwt().getXyzHubMatrix() == null) {
       callback.exception(new HttpException(FORBIDDEN, "Insufficient rights to read the requested resource."));
     } else {
@@ -74,7 +75,7 @@ public class SpaceAuthorization extends Authorization {
         final XyzHubActionMatrix connectorsReadMatrix = new XyzHubActionMatrix().accessConnectors(new XyzHubAttributeMap());
         task.canReadConnectorsProperties = task.getJwt().getXyzHubMatrix().matches(connectorsReadMatrix);
       }
-      
+
       /*
        * No further checks are necessary. Authenticated users generally have access to this resource.
        * The resulting list response will only contain spaces the token has access to.
@@ -98,7 +99,7 @@ public class SpaceAuthorization extends Authorization {
 
     //Check if anonymous token is being used
     if (task.getJwt().anonymous) {
-      callback.exception(new HttpException(FORBIDDEN, "Accessing spaces isn't possible with an anonymous token."));
+      callback.exception(new HttpException(FORBIDDEN, "Accessing this resource with an anonymous token is not possible."));
       return;
     }
 
@@ -108,8 +109,8 @@ public class SpaceAuthorization extends Authorization {
       final Map inputAsMap = asMap(Json.mapper.convertValue(input, Space.class));
 
       xyzhubFilter = new XyzHubAttributeMap()
-          .withValue(OWNER, (String) input.get("owner"))
-          .withValue(SPACE, (String) input.get("id"));
+          .withValue(OWNER, input.get("owner"))
+          .withValue(SPACE, input.get("id"));
       isBasicEdit = isBasicEdit(templateAsMap, inputAsMap);
       isAdminEdit = isAdminEdit(templateAsMap, inputAsMap);
       isStorageEdit = isPropertyEdit(templateAsMap, inputAsMap, STORAGE);
@@ -202,8 +203,21 @@ public class SpaceAuthorization extends Authorization {
 
     //Either for admin or manage spaces, the packages access must be tested
     if (isPackagesEdit) {
-      getPackagesFromInput(entry).forEach(packageId -> requestRights.managePackages(
-          XyzHubAttributeMap.forIdValues(target.getOwner(), packageId)));
+      //Requester must hold manageSpaces permission when adding new packages to space
+      if (task.isCreate() || isPackagesAdded(head, target)) {
+        // to add or edit a package within a space, you must have space owner permissions
+        requestRights.manageSpaces(xyzhubFilter);
+        getPackagesFromInput(entry).forEach(packageId -> requestRights.managePackages(
+            XyzHubAttributeMap.forIdValues(target.getOwner(), packageId)));
+      } else {
+        boolean isOwner = tokenRights != null && tokenRights.matches(new XyzHubActionMatrix().manageSpaces(xyzhubFilter));
+        if (!isOwner) {
+          // then it's just a package removal
+          List<String> removedPackages = new ArrayList<>(getPackagesFromSpace(head));
+          removedPackages.removeAll(getPackagesFromSpace(target));
+          removedPackages.forEach(packageId -> requestRights.managePackages(XyzHubAttributeMap.forIdValues(target.getOwner(), packageId)));
+        }
+      }
     }
 
     //Checks if the user has useCapabilities: ['searchablePropertiesConfiguration']
@@ -301,6 +315,24 @@ public class SpaceAuthorization extends Authorization {
     return Collections.emptyList();
   }
 
+  private static List<String> getPackagesFromSpace(Space space) {
+    if (space != null && space.getPackages() != null) {
+      return space.getPackages();
+    }
+    return Collections.emptyList();
+  }
+
+  private static boolean isPackagesAdded(Space head, Space target) {
+    final List<String> targetPackages = getPackagesFromSpace(target);
+    if (targetPackages.isEmpty()) {
+      return false;
+    }
+
+    final List<String> difference = new ArrayList<>(targetPackages);
+    difference.removeAll(getPackagesFromSpace(head));
+
+    return !difference.isEmpty();
+  }
 
   private static Map asMap(Object object) {
     try {

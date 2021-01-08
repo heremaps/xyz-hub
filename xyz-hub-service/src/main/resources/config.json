@@ -1,4 +1,6 @@
 {
+  "LOG_CONFIG": "log4j2-console-plain.json",
+
   "INSTANCE_COUNT": 1,
   "HOST_NAME": "127.0.0.1",
   "HTTP_PORT": 8080,
@@ -13,8 +15,6 @@
 
   "OFF_HEAP_CACHE_SIZE_MB": 256,
 
-  "LOG_CONFIG": "log4j2-console-plain.json",
-
   "DEFAULT_STORAGE_ID": "psql",
 
   "STORAGE_DB_URL": "jdbc:postgresql://localhost/postgres",
@@ -24,8 +24,6 @@
   "INSERT_LOCAL_CONNECTORS": true,
 
   "XYZ_HUB_PUBLIC_ENDPOINT": "http://localhost:8080",
-  "XYZ_HUB_PUBLIC_HOST": "localhost",
-  "XYZ_HUB_PUBLIC_PORT": 8080,
 
   "GLOBAL_MAX_QUEUE_SIZE": 1024,
   "REMOTE_FUNCTION_REQUEST_TIMEOUT": 26,
@@ -35,5 +33,6 @@
   "ENVIRONMENT_NAME": "local",
   "PUBLISH_METRICS": false,
 
-  "VERTICLES_CLASS_NAMES": "com.here.xyz.hub.XYZHubRESTVerticle"
+  "VERTICLES_CLASS_NAMES": "com.here.xyz.hub.XYZHubRESTVerticle",
+  "DEFAULT_ECPS_PHRASE": "local"
 }

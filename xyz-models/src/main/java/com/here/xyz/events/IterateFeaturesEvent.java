@@ -27,6 +27,20 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 public final class IterateFeaturesEvent extends SearchForFeaturesEvent<IterateFeaturesEvent> {
 
   private String handle;
+  private Integer v;
+
+  public Integer getV() {
+    return v;
+  }
+
+  public void setV(Integer v) {
+    this.v = v;
+  }
+
+  public IterateFeaturesEvent withV(Integer v) {
+    setV(v);
+    return this;
+  }
 
   @SuppressWarnings("unused")
   public String getHandle() {

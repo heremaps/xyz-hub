@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,11 +23,12 @@ import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 
 import com.google.common.io.ByteStreams;
 import com.here.xyz.Payload;
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
-import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.HttpException;
-import com.here.xyz.hub.util.ByteSizeAware;
+import com.here.xyz.hub.util.LimitedOffHeapQueue;
+import com.here.xyz.hub.util.LimitedOffHeapQueue.OffHeapBuffer;
 import com.here.xyz.hub.util.LimitedQueue;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Context;
@@ -42,7 +43,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.zip.GZIPInputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -76,11 +76,11 @@ public abstract class RemoteFunctionClient {
   protected Connector connectorConfig;
 
   private final LongAdder requestsSinceLastArrivalRateMeasurement = new LongAdder();
-  private final AtomicLong lastArrivalRateMeasurement = new AtomicLong(Service.currentTimeMillis());
+  private final AtomicLong lastArrivalRateMeasurement = new AtomicLong(Core.currentTimeMillis());
 
   private final LongAdder responsesSinceLastThroughputMeasurement = new LongAdder();
-  private final AtomicLong lastThroughputMeasurement = new AtomicLong(Service.currentTimeMillis());
-  private final LimitedQueue<FunctionCall> queue = new LimitedQueue<>(0, 0);
+  private final AtomicLong lastThroughputMeasurement = new AtomicLong(Core.currentTimeMillis());
+  private final LimitedQueue<FunctionCall> queue = new LimitedOffHeapQueue<>(0, 0);
   private final AtomicInteger usedConnections = new AtomicInteger(0);
 
 //  /**
@@ -102,11 +102,6 @@ public abstract class RemoteFunctionClient {
    * An approximation for the maximum number of requests per second which can be executed based on the performance of the remote function.
    */
   private double rateOfService;
-
-  /**
-   * The last time this connector has been reported as "Healthy", in Unix timestamp format.
-   */
-  private long lastHealthyTimestamp;
 
   RemoteFunctionClient(Connector connectorConfig) {
     if (connectorConfig == null) {
@@ -138,16 +133,6 @@ public abstract class RemoteFunctionClient {
    */
   protected void initialize() {}
 
-  protected static void checkResponseSize(byte[] response) throws HttpException {
-    boolean isGZIP = response != null && response.length >= 2
-        && GZIPInputStream.GZIP_MAGIC == (((int) response[0] & 0xff) | ((response[1] << 8) & 0xff00));
-
-    assert response != null;
-    if (isGZIP && response.length > Api.MAX_COMPRESSED_RESPONSE_LENGTH || response.length > Api.MAX_RESPONSE_LENGTH) {
-      throw new HttpException(Api.RESPONSE_PAYLOAD_TOO_LARGE, Api.RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE);
-    }
-  }
-
   /**
    * Should be overridden in sub-classes to implement clean-up steps (e.g. closing client / connections).
    */
@@ -161,24 +146,19 @@ public abstract class RemoteFunctionClient {
   }
 
   protected FunctionCall submit(final Marker marker, byte[] bytes, boolean fireAndForget, boolean hasPriority, final Handler<AsyncResult<byte[]>> callback) {
-    Handler<AsyncResult<byte[]>> cb = r -> {
-      //This is the point where the request's response came back so measure the throughput
-      invokeCompleted();
-      if (r.succeeded()) {
-        try {
-          callback.handle(Future.succeededFuture(handleByteResponse(r.result())));
-        } catch (HttpException | IOException e) {
-          callback.handle(Future.failedFuture(e));
-        }
-      } else {
-        callback.handle(r);
-      }
-    };
-
     //This is the point where new requests arrive so measure the arrival time
     invokeStarted();
 
-    FunctionCall fc = new FunctionCall(marker, bytes, fireAndForget, hasPriority, cb);
+    FunctionCall fc = new FunctionCall(marker, bytes, fireAndForget, hasPriority, r -> {
+      //This is the point where the request's response came back so measure the throughput
+      invokeCompleted();
+
+      if (r.failed()) {
+        callback.handle(Future.failedFuture(r.cause()));
+        return;
+      }
+      callback.handle(Future.succeededFuture(r.result()));
+    });
 
     if (!hasPriority){
       if (!compareAndIncrementUpTo(getWeightedMaxConnections(), usedConnections)) {
@@ -202,7 +182,7 @@ public abstract class RemoteFunctionClient {
    * return value is -1.
    */
   protected final double measureDimension(LongAdder eventCount, AtomicLong lastMeasurementTime) {
-    long now = Service.currentTimeMillis();
+    long now = Core.currentTimeMillis();
     long last = lastMeasurementTime.get();
     if (now - last > MEASUREMENT_INTERVAL) {
       //Only if this thread was the one setting the new measurement timestamp it may be the one resetting the event counter
@@ -364,8 +344,6 @@ public abstract class RemoteFunctionClient {
   private void _invoke(final FunctionCall fc) {
     //long start = System.nanoTime();
     invoke(fc, r -> {
-      if (fc.cancelled)
-        return;
       //long end = System.nanoTime();
       //TODO: Activate performance calculation once it's implemented completely
       //recalculatePerformance(end - start, TimeUnit.NANOSECONDS);
@@ -377,7 +355,8 @@ public abstract class RemoteFunctionClient {
         }
       }
       try {
-        fc.callback.handle(r);
+        if (!fc.cancelled)
+          fc.callback.handle(r);
       }
       catch (Exception e) {
         logger.error(fc.marker, "Error while calling response handler", e);
@@ -387,11 +366,6 @@ public abstract class RemoteFunctionClient {
         _invoke(nextFc);
       }
     });
-  }
-
-  private static byte[] handleByteResponse(byte[] responseBytes) throws HttpException, IOException {
-    checkResponseSize(responseBytes);
-    return getDecompressed(responseBytes);
   }
 
 //  private void recalculatePerformance(long executionTime, TimeUnit timeUnit) {
@@ -413,10 +387,6 @@ public abstract class RemoteFunctionClient {
   public double getRateOfService() {
     return rateOfService;
   }
-
-  public long getLastHealthyTimestamp() { return lastHealthyTimestamp; }
-
-  public void setLastHealthyTimestamp(long lastHealthyTimestamp) { this.lastHealthyTimestamp = lastHealthyTimestamp; }
 
   public int getMinConnections() {
     return connectorConfig == null ? 0 : connectorConfig.getMinConnectionsPerInstance();
@@ -471,7 +441,7 @@ public abstract class RemoteFunctionClient {
 //  }
 
   private void enqueue(final FunctionCall fc) {
-    /*if (Service.currentTimeMillis() > lastSizeAdjustment.get() + SIZE_ADJUSTMENT_INTERVAL
+    /*if (Core.currentTimeMillis() > lastSizeAdjustment.get() + SIZE_ADJUSTMENT_INTERVAL
         && fc.getByteSize() + queue.getByteSize() > queue.getMaxByteSize()) {
       //Element won't fit into queue so we try to enlarge it
       adjustQueueByteSizes();
@@ -485,10 +455,9 @@ public abstract class RemoteFunctionClient {
                 .handle(Future.failedFuture(new HttpException(TOO_MANY_REQUESTS, "Remote function is busy or cannot be invoked."))));
   }
 
-  public class FunctionCall implements ByteSizeAware {
+  public class FunctionCall extends OffHeapBuffer {
 
     final Marker marker;
-    final byte[] bytes;
     final boolean fireAndForget;
     final boolean hasPriority;
     final Context context = Service.vertx.getOrCreateContext();
@@ -498,16 +467,11 @@ public abstract class RemoteFunctionClient {
     private volatile boolean cancelled;
 
     public FunctionCall(Marker marker, byte[] bytes, boolean fireAndForget, boolean hasPriority, Handler<AsyncResult<byte[]>> callback) {
+      super(bytes);
       this.marker = marker;
-      this.bytes = bytes;
       this.callback = callback;
       this.fireAndForget = fireAndForget;
       this.hasPriority = hasPriority;
-    }
-
-    @Override
-    public long getByteSize() {
-      return bytes.length;
     }
 
     public void setCancelHandler(Runnable cancelHandler) {
@@ -533,5 +497,4 @@ public abstract class RemoteFunctionClient {
       }
     }
   }
-
 }

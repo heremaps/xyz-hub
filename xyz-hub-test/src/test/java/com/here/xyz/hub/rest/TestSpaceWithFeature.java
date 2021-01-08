@@ -202,6 +202,25 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
     return collection;
   }
 
+  static FeatureCollection generateEVFeatures(int startId, int chunksize) {
+    FeatureCollection collection = new FeatureCollection();
+    Random random = new Random();
+
+    List<Feature> fList = new ArrayList<>();
+
+    for(int i=startId; i < startId+chunksize ; i++){
+      Feature f = new Feature()
+              .withId(""+i)
+              .withGeometry(
+                      new Point().withCoordinates(new PointCoordinates(360d * random.nextDouble() - 180d, 180d * random.nextDouble() - 90d)))
+              .withProperties(new Properties().with("free" , random.nextBoolean()));
+      fList.add(f);
+    }
+
+    collection.setFeatures(fList);
+    return collection;
+  }
+
   protected void validateFeatureProperties(ValidatableResponse resp, String featureId) {
     JsonObject body = new JsonObject(resp
         .extract()

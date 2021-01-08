@@ -20,8 +20,11 @@
 package com.here.xyz.hub.connectors;
 
 import com.here.xyz.events.HealthCheckEvent;
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
+import com.here.xyz.hub.rest.health.HealthApi;
+import com.here.xyz.hub.util.health.checks.RemoteFunctionHealthCheck;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -43,7 +46,7 @@ public class BurstAndUpdateThread extends Thread {
   private static final String name = BurstAndUpdateThread.class.getSimpleName();
   private static final Logger logger = LogManager.getLogger();
   private static final long CONNECTOR_UPDATE_INTERVAL = TimeUnit.MINUTES.toMillis(2);
-  private static final long CONNECTOR_UNHEALTHY_INTERVAL = TimeUnit.MINUTES.toSeconds(2);
+  private static final long CONNECTOR_UNHEALTHY_THRESHOLD = 3;
 
   private static BurstAndUpdateThread instance;
   private volatile Handler<AsyncResult<Void>> initializeHandler;
@@ -100,13 +103,15 @@ public class BurstAndUpdateThread extends Thread {
       }
 
       if (!connectorMap.get(oldConnector.id).skipAutoDisable && !Service.configuration.DEFAULT_STORAGE_ID.equals(oldConnector.id)) {
-        //When the connector is responding with unhealthy status, disable it momentarily, until next BurstAndUpdateThread round.
-        long now = Instant.now().getEpochSecond();
-        long lastHealthyTimestamp = client.getFunctionClient().getLastHealthyTimestamp();
-        if (lastHealthyTimestamp != 0 && lastHealthyTimestamp < now - CONNECTOR_UNHEALTHY_INTERVAL) {
-          logger.warn("Connector {} last healthy timestamp {} is greater than {}s ago, now is {}.", oldConnector.id, lastHealthyTimestamp,
-              CONNECTOR_UNHEALTHY_INTERVAL, now);
-          connectorMap.remove(oldConnector.id);
+        RemoteFunctionHealthCheck rfcHc = HealthApi.rfcHcAggregator.getRfcHealthCheck(oldConnector.id);
+        if (rfcHc != null) {
+          //When the connector is responding with unhealthy status, disable it momentarily, until next BurstAndUpdateThread round.
+          int consecutiveErrors = rfcHc.getConsecutiveErrors();
+          if (consecutiveErrors >= CONNECTOR_UNHEALTHY_THRESHOLD) {
+            logger.warn("For connector {} there are {} unhealthy health-checks. Max threshold is {}.", oldConnector.id,
+                consecutiveErrors, CONNECTOR_UNHEALTHY_THRESHOLD);
+            connectorMap.remove(oldConnector.id);
+          }
         }
       }
 
@@ -138,8 +143,8 @@ public class BurstAndUpdateThread extends Thread {
         newConnector = oldConnector;
       }
 
-      if (newConnector.remoteFunction.warmUp > 0) {
-        final int minInstances = newConnector.remoteFunction.warmUp;
+      if (newConnector.getRemoteFunction().warmUp > 0) {
+        final int minInstances = newConnector.getRemoteFunction().warmUp;
         try {
           final AtomicInteger requestCount = new AtomicInteger(minInstances);
           logger.info("Send {} health status requests to connector '{}'", requestCount, newConnector.id);
@@ -181,9 +186,9 @@ public class BurstAndUpdateThread extends Thread {
     //noinspection InfiniteLoopStatement
     while (true) {
       try {
-        final long start = Service.currentTimeMillis();
+        final long start = Core.currentTimeMillis();
         Service.connectorConfigClient.getAll(null, this::onConnectorList);
-        final long end = Service.currentTimeMillis();
+        final long end = Core.currentTimeMillis();
         final long runtime = end - start;
         if (runtime < CONNECTOR_UPDATE_INTERVAL) {
           Thread.sleep(CONNECTOR_UPDATE_INTERVAL - runtime);
