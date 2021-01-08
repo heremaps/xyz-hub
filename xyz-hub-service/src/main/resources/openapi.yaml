@@ -843,8 +843,20 @@ paths:
       tags:
         - Read History
       summary: Get historical data.
-      description: >-
-        Get  all features in a given version range. Based on the Accept-Header (vnd.here.changeset-collection or vnd.here.compact-changeset) the result will be a Changeset-Collection or a CompactChangeset. The Space needs to have "enableGolbalVersioning=true" setting.
+      description: |
+        Get  all features in a given version range.
+
+        Based on the Accept-Header (vnd.here.changeset-collection or vnd.here.compact-changeset)
+        the result will be a Changeset-Collection or a CompactChangeset.
+
+        The former result type contains each of the changes between start version and end version
+        grouped by version which can be used for easily navigate across all modifications which
+        happened on the referring layer.
+
+        While the latter contains only the latest state of each feature which is within the start
+        and end version range.
+
+        The Space needs to have "enableHistory=true" setting.
       operationId: iterateHistory
       parameters:
         - $ref: '#/components/parameters/SpaceId'
