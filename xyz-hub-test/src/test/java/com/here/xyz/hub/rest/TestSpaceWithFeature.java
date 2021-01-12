@@ -202,7 +202,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
     return collection;
   }
 
-  static FeatureCollection generateEVFeatures(int startId, int chunksize) {
+  static FeatureCollection generateEVFeatures(int startId, int chunksize, Boolean isFree) {
     FeatureCollection collection = new FeatureCollection();
     Random random = new Random();
 
@@ -213,7 +213,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
               .withId(""+i)
               .withGeometry(
                       new Point().withCoordinates(new PointCoordinates(360d * random.nextDouble() - 180d, 180d * random.nextDouble() - 90d)))
-              .withProperties(new Properties().with("free" , random.nextBoolean()));
+              .withProperties(new Properties().with("free" , isFree == null ? random.nextBoolean() : isFree));
       fList.add(f);
     }
 
