@@ -890,7 +890,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     protected void updateTrigger(Integer maxVersionCount, boolean compactHistory, boolean isEnableGlobalVersioning) throws SQLException {
-        final String tableName = config.table(event);
+        final String tableName = config.readTableFromEvent(event);
 
         try (final Connection connection = dataSource.getConnection()) {
             advisoryLock( tableName, connection );
@@ -903,10 +903,10 @@ public abstract class DatabaseHandler extends StorageConnector {
                     /** Create Space-Table */
                     createSpaceStatement(stmt, tableName);
 
-                    String query = SQLQueryBuilder.deleteHistoryTriggerSQL(config.schema(), tableName);
+                    String query = SQLQueryBuilder.deleteHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName);
                     stmt.addBatch(query);
 
-                    query = SQLQueryBuilder.addHistoryTriggerSQL(config.schema(), tableName, maxVersionCount, compactHistory, isEnableGlobalVersioning);
+                    query = SQLQueryBuilder.addHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName, maxVersionCount, compactHistory, isEnableGlobalVersioning);
                     stmt.addBatch(query);
 
                     stmt.setQueryTimeout(calculateTimeout());

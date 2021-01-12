@@ -79,7 +79,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       return processHealthCheckEventImpl(event);
     }
     catch (SQLException e) {
-      return checkSQLException(e, config.table(event));
+      return checkSQLException(e, config.readTableFromEvent(event));
     }
     finally {
       logger.info("{} - Finished HealthCheckEvent", streamId);
@@ -465,8 +465,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
         if (hasTable) {
           SQLQuery q = new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};");
           q.append("DROP TABLE IF EXISTS ${schema}.${hsttable};");
-          q.append("DROP SEQUENCE IF EXISTS "+ config.schema()+".\""+config.table(event).replaceAll("-","_")+"_serial\";");
-          q.append("DROP SEQUENCE IF EXISTS " + config.schema() + ".\"" +config.table(event).replaceAll("-", "_") + "_hst_seq\";");
+          q.append("DROP SEQUENCE IF EXISTS "+ config.getDatabaseSettings().getSchema()+".\""+config.readTableFromEvent(event).replaceAll("-","_")+"_serial\";");
+          q.append("DROP SEQUENCE IF EXISTS " +config.getDatabaseSettings().getSchema() + ".\"" +config.readTableFromEvent(event).replaceAll("-", "_") + "_hst_seq\";");
 
           executeUpdateWithRetry(q);
           logger.debug("{} - Successfully deleted table '{}' for space id '{}'", streamId, config.readTableFromEvent(event), event.getSpace());
@@ -491,7 +491,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
     try{
       return executeIterateHistory(event);
     }catch (SQLException e){
-      return checkSQLException(e, config.table(event));
+      return checkSQLException(e, config.readTableFromEvent(event));
     }finally {
       logger.info("{} - Finished IterateHistoryEvent", streamId);
     }
@@ -502,7 +502,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       logger.info("{} - Received "+event.getClass().getSimpleName(), streamId);
       return executeIterateVersions(event);
     }catch (SQLException e){
-      return checkSQLException(e, config.table(event));
+      return checkSQLException(e, config.readTableFromEvent(event));
     }finally {
       logger.info("{} - Finished "+event.getClass().getSimpleName(), streamId);
     }

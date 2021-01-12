@@ -20,6 +20,7 @@
 package com.here.xyz.psql;
 
 import com.here.xyz.events.Event;
+import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.factory.MaintenanceSQL;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
