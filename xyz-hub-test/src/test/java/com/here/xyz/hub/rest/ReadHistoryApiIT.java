@@ -440,9 +440,9 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
       checkCompactChangesetVersionIntegrity(compc.getInserted().getFeatures());
       checkCompactChangesetVersionIntegrity(compc.getUpdated().getFeatures());
 
-      checkCompactChangesetFeatureContent(compc.getInserted().getFeatures());
-      checkCompactChangesetFeatureContent(compc.getUpdated().getFeatures());
-      checkCompactChangesetFeatureContent(compc.getDeleted().getFeatures());
+      checkFeatureListContent(compc.getInserted().getFeatures(), true);
+      checkFeatureListContent(compc.getUpdated().getFeatures(), true);
+      checkFeatureListContent(compc.getDeleted().getFeatures(), true);
     }while(npt != null);
 
     /** Check distinct ids*/
@@ -478,6 +478,8 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                       getBody().asString();
 
       FeatureCollection fc = XyzSerializable.deserialize(body);
+      checkFeatureListContent(fc.getFeatures(), false);
+
       List<Integer> idList = Stream.of(fc.getFeatures())
               .flatMap(Collection::stream)
               .map(e -> Integer.parseInt(e.getId()))
@@ -505,6 +507,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                     getBody().asString();
 
     FeatureCollection fc = XyzSerializable.deserialize(body);
+    checkFeatureListContent(fc.getFeatures(), false);
     assertEquals(1500, fc.getFeatures().size());
   }
 
@@ -565,15 +568,18 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
     }
   }
 
-  private void checkCompactChangesetFeatureContent(List<Feature> fList) throws JsonProcessingException {
+  private void checkFeatureListContent(List<Feature> fList, boolean checkDeleteFlag) throws JsonProcessingException {
     for (Feature f : fList) {
       int id = Integer.parseInt(f.getId());
       boolean isFree = f.getProperties().get("free");
-      boolean isDeleted = f.getProperties().getXyzNamespace().isDeleted();
-
-      if(id == 100 || id == 150 || id== 200 || id ==300)
-        assertTrue(isDeleted);
       assertTrue(isFree);
+
+      if(checkDeleteFlag) {
+        boolean isDeleted = f.getProperties().getXyzNamespace().isDeleted();
+
+        if (id == 100 || id == 150 || id == 200 || id == 300)
+          assertTrue(isDeleted);
+      }
     }
   }
 }
