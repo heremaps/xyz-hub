@@ -123,6 +123,8 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
       }
     }
     logger.warn(fc.marker, "Error sending event to remote http service", e);
-    callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Connector error.", e)));
+    if (!(e instanceof HttpException))
+      e = new HttpException(BAD_GATEWAY, "Connector error.", e);
+    callback.handle(Future.failedFuture(e));
   }
 }
