@@ -53,6 +53,7 @@ public class Node {
   private static int nodeCount = Service.configuration.INSTANCE_COUNT;
   private static final int NODE_COUNT_FETCH_PERIOD = 30_000; //ms
   private static final int CLUSTER_NODES_CHECKER_PERIOD = 120_000; //ms
+  private static final int CLUSTER_NODES_PING_PERIOD = 600_000; //ms
 
   public static final Node OWN_INSTANCE = new Node(Service.HOST_ID, Service.getHostname(),
       Service.configuration != null ? Service.getPublicPort() : -1);
@@ -72,9 +73,14 @@ public class Node {
   }
 
   public static void initialize() {
-    new NodeInfoNotification().broadcast();
+    startNodeInfoBroadcast();
     initNodeCountFetcher();
     initNodeChecker();
+  }
+
+  private static void startNodeInfoBroadcast() {
+    new NodeInfoNotification().broadcast();
+    if (Core.vertx != null) Core.vertx.setPeriodic(CLUSTER_NODES_PING_PERIOD, timerId -> new NodeInfoNotification().broadcast());
   }
 
   private static void initNodeCountFetcher() {
