@@ -99,7 +99,8 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
                 callback.handle(Future.succeededFuture(responseBytes));
               }
               catch (Exception e) {
-                handleFailure(fc, nextTryCount, callback, ConnectionBase.CLOSED_EXCEPTION);
+                handleFailure(fc, nextTryCount, callback,
+                    new HttpException(BAD_GATEWAY, "Error while handling response of HTTP connector.", e));
               }
             }
           });
