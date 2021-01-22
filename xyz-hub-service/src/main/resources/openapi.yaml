@@ -1509,10 +1509,6 @@ components:
                 cid: dX0BH75QE8paCVQr8MQw
                 createdAt: 1560417151751
                 updatedAt: 1561480482869
-        application/geo+json:
-          x-experimental: true
-          schema:
-            $ref: '#/components/schemas/Space'
     SpacesResponse:
       description: The list of spaces
       content:
