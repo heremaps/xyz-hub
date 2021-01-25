@@ -89,21 +89,21 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
 
     /**
      * Perform:
-     * Insert id: 1-500 (v1)
-     * Insert id: 501-100 (v2)
-     * Insert id: 1001-1500 (v3)
+     * Insert id: 1-500 (v1) isFree=true
+     * Insert id: 501-100 (v2) isFree=true
+     * Insert id: 1001-1500 (v3) isFree=true
      * ...
-     * Insert id: 4501-5000 (v10)
+     * Insert id: 4501-5000 (v10) free=true
      *
      * */
-    writeFeatures(5000, 500, 1);
+    writeFeatures(5000, 500, 1, true);
 
 
     /**
      * Perform:
-     * Update id: 100-150 (v.11)
-     * Update id: 150-200 (v.12)
-     * Update id: 100-200 (v.13)
+     * Update id: 100-150 (v.11) isFree=false
+     * Update id: 150-200 (v.12) isFree=false
+     * Update id: 100-200 (v.13) isFree=tue
      * Delete ids: 100,150,200,300 (v.14)
      * */
     modifyFeatures();
@@ -125,7 +125,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
             body("properties.@ns:com:here:xyz.version", equalTo(10));
 
     /** Write two new versions (11,12) each with 50 objects*/
-    writeFeatures(100,50,100);
+    writeFeatures(100,50,100,false);
 
     given().
             accept(APPLICATION_GEO_JSON).
@@ -146,7 +146,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
             body("properties.@ns:com:here:xyz.version", equalTo(12));
 
     /** Write to new versions (13) with 100 objects*/
-    writeFeatures(100,100,100);
+    writeFeatures(100,100,100,true);
 
     given().
             accept(APPLICATION_GEO_JSON).
@@ -172,7 +172,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void readChangeSetCollectionWithVersionRange() throws JsonProcessingException {
+  public void readChangesetCollectionWithVersionRange() throws JsonProcessingException {
     /**
      * GET Version 1-2:
      * 500 inserted objects v1
@@ -186,15 +186,16 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
             get("/spaces/x-psql-test/history?vStart=1&vEnd=2").
             getBody().asString();
 
-    ChangesetCollection cc = XyzSerializable.deserialize(body);
-    assertEquals(1, cc.getStartVersion());
-    assertEquals(2, cc.getEndVersion());
-    assertEquals(2, cc.getVersions().size());
-    assertEquals(500, cc.getVersions().get(1).getInserted().getFeatures().size());
-    assertEquals(500, cc.getVersions().get(2).getInserted().getFeatures().size());
+    ChangesetCollection ccol = XyzSerializable.deserialize(body);
+    assertEquals(1, ccol.getStartVersion());
+    assertEquals(2, ccol.getEndVersion());
+    assertEquals(2, ccol.getVersions().size());
+    assertEquals(500, ccol.getVersions().get(1).getInserted().getFeatures().size());
+    assertEquals(500, ccol.getVersions().get(2).getInserted().getFeatures().size());
+    assertEquals(true, ccol.getVersions().get(2).getInserted().getFeatures().get(0).getProperties().get("free"));
 
     /** Check if v1 includes 500 inserts */
-    List<Feature> insertedFeaturesV1 = cc.getVersions().get(1).getInserted().getFeatures();
+    List<Feature> insertedFeaturesV1 = ccol.getVersions().get(1).getInserted().getFeatures();
     HashSet<Integer> ids = new HashSet<>();
     for(int i=0; i < insertedFeaturesV1.size(); i++){
       int id = Integer.parseInt(insertedFeaturesV1.get(i).getId());
@@ -215,16 +216,16 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                     get("/spaces/x-psql-test/history?vStart=13&vEnd=14").
                     getBody().asString();
 
-    cc = XyzSerializable.deserialize(body);
-    assertEquals(13, cc.getStartVersion());
-    assertEquals(14, cc.getEndVersion());
-    assertEquals(2, cc.getVersions().size());
-    assertEquals(0, cc.getVersions().get(14).getInserted().getFeatures().size());
-    assertEquals(0, cc.getVersions().get(14).getUpdated().getFeatures().size());
-    assertEquals(4, cc.getVersions().get(14).getDeleted().getFeatures().size());
+    ccol = XyzSerializable.deserialize(body);
+    assertEquals(13, ccol.getStartVersion());
+    assertEquals(14, ccol.getEndVersion());
+    assertEquals(2, ccol.getVersions().size());
+    assertEquals(0, ccol.getVersions().get(14).getInserted().getFeatures().size());
+    assertEquals(0, ccol.getVersions().get(14).getUpdated().getFeatures().size());
+    assertEquals(4, ccol.getVersions().get(14).getDeleted().getFeatures().size());
 
     /** Check if v1 includes the 4 deletes */
-    List<Feature> deletedFeaturesV1 = cc.getVersions().get(14).getDeleted().getFeatures();
+    List<Feature> deletedFeaturesV1 = ccol.getVersions().get(14).getDeleted().getFeatures();
     ids = new HashSet<>();
     for(int i=0; i < deletedFeaturesV1.size(); i++){
       int id = Integer.parseInt(deletedFeaturesV1.get(i).getId());
@@ -235,7 +236,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void readChangeSetCollectionVersionWise() throws JsonProcessingException {
+  public void readChangesetCollectionVersionWise() throws JsonProcessingException {
     /**
      * One Request to get it all
      * GET Version 1-14 (IDs are NOT Distinct; Deletes ARE included):
@@ -250,7 +251,6 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
     int deletedCount = 0;
 
     for (int i=1; i <= 14; i++){
-      Integer curVersion = (i+1);
       String body =
               given().
                       accept(APPLICATION_VND_HERE_CHANGESET_COLLECTION).
@@ -259,13 +259,22 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                       get("/spaces/x-psql-test/history?vStart="+i+"&vEnd="+i).
                       getBody().asString();
 
-      ChangesetCollection cc = XyzSerializable.deserialize(body);
-      assertEquals(cc.getEndVersion(), cc.getStartVersion());
-//      assertTrue(cc.getVersions().containsKey(curVersion));
+      ChangesetCollection ccol = XyzSerializable.deserialize(body);
+      assertEquals(ccol.getEndVersion(), ccol.getStartVersion());
 
-      insertedCount += cc.getVersions().get(i).getInserted().getFeatures().size();
-      deletedCount += cc.getVersions().get(i).getDeleted().getFeatures().size();
-      updatedCount += cc.getVersions().get(i).getUpdated().getFeatures().size();
+      if(i < 11){
+        checkChangesetCollection(ccol, i, 500, 0, 0, true);
+      }else if(i == 11 || i == 12){
+        checkChangesetCollection(ccol, i, 0, 50, 0, false);
+      }else if(i == 13){
+        checkChangesetCollection(ccol, i, 0, 100, 0, true);
+      }else if(i == 14){
+        checkChangesetCollection(ccol, i, 0, 0, 4, null);
+      }
+
+      insertedCount += ccol.getVersions().get(i).getInserted().getFeatures().size();
+      deletedCount += ccol.getVersions().get(i).getDeleted().getFeatures().size();
+      updatedCount += ccol.getVersions().get(i).getUpdated().getFeatures().size();
     }
     assertEquals(5000, insertedCount);
     assertEquals(200, updatedCount);
@@ -281,6 +290,8 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
      * 5000 inserted objects
      * 200 updated objects
      * 4 deleted objects
+     *
+     * 5204 objects overall (each operation)
      * */
 
     String npt = "";
@@ -297,13 +308,13 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                       get("/spaces/x-psql-test/history?vEnd=25&limit=1000&nextPageToken="+npt).
                       getBody().asString();
 
-      ChangesetCollection cc = XyzSerializable.deserialize(body);
-      npt = cc.getNextPageToken();
+      ChangesetCollection ccol = XyzSerializable.deserialize(body);
+      npt = ccol.getNextPageToken();
 
-      for (int n=cc.getStartVersion(); n <= cc.getEndVersion(); n++){
-        insertedCount += cc.getVersions().get(n).getInserted().getFeatures().size();
-        deletedCount += cc.getVersions().get(n).getDeleted().getFeatures().size();
-        updatedCount += cc.getVersions().get(n).getUpdated().getFeatures().size();
+      for (int n=ccol.getStartVersion(); n <= ccol.getEndVersion(); n++){
+        insertedCount += ccol.getVersions().get(n).getInserted().getFeatures().size();
+        deletedCount += ccol.getVersions().get(n).getDeleted().getFeatures().size();
+        updatedCount += ccol.getVersions().get(n).getUpdated().getFeatures().size();
       }
     }while(npt != null);
 
@@ -334,14 +345,14 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                     get("/spaces/x-psql-test/history?vStart=11&vEnd=14").
                     getBody().asString();
 
-    CompactChangeset cc = XyzSerializable.deserialize(body);
+    CompactChangeset compc = XyzSerializable.deserialize(body);
 
-    insertedCount += cc.getInserted().getFeatures().size();
-    deletedCount += cc.getDeleted().getFeatures().size();
-    updatedCount += cc.getUpdated().getFeatures().size();
+    insertedCount += compc.getInserted().getFeatures().size();
+    deletedCount += compc.getDeleted().getFeatures().size();
+    updatedCount += compc.getUpdated().getFeatures().size();
 
     HashSet<Integer> ids = new HashSet<>();
-    List<Integer> idList = Stream.of(cc.getInserted().getFeatures(), cc.getDeleted().getFeatures(), cc.getUpdated().getFeatures())
+    List<Integer> idList = Stream.of(compc.getInserted().getFeatures(), compc.getDeleted().getFeatures(), compc.getUpdated().getFeatures())
             .flatMap(Collection::stream)
             .map(e -> Integer.parseInt(e.getId()))
             .collect(Collectors.toList());
@@ -353,6 +364,37 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
     assertEquals(0, insertedCount);
     assertEquals(98, updatedCount);
     assertEquals(4, deletedCount);
+
+    /**
+     *
+     * GET Version 1-12 (IDs ARE Distinct; Deletes ARE included):
+     *
+     * 4900 inserted objects
+     * 100 updated objects
+     * */
+
+    body =
+            given().
+                    accept(APPLICATION_VND_HERE_COMPACT_CHANGESET).
+                    headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+                    when().
+                    get("/spaces/x-psql-test/history?vStart=1&vEnd=12").
+                    getBody().asString();
+
+    compc = XyzSerializable.deserialize(body);
+    assertEquals(4900,compc.getInserted().getFeatures().size());
+    assertEquals(100,compc.getUpdated().getFeatures().size());
+
+    for (Feature feature : compc.getInserted().getFeatures()) {
+      int id = Integer.parseInt(feature.getId());
+      assertTrue(feature.getProperties().get("free"));
+      assertTrue((id < 100 || id >= 200));
+    }
+    for (Feature feature : compc.getUpdated().getFeatures()) {
+      int id = Integer.parseInt(feature.getId());
+      assertFalse(feature.getProperties().get("free"));
+      assertTrue((id >= 100 && id < 200));
+    }
   }
 
   @Test
@@ -364,6 +406,8 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
      * 4798 inserted objects
      * 198 updated objects
      * 4 deleted objects
+     *
+     * 5000 objects overall (id = distinct + deletes)
      * */
 
     String npt = "";
@@ -378,24 +422,33 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                       accept(APPLICATION_VND_HERE_COMPACT_CHANGESET).
                       headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
                       when().
-                      get("/spaces/x-psql-test/history?vEnd=25&limit=1000&nextPageToken="+npt).
+                      get("/spaces/x-psql-test/history?vEnd=14&limit=1000&nextPageToken="+npt).
                       getBody().asString();
 
-      CompactChangeset cc = XyzSerializable.deserialize(body);
-      npt = cc.getNextPageToken();
+      CompactChangeset compc = XyzSerializable.deserialize(body);
+      npt = compc.getNextPageToken();
 
-      insertedCount += cc.getInserted().getFeatures().size();
-      deletedCount += cc.getDeleted().getFeatures().size();
-      updatedCount += cc.getUpdated().getFeatures().size();
-      List<Integer> idList = Stream.of(cc.getInserted().getFeatures(), cc.getDeleted().getFeatures(), cc.getUpdated().getFeatures())
+      insertedCount += compc.getInserted().getFeatures().size();
+      deletedCount += compc.getDeleted().getFeatures().size();
+      updatedCount += compc.getUpdated().getFeatures().size();
+      List<Integer> idList = Stream.of(compc.getInserted().getFeatures(), compc.getDeleted().getFeatures(), compc.getUpdated().getFeatures())
               .flatMap(Collection::stream)
               .map(e -> Integer.parseInt(e.getId()))
               .collect(Collectors.toList());
       ids.addAll(idList);
+
+      checkCompactChangesetVersionIntegrity(compc.getInserted().getFeatures());
+      checkCompactChangesetVersionIntegrity(compc.getUpdated().getFeatures());
+
+      checkFeatureListContent(compc.getInserted().getFeatures(), true);
+      checkFeatureListContent(compc.getUpdated().getFeatures(), true);
+      checkFeatureListContent(compc.getDeleted().getFeatures(), true);
     }while(npt != null);
 
     /** Check distinct ids*/
     assertEquals(5000, ids.size());
+    for (int i=1; i<=ids.size(); i++)
+      assertTrue(ids.contains(i));
 
     assertEquals(4898, insertedCount);
     assertEquals(98, updatedCount);
@@ -425,6 +478,8 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                       getBody().asString();
 
       FeatureCollection fc = XyzSerializable.deserialize(body);
+      checkFeatureListContent(fc.getFeatures(), false);
+
       List<Integer> idList = Stream.of(fc.getFeatures())
               .flatMap(Collection::stream)
               .map(e -> Integer.parseInt(e.getId()))
@@ -452,12 +507,13 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                     getBody().asString();
 
     FeatureCollection fc = XyzSerializable.deserialize(body);
+    checkFeatureListContent(fc.getFeatures(), false);
     assertEquals(1500, fc.getFeatures().size());
   }
 
-  public void writeFeatures(int totalCount, int chunksize, int startId){
+  public void writeFeatures(int totalCount, int chunksize, int startId, boolean free){
     for (int i=startId; i<totalCount+startId; i+=chunksize){
-      FeatureCollection featureCollection = generateEVFeatures(i, chunksize);
+      FeatureCollection featureCollection = generateEVFeatures(i, chunksize, free);
       uploadData(featureCollection);
     }
   }
@@ -481,5 +537,49 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
             .delete("/spaces/x-psql-test/features?"+idList)
             .then()
             .statusCode(NO_CONTENT.code());
+  }
+
+  private void checkChangesetCollection(ChangesetCollection ccol, int version, int expectedInserted, int expectedUpdated, int expectedDeleted, Boolean isFree)
+          throws JsonProcessingException {
+    assertEquals(expectedInserted,ccol.getVersions().get(version).getInserted().getFeatures().size());
+    assertEquals(expectedUpdated,ccol.getVersions().get(version).getUpdated().getFeatures().size());
+    assertEquals(expectedDeleted,ccol.getVersions().get(version).getDeleted().getFeatures().size());
+
+    if(isFree != null) {
+      List<Feature> features = ccol.getVersions().get(version).getInserted().getFeatures();
+      if(expectedUpdated != 0)
+        features = ccol.getVersions().get(version).getUpdated().getFeatures();
+      for (Feature f : features) {
+        assertEquals(isFree, f.getProperties().get("free"));
+      }
+    }
+  }
+
+  private void checkCompactChangesetVersionIntegrity(List<Feature> fList) throws JsonProcessingException {
+    for (Feature f : fList) {
+      int v = f.getProperties().getXyzNamespace().getVersion();
+      if(v < 11) {
+        assertEquals(true, f.getProperties().get("free"));
+      }if(v == 11 || v == 12){
+        assertEquals(false, f.getProperties().get("free"));
+      }else if(v == 13){
+        assertEquals(true, f.getProperties().get("free"));
+      }
+    }
+  }
+
+  private void checkFeatureListContent(List<Feature> fList, boolean checkDeleteFlag) throws JsonProcessingException {
+    for (Feature f : fList) {
+      int id = Integer.parseInt(f.getId());
+      boolean isFree = f.getProperties().get("free");
+      assertTrue(isFree);
+
+      if(checkDeleteFlag) {
+        boolean isDeleted = f.getProperties().getXyzNamespace().isDeleted();
+
+        if (id == 100 || id == 150 || id == 200 || id == 300)
+          assertTrue(isDeleted);
+      }
+    }
   }
 }

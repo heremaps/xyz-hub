@@ -654,7 +654,7 @@ public class SQLQueryBuilder {
                 "   ST_AsGeoJSON(geo)::json As geometry," +
                 "   jsondata->>'id' as id," +
                 "   vid,"+
-                "   row_to_json((SELECT l FROM (SELECT jsondata->'properties' AS prop) As l)) As properties" +
+                "   jsondata->'properties' as properties" +
                 "       FROM ${schema}.${hsttable}" +
                 "           WHERE 1=1");
 
@@ -696,7 +696,7 @@ public class SQLQueryBuilder {
                 "   jsondata->'properties'->'@ns:com:here:xyz'->>'version' as version," +
                 "   ST_AsGeoJSON(geo)::json As geometry," +
                 "   jsondata->>'id' as id," +
-                "   row_to_json((SELECT l FROM (SELECT jsondata->'properties' AS prop) As l)) As properties" +
+                "   jsondata->'properties' as properties" +
                 "       FROM ${schema}.${hsttable}" +
                 "           WHERE 1=1");
 
