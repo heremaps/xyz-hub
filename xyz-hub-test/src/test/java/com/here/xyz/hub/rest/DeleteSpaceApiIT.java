@@ -19,7 +19,6 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
@@ -52,18 +51,6 @@ public class DeleteSpaceApiIT extends TestSpaceWithFeature {
   @Test
   public void deleteSpace() {
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .when()
-        .delete("/spaces/x-psql-test")
-        .then()
-        .statusCode(NO_CONTENT.code());
-  }
-
-  //FIXME: Remove that test (and the added workaround response type application/geo+json in the openapi_src.yaml) once CMEKB-2572 has been fixed (see: CMEKB-2637)
-  @Test
-  public void deleteSpaceWithGeoJsonWorkaround() {
-    given()
-        .accept(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
         .delete("/spaces/x-psql-test")
