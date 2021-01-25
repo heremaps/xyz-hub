@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,44 +17,30 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.events;
+package com.here.xyz.responses.changesets;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-@JsonTypeName(value = "IterateFeaturesEvent")
-public final class IterateFeaturesEvent extends SearchForFeaturesEvent<IterateFeaturesEvent> {
+@JsonTypeName(value = "CompactChangeset")
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class CompactChangeset extends Changeset {
+    private String nextPageToken;
 
-  private String handle;
-  private Integer v;
+    @SuppressWarnings("unused")
+    public String getNextPageToken() {
+        return nextPageToken;
+    }
 
-  public Integer getV() {
-    return v;
-  }
+    @SuppressWarnings("WeakerAccess")
+    public void setNextPageToken(String nextPageToken) {
+        this.nextPageToken = nextPageToken;
+    }
 
-  public void setV(Integer v) {
-    this.v = v;
-  }
-
-  public IterateFeaturesEvent withV(Integer v) {
-    setV(v);
-    return this;
-  }
-
-  @SuppressWarnings("unused")
-  public String getHandle() {
-    return handle;
-  }
-
-  @SuppressWarnings("WeakerAccess")
-  public void setHandle(String handle) {
-    this.handle = handle;
-  }
-
-  @SuppressWarnings("unused")
-  public IterateFeaturesEvent withHandle(String handle) {
-    setHandle(handle);
-    return this;
-  }
+    public CompactChangeset withNextPageToken(final String nextPageToken) {
+        setNextPageToken(nextPageToken);
+        return this;
+    }
 }

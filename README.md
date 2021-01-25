@@ -2,7 +2,7 @@
 ---
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Build Status](https://travis-ci.com/heremaps/xyz-hub.svg?branch=master)](https://travis-ci.com/heremaps/xyz-hub)
+![Run XYZ Hub tests](https://github.com/heremaps/xyz-hub/workflows/Run%20XYZ%20Hub%20tests/badge.svg)
 
 XYZ Hub is a RESTful web service for the access and management of geospatial data.
 
@@ -37,6 +37,7 @@ Clone and install the project using:
 
 ```bash
 git clone https://github.com/heremaps/xyz-hub.git
+cd xyz-hub
 mvn clean install
 ```
 

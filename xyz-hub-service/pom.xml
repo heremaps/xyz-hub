@@ -25,7 +25,7 @@
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
     <relativePath>../pom.xml</relativePath>
-    <version>1.12.8-SNAPSHOT</version>
+    <version>1.13.3-SNAPSHOT</version>
   </parent>
 
   <licenses>
@@ -278,6 +278,10 @@
     <dependency>
       <artifactId>aws-java-sdk-sns</artifactId>
       <groupId>com.amazonaws</groupId>
+    </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>sns</artifactId>
     </dependency>
     <dependency>
       <groupId>com.amazonaws</groupId>

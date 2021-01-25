@@ -30,7 +30,6 @@ import io.vertx.ext.web.RoutingContext;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -149,6 +148,11 @@ public class ApiParam {
     static final String OPTIM_MODE = "mode";
     static final String OPTIM_VIZSAMPLING = "vizSampling";
 
+    static final String V = "v";
+    static final String VSTART = "vStart";
+    static final String VEND = "vEnd";
+    static final String NEXT_PAGE_TOKEN = "nextPageToken";
+
     private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{
       put("!=", QueryOperation.NOT_EQUALS);
       put(">=", QueryOperation.GREATER_THAN_OR_EQUALS);
@@ -195,7 +199,7 @@ public class ApiParam {
      * Returns the first value for a query parameter, if such exists and can be parsed as an integer, or the provided alternative value
      * otherwise.
      */
-    static int getInteger(RoutingContext context, String param, int alt) {
+    static Integer getInteger(RoutingContext context, String param, Integer alt) {
       try {
         return Integer.parseInt(getString(context, param, null));
       } catch (NumberFormatException | NullPointerException e) {

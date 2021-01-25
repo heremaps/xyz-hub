@@ -27,9 +27,11 @@ import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
+import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
+import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
@@ -83,12 +85,24 @@ public class PSQLXyzConnector extends DatabaseHandler {
       logger.info("{} - Finished HealthCheckEvent", streamId);
     }
   }
+  @Override
+  protected XyzResponse processGetHistoryStatisticsEvent(GetHistoryStatisticsEvent event) throws Exception {
+    try {
+      logger.info("{} - Received HistoryStatisticsEvent", streamId);
+      return executeQueryWithRetry(SQLQueryBuilder.buildGetStatisticsQuery(event, config, true),
+                this::getHistoryStatisticsResultSetHandler, true);
+    }catch (SQLException e){
+      return checkSQLException(e, config.table(event));
+    }finally {
+      logger.info("{} - Finished GetHistoryStatisticsEvent", streamId);
+    }
+  }
 
   @Override
   protected XyzResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
     try {
       logger.info("{} - Received GetStatisticsEvent", streamId);
-      return executeQueryWithRetry(SQLQueryBuilder.buildGetStatisticsQuery(event,config),
+      return executeQueryWithRetry(SQLQueryBuilder.buildGetStatisticsQuery(event, config, false),
               this::getStatisticsResultSetHandler, true);
     }catch (SQLException e){
       return checkSQLException(e, config.table(event));
@@ -134,7 +148,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       boolean bTweaks = ( event.getTweakType() != null ),
               bOptViz = "viz".equals( event.getOptimizationMode() ),
-              bSelectionStar = false;
+              bSelectionStar = false,
+              bClustering = (event.getClusteringType() != null);
 
       int mvtFromDbRequested = SQLQueryBuilder.mvtFromDbRequested(event),
           mvtMargin = 0;
@@ -154,7 +169,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
         bSelectionStar = true; // differentiation needed, due to different semantic of "event.getSelection() == null" tweaks vs. nonTweaks
       }
 
-      if( bTweaks || bOptViz || bMvtFromHub )
+      if( !bClustering && ( bTweaks || bOptViz || bMvtFromHub ) )
       { 
         Map<String, Object> tweakParams;
         boolean bVizSamplingOff = false;
@@ -234,7 +249,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
         }
       }
 
-      if( event.getClusteringType() != null )
+      if( bClustering )
       { final Map<String, Object> clusteringParams = event.getClusteringParams();
 
         switch(event.getClusteringType().toLowerCase())
@@ -294,6 +309,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected XyzResponse processIterateFeaturesEvent(IterateFeaturesEvent event) throws Exception {
+    if(event.getV() != null)
+      return iterateVersions(event);
     return findFeatures(event, event.getHandle(), true);
   }
 
@@ -392,20 +409,20 @@ public class PSQLXyzConnector extends DatabaseHandler {
       logger.info("{} - Received ModifySpaceEvent", streamId);
 
       if(event.getSpaceDefinition() != null && event.getSpaceDefinition().isEnableUUID()){
-        Integer maxVersionCount;
+        Integer maxVersionCount = event.getSpaceDefinition().getMaxVersionCount();
+        Boolean isEnableGlobalVersioning = event.getSpaceDefinition().isEnableGlobalVersioning();
         Boolean compactHistory = true;
 
         if(event.getSpaceDefinition().isEnableHistory()){
-          maxVersionCount = event.getSpaceDefinition().getMaxVersionCount();
           if(event.getConnectorParams() != null){
             compactHistory = (Boolean)event.getConnectorParams().get("compactHistory");
             compactHistory = compactHistory == null ? true : compactHistory;
           }
           if(ModifySpaceEvent.Operation.CREATE == event.getOperation()){
-            ensureHistorySpace(maxVersionCount, compactHistory);
-          }else if(ModifySpaceEvent.Operation.UPDATE == event.getOperation()){
-            //TODO: ONLY update Trigger
-            ensureHistorySpace(maxVersionCount, compactHistory);
+            ensureHistorySpace(maxVersionCount, compactHistory, isEnableGlobalVersioning);
+          }else if(ModifySpaceEvent.Operation.UPDATE == event.getOperation() && !isEnableGlobalVersioning){
+            //update Trigger to apply maxVersionCount.
+            updateTrigger(maxVersionCount, compactHistory, isEnableGlobalVersioning);
           }
         }
       }
@@ -453,7 +470,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
         if (hasTable) {
           SQLQuery q = new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};");
-          q.append("DROP TABLE IF EXISTS ${schema}.${hsttable}");
+          q.append("DROP TABLE IF EXISTS ${schema}.${hsttable};");
+          q.append("DROP SEQUENCE IF EXISTS "+ config.schema()+".\""+config.table(event).replaceAll("-","_")+"_serial\";");
+          q.append("DROP SEQUENCE IF EXISTS " + config.schema() + ".\"" +config.table(event).replaceAll("-", "_") + "_hst_seq\";");
+
           executeUpdateWithRetry(q);
           logger.debug("{} - Successfully deleted table '{}' for space id '{}'", streamId, config.table(event), event.getSpace());
         } else
@@ -468,6 +488,29 @@ public class PSQLXyzConnector extends DatabaseHandler {
       return checkSQLException(e, config.table(event));
     }finally {
       logger.info("{} - Finished ModifySpaceEvent", streamId);
+    }
+  }
+
+  @Override
+  protected XyzResponse processIterateHistoryEvent(IterateHistoryEvent event) {
+    logger.info("{} - Received IterateHistoryEvent", streamId);
+    try{
+      return executeIterateHistory(event);
+    }catch (SQLException e){
+      return checkSQLException(e, config.table(event));
+    }finally {
+      logger.info("{} - Finished IterateHistoryEvent", streamId);
+    }
+  }
+
+  protected XyzResponse iterateVersions(IterateFeaturesEvent event){
+    try{
+      logger.info("{} - Received "+event.getClass().getSimpleName(), streamId);
+      return executeIterateVersions(event);
+    }catch (SQLException e){
+      return checkSQLException(e, config.table(event));
+    }finally {
+      logger.info("{} - Finished "+event.getClass().getSimpleName(), streamId);
     }
   }
 

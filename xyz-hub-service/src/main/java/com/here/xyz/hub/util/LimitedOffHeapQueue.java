@@ -41,12 +41,11 @@ public class LimitedOffHeapQueue<E extends OffHeapBuffer> extends LimitedQueue<E
   }
 
   private void moveOffHeap(OffHeapBuffer element) {
-    byte[] stashedPayload = element.stash();
-    ohStorage.put(element.ohKey, stashedPayload, OH_TTL);
+    element.stash();
   }
 
   private static void discardOHElement(OffHeapBuffer element) {
-    if (element.payload.get() == null)
+    if (element.payload.get() == null && element.ohKey != null)
       ohStorage.remove(element.ohKey);
   }
 
@@ -83,15 +82,19 @@ public class LimitedOffHeapQueue<E extends OffHeapBuffer> extends LimitedQueue<E
      * @return The bytes to be stored in the off-heap storage.
      */
     private byte[] stash() throws IllegalStateException {
-      byte[] tmpPayload = this.payload.getAndSet(null);
+      byte[] tmpPayload = this.payload.get();
       if (tmpPayload == null) throw new IllegalStateException("Payload was already stashed.");
       ohKey = UUID.randomUUID().toString().getBytes();
+      ohStorage.put(ohKey, tmpPayload, OH_TTL);
+      this.payload.set(null);
       return tmpPayload;
     }
 
     private void unStash() throws PayloadVanishedException {
       byte[] tmpPayload = payload.get();
       if (tmpPayload == null) {
+        if (ohKey == null)
+          throw new IllegalStateException("Payload is not stashed. Can not un-stash it.");
         tmpPayload = ohStorage.get(ohKey);
         discardOHElement(this);
       }
@@ -103,6 +106,8 @@ public class LimitedOffHeapQueue<E extends OffHeapBuffer> extends LimitedQueue<E
     }
 
     public final byte[] getPayload() throws PayloadVanishedException {
+      if (consumed.get())
+        throw new IllegalStateException("Payload was already consumed.");
       byte[] payload = this.payload.get();
       if (payload == null) {
         //Payload is stashed and can't be accessed right now. Un-stashing it.

@@ -800,13 +800,9 @@ paths:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/PropertiesSelection'
+        - $ref: '#/components/parameters/V'
         - $ref: '#/components/parameters/SkipCache'
-        - description: The handle to continue the iteration.
-          in: query
-          name: handle
-          required: false
-          schema:
-            type: string
+        - $ref: '#/components/parameters/Handle'
         - $ref: '#/components/parameters/Force2D'
       responses:
         '200':
@@ -841,6 +837,63 @@ paths:
           $ref: '#/components/responses/ErrorResponse401'
         '403':
           $ref: '#/components/responses/ErrorResponse403'
+  '/spaces/{spaceId}/history':
+    x-experimental: true
+    get:
+      tags:
+        - Read History
+      summary: Get historical data.
+      description: |
+        Get  all features in a given version range.
+
+        Based on the Accept-Header (vnd.here.changeset-collection or vnd.here.compact-changeset)
+        the result will be a Changeset-Collection or a CompactChangeset.
+
+        The former result type contains each of the changes between start version and end version
+        grouped by version which can be used for easily navigate across all modifications which
+        happened on the referring layer.
+
+        While the latter contains only the latest state of each feature which is within the start
+        and end version range.
+
+        The Space needs to have "enableHistory=true" setting.
+      operationId: iterateHistory
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/VStart'
+        - $ref: '#/components/parameters/VEnd'
+        - $ref: '#/components/parameters/NextPageToken'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/SkipCache'
+      responses:
+        '200':
+          $ref: '#/components/responses/HistoryResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '513':
+          $ref: '#/components/responses/ErrorResponse513'
+  '/spaces/{spaceId}/history/statistics':
+    x-experimental: true
+    get:
+      tags:
+        - Read History
+      summary: Get history statistics.
+      description: Returns statistical information about this history. The Space needs to have "enableGolbalVersioning=true" setting.
+      operationId: getHistoryStatistics
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/SkipCache'
+      responses:
+        '200':
+          $ref: '#/components/responses/HistoryStatisticsResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
 components:
   parameters:
     AddTags:
@@ -918,6 +971,47 @@ components:
       required: false
       schema:
         $ref: '#/components/schemas/OnMergeConflict'
+    Handle:
+      name: handle
+      in: query
+      description: >-
+        The handle to continue the iteration.
+      required: false
+      schema:
+        type: string
+    NextPageToken:
+      x-experimental: true
+      name: nextPageToken
+      in: query
+      description: >-
+        The nextPageToken to continue the iteration.
+      required: false
+      schema:
+        type: string
+    V:
+      x-experimental: true
+      name: v
+      in: query
+      description: Define a version [version <= v]
+      required: false
+      schema:
+        type: integer
+    VStart:
+      x-experimental: true
+      name: vStart
+      in: query
+      description: Define start of version-range [version >= vStart]
+      required: false
+      schema:
+        type: integer
+    VEnd:
+      x-experimental: true
+      name: vEnd
+      in: query
+      description: Define end of version-range [version <= vEnd]
+      required: false
+      schema:
+        type: integer
     Limit:
       name: limit
       in: query
@@ -972,7 +1066,7 @@ components:
 
         | Parameter   | Type    | Mandatory | Meaning                                                               |
         |-------------|---------|-----------|-----------------------------------------------------------------------|
-        | algorithm   | String  | NO        | grid, gridbytilelevel, simplifiedkeeptopology, simplified, merge      |
+        | algorithm   | String  | NO        | grid, gridbytilelevel, simplifiedkeeptopology, simplified, merge, linemerge |
         | strength    | String  | NO        | Use presets: low, med, high or define strengh in percentage 1-100     |
 
         **Tweaks-type: "ensure":**
@@ -1361,6 +1455,17 @@ components:
         application/geo+json:
           schema:
             $ref: '#/components/schemas/FeatureCollectionResponse'
+    HistoryResponse:
+      x-experimental: true
+      description: >-
+        Changesets which are containing FeatureCollections grouped by operation/versions.
+      content:
+        application/vnd.here.changeset-collection:
+          schema:
+            $ref: '#/components/schemas/ChangesetCollectionResponse'
+        application/vnd.here.compact-changeset:
+          schema:
+            $ref: '#/components/schemas/CompactChangesetResponse'
     IterateResponse:
       description: >-
         A FeatureCollection with handle, containing all features found for the provided
@@ -1432,6 +1537,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/StatisticsResponse'
+    HistoryStatisticsResponse:
+      description: Statistical information about a history.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HistoryStatisticsResponse'
   requestBodies:
     Feature:
       description: A Feature object.
@@ -1798,6 +1909,82 @@ components:
       description: >-
         The storage provider configuration, which contains optional parameters
         to be forwarded to the storage provider.
+    Changeset:
+      x-experimental: true
+      type: object
+      description: A Changeset includes three FeatureCollections grouped by the operations inserted,updated, deleted.
+      properties:
+        inserted:
+          type: array
+          description: FeatureColletion of inserted features.
+          items:
+            $ref: '#/components/schemas/FeatureCollectionResponse'
+        updated:
+          type: array
+          description: FeatureColletion of updated features.
+          items:
+            $ref: '#/components/schemas/FeatureCollectionResponse'
+        deleted:
+          type: array
+          description: FeatureColletion of deleted features.
+          items:
+            $ref: '#/components/schemas/FeatureCollectionResponse'
+      example:
+        type: Changeset
+        inserted:
+          type: FeatureCollection
+          features:
+            - type: Feature
+              id: Q1369587
+              geometry:
+                type: Point
+                coordinates:
+                  - -62.696667
+                  - 8.3125
+              properties:
+                name: Polideportivo Cachamay
+                '@ns:com:here:xyz':
+                  tags:
+                    - football
+                    - stadium
+                sport: association football
+                capacity: 41600
+        updated:
+          type: FeatureCollection
+          features:
+            - type: Feature
+              id: Q947065
+              geometry:
+                type: Point
+                coordinates:
+                  - -110.948889
+                  - 32.228889
+              properties:
+                name: Arizona Stadium
+                '@ns:com:here:xyz':
+                  tags:
+                    - football
+                    - stadium
+                sport: American football
+                capacity: 56037
+        deleted:
+          type: FeatureCollection
+          features:
+            - type: Feature
+              id: Q1369587
+              geometry:
+                type: Point
+                coordinates:
+                  - -62.696667
+                  - 8.3125
+              properties:
+                name: Murrayfield Stadium
+                '@ns:com:here:xyz':
+                  tags:
+                    - rugby
+                    - stadium
+                sport: rugby union
+                capacity: 67144
     GeoJSONObject:
       type: object
       description: |
@@ -2161,6 +2348,59 @@ components:
                 - key: PuneBusStop
                   count: 29208
             etag: 072d3ec0f881b4e7
+    HistoryStatisticsResponse:
+      allOf:
+        - $ref: '#/components/schemas/Response'
+        - type: object
+          description: The response returned to when counting features in a history.
+          properties:
+            count:
+              type: object
+              readOnly: true
+              properties:
+                value:
+                  type: integer
+                  description: The amount of features being in the history.
+                  format: int64
+                  minimum: 0
+                estimated:
+                  $ref: '#/components/schemas/Estimated'
+            byteSize:
+              type: object
+              readOnly: true
+              properties:
+                value:
+                  type: integer
+                  description: >-
+                    The amount of bytes that are allocated in the storage for
+                    this history.
+                  format: int64
+                  minimum: 0
+                estimated:
+                  $ref: '#/components/schemas/Estimated'
+            maxVersion:
+              type: object
+              readOnly: true
+              properties:
+                value:
+                  type: integer
+                  description: >-
+                    The last version which got written into the history.
+                  format: int64
+                  minimum: 0
+                estimated:
+                  $ref: '#/components/schemas/Estimated'
+          example:
+            type: HistoryStatisticsResponse
+            count:
+              value: 29208
+              estimated: true
+            byteSize:
+              value: 108364
+              estimated: true
+            maxVersion:
+              value: 112
+              estimated: true
     FeatureCollectionRequest:
       allOf:
         - type: object
@@ -2204,6 +2444,130 @@ components:
                   amenity: Football Stadium
                   capacity: 54074
                   description: Home of Liverpool Football Club
+    ChangesetCollectionResponse:
+      x-experimental: true
+      allOf:
+        - $ref: '#/components/schemas/XyzResponse'
+        - type: object
+          description: A ChangesetCollection JSON object.
+          properties:
+            startVersion:
+              type: integer
+              description: Defines the minimal version.
+            endVersion:
+              type: integer
+              description: Defines the maximial version.
+            versions:
+              type: object
+              description: Map of Versions. Each Version contains a Changeset.
+              additionalProperties:
+                $ref: '#/components/schemas/Changeset'
+            nextPageToken:
+              type: string
+              description: The handle of the next batch.
+      example:
+        type: ChangesetCollection
+        startVersion: 1
+        endVersion: 2
+        versions:
+          "1":
+            inserted:
+              type: FeatureCollection
+              features:
+                - type: Feature
+                  id: Q1369587
+                  geometry:
+                    type: Point
+                    coordinates:
+                      - -62.696667
+                      - 8.3125
+                  properties:
+                    name: Polideportivo Cachamay
+                    '@ns:com:here:xyz':
+                      tags:
+                        - football
+                        - stadium
+                      version: 1
+                    sport: association football
+                    capacity: 41600
+            updated:
+              type: FeatureCollection
+              features:
+                - type: Feature
+                  id: Q947065
+                  geometry:
+                    type: Point
+                    coordinates:
+                      - -110.948889
+                      - 32.228889
+                  properties:
+                    name: Arizona Stadium
+                    '@ns:com:here:xyz':
+                      tags:
+                        - football
+                        - stadium
+                      version: 1
+                    sport: American football
+                    capacity: 56037
+            deleted:
+              type: FeatureCollection
+              features: []
+            nextPageToken: 1000
+    CompactChangesetResponse:
+      x-experimental: true
+      allOf:
+        - $ref: '#/components/schemas/XyzResponse'
+        - $ref: '#/components/schemas/Changeset'
+        - type: object
+          description: A Changeset JSON object.
+          properties:
+            nextPageToken:
+              type: string
+              description: The handle of the next batch.
+      example:
+        type: Changeset
+        inserted:
+          type: FeatureCollection
+          features:
+            - type: Feature
+              id: Q1369587
+              geometry:
+                type: Point
+                coordinates:
+                  - -62.696667
+                  - 8.3125
+              properties:
+                name: Polideportivo Cachamay
+                '@ns:com:here:xyz':
+                  tags:
+                    - football
+                    - stadium
+                version: 1
+                sport: association football
+                capacity: 41600
+        updated:
+          type: FeatureCollection
+          features:
+            - type: Feature
+              id: Q947065
+              geometry:
+                type: Point
+                coordinates:
+                  - -110.948889
+                  - 32.228889
+              properties:
+                name: Arizona Stadium
+                '@ns:com:here:xyz':
+                  tags:
+                    - football
+                    - stadium
+                version: 5
+                sport: American football
+                capacity: 56037
+        deleted:
+          type: FeatureCollection
+          features: []
+        nextPageToken: 1000
     FeatureCollectionResponse:
       allOf:
         - $ref: '#/components/schemas/XyzResponse'
@@ -2356,22 +2720,22 @@ components:
         featureData:
           type: FeatureCollection
           features:
-              - type: Feature
-                id: BfiimUxHjj
-                geometry:
-                  type: Point
-                  coordinates:
-                    - -2.960847
-                    - 53.430828
-                properties:
-                  name: Anfield
-                  '@ns:com:here:xyz':
-                    tags:
-                      - football
-                      - stadium
-                  amenity: Football Stadium
-                  capacity: 54074
-                  description: Home of Liverpool Football Club
+            - type: Feature
+              id: BfiimUxHjj
+              geometry:
+                type: Point
+                coordinates:
+                  - -2.960847
+                  - 53.430828
+              properties:
+                name: Anfield
+                '@ns:com:here:xyz':
+                  tags:
+                    - football
+                    - stadium
+                amenity: Football Stadium
+                capacity: 54074
+                description: Home of Liverpool Football Club
     OnFeatureNotExists:
       x-experimental: true
       type: string

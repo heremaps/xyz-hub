@@ -2,6 +2,7 @@
   {
     "id": "psql",
     "params": {
+      "autoIndexing": true,
       "propertySearch": true
     },
     "capabilities": {

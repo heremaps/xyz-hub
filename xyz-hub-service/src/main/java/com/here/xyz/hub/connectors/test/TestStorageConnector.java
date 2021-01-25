@@ -29,13 +29,14 @@ import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.GetStatisticsEvent;
+import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.hub.Core;
-import com.here.xyz.hub.Service;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -77,9 +78,13 @@ public class TestStorageConnector extends StorageConnector {
     throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
   }
 
-
   @Override
   protected XyzResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
+    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
+  }
+
+  @Override
+  protected XyzResponse processGetHistoryStatisticsEvent(GetHistoryStatisticsEvent event) throws Exception {
     throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
   }
 
@@ -150,6 +155,11 @@ public class TestStorageConnector extends StorageConnector {
 
   @Override
   protected XyzResponse processModifyFeaturesEvent(ModifyFeaturesEvent event) throws Exception {
+    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
+  }
+
+  @Override
+  protected XyzResponse processIterateHistoryEvent(IterateHistoryEvent event) throws Exception {
     throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
   }
 

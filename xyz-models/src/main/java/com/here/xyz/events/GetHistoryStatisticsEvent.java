@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,39 +22,10 @@ package com.here.xyz.events;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 
+/**
+ * The request for history statistics of a certain space.
+ */
 @JsonIgnoreProperties(ignoreUnknown = true)
-@JsonTypeName(value = "IterateFeaturesEvent")
-public final class IterateFeaturesEvent extends SearchForFeaturesEvent<IterateFeaturesEvent> {
-
-  private String handle;
-  private Integer v;
-
-  public Integer getV() {
-    return v;
-  }
-
-  public void setV(Integer v) {
-    this.v = v;
-  }
-
-  public IterateFeaturesEvent withV(Integer v) {
-    setV(v);
-    return this;
-  }
-
-  @SuppressWarnings("unused")
-  public String getHandle() {
-    return handle;
-  }
-
-  @SuppressWarnings("WeakerAccess")
-  public void setHandle(String handle) {
-    this.handle = handle;
-  }
-
-  @SuppressWarnings("unused")
-  public IterateFeaturesEvent withHandle(String handle) {
-    setHandle(handle);
-    return this;
-  }
+@JsonTypeName(value = "GetHistoryStatisticsEvent")
+public final class GetHistoryStatisticsEvent extends Event<GetHistoryStatisticsEvent> {
 }

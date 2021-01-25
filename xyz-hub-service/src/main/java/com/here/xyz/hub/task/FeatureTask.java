@@ -33,8 +33,10 @@ import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
+import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
+import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
@@ -470,6 +472,23 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
   }
 
+  public static class IterateHistoryQuery extends ReadQuery<IterateHistoryEvent, IterateHistoryQuery> {
+    public IterateHistoryQuery(IterateHistoryEvent event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
+      super(event, context, apiResponseTypeType, skipCache);
+    }
+
+    @Override
+    public TaskPipeline<IterateHistoryQuery> getPipeline() {
+      return TaskPipeline.create(this)
+              .then(FeatureTaskHandler::resolveSpace)
+              .then(FeatureAuthorization::authorize)
+              .then(FeatureTaskHandler::validate)
+              .then(FeatureTaskHandler::readCache)
+              .then(FeatureTaskHandler::invoke)
+              .then(FeatureTaskHandler::writeCache);
+    }
+  }
+
   public static class SearchQuery extends ReadQuery<SearchForFeaturesEvent<?>, SearchQuery> {
 
     public SearchQuery(SearchForFeaturesEvent<?> event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
@@ -520,6 +539,24 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::invoke)
           .then(FeatureTaskHandler::convertResponse)
           .then(FeatureTaskHandler::writeCache);
+    }
+  }
+
+  public static class GetHistoryStatistics extends FeatureTask<GetHistoryStatisticsEvent, GetHistoryStatistics> {
+
+    public GetHistoryStatistics(GetHistoryStatisticsEvent event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
+      super(event, context, apiResponseTypeType, skipCache);
+    }
+
+    @Override
+    public TaskPipeline<GetHistoryStatistics> getPipeline() {
+      return TaskPipeline.create(this)
+              .then(FeatureTaskHandler::resolveSpace)
+              .then(FeatureAuthorization::authorize)
+              .then(FeatureTaskHandler::readCache)
+              .then(FeatureTaskHandler::validate)
+              .then(FeatureTaskHandler::invoke)
+              .then(FeatureTaskHandler::writeCache);
     }
   }
 
@@ -586,6 +623,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<ConditionalOperation> getPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(FeatureTaskHandler::injectSpaceParams)
           .then(FeatureTaskHandler::checkPreconditions)
           .then(FeatureTaskHandler::preprocessConditionalOp)
           .then(this::loadObjects)
@@ -750,6 +788,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureTaskHandler::checkPreconditions)
+          .then(FeatureTaskHandler::injectSpaceParams)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::enforceUsageQuotas)
           .then(FeatureTaskHandler::invoke);

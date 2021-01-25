@@ -34,6 +34,7 @@ public class TweaksSQL
   public static final String SIMPLIFICATION_ALGORITHM_A02 = "simplifiedkeeptopology";
   public static final String SIMPLIFICATION_ALGORITHM_A03 = "simplified";
   public static final String SIMPLIFICATION_ALGORITHM_A04 = "merge";
+  public static final String SIMPLIFICATION_ALGORITHM_A06 = "linemerge";
   public static final String ENSURE = "ensure";
   public static final String ENSURE_DEFAULT_SELECTION = "defaultselection";
   public static final String ENSURE_SAMPLINGTHRESHOLD = "samplingthreshold";
@@ -115,6 +116,72 @@ public class TweaksSQL
   public static String mergeEndSql(boolean bGeojson)
   {  return _mergeEndSql + "and " + ( bGeojson ? "geo->>'type' != 'GeometryCollection' " : "geometrytype(geo) != 'GEOMETRYCOLLECTION'" );  }
   
+  public static String linemergeBeginSql = 
+    "with "
+   +"indata as "
+   +"( select i, %1$s as geo from ${schema}.${table} "
+   +"  where 1 = 1 "
+   +"    and %2$s ";  // bboxquery
+
+  public static String linemergeEndSql1 =    
+    "), "
+   +"cx2ids as "
+   +"( select left( gid, %1$d ) as region, ids "
+   +"  from "
+   +"  ( select gid, array_agg( i ) as ids "
+   +"    from "
+   +"    ( select i, unnest( array[ ST_GeoHash( st_startpoint(geo),9 ) , ST_GeoHash( st_endpoint(geo), 9 ) ] ) as gid from indata where ( geometrytype(geo) = 'LINESTRING' ) ) o "
+   +"    group by gid "
+   +"  ) o	"
+   +"  where 1 = 1 "
+   +"    and cardinality(ids) = 2 "
+   +"), "
+   +"cxlist as "
+   +"( select count(1) over ( PARTITION BY region ) as rcount, array[(row_number() over ( PARTITION BY region ))::integer] as rids, region, ids from cx2ids ), "
+   +"mergedids as "
+   +"( with recursive mrgdids( step, region, rcount, rids, ids ) as "
+   +"  ( "
+   +"	  select 1, region, rcount, rids, ids from cxlist "
+   +"	 union all "
+   +"		select distinct on (region, rids[1] ) * "
+   +"		from "
+   +"		( select l.step+1 as step, l.region, l.rcount, array( select unnest( l.rids || r.rids ) order by 1 )  as rids, l.ids || r.ids as ids "
+   +"		  from mrgdids l join cxlist r on ( l.region = r.region and not (l.rids @> r.rids) and  (l.ids && r.ids ) ) "
+   +"		  where 1 = 1 "
+   +"		) i1 "
+   +"	) "
+   +"  select l.region, l.rcount, l.step, l.rids, array( select distinct unnest( l.ids ) ) as ids "
+   +"  from mrgdids l left join mrgdids r on ( l.region = r.region and l.step < r.step and l.rids <@ r.rids ) "
+   +"  where 1 = 1 "
+   +"    and r.region is null "
+   +"), "
+   +"ccxuniqid as "
+   +"( select distinct unnest(ids) as id from cx2ids ), "
+   +"iddata as "
+   +"(  select step, ids from mergedids "
+   +"  union "
+   +"   select 0 as step, array[i] as ids from indata where not i in (select id from ccxuniqid ) "
+   +"), "
+   +"finaldata as "
+   +"(	select "
+   +"   case when step = 0 "
+   +"    then ( select "; /* prj_jsondata */
+  public static String linemergeEndSql2 =    
+                         " from ${schema}.${table} where i = ids[1] ) "
+   +"    else ( select jsonb_set( jsonb_set('{\"type\":\"Feature\",\"properties\":{}}'::jsonb,'{id}', to_jsonb( max(jsondata->>'id') )),'{properties,ids}', jsonb_agg( jsondata->>'id' )) from ${schema}.${table} where i in ( select unnest( ids ) ) ) "
+   +"   end as jsondata, "
+   +"   case when step = 0 "
+   +"    then ( select geo from ${schema}.${table} where i = ids[1] ) "
+   +"    else ( select ST_LineMerge( st_collect( geo ) ) from ${schema}.${table} where i in ( select unnest( ids )) ) "
+   +"   end as geo "
+   +"  from iddata "
+   +") "
+   +"select jsondata, %1$s as geo from finaldata ";
+  
+
+
+
+
   public static String 
    requestedTileBoundsSql = String.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/),
    estimateCountByBboxesSql =

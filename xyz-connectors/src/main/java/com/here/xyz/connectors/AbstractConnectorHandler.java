@@ -225,7 +225,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
       streamPreview = previewInput(input);
 
       Event receivedEvent = XyzSerializable.deserialize(input);
-      logger.info("{} [{} ms] - Parsed event: {}", receivedEvent.getStreamId(), ms(), streamPreview);
+      logger.debug("{} [{} ms] - Parsed event: {}", receivedEvent.getStreamId(), ms(), streamPreview);
       return receivedEvent;
     } catch (JsonMappingException e) {
       logger.error("{} [{} ms] - Exception {} occurred while reading the event: {}", "FATAL", ms(), e.getMessage(), streamPreview, e);
@@ -251,7 +251,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
       if (bytes == null) {
         return;
       }
-      logger.info("{} - Writing data out for response with type: {}", streamId, dataOut.getClass().getSimpleName());
+      logger.debug("{} - Writing data out for response with type: {}", streamId, dataOut.getClass().getSimpleName());
 
       //Calculate ETag
       String hash = Hashing.murmur3_128().newHasher().putBytes(bytes).hash().toString();
