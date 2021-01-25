@@ -106,6 +106,8 @@ public class LimitedOffHeapQueue<E extends OffHeapBuffer> extends LimitedQueue<E
     }
 
     public final byte[] getPayload() throws PayloadVanishedException {
+      if (consumed.get())
+        throw new IllegalStateException("Payload was already consumed.");
       byte[] payload = this.payload.get();
       if (payload == null) {
         //Payload is stashed and can't be accessed right now. Un-stashing it.
