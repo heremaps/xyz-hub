@@ -19,6 +19,9 @@
 
 package com.here.xyz.connectors;
 
+import com.amazonaws.services.lambda.AWSLambda;
+import com.amazonaws.services.lambda.AWSLambdaClientBuilder;
+import com.amazonaws.services.lambda.model.InvokeRequest;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 import com.fasterxml.jackson.databind.JsonMappingException;
@@ -40,6 +43,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -47,62 +52,82 @@ import org.apache.logging.log4j.Logger;
  * A default implementation of a request handler that can be reused. It supports out of the box caching via e-tag.
  */
 public abstract class AbstractConnectorHandler implements RequestStreamHandler {
+
   /**
    * Logger
    */
   private static final Logger logger = LogManager.getLogger();
+
   /**
    * The event-type-suffix for response notifications.
    */
   @SuppressWarnings("WeakerAccess")
   public static final String RESPONSE = ".response";
+
   /**
    * The event-type-suffix for request notifications.
    */
   static final String REQUEST = ".request";
+
   /**
    * The relocation client
    */
   private static final RelocationClient relocationClient = new RelocationClient(System.getenv("S3_BUCKET"));
+
+  /**
+   * The lambda client, used for warmup.
+   * Only used when running in AWS Lambda environment.
+   */
+  private static final AWSLambda lambda = System.getenv("AWS_LAMBDA_FUNCTION_NAME") != null ? AWSLambdaClientBuilder.defaultClient(): null;
+
   /**
    * The number of the bytes to read from an input stream and preview as a String in the logs.
    */
   private static final int INPUT_PREVIEW_BYTE_SIZE = 4 * 1024; // 4K
+
   /**
    * The etag string
    */
   private static final String ETAG_STRING = ",\"etag\":\"_\"}";
+
   /**
    * Environment variable for setting the custom event decryptor. Currently only KMS, PRIVATE_KEY, or DUMMY is supported
    */
   public static final String ENV_DECRYPTOR = "EVENT_DECRYPTOR";
+
   /**
    * The maximal response size in bytes that can be sent back without relocating the response.
    */
   @SuppressWarnings("WeakerAccess")
   public static int MAX_RESPONSE_SIZE = 6 * 1024 * 1024;
+
   /**
-   * The maximal response size in bytes that can be sent back without relocating the response.
+   * The maximal size of uncompressed bytes. Exceeding that limit leads to the response getting gzipped.
    */
   @SuppressWarnings("WeakerAccess")
-  public static int MIN_COMPRESS_SIZE = 1024 * 1024; // 1MB
+  public static int MAX_UNCOMPRESSED_SIZE = 1024 * 1024; // 1MB
+
   /**
    * The context for this request.
    */
   @SuppressWarnings("WeakerAccess")
   protected Context context;
+
   /**
    * The stream-id that should be added to every log output.
    */
   protected String streamId;
+
   /**
    * Start timestamp for logging.
    */
   private long start;
+
   /**
    * A flag to inform, if the lambda is running in embedded mode.
    */
   private boolean embedded = false;
+
   /**
    * {@link EventDecryptor} used for decrypting the parameters.
    */
@@ -163,7 +188,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
         ifNoneMatch = event.getIfNoneMatch();
 
         if (event instanceof RelocatedEvent) {
-          handleRequest(relocationClient.processRelocatedEvent((RelocatedEvent) event), output, context);
+          handleRequest(Payload.prepareInputStream(relocationClient.processRelocatedEvent((RelocatedEvent) event)), output, context);
           return;
         }
         initialize(event);
@@ -176,6 +201,8 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
             .withStreamId(streamId)
             .withError(XyzError.EXCEPTION)
             .withErrorMessage("Unexpected exception occurred.");
+      } catch (OutOfMemoryError e) {
+       throw e;
       }
       writeDataOut(output, dataOut, ifNoneMatch);
     } catch (Exception e) {
@@ -198,7 +225,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
       streamPreview = previewInput(input);
 
       Event receivedEvent = XyzSerializable.deserialize(input);
-      logger.info("{} [{} ms] - Parsed event: {}", receivedEvent.getStreamId(), ms(), streamPreview);
+      logger.debug("{} [{} ms] - Parsed event: {}", receivedEvent.getStreamId(), ms(), streamPreview);
       return receivedEvent;
     } catch (JsonMappingException e) {
       logger.error("{} [{} ms] - Exception {} occurred while reading the event: {}", "FATAL", ms(), e.getMessage(), streamPreview, e);
@@ -224,18 +251,18 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
       if (bytes == null) {
         return;
       }
-      logger.info("{} - Writing data out for response with type: {}", streamId, dataOut.getClass().getSimpleName());
+      logger.debug("{} - Writing data out for response with type: {}", streamId, dataOut.getClass().getSimpleName());
 
-      // Calculate ETag
+      //Calculate ETag
       String hash = Hashing.murmur3_128().newHasher().putBytes(bytes).hash().toString();
       byte[] etagBytes = ETAG_STRING.replace("_", hash).getBytes();
       if (hash.equals(ifNoneMatch)) {
         bytes = new NotModifiedResponse().serialize().getBytes();
       }
 
-      // Transform: handle compression and etag injection
+      //Transform: handle compression and etag injection
       try (ByteArrayOutputStream os = new ByteArrayOutputStream(bytes.length + etagBytes.length - 1)) {
-        OutputStream targetOs = (!embedded && bytes.length > MIN_COMPRESS_SIZE ? Payload.gzip(os) : os);
+        OutputStream targetOs = (!embedded && bytes.length > MAX_UNCOMPRESSED_SIZE ? Payload.gzip(os) : os);
         targetOs.write(bytes, 0, bytes.length - 1);
         targetOs.write(etagBytes);
         os.close();
@@ -243,14 +270,15 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
         bytes = os.toByteArray();
       }
 
-      // Relocate
+      //Relocate
       if (!embedded && bytes.length > MAX_RESPONSE_SIZE) {
-        bytes = relocationClient.relocate(streamId, bytes);
+        bytes = relocationClient.relocate(streamId, Payload.isGzipped(bytes) ? bytes : Payload.compress(bytes));
       }
 
-      // Write result
+      //Write result
       output.write(bytes);
-    } catch (Exception e) {
+    }
+    catch (Exception e) {
       logger.error("{} - Unexpected exception occurred: {}\n{}", streamId, e.getMessage(), e.getStackTrace());
     }
   }
@@ -270,11 +298,28 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    * the connection to the database open.
    */
   protected XyzResponse processHealthCheckEvent(HealthCheckEvent event) {
-    if (event.getMinResponseTime() > 0) {
-      try {
-        Thread.sleep(event.getMinResponseTime());
+    if (event.getWarmupCount() > 0 && this.context != null && this.context.getInvokedFunctionArn() != null && lambda != null) {
+      int warmupCount = event.getWarmupCount();
+      event.setWarmupCount(0);
+      String newEvent = XyzSerializable.serialize(event);
+      logger.debug("{} - Calling myself. WarmupCount: {}", streamId, warmupCount);
+      List<Thread> threads = new ArrayList<>(warmupCount);
+      for(int i = 0; i < warmupCount; i++) {
+        threads.add(new Thread(() -> lambda.invoke(new InvokeRequest()
+                .withFunctionName(this.context.getInvokedFunctionArn())
+                .withPayload(newEvent))));
       }
-      catch (InterruptedException ignored) {}
+      threads.forEach(t -> t.start());
+      threads.forEach(t -> {try {t.join();} catch (InterruptedException ignore){}});
+    }
+
+    if (System.currentTimeMillis() < event.getMinResponseTime() + start) {
+      try {
+        Thread.sleep((event.getMinResponseTime() + start) - System.currentTimeMillis());
+      }
+      catch (InterruptedException e) {
+        return new ErrorResponse().withStreamId(streamId).withError(XyzError.EXCEPTION);
+      }
     }
     return new HealthStatus();
   }

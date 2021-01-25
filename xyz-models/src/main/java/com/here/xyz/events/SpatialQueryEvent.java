@@ -32,6 +32,12 @@ public class SpatialQueryEvent<T extends SpatialQueryEvent> extends SearchForFea
   private String tweakType;
   private Map<String, Object> tweakParams;
 
+  private String optimizationMode;
+  private String vizSampling;
+
+  private String binaryType;
+
+
   @SuppressWarnings("unused")
   public String getClusteringType() {
     return this.clusteringType;
@@ -95,4 +101,57 @@ public class SpatialQueryEvent<T extends SpatialQueryEvent> extends SearchForFea
     //noinspection unchecked
     return (T) this;
   }
+
+  @SuppressWarnings("unused")
+  public String getOptimizationMode() {
+    return this.optimizationMode;
+  }
+
+  @SuppressWarnings("WeakerAccess")
+  public void setOptimizationMode(String optimizationMode) {
+    this.optimizationMode = optimizationMode;
+  }
+
+  @SuppressWarnings("unused")
+  public T withOptimizationMode(String optimizationMode) {
+    setOptimizationMode(optimizationMode);
+    //noinspection unchecked
+    return (T) this;
+  }
+
+  @SuppressWarnings("unused")
+  public String getVizSampling() {
+    return this.vizSampling;
+  }
+
+  @SuppressWarnings("WeakerAccess")
+  public void setVizSampling(String vizSampling) {
+    this.vizSampling = vizSampling;
+  }
+
+  @SuppressWarnings("unused")
+  public T withVizSampling(String vizSampling) {
+    setVizSampling(vizSampling);
+    //noinspection unchecked
+    return (T) this;
+  }
+
+  @SuppressWarnings("unused")
+  public String getBinaryType() {
+    return this.binaryType;
+  }
+
+  @SuppressWarnings("WeakerAccess")
+  public void setBinaryType(String binaryType) {
+    this.binaryType = binaryType;
+  }
+
+  @SuppressWarnings("unused")
+  public T withBinaryType(String binaryType) {
+    setBinaryType(binaryType);
+    //noinspection unchecked
+    return (T) this;
+  }
+
+
 }

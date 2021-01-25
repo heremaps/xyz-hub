@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -90,7 +90,7 @@ public class JDBCConfig {
         List<String> batchQueries = Arrays.asList(
             String.format("CREATE SCHEMA %s", SCHEMA),
             String.format("CREATE table  %s (id VARCHAR(50) primary key, config JSONB)", CONNECTOR_TABLE),
-            String.format("CREATE table  %s (id VARCHAR(50) primary key, owner VARCHAR (50), cid VARCHAR (50), config JSONB)", SPACE_TABLE)
+            String.format("CREATE table  %s (id VARCHAR(255) primary key, owner VARCHAR (50), cid VARCHAR (255), config JSONB)", SPACE_TABLE)
         );
 
         Future<Void> onComplete = Future.future();

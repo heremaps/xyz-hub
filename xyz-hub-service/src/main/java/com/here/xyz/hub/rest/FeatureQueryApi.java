@@ -59,14 +59,7 @@ import java.io.IOException;
 import java.util.List;
 import org.apache.logging.log4j.Marker;
 
-public class FeatureQueryApi extends Api {
-
-  /**
-   * The default limit for the number of features to load from the connector.
-   */
-  private final static int DEFAULT_FEATURE_LIMIT = 30_000;
-  private final static int MIN_LIMIT = 1;
-  private final static int HARD_LIMIT = 100_000;
+public class FeatureQueryApi extends SpaceBasedApi {
 
   public FeatureQueryApi(OpenAPI3RouterFactory routerFactory) {
     routerFactory.addHandlerByOperationId("getFeaturesBySpatial", this::getFeaturesBySpatial);
@@ -133,6 +126,7 @@ public class FeatureQueryApi extends Api {
           .withForce2D(force2D)
           .withTags(Query.getTags(context))
           .withSelection(Query.getSelection(context))
+          .withV(Query.getInteger(context, Query.V, null))
           .withHandle(Query.getString(context, Query.HANDLE, null));
 
       final IterateQuery task = new IterateQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache);
@@ -237,17 +231,25 @@ public class FeatureQueryApi extends Api {
         tileId = tileId.substring(0, indexOfPoint);
       }
 
-      ApiResponseType responseType;
-      if ("mvt".equalsIgnoreCase(acceptTypeSuffix) || context.parsedHeaders().accept().stream().map(ParsedHeaderValue::rawValue).anyMatch(
-          APPLICATION_VND_MAPBOX_VECTOR_TILE::equals)) {
-        responseType = ApiResponseType.MVT;
-      } else if ("mvtf".equalsIgnoreCase(acceptTypeSuffix)) {
-        responseType = ApiResponseType.MVT_FLATTENED;
-      } else {
-        responseType = ApiResponseType.FEATURE_COLLECTION;
-      }
+      ApiResponseType responseType = ApiResponseType.FEATURE_COLLECTION;
+      boolean bXperimentalMvt = false;
+      
+      if( context.parsedHeaders().accept().stream().map(ParsedHeaderValue::rawValue).anyMatch( APPLICATION_VND_MAPBOX_VECTOR_TILE::equals) )
+       responseType = ApiResponseType.MVT;
+      else if( acceptTypeSuffix != null ) 
+       switch( acceptTypeSuffix.toLowerCase() )
+       { case "mvt2"  : bXperimentalMvt = true;
+         case "mvt"   : responseType = ApiResponseType.MVT; break; 
+         case "mvtf2" : bXperimentalMvt = true;
+         case "mvtf"  : responseType = ApiResponseType.MVT_FLATTENED; break;
+         default : break;
+       }
+
+      String HubMvt =  ((( responseType == ApiResponseType.MVT || responseType == ApiResponseType.MVT_FLATTENED ) && !bXperimentalMvt) ? "hubmvt" : null );
 
       GetFeaturesByTileEvent event = new GetFeaturesByTileEvent();
+
+      String optimMode = Query.getString(context, Query.OPTIM_MODE, "raw");
 
       try {
         event.withClip(Query.getBoolean(context, Query.CLIP, false) || responseType == ApiResponseType.MVT || responseType == ApiResponseType.MVT_FLATTENED)
@@ -256,11 +258,14 @@ public class FeatureQueryApi extends Api {
               .withClusteringParams(Query.getAdditionalParams(context, Query.CLUSTERING))
               .withTweakType(Query.getString(context, Query.TWEAKS, null))
               .withTweakParams(Query.getAdditionalParams(context, Query.TWEAKS))
-              .withLimit(getLimit(context))
+              .withLimit(getLimit(context, ( "viz".equals(optimMode) ? HARD_LIMIT :  DEFAULT_FEATURE_LIMIT ) ))
               .withTags(Query.getTags(context))
               .withPropertiesQuery(Query.getPropertiesQuery(context))
               .withSelection(Query.getSelection(context))
-              .withForce2D(force2D);
+              .withForce2D(force2D)
+              .withOptimizationMode(optimMode)
+              .withVizSampling(Query.getString(context, Query.OPTIM_VIZSAMPLING, "med"))
+              .withBinaryType( bXperimentalMvt ? responseType.name() : HubMvt );
       } catch (Exception e) {
         throw new HttpException(BAD_REQUEST,e.getMessage());
       }
@@ -347,19 +352,6 @@ public class FeatureQueryApi extends Api {
     throw new HttpException(BAD_REQUEST, "Invalid or unsupported EPSG code provided, in doubt please use 3785");
   }
 
-  /**
-   * Returns the value of the limit parameter of a default value.
-   */
-  private int getLimit(RoutingContext context) throws HttpException {
-    int limit = Query.getInteger(context, Query.LIMIT, DEFAULT_FEATURE_LIMIT);
-
-    if (limit < FeatureQueryApi.MIN_LIMIT || limit > FeatureQueryApi.HARD_LIMIT) {
-      throw new HttpException(BAD_REQUEST,
-          "The parameter limit must be between " + FeatureQueryApi.MIN_LIMIT + " and " + FeatureQueryApi.HARD_LIMIT
-              + ".");
-    }
-    return limit;
-  }
 
   /**
    * Parses the provided latitude and longitude values as a bounding box.

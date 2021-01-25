@@ -28,7 +28,7 @@ import java.util.List;
 /**
  * This class could be extended by any processor connector implementations that want automatic encryption of secrets.
  */
-@SuppressWarnings({"WeakerAccess", "unused"})
+@SuppressWarnings({"WeakerAccess"})
 public abstract class EncryptingProcessorConnector extends ProcessorConnector {
 
   /**
@@ -44,13 +44,14 @@ public abstract class EncryptingProcessorConnector extends ProcessorConnector {
   /**
    * {@inheritDoc}
    */
+  @SuppressWarnings("RedundantThrows")
   @Override
-  protected ModifySpaceEvent processModifySpace(ModifySpaceEvent event, NotificationParams notificationParams) {
+  protected ModifySpaceEvent processModifySpace(ModifySpaceEvent event, NotificationParams notificationParams) throws Exception {
     Space space = event.getSpaceDefinition();
     if (space != null)  {
       List<ListenerConnectorRef> processors = space.getProcessors().get(connectorId);
       if (processors != null) {
-        processors.forEach(p -> p.setParams(eventDecryptor.encryptParams(p.getParams(), fieldsToEncrypt)));
+        processors.forEach(p -> p.setParams(eventDecryptor.encryptParams(p.getParams(), fieldsToEncrypt, space.getId())));
       }
     }
     event.setSpaceDefinition(space);

@@ -27,12 +27,14 @@ import static com.here.xyz.hub.task.FeatureTask.FeatureKey.SPACE;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.UPDATED_AT;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.UUID;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
 import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.json.JsonObject;
 import java.util.Collections;
 import java.util.List;
@@ -47,20 +49,15 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
   private final static String ON_MERGE_CONFLICT = "onMergeConflict";
 
   /**
-   *
-   * @param featureModifications A list of FeatureModifications of which each may have different settings
-   *  for existence-handling and/or conflict-handling.
-   *  If these settings are not specified at the FeatureModification the according other parameters (ifNotExists, ifExists,
-   *  conflictResolution) of this constructor will be applied for that purpose.
-   * @param ifNotExists
-   * @param ifExists
-   * @param isTransactional
-   * @param conflictResolution
+   * @param featureModifications A list of FeatureModifications of which each may have different settings for existence-handling and/or
+   * conflict-handling. If these settings are not specified at the FeatureModification the according other parameters (ifNotExists,
+   * ifExists, conflictResolution) of this constructor will be applied for that purpose.
    */
   public ModifyFeatureOp(List<Map<String, Object>> featureModifications, IfNotExists ifNotExists, IfExists ifExists,
       boolean isTransactional, ConflictResolution conflictResolution) {
     super((featureModifications == null) ? Collections.emptyList() : featureModifications.stream().flatMap(fm -> {
-      IfNotExists ne = fm.get(ON_FEATURE_NOT_EXISTS) instanceof String ? IfNotExists.of((String) fm.get(ON_FEATURE_NOT_EXISTS)) : ifNotExists;
+      IfNotExists ne =
+          fm.get(ON_FEATURE_NOT_EXISTS) instanceof String ? IfNotExists.of((String) fm.get(ON_FEATURE_NOT_EXISTS)) : ifNotExists;
       IfExists e = fm.get(ON_FEATURE_EXISTS) instanceof String ? IfExists.of((String) fm.get(ON_FEATURE_EXISTS)) : ifExists;
       ConflictResolution cr = fm.get(ON_MERGE_CONFLICT) instanceof String ?
           ConflictResolution.of((String) fm.get(ON_MERGE_CONFLICT)) : conflictResolution;
@@ -68,17 +65,20 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
       List<String> featureIds = (List<String>) fm.get("featureIds");
       Map<String, Object> featureCollection = (Map<String, Object>) fm.get("featureData");
       List<Map<String, Object>> features = null;
-      if (featureCollection != null)
+      if (featureCollection != null) {
         features = (List<Map<String, Object>>) featureCollection.get("features");
+      }
 
-      if (featureIds == null && features == null)
+      if (featureIds == null && features == null) {
         return Stream.empty();
+      }
 
       if (featureIds != null) {
-        if (features == null)
+        if (features == null) {
           features = idsToFeatures(featureIds);
-        else
+        } else {
           features.addAll(idsToFeatures(featureIds));
+        }
       }
 
       return features.stream().map(feature -> new FeatureEntry(feature, ne, e, cr));
@@ -97,7 +97,17 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
 
     @Override
     public Feature fromMap(Map<String, Object> map) throws ModifyOpError, HttpException {
-      return XyzSerializable.fromMap(map, Feature.class);
+      try {
+        return XyzSerializable.fromMap(map, Feature.class);
+      } catch (Exception e) {
+        try {
+          throw new HttpException(HttpResponseStatus.BAD_REQUEST,
+              "Unable to create a Feature from the provided input: " + XyzSerializable.DEFAULT_MAPPER.get().writeValueAsString(map));
+        } catch (JsonProcessingException jsonProcessingException) {
+          throw new HttpException(HttpResponseStatus.BAD_REQUEST,
+              "Unable to create a Feature from the provided input. id: " + map.get("id") + ",type: " + map.get("type"));
+        }
+      }
     }
 
     @Override
@@ -109,8 +119,7 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
     protected String getUuid(Map<String, Object> feature) {
       try {
         return new JsonObject(feature).getJsonObject(PROPERTIES).getJsonObject(XyzNamespace.XYZ_NAMESPACE).getString(UUID);
-      }
-      catch (Exception e) {
+      } catch (Exception e) {
         return null;
       }
     }
@@ -119,8 +128,7 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
     protected String getUuid(Feature input) {
       try {
         return input.getProperties().getXyzNamespace().getUuid();
-      }
-      catch (Exception e) {
+      } catch (Exception e) {
         return null;
       }
     }

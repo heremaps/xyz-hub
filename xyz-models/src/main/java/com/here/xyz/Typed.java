@@ -22,6 +22,9 @@ package com.here.xyz;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
+import com.here.xyz.responses.changesets.ChangesetCollection;
+import com.here.xyz.responses.changesets.Changeset;
+import com.here.xyz.responses.changesets.CompactChangeset;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Geometry;
 

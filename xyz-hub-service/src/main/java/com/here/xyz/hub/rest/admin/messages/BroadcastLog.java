@@ -18,7 +18,6 @@
  */
 
 package com.here.xyz.hub.rest.admin.messages;
-
 import com.here.xyz.hub.rest.admin.AdminMessage;
 import com.here.xyz.hub.rest.admin.Node;
 import org.apache.logging.log4j.LogManager;

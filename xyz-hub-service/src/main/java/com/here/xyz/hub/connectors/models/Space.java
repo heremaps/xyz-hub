@@ -27,6 +27,7 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.google.common.primitives.Longs;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
@@ -37,6 +38,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
@@ -52,9 +54,13 @@ import org.apache.logging.log4j.Marker;
 public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
 
   private static final Logger logger = LogManager.getLogger();
-  public static final long CONTENT_UPDATED_AT_INTERVAL_MILLIS = TimeUnit.MINUTES.toMillis(1);
-  private final static long MAX_SLIDING_WINDOW = TimeUnit.DAYS.toMillis(10);
+  public static final long DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS = TimeUnit.MINUTES.toMillis(1);
+  public static final long NO_CACHE_INTERVAL_MILLIS = DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS * 2;
+  // Add random 20 seconds offset to avoid all service nodes sending cache invalidation for the space at the same time
+  public static final long CONTENT_UPDATED_AT_INTERVAL_MILLIS = DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS
+      - TimeUnit.SECONDS.toMillis((long) (Math.random() * 20));
 
+  private final static long MAX_SLIDING_WINDOW = TimeUnit.DAYS.toMillis(10);
   /**
    * Indicates the last time the content of a space was updated.
    */
@@ -74,7 +80,7 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
   public static void resolveConnector(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler) {
     Service.connectorConfigClient.get(marker, connectorId, arStorage -> {
       if (arStorage.failed()) {
-        logger.error(marker, "Unable to load the connector definition for storage '{}'",
+        logger.warn(marker, "Unable to load the connector definition for storage '{}'",
             connectorId, arStorage.cause());
       } else {
         final Connector storage = arStorage.result();
@@ -92,7 +98,7 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
 
   @JsonView(Internal.class)
   public double getVolatility() {
-    long now = Service.currentTimeMillis();
+    long now = Core.currentTimeMillis();
 
     // if the space existed for a shorter period of time, use this as a sliding window.
     long slidingWindow = Math.min(1 + now - getCreatedAt(), MAX_SLIDING_WINDOW);
@@ -156,6 +162,13 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
         .collect(Collectors.toList());
   }
 
+  public boolean hasRequestListeners() {
+    if (getListeners() == null || getListeners().isEmpty()) return false;
+    List<Space.ListenerConnectorRef> listeners = getConnectorRefs(ConnectorType.LISTENER);
+    return listeners.stream().anyMatch(l -> l.getEventTypes() != null &&
+        l.getEventTypes().stream().anyMatch(et -> et.endsWith(".request")));
+  }
+
   @JsonIgnore
   public CacheProfile getCacheProfile(boolean skipCache, boolean autoConfig) {
     // Cache is manually deactivated, either for the space or for this specific request
@@ -174,10 +187,10 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
     }
 
     double volatility = getVolatility();
-    long timeSinceLastUpdate = Service.currentTimeMillis() - getContentUpdatedAt();
+    long timeSinceLastUpdate = Core.currentTimeMillis() - getContentUpdatedAt();
 
     // 0 min to 2 min -> no cache
-    if (timeSinceLastUpdate < 2 * CONTENT_UPDATED_AT_INTERVAL_MILLIS) {
+    if (timeSinceLastUpdate < NO_CACHE_INTERVAL_MILLIS) {
       return CacheProfile.NO_CACHE;
     }
 

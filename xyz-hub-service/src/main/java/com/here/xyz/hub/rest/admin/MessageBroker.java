@@ -21,8 +21,20 @@ package com.here.xyz.hub.rest.admin;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.here.xyz.hub.Service;
+import com.here.xyz.hub.rest.AdminApi;
+import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.hub.rest.admin.messages.brokers.RedisMessageBroker;
 import java.io.IOException;
+import java.nio.charset.Charset;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+
+import io.vertx.core.Future;
+import io.vertx.core.buffer.Buffer;
+import io.vertx.ext.web.client.WebClient;
+import io.vertx.ext.web.client.WebClientOptions;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -36,12 +48,30 @@ public interface MessageBroker {
   Logger logger = LogManager.getLogger();
   ThreadLocal<ObjectMapper> mapper = ThreadLocal.withInitial(ObjectMapper::new);
 
+  int requestTimeout = (int) TimeUnit.SECONDS.toMillis(Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT);
+  List<String> hubRemoteUrls = Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS == null ?
+      null : Arrays.asList(Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS.split(";"));
+
   void sendRawMessage(String jsonMessage);
 
   default void sendMessage(AdminMessage message) {
     if (!Node.OWN_INSTANCE.equals(message.destination)) {
       String jsonMessage = null;
       try {
+        if (message instanceof RelayedMessage && ((RelayedMessage) message).globalRelay) {
+          RelayedMessage rm = (RelayedMessage) message;
+          //Remote message does not need to be globally relayed again, but it needs be done remotely
+          rm.globalRelay = false;
+          boolean originalRelay = rm.relay;
+          rm.relay = true;
+          //Send messages to remote cluster async
+          jsonMessage = mapper.get().writeValueAsString(message);
+          //Re-set the relay value to its original value
+          rm.relay = originalRelay;
+          sendRawMessagesToRemoteCluster(jsonMessage);
+        }
+
+        //Send the local version of the message
         jsonMessage = mapper.get().writeValueAsString(message);
         sendRawMessage(jsonMessage);
       }
@@ -58,6 +88,30 @@ public interface MessageBroker {
     with the #broadcastIncludeLocalNode flag being active.
      */
     receiveMessage(message);
+  }
+
+  default void sendRawMessagesToRemoteCluster(String jsonMessage) {
+    if (hubRemoteUrls != null && !hubRemoteUrls.isEmpty()) {
+      for (String remoteUrl : hubRemoteUrls) {
+        if (remoteUrl.isEmpty()) continue;
+        try {
+          Service.webClient
+              .postAbs(remoteUrl + AdminApi.ADMIN_MESSAGES_ENDPOINT)
+              .timeout(requestTimeout)
+              .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
+              .putHeader("Authorization", "Bearer " + Service.configuration.ADMIN_MESSAGE_JWT)
+              .sendBuffer(Buffer.buffer(jsonMessage), ar -> {
+                if (ar.failed())
+                  logger.error("Failed to sent message to remote cluster. URLs: " + remoteUrl,
+                          ar.cause());
+              });
+        }
+        catch (Exception e) {
+          logger.error("Failed to sent message to remote cluster. URLs: " + remoteUrl,
+                  e.getCause());
+        }
+      }
+    }
   }
 
   default void receiveRawMessage(byte[] rawJsonMessage) {

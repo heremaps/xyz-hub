@@ -21,15 +21,19 @@ package com.here.xyz.hub.connectors.models;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLambda;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.admin.Node;
 import java.net.URL;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -45,7 +49,17 @@ public class Connector {
    */
   public String id;
 
+  /**
+   * Whether this connector is activated.
+   * If this flag is set to false, no connector client will be available for it. That means no requests can be performed to the connector.
+   */
   public boolean active = true;
+
+  /**
+   * Whether to skip the automatic disabling of this connector even when being not healthy.
+   * If this flag is set to true the connector will keep accepting requests even if its health-check is not OK.
+   */
+  public boolean skipAutoDisable;
 
   /**
    * Whether the connector is a trusted connector. Trusted connectors will receive more information than normal connectors. This might be
@@ -64,9 +78,52 @@ public class Connector {
   public StorageCapabilities capabilities = new StorageCapabilities();
 
   /**
+   * A map of remote functions which may be connected by this connector.
+   * The remote function to be used should be determined by the "environment ID" of the service.
+   *
+   * @see Service#getEnvironmentIdentifier()
+   */
+  public Map<String, RemoteFunctionConfig> remoteFunctions = new HashMap<>();
+
+  /**
    * Arbitrary parameters to be provided to the remote function with the event.
    */
-  public RemoteFunctionConfig remoteFunction;
+  private RemoteFunctionConfig _remoteFunction;
+
+  /**
+   * Returns the remote function pool ID to be used for this Service environment.
+   * @return
+   */
+  public static String getRemoteFunctionPoolId() {
+    if (Service.configuration != null && Service.configuration.REMOTE_FUNCTION_POOL_ID != null) {
+      return Service.configuration.REMOTE_FUNCTION_POOL_ID;
+    }
+    return Service.getEnvironmentIdentifier();
+  }
+
+  private void setRemoteFunction(RemoteFunctionConfig remoteFunction) {
+    _remoteFunction = remoteFunction;
+  }
+
+  /**
+   * @see Service#getEnvironmentIdentifier()
+   *
+   * @return The according remote function for this environment or - if there is no special function
+   * for this environment - any remote function from the {@link #remoteFunctions} map.
+   */
+  @JsonInclude(Include.NON_NULL)
+  public RemoteFunctionConfig getRemoteFunction() {
+    if (remoteFunctions == null || remoteFunctions.isEmpty()) {
+      if (_remoteFunction == null) throw new RuntimeException("No remote functions are defined for connector with ID " + id);
+      return _remoteFunction;
+    }
+
+    String rfPoolId = getRemoteFunctionPoolId();
+    if (!remoteFunctions.containsKey(rfPoolId)) throw new RuntimeException("No matching remote function is defined for connector with ID "
+        + id + " and remote-function pool ID " + rfPoolId);
+
+    return remoteFunctions.get(rfPoolId);
+  }
 
   /**
    * The connection and throttling settings.
@@ -102,9 +159,11 @@ public class Connector {
         && trusted == other.trusted)
         && Objects.equals(params, other.params)
         && Objects.equals(capabilities, other.capabilities)
-        && Objects.equals(remoteFunction, other.remoteFunction)
+        && Objects.equals(getRemoteFunction(), other.getRemoteFunction()) //TODO: Kept for backwards compatibility
+        && Objects.equals(remoteFunctions, other.remoteFunctions)
         && Objects.equals(connectionSettings, other.connectionSettings)
-        && Objects.equals(defaultEventTypes, other.defaultEventTypes);
+        && Objects.equals(defaultEventTypes, other.defaultEventTypes)
+        && Objects.equals(skipAutoDisable, other.skipAutoDisable);
   }
 
   @JsonIgnore

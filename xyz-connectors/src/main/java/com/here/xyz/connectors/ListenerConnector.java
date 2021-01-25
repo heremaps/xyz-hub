@@ -21,6 +21,7 @@ package com.here.xyz.connectors;
 
 
 import com.here.xyz.Typed;
+import com.here.xyz.events.ContentModifiedNotification;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.EventNotification;
@@ -43,7 +44,7 @@ import com.here.xyz.responses.SuccessResponse;
 /**
  * This class could be extended by any listener connector implementations.
  */
-@SuppressWarnings({"WeakerAccess", "EmptyMethod", "unused"})
+@SuppressWarnings({"WeakerAccess", "EmptyMethod", "unused", "rawtypes"})
 public abstract class ListenerConnector extends AbstractConnectorHandler {
 
   @Override
@@ -70,10 +71,10 @@ public abstract class ListenerConnector extends AbstractConnectorHandler {
     }
 
     final NotificationParams notificationParams = new NotificationParams(
-        eventDecryptor.decryptParams(notification.getParams()),
-        eventDecryptor.decryptParams(notification.getConnectorParams()),
-        eventDecryptor.decryptParams(notification.getMetadata()),
-        notification.getTid());
+        eventDecryptor.decryptParams(notification.getParams(), notification.getSpace()),
+        eventDecryptor.decryptParams(notification.getConnectorParams(), notification.getSpace()),
+        eventDecryptor.decryptParams(notification.getMetadata(), notification.getSpace()),
+        notification.getTid(), notification.getAid(), notification.getJwt());
 
     if (notification.getEvent() instanceof ErrorResponse) {
       processErrorResponse((ErrorResponse) notification.getEvent(), notification.getEventType(), notificationParams);
@@ -141,6 +142,9 @@ public abstract class ListenerConnector extends AbstractConnectorHandler {
     if ((DeleteFeaturesByTagEvent.class.getSimpleName() + RESPONSE).equals(eventType)) {
       processDeleteFeaturesByTag((FeatureCollection) notification.getEvent(), notificationParams);
     }
+    if ((ContentModifiedNotification.class.getSimpleName() + REQUEST).equals(eventType)) {
+      processContentModifiedNotification((ContentModifiedNotification) notification.getEvent(), notificationParams);
+    }
   }
 
   @SuppressWarnings("RedundantThrows")
@@ -187,7 +191,6 @@ public abstract class ListenerConnector extends AbstractConnectorHandler {
   protected void processSearchForFeatures(SearchForFeaturesEvent event, NotificationParams notificationParams) throws Exception {
   }
 
-  @SuppressWarnings("RedundantThrows")
   protected void processSearchForFeatures(FeatureCollection response, NotificationParams notificationParams) throws Exception {
   }
 
@@ -199,7 +202,6 @@ public abstract class ListenerConnector extends AbstractConnectorHandler {
   protected void processDeleteFeaturesByTag(FeatureCollection response, NotificationParams notificationParams) throws Exception {
   }
 
-  @SuppressWarnings("RedundantThrows")
   protected void processModifyFeatures(ModifyFeaturesEvent event, NotificationParams notificationParams) throws Exception {
   }
 
@@ -224,6 +226,12 @@ public abstract class ListenerConnector extends AbstractConnectorHandler {
   }
 
   @SuppressWarnings("RedundantThrows")
+  protected void processContentModifiedNotification(ContentModifiedNotification event, NotificationParams notificationParams)
+      throws Exception {
+  }
+
+  @SuppressWarnings("RedundantThrows")
   protected void processErrorResponse(ErrorResponse response, String eventType, NotificationParams notificationParams) throws Exception {
   }
+
 }

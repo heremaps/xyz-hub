@@ -28,6 +28,7 @@ import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.hub.connectors.RemoteFunctionClient;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.Connector;
+import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLambda;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
@@ -42,12 +43,15 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
 
   private Map<String, Object> rfcData = new HashMap<>();
   private Connector connector;
+  private Status cachedStatus;
+  private Response cachedResponse;
+  private int consecutiveErrors;
 
   RemoteFunctionHealthCheck(Connector connector) {
     this.connector = connector;
     setName(connector.id);
     setRole(Role.CUSTOM);
-    setTarget(connector.remoteFunction instanceof Embedded ? Target.LOCAL : Target.REMOTE);
+    setTarget(connector.getRemoteFunction() instanceof Embedded ? Target.LOCAL : Target.REMOTE);
   }
 
   @JsonIgnore
@@ -58,31 +62,45 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
   @Override
   public Status execute() throws InterruptedException {
     Status s = new Status();
-    HealthCheckEvent healthCheck = new HealthCheckEvent();
-    //Just generate a stream ID here as the stream actually "begins" here
-    final String healthCheckStreamId = UUID.randomUUID().toString();
-    healthCheck.setStreamId(healthCheckStreamId);
-    try {
-      RpcClient client = getClient();
-      client.execute(new Log4jMarker(healthCheckStreamId), healthCheck, ar -> {
-        if (ar.failed()) {
-          setResponse(generateResponse().withMessage("Error in connector health-check: " + ar.cause().getMessage()));
-          s.setResult(ERROR);
-        }
-        else {
-          setResponse(generateResponse());
-          s.setResult(OK);
-        }
-        synchronized (s) {
-          s.notify();
-        }
-      });
 
-      while (s.getResult() == UNKNOWN) {
-        synchronized (s) {
-          s.wait();
+    try {
+      if (cachedStatus != null) {
+        Status tmpStatus = cachedStatus;
+        setResponse(cachedResponse);
+        if (tmpStatus.getResult() == ERROR) consecutiveErrors++;
+        else consecutiveErrors = 0;
+        //Reset the injected status / response for the next execution
+        cachedStatus = null;
+        cachedResponse = null;
+        return tmpStatus;
+      }
+      else {
+        HealthCheckEvent healthCheck = new HealthCheckEvent();
+        //Just generate a stream ID here as the stream actually "begins" here
+        final String healthCheckStreamId = UUID.randomUUID().toString();
+        healthCheck.setStreamId(healthCheckStreamId);
+        getClient().execute(new Log4jMarker(healthCheckStreamId), healthCheck, true, ar -> {
+          if (ar.failed()) {
+            setResponse(generateResponse().withMessage("Error in connector health-check: " + ar.cause().getMessage()));
+            s.setResult(ERROR);
+            consecutiveErrors++;
+          }
+          else {
+            setResponse(generateResponse());
+            s.setResult(OK);
+            consecutiveErrors = 0;
+          }
+          synchronized (s) {
+            s.notify();
+          }
+        });
+
+        while (s.getResult() == UNKNOWN) {
+          synchronized (s) {
+            s.wait();
+          }
+          Thread.sleep(100);
         }
-        Thread.sleep(100);
       }
     }
     catch (InterruptedException interruption) {
@@ -97,18 +115,36 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
     return s;
   }
 
+  /**
+   * Used by the parent {@link RemoteFunctionHealthAggregator} to inject a cached response.
+   * When a cached response gets injected this RFC health-check will not execute for the next period and will
+   * use the cached response instead.
+   *
+   * @param r The response being injected
+   */
+  void injectCachedResponse(Status s, Response r) {
+    cachedStatus = s;
+    cachedResponse = r;
+  }
+
+  @JsonIgnore
+  public int getConsecutiveErrors() {
+    return consecutiveErrors;
+  }
+
   private Response generateResponse() {
     Response r = new Response();
     try {
       RemoteFunctionClient rfc = getClient().getFunctionClient();
+      final RemoteFunctionConfig remoteFunction = connector.getRemoteFunction();
 
-      rfcData.put("id", connector.remoteFunction.id);
-      rfcData.put("type", connector.remoteFunction.getClass().getSimpleName());
-      if (connector.remoteFunction instanceof AWSLambda) {
-        rfcData.put("lambdaARN", ((AWSLambda) connector.remoteFunction).lambdaARN);
+      rfcData.put("id", remoteFunction.id);
+      rfcData.put("type", remoteFunction.getClass().getSimpleName());
+      if (remoteFunction instanceof AWSLambda) {
+        rfcData.put("lambdaARN", ((AWSLambda) remoteFunction).lambdaARN);
       }
-      else if (connector.remoteFunction instanceof Http) {
-        rfcData.put("url", ((Http) connector.remoteFunction).url);
+      else if (remoteFunction instanceof Http) {
+        rfcData.put("url", ((Http) remoteFunction).url);
       }
       rfcData.put("maxQueueSize", rfc.getMaxQueueSize());
       rfcData.put("queueSize", rfc.getQueueSize());
@@ -116,10 +152,13 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
       rfcData.put("queueByteSize", rfc.getQueueByteSize());
       rfcData.put("minConnections", rfc.getMinConnections());
       rfcData.put("maxConnections", rfc.getMaxConnections());
+      rfcData.put("weightedMaxConnections", rfc.getWeightedMaxConnections());
       rfcData.put("usedConnections", rfc.getUsedConnections());
       rfcData.put("rateOfService", rfc.getRateOfService());
       rfcData.put("arrivalRate", rfc.getArrivalRate());
       rfcData.put("throughput", rfc.getThroughput());
+      rfcData.put("priority", rfc.getPriority());
+      rfcData.put("consecutiveErrors", consecutiveErrors);
 
       return r.withAdditionalProperty("statistics", rfcData);
     }

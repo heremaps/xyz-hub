@@ -22,11 +22,13 @@ package com.here.xyz.hub.rest.health;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.hub.util.health.Config;
 import com.here.xyz.hub.util.health.MainHealthCheck;
+import com.here.xyz.hub.util.health.checks.ClusterHealthCheck;
 import com.here.xyz.hub.util.health.checks.ExecutableCheck;
 import com.here.xyz.hub.util.health.checks.JDBCHealthCheck;
 import com.here.xyz.hub.util.health.checks.MemoryHealthCheck;
@@ -51,18 +53,20 @@ public class HealthApi extends Api {
 
   public static final String MAIN_HEALTCHECK_ENDPOINT = "/hub/";
   private static final URI NODE_HEALTHCHECK_ENDPOINT = getNodeHealthCheckEndpoint();
+  public static final RemoteFunctionHealthAggregator rfcHcAggregator = new RemoteFunctionHealthAggregator();
   private static MainHealthCheck healthCheck = new MainHealthCheck(true)
       .withReporter(
           new Reporter()
               .withVersion(Service.BUILD_VERSION)
               .withName("HERE XYZ Hub")
               .withBuildDate(Service.BUILD_TIME)
-              .withUpSince(Service.START_TIME)
+              .withUpSince(Core.START_TIME)
               .withEndpoint(getPublicServiceEndpoint())
       )
       .add(new RedisHealthCheck(Service.configuration.XYZ_HUB_REDIS_HOST, Service.configuration.XYZ_HUB_REDIS_PORT))
-      .add(new RemoteFunctionHealthAggregator())
-      .add(new MemoryHealthCheck());
+      .add(rfcHcAggregator)
+      .add(new MemoryHealthCheck())
+      .add(new ClusterHealthCheck());
 
   static {
     if (Service.configuration.STORAGE_DB_URL != null) {
@@ -129,5 +133,9 @@ public class HealthApi extends Api {
           .putHeader(HttpHeaders.CONTENT_TYPE, APPLICATION_JSON)
           .end(new JsonObject().put("status", new JsonObject().put("result", "WARNING")).encode());
     }
+  }
+
+  public static int getHealthStatusCode() {
+    return healthCheck.getResponse().getStatus().getSuggestedHTTPStatusCode();
   }
 }

@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.task;
 
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
@@ -32,8 +33,10 @@ import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
+import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
+import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
@@ -186,6 +189,15 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     return null;
   }
 
+  private static RpcClient getRpcClient(Connector refConnector) throws HttpException {
+    try {
+      return RpcClient.getInstanceFor(refConnector);
+    }
+    catch (IllegalStateException e) {
+      throw new HttpException(BAD_GATEWAY, "Connector not ready.");
+    }
+  }
+
   abstract static class ReadQuery<T extends QueryEvent<?>, X extends FeatureTask<T, ?>> extends FeatureTask<T, X> {
 
     private ReadQuery(T event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
@@ -271,13 +283,13 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
         //Load the space definition.
         Service.spaceConfigClient.get(getMarker(), refSpaceId, arSpace -> {
           if (arSpace.failed()) {
-            c.exception(new HttpException(BAD_REQUEST, "'RefSpace' : '" + refSpaceId + "' does not exist!", arSpace.cause()));
+            c.exception(new HttpException(BAD_REQUEST, "The resource ID '" + refSpaceId + "' does not exist!", arSpace.cause()));
             return;
           }
           refSpace = arSpace.result();
 
           if (refSpace == null) {
-            c.exception(new HttpException(BAD_REQUEST, "RefSpace : '" + refSpaceId + "'  not exist!", arSpace.cause()));
+            c.exception(new HttpException(BAD_REQUEST, "The resource ID '" + refSpaceId + "' does not exist!", arSpace.cause()));
             return;
           }
 
@@ -285,7 +297,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           c.call(gq);
         });
       } catch (Exception e) {
-        c.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the space definition", e));
+        c.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition.", e));
       }
     }
 
@@ -305,8 +317,9 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           }});
 
       try {
-        RpcClient.getInstanceFor(refConnector).execute(getMarker(), event, r -> processLoadEvent(c, event, r));
-      } catch (Exception e) {
+        getRpcClient(refConnector).execute(getMarker(), event, r -> processLoadEvent(c, event, r));
+      }
+      catch (Exception e) {
         c.exception(e);
       }
     }
@@ -459,6 +472,23 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
   }
 
+  public static class IterateHistoryQuery extends ReadQuery<IterateHistoryEvent, IterateHistoryQuery> {
+    public IterateHistoryQuery(IterateHistoryEvent event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
+      super(event, context, apiResponseTypeType, skipCache);
+    }
+
+    @Override
+    public TaskPipeline<IterateHistoryQuery> getPipeline() {
+      return TaskPipeline.create(this)
+              .then(FeatureTaskHandler::resolveSpace)
+              .then(FeatureAuthorization::authorize)
+              .then(FeatureTaskHandler::validate)
+              .then(FeatureTaskHandler::readCache)
+              .then(FeatureTaskHandler::invoke)
+              .then(FeatureTaskHandler::writeCache);
+    }
+  }
+
   public static class SearchQuery extends ReadQuery<SearchForFeaturesEvent<?>, SearchQuery> {
 
     public SearchQuery(SearchForFeaturesEvent<?> event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
@@ -509,6 +539,24 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::invoke)
           .then(FeatureTaskHandler::convertResponse)
           .then(FeatureTaskHandler::writeCache);
+    }
+  }
+
+  public static class GetHistoryStatistics extends FeatureTask<GetHistoryStatisticsEvent, GetHistoryStatistics> {
+
+    public GetHistoryStatistics(GetHistoryStatisticsEvent event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
+      super(event, context, apiResponseTypeType, skipCache);
+    }
+
+    @Override
+    public TaskPipeline<GetHistoryStatistics> getPipeline() {
+      return TaskPipeline.create(this)
+              .then(FeatureTaskHandler::resolveSpace)
+              .then(FeatureAuthorization::authorize)
+              .then(FeatureTaskHandler::readCache)
+              .then(FeatureTaskHandler::validate)
+              .then(FeatureTaskHandler::invoke)
+              .then(FeatureTaskHandler::writeCache);
     }
   }
 
@@ -575,6 +623,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<ConditionalOperation> getPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(FeatureTaskHandler::injectSpaceParams)
           .then(FeatureTaskHandler::checkPreconditions)
           .then(FeatureTaskHandler::preprocessConditionalOp)
           .then(this::loadObjects)
@@ -602,8 +651,9 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       }
       FeatureTaskHandler.setAdditionalEventProps(s, s.storage, event);
       try {
-        RpcClient.getInstanceFor(s.storage).execute(getMarker(), event, r -> processLoadEvent(c, event, r));
-      } catch (Exception e) {
+        getRpcClient(s.storage).execute(getMarker(), event, r -> processLoadEvent(c, event, r));
+      }
+      catch (Exception e) {
         c.exception(e);
       }
     }
@@ -738,6 +788,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureTaskHandler::checkPreconditions)
+          .then(FeatureTaskHandler::injectSpaceParams)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::enforceUsageQuotas)
           .then(FeatureTaskHandler::invoke);

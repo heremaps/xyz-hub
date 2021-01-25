@@ -27,12 +27,16 @@ import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
+import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.GetStatisticsEvent;
+import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
+import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -69,18 +73,48 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected Context context;
 
   @Override
+  protected XyzResponse processHealthCheckEvent(HealthCheckEvent event) {
+    try {
+      logger.info("{} - Received HealthCheckEvent", streamId);
+      return processHealthCheckEventImpl(event);
+    }
+    catch (SQLException e) {
+      return checkSQLException(e, config.table(event));
+    }
+    finally {
+      logger.info("{} - Finished HealthCheckEvent", streamId);
+    }
+  }
+  @Override
+  protected XyzResponse processGetHistoryStatisticsEvent(GetHistoryStatisticsEvent event) throws Exception {
+    try {
+      logger.info("{} - Received HistoryStatisticsEvent", streamId);
+      return executeQueryWithRetry(SQLQueryBuilder.buildGetStatisticsQuery(event, config, true),
+                this::getHistoryStatisticsResultSetHandler, true);
+    }catch (SQLException e){
+      return checkSQLException(e, config.table(event));
+    }finally {
+      logger.info("{} - Finished GetHistoryStatisticsEvent", streamId);
+    }
+  }
+
+  @Override
   protected XyzResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
     try {
-      return executeQueryWithRetry(SQLQueryBuilder.buildGetStatisticsQuery(event,config),
+      logger.info("{} - Received GetStatisticsEvent", streamId);
+      return executeQueryWithRetry(SQLQueryBuilder.buildGetStatisticsQuery(event, config, false),
               this::getStatisticsResultSetHandler, true);
     }catch (SQLException e){
       return checkSQLException(e, config.table(event));
+    }finally {
+      logger.info("{} - Finished GetStatisticsEvent", streamId);
     }
   }
 
   @Override
   protected XyzResponse processGetFeaturesByIdEvent(GetFeaturesByIdEvent event) throws Exception {
     try {
+      logger.info("{} - Received GetFeaturesByIdEvent", streamId);
       final List<String> ids = event.getIds();
       if (ids == null || ids.size() == 0) {
         return new FeatureCollection();
@@ -88,67 +122,144 @@ public class PSQLXyzConnector extends DatabaseHandler {
       return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByIdQuery(event, config, dataSource));
     }catch (SQLException e){
       return checkSQLException(e, config.table(event));
+    }finally {
+      logger.info("{} - Finished GetFeaturesByIdEvent", streamId);
     }
   }
 
   @Override
   protected XyzResponse processGetFeaturesByGeometryEvent(GetFeaturesByGeometryEvent event) throws Exception {
     try {
+      logger.info("{} - Received GetFeaturesByGeometryEvent", streamId);
       return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByGeometryQuery(event,dataSource));
     }catch (SQLException e){
       return checkSQLException(e, config.table(event));
+    }finally {
+      logger.info("{} - Finished GetFeaturesByGeometryEvent", streamId);
     }
   }
 
   @Override
   protected XyzResponse processGetFeaturesByBBoxEvent(GetFeaturesByBBoxEvent event) throws Exception {
     try{
+      logger.info("{} - Received "+event.getClass().getSimpleName(), streamId);
+
       final BBox bbox = event.getBbox();
 
-      if(event.getTweakType() != null)
-      { Map<String, Object> tweakParams = event.getTweakParams();
+      boolean bTweaks = ( event.getTweakType() != null ),
+              bOptViz = "viz".equals( event.getOptimizationMode() ),
+              bSelectionStar = false,
+              bClustering = (event.getClusteringType() != null);
 
-        switch (event.getTweakType().toLowerCase()) {
+      int mvtFromDbRequested = SQLQueryBuilder.mvtFromDbRequested(event),
+          mvtMargin = 0;
+      boolean bMvtFlattend = ( mvtFromDbRequested > 1 ),
+              bMvtFromHub  = SQLQueryBuilder.mvtFromHubRequested(event);
+
+      WebMercatorTile mvtTile = null;
+      
+      if( mvtFromDbRequested > 0 )
+      { GetFeaturesByTileEvent e = (GetFeaturesByTileEvent) event; // TileEvent is garanteed 
+        mvtTile = WebMercatorTile.forWeb(e.getLevel(), e.getX(), e.getY());
+        mvtMargin = e.getMargin();
+      }  
+
+      if( event.getSelection() != null && "*".equals( event.getSelection().get(0) ))
+      { event.setSelection(null);
+        bSelectionStar = true; // differentiation needed, due to different semantic of "event.getSelection() == null" tweaks vs. nonTweaks
+      }
+
+      if( !bClustering && ( bTweaks || bOptViz || bMvtFromHub ) )
+      { 
+        Map<String, Object> tweakParams;
+        boolean bVizSamplingOff = false;
+
+        if( bTweaks )
+         tweakParams = event.getTweakParams();
+        else if ( bMvtFromHub && !bOptViz )
+        { event.setTweakType( TweaksSQL.SIMPLIFICATION );
+          tweakParams = new HashMap<String, Object>();
+          tweakParams.put("algorithm", new String("gridbytilelevel"));
+        }
+        else
+        { event.setTweakType( TweaksSQL.ENSURE );
+          tweakParams = new HashMap<String, Object>();
+          switch( event.getVizSampling().toLowerCase() )
+          { case "high" : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 15 ) ); break;
+            case "low"  : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 70 ) ); break;    
+            case "off"  : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 100 )); 
+                          bVizSamplingOff = true;
+                          break;    
+            case "med"  : 
+            default     : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 30 ) ); break;    
+          }
+        }
+
+        int distStrength = 0;
+
+        switch ( event.getTweakType().toLowerCase() )  {
 
           case TweaksSQL.ENSURE: {
             int rCount = executeQueryWithRetry(SQLQueryBuilder.buildEstimateSamplingStrengthQuery(event, bbox )).getFeatures().get(0).get("rcount");
 
             boolean bDefaultSelectionHandling = (tweakParams.get(TweaksSQL.ENSURE_DEFAULT_SELECTION) == Boolean.TRUE );
 
-            if( event.getSelection() == null && !bDefaultSelectionHandling )
+            if( event.getSelection() == null && !bDefaultSelectionHandling && !bSelectionStar ) 
              event.setSelection(Arrays.asList("id","type"));
+                        
+            distStrength = TweaksSQL.calculateDistributionStrength( rCount, Math.max(Math.min((int) tweakParams.getOrDefault(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD,10),100),10) * 1000 );
 
-            if( rCount < 10000 ) break; // fall back to non-tweaks usage.
-            HashMap<String, Object> hmap = new HashMap<String, Object>();
+            HashMap<String, Object> hmap = new HashMap<String, Object>();    
             hmap.put("algorithm", new String("distribution"));
-            hmap.put("strength", new Integer( TweaksSQL.calculateDistributionStrength( rCount ) ));
+            hmap.put("strength", new Integer( distStrength ));
             tweakParams = hmap;
             // fall thru tweaks=sampling
           }
 
           case TweaksSQL.SAMPLING: {
-            FeatureCollection collection = executeQueryWithRetry(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, dataSource));
-            collection.setPartial(true);
-            return collection;
+            if( bTweaks || !bVizSamplingOff )
+            { 
+              if( mvtFromDbRequested == 0 )
+              { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, dataSource));
+                collection.setPartial(true);
+                return collection;
+              }
+              else
+               return executeBinQueryWithRetry( 
+                         SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, dataSource) , mvtTile, mvtMargin, bMvtFlattend ) );
+            }
+            else
+            { // fall thru tweaks=simplification e.g. mode=viz and vizSampling=off
+              tweakParams.put("algorithm", new String("gridbytilelevel"));
+            }
           }            
-
-          case TweaksSQL.SIMPLIFICATION: {
-            FeatureCollection collection = executeQueryWithRetry(SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams, dataSource));
-            collection.setPartial(true);
-            return collection;
+          
+          case TweaksSQL.SIMPLIFICATION: { 
+            if( mvtFromDbRequested == 0 )
+            { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams, dataSource));
+              collection.setPartial(true);
+              return collection;
+            }
+            else
+             return executeBinQueryWithRetry( 
+               SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams, dataSource) , mvtTile, mvtMargin, bMvtFlattend ) );
           }
 
           default: break; // fall back to non-tweaks usage.
         }
       }
 
-      if( event.getClusteringType() != null )
+      if( bClustering )
       { final Map<String, Object> clusteringParams = event.getClusteringParams();
 
         switch(event.getClusteringType().toLowerCase())
         {
-          case H3SQL.HEXBIN : 
-           return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource));
+          case H3SQL.HEXBIN :
+           if( mvtFromDbRequested == 0 )
+            return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource)); 
+           else
+            return executeBinQueryWithRetry( 
+             SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource), mvtTile, mvtMargin, bMvtFlattend ) );
 
           case QuadbinSQL.QUAD :
            final int relResolution = ( clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) != null ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) :
@@ -157,9 +268,14 @@ public class PSQLXyzConnector extends DatabaseHandler {
            final String countMode = (String) clusteringParams.get(QuadbinSQL.QUADBIN_COUNTMODE);
            final boolean noBuffer = (boolean) clusteringParams.getOrDefault(QuadbinSQL.QUADBIN_NOBOFFER,false);
 
-           QuadbinSQL.checkQuadbinInput(countMode, relResolution, event, streamId, this);
-           return executeQueryWithRetry(SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config, noBuffer));
-         
+           QuadbinSQL.checkQuadbinInput(countMode, relResolution, event, config.table(event), streamId, this);
+           
+           if( mvtFromDbRequested == 0 )
+            return executeQueryWithRetry(SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config, noBuffer));
+           else
+            return executeBinQueryWithRetry( 
+             SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config, noBuffer), mvtTile, mvtMargin, bMvtFlattend ) );
+
           default: break; // fall back to non-tweaks usage.
        }
       }
@@ -168,16 +284,21 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       if(isBigQuery){
         /* Check if Properties are indexed */
-        if (!Capabilities.canSearchFor(event.getSpace(), event.getPropertiesQuery(), this)) {
+        if (!Capabilities.canSearchFor(config.table(event), event.getPropertiesQuery(), this)) {
           throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
                   "Invalid request parameters. Search for the provided properties is not supported for this space.");
         }
       }
 
-      return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource));
+      if( mvtFromDbRequested == 0 )
+       return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource));
+      else 
+       return executeBinQueryWithRetry( SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource), mvtTile, mvtMargin, bMvtFlattend ) );
 
     }catch (SQLException e){
       return checkSQLException(e, config.table(event));
+    }finally {
+      logger.info("{} - Finished "+event.getClass().getSimpleName(), streamId);
     }
   }
 
@@ -188,6 +309,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected XyzResponse processIterateFeaturesEvent(IterateFeaturesEvent event) throws Exception {
+    if(event.getV() != null)
+      return iterateVersions(event);
     return findFeatures(event, event.getHandle(), true);
   }
 
@@ -199,6 +322,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   @Override
   protected XyzResponse processCountFeaturesEvent(CountFeaturesEvent event) throws Exception {
     try {
+      logger.info("{} - Received CountFeaturesEvent", streamId);
       return executeQueryWithRetry(SQLQueryBuilder.buildCountFeaturesQuery(event, dataSource, config.schema(), config.table(event)),
               this::countResultSetHandler, true);
     } catch (SQLException e) {
@@ -212,12 +336,15 @@ public class PSQLXyzConnector extends DatabaseHandler {
         return new CountResponse().withCount(0L).withEstimated(false);
       }
       throw new SQLException(e);
+    }finally {
+      logger.info("{} - Finished CountFeaturesEvent", streamId);
     }
   }
 
   @Override
   protected XyzResponse processDeleteFeaturesByTagEvent(DeleteFeaturesByTagEvent event) throws Exception {
     try{
+      logger.info("{} - Received DeleteFeaturesByTagEvent", streamId);
       if (config.isReadOnly()) {
         return new ErrorResponse().withStreamId(streamId).withError(XyzError.NOT_IMPLEMENTED)
                 .withErrorMessage("ModifyFeaturesEvent is not supported by this storage connector.");
@@ -225,21 +352,28 @@ public class PSQLXyzConnector extends DatabaseHandler {
       return executeDeleteFeaturesByTag(event);
     }catch (SQLException e){
       return checkSQLException(e, config.table(event));
+    }finally {
+      logger.info("{} - Finished DeleteFeaturesByTagEvent", streamId);
     }
   }
 
   @Override
   protected XyzResponse processLoadFeaturesEvent(LoadFeaturesEvent event) throws Exception {
     try{
+      logger.info("{} - Received LoadFeaturesEvent", streamId);
       return executeLoadFeatures(event);
     }catch (SQLException e){
       return checkSQLException(e, config.table(event));
+    }finally {
+      logger.info("{} - Finished LoadFeaturesEvent", streamId);
     }
   }
 
   @Override
   protected XyzResponse processModifyFeaturesEvent(ModifyFeaturesEvent event) throws Exception {
     try{
+      logger.info("{} - Received ModifyFeaturesEvent", streamId);
+
       if (config.isReadOnly()) {
         return new ErrorResponse().withStreamId(streamId).withError(XyzError.NOT_IMPLEMENTED)
                 .withErrorMessage("ModifyFeaturesEvent is not supported by this storage connector.");
@@ -261,31 +395,34 @@ public class PSQLXyzConnector extends DatabaseHandler {
       Stream.of(inserts, updates, upserts)
           .flatMap(Collection::stream)
           .forEach(feature -> Feature.finalizeFeature(feature, event.getSpace(), addUUID));
-
       return executeModifyFeatures(event);
     } catch (SQLException e) {
       return checkSQLException(e, config.table(event));
+    }finally {
+      logger.info("{} - Finished ModifyFeaturesEvent", streamId);
     }
   }
 
   @Override
   protected XyzResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception {
     try{
+      logger.info("{} - Received ModifySpaceEvent", streamId);
+
       if(event.getSpaceDefinition() != null && event.getSpaceDefinition().isEnableUUID()){
-        Integer maxVersionCount;
+        Integer maxVersionCount = event.getSpaceDefinition().getMaxVersionCount();
+        Boolean isEnableGlobalVersioning = event.getSpaceDefinition().isEnableGlobalVersioning();
         Boolean compactHistory = true;
 
         if(event.getSpaceDefinition().isEnableHistory()){
-          maxVersionCount = event.getSpaceDefinition().getMaxVersionCount();
           if(event.getConnectorParams() != null){
             compactHistory = (Boolean)event.getConnectorParams().get("compactHistory");
             compactHistory = compactHistory == null ? true : compactHistory;
           }
           if(ModifySpaceEvent.Operation.CREATE == event.getOperation()){
-            ensureHistorySpace(maxVersionCount, compactHistory);
-          }else if(ModifySpaceEvent.Operation.UPDATE == event.getOperation()){
-            //TODO: ONLY update Trigger
-            ensureHistorySpace(maxVersionCount, compactHistory);
+            ensureHistorySpace(maxVersionCount, compactHistory, isEnableGlobalVersioning);
+          }else if(ModifySpaceEvent.Operation.UPDATE == event.getOperation() && !isEnableGlobalVersioning){
+            //update Trigger to apply maxVersionCount.
+            updateTrigger(maxVersionCount, compactHistory, isEnableGlobalVersioning);
           }
         }
       }
@@ -333,11 +470,14 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
         if (hasTable) {
           SQLQuery q = new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};");
-          q.append("DROP TABLE IF EXISTS ${schema}.${hsttable}");
+          q.append("DROP TABLE IF EXISTS ${schema}.${hsttable};");
+          q.append("DROP SEQUENCE IF EXISTS "+ config.schema()+".\""+config.table(event).replaceAll("-","_")+"_serial\";");
+          q.append("DROP SEQUENCE IF EXISTS " + config.schema() + ".\"" +config.table(event).replaceAll("-", "_") + "_hst_seq\";");
+
           executeUpdateWithRetry(q);
-          logger.info("{} - Successfully deleted table for space '{}'", streamId, event.getSpace());
+          logger.debug("{} - Successfully deleted table '{}' for space id '{}'", streamId, config.table(event), event.getSpace());
         } else
-          logger.info("{} - Table not found '{}'", streamId, event.getSpace());
+          logger.debug("{} - Table '{}' not found for space id '{}'", streamId, config.table(event), event.getSpace());
 
         if (event.getConnectorParams() != null && event.getConnectorParams().get("propertySearch") == Boolean.TRUE) {
           executeUpdateWithRetry(SQLQueryBuilder.buildDeleteIDXConfigEntryQuery(config.schema(),config.table(event)));
@@ -346,12 +486,39 @@ public class PSQLXyzConnector extends DatabaseHandler {
       return new SuccessResponse().withStatus("OK");
     }catch (SQLException e){
       return checkSQLException(e, config.table(event));
+    }finally {
+      logger.info("{} - Finished ModifySpaceEvent", streamId);
+    }
+  }
+
+  @Override
+  protected XyzResponse processIterateHistoryEvent(IterateHistoryEvent event) {
+    logger.info("{} - Received IterateHistoryEvent", streamId);
+    try{
+      return executeIterateHistory(event);
+    }catch (SQLException e){
+      return checkSQLException(e, config.table(event));
+    }finally {
+      logger.info("{} - Finished IterateHistoryEvent", streamId);
+    }
+  }
+
+  protected XyzResponse iterateVersions(IterateFeaturesEvent event){
+    try{
+      logger.info("{} - Received "+event.getClass().getSimpleName(), streamId);
+      return executeIterateVersions(event);
+    }catch (SQLException e){
+      return checkSQLException(e, config.table(event));
+    }finally {
+      logger.info("{} - Finished "+event.getClass().getSimpleName(), streamId);
     }
   }
 
   protected XyzResponse findFeatures(SearchForFeaturesEvent event, final String handle, final boolean isIterate)
           throws Exception{
     try{
+      logger.info("{} - Received "+event.getClass().getSimpleName(), streamId);
+
       final SQLQuery searchQuery = SQLQueryBuilder.generateSearchQuery(event,dataSource);
       final boolean hasSearch = searchQuery != null;
       final boolean hasHandle = handle != null;
@@ -363,7 +530,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
                 .withErrorMessage("Invalid request parameters.");
       }
 
-      if (!Capabilities.canSearchFor(event.getSpace(), event.getPropertiesQuery(), this)) {
+      if (!Capabilities.canSearchFor(config.table(event), event.getPropertiesQuery(), this)) {
         return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
                 .withErrorMessage("Invalid request parameters. Search for the provided properties is not supported for this space.");
       }
@@ -378,41 +545,75 @@ public class PSQLXyzConnector extends DatabaseHandler {
       return collection;
     }catch (SQLException e){
       return checkSQLException(e, config.table(event));
+    }finally {
+      logger.info("{} - Finished "+event.getClass().getSimpleName(), streamId);
     }
   }
 
-  private static final Pattern ERRVALUE_22P02 = Pattern.compile("invalid input syntax for type numeric:\\s+\"([^\"]*)\"\\s+Query:");
+  private static final Pattern ERRVALUE_22P02 = Pattern.compile("invalid input syntax for type numeric:\\s+\"([^\"]*)\"\\s+Query:"),
+                               ERRVALUE_22P05 = Pattern.compile("ERROR:\\s+(.*)\\s+Detail:\\s+(.*)\\s+Where:");
 
-  protected XyzResponse checkSQLException(SQLException e, String table) throws Exception{
+  protected XyzResponse checkSQLException(SQLException e, String table) {
     logger.warn("{} - SQL Error ({}) on {} : {}", streamId, e.getSQLState(), table, e);
 
-    String sqlState = ( e.getSQLState() != null ? e.getSQLState().toUpperCase() : "SNULL" );
+    String sqlState = (e.getSQLState() != null ? e.getSQLState().toUpperCase() : "SNULL");
 
-    switch( sqlState ) 
-    {   
+    switch (sqlState) {
+     case "XX000": /* XX000 - internal error */
+        if ( e.getMessage() == null ) break;
+        if ( e.getMessage().indexOf("interruptedException") != -1 ) break;
+        if ( e.getMessage().indexOf("ERROR: stats for") != -1 )
+         return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( "statistical data for this space is missing (analyze)" );
+        //fall thru - timeout assuming timeout 
+           
      case "57014" : /* 57014 - query_canceled */
      case "57P01" : /* 57P01 - admin_shutdown */
       return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
                                 .withErrorMessage("Database query timed out or got canceled.");
-      
+
      case "54000" :
       return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
                                 .withErrorMessage("No time for retry left for database query.");
 
      case "22P02" : // specific handling in case to H3 clustering.property
+     {
       if( e.getMessage() == null || e.getMessage().indexOf("'H3'::text") == -1 ) break;
-      
+
       Matcher m = ERRVALUE_22P02.matcher(e.getMessage());
       return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
-                                .withErrorMessage(String.format("clustering.property: string(%s) can not be converted to numeric",( m.find() ? m.group(1) : "" ))); 
+                                .withErrorMessage(String.format("clustering.property: string(%s) can not be converted to numeric",( m.find() ? m.group(1) : "" )));
+     }
 
-     case "SNULL" :
-      if(e.getMessage() == null || e.getMessage().indexOf("An attempt by a client to checkout a Connection has timed out.") == -1) break;
+     case "22P05" :
+     {
+      if( e.getMessage() == null ) break;
+      String eMsg = "untranslatable character in payload";
+      Matcher m = ERRVALUE_22P05.matcher(e.getMessage());
 
-      return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
-                                 .withErrorMessage("Cant get a Connection to the database.");
+      if( m.find() )
+       eMsg = String.format( eMsg + ": %s - %s",m.group(1), m.group(2));
 
-     default: break;
+      return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( eMsg );
+     }
+
+     case "42P01" :
+      return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT).withErrorMessage(e.getMessage());
+
+      case "SNULL":
+        if (e.getMessage() == null) break;
+      // handle some dedicated messages
+      if( e.getMessage().indexOf("An attempt by a client to checkout a connection has timed out.") > -1 )
+       return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
+                                 .withErrorMessage("Cannot get a connection to the database.");
+
+      if( e.getMessage().indexOf("Maxchar limit") > -1 )
+        return new ErrorResponse().withStreamId(streamId).withError(XyzError.PAYLOAD_TO_LARGE)
+                                                         .withErrorMessage("Database result - Maxchar limit exceed");
+
+        break; //others
+
+      default:
+        break;
     }
 
     return new ErrorResponse().withStreamId(streamId).withError(XyzError.EXCEPTION).withErrorMessage(e.getMessage());

@@ -54,6 +54,9 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.responses.HistoryStatisticsResponse;
+import com.here.xyz.responses.changesets.ChangesetCollection;
+import com.here.xyz.responses.changesets.CompactChangeset;
 import io.netty.handler.codec.compression.ZlibWrapper;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -69,7 +72,6 @@ import java.net.URLDecoder;
 import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.stream.Stream;
-
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -85,6 +87,7 @@ public abstract class Api {
   public static final HttpResponseStatus RESPONSE_PAYLOAD_TOO_LARGE = new HttpResponseStatus(513, "Response payload too large");
   public static final String RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE =
       "The response payload was too large. Please try to reduce the expected amount of data.";
+  public static final HttpResponseStatus CLIENT_CLOSED_REQUEST = new HttpResponseStatus(499, "Client closed request");
   private static final String DEFAULT_GATEWAY_TIMEOUT_MESSAGE = "The storage connector exceeded the maximum time";
   private static final String DEFAULT_BAD_GATEWAY_MESSAGE = "The storage connector failed to execute the request";
 
@@ -237,8 +240,26 @@ public abstract class Api {
         }
         break;
 
+      case CHANGESET_COLLECTION:
+        if (response instanceof ChangesetCollection) {
+          sendJsonResponse(task, Json.encode(response));
+          return;
+        }
+
+      case COMPACT_CHANGESET:
+        if (response instanceof CompactChangeset) {
+          sendJsonResponse(task, Json.encode(response));
+          return;
+        }
+
       case STATISTICS_RESPONSE:
         if (response instanceof StatisticsResponse) {
+          sendJsonResponse(task, Json.encode(response));
+          return;
+        }
+
+      case HISTORY_STATISTICS_RESPONSE:
+        if (response instanceof HistoryStatisticsResponse) {
           sendJsonResponse(task, Json.encode(response));
           return;
         }
@@ -315,7 +336,7 @@ public abstract class Api {
     logger.error(task.getMarker(), "Invalid response for requested type {}: {}, stack-trace: {}", task.responseType,
         task.responseSpaces, new Exception());
     sendErrorResponse(task.context, INTERNAL_SERVER_ERROR, XyzError.EXCEPTION,
-        "Internally generated invalid response for Space-API, expected: " + task.responseType);
+        "Internally generated invalid response, expected: " + task.responseType);
   }
 
   /**
@@ -352,7 +373,7 @@ public abstract class Api {
 
         //This is an exception sent by intention and nothing special, no need for stacktrace logging.
         logger.warn("Error was handled by Api and will be sent as response: {}", httpException.status.code());
-        sendErrorResponse(context, httpException.status, error, e.getMessage());
+        sendErrorResponse(context, httpException, error);
         return;
       }
     }
@@ -380,6 +401,25 @@ public abstract class Api {
             .withStreamId(Api.Context.getMarker(context).getName())
             .withError(error)
             .withErrorMessage(errorMessage).serialize());
+  }
+
+  /**
+   * Send an error response to the client.
+   *
+   * @param context the routing context for which to return an error response.
+   * @param httpError the HTTPException with all information
+   * @param error the error type that will become part of the {@link ErrorResponse}.
+   */
+  private void sendErrorResponse(final RoutingContext context, final HttpException httpError, final XyzError error) {
+    context.response()
+        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+        .setStatusCode(httpError.status.code())
+        .setStatusMessage(httpError.status.reasonPhrase())
+        .end(new ErrorResponse()
+            .withStreamId(Api.Context.getMarker(context).getName())
+            .withErrorDetails(httpError.errorDetails)
+            .withError(error)
+            .withErrorMessage(httpError.getMessage()).serialize());
   }
 
   /**
@@ -436,7 +476,6 @@ public abstract class Api {
   }
 
   private void sendResponse(final Task task, HttpResponseStatus status, String contentType, final byte[] response) {
-
     HttpServerResponse httpResponse = task.context.response().setStatusCode(status.code());
 
     CacheProfile cacheProfile = task.getCacheProfile();
@@ -462,6 +501,8 @@ public abstract class Api {
     public static final String APPLICATION_JSON = "application/json";
     public static final String APPLICATION_VND_MAPBOX_VECTOR_TILE = "application/vnd.mapbox-vector-tile";
     public static final String APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST = "application/vnd.here.feature-modification-list";
+    public static final String APPLICATION_VND_HERE_CHANGESET_COLLECTION = "application/vnd.here.changeset-collection";
+    public static final String APPLICATION_VND_HERE_COMPACT_CHANGESET = "application/vnd.here.compact-changeset";
   }
 
   private static class XYZHttpContentCompressor extends HttpContentCompressor {
@@ -472,7 +513,9 @@ public abstract class Api {
       if (acceptEncoding == null) {
         return false;
       }
-      return instance.determineWrapper(acceptEncoding) != ZlibWrapper.NONE;
+
+      final ZlibWrapper wrapper = instance.determineWrapper(acceptEncoding);
+      return wrapper == ZlibWrapper.GZIP || wrapper == ZlibWrapper.ZLIB;
     }
   }
 

@@ -26,12 +26,16 @@ public class NotificationParams {
   public final Map<String, Object> params;
   public final Map<String, Object> connectorParams;
   public final String tid;
+  public final String aid;
+  public final String jwt;
   public final Map<String, Object> metadata;
 
-  public NotificationParams(Map<String, Object> params, Map<String, Object> connectorParams, Map<String, Object> metadata, String tid) {
+  public NotificationParams(Map<String, Object> params, Map<String, Object> connectorParams, Map<String, Object> metadata, String tid, String aid, String jwt) {
     this.params = params;
     this.connectorParams = connectorParams;
     this.metadata = metadata;
     this.tid = tid;
+    this.aid = aid;
+    this.jwt = jwt;
   }
 }

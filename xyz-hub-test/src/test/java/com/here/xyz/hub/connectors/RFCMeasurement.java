@@ -21,9 +21,11 @@ package com.here.xyz.hub.connectors;
 
 import static org.junit.Assert.assertEquals;
 
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.Service.Config;
 import com.here.xyz.hub.connectors.models.Connector;
+import io.vertx.core.Vertx;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -44,19 +46,22 @@ public class RFCMeasurement {
     @Before
     public void setup() {
         //Mock necessary configuration values
+        Core.vertx = Vertx.vertx();
         Service.configuration = new Config();
         Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT = 26;
         Service.configuration.INSTANCE_COUNT = 1;
+        Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS = 256;
+        Service.configuration.REMOTE_FUNCTION_CONNECTION_HIGH_UTILIZATION_THRESHOLD = 0.75f;
+        Service.configuration.GLOBAL_MAX_QUEUE_SIZE = 1024;
 
         Connector s = new Connector();
-        TEST_START = Service.currentTimeMillis();
-        MockedRemoteFunctionClient.MockedRequest.testStart = TEST_START;
         s.id = "testStorage";
         s.connectionSettings = new Connector.ConnectionSettings();
         s.connectionSettings.maxConnections = RFC_MAX_CONNECTIONS;
         rfc = new MockedRemoteFunctionClient(s, 10);
-
         requesterPool = new ScheduledThreadPoolExecutor(20);
+        TEST_START = Core.currentTimeMillis();
+        MockedRemoteFunctionClient.MockedRequest.testStart = TEST_START;
     }
 
     @After
@@ -70,10 +75,11 @@ public class RFCMeasurement {
 
     public void checkMeasuring(int concurrency, long offset, long interval, long measureDelay, int expectedArrivalRate,
                                int expectedThroughput) throws InterruptedException {
+        byte[] payload = new byte[0];
         ScheduledFuture<?> f = requesterPool.scheduleAtFixedRate(() -> {
             for (int i = 0; i < concurrency; i++) {
-                long now = Service.currentTimeMillis();
-                rfc.submit(null, null, false, r -> {
+                long now = Core.currentTimeMillis();
+                rfc.submit(null, payload, false, false, r -> {
                     //Nothing to do
                 });
             }

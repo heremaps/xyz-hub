@@ -34,20 +34,18 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 
-import static com.here.xyz.psql.DatabaseHandler.STATEMENT_TIMEOUT_SECONDS;
-
 public class DatabaseWriter {
     private static final Logger logger = LogManager.getLogger();
 
     public static final String UPDATE_ERROR_GENERAL = "Update has failed";
-    public static final String UPDATE_ERROR_NOT_EXISTS = "Object does not exist";
-    public static final String UPDATE_ERROR_UUID = "Object does not exist or UUID mismatch";
-    public static final String UPDATE_ERROR_ID_MISSING = "Feature Id is missing";
-    public static final String UPDATE_ERROR_PUUID_MISSING = "Feature puuid is missing";
+    public static final String UPDATE_ERROR_NOT_EXISTS = UPDATE_ERROR_GENERAL+" - Object does not exist";
+    public static final String UPDATE_ERROR_UUID = UPDATE_ERROR_GENERAL+" - Object does not exist or UUID mismatch";
+    public static final String UPDATE_ERROR_ID_MISSING = UPDATE_ERROR_GENERAL+" - Feature Id is missing";
+    public static final String UPDATE_ERROR_PUUID_MISSING = UPDATE_ERROR_GENERAL+" -  Feature puuid is missing";
 
     public static final String DELETE_ERROR_GENERAL = "Delete has failed";
-    public static final String DELETE_ERROR_NOT_EXISTS = "Object does not exist";
-    public static final String DELETE_ERROR_UUID = "Object does not exist or UUID mismatch";
+    public static final String DELETE_ERROR_NOT_EXISTS = DELETE_ERROR_GENERAL+" - Object does not exist";
+    public static final String DELETE_ERROR_UUID = DELETE_ERROR_GENERAL+" - Object does not exist or UUID mismatch";
 
     public static final String INSERT_ERROR_GENERAL = "Insert has failed";
 
@@ -57,15 +55,15 @@ public class DatabaseWriter {
     public static final String LOG_EXCEPTION_UPDATE = "update";
     public static final String LOG_EXCEPTION_DELETE = "delete";
 
-    protected static int TIMEOUT;
-
-    protected static PGobject featureToPGobject(final Feature feature) throws SQLException {
+    protected static PGobject featureToPGobject(final Feature feature, Integer version) throws SQLException {
         final Geometry geometry = feature.getGeometry();
         feature.setGeometry(null); // Do not serialize the geometry in the JSON object
 
         final String json;
 
         try {
+            if(version != null)
+                feature.getProperties().getXyzNamespace().setVersion(version);
             json = feature.serialize();
         } finally {
             feature.setGeometry(geometry);
@@ -79,7 +77,6 @@ public class DatabaseWriter {
 
     protected static PreparedStatement createStatement(Connection connection, String statement) throws SQLException {
         final PreparedStatement preparedStatement = connection.prepareStatement(statement);
-        preparedStatement.setQueryTimeout(STATEMENT_TIMEOUT_SECONDS);
         return preparedStatement;
     }
 
@@ -108,53 +105,53 @@ public class DatabaseWriter {
         return createStatement(connection, SQLQueryBuilder.deleteStmtSQL(schema,table,handleUUID));
     }
 
-    protected static PreparedStatement deleteIdListStmtSQLStatement(Connection connection, String schema, String table, boolean handleUUID)
+    protected static PreparedStatement versionedDeleteStmtSQLStatement(Connection connection, String schema, String table, boolean handleUUID)
             throws SQLException {
-        return createStatement(connection, SQLQueryBuilder.deleteIdArrayStmtSQL(schema,table,handleUUID));
+        return createStatement(connection, SQLQueryBuilder.versionedDeleteStmtSQL(schema,table,handleUUID));
     }
 
     protected  static void setAutocommit(Connection connection, boolean isActive) throws SQLException {
         connection.setAutoCommit(isActive);
     }
 
-    protected static FeatureCollection insertFeatures(String schema, String table, String streamId, FeatureCollection collection,
+    protected static FeatureCollection insertFeatures(DatabaseHandler dbh,String schema, String table, String streamId, FeatureCollection collection,
                                                       List<FeatureCollection.ModificationFailure> fails,
                                                    List<Feature> inserts, Connection connection,
-                                                   boolean transactional)
+                                                   boolean transactional, Integer version)
             throws SQLException, JsonProcessingException {
         if(transactional) {
             setAutocommit(connection,false);
-            return DatabaseTransactionalWriter.insertFeatures(schema, table, streamId, collection, inserts, connection);
+            return DatabaseTransactionalWriter.insertFeatures(dbh, schema, table, streamId, collection, fails, inserts, connection, version);
         }
         setAutocommit(connection,true);
-        return DatabaseStreamWriter.insertFeatures(schema, table, streamId, collection, fails, inserts, connection);
+        return DatabaseStreamWriter.insertFeatures(dbh, schema, table, streamId, collection, fails, inserts, connection);
     }
 
-    protected static FeatureCollection updateFeatures(String schema, String table, String streamId, FeatureCollection collection,
+    protected static FeatureCollection updateFeatures(DatabaseHandler dbh, String schema, String table, String streamId, FeatureCollection collection,
                                                    List<FeatureCollection.ModificationFailure> fails,
                                                    List<Feature> updates, Connection connection,
-                                                   boolean transactional, boolean handleUUID)
+                                                   boolean transactional, boolean handleUUID, Integer version)
             throws SQLException, JsonProcessingException {
         if(transactional) {
             setAutocommit(connection,false);
-            return DatabaseTransactionalWriter.updateFeatures(schema, table, streamId, collection, fails, updates, connection,handleUUID);
+            return DatabaseTransactionalWriter.updateFeatures(dbh, schema, table, streamId, collection, fails, updates, connection,handleUUID, version);
         }
         setAutocommit(connection,true);
-        return DatabaseStreamWriter.updateFeatures(schema, table, streamId, collection, fails, updates, connection, handleUUID);
+        return DatabaseStreamWriter.updateFeatures(dbh, schema, table, streamId, collection, fails, updates, connection, handleUUID);
     }
 
-    protected static void deleteFeatures(String schema, String table, String streamId,
+    protected static void deleteFeatures(DatabaseHandler dbh, String schema, String table, String streamId,
                                                       List<FeatureCollection.ModificationFailure> fails,
                                                       Map<String, String> deletes, Connection connection,
-                                                      boolean transactional, boolean handleUUID)
+                                                      boolean transactional, boolean handleUUID, Integer version)
             throws SQLException {
         if(transactional) {
             setAutocommit(connection,false);
-            DatabaseTransactionalWriter.deleteFeatures(schema, table, streamId, fails, deletes, connection ,handleUUID);
+            DatabaseTransactionalWriter.deleteFeatures(dbh, schema, table, streamId, fails, deletes, connection ,handleUUID, version);
             return;
         }
         setAutocommit(connection,true);
-        DatabaseStreamWriter.deleteFeatures(schema, table, streamId, fails, deletes, connection, handleUUID);
+        DatabaseStreamWriter.deleteFeatures(dbh, schema, table, streamId, fails, deletes, connection, handleUUID);
     }
 
     protected static void assure3d(Coordinate[] coords){
@@ -164,12 +161,12 @@ public class DatabaseWriter {
         }
     }
 
-    protected static void logException(Exception e, String streamId, int i, String action){
-        if(e.getMessage() != null && e.getMessage().contains("does not exist")) {
+    protected static void logException(Exception e, String streamId, int i, String action, String table){
+        if(e != null && e.getMessage() != null && e.getMessage().contains("does not exist")) {
             /* If table not yet exist */
-            logger.warn("{} - Failed to "+action+" object #{}: {}", streamId, i, e);
+            logger.warn("{} - Failed to "+action+" object #{}: {} on table {}", streamId, i, table, e);
         }
         else
-            logger.error("{} - Failed to "+action+" object #{}: {}", streamId, i, e);
+            logger.warn("{} - Failed to "+action+" object #{}: {} on table {}", streamId, i, table, e);
     }
 }

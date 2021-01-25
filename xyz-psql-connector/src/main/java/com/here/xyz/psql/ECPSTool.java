@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2020 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@
 
 package com.here.xyz.psql;
 
-import com.here.xyz.psql.PSQLConfig.AESHelper;
 import com.here.xyz.psql.PSQLConfig.AESGCMHelper;
 
 import java.io.UnsupportedEncodingException;
@@ -27,6 +26,8 @@ import java.security.GeneralSecurityException;
 
 /**
  * This tool can be used to prepare a new secret ECPS string for the connectorParams of the PSQL storage connector.
+ * Please escape quotes if you want to encode a String.
+ * e.g: java ECPSTool encrypt secret "{\"foo\":\"bar\"}"
  */
 public class ECPSTool {
   public static final String USAGE = "java ECPSTool encrypt|decrypt <ecps_phrase> <data>";
@@ -38,18 +39,21 @@ public class ECPSTool {
 
     switch (action) {
       case "encrypt":
-        System.out.println(new AESGCMHelper(phrase).encrypt(data));
+        System.out.println(encrypt(phrase, data));
         break;
       case "decrypt":
-        try {
-          System.out.println(new AESHelper(phrase).decrypt(data));
-        }catch(Exception e){
-          //Try new Decryption
-          System.out.println(new AESGCMHelper(phrase).decrypt(data));
-        }
+        System.out.println(decrypt(phrase, data));
         break;
       default:
         System.err.println("ERROR: Invalid action provided.\n\n" + USAGE);
     }
+  }
+
+  public static String encrypt(String phrase, String data) throws GeneralSecurityException, UnsupportedEncodingException {
+    return new AESGCMHelper(phrase).encrypt(data);
+  }
+
+  public static String decrypt(String phrase, String data) throws GeneralSecurityException {
+    return new AESGCMHelper(phrase).decrypt(data);
   }
 }

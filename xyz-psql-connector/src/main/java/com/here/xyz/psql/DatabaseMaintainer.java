@@ -38,7 +38,7 @@ public class DatabaseMaintainer {
     private static final Logger logger = LogManager.getLogger();
 
     /** Is used to check against xyz_ext_version() */
-    private static final int XYZ_EXT_VERSION = 132;
+    private static final int XYZ_EXT_VERSION = 135;
     /** Can get configured dynamically with storageParam onDemandIdxLimit */
     protected final static int ON_DEMAND_IDX_DEFAULT_LIM = 4;
 
@@ -80,8 +80,8 @@ public class DatabaseMaintainer {
                     if (userHasCreatePermissions) {
                         stmt.execute(MaintenanceSQL.generateMandatoryExtensionSQL(hasPropertySearch));
                     } else {
-                        logger.error("{} - User permissions missing! Not able to create missing Extensions on database: {}@{}. Installed Extension are: {}",
-                                streamId, config.user(), config.database(), rs.getString("ext_av"));
+                        logger.error("{} - User permissions missing! Not able to create missing Extensions on database: {}@{} / {}. Installed Extension are: {}",
+                                streamId, config.user(), config.database(), config.host(), rs.getString("ext_av"));
                         /** Cannot proceed without extensions!
                          * postgis,postgis_topology -> provides all GIS functions which are essential!
                          * tsm_system_rows -> Is used for generating statistics
@@ -104,12 +104,12 @@ public class DatabaseMaintainer {
                 try {
                     /** Create Missing Schemas */
                     if (!mainSchema) {
-                        logger.info("{} - Create missing Schema {} on {}!", streamId, config.schema(), config.database());
+                        logger.debug("{} - Create missing Schema {} on database: {} / {}@{}", streamId, config.schema(), config.database(), config.user(), config.host());
                         stmt.execute(MaintenanceSQL.generateMainSchemaSQL(config.schema()));
                     }
 
                     if (!configSchema && hasPropertySearch) {
-                        logger.info("{} - Create missing Schema {} on {}!", streamId, MaintenanceSQL.XYZ_CONFIG_SCHEMA, config.database());
+                        logger.debug("{} - Create missing Schema {} on database: {} / {}@{}", streamId, MaintenanceSQL.XYZ_CONFIG_SCHEMA, config.database(), config.user(), config.host());
                         stmt.execute(MaintenanceSQL.configSchemaAndSystemTablesSQL);
                     }
 
@@ -118,7 +118,7 @@ public class DatabaseMaintainer {
                         stmt.execute(MaintenanceSQL.createIDXTableSQL);
                     }
                 } catch (Exception e) {
-                    logger.warn("{} - Failed to create missing Schema(s) on database: {} {}", streamId, config.database(), e);
+                    logger.warn("{} - Failed to create missing Schema(s) on database: {} / {}@{} '{}'", streamId, config.database(), config.user(), config.host(), e);
                 }
             }
 
@@ -143,19 +143,19 @@ public class DatabaseMaintainer {
                 stmt.execute(MaintenanceSQL.generateSearchPathSQL( config.schema() ));
                 stmt.execute(content);
 
-                logger.info("{} - Successfully created missing SQL-Functions on database {}!", streamId, config.database());
+                logger.debug("{} - Successfully created missing SQL-Functions on database: {} / {}@{}", streamId, config.database(), config.user(), config.host());
             } else {
-                logger.info("{} - All required SQL-Functions are already present on database {}!", streamId, config.database());
+                logger.debug("{} - All required SQL-Functions are already present on database: {} / {}@{}", streamId, config.database(), config.user(), config.host());
             }
         } catch (Exception e) {
-            logger.error("{} - Failed to create missing SQL-Functions on database {} : {}", streamId, config.database(), e);
+            logger.error("{} - Failed to create missing SQL-Functions on database: {} / {}@{} '{}'", streamId, config.database(), config.user(), config.host(), e);
         }
 
         /** Check if all required H3 related stuff is present */
         if(userHasCreatePermissions)
             this.setupH3( streamId);
         else
-            logger.warn("{} - User permissions missing! Can not update/install H3 related functions on database': {}@{} ", streamId, config.user(), config.database());
+            logger.warn("{} - User permissions missing! Can not update/install H3 related functions on database': {} / {}@{}", streamId,  config.database(), config.user(), config.host());
     }
 
     private synchronized void setupH3(String streamId){
@@ -181,10 +181,10 @@ public class DatabaseMaintainer {
                 if (needUpdate) {
                     stmt.execute(readResource("/h3Core.sql"));
                     stmt.execute(MaintenanceSQL.generateSearchPathSQL( config.schema() ));
-                    logger.info("{} - Successfully created H3 SQL-Functions", streamId);
+                    logger.debug("{} - Successfully created H3 SQL-Functions on database: {} / {}@{} ", streamId, config.database(), config.user(), config.host());
                 }
             } catch (Exception e) {
-                logger.error("{} - Failed run h3 init'{}'", streamId, e);
+                logger.error("{} - Failed run h3 init on database: {} / {}@{} '{}'", streamId, config.database(), config.user(), config.host(), e);
             }
         }
     }
@@ -217,7 +217,7 @@ public class DatabaseMaintainer {
                 stmt.execute(MaintenanceSQL.generateIDXSQL(config.schema(), config.user(), config.password(), config.database(),"localhost", config.port(), mode));
             }
         } catch (Exception e) {
-            logger.error("{} - Failed run auto-indexing on database {} : {}", streamId, config.database(), e);
+            logger.error("{} - Failed run indexing on database: {} / {}@{} '{}'", streamId, config.database(), config.user(), config.host(), e);
         }
     }
 

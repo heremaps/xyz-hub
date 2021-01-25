@@ -25,16 +25,18 @@ import io.vertx.core.buffer.Buffer;
 import io.vertx.redis.RedisClient;
 import io.vertx.redis.RedisOptions;
 import io.vertx.redis.op.SetOptions;
+import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class RedisCacheClient implements CacheClient {
 
+  private static CacheClient instance;
   private static final Logger logger = LogManager.getLogger();
   private ThreadLocal<RedisClient> redis;
 
-  public RedisCacheClient() {
+  private RedisCacheClient() {
     redis = ThreadLocal.withInitial(() -> {
       RedisOptions config = new RedisOptions()
           .setHost(Service.configuration.XYZ_HUB_REDIS_HOST)
@@ -43,24 +45,33 @@ public class RedisCacheClient implements CacheClient {
       // use redis auth token when available
       if (!StringUtils.isEmpty(Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN)) {
         config.setAuth(Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN);
+        config.setSsl(true);
       }
 
       config.setTcpKeepAlive(true);
+      config.setIdleTimeout(30);
+      config.setIdleTimeoutUnit(TimeUnit.SECONDS);
       config.setConnectTimeout(2000);
       return RedisClient.create(Service.vertx, config);
     });
   }
 
-  public static CacheClient get() {
-    if (Service.configuration.XYZ_HUB_REDIS_HOST == null) {
-      return new NoopCacheClient();
+  public static synchronized CacheClient getInstance() {
+    if (instance != null)
+      return instance;
+
+    if (Service.configuration.XYZ_HUB_REDIS_HOST == null)
+      instance = new NoopCacheClient();
+    else {
+      try {
+        instance = new RedisCacheClient();
+      }
+      catch (Exception e) {
+        logger.error("Error when trying to create the Redis client.", e);
+        instance = new NoopCacheClient();
+      }
     }
-    try {
-      return new RedisCacheClient();
-    } catch (Exception e) {
-      logger.error("Error when trying to create the Redis client.", e);
-      return new NoopCacheClient();
-    }
+    return instance;
   }
 
   protected RedisClient getClient() {

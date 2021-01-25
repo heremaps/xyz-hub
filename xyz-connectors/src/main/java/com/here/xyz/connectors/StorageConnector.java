@@ -27,12 +27,14 @@ import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.GetStatisticsEvent;
+import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
@@ -79,11 +81,17 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
     if (event instanceof IterateFeaturesEvent) {
       return processIterateFeaturesEvent((IterateFeaturesEvent) event);
     }
+    if (event instanceof IterateHistoryEvent) {
+      return processIterateHistoryEvent((IterateHistoryEvent) event);
+    }
     if (event instanceof SearchForFeaturesEvent) {
       return processSearchForFeaturesEvent((SearchForFeaturesEvent) event);
     }
     if (event instanceof GetStatisticsEvent) {
       return processGetStatistics((GetStatisticsEvent) event);
+    }
+    if (event instanceof GetHistoryStatisticsEvent) {
+      return processGetHistoryStatisticsEvent((GetHistoryStatisticsEvent) event);
     }
     if (event instanceof HealthCheckEvent) {
       return processHealthCheckEvent((HealthCheckEvent) event);
@@ -97,6 +105,7 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
     if (event instanceof CountFeaturesEvent) {
       return processCountFeaturesEvent((CountFeaturesEvent) event);
     }
+
     return new ErrorResponse()
         .withStreamId(streamId)
         .withError(XyzError.NOT_IMPLEMENTED)
@@ -108,6 +117,12 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
    */
   @SuppressWarnings("WeakerAccess")
   protected abstract XyzResponse processGetStatistics(GetStatisticsEvent event) throws Exception;
+
+  /**
+   * Processes a GetStatistics event.
+   */
+  @SuppressWarnings("WeakerAccess")
+  protected abstract XyzResponse processGetHistoryStatisticsEvent(GetHistoryStatisticsEvent event) throws Exception;
 
   /**
    * Processes a GetFeaturesById event.
@@ -174,5 +189,11 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
    */
   @SuppressWarnings("WeakerAccess")
   protected abstract XyzResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception;
+
+  /**
+   * Processes a IterateFeatures event.
+   */
+  @SuppressWarnings("WeakerAccess")
+  protected abstract XyzResponse processIterateHistoryEvent(IterateHistoryEvent event) throws Exception;
 
 }
