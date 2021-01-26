@@ -25,6 +25,7 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.AdminApi;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.hub.rest.admin.messages.brokers.RedisMessageBroker;
+import io.vertx.core.Promise;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.Arrays;
@@ -79,7 +80,7 @@ public interface MessageBroker {
         logger.error("Error while serializing AdminMessage of type {} prior to send it.", message.getClass().getSimpleName());
       }
       catch (Exception e) {
-        logger.error("Error while sending AdminMessage: {}", jsonMessage);
+        logger.error("Error while sending AdminMessage: {}", jsonMessage, e);
       }
     }
     //Receive it (also) locally (if applicable)
@@ -157,7 +158,7 @@ public interface MessageBroker {
     }
   }
 
-  static MessageBroker getInstance() {
+  static Future<? extends MessageBroker> getInstance() {
     //Return an instance of the default implementation
     return RedisMessageBroker.getInstance();
   }

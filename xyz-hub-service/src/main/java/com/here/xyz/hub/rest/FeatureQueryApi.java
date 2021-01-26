@@ -56,22 +56,22 @@ import com.here.xyz.models.geojson.implementation.Geometry;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.ext.web.ParsedHeaderValue;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.api.contract.openapi3.OpenAPI3RouterFactory;
+import io.vertx.ext.web.openapi.RouterBuilder;
 import java.io.IOException;
 import java.util.List;
 import org.apache.logging.log4j.Marker;
 
 public class FeatureQueryApi extends SpaceBasedApi {
 
-  public FeatureQueryApi(OpenAPI3RouterFactory routerFactory) {
-    routerFactory.addHandlerByOperationId("getFeaturesBySpatial", this::getFeaturesBySpatial);
-    routerFactory.addHandlerByOperationId("getFeaturesBySpatialPost", this::getFeaturesBySpatial);
-    routerFactory.addHandlerByOperationId("getFeaturesByBBox", this::getFeaturesByBBox);
-    routerFactory.addHandlerByOperationId("getFeaturesByTile", this::getFeaturesByTile);
-    routerFactory.addHandlerByOperationId("getFeaturesCount", this::getFeaturesCount);
-    routerFactory.addHandlerByOperationId("getStatistics", this::getStatistics);
-    routerFactory.addHandlerByOperationId("iterateFeatures", this::iterateFeatures);
-    routerFactory.addHandlerByOperationId("searchForFeatures", this::searchForFeatures);
+  public FeatureQueryApi(RouterBuilder rb) {
+    rb.operation("getFeaturesBySpatial").handler(this::getFeaturesBySpatial);
+    rb.operation("getFeaturesBySpatialPost").handler(this::getFeaturesBySpatial);
+    rb.operation("getFeaturesByBBox").handler(this::getFeaturesByBBox);
+    rb.operation("getFeaturesByTile").handler(this::getFeaturesByTile);
+    rb.operation("getFeaturesCount").handler(this::getFeaturesCount);
+    rb.operation("getStatistics").handler(this::getStatistics);
+    rb.operation("iterateFeatures").handler(this::iterateFeatures);
+    rb.operation("searchForFeatures").handler(this::searchForFeatures);
   }
 
   /**

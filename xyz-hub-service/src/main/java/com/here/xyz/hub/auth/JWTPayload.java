@@ -24,6 +24,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import io.vertx.core.json.Json;
+import io.vertx.core.json.jackson.DatabindCodec;
 import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -54,7 +55,7 @@ public class JWTPayload {
     final ActionMatrix hereActionMatrix = urm.get(URMServiceId.XYZ_HUB);
     if (hereActionMatrix == null)
       return null;
-    return Json.mapper.convertValue(hereActionMatrix, XyzHubActionMatrix.class);
+    return DatabindCodec.mapper().convertValue(hereActionMatrix, XyzHubActionMatrix.class);
   }
 
   /**

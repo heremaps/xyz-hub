@@ -30,11 +30,19 @@ import io.vertx.core.VertxOptions;
 import io.vertx.core.json.JsonObject;
 import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.math.NumberUtils;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.apache.logging.log4j.core.util.CachedClock;
 import org.apache.logging.log4j.core.util.NetUtils;
 
 public class Core {
+
+  private static final Logger logger = LogManager.getLogger();
 
   /**
    * The entry point to the Vert.x core API.
@@ -107,15 +115,29 @@ public class Core {
           }
         }
       });
-      initializeLogger(config);
+      initializeLogger(config, debug);
       handler.handle(config);
     });
   }
 
-  private static void initializeLogger(JsonObject config) {
+  private static void initializeLogger(JsonObject config, boolean debug) {
     if (!CONSOLE_LOG_CONFIG.equals(config.getString("LOG_CONFIG"))) {
       Configurator.reconfigure(NetUtils.toURI(config.getString("LOG_CONFIG")));
     }
+    if (debug)
+      changeLogLevel("DEBUG");
+  }
+
+  static void changeLogLevel(String level) {
+    logger.info("LOG LEVEL UPDATE requested. New level will be: " + level);
+    LoggerContext context = (LoggerContext) LogManager.getContext(false);
+    Configuration config = context.getConfiguration();
+    LoggerConfig rootConfig = config.getLoggerConfig(LogManager.ROOT_LOGGER_NAME);
+    rootConfig.setLevel(Level.getLevel(level));
+
+    //This causes all Loggers to re-fetch information from their LoggerConfig.
+    context.updateLoggers();
+    logger.info("LOG LEVEL UPDATE performed. New level is now: " + level);
   }
 
   private static String decryptSecret(String encryptedSecret) throws CryptoException {

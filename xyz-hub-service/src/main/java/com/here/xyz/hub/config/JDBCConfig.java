@@ -23,6 +23,7 @@ import com.here.xyz.hub.Service;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.Promise;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.sql.SQLClient;
 import io.vertx.ext.sql.SQLConnection;
@@ -93,21 +94,24 @@ public class JDBCConfig {
             String.format("CREATE table  %s (id VARCHAR(255) primary key, owner VARCHAR (50), cid VARCHAR (255), config JSONB)", SPACE_TABLE)
         );
 
-        Future<Void> onComplete = Future.future();
-        Future<Void> step1Completer = Future.future();
+        Promise<Void> onComplete = Promise.promise();
+        Promise<Void> step1Completer = Promise.promise();
 
-        // step 1
-        Runnable step1 = () -> connection.setAutoCommit(false, step1Completer.completer());
+        //Step 1
+        Runnable step1 = () -> connection.setAutoCommit(false, step1Completer);
 
-        // step 2
-        step1Completer.compose(r -> {
-          Future<List<Integer>> f = Future.future();
-          connection.batch(batchQueries, f.completer());
-          return f;
-        }).compose(r -> connection.setAutoCommit(true, onComplete.completer()), onComplete);
+        //Step 2
+        step1Completer.future().compose(r -> {
+          Promise<List<Integer>> f = Promise.promise();
+          connection.batch(batchQueries, f);
+          return f.future();
+        }).compose(r -> {
+          connection.setAutoCommit(true, onComplete);
+          return onComplete.future();
+        });
 
-        // step 3
-        onComplete.setHandler(ar -> {
+        //Step 3
+        onComplete.future().onComplete(ar -> {
           if (ar.failed()) {
             logger.error("Initializing of the config table failed.", ar.cause());
           } else {

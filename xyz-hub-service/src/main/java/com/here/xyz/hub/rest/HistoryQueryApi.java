@@ -27,13 +27,13 @@ import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.FeatureTask;
 import io.vertx.ext.web.ParsedHeaderValue;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.api.contract.openapi3.OpenAPI3RouterFactory;
+import io.vertx.ext.web.openapi.RouterBuilder;
 
 public class HistoryQueryApi extends SpaceBasedApi{
 
-    public HistoryQueryApi(OpenAPI3RouterFactory routerFactory) {
-        routerFactory.addHandlerByOperationId("iterateHistory", this::iterateHistory);
-        routerFactory.addHandlerByOperationId("getHistoryStatistics", this::getHistoryStatistics);
+    public HistoryQueryApi(RouterBuilder rb) {
+        rb.operation("iterateHistory").handler(this::iterateHistory);
+        rb.operation("getHistoryStatistics").handler(this::getHistoryStatistics);
     }
 
     public void iterateHistory(final RoutingContext context) {

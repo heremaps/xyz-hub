@@ -32,6 +32,7 @@ import com.here.xyz.hub.Service;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
 import io.vertx.core.json.Json;
+import io.vertx.core.json.jackson.DatabindCodec;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -272,7 +273,7 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
   public Map<String,Object> asMap() {
     try {
       //noinspection unchecked
-      return Json.decodeValue(Json.mapper.writerWithView(Static.class).writeValueAsString(this), Map.class);
+      return Json.decodeValue(DatabindCodec.mapper().writerWithView(Static.class).writeValueAsString(this), Map.class);
     } catch (Exception e) {
       return Collections.emptyMap();
     }

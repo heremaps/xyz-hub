@@ -58,6 +58,7 @@ import com.here.xyz.models.hub.Space.ConnectorRef;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
+import io.vertx.core.json.jackson.DatabindCodec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -341,7 +342,7 @@ public class SpaceTaskHandler {
     final ActionMatrix accessMatrix = task.getJwt().getXyzHubMatrix();
 
     task.responseSpaces = task.responseSpaces.stream().map(g -> {
-          final SpaceWithRights space = Json.mapper.convertValue(g, SpaceWithRights.class);
+          final SpaceWithRights space = DatabindCodec.mapper().convertValue(g, SpaceWithRights.class);
           space.rights = new ArrayList<>();
           for (String op : operations) {
             final ActionMatrix readAccessMatrix = new ActionMatrix()
@@ -420,7 +421,7 @@ public class SpaceTaskHandler {
         if (difference != null) {
           entry.isModified = true;
           Patcher.patch(resultClone, difference);
-          entry.result = Json.mapper.readValue(Json.encode(resultClone), Space.class);
+          entry.result = DatabindCodec.mapper().readValue(Json.encode(resultClone), Space.class);
         }
       }
 

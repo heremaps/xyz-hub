@@ -20,16 +20,19 @@
 package com.here.xyz.hub.auth;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.google.common.io.CharStreams;
 import com.here.xyz.hub.Service;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
+import io.vertx.core.json.jackson.DatabindCodec;
+import io.vertx.ext.auth.JWTOptions;
 import io.vertx.ext.auth.PubSecKeyOptions;
 import io.vertx.ext.auth.jwt.JWTAuth;
 import io.vertx.ext.auth.jwt.JWTAuthOptions;
-import io.vertx.ext.jwt.JWTOptions;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.util.Map;
-import org.apache.commons.io.IOUtils;
 
 public class JwtGenerator {
 
@@ -51,11 +54,7 @@ public class JwtGenerator {
       openssl genpkey -out jwt.key -algorithm RSA -pkeyopt rsa_keygen_bits:2048
     2. Generate the according public key with the command:
       openssl rsa -in jwt.key -pubout -outform PEM -out jwt.pub
-    3. For the use with VertX remove the header & footer and trailing new-line chars from both files e.g.:
-      -----BEGIN PRIVATE KEY----- #<--- remove this
-      ...
-      -----END PRIVATE KEY----- #<--- remove this
-    4. In case you want to generate a jwt token using jwt.io, transform your private key into PEM first, by running:
+    3. In case you want to generate a jwt token using jwt.io, transform your private key into PEM first, by running:
       openssl rsa -in jwt.key -outform pem -out filekey.pem
 
   */
@@ -65,19 +64,20 @@ public class JwtGenerator {
         .setJWTOptions(jwtOptions)
         .addPubSecKey(new PubSecKeyOptions()
             .setAlgorithm("RS256")
-            .setPublicKey(readResourceFile("/auth/jwt.pub"))
-            .setSecretKey(readResourceFile("/auth/jwt.key")));
+            .setBuffer(readResourceFile("/auth/jwt.key")));
 
     authProvider = JWTAuth.create(Service.vertx, authConfig);
   }
 
   private static String readResourceFile(String resourceFilename) throws IOException {
-    return IOUtils.toString(JwtGenerator.class.getResourceAsStream(resourceFilename)).trim();
+    try (Reader r = new InputStreamReader(JwtGenerator.class.getResourceAsStream(resourceFilename))) {
+      return CharStreams.toString(r).trim();
+    }
   }
 
   public static String generateToken(JWTPayload payload) {
     return authProvider.generateToken(
-        new JsonObject(Json.mapper.convertValue(payload, new TypeReference<Map<String, Object>>() {})), jwtOptions);
+        new JsonObject(DatabindCodec.mapper().convertValue(payload, new TypeReference<Map<String, Object>>() {})), jwtOptions);
   }
 
   public static String generateToken(String resourceFilename) {

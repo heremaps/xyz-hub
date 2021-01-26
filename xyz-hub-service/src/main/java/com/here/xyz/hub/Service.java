@@ -26,6 +26,7 @@ import com.here.xyz.hub.cache.CacheClient;
 import com.here.xyz.hub.config.ConnectorConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.BurstAndUpdateThread;
+import com.here.xyz.hub.rest.admin.MessageBroker;
 import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.hub.util.ARN;
@@ -38,6 +39,7 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.client.WebClient;
@@ -59,7 +61,6 @@ import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.Configurator;
@@ -120,6 +121,11 @@ public class Service extends Core {
   public static CacheClient cacheClient;
 
   /**
+   * The node's MessageBroker which is used to send AdminMessages.
+   */
+  public static MessageBroker messageBroker;
+
+  /**
    * The hostname
    */
   private static String hostname;
@@ -145,7 +151,10 @@ public class Service extends Core {
     configuration = jsonConfig.mapTo(Config.class);
 
     cacheClient = CacheClient.getInstance();
-    Node.initialize();
+    MessageBroker.getInstance().onSuccess(mb -> {
+      messageBroker = mb;
+      Node.initialize();
+    });
     spaceConfigClient = SpaceConfigClient.getInstance();
     connectorConfigClient = ConnectorConfigClient.getInstance();
 
@@ -201,7 +210,8 @@ public class Service extends Core {
         .setWorker(false)
         .setInstances(numInstances);
 
-    final Future<AsyncResult<Void>> sharedDataFuture = Future.future();
+    final Promise<Void> sharedDataPromise = Promise.promise();
+    final Future<Void> sharedDataFuture = sharedDataPromise.future();
     final Hashtable<String, Object> sharedData = new Hashtable<String, Object>() {{
       put(GLOBAL_ROUTER, globalRouter);
     }};
@@ -210,20 +220,20 @@ public class Service extends Core {
       final List<Future> futures = new ArrayList<>();
 
       verticlesClassNames.forEach(className -> {
-        final Future<AsyncResult<String>> deployVerticleFuture = Future.future();
-        futures.add(deployVerticleFuture);
+        final Promise<AsyncResult<String>> deployVerticlePromise = Promise.promise();
+        futures.add(deployVerticlePromise.future());
 
         logger.info("Deploying verticle: " + className);
         vertx.deployVerticle(className, options, deployVerticleHandler -> {
           if (deployVerticleHandler.failed()) {
             logger.warn("Unable to load verticle class:" + className);
           }
-          deployVerticleFuture.complete();
+          deployVerticlePromise.complete();
         });
       });
 
       return CompositeFuture.all(futures);
-    }).setHandler(done -> {
+    }).onComplete(done -> {
       // at this point all verticles were initiated and all routers added as subrouter of globalRouter.
       vertx.eventBus().publish(SHARED_DATA, GLOBAL_ROUTER);
 
@@ -231,9 +241,9 @@ public class Service extends Core {
       logger.info("Native transport enabled: " + vertx.isNativeTransportEnabled());
     });
 
-    // shared data initialization
+    //Shared data initialization
     vertx.sharedData()
-        .getAsyncMap(SHARED_DATA, asyncMapResult -> asyncMapResult.result().put(SHARED_DATA, sharedData, sharedDataFuture::complete));
+        .getAsyncMap(SHARED_DATA, asyncMapResult -> asyncMapResult.result().put(SHARED_DATA, sharedData, sharedDataPromise));
 
     Thread.setDefaultUncaughtExceptionHandler((thread, t) -> logger.error("Uncaught exception: ", t));
 
@@ -374,14 +384,9 @@ public class Service extends Core {
     public String XYZ_HUB_PUBLIC_ENDPOINT;
 
     /**
-     * The redis host.
+     * The redis connection string.
      */
-    public String XYZ_HUB_REDIS_HOST;
-
-    /**
-     * The redis port.
-     */
-    public int XYZ_HUB_REDIS_PORT;
+    public String XYZ_HUB_REDIS_URI;
 
     /**
      * The urls of remote hub services, separated by semicolon ';'

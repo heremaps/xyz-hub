@@ -29,6 +29,7 @@ import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.Feature;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
+import io.vertx.core.json.jackson.DatabindCodec;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -70,7 +71,7 @@ public class ModifySpaceOp extends ModifyOp<Space, SpaceEntry> {
     @Override
     public Space fromMap(Map<String, Object> map) throws ModifyOpError, HttpException {
       try {
-        return Json.mapper.readValue(Json.encode(map), Space.class);
+        return DatabindCodec.mapper().readValue(Json.encode(map), Space.class);
       } catch (JsonProcessingException e) {
         throw new HttpException(BAD_REQUEST, "Invalid space definition: " + e.getMessage(), e);
       }
