@@ -85,8 +85,9 @@ public class LimitedOffHeapQueue<E extends OffHeapBuffer> extends LimitedQueue<E
     private byte[] stash() throws IllegalStateException {
       byte[] tmpPayload = this.payload.get();
       if (tmpPayload == null) throw new IllegalStateException("Payload was already stashed.");
-      ohKey = UUID.randomUUID().toString().getBytes();
-      ohStorage.put(ohKey, tmpPayload, OH_TTL);
+      byte[] key = UUID.randomUUID().toString().getBytes();
+      ohStorage.put(key, tmpPayload, Service.currentTimeMillis() + OH_TTL);
+      ohKey = key;
       this.payload.set(null);
       return tmpPayload;
     }
