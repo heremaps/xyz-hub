@@ -16,7 +16,8 @@ import org.caffinitas.ohc.OHCache;
  * elements are residing in this queue.
  *
  * When an element gets added to this queue its payload will be taken from the heap and gets moved off-heap.
- * Once removing / fetching back the element from this queue it will be restored using {@link OffHeapBuffer#getPayload()}.
+ * Once removing / fetching back the element from this queue it will be restored using {@link OffHeapBuffer#getPayload()}
+ * or {@link OffHeapBuffer#consumePayload()}.
  *
  * @param <E> The element type.
  */
@@ -108,6 +109,10 @@ public class LimitedOffHeapQueue<E extends OffHeapBuffer> extends LimitedQueue<E
     public final byte[] getPayload() throws PayloadVanishedException {
       if (consumed.get())
         throw new IllegalStateException("Payload was already consumed.");
+      return getPayloadInternal();
+    }
+
+    private byte[] getPayloadInternal() throws PayloadVanishedException {
       byte[] payload = this.payload.get();
       if (payload == null) {
         //Payload is stashed and can't be accessed right now. Un-stashing it.
@@ -121,7 +126,7 @@ public class LimitedOffHeapQueue<E extends OffHeapBuffer> extends LimitedQueue<E
     public final byte[] consumePayload() throws PayloadVanishedException {
       if (!consumed.compareAndSet(false, true))
         throw new IllegalStateException("Payload was already consumed.");
-      byte[] payload = getPayload();
+      byte[] payload = getPayloadInternal();
       this.payload.set(null);
       return payload;
     }
