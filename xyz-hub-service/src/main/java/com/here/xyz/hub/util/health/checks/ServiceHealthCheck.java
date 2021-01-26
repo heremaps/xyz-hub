@@ -27,16 +27,17 @@ import static com.here.xyz.hub.util.health.schema.Status.Result.WARNING;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.io.CharStreams;
 import com.here.xyz.hub.util.health.schema.Response;
 import com.here.xyz.hub.util.health.schema.Status;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.SocketTimeoutException;
 import java.net.URL;
-import java.nio.charset.Charset;
 import java.util.Map;
-import org.apache.commons.io.IOUtils;
 
 public class ServiceHealthCheck extends ExecutableCheck {
 
@@ -93,8 +94,11 @@ public class ServiceHealthCheck extends ExecutableCheck {
 			conn.setConnectTimeout(timeout);
 			conn.setReadTimeout(timeout);
 			conn.connect();
-			
-			Response response = parseIfPossible(IOUtils.toString(conn.getInputStream()));
+
+			Response response;
+			try (Reader r = new InputStreamReader(conn.getInputStream())) {
+				response = parseIfPossible(CharStreams.toString(r));
+			}
 			setResponse(response);
 			
 			int responseCode = conn.getResponseCode();

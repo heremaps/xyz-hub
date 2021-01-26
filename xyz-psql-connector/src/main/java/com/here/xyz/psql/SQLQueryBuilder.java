@@ -101,7 +101,7 @@ public class SQLQueryBuilder {
         throws SQLException{
         final BBox bbox = event.getBbox();
 
-        final SQLQuery searchQuery = generateSearchQuery(event,dataSource);
+        final SQLQuery searchQuery = generateSearchQuery(event, dataSource);
         final SQLQuery geoQuery = new SQLQuery("ST_Intersects(geo, ST_MakeEnvelope(?, ?, ?, ?, 4326))",
                 bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
 
@@ -272,7 +272,7 @@ public class SQLQueryBuilder {
 
     public static boolean mvtFromHubRequested( GetFeaturesByBBoxEvent event )
     {
-     return( (event instanceof GetFeaturesByTileEvent) && ( event.getBinaryType() != null ) && "hubmvt".equals(event.getBinaryType()) );
+     return( (event instanceof GetFeaturesByTileEvent) && "hubmvt".equals(event.getBinaryType()) );
     }
 
     public static int mvtFromDbRequested( GetFeaturesByBBoxEvent event )

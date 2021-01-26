@@ -28,8 +28,8 @@ import com.here.xyz.psql.tools.ECPSTool;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
-import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
+import io.vertx.core.json.jackson.JacksonCodec;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -61,7 +61,7 @@ public abstract class ConnectorConfigClient implements Initializable {
 
   public static final ExpiringMap<String, Connector> cache = ExpiringMap.builder()
       .expirationPolicy(ExpirationPolicy.CREATED)
-      .expiration(3, TimeUnit.MINUTES)
+      .expiration(1, TimeUnit.MINUTES)
       .build();
 
   public static ConnectorConfigClient getInstance() {
@@ -179,7 +179,7 @@ public abstract class ConnectorConfigClient implements Initializable {
     final InputStream input = ConnectorConfigClient.class.getResourceAsStream("/connectors.json");
     try (BufferedReader buffer = new BufferedReader(new InputStreamReader(input))) {
       final String connectorsFile = buffer.lines().collect(Collectors.joining("\n"));
-      final List<Connector> connectors = Json.decodeValue(connectorsFile, new TypeReference<List<Connector>>() {});
+      final List<Connector> connectors = JacksonCodec.decodeValue(connectorsFile, new TypeReference<List<Connector>>() {});
       final List<CompletableFuture<Void>> futures = new ArrayList<>();
 
       connectors.forEach(c -> {

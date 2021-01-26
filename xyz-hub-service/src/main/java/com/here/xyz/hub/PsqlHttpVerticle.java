@@ -28,6 +28,7 @@ import com.here.xyz.hub.rest.Api.Context;
 import com.here.xyz.psql.PSQLXyzConnector;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.ext.web.Router;
@@ -48,7 +49,7 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
   private AbstractConnectorHandler connector;
 
   @Override
-  public void start(Future future) {
+  public void start(Promise promise) throws Exception {
     //Initialize the connector
     connector = new PSQLXyzConnector();
 
@@ -62,10 +63,10 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
         .requestHandler(router)
         .listen(config().getInteger("HTTP_PORT"), result -> {
           if (result.succeeded()) {
-            future.complete();
+            promise.complete();
           } else {
             logger.error("An error occurred, during the initialization of the server.", result.cause());
-            future.fail(result.cause());
+            promise.fail(result.cause());
           }
         });
   }

@@ -26,6 +26,8 @@ import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.auth.User;
+import io.vertx.ext.auth.authentication.Credentials;
+import io.vertx.ext.auth.authentication.TokenCredentials;
 import io.vertx.ext.auth.jwt.JWTAuthOptions;
 import io.vertx.ext.auth.jwt.impl.JWTAuthProviderImpl;
 import java.nio.charset.StandardCharsets;
@@ -43,29 +45,30 @@ public class XyzAuthProvider extends JWTAuthProviderImpl {
   }
 
   protected final ExpiringMap<String, User> usersCache = ExpiringMap.builder()
-      .maxSize(8*1024)
+      .maxSize(8 * 1024)
       .expirationPolicy(ExpirationPolicy.CREATED)
       .expiration(10, TimeUnit.MINUTES)
       .build();
 
   @Override
-  public void authenticate(JsonObject authInfo, Handler<AsyncResult<User>> resultHandler) {
-    final String jwt = authInfo.getString("jwt");
+  public void authenticate(Credentials credentials, Handler<AsyncResult<User>> resultHandler) {
+    TokenCredentials authInfo = (TokenCredentials) credentials;
+    final String jwt = authInfo.getToken();
 
     if (!isJWT(jwt)) {
       try {
-        byte[] bytearray = Base64.getDecoder().decode(jwt.getBytes(StandardCharsets.UTF_8));
+        byte[] bytearray = Base64.getDecoder().decode(jwt.getBytes());
         bytearray = Compression.decompressUsingInflate(bytearray);
-
-        authInfo.put("jwt", new String(bytearray, StandardCharsets.UTF_8));
-      } catch (DataFormatException e) {
+        authInfo.setToken(new String(bytearray));
+      }
+      catch (DataFormatException e) {
         resultHandler.handle(Future.failedFuture("Wrong auth credentials format."));
         return;
       }
     }
 
     User cachedUser = usersCache.get(jwt);
-    if( cachedUser != null ){
+    if (cachedUser != null) {
       resultHandler.handle(Future.succeededFuture(cachedUser));
       return;
     }
@@ -79,7 +82,7 @@ public class XyzAuthProvider extends JWTAuthProviderImpl {
       final User user = authResult.result();
       user.principal().put("jwt", jwt);
 
-      usersCache.put(jwt,user);
+      usersCache.put(jwt, user);
       resultHandler.handle(Future.succeededFuture(user));
     });
   }

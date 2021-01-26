@@ -21,11 +21,11 @@ package com.here.xyz.hub.cache;
 
 import com.here.xyz.hub.Service;
 import io.vertx.core.Handler;
-import io.vertx.core.buffer.Buffer;
-import io.vertx.redis.RedisClient;
-import io.vertx.redis.RedisOptions;
-import io.vertx.redis.op.SetOptions;
-import java.util.concurrent.TimeUnit;
+import io.vertx.core.net.NetClientOptions;
+import io.vertx.redis.client.Command;
+import io.vertx.redis.client.Redis;
+import io.vertx.redis.client.RedisOptions;
+import io.vertx.redis.client.Request;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,25 +34,23 @@ public class RedisCacheClient implements CacheClient {
 
   private static CacheClient instance;
   private static final Logger logger = LogManager.getLogger();
-  private ThreadLocal<RedisClient> redis;
+  private ThreadLocal<Redis> redis;
+  private String connectionString = Service.configuration.XYZ_HUB_REDIS_URI;
 
   private RedisCacheClient() {
     redis = ThreadLocal.withInitial(() -> {
       RedisOptions config = new RedisOptions()
-          .setHost(Service.configuration.XYZ_HUB_REDIS_HOST)
-          .setPort(Service.configuration.XYZ_HUB_REDIS_PORT);
+          .setConnectionString(connectionString)
+          .setNetClientOptions(new NetClientOptions()
+              .setTcpKeepAlive(true)
+              .setIdleTimeout(30)
+              .setConnectTimeout(2000));
 
-      // use redis auth token when available
-      if (!StringUtils.isEmpty(Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN)) {
-        config.setAuth(Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN);
-        config.setSsl(true);
-      }
+      //Use redis auth token when available
+      if (!StringUtils.isEmpty(Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN))
+        config.setPassword(Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN);
 
-      config.setTcpKeepAlive(true);
-      config.setIdleTimeout(30);
-      config.setIdleTimeoutUnit(TimeUnit.SECONDS);
-      config.setConnectTimeout(2000);
-      return RedisClient.create(Service.vertx, config);
+      return Redis.createClient(Service.vertx, config);
     });
   }
 
@@ -60,7 +58,7 @@ public class RedisCacheClient implements CacheClient {
     if (instance != null)
       return instance;
 
-    if (Service.configuration.XYZ_HUB_REDIS_HOST == null)
+    if (Service.configuration.XYZ_HUB_REDIS_URI == null)
       instance = new NoopCacheClient();
     else {
       try {
@@ -74,55 +72,47 @@ public class RedisCacheClient implements CacheClient {
     return instance;
   }
 
-  protected RedisClient getClient() {
+  protected Redis getClient() {
     return redis.get();
   }
 
   @Override
   public void get(String key, Handler<byte[]> handler) {
-    getClient().getBinary(key, asyncResult -> {
-      if (asyncResult.failed()) {
-//				logger.error("Error when trying to read key " + key + " from redis cache", asyncResult.cause());
+    Request req = Request.cmd(Command.GET).arg(key);
+    getClient().send(req).onComplete(ar -> {
+      if (ar.failed()) {
+        //logger.warn("Error when trying to read key " + key + " from redis cache", ar.cause());
       }
-      final Buffer result = asyncResult.result();
-      handler.handle(result == null ? null : result.getBytes());
+      handler.handle(ar.result() == null ? null : ar.result().toBytes());
     });
   }
 
   @Override
   public void set(String key, byte[] value, long ttl) {
-    getClient().setBinaryWithOptions(key, Buffer.buffer(value), new SetOptions().setEX(ttl), asyncResult -> {
-      //set command was executed. Nothing to do here.
-      if (asyncResult.failed()) {
-        //logger.error("Error when trying to put key " + key + " to redis cache", asyncResult.cause());
+    Request req = Request.cmd(Command.SET).arg(key).arg(value).arg("EX").arg(ttl);
+    getClient().send(req).onComplete(ar -> {
+      //SET command was executed. Nothing to do here.
+      if (ar.failed()) {
+        //logger.warn("Error when trying to put key " + key + " to redis cache", ar.cause());
       }
     });
   }
 
   @Override
   public void remove(String key) {
-    getClient().del(key, response -> {
-      //del command was executed. Nothing to do here.
-      logger.warn("Error removing cache entry for key {}.", key);
+    Request req = Request.cmd(Command.DEL).arg(key);
+    getClient().send(req).onComplete(ar -> {
+      //DEL command was executed. Nothing to do here.
+      if (ar.failed()) {
+        //logger.warn("Error removing cache entry for key {}.", key, ar.cause());
+      }
     });
   }
 
   @Override
   public void shutdown() {
-    if (redis != null) {
-      getClient().close(r -> {
-        synchronized (this) {
-          this.notify();
-        }
-      });
-    }
-    synchronized (this) {
-      try {
-        this.wait(2000);
-      } catch (InterruptedException e) {
-        //Nothing to do.
-      }
-    }
+    if (redis != null)
+      getClient().close();
   }
 
 }

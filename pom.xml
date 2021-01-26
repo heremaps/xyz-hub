@@ -89,7 +89,7 @@
 
     <!-- Dependencies versions -->
     <aws-sdk-version>1.11.712</aws-sdk-version>
-    <vertx-version>3.6.3</vertx-version>
+    <vertx-version>4.0.0</vertx-version>
     <geo-tools-version>19.1</geo-tools-version>
     <jts-version>1.14.0</jts-version>
     <jackson-version>2.10.0</jackson-version>
@@ -228,8 +228,14 @@
         <groupId>io.vertx</groupId>
         <version>${vertx-version}</version>
       </dependency>
+      <!-- Remove once Vert.x4 migration was done-->
       <dependency>
         <artifactId>vertx-web-api-contract</artifactId>
+        <groupId>io.vertx</groupId>
+        <version>${vertx-version}</version>
+      </dependency>
+      <dependency>
+        <artifactId>vertx-web-openapi</artifactId>
         <groupId>io.vertx</groupId>
         <version>${vertx-version}</version>
       </dependency>

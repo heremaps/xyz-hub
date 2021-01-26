@@ -22,6 +22,7 @@ package com.here.xyz.hub.rest.admin;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
+import com.here.xyz.hub.Service;
 
 @JsonTypeInfo(use = Id.CLASS)
 public abstract class AdminMessage {
@@ -53,7 +54,7 @@ public abstract class AdminMessage {
    * Sends this message to the {@link #destination} or (if not defined) to all other nodes.
    */
   public void send() {
-    MessageBroker.getInstance().sendMessage(this);
+    Service.messageBroker.sendMessage(this);
   }
 
   /**

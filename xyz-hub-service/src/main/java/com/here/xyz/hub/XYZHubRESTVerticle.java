@@ -36,19 +36,19 @@ import com.here.xyz.hub.rest.SpaceApi;
 import com.here.xyz.hub.rest.health.HealthApi;
 import com.here.xyz.hub.task.Task;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.ext.auth.PubSecKeyOptions;
 import io.vertx.ext.auth.jwt.JWTAuth;
 import io.vertx.ext.auth.jwt.JWTAuthOptions;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.api.contract.RouterFactoryOptions;
-import io.vertx.ext.web.api.contract.openapi3.OpenAPI3RouterFactory;
-import io.vertx.ext.web.handler.AuthHandler;
+import io.vertx.ext.web.handler.AuthenticationHandler;
 import io.vertx.ext.web.handler.ChainAuthHandler;
 import io.vertx.ext.web.handler.JWTAuthHandler;
 import io.vertx.ext.web.handler.StaticHandler;
+import io.vertx.ext.web.openapi.RouterBuilder;
+import io.vertx.ext.web.openapi.RouterBuilderOptions;
 import java.io.File;
 import java.util.Hashtable;
 import org.apache.commons.io.FileUtils;
@@ -95,102 +95,116 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
   }
 
   @Override
-  public void start(Future<Void> fut) {
-    OpenAPI3RouterFactory.create(vertx, CONTRACT_LOCATION, ar -> {
+  public void start(Promise<Void> startPromise) throws Exception {
+    RouterBuilder.create(vertx, CONTRACT_LOCATION).onComplete(ar -> {
       if (ar.succeeded()) {
-        //Add the handlers
-        final OpenAPI3RouterFactory routerFactory = ar.result();
-        routerFactory.setOptions(new RouterFactoryOptions().setRequireSecurityHandlers(false));
-        new FeatureApi(routerFactory);
-        new FeatureQueryApi(routerFactory);
-        new SpaceApi(routerFactory);
-        new HistoryQueryApi(routerFactory);
-        new ConnectorApi(routerFactory);
+        try {
+          //Add the handlers
+          final RouterBuilder rb = ar.result()
+              .setOptions(new RouterBuilderOptions().setContractEndpoint(RouterBuilderOptions.STANDARD_CONTRACT_ENDPOINT));
+          new FeatureApi(rb);
+          new FeatureQueryApi(rb);
+          new SpaceApi(rb);
+          new HistoryQueryApi(rb);
+          new ConnectorApi(rb);
 
-        final AuthHandler jwtHandler = createJWTHandler();
-        routerFactory.addSecurityHandler("authToken", jwtHandler);
+          final AuthenticationHandler jwtHandler = createJWTHandler();
+          rb.securityHandler("authToken", jwtHandler);
 
-        final Router router = routerFactory.getRouter();
+          final Router router = rb.createRouter();
 
-        new HealthApi(vertx, router);
-        new AdminApi(vertx, router, jwtHandler);
+          new HealthApi(vertx, router);
+          new AdminApi(vertx, router, jwtHandler);
 
-        //OpenAPI resources
-        router.route("/hub/static/openapi/*").handler(createCorsHandler()).handler((routingContext -> {
-          final HttpServerResponse res = routingContext.response();
-          res.putHeader("content-type", "application/yaml");
-          final String path = routingContext.request().path();
-          if (path.endsWith("full.yaml")) {
-            res.headers().add(CONTENT_LENGTH, String.valueOf(FULL_API.getBytes().length));
-            res.write(FULL_API);
-          } else if (path.endsWith("stable.yaml")) {
-            res.headers().add(CONTENT_LENGTH, String.valueOf(STABLE_API.getBytes().length));
-            res.write(STABLE_API);
-          } else if (path.endsWith("experimental.yaml")) {
-            res.headers().add(CONTENT_LENGTH, String.valueOf(EXPERIMENTAL_API.getBytes().length));
-            res.write(EXPERIMENTAL_API);
-          } else if (path.endsWith("contract.yaml")) {
-            res.headers().add(CONTENT_LENGTH, String.valueOf(CONTRACT_API.getBytes().length));
-            res.write(CONTRACT_API);
-          } else {
-            res.setStatusCode(HttpResponseStatus.NOT_FOUND.code());
+          //OpenAPI resources
+          router.route("/hub/static/openapi/*").handler(createCorsHandler()).handler((routingContext -> {
+            final HttpServerResponse res = routingContext.response();
+            res.putHeader("content-type", "application/yaml");
+            final String path = routingContext.request().path();
+            if (path.endsWith("full.yaml")) {
+              res.headers().add(CONTENT_LENGTH, String.valueOf(FULL_API.getBytes().length));
+              res.write(FULL_API);
+            }
+            else if (path.endsWith("stable.yaml")) {
+              res.headers().add(CONTENT_LENGTH, String.valueOf(STABLE_API.getBytes().length));
+              res.write(STABLE_API);
+            }
+            else if (path.endsWith("experimental.yaml")) {
+              res.headers().add(CONTENT_LENGTH, String.valueOf(EXPERIMENTAL_API.getBytes().length));
+              res.write(EXPERIMENTAL_API);
+            }
+            else if (path.endsWith("contract.yaml")) {
+              res.headers().add(CONTENT_LENGTH, String.valueOf(CONTRACT_API.getBytes().length));
+              res.write(CONTRACT_API);
+            }
+            else {
+              res.setStatusCode(HttpResponseStatus.NOT_FOUND.code());
+            }
+
+            res.end();
+          }));
+
+          //Static resources
+          router.route("/hub/static/*").handler(StaticHandler.create().setIndexPage("index.html")).handler(createCorsHandler());
+          if (Service.configuration.FS_WEB_ROOT != null) {
+            logger.debug("Serving extra web-root folder in file-system with location: {}", Service.configuration.FS_WEB_ROOT);
+            //noinspection ResultOfMethodCallIgnored
+            new File(Service.configuration.FS_WEB_ROOT).mkdirs();
+            router.route("/hub/static/*")
+                .handler(StaticHandler.create(Service.configuration.FS_WEB_ROOT).setIndexPage("index.html"));
           }
 
-          res.end();
-        }));
+          //Add default handlers
+          addDefaultHandlers(router);
 
-        //Static resources
-        router.route("/hub/static/*").handler(StaticHandler.create().setIndexPage("index.html")).handler(createCorsHandler());
-        if (Service.configuration.FS_WEB_ROOT != null) {
-          logger.debug("Serving extra web-root folder in file-system with location: {}", Service.configuration.FS_WEB_ROOT);
-          //noinspection ResultOfMethodCallIgnored
-          new File(Service.configuration.FS_WEB_ROOT).mkdirs();
-          router.route("/hub/static/*")
-              .handler(StaticHandler.create(Service.configuration.FS_WEB_ROOT).setIndexPage("index.html"));
-        }
+          vertx.sharedData().<String, Hashtable<String, Object>>getAsyncMap(Service.SHARED_DATA, sharedDataResult -> {
+            sharedDataResult.result().get(Service.SHARED_DATA, hashtableResult -> {
+              final Hashtable<String, Object> sharedData = hashtableResult.result();
+              final Router globalRouter = (Router) sharedData.get(Service.GLOBAL_ROUTER);
 
-        //Add default handlers
-        addDefaultHandlers(router);
+              globalRouter.mountSubRouter("/", router);
 
-        vertx.sharedData().<String, Hashtable<String, Object>>getAsyncMap(Service.SHARED_DATA, sharedDataResult -> {
-          sharedDataResult.result().get(Service.SHARED_DATA, hashtableResult -> {
-            final Hashtable<String, Object> sharedData = hashtableResult.result();
-            final Router globalRouter = (Router) sharedData.get(Service.GLOBAL_ROUTER);
+              vertx.eventBus().localConsumer(Service.SHARED_DATA, event -> {
+                createHttpServer(Service.configuration.HTTP_PORT, globalRouter);
+                if (Service.configuration.HTTP_PORT != Service.configuration.ADMIN_MESSAGE_PORT) {
+                  createHttpServer(Service.configuration.ADMIN_MESSAGE_PORT, globalRouter);
+                }
+              });
 
-            globalRouter.mountSubRouter("/", router);
-
-            vertx.eventBus().localConsumer(Service.SHARED_DATA, event -> {
-              createHttpServer(Service.configuration.HTTP_PORT, globalRouter);
-              if (Service.configuration.HTTP_PORT != Service.configuration.ADMIN_MESSAGE_PORT) {
-                createHttpServer(Service.configuration.ADMIN_MESSAGE_PORT, globalRouter);
-              }
+              startPromise.complete();
             });
-
-            fut.complete();
           });
-        });
-      } else {
-        logger.error("An error occurred, during the creation of the router from the Open API specification file.", ar.cause());
+        }
+        catch (Exception e) {
+          routerFailure(e);
+        }
+      }
+      else {
+        routerFailure(ar.cause());
       }
     });
+  }
+
+  private static void routerFailure(Throwable t) {
+    logger.error("An error occurred, during the creation of the router from the Open API specification file.", t);
   }
 
   /**
    * Add the security handlers.
    */
-  private AuthHandler createJWTHandler() {
+  private AuthenticationHandler createJWTHandler() {
     JWTAuthOptions authConfig = new JWTAuthOptions().addPubSecKey(
         new PubSecKeyOptions().setAlgorithm("RS256")
-            .setPublicKey(Service.configuration.JWT_PUB_KEY));
+            .setBuffer(Service.configuration.JWT_PUB_KEY));
 
     JWTAuth authProvider = new XyzAuthProvider(vertx, authConfig);
 
-    ChainAuthHandler authHandler = ChainAuthHandler.create()
-        .append(JWTAuthHandler.create(authProvider))
-        .append(JWTURIHandler.create(authProvider));
+    ChainAuthHandler authHandler = ChainAuthHandler.any()
+        .add(JWTAuthHandler.create(authProvider))
+        .add(JWTURIHandler.create(authProvider));
 
     if (Service.configuration.XYZ_HUB_AUTH == AuthorizationType.DUMMY) {
-      authHandler.append(JwtDummyHandler.create(authProvider));
+      authHandler.add(JwtDummyHandler.create(authProvider));
     }
 
     return authHandler;

@@ -85,14 +85,14 @@ public class Node {
 
   private static void initNodeCountFetcher() {
     if (Core.vertx != null) {
-      Core.vertx.setPeriodic(NODE_COUNT_FETCH_PERIOD, timerId -> RedisMessageBroker.getInstance().fetchSubscriberCount(r -> {
+      Core.vertx.setPeriodic(NODE_COUNT_FETCH_PERIOD, timerId -> RedisMessageBroker.getInstance().onComplete(ar -> ar.result().fetchSubscriberCount(r -> {
         if (r.succeeded()) {
           nodeCount = r.result();
           logger.debug("Service node-count: " + nodeCount);
         }
         else
           logger.warn("Checking service node-count failed.", r.cause());
-      }));
+      })));
     }
   }
 

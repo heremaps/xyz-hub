@@ -90,7 +90,6 @@ public class SpecComplianceApiIT extends TestSpaceWithFeature {
     checkNotFound(Method.GET, APPLICATION_GEO_JSON, "/spaces/non-existing-path/search");
     checkNotFound(Method.GET, APPLICATION_GEO_JSON, "/spaces/non-existing-path/iterate");
     checkNotFound(Method.DELETE, APPLICATION_JSON, "/spaces/non-existing-path/features?id=non-existing-feature");
-    checkNotFound(Method.PATCH, APPLICATION_GEO_JSON, "/spaces/x-psql-test/features/non-existing-path");
     checkNotFound(Method.DELETE, APPLICATION_JSON, "/spaces/x-psql-test/features/non-existing-path");
   }
 

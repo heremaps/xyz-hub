@@ -27,22 +27,21 @@ import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.auth.authentication.Credentials;
+import io.vertx.ext.auth.authentication.TokenCredentials;
 import io.vertx.ext.auth.jwt.JWTAuth;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.JWTAuthHandler;
-import io.vertx.ext.web.handler.impl.AuthHandlerImpl;
-import java.util.List;
+import io.vertx.ext.web.handler.impl.AuthenticationHandlerImpl;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class JwtDummyHandler extends AuthHandlerImpl implements JWTAuthHandler {
+public class JwtDummyHandler extends AuthenticationHandlerImpl<JWTAuth> implements JWTAuthHandler {
 
   private static final Logger logger = LogManager.getLogger();
-  private final JsonObject options = new JsonObject();
   private static final String DUMMY_JWT_RESOURCE_FILE = "/auth/dummyJwt.json";
-  private static final  String dummyJwt = JwtGenerator.generateToken(DUMMY_JWT_RESOURCE_FILE);
+  private static final String dummyJwt = JwtGenerator.generateToken(DUMMY_JWT_RESOURCE_FILE);
 
   static {
     logger.info("DUMMY token was created.");
@@ -57,40 +56,24 @@ public class JwtDummyHandler extends AuthHandlerImpl implements JWTAuthHandler {
   }
 
   private static String getDummyJwt() {
-    if (Service.configuration.XYZ_HUB_AUTH != AuthorizationType.DUMMY) {
+    if (Service.configuration.XYZ_HUB_AUTH != AuthorizationType.DUMMY)
       throw new IllegalStateException("DUMMY authorization is not activate. DUMMY JWT can't be used.");
-    }
     return dummyJwt;
   }
 
-  public void parseCredentials(RoutingContext context, Handler<AsyncResult<JsonObject>> handler) {
+  @Override
+  public void parseCredentials(RoutingContext context, Handler<AsyncResult<Credentials>> handler) {
     try {
-      handler.handle(Future.succeededFuture(new JsonObject().put("jwt", getDummyJwt()).put("options", options)));
-    } catch (Exception e) {
+      handler.handle(Future.succeededFuture(new TokenCredentials(getDummyJwt())));
+    }
+    catch (Exception e) {
       handler.handle(Future.failedFuture(new HttpException(UNAUTHORIZED, "DUMMY Authorization failed.", e)));
     }
   }
 
   @Override
-  protected String authenticateHeader(RoutingContext context) {
+  public String authenticateHeader(RoutingContext context) {
     return null;
   }
 
-  @Override
-  public JWTAuthHandler setAudience(List<String> audience) {
-    options.put("audience", new JsonArray(audience));
-    return this;
-  }
-
-  @Override
-  public JWTAuthHandler setIssuer(String issuer) {
-    options.put("issuer", issuer);
-    return this;
-  }
-
-  @Override
-  public JWTAuthHandler setIgnoreExpiration(boolean ignoreExpiration) {
-    options.put("ignoreExpiration", ignoreExpiration);
-    return this;
-  }
 }

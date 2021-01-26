@@ -44,6 +44,7 @@ import com.here.xyz.models.hub.Space.Static;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import io.vertx.core.json.jackson.DatabindCodec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -106,7 +107,7 @@ public class SpaceAuthorization extends Authorization {
     //CREATE
     if (task.isCreate()) {
       final Map templateAsMap = asMap(task.template);
-      final Map inputAsMap = asMap(Json.mapper.convertValue(input, Space.class));
+      final Map inputAsMap = asMap(DatabindCodec.mapper().convertValue(input, Space.class));
 
       xyzhubFilter = new XyzHubAttributeMap()
           .withValue(OWNER, input.get("owner"))
@@ -337,7 +338,7 @@ public class SpaceAuthorization extends Authorization {
   private static Map asMap(Object object) {
     try {
       return ModifyOp.filter(
-          Json.decodeValue(Json.mapper.writerWithView(Static.class).writeValueAsString(object), Map.class), ModifySpaceOp.metadataFilter);
+          Json.decodeValue(DatabindCodec.mapper().writerWithView(Static.class).writeValueAsString(object), Map.class), ModifySpaceOp.metadataFilter);
     } catch (Exception e) {
       return Collections.emptyMap();
     }

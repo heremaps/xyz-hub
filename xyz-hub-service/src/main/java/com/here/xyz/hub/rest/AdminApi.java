@@ -38,6 +38,7 @@ import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.ActionMatrix;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.auth.JWTPayload;
@@ -60,6 +61,7 @@ import io.vertx.core.http.HttpMethod;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.AuthHandler;
+import io.vertx.ext.web.handler.AuthenticationHandler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -70,11 +72,10 @@ public class AdminApi extends Api {
   public static final String MAIN_ADMIN_ENDPOINT = "/hub/admin/";
   public static final String ADMIN_MESSAGES_ENDPOINT = MAIN_ADMIN_ENDPOINT + "messages";
   public static final String ADMIN_EVENTS_ENDPOINT = MAIN_ADMIN_ENDPOINT + "events";
-  private static final MessageBroker messageBroker = MessageBroker.getInstance();
 
   private static final String ADMIN_CAPABILITY_MESSAGING = "messaging";
 
-  public AdminApi(Vertx vertx, Router router, AuthHandler auth) {
+  public AdminApi(Vertx vertx, Router router, AuthenticationHandler auth) {
     router.route(HttpMethod.POST, ADMIN_MESSAGES_ENDPOINT)
         .handler(auth)
         .handler(this::onMessage);
@@ -87,7 +88,7 @@ public class AdminApi extends Api {
   private void onMessage(final RoutingContext context) {
     try {
       AdminAuthorization.authorizeAdminMessaging(context);
-      messageBroker.receiveRawMessage(context.getBody().getBytes());
+      Service.messageBroker.receiveRawMessage(context.getBody().getBytes());
       context.response().setStatusCode(NO_CONTENT.code())
           .putHeader(HttpHeaders.CONTENT_TYPE, APPLICATION_JSON)
           .end();

@@ -92,7 +92,7 @@ public class LogUtil {
     accessLog.reqInfo.referer = context.request().getHeader(REFERER);
     accessLog.reqInfo.origin = context.request().getHeader(ORIGIN);
     if (POST.equals(method) || PUT.equals(method) || PATCH.equals(method)) {
-      accessLog.reqInfo.size = context.getBody().length();
+      accessLog.reqInfo.size = context.getBody() == null ? 0 : context.getBody().length();
     }
     accessLog.clientInfo.userAgent = context.request().getHeader(USER_AGENT);
     accessLog.reqInfo.contentType = context.request().getHeader(CONTENT_TYPE);
