@@ -2,7 +2,7 @@
 ---
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-![Run XYZ Hub tests](https://github.com/heremaps/xyz-hub/workflows/Run%20XYZ%20Hub%20tests/badge.svg)
+[![Run XYZ Hub tests](https://github.com/heremaps/xyz-hub/workflows/Run%20XYZ%20Hub%20tests/badge.svg)](https://github.com/heremaps/xyz-hub/actions?query=workflow%3A%22Run+XYZ+Hub+tests%22)
 
 XYZ Hub is a RESTful web service for the access and management of geospatial data.
 
