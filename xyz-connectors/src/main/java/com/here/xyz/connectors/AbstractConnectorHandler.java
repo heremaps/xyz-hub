@@ -99,13 +99,13 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    * The maximal response size in bytes that can be sent back without relocating the response.
    */
   @SuppressWarnings("WeakerAccess")
-  public static int MAX_RESPONSE_SIZE = 6 * 1024 * 1024;
+  public static int RELOCATION_THRESHOLD_SIZE = 6 * 1024 * 1024;
 
   /**
    * The maximal size of uncompressed bytes. Exceeding that limit leads to the response getting gzipped.
    */
   @SuppressWarnings("WeakerAccess")
-  public static int MAX_UNCOMPRESSED_SIZE = 1024 * 1024; // 1MB
+  public static int GZIP_THRESHOLD_SIZE = 1024 * 1024; // 1MB
 
   /**
    * The context for this request.
@@ -262,7 +262,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
 
       //Transform: handle compression and etag injection
       try (ByteArrayOutputStream os = new ByteArrayOutputStream(bytes.length + etagBytes.length - 1)) {
-        OutputStream targetOs = (!embedded && bytes.length > MAX_UNCOMPRESSED_SIZE ? Payload.gzip(os) : os);
+        OutputStream targetOs = (!embedded && bytes.length > GZIP_THRESHOLD_SIZE ? Payload.gzip(os) : os);
         targetOs.write(bytes, 0, bytes.length - 1);
         targetOs.write(etagBytes);
         os.close();
@@ -271,7 +271,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
       }
 
       //Relocate
-      if (!embedded && bytes.length > MAX_RESPONSE_SIZE) {
+      if (!embedded && bytes.length > RELOCATION_THRESHOLD_SIZE) {
         bytes = relocationClient.relocate(streamId, Payload.isGzipped(bytes) ? bytes : Payload.compress(bytes));
       }
 
