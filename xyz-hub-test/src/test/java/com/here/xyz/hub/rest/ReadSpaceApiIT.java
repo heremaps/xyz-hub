@@ -19,13 +19,22 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -45,7 +54,7 @@ public class ReadSpaceApiIT extends TestSpaceWithFeature {
 
   private static boolean zeroSpaces()
   {
-    int nrCurrentSpaces = 
+    int nrCurrentSpaces =
      given()
       .contentType(APPLICATION_JSON).accept(APPLICATION_JSON).headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
        .when()
@@ -98,19 +107,6 @@ public class ReadSpaceApiIT extends TestSpaceWithFeature {
         .get("/spaces/x-psql-test")
         .then()
         .statusCode(FORBIDDEN.code());
-  }
-
-  //FIXME: Remove that test (and the added workaround response type application/geo+json in the openapi_src.yaml) once CMEKB-2572 has been fixed (see: CMEKB-2637)
-  @Test
-  public void readSpaceWithGeoJsonWorkaround() {
-    given()
-        .accept(APPLICATION_GEO_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .when()
-        .get("/spaces/x-psql-test")
-        .then()
-        .statusCode(OK.code())
-        .body("id", equalTo("x-psql-test"));
   }
 
   @Test
