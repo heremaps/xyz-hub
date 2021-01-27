@@ -23,19 +23,23 @@ import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
 import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 
+import com.google.common.base.Strings;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.util.LimitedOffHeapQueue.PayloadVanishedException;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.net.impl.ConnectionBase;
+import io.vertx.ext.web.client.HttpResponse;
 import java.nio.charset.Charset;
 import java.util.concurrent.TimeoutException;
 import org.apache.logging.log4j.LogManager;
@@ -95,6 +99,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
               }
               catch (PayloadVanishedException ignore) {}
               try {
+                validateHttpStatus(ar.result());
                 byte[] responseBytes = ar.result().body().getBytes();
                 callback.handle(Future.succeededFuture(responseBytes));
               }
@@ -113,6 +118,17 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
     }
   }
 
+  private void validateHttpStatus(HttpResponse response) throws HttpException {
+    if (response.statusCode() != OK.code()) {
+      HttpResponseStatus upstreamStatus = Strings.isNullOrEmpty(response.statusMessage()) ?
+          HttpResponseStatus.valueOf(response.statusCode()) : new HttpResponseStatus(response.statusCode(), response.statusMessage());
+      HttpException upstreamHttpEx = new HttpException(upstreamStatus, "Remote HTTP connector service responded with: " + upstreamStatus);
+      throw new HttpException(BAD_GATEWAY, "Remote HTTP connector service did not respond with 200(OK)", upstreamHttpEx);
+    }
+    else if (response.body() == null)
+      throw new HttpException(BAD_GATEWAY, "Response body from remote HTTP connector service was empty.");
+  }
+
   private void handleFailure(FunctionCall fc, int tryCount, Handler<AsyncResult<byte[]>> callback, Exception e) {
     if (e == ConnectionBase.CLOSED_EXCEPTION) {
       e = new RuntimeException("Connection was already closed.", e);
@@ -122,7 +138,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
         return;
       }
     }
-    logger.warn(fc.marker, "Error sending event to remote http service", e);
+    logger.warn(fc.marker, "Error while calling remote HTTP service", e);
     if (!(e instanceof HttpException))
       e = new HttpException(BAD_GATEWAY, "Connector error.", e);
     callback.handle(Future.failedFuture(e));
