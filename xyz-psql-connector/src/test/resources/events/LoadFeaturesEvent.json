@@ -2,6 +2,10 @@
   "type": "LoadFeaturesEvent",
   "streamId": "xIou1GnJDwpb0000009C",
   "space": "foo",
+  "connectorParams": {
+    "propertySearch": true,
+    "connectorId": "test-connector"
+  },
   "idsMap": {
     "919952db3d1c2bc1a0da711c6f23c377": null,
     "9838782838cb0ca6eb3b816b4e16be26": null,

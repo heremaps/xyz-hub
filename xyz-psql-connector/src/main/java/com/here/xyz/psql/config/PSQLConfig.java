@@ -23,7 +23,9 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.crypto.tink.aead.AeadConfig;
 import com.google.crypto.tink.subtle.AesGcmJce;
+import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
 import com.here.xyz.events.Event;
+import com.here.xyz.psql.DatabaseMaintainer;
 import com.here.xyz.util.Hasher;
 import java.io.UnsupportedEncodingException;
 import java.security.GeneralSecurityException;
@@ -34,22 +36,54 @@ import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import javax.sql.DataSource;
+
 import static com.here.xyz.psql.config.DatabaseSettings.*;
 
 public class PSQLConfig {
   private static final Logger logger = LogManager.getLogger();
   public static final String ECPS_PHRASE = "ECPS_PHRASE";
 
+    private DataSource dataSource;
+  private DataSource readDataSource;
+  private DatabaseMaintainer databaseMaintainer;
+
+  public void addDataSource(DataSource dataSource){
+    this.dataSource = dataSource;
+  }
+  public void addReadDataSource(DataSource readDataSource){
+    this.readDataSource = readDataSource;
+  }
+
+  public void addDatabaseMaintainer(DatabaseMaintainer databaseMaintainer){
+    this.databaseMaintainer = databaseMaintainer;
+  }
+
+  public DatabaseMaintainer getDatabaseMaintainer() {
+    return databaseMaintainer;
+  }
+
+  public DataSource getDataSource() {
+    return dataSource;
+  }
+
+  public DataSource getReadDataSource() {
+    if(readDataSource == null)
+      return this.dataSource;
+    return this.readDataSource;
+  }
+
+
   private final ConnectorParameters connectorParams;
   private final DatabaseSettings databaseSettings;
   private Map<String, Object> decodedECPSDatabaseSettings;
 
-  private Context context;
+  private final Context context;
   private String applicationName;
 
-  public PSQLConfig(Event event, Context context, String streamId) {
+  public PSQLConfig(Event event, Context context, TraceItem traceItem) {
     this.context = context;
-    this.connectorParams = event == null ? new ConnectorParameters(null,streamId) : new ConnectorParameters(event.getConnectorParams(), streamId);
+    this.connectorParams = event == null ? new ConnectorParameters(null, traceItem) : new ConnectorParameters(event.getConnectorParams(), traceItem);
     this.applicationName = context.getFunctionName();
 
     /** Stored in env variable */
@@ -111,7 +145,12 @@ public class PSQLConfig {
             connectorParams.getDbMinPoolSize()+
             connectorParams.getDbMaxPoolSize()+
             connectorParams.getDbMaxIdleTime()+
-            connectorParams.isDbTestConnectionOnCheckout();
+            connectorParams.isDbTestConnectionOnCheckout()+
+            connectorParams.isEnableHashedSpaceId()+
+            connectorParams.getOnDemandIdxLimit()+
+            connectorParams.isCompactHistory()+
+            connectorParams.isPropertySearch()+
+            connectorParams.isAutoIndexing();
   }
 
   public String applicationName() {

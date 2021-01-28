@@ -23,7 +23,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.connectors.SimulatedContext;
 import com.here.xyz.connectors.StorageConnector;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
@@ -89,14 +88,13 @@ public abstract class DatabaseHandler extends StorageConnector {
      **/
     private static final int MIN_REMAINING_TIME_FOR_RETRY_SECONDS = 3;
     protected static final int STATEMENT_TIMEOUT_SECONDS = 23;
-    private static final int CONNECTION_CHECKOUT_TIMEOUT_SECONDS = 7;
 
     private static String INCLUDE_OLD_STATES = "includeOldStates"; // read from event params
 
     /**
      * The data source connections factory.
      */
-    private static Map<String, XYZDBInstance> dbInstanceMap = new HashMap<>();
+    private static Map<String, PSQLConfig> dbInstanceMap = new HashMap<>();
 
     /**
      * Current event.
@@ -124,14 +122,21 @@ public abstract class DatabaseHandler extends StorageConnector {
     private boolean retryAttempted;
 
     protected XyzResponse processHealthCheckEventImpl(HealthCheckEvent event) throws SQLException {
+        String connectorId = traceItem.getConnectorId();
+
+        if(connectorId == null) {
+            logger.warn("ConnectorId is missing as param in the Connector-Config!");
+            return new ErrorResponse().withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage("ConnectorId is missing as param in the Connector-Config!");
+        }
+
         if (event.getWarmupCount() == 0) {
             SQLQuery query = new SQLQuery("SELECT 1");
 
             /** run DB-Maintenance - warmUp request is used */
             if (event.getMinResponseTime() != 0) {
-                logger.info("{} - dbMaintainer start", streamId);
-                dbMaintainer.run(event, streamId);
-                logger.info("{} - dbMaintainer finished", streamId);
+                logger.info("{} dbMaintainer start", traceItem);
+                dbMaintainer.run(traceItem);
+                logger.info("{} dbMaintainer finished", traceItem);
                 return new HealthStatus().withStatus("OK");
             }
 
@@ -145,21 +150,10 @@ public abstract class DatabaseHandler extends StorageConnector {
         return ((HealthStatus) super.processHealthCheckEvent(event)).withStatus("OK");
     }
 
-    private String idFromPsqlEnv( final SimulatedContext ctx )
-    {
-        if(ctx == null ) return "BLABLA";
-        String[] sArr = { DatabaseSettings.PSQL_HOST, DatabaseSettings.PSQL_PORT, DatabaseSettings.PSQL_USER, "PSQL_DB" };
-        String msg = "";
-        for( String s : sArr)
-            msg += ( ctx.getEnv(s) == null ? "mxm" : ctx.getEnv(s) );
-
-        return msg;
-    }
-
     void reset() {
-      dbInstanceMap.values().forEach(dbInstance -> {
+      dbInstanceMap.values().forEach(config -> {
         try {
-          ((PooledDataSource) dbInstance.dataSource).close();
+          ((PooledDataSource) config.getDataSource()).close();
         } catch (SQLException e) {
           logger.warn("Error while closing connections: ", e);
         }
@@ -172,23 +166,28 @@ public abstract class DatabaseHandler extends StorageConnector {
     @Override
     protected synchronized void initialize(Event event) {
         this.event = event;
-        this.config= new PSQLConfig(event, context, streamId);
-        final String dbStringConfig = config.getConfigValuesAsString();
+        this.config= new PSQLConfig(event, context, traceItem);
+        String connectorId = traceItem.getConnectorId();
 
-        boolean resourceInitFinished;
-        resourceInitFinished = dbInstanceMap.containsKey(dbStringConfig);
+        if(connectorId == null) {
+            logger.warn("{} ConnectorId is missing as param in the Connector-Config!", traceItem);
+            connectorId =config.getConfigValuesAsString();
+        }
 
-        if(resourceInitFinished){
+        if(dbInstanceMap.get(connectorId) != null){
             /** Check if db-params has changed*/
-            if(!dbInstanceMap.get(dbStringConfig).getDatabaseConfig().equalsIgnoreCase(config.getConfigValuesAsString())) {
-                resourceInitFinished = false;
-                dbInstanceMap.remove(dbStringConfig);
+            if(!dbInstanceMap.get(connectorId).getConfigValuesAsString().equalsIgnoreCase(config.getConfigValuesAsString())) {
+                logger.info("{} Config has changed -> remove dbInstance from Pool", traceItem);
+                dbInstanceMap.remove(connectorId);
+            }else{
+                logger.debug("{} Config already loaded -> load dbInstance from Pool", traceItem);
             }
         }
 
-        if (!resourceInitFinished) {
+        if (dbInstanceMap.get(connectorId) == null) {
+
             /** Init dataSource, readDataSource ..*/
-            logger.info("{} - Create new config and data source for following dbStringConfig: '{}'", streamId, dbStringConfig);
+            logger.info("{} Config is missing -> add new dbInstance to Pool", traceItem);
             final ComboPooledDataSource source = getComboPooledDataSource(config.getDatabaseSettings(), config.getConnectorParams(), config.applicationName() , false);
 
             Map<String, String> m = new HashMap<>();
@@ -196,20 +195,21 @@ public abstract class DatabaseHandler extends StorageConnector {
             source.setExtensions(m);
 
             final DatabaseMaintainer dbMaintainer = new DatabaseMaintainer(source, config);
-            final XYZDBInstance xyzDBInstance = new XYZDBInstance(source ,dbMaintainer);
+            config.addDataSource(source);
+            config.addDatabaseMaintainer(dbMaintainer);
 
             if (config.getDatabaseSettings().getReplicaHost() != null) {
                 final ComboPooledDataSource replicaDataSource = getComboPooledDataSource(config.getDatabaseSettings(), config.getConnectorParams(),  config.applicationName() , true);
                 replicaDataSource.setExtensions(m);
-                xyzDBInstance.addReadDataSource(replicaDataSource);
+                config.addReadDataSource(replicaDataSource);
             }
-            dbInstanceMap.put(dbStringConfig, xyzDBInstance);
+            dbInstanceMap.put(connectorId, config);
         }
 
         this.retryAttempted = false;
-        this.dataSource = dbInstanceMap.get(dbStringConfig).getDataSource();
-        this.readDataSource = dbInstanceMap.get(dbStringConfig).getReadDataSource();
-        this.dbMaintainer = dbInstanceMap.get(dbStringConfig).getDatabaseMaintainer();
+        this.dataSource = dbInstanceMap.get(connectorId).getDataSource();
+        this.readDataSource = dbInstanceMap.get(connectorId).getReadDataSource();
+        this.dbMaintainer = dbInstanceMap.get(connectorId).getDatabaseMaintainer();
 
         if (event.getPreferPrimaryDataSource() != null && event.getPreferPrimaryDataSource() == Boolean.TRUE) {
             this.readDataSource = this.dataSource;
@@ -293,12 +293,12 @@ public abstract class DatabaseHandler extends StorageConnector {
         } catch (Exception e) {
             try {
                 if (retryCausedOnServerlessDB(e) || canRetryAttempt()) {
-                    logger.info("{} - Retry Query permitted.", streamId);
+                    logger.info("{} Retry Query permitted.", traceItem);
                     return executeQuery(query, handler);
                 }
             } catch (Exception e1) {
                 if(retryCausedOnServerlessDB(e1)) {
-                    logger.info("{} - Retry Query permitted.", streamId);
+                    logger.info("{} Retry Query permitted.", traceItem);
                     return executeQuery(query, handler);
                 }
                 throw e;
@@ -313,12 +313,12 @@ public abstract class DatabaseHandler extends StorageConnector {
         } catch (Exception e) {
             try {
                 if (retryCausedOnServerlessDB(e) || canRetryAttempt()) {
-                    logger.info("{} - Retry Update permitted.", streamId);
+                    logger.info("{} Retry Update permitted.", traceItem);
                     return executeUpdate(query);
                 }
             } catch (Exception e1) {
                 if (retryCausedOnServerlessDB(e)) {
-                    logger.info("{} - Retry Update permitted.", streamId);
+                    logger.info("{} Retry Update permitted.", traceItem);
                     return executeUpdate(query);
                 }
                 throw e;
@@ -348,7 +348,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 return false;
             }
             if (!retryAttempted) {
-                logger.warn("{} - Retry based on serverless scaling detected! RemainingTime: {} {}", streamId, remainingSeconds, e);
+                logger.warn("{} Retry based on serverless scaling detected! RemainingTime: {} {}", traceItem, remainingSeconds, e);
                 return true;
             }
         }
@@ -367,11 +367,11 @@ public abstract class DatabaseHandler extends StorageConnector {
             query.setText(SQLQuery.replaceVars(query.text(), config.getDatabaseSettings().getSchema(), config.readTableFromEvent(event)));
             final String queryText = query.text();
             final List<Object> queryParameters = query.parameters();
-            logger.debug("{} - executeQuery: {} - Parameter: {}", streamId, queryText, queryParameters);
+            logger.debug("{} executeQuery: {} - Parameter: {}", traceItem, queryText, queryParameters);
             return run.query(queryText, handler, queryParameters.toArray());
         } finally {
             final long end = System.currentTimeMillis();
-            logger.info("{} - query time: {}ms", streamId, (end - start));
+            logger.info("{} query time: {}ms", traceItem, (end - start));
         }
     }
 
@@ -390,11 +390,11 @@ public abstract class DatabaseHandler extends StorageConnector {
             query.setText(SQLQuery.replaceVars(query.text(),config.getDatabaseSettings().getSchema(), config.readTableFromEvent(event)));
             final String queryText = query.text();
             final List<Object> queryParameters = query.parameters();
-            logger.debug("{} - executeUpdate: {} - Parameter: {}", streamId, queryText, queryParameters);
+            logger.debug("{} executeUpdate: {} - Parameter: {}", traceItem, queryText, queryParameters);
             return run.update(queryText, queryParameters.toArray());
         } finally {
             final long end = System.currentTimeMillis();
-            logger.info("{} - query time: {}ms", (end - start));
+            logger.info("{} query time: {}ms", traceItem, (end - start));
         }
     }
 
@@ -514,13 +514,13 @@ public abstract class DatabaseHandler extends StorageConnector {
 
             try {
                 if (deletes.size() > 0) {
-                    DatabaseWriter.deleteFeatures(this, schema, table, streamId, fails, deletes, connection, transactional, handleUUID, version);
+                    DatabaseWriter.deleteFeatures(this, schema, table, traceItem, fails, deletes, connection, transactional, handleUUID, version);
                 }
                 if (inserts.size() > 0) {
-                    DatabaseWriter.insertFeatures(this, schema, table, streamId, collection, fails, inserts, connection, transactional, version);
+                    DatabaseWriter.insertFeatures(this, schema, table, traceItem, collection, fails, inserts, connection, transactional, version);
                 }
                 if (updates.size() > 0) {
-                    DatabaseWriter.updateFeatures(this, schema, table, streamId, collection, fails, updates, connection, transactional, handleUUID, version);
+                    DatabaseWriter.updateFeatures(this, schema, table, traceItem, collection, fails, updates, connection, transactional, handleUUID, version);
                 }
 
                 if (transactional) {
@@ -556,7 +556,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                         ;//Table does not exist yet - create it!
                     else {
 
-                        logger.warn("{} - Transaction has failed. {]", streamId, e);
+                        logger.warn("{} Transaction has failed. {]", traceItem, e);
                         connection.close();
 
                         Map<String, Object> errorDetails = new HashMap<>();
@@ -671,7 +671,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         ensureSpace();
         retryAttempted = true;
 
-        logger.info("{} - Retry the execution.", streamId);
+        logger.info("{} Retry the execution.", traceItem);
         return true;
     }
 
@@ -697,7 +697,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
             stmt.setQueryTimeout(calculateTimeout());
             if ((rs = stmt.executeQuery(query)).next()) {
-                logger.debug("{} - Time for table check: " + (System.currentTimeMillis() - start) + "ms", streamId);
+                logger.debug("{} Time for table check: " + (System.currentTimeMillis() - start) + "ms", traceItem);
                 String oid = rs.getString(1);
                 return oid != null ? true : false;
             }
@@ -705,7 +705,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         }catch (Exception e){
             if(!retryAttempted) {
                 retryAttempted = true;
-                logger.info("{} - Retry table check.", streamId);
+                logger.info("{} Retry table check.", traceItem);
                 return hasTable();
             }
             else
@@ -758,10 +758,10 @@ public abstract class DatabaseHandler extends StorageConnector {
                     stmt.setQueryTimeout(calculateTimeout());
                     stmt.executeBatch();
                     connection.commit();
-                    logger.debug("{} - Successfully created table '{}' for space id '{}'", streamId, tableName, event.getSpace());
+                    logger.debug("{} Successfully created table '{}' for space id '{}'", traceItem, tableName, event.getSpace());
                 }
             } catch (Exception e) {
-                logger.error("{} - Failed to create table '{}' for space id: '{}': {}", streamId, tableName, event.getSpace(), e);
+                logger.error("{} Failed to create table '{}' for space id: '{}': {}", traceItem, tableName, event.getSpace(), e);
                 connection.rollback();
                 // check if the table was created in the meantime, by another instance.
                 if (hasTable()) {
@@ -877,7 +877,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                     stmt.setQueryTimeout(calculateTimeout());
                     stmt.executeBatch();
                     connection.commit();
-                    logger.debug("{} - Successfully created history table '{}' for space id '{}'", streamId, tableName, event.getSpace());
+                    logger.debug("{} Successfully created history table '{}' for space id '{}'", traceItem, tableName, event.getSpace());
                 }
             } catch (Exception e) {
                 throw new SQLException("Creation of history table has failed: "+tableName, e);
@@ -912,7 +912,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                     stmt.setQueryTimeout(calculateTimeout());
                     stmt.executeBatch();
                     connection.commit();
-                    logger.debug("{} - Updated of trigger has failed: '{}'", streamId, tableName);
+                    logger.debug("{} Updated of trigger has failed: '{}'", traceItem, tableName);
                 }
             } catch (Exception e) {
                 throw new SQLException("Update of trigger has failed: "+tableName, e);
@@ -1016,12 +1016,12 @@ public abstract class DatabaseHandler extends StorageConnector {
         List<Feature> deletes = new ArrayList<>();
 
         while (rs.next()) {
-            Feature feature = null;
+            Feature feature;
             String operation = rs.getString("Operation");
             try {
                 feature =  new ObjectMapper().readValue(rs.getString("Feature"), Feature.class);
             }catch (JsonProcessingException e){
-                logger.error("{} - Error in compactHistoryResultSetHandler for space id '{}': {}", streamId, event.getSpace(),e);
+                logger.error("{} Error in compactHistoryResultSetHandler for space id '{}': {}", traceItem, event.getSpace(),e);
                 throw new SQLException("Cant read json from database!");
             }
 
@@ -1096,7 +1096,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             try {
                 feature =  new ObjectMapper().readValue(rs.getString("Feature"), Feature.class);
             }catch (JsonProcessingException e){
-                logger.error("{} - Error in historyResultSetHandler for space id '{}': {}", streamId, event.getSpace(),e);
+                logger.error("{} Error in historyResultSetHandler for space id '{}': {}", traceItem, event.getSpace(),e);
                 throw new SQLException("Cant read json from database!");
             }
 
@@ -1252,13 +1252,13 @@ public abstract class DatabaseHandler extends StorageConnector {
         int timeout = remainingSeconds >= STATEMENT_TIMEOUT_SECONDS ? STATEMENT_TIMEOUT_SECONDS :
                 (remainingSeconds - 2);
 
-        logger.debug("{} - New timeout for query set to '{}'", streamId, timeout);
+        logger.debug("{} New timeout for query set to '{}'", traceItem, timeout);
         return timeout;
     }
 
     protected boolean isRemainingTimeSufficient(int remainingSeconds){
         if(remainingSeconds <= MIN_REMAINING_TIME_FOR_RETRY_SECONDS) {
-            logger.warn("{} - No time left to execute query '{}' s", streamId, remainingSeconds);
+            logger.warn("{} No time left to execute query '{}' s", traceItem, remainingSeconds);
             return false;
         }
         return true;
@@ -1337,39 +1337,6 @@ public abstract class DatabaseHandler extends StorageConnector {
                     .withProperties(properties);
         } catch (Exception e) {
             return new ErrorResponse().withStreamId(streamId).withError(XyzError.EXCEPTION).withErrorMessage(e.getMessage());
-        }
-    }
-
-    public class XYZDBInstance {
-        private String databaseConfig;
-        private DataSource dataSource;
-        private DataSource readDataSource;
-        private DatabaseMaintainer databaseMaintainer;
-
-        public XYZDBInstance(DataSource dataSource, DatabaseMaintainer databaseMaintainer){
-            this.dataSource = dataSource;
-            this.databaseMaintainer = databaseMaintainer;
-            this.databaseConfig = config.getConfigValuesAsString();
-        }
-
-        public DataSource getReadDataSource() {
-            if(readDataSource == null)
-                return this.dataSource;
-            return this.readDataSource;
-        }
-
-        public DatabaseMaintainer getDatabaseMaintainer() {
-            return databaseMaintainer;
-        }
-
-        public DataSource getDataSource() {
-            return dataSource;
-        }
-
-        public String getDatabaseConfig() { return databaseConfig; }
-
-        public void addReadDataSource(DataSource readDataSource){
-            this.readDataSource = readDataSource;
         }
     }
 

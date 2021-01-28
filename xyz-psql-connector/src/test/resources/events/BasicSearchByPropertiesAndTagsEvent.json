@@ -2,5 +2,9 @@
   "type": "SearchForFeaturesEvent",
   "space": "foo",
   "params": {},
+  "connectorParams": {
+    "propertySearch": true,
+    "connectorId": "test-connector"
+  },
   "limit": 400
 }

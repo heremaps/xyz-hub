@@ -4,7 +4,8 @@
 	"connectorParams": {
 		"propertySearch": true,
 		"autoIndexing" : true,
-    "enableHashedSpaceId": true
+   		"enableHashedSpaceId": true,
+		"connectorId": "test-connector"
 	},
 	"params": {
 		"propertySearch": true

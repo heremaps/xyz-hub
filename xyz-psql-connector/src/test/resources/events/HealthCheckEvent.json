@@ -3,7 +3,8 @@
 	"minResponseTime": 100,
 	"connectorParams": {
 		"propertySearch": true,
-		"autoIndexing" : true
+		"autoIndexing" : true,
+		"connectorId": "test-connector"
 	},
 	"params": {
 		"propertySearch": true

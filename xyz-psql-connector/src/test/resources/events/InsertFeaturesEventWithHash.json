@@ -3,6 +3,10 @@
   "space": "foo",
   "enableUUID": true,
   "params": {},
+  "connectorParams": {
+    "propertySearch": true,
+    "connectorId": "test-connector"
+  },
   "insertFeatures": [
     {
       "geometry": {

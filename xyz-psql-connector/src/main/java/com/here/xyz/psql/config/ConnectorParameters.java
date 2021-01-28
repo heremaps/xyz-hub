@@ -19,6 +19,7 @@
 
 package com.here.xyz.psql.config;
 
+import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import java.util.Map;
@@ -27,90 +28,83 @@ public class ConnectorParameters {
     private static final Logger logger = LogManager.getLogger();
 
     /**
-     * Default Limit of on possible Demand-Indices
+     * Paramters
      */
-    public final int ON_DEMAND_IDX_LIM_DEFAULT = 4;
+    public final static String CONNECTOR_ID = "connectorId";
+    public final static String PROPERTY_SEARCH = "propertySearch";
+    public final static String AUTO_INDEXING = "autoIndexing";
+    public final static String ENABLE_HASHED_SPACEID = "enableHashedSpaceId";
+    public final static String COMPACT_HISTORY = "compactHistory";
+    public final static String ON_DEMAND_IDX_LIMIT = "onDemandIdxLimit";
+
+    public final static String DB_INITIAL_POOL_SIZE = "dbInitialPoolSize";
+    public final static String DB_MIN_POOL_SIZE = "dbMinPoolSize";
+    public final static String DB_MAX_POOL_SIZE = "dbMaxPoolSize";
+    public final static String DB_ACQUIRE_INCREMENT = "dbAcquireIncrement";
+    public final static String DB_ACQUIRE_RETRY_ATTEMPTS = "dbAcquireRetryAttempts";
+    public final static String DB_CHECKOUT_TIMEOUT = "dbCheckoutTimeout";
+    public final static String DB_TEST_CONNECTION_ON_CHECKOUT = "dbTestConnectionOnCheckout";
+    public final static String DB_MAX_IDLE_TIME = "dbMaxIdleTime";
+
+    /**
+     * Connector Settings defaults
+     */
+    private String connectorId;
+    private boolean propertySearch = false;
+    private boolean autoIndexing = false;
+    private boolean enableHashedSpaceId = false;
+    private boolean compactHistory = true;
+    private int onDemandIdxLimit = 4;
+    private String ecps;
 
     /**
      * Connection Pool defaults
      */
-    private final int DB_INITIAL_POOL_SIZE_DEFAULT = 1;
-    private final int DB_MIN_POOL_SIZE_DEFAULT = 1;
-    /** Can get overwritten through an Env-Variable */
-    private final int DB_MAX_POOL_SIZE_DEFAULT = 1;
-    private final int DB_ACQUIRE_INCREMENT_DEFAULT = 1;
-    private final int DB_ACQUIRE_RETRY_ATTEMPTS_DEFAULT = 5;
-    private final int DB_CHECKOUT_TIMEOUT_DEFAULT = 7;
-    private final boolean DB_TEST_CONNECTION_ON_CHECKOUT_DEFAULT = false;
-    /** If null - Idle Time does not get used */
-    private final Integer DB_MAX_IDLE_TIME_DEFAULT = null;
+    private int dbInitialPoolSize = 1;
+    private int dbMinPoolSize = 1;
+    private int dbMaxPoolSize = 1;
+    private int dbAcquireIncrement = 1;
+    private int dbAcquireRetryAttempts = 1;
+    private int dbCheckoutTimeout = 7;
+    private boolean dbTestConnectionOnCheckout = false;
+    private Integer dbMaxIdleTime = null;
 
-    private boolean propertySearch;
-    private boolean autoIndexing;
-    private boolean enableHashedSpaceId;
-    private boolean compactHistory;
-    private int onDemandIdxLimit;
+    private TraceItem TraceItem;
 
-    private int dbInitialPoolSize;
-    private int dbMinPoolSize;
-    private int dbMaxPoolSize;
-    private int dbAcquireIncrement;
-    private int dbAcquireRetryAttempts;
-    private int dbCheckoutTimeout;
-    private boolean dbTestConnectionOnCheckout;
-    private Integer dbMaxIdleTime;
-    private String ecps;
-    private String streamId;
-
-    public ConnectorParameters(Map<String, Object> connectorParams, String streamId){
-        this.streamId = streamId;
+    public ConnectorParameters(Map<String, Object> connectorParams, TraceItem TraceItem){
+        this.TraceItem = TraceItem;
 
         if (connectorParams != null) {
-            this.autoIndexing = parseValue(connectorParams, Boolean.class, Boolean.FALSE, "autoIndexing");
-            this.propertySearch = parseValue(connectorParams, Boolean.class, Boolean.FALSE, "propertySearch");
-            this.enableHashedSpaceId = parseValue(connectorParams, Boolean.class, Boolean.FALSE, "enableHashedSpaceId");
-            this.compactHistory = parseValue(connectorParams, Boolean.class, Boolean.TRUE, "compactHistory");
-            this.onDemandIdxLimit = parseValue(connectorParams, Integer.class, ON_DEMAND_IDX_LIM_DEFAULT, "onDemandIdxLimit");
+            this.connectorId = parseValue(connectorParams, String.class, connectorId, CONNECTOR_ID);
+            this.autoIndexing = parseValue(connectorParams, Boolean.class, autoIndexing, AUTO_INDEXING);
+            this.propertySearch = parseValue(connectorParams, Boolean.class, propertySearch, PROPERTY_SEARCH);
+            this.enableHashedSpaceId = parseValue(connectorParams, Boolean.class, enableHashedSpaceId, ENABLE_HASHED_SPACEID);
+            this.compactHistory = parseValue(connectorParams, Boolean.class, compactHistory, COMPACT_HISTORY);
+            this.onDemandIdxLimit = parseValue(connectorParams, Integer.class, onDemandIdxLimit, ON_DEMAND_IDX_LIMIT);
 
-            this.dbInitialPoolSize = parseValue(connectorParams, Integer.class, DB_INITIAL_POOL_SIZE_DEFAULT, "dbInitialPoolSize");
-            this.dbMinPoolSize = parseValue(connectorParams, Integer.class, DB_MIN_POOL_SIZE_DEFAULT, "dbMinPoolSize");
-            this.dbMaxPoolSize = parseValue(connectorParams, Integer.class, DB_MAX_POOL_SIZE_DEFAULT, "dbMaxPoolSize");
-            this.dbAcquireIncrement = parseValue(connectorParams, Integer.class, DB_ACQUIRE_RETRY_ATTEMPTS_DEFAULT, "dbAcquireIncrement");
-            this.dbAcquireRetryAttempts = parseValue(connectorParams, Integer.class, DB_ACQUIRE_RETRY_ATTEMPTS_DEFAULT, "dbAcquireRetryAttemptsPoolSize");
-            this.dbCheckoutTimeout = parseValue(connectorParams, Integer.class, DB_CHECKOUT_TIMEOUT_DEFAULT, "dbCheckoutTimeout");
-            this.dbTestConnectionOnCheckout = parseValue(connectorParams, Boolean.class, DB_TEST_CONNECTION_ON_CHECKOUT_DEFAULT, "dbTestConnectionOnCheckout");
-            this.dbMaxIdleTime = parseValue(connectorParams, Integer.class, DB_MAX_IDLE_TIME_DEFAULT, "dbMaxIdleTime");
+            this.dbInitialPoolSize = parseValue(connectorParams, Integer.class, dbInitialPoolSize, DB_INITIAL_POOL_SIZE);
+            this.dbMinPoolSize = parseValue(connectorParams, Integer.class, dbMinPoolSize, DB_MIN_POOL_SIZE);
+            this.dbMaxPoolSize = parseValue(connectorParams, Integer.class, dbMaxPoolSize, DB_MAX_POOL_SIZE);
+            this.dbAcquireIncrement = parseValue(connectorParams, Integer.class, dbAcquireIncrement, DB_ACQUIRE_INCREMENT);
+            this.dbAcquireRetryAttempts = parseValue(connectorParams, Integer.class, dbAcquireRetryAttempts, DB_ACQUIRE_RETRY_ATTEMPTS);
+            this.dbCheckoutTimeout = parseValue(connectorParams, Integer.class, dbCheckoutTimeout, DB_CHECKOUT_TIMEOUT);
+            this.dbTestConnectionOnCheckout = parseValue(connectorParams, Boolean.class, dbTestConnectionOnCheckout, DB_TEST_CONNECTION_ON_CHECKOUT);
+            this.dbMaxIdleTime = parseValue(connectorParams, Integer.class, dbMaxIdleTime, DB_MAX_IDLE_TIME);
 
             this.ecps = parseValue(connectorParams, String.class, null, "ecps");
-        }else{
-            this.autoIndexing = Boolean.FALSE;
-            this.propertySearch = Boolean.FALSE;
-            this.enableHashedSpaceId = Boolean.FALSE;
-            this.compactHistory = Boolean.TRUE;
-
-            this.onDemandIdxLimit = ON_DEMAND_IDX_LIM_DEFAULT;
-
-            this.dbInitialPoolSize = DB_INITIAL_POOL_SIZE_DEFAULT;
-            this.dbMinPoolSize = DB_MIN_POOL_SIZE_DEFAULT;
-            this.dbMaxPoolSize = DB_MAX_POOL_SIZE_DEFAULT;
-            this.dbAcquireIncrement = DB_ACQUIRE_INCREMENT_DEFAULT;
-            this.dbAcquireRetryAttempts = DB_ACQUIRE_RETRY_ATTEMPTS_DEFAULT;
-            this.dbCheckoutTimeout = DB_CHECKOUT_TIMEOUT_DEFAULT;
-            this.dbTestConnectionOnCheckout = DB_TEST_CONNECTION_ON_CHECKOUT_DEFAULT;
-            this.dbMaxIdleTime = DB_MAX_IDLE_TIME_DEFAULT;
         }
     }
 
     private <T> T parseValue(Map<String, Object> connectorParams, Class<T> type, Object defaultValue, String parameter){
         Object value = connectorParams.get(parameter);
-        
+
         if(value == null) {
             if(defaultValue == null)
                 return null;
             return (T) defaultValue;
         }
         if(value.getClass() != type) {
-            logger.warn("{} - Cannot set value {}:{}. Load default '{}'", streamId, parameter, value, defaultValue);
+            logger.warn("{} Cannot set value {}:{}. Load default '{}'", TraceItem, parameter, value, defaultValue);
             return (T) defaultValue;
         }
 
@@ -124,10 +118,12 @@ public class ConnectorParameters {
             else
                 throw new Exception("Unknown - Take default");
         }catch (Exception e){
-            logger.warn("{} - Cannot set value {}:{}. Load default '{}'", streamId, parameter, value, defaultValue);
+            logger.warn("{} Cannot set value {}:{}. Load default '{}'", TraceItem, parameter, value, defaultValue);
             return (T) defaultValue;
         }
     }
+
+    public String getConnectorId() { return connectorId; }
 
     public boolean isPropertySearch() {
         return propertySearch;

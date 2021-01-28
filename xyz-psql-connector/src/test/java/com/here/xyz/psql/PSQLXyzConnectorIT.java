@@ -30,6 +30,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.HealthCheckEvent;
@@ -65,7 +66,6 @@ import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
 import com.here.xyz.responses.XyzError;
 import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
-import java.io.IOException;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -97,33 +97,27 @@ public class PSQLXyzConnectorIT extends PSQLAbstractIT {
 
     invokeLambdaFromFile("/events/HealthCheckEvent.json");
 
-    logger.info("Setup Completed.");
+    logger.info("Setup environment Completed.");
   }
 
   @Before
   public void setup() throws Exception {
-    logger.info("Setup...");
-
-    // DELETE EXISTING FEATURES TO START FRESH
+    logger.info("Setup Test...");
     String response = invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
     assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
 
-    response = invokeLambdaFromFile("/events/DeleteSpaceFooTestEvent.json");
-    assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
-
-    logger.info("Setup Completed.");
+    logger.info("Setup Test Completed.");
   }
 
   @After
   public void shutdown() throws Exception {
     logger.info("Shutdown...");
     invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
-    invokeLambdaFromFile("/events/DeleteSpaceFooTestEvent.json");
     logger.info("Shutdown Completed.");
   }
 
   @Test
-  public void testHealthCheckWithConnectorParams() throws Exception {
+  public void testPSQLConfig() throws Exception {
     Map<String, Object> connectorParams = new HashMap<>();
     Map<String, Object> parametersToEncrypt = new HashMap<>();
     parametersToEncrypt.put(DatabaseSettings.PSQL_HOST, "example.com");
@@ -132,10 +126,9 @@ public class PSQLXyzConnectorIT extends PSQLAbstractIT {
     connectorParams.put("ecps", PSQLConfig.encryptECPS(new ObjectMapper().writeValueAsString(parametersToEncrypt), "testing"));
 
     HealthCheckEvent event = new HealthCheckEvent()
-        .withMinResponseTime(100)
         .withConnectorParams(connectorParams);
 
-    PSQLConfig config = new PSQLConfig(event, GSContext.newLocal(),"test-stream-id");
+    PSQLConfig config = new PSQLConfig(event, GSContext.newLocal(), new TraceItem("test-stream-id","testing"));
     assertEquals(config.getDatabaseSettings().getHost(), "example.com");
     assertEquals(config.getDatabaseSettings().getPort(), 1234);
     assertEquals(config.getDatabaseSettings().getPassword(), "1234password");
@@ -147,17 +140,6 @@ public class PSQLXyzConnectorIT extends PSQLAbstractIT {
     assertEquals("Check response status", JsonPath.read(response, "$.type").toString(), "FeatureCollection");
   }
 
-  //@Test
-  public void testBrokenEvent() throws Exception {
-    final String response = invokeLambdaFromFile("/events/BrokenEvent.json");
-    try {
-      ErrorResponse error = XyzSerializable.deserialize(response);
-      assertNotNull(error);
-    } catch (IOException e) {
-      fail();
-    }
-  }
-
   @Test
   public void testIterate() throws Exception {
     final String response = invokeLambdaFromFile("/events/IterateMySpace.json");
@@ -165,9 +147,6 @@ public class PSQLXyzConnectorIT extends PSQLAbstractIT {
     features.serialize(true);
   }
 
-  /**
-   * Test getFeaturesByGeometryEvent
-   */
   @Test
   public void testGetFeaturesByGeometryQuery() throws Exception {
     XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);

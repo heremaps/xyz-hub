@@ -19,6 +19,7 @@
 
 package com.here.xyz.psql;
 
+import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.vividsolutions.jts.geom.Geometry;
@@ -33,9 +34,9 @@ import java.util.Map;
 
 public class DatabaseStreamWriter extends DatabaseWriter{
 
-    protected static FeatureCollection insertFeatures( DatabaseHandler dbh, String schema, String table, String streamId, FeatureCollection collection,
-                                                    List<FeatureCollection.ModificationFailure> fails,
-                                                    List<Feature> inserts, Connection connection)
+    protected static FeatureCollection insertFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem, FeatureCollection collection,
+                                                      List<FeatureCollection.ModificationFailure> fails,
+                                                      List<Feature> inserts, Connection connection)
             throws SQLException {
 
         final PreparedStatement insertStmt = createInsertStatement(connection,schema,table);
@@ -81,7 +82,7 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                 }
 
                 fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage(INSERT_ERROR_GENERAL));
-                logException(e, streamId, i, LOG_EXCEPTION_INSERT, table);
+                logException(e, traceItem, LOG_EXCEPTION_INSERT, table);
             }
         }
 
@@ -91,10 +92,10 @@ public class DatabaseStreamWriter extends DatabaseWriter{
         return collection;
     }
 
-    protected static FeatureCollection updateFeatures(  DatabaseHandler dbh, String schema, String table, String streamId, FeatureCollection collection,
-                                                    List<FeatureCollection.ModificationFailure> fails,
-                                                    List<Feature> updates, Connection connection,
-                                                    boolean handleUUID)
+    protected static FeatureCollection updateFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem, FeatureCollection collection,
+                                                      List<FeatureCollection.ModificationFailure> fails,
+                                                      List<Feature> updates, Connection connection,
+                                                      boolean handleUUID)
             throws SQLException {
 
         final PreparedStatement updateStmt = createUpdateStatement(connection, schema, table, handleUUID);
@@ -153,7 +154,7 @@ public class DatabaseStreamWriter extends DatabaseWriter{
 
             } catch (Exception e) {
                 fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage(UPDATE_ERROR_GENERAL));
-                logException(e,streamId,i, LOG_EXCEPTION_UPDATE, table);
+                logException(e, traceItem, LOG_EXCEPTION_UPDATE, table);
             }
         }
 
@@ -163,7 +164,7 @@ public class DatabaseStreamWriter extends DatabaseWriter{
         return collection;
     }
 
-    protected static void deleteFeatures( DatabaseHandler dbh, String schema, String table, String streamId,
+    protected static void deleteFeatures( DatabaseHandler dbh, String schema, String table, TraceItem traceItem,
                                          List<FeatureCollection.ModificationFailure> fails, Map<String, String> deletes,
                                          Connection connection, boolean handleUUID)
             throws SQLException {
@@ -195,7 +196,7 @@ public class DatabaseStreamWriter extends DatabaseWriter{
 
             } catch (Exception e) {
                 fails.add(new FeatureCollection.ModificationFailure().withId(deleteId).withMessage(DELETE_ERROR_GENERAL));
-                logException(e,streamId,0, LOG_EXCEPTION_DELETE, table);
+                logException(e, traceItem, LOG_EXCEPTION_DELETE, table);
             }
         }
 
