@@ -2343,7 +2343,7 @@ components:
             etag: 072d3ec0f881b4e7
     HistoryStatisticsResponse:
       allOf:
-        - $ref: '#/components/schemas/Response'
+        - $ref: '#/components/schemas/XyzResponse'
         - type: object
           description: The response returned to when counting features in a history.
           properties:
