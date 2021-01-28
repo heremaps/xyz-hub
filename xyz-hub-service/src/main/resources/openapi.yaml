@@ -25,7 +25,6 @@ paths:
             type: boolean
             default: false
         - name: includeConnectors
-          x-experimental: true
           in: query
           description: >-
             If set to _true_, the connectors for each space are included in
@@ -57,7 +56,6 @@ paths:
             type: string
             default: me
         - name: contentUpdatedAt
-          x-experimental: true
           in: query
           description: >
             Additional space filter which compares the space's contentUpdatedAt timestamp with the one
@@ -356,15 +354,10 @@ paths:
         - $ref: '#/components/parameters/AddTags'
         - $ref: '#/components/parameters/RemoveTags'
         - $ref: '#/components/parameters/IfExists'
-          x-experimental: true
         - $ref: '#/components/parameters/IfNotExists'
-          x-experimental: true
         - $ref: '#/components/parameters/ConflictResolution'
-          x-experimental: true
         - $ref: '#/components/parameters/Transactional'
-          x-experimental: true
         - $ref: '#/components/parameters/PrefixId'
-          x-experimental: true
       requestBody:
         $ref: '#/components/requestBodies/FeatureCollectionOrFeatureModificationList'
       responses:
@@ -568,9 +561,7 @@ paths:
         - $ref: '#/components/parameters/Clustering'
         - $ref: '#/components/parameters/ClusteringParams'
         - $ref: '#/components/parameters/Tweaks'
-          x-experimental: true
         - $ref: '#/components/parameters/TweaksParams'
-          x-experimental: true
         - $ref: '#/components/parameters/Force2D'
       responses:
         '200':
@@ -632,9 +623,7 @@ paths:
         - $ref: '#/components/parameters/Clustering'
         - $ref: '#/components/parameters/ClusteringParams'
         - $ref: '#/components/parameters/Tweaks'
-          x-experimental: true
         - $ref: '#/components/parameters/TweaksParams'
-          x-experimental: true
         - name: margin
           in: query
           description: >-
@@ -837,7 +826,6 @@ paths:
         '403':
           $ref: '#/components/responses/ErrorResponse403'
   '/spaces/{spaceId}/history':
-    x-experimental: true
     get:
       tags:
         - Read History
@@ -876,7 +864,6 @@ paths:
         '513':
           $ref: '#/components/responses/ErrorResponse513'
   '/spaces/{spaceId}/history/statistics':
-    x-experimental: true
     get:
       tags:
         - Read History
@@ -939,7 +926,6 @@ components:
         items:
           type: string
     IfExists:
-      x-experimental: true
       name: e
       in: query
       description: >-
@@ -949,7 +935,6 @@ components:
       schema:
         $ref: '#/components/schemas/OnFeatureExists'
     IfNotExists:
-      x-experimental: true
       name: ne
       in: query
       description: >-
@@ -959,7 +944,6 @@ components:
       schema:
         $ref: '#/components/schemas/OnFeatureNotExists'
     ConflictResolution:
-      x-experimental: true
       name: cr
       in: query
       description: >-
@@ -979,7 +963,6 @@ components:
       schema:
         type: string
     NextPageToken:
-      x-experimental: true
       name: nextPageToken
       in: query
       description: >-
@@ -988,7 +971,6 @@ components:
       schema:
         type: string
     V:
-      x-experimental: true
       name: v
       in: query
       description: Define a version [version <= v]
@@ -996,7 +978,6 @@ components:
       schema:
         type: integer
     VStart:
-      x-experimental: true
       name: vStart
       in: query
       description: Define start of version-range [version >= vStart]
@@ -1004,7 +985,6 @@ components:
       schema:
         type: integer
     VEnd:
-      x-experimental: true
       name: vEnd
       in: query
       description: Define end of version-range [version <= vEnd]
@@ -1019,7 +999,6 @@ components:
       schema:
         type: integer
     Tweaks:
-      x-experimental: true
       name: tweaks
       in: query
       description: >-
@@ -1041,7 +1020,6 @@ components:
           - simplification
           - ensure
     TweaksParams:
-      x-experimental: true
       name: tweaksParams
       in: query
       required: false
@@ -1174,7 +1152,6 @@ components:
         additionalProperties:
           type: string
     PrefixId:
-      x-experimental: true
       name: prefixId
       in: query
       description: If set all feature IDs are prefixed with the provided string
@@ -1279,7 +1256,6 @@ components:
         items:
           type: string
     Transactional:
-      x-experimental: true
       name: transactional
       in: query
       description: Defines, if this is a transactional operation. Default is _true_.
@@ -1452,7 +1428,6 @@ components:
           schema:
             $ref: '#/components/schemas/FeatureCollectionResponse'
     HistoryResponse:
-      x-experimental: true
       description: >-
         Changesets which are containing FeatureCollections grouped by operation/versions.
       content:
@@ -1478,7 +1453,6 @@ components:
           schema:
             $ref: '#/components/schemas/FeatureCollectionResponse'
         application/vnd.mapbox-vector-tile:
-          x-experimental: true
           schema:
             type: string
             format: binary
@@ -1558,7 +1532,6 @@ components:
           schema:
             $ref: '#/components/schemas/FeatureCollectionRequest'
         application/vnd.here.feature-modification-list:
-          x-experimental: true
           schema:
             $ref: '#/components/schemas/FeatureModificationList'
     Space:
@@ -1586,7 +1559,6 @@ components:
         - 100.1
         - 1.1
     CacheProfile:
-      x-experimental: true
       description: >-
         Provides cache information used to determine where and for how long the content should
         be held. Each of the properties of this object represents a component and its
@@ -1745,21 +1717,18 @@ components:
         client:
           $ref: '#/components/schemas/SpaceClient'
         enableUUID:
-          x-experimental: true
           default: false
           description: >-
             Whether the uuid should be added to the response or not.
           example: true
           type: boolean
         enableHistory:
-          x-experimental: true
           default: false
           description: >-
             Whether the feature's modification history should be saved.
           example: true
           type: boolean
         maxVersionCount:
-          x-experimental: true
           default: 0
           description: >-
             Used to control how many versions should be kept in the history. -1 means infinite.
@@ -1774,7 +1743,6 @@ components:
           description: An additional identifier specifying a context of the owner.
           type: string
         tags:
-          x-experimental: true
           description: The tags for this objects.
           items:
             type: string
@@ -1798,7 +1766,6 @@ components:
           readOnly: true
           type: integer
         cacheTTL:
-          x-experimental: true
           default: -1
           description: >-
             The maximum amount of seconds of how long to hold objects of this Space in a cache.
@@ -1815,14 +1782,12 @@ components:
         searchableProperties:
           $ref: '#/components/schemas/SearchableProperties'
         volatilityAtLastContentUpdate:
-          x-experimental: true
           description: >-
             The calculated volatility at the last content update time.
           type: number
           format: double
           readOnly: true
         volatility:
-          x-experimental: true
           description: >-
             An indicator, if the data in the space is edited often ( value tends to 1 ) or static ( value tends to 0 ).
           type: number
@@ -1837,19 +1802,16 @@ components:
             type: string
           readOnly: true
         autoCacheProfile:
-          x-experimental: true
           allOf:
             - $ref: '#/components/schemas/CacheProfile'
           readOnly: true
         listeners:
-          x-experimental: true
           description: >-
             A list of connector configurations in which Data Hub sends events asynchronously.
           type: array
           items:
             $ref: '#/components/schemas/Connector'
         processors:
-          x-experimental: true
           description: >-
             A list of connector configurations in which Data Hub sends events synchronously.
           type: array
@@ -1859,7 +1821,6 @@ components:
         title: My Demo Space
         description: Description as markdown
     SpaceClient:
-      x-experimental: true
       type: object
       additionalProperties:
         type: object
@@ -1883,7 +1844,6 @@ components:
       additionalProperties:
         type: boolean
     SpaceStorage:
-      x-experimental: true
       type: object
       description: >-
         The configuration of the space storage provider to be contacted by the
@@ -1896,13 +1856,11 @@ components:
         params:
           $ref: '#/components/schemas/SpaceStorageParams'
     SpaceStorageParams:
-      x-experimental: true
       type: object
       description: >-
         The storage provider configuration, which contains optional parameters
         to be forwarded to the storage provider.
     Changeset:
-      x-experimental: true
       type: object
       description: A Changeset includes three FeatureCollections grouped by the operations inserted,updated, deleted.
       properties:
@@ -2437,7 +2395,6 @@ components:
                   capacity: 54074
                   description: Home of Liverpool Football Club
     ChangesetCollectionResponse:
-      x-experimental: true
       allOf:
         - $ref: '#/components/schemas/XyzResponse'
         - type: object
@@ -2506,7 +2463,6 @@ components:
               features: []
             nextPageToken: 1000
     CompactChangesetResponse:
-      x-experimental: true
       allOf:
         - $ref: '#/components/schemas/XyzResponse'
         - $ref: '#/components/schemas/Changeset'
@@ -2638,7 +2594,6 @@ components:
                   capacity: 54074
                   description: Home of Liverpool Football Club
     FeatureModificationList:
-      x-experimental: true
       type: object
       description: |
         An object describing modifications of features. It contains feature data being provided as
@@ -2682,7 +2637,6 @@ components:
                     capacity: 54074
                     description: Home of Liverpool Football Club
     FeatureModification:
-      x-experimental: true
       type: object
       description: A FeatureModification object containing GeoJSON FeatureCollections
         (see [RFC-7946](https://tools.ietf.org/html/rfc7946)) or (in case if deletions) a list of
@@ -2729,7 +2683,6 @@ components:
                 capacity: 54074
                 description: Home of Liverpool Football Club
     OnFeatureNotExists:
-      x-experimental: true
       type: string
       enum:
         - retain
@@ -2737,7 +2690,6 @@ components:
         - create
       default: create
     OnFeatureExists:
-      x-experimental: true
       type: string
       enum:
         - patch
@@ -2748,7 +2700,6 @@ components:
         - error
       default: patch
     OnMergeConflict:
-      x-experimental: true
       type: string
       enum:
         - error
@@ -2756,7 +2707,6 @@ components:
         - replace
       default: error
     Connector:
-      x-experimental: true
       type: object
       description: >-
         A connector configuration which is attached to the space and can act as Listener or Processor.
