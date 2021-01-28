@@ -217,9 +217,9 @@ public class OpenApiGenerator {
         currNode = val.substring(1);
       } else if (val.endsWith("'")) {
         store = true;
-        currNode = val.substring(0, val.length() - 1);
+        currNode += "." + val.substring(0, val.length() - 1);
       } else if (!store) {
-        currNode += val;
+        currNode += "." + val;
       } else {
         currNode = val;
       }
