@@ -5,7 +5,6 @@ exclude:
   - paths.'/spaces'.get.parameters.name=contentUpdatedAt
   - paths.'/spaces/{spaceId}/features'.put.parameters.$ref~=^.*AddTags$
   - paths.'/spaces/{spaceId}/features'.put.parameters.$ref~=^.*RemoveTags$
-  - paths.'/spaces/{spaceId}/features'.post.description
   - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*AddTags$
   - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*RemoveTags$
   - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*IfExists$
@@ -41,18 +40,17 @@ exclude:
   - components.parameters.V
   - components.parameters.VStart
   - components.parameters.VEnd
-  - components.parameters.NextPageToken
   - components.parameters.Tweaks
   - components.parameters.TweaksParams
   - components.parameters.PrefixId
   - components.parameters.Transactional
   - components.parameters.TagList
+  - components.responses.CountFeaturesResponse
   - components.responses.HistoryResponse
   - components.responses.TileResponse.content.'application/vnd.mapbox-vector-tile'
-  - components.responses.SpaceResponse.content.'application/geo+json'
-  - components.responses.CountResponse
   - components.requestBodies.FeatureCollectionOrFeatureModificationList.content.'application/vnd.here.feature-modification-list'
   - components.schemas.CacheProfile
+  - components.schemas.CountResponse
   - components.schemas.Space.properties.enableUUID
   - components.schemas.Space.properties.enableHistory
   - components.schemas.Space.properties.maxVersionCount
@@ -77,3 +75,10 @@ exclude:
   - components.schemas.OnFeatureExists
   - components.schemas.OnMergeConflict
   - components.schemas.Connector
+replace:
+  - type: value
+    find: paths.'/spaces/{spaceId}/features'.post.description
+    replace: Create or patch features.
+  - type: value
+    find: paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.description
+    replace: List the features selected by tile type and tile id.
