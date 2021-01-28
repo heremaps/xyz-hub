@@ -249,8 +249,7 @@ paths:
       tags:
         - Edit Features
       summary: Modify features in the space.
-      description: Create or patch features.
-      x-experimental-description: >
+      description: >
         This method allows to create, update and delete features. The behavior
         of the POST handler is controlled by three query parameters described in
         detail below. The name of the parameter reflects a condition to be
@@ -589,7 +588,7 @@ paths:
       tags:
         - Read Features
       summary: Get features in tile
-      x-experimental-description: |
+      description: |
         List the features selected by tile type and tile id.
 
         One of the tile types can be used:
@@ -1023,7 +1022,7 @@ components:
       x-experimental: true
       name: tweaks
       in: query
-      x-experimental-description: >-
+      description: >-
         Providing this query parameter only a subset of the data will be returned. This can be used for rendering higher zoom levels.
 
         Possible values are:
@@ -1046,7 +1045,7 @@ components:
       name: tweaksParams
       in: query
       required: false
-      x-experimental-description: |
+      description: |
         Providing this query parameter only a subset of the data will be returned. This can be used for rendering higher zoom levels.
 
         ### Tweaks-Parameter reference
