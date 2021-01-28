@@ -166,8 +166,8 @@ public class FeatureTaskHandler {
     if (!task.storage.active) {
       if (event instanceof ModifySpaceEvent && ((ModifySpaceEvent) event).getOperation() == ModifySpaceEvent.Operation.DELETE) {
         /*
-        If connector is inactive we allow space deletions. In this case only the space configuration gets deleted. The
-        deactivated connector does not get invoked so the dataset behind stays untouched.
+        If the connector is inactive, allow space deletions. In this case only the space configuration gets deleted. The
+        deactivated connector does not get invoked so the underlying dataset stays untouched.
         */
         task.setResponse(new SuccessResponse().withStatus("OK"));
         callback.call(task);
@@ -230,6 +230,7 @@ public class FeatureTaskHandler {
                 (ModifiedPayloadResponse<? extends ModifiedPayloadResponse>) postProcessingResult.result(),
                 XyzResponse.class, storageResult.result());
             task.setResponse(responseToSend);
+            //Success! Call the callback to send the response to the client.
             callback.call(task);
             //Send the event's (post-processed) response to potentially registered response-listeners
             notifyListeners(task, eventType, responseToSend);

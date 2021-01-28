@@ -309,47 +309,38 @@ public class RpcClient {
   }
 
   @SuppressWarnings("rawtypes")
-  private void parseResponse(Marker marker, final Typed payload, final Handler<AsyncResult<XyzResponse>> callback) {
-    try {
-      if (payload == null)
-        throw new NullPointerException("Response payload is null");
-      if (payload instanceof ErrorResponse) {
-        ErrorResponse errorResponse = (ErrorResponse) payload;
-        logger.warn(marker, "The connector {} responded with an error of type {}: {}", getConnector().id, errorResponse.getError(),
-            errorResponse.getErrorMessage());
-
-        switch (errorResponse.getError()) {
-          case NOT_IMPLEMENTED:
-            throw new HttpException(NOT_IMPLEMENTED, "The connector is unable to process this request.",errorResponse.getErrorDetails());
-          case CONFLICT:
-            throw new HttpException(CONFLICT, "A conflict occurred when writing a feature: " + errorResponse.getErrorMessage(), errorResponse.getErrorDetails());
-          case FORBIDDEN:
-            throw new HttpException(FORBIDDEN, "The user is not authorized.",errorResponse.getErrorDetails());
-          case TOO_MANY_REQUESTS:
-            throw new HttpException(TOO_MANY_REQUESTS,
-                "The connector cannot process the message due to a limitation in an upstream service or a database.",errorResponse.getErrorDetails());
-          case ILLEGAL_ARGUMENT:
-            throw new HttpException(BAD_REQUEST, errorResponse.getErrorMessage(), errorResponse.getErrorDetails());
-          case TIMEOUT:
-            throw new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.", errorResponse.getErrorDetails());
-          case EXCEPTION:
-          case BAD_GATEWAY:
-            throw new HttpException(BAD_GATEWAY, "Connector error.", errorResponse.getErrorDetails());
-          case PAYLOAD_TO_LARGE:
-            throw new HttpException(Api.RESPONSE_PAYLOAD_TOO_LARGE, String.format("%s %s",Api.RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE, errorResponse.getErrorMessage()) , errorResponse.getErrorDetails());
-        }
-      }
-      if (payload instanceof XyzResponse) {
-        //noinspection rawtypes
-        callback.handle(Future.succeededFuture((XyzResponse) payload));
-        return;
-      }
-
+  private void validateResponsePayload(Marker marker, final Typed payload) throws HttpException {
+    if (payload == null)
+      throw new NullPointerException("Response payload is null");
+    if (!(payload instanceof XyzResponse)) {
       logger.warn(marker, "The connector responded with an unexpected response type {}", payload.getClass().getSimpleName());
-      callback.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "The connector responded with unexpected response type.")));
+      throw new HttpException(BAD_GATEWAY, "The connector responded with unexpected response type.");
     }
-    catch (HttpException e) {
-      callback.handle(Future.failedFuture(e));
+    if (payload instanceof ErrorResponse) {
+      ErrorResponse errorResponse = (ErrorResponse) payload;
+      logger.warn(marker, "The connector {} responded with an error of type {}: {}", getConnector().id, errorResponse.getError(),
+          errorResponse.getErrorMessage());
+
+      switch (errorResponse.getError()) {
+        case NOT_IMPLEMENTED:
+          throw new HttpException(NOT_IMPLEMENTED, "The connector is unable to process this request.", errorResponse.getErrorDetails());
+        case CONFLICT:
+          throw new HttpException(CONFLICT, "A conflict occurred when writing a feature: " + errorResponse.getErrorMessage(), errorResponse.getErrorDetails());
+        case FORBIDDEN:
+          throw new HttpException(FORBIDDEN, "The user is not authorized.", errorResponse.getErrorDetails());
+        case TOO_MANY_REQUESTS:
+          throw new HttpException(TOO_MANY_REQUESTS,
+              "The connector cannot process the message due to a limitation in an upstream service or a database.", errorResponse.getErrorDetails());
+        case ILLEGAL_ARGUMENT:
+          throw new HttpException(BAD_REQUEST, errorResponse.getErrorMessage(), errorResponse.getErrorDetails());
+        case TIMEOUT:
+          throw new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.", errorResponse.getErrorDetails());
+        case EXCEPTION:
+        case BAD_GATEWAY:
+          throw new HttpException(BAD_GATEWAY, "Connector error.", errorResponse.getErrorDetails());
+        case PAYLOAD_TO_LARGE:
+          throw new HttpException(Api.RESPONSE_PAYLOAD_TOO_LARGE, String.format("%s %s",Api.RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE, errorResponse.getErrorMessage()) , errorResponse.getErrorDetails());
+      }
     }
   }
 
@@ -362,7 +353,7 @@ public class RpcClient {
     String stringResponse = null;
 
     try {
-      checkResponseSize(bytes);
+      checkResponseSize(marker, bytes);
 
       if (Payload.isGzipped(bytes))
         bytes = Payload.decompress(bytes);
@@ -384,19 +375,20 @@ public class RpcClient {
         payload = new HealthStatus().withStatus(response.getString("status"));
       }
 
-      if (!(payload instanceof RelocatedEvent)) {
-        parseResponse(marker, payload, callback);
-        return;
+      if (payload instanceof RelocatedEvent) {
+        //Unwrap the RelocatedEvent and download the actual content, afterwards call this method again with the unwrapped result
+        processRelocatedEventAsync((RelocatedEvent) payload, ar -> {
+          if (ar.failed()) {
+            callback.handle(Future.failedFuture(ar.cause()));
+            return;
+          }
+          parseResponse(marker, ar.result(), callback);
+        });
       }
-
-      processRelocatedEventAsync((RelocatedEvent) payload, ar -> {
-        if (ar.failed()) {
-          callback.handle(Future.failedFuture(ar.cause()));
-          return;
-        }
-
-        parseResponse(marker, ar.result(), callback);
-      });
+      else {
+        validateResponsePayload(marker, payload);
+        callback.handle(Future.succeededFuture((XyzResponse) payload));
+      }
     }
     catch (NullPointerException e) {
       logger.warn(marker, "Received empty response from connector \"{}\", but expected a JSON response.", getConnector().id, e);
@@ -413,7 +405,7 @@ public class RpcClient {
           + ((JsonParseException) e).getLocation().getColumnNr() + "." : ""))));
     }
     catch (HttpException e) {
-      logger.warn(marker, "Too large payload received from the connector \"{}\"", getConnector().id, e);
+      logger.warn(marker, "Error from connector.", e);
       callback.handle(Future.failedFuture(e));
     }
     catch (Exception e) {
@@ -471,11 +463,12 @@ public class RpcClient {
         "Invalid content provided by the connector: Invalid JSON type. Expected is a sub-type of XyzResponse.");
   }
 
-  protected static void checkResponseSize(byte[] bytes) throws HttpException {
+  protected void checkResponseSize(Marker marker, byte[] bytes) throws HttpException {
     if (ArrayUtils.isEmpty(bytes))
       throw new NullPointerException("Response string is null or empty");
 
-    if (Payload.isGzipped(bytes) && bytes.length > Api.MAX_COMPRESSED_RESPONSE_LENGTH || bytes.length > Api.MAX_RESPONSE_LENGTH) {
+    if (Payload.isGzipped(bytes) && bytes.length > Api.MAX_HTTP_RESPONSE_SIZE || bytes.length > Api.MAX_SERVICE_RESPONSE_SIZE) {
+      logger.warn(marker, "Too large payload received from the connector \"{}\"", getConnector().id);
       throw new HttpException(Api.RESPONSE_PAYLOAD_TOO_LARGE, Api.RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE);
     }
   }

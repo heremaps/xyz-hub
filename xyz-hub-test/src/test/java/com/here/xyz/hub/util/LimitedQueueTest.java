@@ -21,16 +21,22 @@ package com.here.xyz.hub.util;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.Service.Config;
 import com.here.xyz.hub.util.LimitedOffHeapQueue.OffHeapBuffer;
+import com.here.xyz.hub.util.LimitedOffHeapQueue.PayloadVanishedException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class LimitedQueueTest {
+
+  protected Class<? extends LimitedQueue> getQueueClass() {
+    return LimitedQueue.class;
+  }
 
   @BeforeClass
   public static void setupClass() {
@@ -46,10 +52,10 @@ public class LimitedQueueTest {
 
   }
 
-  private static <E extends ByteSizeAware> LimitedQueue<E> getQueueInstance(Class<? extends LimitedQueue> queueClass, long maxSize,
+  private <E extends ByteSizeAware> LimitedQueue<E> getQueueInstance(long maxSize,
       long maxByteSize) {
     try {
-      return queueClass.getConstructor(Long.TYPE, Long.TYPE).newInstance(maxSize, maxByteSize);
+      return getQueueClass().getConstructor(Long.TYPE, Long.TYPE).newInstance(maxSize, maxByteSize);
     }
     catch (NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException e) {
       e.printStackTrace();
@@ -57,8 +63,9 @@ public class LimitedQueueTest {
     }
   }
 
-  private void addTooLargeElement(Class<? extends LimitedQueue> queueClass) {
-    LimitedQueue<TestElement> queue = getQueueInstance(queueClass, 3, 100);
+  @Test
+  public void addTooLargeElement() {
+    LimitedQueue<TestElement> queue = getQueueInstance(3, 100);
     TestElement tooLargeElement = new TestElement(101);
     List<TestElement> discarded = queue.add( tooLargeElement );
     assertEquals("Only the inserted element must be discarded.", 1, discarded.size());
@@ -66,17 +73,8 @@ public class LimitedQueueTest {
   }
 
   @Test
-  public void addTooLargeItemLQ() {
-    addTooLargeElement(LimitedQueue.class);
-  }
-
-  @Test
-  public void addTooLargeItemLOHQ() {
-    addTooLargeElement(LimitedOffHeapQueue.class);
-  }
-
-  private void addTooManyElements(Class<? extends LimitedQueue> queueClass) {
-    LimitedQueue<TestElement> queue = getQueueInstance(queueClass, 3, 100);
+  public void addTooManyElements() {
+    LimitedQueue<TestElement> queue = getQueueInstance(3, 100);
     TestElement element1 = new TestElement(1);
     TestElement element2 = new TestElement(1);
     TestElement element3 = new TestElement(1);
@@ -102,17 +100,8 @@ public class LimitedQueueTest {
   }
 
   @Test
-  public void addTooManyElementsLQ() {
-    addTooManyElements(LimitedQueue.class);
-  }
-
-  @Test
-  public void addTooManyElementsLOHQ() {
-    addTooManyElements(LimitedOffHeapQueue.class);
-  }
-
-  private void addTooManyBytes(Class<? extends LimitedQueue> queueClass) {
-    LimitedQueue<TestElement> queue = getQueueInstance(queueClass, 100, 100);
+  public void addTooManyBytes() {
+    LimitedQueue<TestElement> queue = getQueueInstance(100, 100);
     TestElement element1 = new TestElement(40);
     TestElement element2 = new TestElement(40);
     TestElement element3 = new TestElement(40);
@@ -131,17 +120,8 @@ public class LimitedQueueTest {
   }
 
   @Test
-  public void addTooManyBytesLQ() {
-    addTooManyBytes(LimitedQueue.class);
-  }
-
-  @Test
-  public void addTooManyBytesLOHQ() {
-    addTooManyBytes(LimitedOffHeapQueue.class);
-  }
-
-  private void remove(Class<? extends LimitedQueue> queueClass) {
-    LimitedQueue<TestElement> queue = getQueueInstance(queueClass, 3, 100);
+  public void remove() {
+    LimitedQueue<TestElement> queue = getQueueInstance(3, 100);
     TestElement element1 = new TestElement(1);
     TestElement element2 = new TestElement(1);
     TestElement element3 = new TestElement(1);
@@ -179,17 +159,8 @@ public class LimitedQueueTest {
   }
 
   @Test
-  public void removeLQ() {
-    remove(LimitedQueue.class);
-  }
-
-  @Test
-  public void removeLOHQ() {
-    remove(LimitedOffHeapQueue.class);
-  }
-
-  private void setMaxByteSize(Class<? extends LimitedQueue> queueClass) {
-    LimitedQueue<TestElement> queue = getQueueInstance(queueClass, 3, 100);
+  public void setMaxByteSize() {
+    LimitedQueue<TestElement> queue = getQueueInstance(3, 100);
     TestElement element1 = new TestElement(1);
     TestElement element2 = new TestElement(1);
     TestElement element3 = new TestElement(1);
@@ -207,17 +178,8 @@ public class LimitedQueueTest {
   }
 
   @Test
-  public void setMaxByteSizeLQ() {
-    setMaxByteSize(LimitedQueue.class);
-  }
-
-  @Test
-  public void setMaxByteSizeLOHQ() {
-    setMaxByteSize(LimitedOffHeapQueue.class);
-  }
-
-  private void getSizes(Class<? extends LimitedQueue> queueClass) {
-    LimitedQueue<TestElement> queue = getQueueInstance(queueClass, 50, 100);
+  public void getSizes() {
+    LimitedQueue<TestElement> queue = getQueueInstance(50, 100);
     TestElement element1 = new TestElement(40);
     TestElement element2 = new TestElement(40);
 
@@ -231,17 +193,8 @@ public class LimitedQueueTest {
   }
 
   @Test
-  public void getSizesLQ() {
-    getSizes(LimitedQueue.class);
-  }
-
-  @Test
-  public void getSizesLOHQ() {
-    getSizes(LimitedOffHeapQueue.class);
-  }
-
-  private void setMaxSize(Class<? extends LimitedQueue> queueClass) {
-    LimitedQueue<TestElement> queue = getQueueInstance(queueClass, 3, 100);
+  public void setMaxSize() {
+    LimitedQueue<TestElement> queue = getQueueInstance(3, 100);
     TestElement element1 = new TestElement(1);
     TestElement element2 = new TestElement(1);
     TestElement element3 = new TestElement(1);
@@ -259,12 +212,16 @@ public class LimitedQueueTest {
   }
 
   @Test
-  public void setMaxSizeLQ() {
-    setMaxSize(LimitedQueue.class);
-  }
+  public void consumePayload() throws PayloadVanishedException {
+    LimitedQueue<TestElement> queue = getQueueInstance(3, 100);
+    TestElement element1 = new TestElement(1);
+    queue.add(element1);
 
-  @Test
-  public void setMaxSizeLOHQ() {
-    setMaxSize(LimitedOffHeapQueue.class);
+    byte[] payload = element1.getPayload();
+    assertEquals(1, payload.length);
+    payload = element1.consumePayload();
+    assertEquals(1, payload.length);
+    assertThrows(IllegalStateException.class, () -> element1.getPayload());
+    assertThrows(IllegalStateException.class, () -> element1.consumePayload());
   }
 }
