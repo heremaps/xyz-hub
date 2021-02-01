@@ -309,17 +309,28 @@ public class SQLQueryBuilder {
             gridsize = (1L << level),
             stretchFactor = 1.0 + ( margin / ((double) WebMercatorTile.TileSizeInPixel)); // xyz-hub uses margin for tilesize of 256 pixel.
 
-     final String 
+     String 
       box2d   = String.format( String.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() ),
-      mvtgeom = String.format("st_translate(st_scale(st_translate(st_asmvtgeom(st_force2d(st_transform(%1$s,3857)), st_transform(%2$s,3857),%3$d), %4$d , %4$d, 0.0), st_makepoint(%5$f,%6$f,1.0) ), %7$f , %8$f, 0.0 )",
-                                 tweaksGeoSql, box2d, extendWithMargin, 
-                                 -extendWithMargin/2, // => shift to stretch from tilecenter
-                                 stretchFactor*(xwidth / (gridsize*extend)), stretchFactor * (ywidth / (gridsize*extend)) * -1, // stretch tile to proj. size
-                                  (tileX - gridsize/2 + 0.5) * (xwidth / gridsize), (tileY - gridsize/2 + 0.5) * (ywidth / gridsize) * -1 // shift to proj. position
-                                 );
-      
-      // if geom = point | multipoint then no mvt <-> geo should be done
-      return String.format("case strpos(ST_GeometryType( geo ), 'Point') > 0 when true then geo else %1$s end", String.format("st_transform(ST_SetSRID( %1$s, 3857), 4326)", mvtgeom) );
+        // 1. build mvt 
+      mvtgeom = String.format("st_asmvtgeom(st_force2d(st_transform(%1$s,3857)), st_transform(%2$s,3857),%3$d,0,true)", tweaksGeoSql, box2d, extendWithMargin);
+        // 2. project the mvt to tile
+      mvtgeom = String.format("st_setsrid(st_translate(st_scale(st_translate(%1$s, %2$d , %2$d, 0.0), st_makepoint(%3$f,%4$f,1.0) ), %5$f , %6$f, 0.0 ), 3857)",
+                               mvtgeom, 
+                               -extendWithMargin/2, // => shift to stretch from tilecenter
+                               stretchFactor*(xwidth / (gridsize*extend)), stretchFactor * (ywidth / (gridsize*extend)) * -1, // stretch tile to proj. size
+                               (tileX - gridsize/2 + 0.5) * (xwidth / gridsize), (tileY - gridsize/2 + 0.5) * (ywidth / gridsize) * -1 // shift to proj. position
+                             );
+        // 3 project tile to wgs84 and map invalid geom to null
+      mvtgeom = String.format("(select case st_isvalid(g) when true then g else null end from st_transform(%1$s,4326) g)", mvtgeom );
+        // 4. assure intersect with origin bbox in case of mapping errors
+      mvtgeom  = String.format("ST_Intersection(%1$s,st_setsrid(%2$s,4326))", mvtgeom, box2d); 
+        // 5. map non-null but empty polygons to null - e.g. avoid -> "geometry": { "type": "Polygon", "coordinates": [] }
+      mvtgeom = String.format("(select case st_isempty(g) when false then g else null end from %1$s g)", mvtgeom );
+
+      // if geom = point | multipoint then no mvt <-> geo conversion should be done
+      mvtgeom = String.format("case strpos(ST_GeometryType( geo ), 'Point') > 0 when true then geo else %1$s end", mvtgeom );
+
+      return mvtgeom;
     }
 
     private static String clipProjGeom(BBox bbox, String tweaksGeoSql )
@@ -381,7 +392,7 @@ public class SQLQueryBuilder {
      
      /* TweaksSQL.ENSURE */
      boolean bTestTweaksGeoIfNull = false;
-     String tweaksGeoSql = clipProjGeom(bbox,"geo");
+     String tweaksGeoSql = clipProjGeom(bbox,"geo"); 
      tweaksGeoSql = map2MvtGeom( event, bbox, tweaksGeoSql );
      //convert to geojson
      tweaksGeoSql = ( bConvertGeo2Geojson ? String.format("replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "( %s ),%d),'nan','0')",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS)
@@ -413,8 +424,7 @@ public class SQLQueryBuilder {
          default: strength  = 50; break;
        }
 
-       // do clip before simplifications
-       if (event.getClip()) 
+       if (event.getClip()) // do clip before simplification -- preventing extrem large polygon for further working steps
         tweaksGeoSql = clipProjGeom(bbox,tweaksGeoSql );
 
        //SIMPLIFICATION_ALGORITHM
@@ -447,7 +457,7 @@ public class SQLQueryBuilder {
          break;
 
          case TweaksSQL.SIMPLIFICATION_ALGORITHM_A05 : // gridbytilelevel - convert to/from mvt
-         {
+         {  
           tweaksGeoSql = map2MvtGeom( event, bbox, tweaksGeoSql );
           bTestTweaksGeoIfNull = false;
          } 
