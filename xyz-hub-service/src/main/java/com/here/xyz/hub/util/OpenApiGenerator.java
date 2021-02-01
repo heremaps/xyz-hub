@@ -4,11 +4,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
+import com.here.xyz.hub.Service;
 import io.swagger.v3.parser.ObjectMapperFactory;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -62,43 +65,47 @@ public class OpenApiGenerator {
    *   - by regex value match
    * The first mode is a simple path match.
    * The last two modes will search only inside array of objects.
+   * @throws Exception in case of any error related to the exclusion process.
    */
-  private static void processExclusions() {
-    if (!recipe.has(EXCLUDE)) return;
+  private static void processExclusions() throws Exception {
+    if (!recipe.has(EXCLUDE))
+      return;
 
-    recipe.get(EXCLUDE).elements().forEachRemaining(e -> {
-      final String excludeString = e.asText();
+    final Iterator<JsonNode> it = recipe.get(EXCLUDE).elements();
+    while (it.hasNext()) {
+      final String excludeString = it.next().asText();
       String path = excludeString;
       String matcher = null;
 
-      boolean regexSearch = false;
-      boolean exactSearch = false;
+      boolean regexSearch = excludeString.contains(REGEX_SEARCH);
+      boolean exactSearch = !regexSearch && excludeString.contains(EXACT_SEARCH);
 
       // set which kind of search to be used
-      if (excludeString.contains(REGEX_SEARCH)) {
-        // regex search
-        final String[] splitString = excludeString.split(REGEX_SEARCH);
+      if (regexSearch || exactSearch) {
+        final String[] splitString = excludeString.split(regexSearch ? REGEX_SEARCH : EXACT_SEARCH);
+
+        if (splitString.length != 2) {
+          throw new Exception("Invalid path: " + excludeString);
+        }
+
         path = splitString[0];
         matcher = splitString[1];
-        regexSearch = true;
-      } else if (excludeString.contains(EXACT_SEARCH)) {
-        // exact matching search
-        final String[] splitString = excludeString.split(EXACT_SEARCH);
-        path = splitString[0];
-        matcher = splitString[1];
-        regexSearch = exactSearch = true;
       }
 
       final String[] pathKeys = split(path);
       JsonNode parent = root;
 
       // navigate to the last node's parent
-      for (int i=0; i<pathKeys.length-1; i++) {
-        parent = parent.get(pathKeys[i]);
+      for (int i = 0; i < pathKeys.length - 1; i++) {
+        parent = get(parent, pathKeys[i]);
+      }
+
+      if (parent == null) {
+        throw new Exception("Invalid path: " + excludeString);
       }
 
       final String lastKey = pathKeys[pathKeys.length - 1];
-      if (!regexSearch) {
+      if (!(regexSearch || exactSearch)) {
         remove(parent, lastKey);
       } else {
         for (Entry<Object, JsonNode> entry : elements(parent).entrySet()) {
@@ -111,7 +118,7 @@ public class OpenApiGenerator {
           }
         }
       }
-    });
+    }
   }
 
   /**
@@ -119,11 +126,14 @@ public class OpenApiGenerator {
    * It works with objects and arrays.
    * If parent is an object, value's keys are extracted and injected within the parent object.
    * If parent is an array, value is simply added to the end of the array.
+   * @throws Exception in case of any error related to the inclusion process.
    */
-  private static void processInclusions() {
+  private static void processInclusions() throws Exception {
     if (!recipe.has(INCLUDE)) return;
 
-    recipe.get(INCLUDE).elements().forEachRemaining(e -> {
+    final Iterator<JsonNode> it = recipe.get(INCLUDE).elements();
+    while (it.hasNext()) {
+      final JsonNode e = it.next();
       final String key = e.get(KEY).asText();
       final JsonNode value = e.get(VALUE);
 
@@ -132,7 +142,11 @@ public class OpenApiGenerator {
 
       // navigate to the last node
       for (String pathKey : pathKeys) {
-        parent = parent.get(pathKey);
+        parent = get(parent, pathKey);
+      }
+
+      if (parent == null) {
+        throw new Exception("Invalid path: " + key);
       }
 
       if (parent.isObject()) {
@@ -142,7 +156,7 @@ public class OpenApiGenerator {
       } else if (parent.isArray()) {
         ((ArrayNode) parent).add(value);
       }
-    });
+    }
   }
 
   /**
@@ -150,23 +164,29 @@ public class OpenApiGenerator {
    * Replacements can either be of types "key" or "value".
    * For "key" type, the last element in the path string is renamed to the value of "replace" field.
    * For "value" type, the child of the last element in the path string is replaced by the value of "replace" field.
+   * @throws Exception in case of any error related to the replacement process.
    */
-  private static void processReplacements() {
+  private static void processReplacements() throws Exception {
     if (!recipe.has(REPLACE)) return;
 
-    recipe.get(REPLACE).elements().forEachRemaining(e -> {
+    final Iterator<JsonNode> it = recipe.get(REPLACE).elements();
+    while (it.hasNext()) {
+      final JsonNode e = it.next();
       final String type = e.get(TYPE).asText();
       final String find = e.get(FIND).asText();
-      final JsonNode replace = e.get(REPLACE);
+      JsonNode replace = e.get(REPLACE);
 
       final String[] pathKeys = split(find);
       final String lastKey = pathKeys[pathKeys.length-1];
       JsonNode parent = root;
 
-
       // navigate to the last node's parent
       for (int i=0; i<pathKeys.length-1; i++) {
-        parent = parent.get(pathKeys[i]);
+        parent = get(parent, pathKeys[i]);
+      }
+
+      if (parent == null) {
+        throw new Exception("Invalid path: " + find);
       }
 
       switch (type) {
@@ -177,7 +197,7 @@ public class OpenApiGenerator {
           final String lastReplaceKey = pathReplaceKeys[pathReplaceKeys.length-1];
 
           final ObjectNode objectNode = (ObjectNode) parent;
-          final JsonNode value = parent.get(lastKey);
+          final JsonNode value = get(parent, lastKey);
           objectNode.remove(lastKey);
           objectNode.set(lastReplaceKey, value);
 
@@ -193,7 +213,7 @@ public class OpenApiGenerator {
           break;
         }
       }
-    });
+    }
   }
 
   /**
@@ -240,6 +260,7 @@ public class OpenApiGenerator {
    * @param key the key to be removed from parent.
    */
   private static void remove(JsonNode parent, String key) {
+    if (parent == null) return;
     if (parent.isObject()) {
       ((ObjectNode) parent).remove(key);
     } else if (parent.isArray()) {
@@ -248,9 +269,27 @@ public class OpenApiGenerator {
   }
 
   /**
+   * Gets a value referenced by key from the parent which can be either Object or Array.
+   * In case of array, key is converted to integer, which represents the index to be returned.
+   * @param parent the parent object where the value referenced by key will be returned.
+   * @param key the key that points to the value.
+   * @return null in case key is not found.
+   */
+  private static JsonNode get(JsonNode parent, String key) {
+    if (parent == null) return null;
+    if (parent.isObject()) {
+      return parent.get(key);
+    } else if (parent.isArray()) {
+      return parent.get(Integer.parseInt(key));
+    }
+
+    return null;
+  }
+
+  /**
    * Converts a JsonNode into a Map in which the keys are either Object's keys or Array's indices.
    * @param node the JsonNode object to be converted
-   * @return A map of String|Integer-JsonNode
+   * @return A map of String|Integer-JsonNode. Empty if node is null
    */
   private static Map<Object, JsonNode> elements(JsonNode node) {
     if (node == null) return Collections.emptyMap();
