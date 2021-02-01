@@ -6,10 +6,6 @@
     "propertySearch": true,
     "connectorId": "test-connector"
   },
-  "connectorParams": {
-    "propertySearch": true,
-    "connectorId": "test-connector"
-  },
   "propertiesQuery": [
     [
       {
