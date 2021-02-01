@@ -20,6 +20,7 @@
 package com.here.xyz.hub;
 
 import static com.here.xyz.hub.task.Task.TASK;
+import static com.here.xyz.hub.util.OpenApiGenerator.generate;
 import static io.vertx.core.http.HttpHeaders.CONTENT_LENGTH;
 
 import com.here.xyz.hub.auth.Authorization.AuthorizationType;
@@ -33,7 +34,6 @@ import com.here.xyz.hub.rest.HistoryQueryApi;
 import com.here.xyz.hub.rest.SpaceApi;
 import com.here.xyz.hub.rest.health.HealthApi;
 import com.here.xyz.hub.task.Task;
-import com.here.xyz.hub.util.OpenApiTransformer;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.core.http.HttpServerResponse;
@@ -50,6 +50,8 @@ import io.vertx.ext.web.handler.JWTAuthHandler;
 import io.vertx.ext.web.handler.StaticHandler;
 import java.io.File;
 import java.util.Hashtable;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -65,12 +67,19 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
 
   static {
     try {
-      final OpenApiTransformer openApi = OpenApiTransformer.generateAll();
-      FULL_API = openApi.fullApi;
-      STABLE_API = openApi.stableApi;
-      EXPERIMENTAL_API = openApi.experimentalApi;
-      CONTRACT_API = openApi.contractApi;
-      CONTRACT_LOCATION = openApi.contractLocation;
+      final byte[] openapiSource = IOUtils.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/openapi.yaml"));
+      final byte[] stableRecipe = IOUtils.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/recipes/openapi-recipe-stable.yaml"));
+      final byte[] experimentalRecipe = IOUtils.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/recipes/openapi-recipe-experimental.yaml"));
+      final byte[] contractRecipe = IOUtils.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/recipes/openapi-recipe-contract.yaml"));
+
+      FULL_API = new String(openapiSource);
+      STABLE_API = new String(generate(openapiSource, stableRecipe));
+      EXPERIMENTAL_API = new String(generate(openapiSource, experimentalRecipe));
+      CONTRACT_API = new String(generate(openapiSource, contractRecipe));
+
+      final File tempFile = File.createTempFile("contract-", ".yaml");
+      FileUtils.write(tempFile, CONTRACT_API);
+      CONTRACT_LOCATION = tempFile.toURI().toString();
     } catch (Exception e) {
       logger.error("Unable to generate OpenApi specs.", e);
     }
@@ -92,7 +101,7 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
       if (ar.succeeded()) {
         //Add the handlers
         final OpenAPI3RouterFactory routerFactory = ar.result();
-        routerFactory.setOptions(new RouterFactoryOptions());
+        routerFactory.setOptions(new RouterFactoryOptions().setRequireSecurityHandlers(false));
         new FeatureApi(routerFactory);
         new FeatureQueryApi(routerFactory);
         new SpaceApi(routerFactory);
