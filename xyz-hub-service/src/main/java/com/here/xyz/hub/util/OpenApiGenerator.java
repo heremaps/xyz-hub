@@ -30,6 +30,9 @@ public class OpenApiGenerator {
   private static final String EXACT_SEARCH = "=";
 
   private static final ObjectMapper YAML_MAPPER = ObjectMapperFactory.createYaml();
+  private static final Map<String, String> ENV = new HashMap<String, String>() {{
+    put("VERSION", Service.BUILD_VERSION);
+  }};
 
   private static JsonNode root;
   private static JsonNode recipe;
@@ -204,6 +207,10 @@ public class OpenApiGenerator {
           break;
         }
         case VALUE: {
+          if (replace.isTextual() && replace.textValue().startsWith("${") && replace.textValue().endsWith("}")) {
+            replace = new TextNode(ENV.get(StringUtils.substringBetween(replace.asText(), "${", "}")));
+          }
+
           if (parent.isObject()) {
             ((ObjectNode) parent).set(lastKey, replace);
           } else if (parent.isArray()) {
