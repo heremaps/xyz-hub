@@ -1,5 +1,5 @@
 ---
-name: Data Hub API v1.12.0 - Stable
+name: Data Hub API - Stable
 exclude:
   - paths.'/spaces'.get.parameters.name=includeConnectors
   - paths.'/spaces'.get.parameters.name=contentUpdatedAt
@@ -20,7 +20,6 @@ exclude:
   - paths.'/spaces/{spaceId}/bbox'.get.parameters.$ref~=^.*Tweaks$
   - paths.'/spaces/{spaceId}/bbox'.get.parameters.$ref~=^.*TweaksParams$
   - paths.'/spaces/{spaceId}/bbox'.get.parameters.$ref~=^.*TagList$
-  - paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.description
   - paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.parameters.$ref~=^.*TagList$
   - paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.parameters.$ref~=^.*Tweaks$
   - paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.parameters.$ref~=^.*TweaksParams$
@@ -48,7 +47,7 @@ exclude:
   - components.responses.CountFeaturesResponse
   - components.responses.HistoryResponse
   - components.responses.TileResponse.content.'application/vnd.mapbox-vector-tile'
-  - components.requestBodies.FeatureCollectionOrFeatureModificationList.content.'application/vnd.here.feature-modification-list'
+  - components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/vnd.here.feature-modification-list'
   - components.schemas.CacheProfile
   - components.schemas.CountResponse
   - components.schemas.Space.properties.enableUUID
@@ -76,6 +75,9 @@ exclude:
   - components.schemas.OnMergeConflict
   - components.schemas.Connector
 replace:
+  - type: value
+    find: info.version
+    replace: ${VERSION}
   - type: value
     find: paths.'/spaces/{spaceId}/features'.post.description
     replace: Create or patch features.

@@ -1,0 +1,66 @@
+---
+name: Data Hub API - Contract
+replace:
+  - type: value
+    find: info.version
+    replace: ${VERSION}
+  - type: value
+    find: servers.0.url
+    replace: /
+  - type: key
+    find: paths.'/spaces'
+    replace: paths.'/hub/spaces'
+  - type: key
+    find: paths.'/spaces/{spaceId}'
+    replace: paths.'/hub/spaces/{spaceId}'
+  - type: key
+    find: paths.'/spaces/{spaceId}/features'
+    replace: paths.'/hub/spaces/{spaceId}/features'
+  - type: key
+    find: paths.'/spaces/{spaceId}/features/{featureId}'
+    replace: paths.'/hub/spaces/{spaceId}/features/{featureId}'
+  - type: key
+    find: paths.'/spaces/{spaceId}/statistics'
+    replace: paths.'/hub/spaces/{spaceId}/statistics'
+  - type: key
+    find: paths.'/spaces/{spaceId}/bbox'
+    replace: paths.'/hub/spaces/{spaceId}/bbox'
+  - type: key
+    find: paths.'/spaces/{spaceId}/tile/{type}/{tileId}'
+    replace: paths.'/hub/spaces/{spaceId}/tile/{type}/{tileId}'
+  - type: key
+    find: paths.'/spaces/{spaceId}/spatial'
+    replace: paths.'/hub/spaces/{spaceId}/spatial'
+  - type: key
+    find: paths.'/spaces/{spaceId}/search'
+    replace: paths.'/hub/spaces/{spaceId}/search'
+  - type: key
+    find: paths.'/spaces/{spaceId}/iterate'
+    replace: paths.'/hub/spaces/{spaceId}/iterate'
+  - type: key
+    find: paths.'/spaces/{spaceId}/count'
+    replace: paths.'/hub/spaces/{spaceId}/count'
+  - type: key
+    find: paths.'/spaces/{spaceId}/history'
+    replace: paths.'/hub/spaces/{spaceId}/history'
+  - type: key
+    find: paths.'/spaces/{spaceId}/history/statistics'
+    replace: paths.'/hub/spaces/{spaceId}/history/statistics'
+  - type: key
+    find: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/geo+json'.schema
+    replace: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/geo+json'.x-schema
+  - type: key
+    find: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/vnd.here.feature-modification-list'.schema
+    replace: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/vnd.here.feature-modification-list'.x-schema
+  - type: key
+    find: components.requestBodies.FeatureCollectionRequest.content.'application/geo+json'.schema
+    replace: components.requestBodies.FeatureCollectionRequest.content.'application/geo+json'.x-schema
+  - type: key
+    find: components.requestBodies.FeatureRequest.content.'application/geo+json'.schema
+    replace: components.requestBodies.FeatureRequest.content.'application/geo+json'.x-schema
+  - type: key
+    find: components.requestBodies.GeometryRequest.content.'application/geo+json'.schema
+    replace: components.requestBodies.GeometryRequest.content.'application/geo+json'.x-schema
+  - type: key
+    find: components.requestBodies.SpaceRequest.content.'application/json'.schema
+    replace: components.requestBodies.SpaceRequest.content.'application/json'.x-schema
