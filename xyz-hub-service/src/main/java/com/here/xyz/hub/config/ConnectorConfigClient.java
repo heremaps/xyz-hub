@@ -24,7 +24,7 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
-import com.here.xyz.psql.ECPSTool;
+import com.here.xyz.psql.tools.ECPSTool;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;

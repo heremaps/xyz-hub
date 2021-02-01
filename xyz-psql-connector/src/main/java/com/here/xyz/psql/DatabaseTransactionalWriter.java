@@ -19,6 +19,7 @@
 
 package com.here.xyz.psql;
 
+import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -43,7 +44,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
     private static final int TYPE_UPDATE = 2;
     private static final int TYPE_DELETE = 3;
 
-    public static FeatureCollection insertFeatures(DatabaseHandler dbh, String schema, String table, String streamId,
+    public static FeatureCollection insertFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem,
                 FeatureCollection collection, List<FeatureCollection.ModificationFailure> fails,
                 List<Feature> inserts, Connection connection, Integer version)
             throws SQLException, JsonProcessingException {
@@ -79,12 +80,12 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         }
 
         executeBatchesAndCheckOnFailures(dbh, insertIdList, insertWithoutGeometryIdList,
-                insertStmt, insertWithoutGeometryStmt, fails, false, TYPE_INSERT, streamId );
+                insertStmt, insertWithoutGeometryStmt, fails, false, TYPE_INSERT, traceItem);
 
         return collection;
     }
 
-    public static FeatureCollection updateFeatures(DatabaseHandler dbh, String schema, String table, String streamId, FeatureCollection collection,
+    public static FeatureCollection updateFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem, FeatureCollection collection,
                                                    List<FeatureCollection.ModificationFailure> fails, List<Feature> updates,
                                                    Connection connection, boolean handleUUID, Integer version)
             throws SQLException, JsonProcessingException {
@@ -134,17 +135,17 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         }
 
         executeBatchesAndCheckOnFailures(dbh, updateIdList, updateWithoutGeometryIdList,
-                updateStmt, updateWithoutGeometryStmt, fails, handleUUID, TYPE_UPDATE, streamId);
+                updateStmt, updateWithoutGeometryStmt, fails, handleUUID, TYPE_UPDATE, traceItem);
 
         if(fails.size() > 0) {
-            logException(null, streamId, 0 , LOG_EXCEPTION_UPDATE, table);
+            logException(null, traceItem, LOG_EXCEPTION_UPDATE, table);
             throw new SQLException(UPDATE_ERROR_GENERAL);
         }
 
         return collection;
     }
 
-    protected static void deleteFeatures(DatabaseHandler dbh, String schema, String table, String streamId,
+    protected static void deleteFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem,
                                          List<FeatureCollection.ModificationFailure> fails, Map<String, String> deletes,
                                          Connection connection, boolean handleUUID, Integer version)
             throws SQLException {
@@ -198,15 +199,15 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         }
         if(version != null){
             executeBatchesAndCheckOnFailures(dbh, deleteIdList, deleteIdListWithoutUUID,
-                    batchDeleteStmtVersioned, batchDeleteStmtVersionedWithoutUUID, fails, handleUUID, TYPE_DELETE, streamId );
+                    batchDeleteStmtVersioned, batchDeleteStmtVersionedWithoutUUID, fails, handleUUID, TYPE_DELETE, traceItem);
 
         }else{
             executeBatchesAndCheckOnFailures(dbh, deleteIdList, deleteIdListWithoutUUID,
-                batchDeleteStmt, batchDeleteStmtWithoutUUID, fails, handleUUID, TYPE_DELETE, streamId );
+                batchDeleteStmt, batchDeleteStmtWithoutUUID, fails, handleUUID, TYPE_DELETE, traceItem);
         }
 
         if(fails.size() > 0) {
-            logException(null, streamId, 0 , LOG_EXCEPTION_DELETE, table);
+            logException(null, traceItem, LOG_EXCEPTION_DELETE, table);
             throw new SQLException(DELETE_ERROR_GENERAL);
         }
     }
@@ -214,12 +215,12 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
     private static void executeBatchesAndCheckOnFailures(DatabaseHandler dbh, List<String> idList, List<String> idList2,
                                                          PreparedStatement batchStmt, PreparedStatement batchStmt2,
                                                          List<FeatureCollection.ModificationFailure> fails,
-                                                         boolean handleUUID, int type, String streamId) throws SQLException {
+                                                         boolean handleUUID, int type, TraceItem traceItem) throws SQLException {
         int[] batchStmtResult;
         int[] batchStmtResult2;
 
         if(idList.size() > 0) {
-            logger.debug("{} - batch execution [{}]: {} ",streamId, type , batchStmt);
+            logger.debug("{} batch execution [{}]: {} ", traceItem, type , batchStmt);
 
             batchStmt.setQueryTimeout(dbh.calculateTimeout());
             batchStmtResult = batchStmt.executeBatch();
@@ -227,7 +228,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         }
 
         if(idList2.size() > 0) {
-            logger.debug("{} - batch2 execution [{}]: {} ",streamId, type , batchStmt2);
+            logger.debug("{} batch2 execution [{}]: {} ", traceItem, type , batchStmt2);
 
             batchStmt2.setQueryTimeout(dbh.calculateTimeout());
             batchStmtResult2 = batchStmt2.executeBatch();

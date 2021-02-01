@@ -1,9 +1,11 @@
 {
   "connectorParams": {
+    "propertySearch": true,
+    "connectorId": "test-connector"
   },
   "type": "LoadFeaturesEvent",
   "streamId": "VwSa8UFALpu500000001",
-  "space": "foo-test",
+  "space": "foo",
   "idsMap": {
     "test": null
   }

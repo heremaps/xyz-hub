@@ -19,6 +19,7 @@
 
 package com.here.xyz.psql;
 
+import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -114,44 +115,44 @@ public class DatabaseWriter {
         connection.setAutoCommit(isActive);
     }
 
-    protected static FeatureCollection insertFeatures(DatabaseHandler dbh,String schema, String table, String streamId, FeatureCollection collection,
+    protected static FeatureCollection insertFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem, FeatureCollection collection,
                                                       List<FeatureCollection.ModificationFailure> fails,
-                                                   List<Feature> inserts, Connection connection,
-                                                   boolean transactional, Integer version)
+                                                      List<Feature> inserts, Connection connection,
+                                                      boolean transactional, Integer version)
             throws SQLException, JsonProcessingException {
         if(transactional) {
             setAutocommit(connection,false);
-            return DatabaseTransactionalWriter.insertFeatures(dbh, schema, table, streamId, collection, fails, inserts, connection, version);
+            return DatabaseTransactionalWriter.insertFeatures(dbh, schema, table, traceItem, collection, fails, inserts, connection, version);
         }
         setAutocommit(connection,true);
-        return DatabaseStreamWriter.insertFeatures(dbh, schema, table, streamId, collection, fails, inserts, connection);
+        return DatabaseStreamWriter.insertFeatures(dbh, schema, table, traceItem, collection, fails, inserts, connection);
     }
 
-    protected static FeatureCollection updateFeatures(DatabaseHandler dbh, String schema, String table, String streamId, FeatureCollection collection,
-                                                   List<FeatureCollection.ModificationFailure> fails,
-                                                   List<Feature> updates, Connection connection,
-                                                   boolean transactional, boolean handleUUID, Integer version)
+    protected static FeatureCollection updateFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem, FeatureCollection collection,
+                                                      List<FeatureCollection.ModificationFailure> fails,
+                                                      List<Feature> updates, Connection connection,
+                                                      boolean transactional, boolean handleUUID, Integer version)
             throws SQLException, JsonProcessingException {
         if(transactional) {
             setAutocommit(connection,false);
-            return DatabaseTransactionalWriter.updateFeatures(dbh, schema, table, streamId, collection, fails, updates, connection,handleUUID, version);
+            return DatabaseTransactionalWriter.updateFeatures(dbh, schema, table, traceItem, collection, fails, updates, connection,handleUUID, version);
         }
         setAutocommit(connection,true);
-        return DatabaseStreamWriter.updateFeatures(dbh, schema, table, streamId, collection, fails, updates, connection, handleUUID);
+        return DatabaseStreamWriter.updateFeatures(dbh, schema, table, traceItem, collection, fails, updates, connection, handleUUID);
     }
 
-    protected static void deleteFeatures(DatabaseHandler dbh, String schema, String table, String streamId,
+    protected static void deleteFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem,
                                                       List<FeatureCollection.ModificationFailure> fails,
                                                       Map<String, String> deletes, Connection connection,
                                                       boolean transactional, boolean handleUUID, Integer version)
             throws SQLException {
         if(transactional) {
             setAutocommit(connection,false);
-            DatabaseTransactionalWriter.deleteFeatures(dbh, schema, table, streamId, fails, deletes, connection ,handleUUID, version);
+            DatabaseTransactionalWriter.deleteFeatures(dbh, schema, table, traceItem, fails, deletes, connection ,handleUUID, version);
             return;
         }
         setAutocommit(connection,true);
-        DatabaseStreamWriter.deleteFeatures(dbh, schema, table, streamId, fails, deletes, connection, handleUUID);
+        DatabaseStreamWriter.deleteFeatures(dbh, schema, table, traceItem, fails, deletes, connection, handleUUID);
     }
 
     protected static void assure3d(Coordinate[] coords){
@@ -161,12 +162,12 @@ public class DatabaseWriter {
         }
     }
 
-    protected static void logException(Exception e, String streamId, int i, String action, String table){
+    protected static void logException(Exception e, TraceItem traceItem, String action, String table){
         if(e != null && e.getMessage() != null && e.getMessage().contains("does not exist")) {
             /* If table not yet exist */
-            logger.warn("{} - Failed to "+action+" object #{}: {} on table {}", streamId, i, table, e);
+            logger.info("{} Failed to perform {} - table {} does not exists {}", traceItem, action, table, e);
         }
         else
-            logger.warn("{} - Failed to "+action+" object #{}: {} on table {}", streamId, i, table, e);
+            logger.info("{} Failed to perform {} on table {} {}", traceItem, action, table, e);
     }
 }

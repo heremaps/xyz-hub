@@ -17,9 +17,9 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.psql;
+package com.here.xyz.psql.tools;
 
-import com.here.xyz.psql.PSQLConfig.AESGCMHelper;
+import com.here.xyz.psql.config.PSQLConfig.AESGCMHelper;
 
 import java.io.UnsupportedEncodingException;
 import java.security.GeneralSecurityException;

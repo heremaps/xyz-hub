@@ -119,6 +119,12 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
   protected String streamId;
 
   /**
+   * Can be used for writing Log-Entries (streamId + connectorId). The connectorId should get configured in the
+   * Connector Parameters of the Connector Config.
+   */
+  protected TraceItem traceItem;
+
+  /**
    * Start timestamp for logging.
    */
   private long start;
@@ -184,7 +190,14 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
       String ifNoneMatch = null;
       try {
         Event event = readEvent(input);
+
+        String connectorId = null;
         streamId = event.getStreamId();
+        if(event.getConnectorParams() != null  && event.getConnectorParams().get("connectorId") != null)
+          connectorId = (String) event.getConnectorParams().get("connectorId");
+
+        traceItem = new TraceItem(streamId, connectorId);
+
         ifNoneMatch = event.getIfNoneMatch();
 
         if (event instanceof RelocatedEvent) {
@@ -196,7 +209,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
       } catch (ErrorResponseException e) {
         dataOut = e.getErrorResponse();
       } catch (Exception e) {
-        logger.error("{} - Unexpected exception occurred: {}\n{}", streamId, e.getMessage(), e.getStackTrace());
+        logger.error("{} Unexpected exception occurred: {}\n{}", traceItem, e.getMessage(), e.getStackTrace());
         dataOut = new ErrorResponse()
             .withStreamId(streamId)
             .withError(XyzError.EXCEPTION)
@@ -206,9 +219,9 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
       }
       writeDataOut(output, dataOut, ifNoneMatch);
     } catch (Exception e) {
-      logger.error("{} - Unexpected exception occurred: {}\n{}", streamId, e.getMessage(), e.getStackTrace());
+      logger.error("{} Unexpected exception occurred: {}\n{}", traceItem, e.getMessage(), e.getStackTrace());
     } catch (OutOfMemoryError e) {
-      logger.error("{} - Unexpected exception occurred (heap space): {}\n{}", streamId, e.getMessage(), e.getStackTrace());
+      logger.error("{} Unexpected exception occurred (heap space): {}\n{}", traceItem, e.getMessage(), e.getStackTrace());
     }
   }
 
@@ -251,7 +264,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
       if (bytes == null) {
         return;
       }
-      logger.debug("{} - Writing data out for response with type: {}", streamId, dataOut.getClass().getSimpleName());
+      logger.debug("{} Writing data out for response with type: {}", traceItem, dataOut.getClass().getSimpleName());
 
       //Calculate ETag
       String hash = Hashing.murmur3_128().newHasher().putBytes(bytes).hash().toString();
@@ -279,7 +292,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
       output.write(bytes);
     }
     catch (Exception e) {
-      logger.error("{} - Unexpected exception occurred: {}\n{}", streamId, e.getMessage(), e.getStackTrace());
+      logger.error("{} Unexpected exception occurred: {}\n{}", traceItem, e.getMessage(), e.getStackTrace());
     }
   }
 
@@ -302,7 +315,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
       int warmupCount = event.getWarmupCount();
       event.setWarmupCount(0);
       String newEvent = XyzSerializable.serialize(event);
-      logger.debug("{} - Calling myself. WarmupCount: {}", streamId, warmupCount);
+      logger.debug("{} Calling myself. WarmupCount: {}", traceItem, warmupCount);
       List<Thread> threads = new ArrayList<>(warmupCount);
       for(int i = 0; i < warmupCount; i++) {
         threads.add(new Thread(() -> lambda.invoke(new InvokeRequest()
@@ -340,5 +353,31 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
     input.reset();
 
     return new String(bytes, 0, limit);
+  }
+
+  /**
+   * Can be used for Log-Entries: "streamId - (cid=connector -)"
+   */
+  public static class TraceItem {
+    private String streamId;
+    private String connectorId;
+
+    public TraceItem(String streamId, String connectorId) {
+      this.streamId = streamId;
+      this.connectorId = connectorId;
+    }
+
+    @Override
+    public String toString (){
+      return (streamId != null ? streamId : "no-stream-id") + (connectorId != null ? " - cid="+connectorId+" -" : " -");
+    }
+
+    public String getStreamId() {
+      return streamId;
+    }
+
+    public String getConnectorId() {
+      return connectorId;
+    }
   }
 }
