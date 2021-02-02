@@ -1109,7 +1109,7 @@ public class SQLQueryBuilder {
     }
 
     protected static String deleteHistoryTriggerSQL(final String schema, final String table){
-        String deleteHistoryTriggerSQL = "DROP TRIGGER IF EXISTS TR_"+table.replaceAll("-","_")+"_HISTORY_WRITER ON  ${schema}.${table};";
+        String deleteHistoryTriggerSQL = "DROP TRIGGER IF EXISTS \"TR_"+table.replaceAll("-","_")+"_HISTORY_WRITER\" ON  ${schema}.${table};";
 
         return SQLQuery.replaceVars(deleteHistoryTriggerSQL, schema, table);
     }
@@ -1131,7 +1131,7 @@ public class SQLQueryBuilder {
             }
         }
 
-        triggerSQL = "CREATE TRIGGER TR_"+table.replaceAll("-","_")+"_HISTORY_WRITER " +
+        triggerSQL = "CREATE TRIGGER \"TR_"+table.replaceAll("-","_")+"_HISTORY_WRITER\" " +
                 tiggerEvent+" "+triggerActions+" ${schema}.${table} " +
                 " FOR EACH ROW " +
                 "EXECUTE PROCEDURE "+triggerFunction;
