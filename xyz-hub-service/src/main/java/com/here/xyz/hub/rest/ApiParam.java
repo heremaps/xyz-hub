@@ -153,6 +153,11 @@ public class ApiParam {
     static final String VEND = "vEnd";
     static final String NEXT_PAGE_TOKEN = "nextPageToken";
 
+    static final String VERSION = "version";
+    static final String START_VERSION = "startVersion";
+    static final String END_VERSION = "endVersion";
+    static final String PAGE_TOKEN = "pageToken";
+
     private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{
       put("!=", QueryOperation.NOT_EQUALS);
       put(">=", QueryOperation.GREATER_THAN_OR_EQUALS);
@@ -169,7 +174,7 @@ public class ApiParam {
     }};
 
     private static List<String> shortOperators = new ArrayList<>(operators.keySet());
-    
+
 
     /**
      * Get access to the custom parsed query parameters. Used as a temporary replacement for context.queryParam until
@@ -308,7 +313,7 @@ public class ApiParam {
             for (String shortOperator : shortOperators) {
               int currentPositionOfOp = keyValuePair.indexOf(shortOperator);
               if (currentPositionOfOp != -1) {
-                if( 
+                if(
                   // feature properties query
                   (!spaceProperties && (op == null || currentPositionOfOp < position || ( currentPositionOfOp == position && op.length() < shortOperator.length() ))) ||
                   // space properties query
@@ -321,7 +326,7 @@ public class ApiParam {
             }
 
             if(op != null){
-                String[] keyVal = new String[]{keyValuePair.substring(0, position).replaceAll(operatorComma,","), 
+                String[] keyVal = new String[]{keyValuePair.substring(0, position).replaceAll(operatorComma,","),
                                                keyValuePair.substring(position + op.length())
                                               };
                 /** Cut from API-Gateway appended "=" */
@@ -409,7 +414,7 @@ public class ApiParam {
               throw new Exception(String.format("Invalid clustering.%s value. Expect Integer.",key));
 
             if( CLUSTERING_PARAM_RESOLUTION_RELATIVE.equals(key) && ((long)value < -2 || (long)value > 4))
-             throw new Exception(String.format("Invalid clustering.%s value. Expect Integer hexbin:[-2,2], quadbin:[0-4].",key));  
+             throw new Exception(String.format("Invalid clustering.%s value. Expect Integer hexbin:[-2,2], quadbin:[0-4].",key));
 
             if(!CLUSTERING_PARAM_RESOLUTION_ABSOLUTE.equals(key) && ((long)value < 0 || (long)value > 18))
               throw new Exception(String.format("Invalid clustering.%s value. Expect Integer hexbin:[0,13], quadbin:[0,18].",key));
@@ -468,16 +473,16 @@ public class ApiParam {
           if(!(value instanceof Boolean))
            throw new Exception("Invalid tweaks.defaultselection value. Expect true or false.");
           break;
-         
+
          case TWEAKS_PARAM_ALGORITHM : break;
 
          case TWEAKS_PARAM_SAMPLINGTHRESHOLD : // testing, parameter evaluation
           if(!(value instanceof Long) || ((long) value < 10) || ((long) value > 100) )
            throw new Exception(String.format("Invalid tweaks.%s. Expect Integer [10,100].",key));
-          break; 
+          break;
 
          default:
-          throw new Exception("Invalid Tweaks Parameter! Expect one of [" + TWEAKS_PARAM_STRENGTH + "," 
+          throw new Exception("Invalid Tweaks Parameter! Expect one of [" + TWEAKS_PARAM_STRENGTH + ","
                                                                           + TWEAKS_PARAM_ALGORITHM + ","
                                                                           + TWEAKS_PARAM_DEFAULT_SELECTION + ","
                                                                           + TWEAKS_PARAM_SAMPLINGTHRESHOLD + "]");

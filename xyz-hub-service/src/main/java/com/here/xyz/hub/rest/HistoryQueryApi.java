@@ -18,15 +18,16 @@
  */
 package com.here.xyz.hub.rest;
 
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_HERE_COMPACT_CHANGESET;
+import static com.here.xyz.hub.rest.ApiParam.Query.SKIP_CACHE;
+
 import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.IterateHistoryEvent;
+import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.FeatureTask;
 import io.vertx.ext.web.ParsedHeaderValue;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.api.contract.openapi3.OpenAPI3RouterFactory;
-
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_HERE_COMPACT_CHANGESET;
-import static com.here.xyz.hub.rest.ApiParam.Query.SKIP_CACHE;
 
 public class HistoryQueryApi extends SpaceBasedApi{
 
@@ -38,18 +39,36 @@ public class HistoryQueryApi extends SpaceBasedApi{
     public void iterateHistory(final RoutingContext context) {
         try {
             final boolean skipCache = ApiParam.Query.getBoolean(context, SKIP_CACHE, false);
-
             ApiResponseType responseType = ApiResponseType.CHANGESET_COLLECTION;
+            Integer startVersion = ApiParam.Query.getInteger(context, Query.START_VERSION, 0);
+            Integer endVersion = ApiParam.Query.getInteger(context, Query.END_VERSION, 0);
+            String pageToken = ApiParam.Query.getString(context, Query.PAGE_TOKEN, null);
 
-            if( context.parsedHeaders().accept().stream().map(ParsedHeaderValue::rawValue).anyMatch( APPLICATION_VND_HERE_COMPACT_CHANGESET::equals) )
-                responseType = ApiResponseType.COMPACT_CHANGESET;
+            // TODO please remove after all integrations change to "version" param
+            if (startVersion == null || startVersion == 0) {
+              startVersion = ApiParam.Query.getInteger(context, ApiParam.Query.VSTART, 0);
+            }
 
-            IterateHistoryEvent event = new IterateHistoryEvent()
-                    .withCompact(responseType.equals(ApiResponseType.COMPACT_CHANGESET) ? true : false)
+            // TODO please remove after all integrations change to "version" param
+            if (endVersion == null || endVersion == 0) {
+              endVersion = ApiParam.Query.getInteger(context, ApiParam.Query.VEND, 0);
+            }
+
+            // TODO please remove after all integrations change to "version" param
+            if (pageToken == null) {
+              pageToken = ApiParam.Query.getString(context, ApiParam.Query.NEXT_PAGE_TOKEN, null);
+            }
+
+            if (context.parsedHeaders().accept().stream().map(ParsedHeaderValue::rawValue).anyMatch( APPLICATION_VND_HERE_COMPACT_CHANGESET::equals)) {
+              responseType = ApiResponseType.COMPACT_CHANGESET;
+            }
+
+            final IterateHistoryEvent event = new IterateHistoryEvent()
+                    .withCompact(responseType.equals(ApiResponseType.COMPACT_CHANGESET))
                     .withLimit(getLimit(context))
-                    .withVStart(ApiParam.Query.getInteger(context, ApiParam.Query.VSTART, 0))
-                    .withVEnd(ApiParam.Query.getInteger(context, ApiParam.Query.VEND, 0))
-                    .withNextPageToken(ApiParam.Query.getString(context, ApiParam.Query.NEXT_PAGE_TOKEN, null));
+                    .withStartVersion(startVersion)
+                    .withEndVersion(endVersion)
+                    .withPageToken(pageToken);
 
             final FeatureTask.IterateHistoryQuery task = new FeatureTask.IterateHistoryQuery(event, context, responseType, skipCache);
             task.execute(this::sendResponse, this::sendErrorResponse);

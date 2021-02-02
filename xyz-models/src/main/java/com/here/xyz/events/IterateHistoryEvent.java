@@ -27,52 +27,52 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 @JsonTypeName(value = "IterateHistoryEvent")
 public final class IterateHistoryEvent extends SearchForFeaturesEvent<IterateHistoryEvent> {
 
-  private String nextPageToken;
+  private String pageToken;
   @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-  private int vStart;
+  private int startVersion;
   @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-  private int vEnd;
+  private int endVersion;
   private boolean compact;
 
-  public int getVStart() {
-    return vStart;
+  public int getStartVersion() {
+    return startVersion;
   }
 
-  public void setVStart(int vStart) {
-    this.vStart = vStart;
+  public void setStartVersion(int startVersion) {
+    this.startVersion = startVersion;
   }
 
-  public IterateHistoryEvent withVStart(int vEnd) {
-    setVStart(vEnd);
+  public IterateHistoryEvent withStartVersion(int startVersion) {
+    setStartVersion(startVersion);
     return this;
   }
 
-  public int getVEnd() {
-    return vEnd;
+  public int getEndVersion() {
+    return endVersion;
   }
 
-  public void setVEnd(int vEnd) {
-    this.vEnd = vEnd;
+  public void setEndVersion(int endVersion) {
+    this.endVersion = endVersion;
   }
 
-  public IterateHistoryEvent withVEnd(int vEnd) {
-    setVEnd(vEnd);
+  public IterateHistoryEvent withEndVersion(int endVersion) {
+    setEndVersion(endVersion);
     return this;
   }
 
   @SuppressWarnings("unused")
-  public String getNextPageToken() {
-    return nextPageToken;
+  public String getPageToken() {
+    return pageToken;
   }
 
   @SuppressWarnings("WeakerAccess")
-  public void setNextPageToken(String nextPageToken) {
-    this.nextPageToken = nextPageToken;
+  public void setPageToken(String pageToken) {
+    this.pageToken = pageToken;
   }
 
   @SuppressWarnings("unused")
-  public IterateHistoryEvent withNextPageToken(String nextPageToken) {
-    setNextPageToken(nextPageToken);
+  public IterateHistoryEvent withPageToken(String pageToken) {
+    setPageToken(pageToken);
     return this;
   }
 

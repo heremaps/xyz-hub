@@ -120,13 +120,19 @@ public class FeatureQueryApi extends SpaceBasedApi {
     try {
       final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
       final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
+      Integer version = Query.getInteger(context, Query.VERSION, null);
+
+      // TODO please remove after all integrations change to "version" param
+      if (version == null) {
+        version = Query.getInteger(context, Query.V, null);
+      }
 
       IterateFeaturesEvent event = new IterateFeaturesEvent()
           .withLimit(getLimit(context))
           .withForce2D(force2D)
           .withTags(Query.getTags(context))
           .withSelection(Query.getSelection(context))
-          .withV(Query.getInteger(context, Query.V, null))
+          .withV(version)
           .withHandle(Query.getString(context, Query.HANDLE, null));
 
       final IterateQuery task = new IterateQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache);
@@ -233,13 +239,13 @@ public class FeatureQueryApi extends SpaceBasedApi {
 
       ApiResponseType responseType = ApiResponseType.FEATURE_COLLECTION;
       boolean bXperimentalMvt = false;
-      
+
       if( context.parsedHeaders().accept().stream().map(ParsedHeaderValue::rawValue).anyMatch( APPLICATION_VND_MAPBOX_VECTOR_TILE::equals) )
        responseType = ApiResponseType.MVT;
-      else if( acceptTypeSuffix != null ) 
+      else if( acceptTypeSuffix != null )
        switch( acceptTypeSuffix.toLowerCase() )
        { case "mvt2"  : bXperimentalMvt = true;
-         case "mvt"   : responseType = ApiResponseType.MVT; break; 
+         case "mvt"   : responseType = ApiResponseType.MVT; break;
          case "mvtf2" : bXperimentalMvt = true;
          case "mvtf"  : responseType = ApiResponseType.MVT_FLATTENED; break;
          default : break;

@@ -19,6 +19,18 @@
 
 package com.here.xyz.hub.rest;
 
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_HERE_CHANGESET_COLLECTION;
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_HERE_COMPACT_CHANGESET;
+import static com.jayway.restassured.RestAssured.given;
+import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -26,18 +38,18 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.responses.changesets.CompactChangeset;
 import com.jayway.restassured.response.ValidatableResponse;
-import org.junit.*;
-import org.junit.runners.MethodSorters;
-
-import java.util.*;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static com.here.xyz.hub.rest.Api.HeaderValues.*;
-import static com.jayway.restassured.RestAssured.given;
-import static io.netty.handler.codec.http.HttpResponseStatus.*;
-import static org.hamcrest.Matchers.*;
-import static org.junit.Assert.*;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.FixMethodOrder;
+import org.junit.Test;
+import org.junit.runners.MethodSorters;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class ReadHistoryApiIT extends TestSpaceWithFeature {
@@ -183,7 +195,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
             accept(APPLICATION_VND_HERE_CHANGESET_COLLECTION).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/history?vStart=1&vEnd=2").
+            get("/spaces/x-psql-test/history?startVersion=1&endVersion=2").
             getBody().asString();
 
     ChangesetCollection ccol = XyzSerializable.deserialize(body);
@@ -213,7 +225,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                     accept(APPLICATION_VND_HERE_CHANGESET_COLLECTION).
                     headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
                     when().
-                    get("/spaces/x-psql-test/history?vStart=13&vEnd=14").
+                    get("/spaces/x-psql-test/history?startVersion=13&endVersion=14").
                     getBody().asString();
 
     ccol = XyzSerializable.deserialize(body);
@@ -256,7 +268,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                       accept(APPLICATION_VND_HERE_CHANGESET_COLLECTION).
                       headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
                       when().
-                      get("/spaces/x-psql-test/history?vStart="+i+"&vEnd="+i).
+                      get("/spaces/x-psql-test/history?startVersion="+i+"&endVersion="+i).
                       getBody().asString();
 
       ChangesetCollection ccol = XyzSerializable.deserialize(body);
@@ -305,7 +317,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                       accept(APPLICATION_VND_HERE_CHANGESET_COLLECTION).
                       headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
                       when().
-                      get("/spaces/x-psql-test/history?vEnd=25&limit=1000&nextPageToken="+npt).
+                      get("/spaces/x-psql-test/history?endVersion=25&limit=1000&pageToken="+npt).
                       getBody().asString();
 
       ChangesetCollection ccol = XyzSerializable.deserialize(body);
@@ -342,7 +354,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                     accept(APPLICATION_VND_HERE_COMPACT_CHANGESET).
                     headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
                     when().
-                    get("/spaces/x-psql-test/history?vStart=11&vEnd=14").
+                    get("/spaces/x-psql-test/history?startVersion=11&endVersion=14").
                     getBody().asString();
 
     CompactChangeset compc = XyzSerializable.deserialize(body);
@@ -378,7 +390,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                     accept(APPLICATION_VND_HERE_COMPACT_CHANGESET).
                     headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
                     when().
-                    get("/spaces/x-psql-test/history?vStart=1&vEnd=12").
+                    get("/spaces/x-psql-test/history?startVersion=1&endVersion=12").
                     getBody().asString();
 
     compc = XyzSerializable.deserialize(body);
@@ -422,7 +434,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                       accept(APPLICATION_VND_HERE_COMPACT_CHANGESET).
                       headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
                       when().
-                      get("/spaces/x-psql-test/history?vEnd=14&limit=1000&nextPageToken="+npt).
+                      get("/spaces/x-psql-test/history?endVersion=14&limit=1000&pageToken="+npt).
                       getBody().asString();
 
       CompactChangeset compc = XyzSerializable.deserialize(body);

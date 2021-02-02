@@ -1061,7 +1061,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     protected ChangesetCollection historyResultSetHandler(ResultSet rs) throws SQLException {
         long numFeatures = 0;
         long limit = ((IterateHistoryEvent) event).getLimit();
-        String npt = ((IterateHistoryEvent) event).getNextPageToken();
+        String npt = ((IterateHistoryEvent) event).getPageToken();
 
         ChangesetCollection ccol = new ChangesetCollection();
         Map<Integer,Changeset> versions = new HashMap<>();
