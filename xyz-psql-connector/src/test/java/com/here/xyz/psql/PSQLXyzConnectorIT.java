@@ -357,7 +357,7 @@ public class PSQLXyzConnectorIT extends PSQLAbstractIT {
       String sql = "SELECT pg_get_triggerdef(oid)," +
               "(SELECT (to_regclass('\"foo\"') IS NOT NULL) as hst_table_exists) " +
               "FROM pg_trigger " +
-              "WHERE tgname = 'tr_foo_history_writer';";
+              "WHERE tgname = 'TR_foo_HISTORY_WRITER';";
 
       ResultSet resultSet = stmt.executeQuery(sql);
       if(!resultSet.next()) {
@@ -657,7 +657,7 @@ public class PSQLXyzConnectorIT extends PSQLAbstractIT {
       Statement stmt = connection.createStatement();
       String sql = "SELECT pg_get_triggerdef(oid) as trigger_def " +
               "FROM pg_trigger " +
-              "WHERE tgname = 'tr_foo_history_writer';";
+              "WHERE tgname = 'TR_foo_HISTORY_WRITER';";
 
       ResultSet resultSet = stmt.executeQuery(sql);
       if(!resultSet.next()) {
@@ -689,7 +689,7 @@ public class PSQLXyzConnectorIT extends PSQLAbstractIT {
       Statement stmt = connection.createStatement();
       String sql = "SELECT pg_get_triggerdef(oid) as trigger_def " +
               "FROM pg_trigger " +
-              "WHERE tgname = 'tr_foo_history_writer';";
+              "WHERE tgname = 'TR_foo_HISTORY_WRITER';";
 
       ResultSet resultSet = stmt.executeQuery(sql);
       if(!resultSet.next()) {
