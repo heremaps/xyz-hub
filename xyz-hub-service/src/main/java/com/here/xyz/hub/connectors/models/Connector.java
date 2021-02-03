@@ -142,6 +142,11 @@ public class Connector {
   public List<String> contactEmails;
 
   /**
+   * The identifier of the owner of this connector, most likely the HERE account ID.
+   */
+  public String owner;
+
+  /**
    * Returns the maximal amount of requests to queue.
    *
    * @return the maximal amount of requests to queue.
