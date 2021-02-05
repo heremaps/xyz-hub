@@ -1081,11 +1081,11 @@ public class FeatureTaskHandler {
   }
 
   static void transformResponse(TileQuery task, Callback<TileQuery> callback) {
-    
+
     if(!
-       (    ( ApiResponseType.MVT == task.responseType || ApiResponseType.MVT_FLATTENED == task.responseType)  
+       (    ( ApiResponseType.MVT == task.responseType || ApiResponseType.MVT_FLATTENED == task.responseType)
          && ((task.getResponse() instanceof FeatureCollection) || (task.getResponse() instanceof BinResponse))
-       )  
+       )
       )
     {
       callback.call(task);
@@ -1103,7 +1103,7 @@ public class FeatureTaskHandler {
         if( task.getResponse() instanceof BinResponse )
          binaryResponse.setBytes( ((BinResponse) task.getResponse()).getBytes() ) ;
         else
-        { 
+        {
          byte[] mvt;
          if (ApiResponseType.MVT == task.responseType) {
            mvt = new MapBoxVectorTileBuilder()
@@ -1158,12 +1158,12 @@ public class FeatureTaskHandler {
       if (!task.space.isEnableGlobalVersioning()) {
         callback.exception(new HttpException(BAD_REQUEST, "This space ["+task.space.getId()+"] does not support version queries."));
       }
-      int vStart = ((IterateHistoryEvent) task.getEvent()).getVStart();
-      int vEnd = ((IterateHistoryEvent) task.getEvent()).getVEnd();
-      if(vStart != 0 && vStart < 1)
-        callback.exception(new HttpException(BAD_REQUEST, "vStart is out or range [1-n]."));
-      if(vStart != 0 && vEnd != 0 && vEnd < vStart)
-        callback.exception(new HttpException(BAD_REQUEST, "vEnd has to be smaller than vStart."));
+      int startVersion = ((IterateHistoryEvent) task.getEvent()).getStartVersion();
+      int endVersion = ((IterateHistoryEvent) task.getEvent()).getEndVersion();
+      if(startVersion != 0 && startVersion < 1)
+        callback.exception(new HttpException(BAD_REQUEST, "startVersion is out or range [1-n]."));
+      if(startVersion != 0 && endVersion != 0 && endVersion < startVersion)
+        callback.exception(new HttpException(BAD_REQUEST, "endVersion has to be smaller than startVersion."));
     }
 
     if (task.getEvent() instanceof IterateFeaturesEvent) {

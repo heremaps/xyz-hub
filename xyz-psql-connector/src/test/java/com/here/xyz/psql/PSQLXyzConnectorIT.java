@@ -30,6 +30,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.HealthCheckEvent;
@@ -56,6 +57,8 @@ import com.here.xyz.models.geojson.implementation.Polygon;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.psql.config.DatabaseSettings;
+import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse.PropertiesStatistics;
@@ -63,7 +66,6 @@ import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
 import com.here.xyz.responses.XyzError;
 import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
-import java.io.IOException;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -95,65 +97,47 @@ public class PSQLXyzConnectorIT extends PSQLAbstractIT {
 
     invokeLambdaFromFile("/events/HealthCheckEvent.json");
 
-    logger.info("Setup Completed.");
+    logger.info("Setup environment Completed.");
   }
 
   @Before
   public void setup() throws Exception {
-    logger.info("Setup...");
-
-    // DELETE EXISTING FEATURES TO START FRESH
+    logger.info("Setup Test...");
     String response = invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
     assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
 
-    response = invokeLambdaFromFile("/events/DeleteSpaceFooTestEvent.json");
-    assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
-
-    logger.info("Setup Completed.");
+    logger.info("Setup Test Completed.");
   }
 
   @After
   public void shutdown() throws Exception {
     logger.info("Shutdown...");
     invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
-    invokeLambdaFromFile("/events/DeleteSpaceFooTestEvent.json");
     logger.info("Shutdown Completed.");
   }
 
   @Test
-  public void testHealthCheckWithConnectorParams() throws Exception {
+  public void testPSQLConfig() throws Exception {
     Map<String, Object> connectorParams = new HashMap<>();
     Map<String, Object> parametersToEncrypt = new HashMap<>();
-    parametersToEncrypt.put(PSQLConfig.PSQL_HOST, "example.com");
-    parametersToEncrypt.put(PSQLConfig.PSQL_PORT, "1234");
-    parametersToEncrypt.put(PSQLConfig.PSQL_PASSWORD, "1234password");
-    connectorParams.put("ecps", PSQLConfig.encryptCPS(new ObjectMapper().writeValueAsString(parametersToEncrypt), "testing"));
+    parametersToEncrypt.put(DatabaseSettings.PSQL_HOST, "example.com");
+    parametersToEncrypt.put(DatabaseSettings.PSQL_PORT, "1234");
+    parametersToEncrypt.put(DatabaseSettings.PSQL_PASSWORD, "1234password");
+    connectorParams.put("ecps", PSQLConfig.encryptECPS(new ObjectMapper().writeValueAsString(parametersToEncrypt), "testing"));
 
     HealthCheckEvent event = new HealthCheckEvent()
-        .withMinResponseTime(100)
         .withConnectorParams(connectorParams);
 
-    PSQLConfig config = new PSQLConfig(event, GSContext.newLocal());
-    assertEquals(config.host(), "example.com");
-    assertEquals(config.port(), 1234);
-    assertEquals(config.password(), "1234password");
+    PSQLConfig config = new PSQLConfig(event, GSContext.newLocal(), new TraceItem("test-stream-id","testing"));
+    assertEquals(config.getDatabaseSettings().getHost(), "example.com");
+    assertEquals(config.getDatabaseSettings().getPort(), 1234);
+    assertEquals(config.getDatabaseSettings().getPassword(), "1234password");
   }
 
   @Test
   public void testTableCreated() throws Exception {
     String response = invokeLambdaFromFile("/events/TestCreateTable.json");
     assertEquals("Check response status", JsonPath.read(response, "$.type").toString(), "FeatureCollection");
-  }
-
-  //@Test
-  public void testBrokenEvent() throws Exception {
-    final String response = invokeLambdaFromFile("/events/BrokenEvent.json");
-    try {
-      ErrorResponse error = XyzSerializable.deserialize(response);
-      assertNotNull(error);
-    } catch (IOException e) {
-      fail();
-    }
   }
 
   @Test
@@ -163,9 +147,6 @@ public class PSQLXyzConnectorIT extends PSQLAbstractIT {
     features.serialize(true);
   }
 
-  /**
-   * Test getFeaturesByGeometryEvent
-   */
   @Test
   public void testGetFeaturesByGeometryQuery() throws Exception {
     XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
@@ -376,7 +357,7 @@ public class PSQLXyzConnectorIT extends PSQLAbstractIT {
       String sql = "SELECT pg_get_triggerdef(oid)," +
               "(SELECT (to_regclass('\"foo\"') IS NOT NULL) as hst_table_exists) " +
               "FROM pg_trigger " +
-              "WHERE tgname = 'tr_foo_history_writer';";
+              "WHERE tgname = 'TR_foo_HISTORY_WRITER';";
 
       ResultSet resultSet = stmt.executeQuery(sql);
       if(!resultSet.next()) {
@@ -676,7 +657,7 @@ public class PSQLXyzConnectorIT extends PSQLAbstractIT {
       Statement stmt = connection.createStatement();
       String sql = "SELECT pg_get_triggerdef(oid) as trigger_def " +
               "FROM pg_trigger " +
-              "WHERE tgname = 'tr_foo_history_writer';";
+              "WHERE tgname = 'TR_foo_HISTORY_WRITER';";
 
       ResultSet resultSet = stmt.executeQuery(sql);
       if(!resultSet.next()) {
@@ -708,7 +689,7 @@ public class PSQLXyzConnectorIT extends PSQLAbstractIT {
       Statement stmt = connection.createStatement();
       String sql = "SELECT pg_get_triggerdef(oid) as trigger_def " +
               "FROM pg_trigger " +
-              "WHERE tgname = 'tr_foo_history_writer';";
+              "WHERE tgname = 'TR_foo_HISTORY_WRITER';";
 
       ResultSet resultSet = stmt.executeQuery(sql);
       if(!resultSet.next()) {

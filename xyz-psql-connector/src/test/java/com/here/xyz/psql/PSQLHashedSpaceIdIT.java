@@ -24,6 +24,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.here.xyz.events.ModifyFeaturesEvent;
+import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.util.Hasher;
@@ -31,10 +32,7 @@ import com.jayway.jsonpath.JsonPath;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.junit.After;
@@ -61,23 +59,26 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
   @Before
   public void setup() throws Exception {
     logger.info("Setup...");
-
     // DELETE EXISTING FEATURES TO START FRESH
-    String response = invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
+    String response = deleteTestSpace();
     assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
-
-    response = invokeLambdaFromFile("/events/DeleteSpaceFooTestEvent.json");
-    assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
-
     logger.info("Setup Completed.");
   }
 
   @After
   public void shutdown() throws Exception {
     logger.info("Shutdown...");
-    invokeLambdaFromFile("/events/DeleteSpaceEvent.json");
-    invokeLambdaFromFile("/events/DeleteSpaceFooTestEvent.json");
+    String response = deleteTestSpace();
+    assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
     logger.info("Shutdown Completed.");
+  }
+
+  private String deleteTestSpace() throws Exception{
+    ModifySpaceEvent msevent = new ModifySpaceEvent();
+    msevent.setSpace("foo");
+    msevent.withConnectorParams(new HashMap<String,Object>(){{put("enableHashedSpaceId", true);put("autoIndexing", true);}});
+    msevent.setOperation(ModifySpaceEvent.Operation.DELETE);
+    return invokeLambda(msevent.serialize());
   }
 
   @Test
@@ -94,6 +95,7 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
     mfevent.setSpace(spaceId);
     mfevent.setTransaction(true);
     mfevent.setInsertFeatures(features);
+    mfevent.withConnectorParams(new HashMap<String,Object>(){{put("enableHashedSpaceId", true);}});
     invokeLambda(mfevent.serialize());
 
     /** Needed to trigger update on pg_stat */
@@ -117,6 +119,7 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
     mfevent.setSpace(spaceId);
     mfevent.setTransaction(true);
     mfevent.setInsertFeatures(features);
+    mfevent.withConnectorParams(new HashMap<String,Object>(){{put("enableHashedSpaceId", true);put("autoIndexing", true);}});
     invokeLambda(mfevent.serialize());
 
     /** Needed to trigger update on pg_stat */
