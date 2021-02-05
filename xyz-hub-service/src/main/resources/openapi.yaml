@@ -716,6 +716,7 @@ paths:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/V'
+        - $ref: '#/components/parameters/Version'
         - $ref: '#/components/parameters/SkipCache'
         - $ref: '#/components/parameters/Handle'
         - $ref: '#/components/parameters/Force2D'
@@ -780,7 +781,10 @@ paths:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/VStart'
         - $ref: '#/components/parameters/VEnd'
+        - $ref: '#/components/parameters/StartVersion'
+        - $ref: '#/components/parameters/EndVersion'
         - $ref: '#/components/parameters/NextPageToken'
+        - $ref: '#/components/parameters/PageToken'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/SkipCache'
       responses:
@@ -960,6 +964,14 @@ components:
         format: double
         minimum: -180
         maximum: 180
+    EndVersion:
+      x-experimental: true
+      name: endVersion
+      in: query
+      description: Define end of version-range [version <= endVersion]
+      required: false
+      schema:
+        type: integer
     FeatureId:
       name: featureId
       in: path
@@ -1079,6 +1091,15 @@ components:
         format: double
         minimum: -90
         maximum: 90
+    PageToken:
+      x-experimental: true
+      name: pageToken
+      in: query
+      description: >-
+        The nextPageToken to continue the iteration.
+      required: false
+      schema:
+        type: string
     PrefixId:
       name: prefixId
       in: query
@@ -1230,6 +1251,14 @@ components:
       required: true
       schema:
         type: string
+    StartVersion:
+      x-experimental: true
+      name: startVersion
+      in: query
+      description: Define start of version-range [version >= startVersion]
+      required: false
+      schema:
+        type: integer
     TagList:
       name: tags
       in: query
@@ -1350,6 +1379,14 @@ components:
       name: vEnd
       in: query
       description: Define end of version-range [version <= vEnd]
+      required: false
+      schema:
+        type: integer
+    Version:
+      x-experimental: true
+      name: version
+      in: query
+      description: Define a version [feature version <= query version]
       required: false
       schema:
         type: integer
