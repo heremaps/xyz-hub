@@ -159,7 +159,10 @@ public class OpenApiTransformer {
     final List<String> securitySchemes = securitySchemes();
 
     traverse(root, node -> {
-      for (Entry<Object, JsonNode> entry : elements(node).entrySet()) {
+      final ArrayList<Entry<Object, JsonNode>> entries = new ArrayList<>(elements(node).entrySet());
+      Collections.reverse(entries);
+
+      for (Entry<Object, JsonNode> entry : entries) {
         String fieldname = String.valueOf(entry.getKey());
         JsonNode child = entry.getValue();
 
