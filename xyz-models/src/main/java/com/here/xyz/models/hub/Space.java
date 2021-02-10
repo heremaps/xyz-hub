@@ -156,6 +156,13 @@ public class Space {
   private Integer maxVersionCount;
 
   /**
+   * If false, auto-indexing gets disabled
+   */
+  @JsonView({Public.class, Static.class})
+  @JsonInclude(Include.NON_NULL)
+  private Boolean enableAutoIndexing = null;
+
+  /**
    * List of packages that this space belongs to.
    */
   @JsonInclude(Include.NON_EMPTY)
@@ -410,6 +417,19 @@ public class Space {
 
   public Space withMaxVersionCount(final Integer maxVersionCount) {
     this.maxVersionCount = maxVersionCount;
+    return this;
+  }
+
+  public Boolean isEnableAutoIndexing() {
+    return enableAutoIndexing;
+  }
+
+  public void enableAutoIndexing(final Boolean enableAutoIndexing) {
+    this.enableAutoIndexing = enableAutoIndexing;
+  }
+
+  public Space withEnableAutoIndexing(final Boolean enableAutoIndexing) {
+    this.enableAutoIndexing = enableAutoIndexing;
     return this;
   }
 
