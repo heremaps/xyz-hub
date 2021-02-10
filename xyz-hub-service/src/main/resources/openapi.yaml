@@ -961,7 +961,6 @@ components:
         minimum: -180
         maximum: 180
     EndVersion:
-      x-experimental: true
       name: endVersion
       in: query
       description: Define end of version-range [version <= endVersion]
@@ -1067,14 +1066,6 @@ components:
         enum:
           - raw
           - viz
-    NextPageToken:
-      name: nextPageToken
-      in: query
-      description: >-
-        The nextPageToken to continue the iteration.
-      required: false
-      schema:
-        type: string
     North:
       name: north
       in: query
@@ -1088,7 +1079,6 @@ components:
         minimum: -90
         maximum: 90
     PageToken:
-      x-experimental: true
       name: pageToken
       in: query
       description: >-
@@ -1248,7 +1238,6 @@ components:
       schema:
         type: string
     StartVersion:
-      x-experimental: true
       name: startVersion
       in: query
       description: Define start of version-range [version >= startVersion]
@@ -1364,22 +1353,7 @@ components:
           tweaks.strength: "1-100 | [low,lowmed,med,medhigh,high]"
         additionalProperties:
           type: string
-    V:
-      name: v
-      in: query
-      description: Define a version [version <= v]
-      required: false
-      schema:
-        type: integer
-    VEnd:
-      name: vEnd
-      in: query
-      description: Define end of version-range [version <= vEnd]
-      required: false
-      schema:
-        type: integer
     Version:
-      x-experimental: true
       name: version
       in: query
       description: Define a version [feature version <= query version]
@@ -1399,13 +1373,6 @@ components:
           - med
           - high
           - "off"
-    VStart:
-      name: vStart
-      in: query
-      description: Define start of version-range [version >= vStart]
-      required: false
-      schema:
-        type: integer
     West:
       name: west
       in: query
