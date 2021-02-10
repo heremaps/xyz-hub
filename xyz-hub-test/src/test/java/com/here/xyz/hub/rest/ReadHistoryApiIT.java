@@ -486,7 +486,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                       accept(APPLICATION_GEO_JSON).
                       headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
                       when().
-                      get("/spaces/x-psql-test/iterate?v=25&limit=1000&handle="+handle).
+                      get("/spaces/x-psql-test/iterate?version=25&limit=1000&handle="+handle).
                       getBody().asString();
 
       FeatureCollection fc = XyzSerializable.deserialize(body);
@@ -515,7 +515,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                     accept(APPLICATION_GEO_JSON).
                     headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
                     when().
-                    get("/spaces/x-psql-test/iterate?v=3&limit=5000").
+                    get("/spaces/x-psql-test/iterate?version=3&limit=5000").
                     getBody().asString();
 
     FeatureCollection fc = XyzSerializable.deserialize(body);
