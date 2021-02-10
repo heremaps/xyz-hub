@@ -715,7 +715,6 @@ paths:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/PropertiesSelection'
-        - $ref: '#/components/parameters/V'
         - $ref: '#/components/parameters/Version'
         - $ref: '#/components/parameters/SkipCache'
         - $ref: '#/components/parameters/Handle'
@@ -779,11 +778,8 @@ paths:
       operationId: iterateHistory
       parameters:
         - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/VStart'
-        - $ref: '#/components/parameters/VEnd'
         - $ref: '#/components/parameters/StartVersion'
         - $ref: '#/components/parameters/EndVersion'
-        - $ref: '#/components/parameters/NextPageToken'
         - $ref: '#/components/parameters/PageToken'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/SkipCache'

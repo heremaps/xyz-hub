@@ -122,11 +122,6 @@ public class FeatureQueryApi extends SpaceBasedApi {
       final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
       Integer version = Query.getInteger(context, Query.VERSION, null);
 
-      // TODO please remove after all integrations change to "version" param
-      if (version == null) {
-        version = Query.getInteger(context, Query.V, null);
-      }
-
       IterateFeaturesEvent event = new IterateFeaturesEvent()
           .withLimit(getLimit(context))
           .withForce2D(force2D)
