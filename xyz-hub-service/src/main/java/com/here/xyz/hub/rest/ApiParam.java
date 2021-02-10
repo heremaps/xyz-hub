@@ -148,11 +148,6 @@ public class ApiParam {
     static final String OPTIM_MODE = "mode";
     static final String OPTIM_VIZSAMPLING = "vizSampling";
 
-    static final String V = "v";
-    static final String VSTART = "vStart";
-    static final String VEND = "vEnd";
-    static final String NEXT_PAGE_TOKEN = "nextPageToken";
-
     static final String VERSION = "version";
     static final String START_VERSION = "startVersion";
     static final String END_VERSION = "endVersion";

@@ -800,7 +800,6 @@ paths:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/PropertiesSelection'
-        - $ref: '#/components/parameters/V'
         - $ref: '#/components/parameters/Version'
         - $ref: '#/components/parameters/SkipCache'
         - $ref: '#/components/parameters/Handle'
@@ -861,11 +860,8 @@ paths:
       operationId: iterateHistory
       parameters:
         - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/VStart'
-        - $ref: '#/components/parameters/VEnd'
         - $ref: '#/components/parameters/StartVersion'
         - $ref: '#/components/parameters/EndVersion'
-        - $ref: '#/components/parameters/NextPageToken'
         - $ref: '#/components/parameters/PageToken'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/SkipCache'
@@ -983,15 +979,6 @@ components:
       required: false
       schema:
         type: string
-    NextPageToken:
-      x-experimental: true
-      name: nextPageToken
-      in: query
-      description: >-
-        The nextPageToken to continue the iteration.
-      required: false
-      schema:
-        type: string
     PageToken:
       x-experimental: true
       name: pageToken
@@ -1001,14 +988,6 @@ components:
       required: false
       schema:
         type: string
-    V:
-      x-experimental: true
-      name: v
-      in: query
-      description: Define a version [version <= v]
-      required: false
-      schema:
-        type: integer
     Version:
       x-experimental: true
       name: version
@@ -1017,27 +996,11 @@ components:
       required: false
       schema:
         type: integer
-    VStart:
-      x-experimental: true
-      name: vStart
-      in: query
-      description: Define start of version-range [version >= vStart]
-      required: false
-      schema:
-        type: integer
     StartVersion:
       x-experimental: true
       name: startVersion
       in: query
       description: Define start of version-range [version >= startVersion]
-      required: false
-      schema:
-        type: integer
-    VEnd:
-      x-experimental: true
-      name: vEnd
-      in: query
-      description: Define end of version-range [version <= vEnd]
       required: false
       schema:
         type: integer

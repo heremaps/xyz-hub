@@ -44,21 +44,6 @@ public class HistoryQueryApi extends SpaceBasedApi{
             Integer endVersion = ApiParam.Query.getInteger(context, Query.END_VERSION, 0);
             String pageToken = ApiParam.Query.getString(context, Query.PAGE_TOKEN, null);
 
-            // TODO please remove after all integrations change to "version" param
-            if (startVersion == null || startVersion == 0) {
-              startVersion = ApiParam.Query.getInteger(context, ApiParam.Query.VSTART, 0);
-            }
-
-            // TODO please remove after all integrations change to "version" param
-            if (endVersion == null || endVersion == 0) {
-              endVersion = ApiParam.Query.getInteger(context, ApiParam.Query.VEND, 0);
-            }
-
-            // TODO please remove after all integrations change to "version" param
-            if (pageToken == null) {
-              pageToken = ApiParam.Query.getString(context, ApiParam.Query.NEXT_PAGE_TOKEN, null);
-            }
-
             if (context.parsedHeaders().accept().stream().map(ParsedHeaderValue::rawValue).anyMatch( APPLICATION_VND_HERE_COMPACT_CHANGESET::equals)) {
               responseType = ApiResponseType.COMPACT_CHANGESET;
             }
