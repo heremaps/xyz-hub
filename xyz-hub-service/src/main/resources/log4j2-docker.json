@@ -35,6 +35,23 @@
         },
         "DefaultRolloverStrategy": {
           "max": "2"
+        },
+        "DynamicThresholdFilter": {
+          "key": "LogLvl",
+          "defaultThreshold": "STREAM",
+          "onMatch": "ACCEPT",
+          "onMismatch": "DENY",
+          "KeyValuePair": [
+            {"key": "ALL","value": "ALL"},
+            {"key": "TRACE","value": "TRACE"},
+            {"key": "DEBUG","value": "DEBUG"},
+            {"key": "INFO","value": "INFO"},
+            {"key": "WARN","value": "WARN"},
+            {"key": "ERROR","value": "ERROR"},
+            {"key": "FATAL","value": "FATAL"},
+            {"key": "OFF","value": "OFF"},
+            {"key": "STREAM","value": "STREAM"}
+          ]
         }
       }
     },

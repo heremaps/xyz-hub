@@ -59,12 +59,9 @@ import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.LoggerContext;
-import org.apache.logging.log4j.core.config.Configuration;
-import org.apache.logging.log4j.core.config.LoggerConfig;
+import org.apache.logging.log4j.ThreadContext;
 
 public class Service extends Core {
 
@@ -569,13 +566,10 @@ public class Service extends Core {
     @Override
     protected void handleAtDestination() {
       logger.info("LOG LEVEL UPDATE requested. New level will be: " + level);
-      LoggerContext context = (LoggerContext) LogManager.getContext(false);
-      Configuration config = context.getConfiguration();
-      LoggerConfig rootConfig = config.getLoggerConfig(LogManager.ROOT_LOGGER_NAME);
-      rootConfig.setLevel(Level.getLevel(level));
 
-      // This causes all Loggers to re-fetch information from their LoggerConfig.
-      context.updateLoggers();
+      //Set my log level
+      ThreadContext.put("LogLvl", level);
+
       logger.info("LOG LEVEL UPDATE performed. New level is now: " + level);
     }
   }
