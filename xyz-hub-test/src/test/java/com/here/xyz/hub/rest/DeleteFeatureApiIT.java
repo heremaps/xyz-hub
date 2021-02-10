@@ -34,7 +34,9 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
+@Category(RestTests.class)
 public class DeleteFeatureApiIT extends TestSpaceWithFeature {
 
   @BeforeClass

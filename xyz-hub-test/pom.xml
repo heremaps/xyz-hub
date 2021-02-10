@@ -51,6 +51,11 @@
       <plugin>
         <artifactId>maven-surefire-plugin</artifactId>
         <groupId>org.apache.maven.plugins</groupId>
+        <configuration>
+          <includes>
+            <include>**/*.class</include>
+          </includes>
+        </configuration>
       </plugin>
       <plugin>
         <artifactId>maven-failsafe-plugin</artifactId>
@@ -58,9 +63,6 @@
           <execution>
             <configuration>
               <encoding>UTF-8</encoding>
-              <includes>
-                <include>**/*.java</include>
-              </includes>
               <skip>${skipTests}</skip>
             </configuration>
             <goals>
