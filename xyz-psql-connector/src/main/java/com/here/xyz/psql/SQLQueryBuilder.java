@@ -37,6 +37,7 @@ import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.factory.H3SQL;
 import com.here.xyz.psql.factory.QuadbinSQL;
@@ -773,8 +774,11 @@ public class SQLQueryBuilder {
         return query;
     }
 
-    public static SQLQuery buildSearchablePropertiesUpsertQuery(Map<String, Boolean> searchableProperties, ModifySpaceEvent.Operation operation,
-                                                                   String schema, String table) throws SQLException {
+    public static SQLQuery buildSearchablePropertiesUpsertQuery(Space spaceDefinition, ModifySpaceEvent.Operation operation,
+                                                                String schema, String table) throws SQLException {
+        Map<String, Boolean> searchableProperties = spaceDefinition.getSearchableProperties();
+        Boolean enableAutoIndexing = spaceDefinition.isEnableAutoIndexing();
+
         String searchablePropertiesJson = "";
         final SQLQuery query = new SQLQuery("");
 
@@ -786,14 +790,16 @@ public class SQLQueryBuilder {
             searchablePropertiesJson = searchablePropertiesJson.substring(0, searchablePropertiesJson.length() - 1);
         }
 
-        /* update xyz_idx_status table with searchabelProperties information */
-        query.append("INSERT INTO  "+IDX_STATUS_TABLE+" as x_s (spaceid,schem,idx_creation_finished,idx_manual) "
+        /* update xyz_idx_status table with searchableProperties information */
+        query.append("INSERT INTO  "+IDX_STATUS_TABLE+" as x_s (spaceid, schem, idx_creation_finished, idx_manual "
+                        +(enableAutoIndexing != null ? ",auto_indexing) ": ") ")
                         + "		VALUES ('" + table + "', '" + schema + "', false, '{" + searchablePropertiesJson
-                        + "}'::jsonb) "
+                        + "}'::jsonb"+(enableAutoIndexing != null ? ","+enableAutoIndexing: " ")+") "
                         + "ON CONFLICT (spaceid) DO "
                         + "		UPDATE SET schem='" + schema + "', "
                         + "    			idx_manual = '{" + searchablePropertiesJson + "}'::jsonb, "
-                        + "				idx_creation_finished = false "
+                        + "				idx_creation_finished = false"
+                        + (enableAutoIndexing != null ? " ,auto_indexing = " + enableAutoIndexing : "")
                         + "		WHERE x_s.spaceid = '" + table + "'");
         return query;
     }

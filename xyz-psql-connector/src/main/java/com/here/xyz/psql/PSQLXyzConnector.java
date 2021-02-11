@@ -408,55 +408,33 @@ public class PSQLXyzConnector extends DatabaseHandler {
     try{
       logger.info("{} Received ModifySpaceEvent", traceItem);
 
-      if(event.getSpaceDefinition() != null && event.getSpaceDefinition().isEnableUUID()){
-        if(event.getSpaceDefinition().isEnableHistory()){
-          Integer maxVersionCount = event.getSpaceDefinition().getMaxVersionCount();
-          Boolean isEnableGlobalVersioning = event.getSpaceDefinition().isEnableGlobalVersioning();
-          Boolean compactHistory = config.getConnectorParams().isCompactHistory();
+      validateModifySpaceEvent(event);
 
-          if(ModifySpaceEvent.Operation.CREATE == event.getOperation()){
-            ensureHistorySpace(maxVersionCount, compactHistory, isEnableGlobalVersioning);
-          }else if(ModifySpaceEvent.Operation.UPDATE == event.getOperation()){
-            //update Trigger to apply maxVersionCount.
-            updateTrigger(maxVersionCount, compactHistory, isEnableGlobalVersioning);
-          }
+      if(event.getSpaceDefinition() != null && event.getSpaceDefinition().isEnableHistory()){
+        Integer maxVersionCount = event.getSpaceDefinition().getMaxVersionCount();
+        Boolean isEnableGlobalVersioning = event.getSpaceDefinition().isEnableGlobalVersioning();
+        Boolean compactHistory = config.getConnectorParams().isCompactHistory();
+
+        if(ModifySpaceEvent.Operation.CREATE == event.getOperation()){
+          ensureHistorySpace(maxVersionCount, compactHistory, isEnableGlobalVersioning);
+        }else if(ModifySpaceEvent.Operation.UPDATE == event.getOperation()){
+          //update Trigger to apply maxVersionCount.
+          updateTrigger(maxVersionCount, compactHistory, isEnableGlobalVersioning);
         }
       }
 
-      if ((ModifySpaceEvent.Operation.UPDATE == event.getOperation()
-              || ModifySpaceEvent.Operation.CREATE == event.getOperation())
+      if ((ModifySpaceEvent.Operation.CREATE == event.getOperation()
+              || ModifySpaceEvent.Operation.UPDATE == event.getOperation())
               && config.getConnectorParams().isPropertySearch()) {
 
-        if (event.getSpaceDefinition().getSearchableProperties() != null) {
-          int onDemandLimit = config.getConnectorParams().getOnDemandIdxLimit();
-
-          int cnt = 0;
-          for (String property : event.getSpaceDefinition().getSearchableProperties().keySet()) {
-            if (event.getSpaceDefinition().getSearchableProperties().get(property) != null
-                    && event.getSpaceDefinition().getSearchableProperties().get(property) == Boolean.TRUE) {
-              cnt++;
-            }
-            if (cnt > onDemandLimit) {
-              throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-                      "On-Demand-Indexing - Maximum permissible: " + onDemandLimit + " searchable properties per space!");
-            }
-            if (property.contains("'")) {
-              throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-                      "On-Demand-Indexing [" + property + "] - Character ['] not allowed!");
-            }
-            if (property.contains("\\")) {
-              throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-                      "On-Demand-Indexing [" + property + "] - Character [\\] not allowed!");
-            }
-          }
-        }
-
         //TODO: Check if config entry exists and idx_manual=null -> update it (erase on demand)
-        if(!(ModifySpaceEvent.Operation.CREATE == event.getOperation() && event.getSpaceDefinition().getSearchableProperties() == null))
+        if(event.getSpaceDefinition().isEnableAutoIndexing() != null || event.getSpaceDefinition().getSearchableProperties() != null)
           executeUpdateWithRetry(  SQLQueryBuilder.buildSearchablePropertiesUpsertQuery(
-                  event.getSpaceDefinition().getSearchableProperties(),
+                  event.getSpaceDefinition(),
                   event.getOperation(),
-                  config.getDatabaseSettings().getSchema(), config.readTableFromEvent(event)));
+                  config.getDatabaseSettings().getSchema(),
+                  config.readTableFromEvent(event))
+          );
       }
 
       if (ModifySpaceEvent.Operation.DELETE == event.getOperation()) {
@@ -505,6 +483,45 @@ public class PSQLXyzConnector extends DatabaseHandler {
       return checkSQLException(e, config.readTableFromEvent(event));
     }finally {
       logger.info("{} Finished "+event.getClass().getSimpleName(), traceItem);
+    }
+  }
+
+  private void validateModifySpaceEvent(ModifySpaceEvent event) throws Exception{
+    final boolean connectorSupportsAI = config.getConnectorParams().isAutoIndexing();
+
+    if ((ModifySpaceEvent.Operation.UPDATE == event.getOperation()
+            || ModifySpaceEvent.Operation.CREATE == event.getOperation())
+            && config.getConnectorParams().isPropertySearch()) {
+
+      if (event.getSpaceDefinition().getSearchableProperties() != null) {
+        int onDemandLimit = config.getConnectorParams().getOnDemandIdxLimit();
+
+        int cnt = 0;
+        for (String property : event.getSpaceDefinition().getSearchableProperties().keySet()) {
+          if (event.getSpaceDefinition().getSearchableProperties().get(property) != null
+                  && event.getSpaceDefinition().getSearchableProperties().get(property) == Boolean.TRUE) {
+            cnt++;
+          }
+          if (cnt > onDemandLimit) {
+            throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
+                    "On-Demand-Indexing - Maximum permissible: " + onDemandLimit + " searchable properties per space!");
+          }
+          if (property.contains("'")) {
+            throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
+                    "On-Demand-Indexing [" + property + "] - Character ['] not allowed!");
+          }
+          if (property.contains("\\")) {
+            throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
+                    "On-Demand-Indexing [" + property + "] - Character [\\] not allowed!");
+          }
+          if (event.getSpaceDefinition().isEnableAutoIndexing() != null
+                 && event.getSpaceDefinition().isEnableAutoIndexing()
+                  && !connectorSupportsAI) {
+            throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
+                    "Connector does not support Auto-indexing!");
+          }
+        }
+      }
     }
   }
 
