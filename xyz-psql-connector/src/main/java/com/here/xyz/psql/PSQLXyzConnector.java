@@ -428,7 +428,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
               && config.getConnectorParams().isPropertySearch()) {
 
         //TODO: Check if config entry exists and idx_manual=null -> update it (erase on demand)
-        if(event.getSpaceDefinition().isEnableAutoIndexing() != null || event.getSpaceDefinition().getSearchableProperties() != null)
+        if(event.getSpaceDefinition().isEnableAutoSearchableProperties() != null || event.getSpaceDefinition().getSearchableProperties() != null)
           executeUpdateWithRetry(  SQLQueryBuilder.buildSearchablePropertiesUpsertQuery(
                   event.getSpaceDefinition(),
                   event.getOperation(),
@@ -514,8 +514,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
             throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
                     "On-Demand-Indexing [" + property + "] - Character [\\] not allowed!");
           }
-          if (event.getSpaceDefinition().isEnableAutoIndexing() != null
-                 && event.getSpaceDefinition().isEnableAutoIndexing()
+          if (event.getSpaceDefinition().isEnableAutoSearchableProperties() != null
+                 && event.getSpaceDefinition().isEnableAutoSearchableProperties()
                   && !connectorSupportsAI) {
             throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
                     "Connector does not support Auto-indexing!");

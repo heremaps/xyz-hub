@@ -777,7 +777,7 @@ public class SQLQueryBuilder {
     public static SQLQuery buildSearchablePropertiesUpsertQuery(Space spaceDefinition, ModifySpaceEvent.Operation operation,
                                                                 String schema, String table) throws SQLException {
         Map<String, Boolean> searchableProperties = spaceDefinition.getSearchableProperties();
-        Boolean enableAutoIndexing = spaceDefinition.isEnableAutoIndexing();
+        Boolean enableAutoIndexing = spaceDefinition.isEnableAutoSearchableProperties();
 
         String searchablePropertiesJson = "";
         final SQLQuery query = new SQLQuery("");
