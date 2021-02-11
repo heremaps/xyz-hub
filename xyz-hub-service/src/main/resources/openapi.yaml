@@ -1272,7 +1272,7 @@ components:
       in: query
       description: >
         A list of properties to be returned in the features result list. Multiple attributes can be
-        specified by using comma(,). Example: ?selection=p.name,p.capacity,p.color
+        specified by using comma(,). Example: ?selection=p.name,p.capacity,p.color,rootpropertyname
       style: form
       explode: false
       schema:
