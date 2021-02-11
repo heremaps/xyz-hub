@@ -2544,7 +2544,7 @@ CREATE OR REPLACE FUNCTION prj_input_validate(plist text[])
 RETURNS text[] AS
 $body$
 select array_agg( i.jpth ) from
-( with t1 as ( select unnest( plist ) jpth )
+( with t1 as ( select distinct unnest( plist ) jpth )
   select l.jpth from t1 l join t1 r on ( strpos( l.jpth, r.jpth ) = 1 )
   group by 1 having count(1) = 1
 ) i
