@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,11 +26,14 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import com.amazonaws.util.IOUtils;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
+import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -47,12 +50,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -65,6 +63,53 @@ public abstract class PSQLAbstractIT {
   static Random random = new Random();
   static PSQLXyzConnector lambda;
 
+  static Map<String, Object> defaultTestConnectorParams = new HashMap<String,Object>(){
+    {put("connectorId","test-connector");put("propertySearch", true);}};
+
+  public static void initEnv(Map<String, Object>  connectorParameters) throws Exception {
+    logger.info("Setup environment...");
+
+    lambda = new PSQLXyzConnector();
+    lambda.reset();
+    lambda.setEmbedded(true);
+
+    connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
+
+    HealthCheckEvent event = new HealthCheckEvent()
+      .withMinResponseTime(100)
+      .withConnectorParams(connectorParameters);
+
+    invokeLambda(event.serialize());
+    logger.info("Setup environment Completed.");
+  }
+
+  public void deleteTestSpace(Map<String, Object>  connectorParameters) throws Exception {
+    logger.info("Setup Test...");
+    invokeDeleteTestSpace(connectorParameters);
+    logger.info("Setup Test Completed.");
+  }
+
+  public void shutdownEnv(Map<String, Object>  connectorParameters) throws Exception {
+    logger.info("Shutdown...");
+    invokeDeleteTestSpace(connectorParameters);
+    logger.info("Shutdown Completed.");
+  }
+
+  private void invokeDeleteTestSpace(Map<String, Object>  connectorParameters) throws Exception {
+    logger.info("Setup Test...");
+
+    connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
+    ModifySpaceEvent mse = new ModifySpaceEvent()
+            .withSpace("foo")
+            .withOperation(ModifySpaceEvent.Operation.DELETE)
+            .withConnectorParams(connectorParameters);
+
+    String response = invokeLambda(mse.serialize());
+    assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
+
+    logger.info("Setup Test Completed.");
+  }
+
   void testModifyFeatureFailures(boolean withUUID) throws Exception {
     // =========== INSERT ==========
     String insertJsonFile = withUUID ? "/events/InsertFeaturesEventTransactional.json" : "/events/InsertFeaturesEvent.json";
@@ -76,13 +121,14 @@ public abstract class PSQLAbstractIT {
 
     // =========== DELETE NOT EXISTING FEATURE ==========
     //Stream
-    ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
+    ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent()
+            .withConnectorParams(defaultTestConnectorParams)
+            .withSpace("foo")
+            .withTransaction(false)
+            .withDeleteFeatures(Collections.singletonMap("doesnotexist", null));
     if(withUUID)
       mfevent.setEnableUUID(true);
 
-    mfevent.setSpace("foo");
-    mfevent.setTransaction(false);
-    mfevent.setDeleteFeatures(Collections.singletonMap("doesnotexist", null));
     String response = invokeLambda(mfevent.serialize());
     FeatureCollection responseCollection = XyzSerializable.deserialize(response);
     assertEquals("doesnotexist", responseCollection.getFailed().get(0).getId());
@@ -392,5 +438,56 @@ public abstract class PSQLAbstractIT {
     }
 
     return collection;
+  }
+
+  static void setPUUID(FeatureCollection featureCollection) throws JsonProcessingException {
+    for (Feature feature : featureCollection.getFeatures()){
+      feature.getProperties().getXyzNamespace().setPuuid(feature.getProperties().getXyzNamespace().getUuid());
+      feature.getProperties().getXyzNamespace().setUuid(UUID.randomUUID().toString());
+    }
+  }
+
+  static void invokeAndAssert(Map<String, Object> json, int size, String... names) throws Exception {
+    String response = invokeLambda(new ObjectMapper().writeValueAsString(json));
+
+    final FeatureCollection responseCollection = XyzSerializable.deserialize(response);
+    final List<Feature> responseFeatures = responseCollection.getFeatures();
+    assertEquals("Check size", size, responseFeatures.size());
+
+    for (int i = 0; i < size; i++) {
+      assertEquals("Check name", names[i], responseFeatures.get(i).getProperties().get("name"));
+    }
+  }
+
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  protected static void addTagsToSearchObject(Map<String, Object> json, String... tags) {
+    json.remove("tags");
+    json.put("tags", new ArrayList<String>());
+    ((List) json.get("tags")).add(new ArrayList(Arrays.asList(tags)));
+  }
+
+  @SafeVarargs
+  protected static final void addPropertiesQueryToSearchObject(Map<String, Object> json, Map<String, Object>... objects) {
+    addPropertiesQueryToSearchObject(json, false, objects);
+  }
+
+  @SafeVarargs
+  protected static final void addPropertiesQueryToSearchObject(Map<String, Object> json, boolean or, Map<String, Object>... objects) {
+    if (!json.containsKey("propertiesQuery")) {
+      json.put("propertiesQuery", new ArrayList<List<Map<String, Object>>>());
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"}) final List<List<Map<String, Object>>> list = (List) json.get("propertiesQuery");
+    if (or) {
+      list.add(new ArrayList<>(Stream.of(objects).collect(Collectors.toList())));
+      return;
+    }
+
+    if (list.size() == 0) {
+      list.add(new ArrayList<>(Stream.of(objects).collect(Collectors.toList())));
+      return;
+    }
+
+    list.get(0).addAll(Stream.of(objects).collect(Collectors.toList()));
   }
 }
