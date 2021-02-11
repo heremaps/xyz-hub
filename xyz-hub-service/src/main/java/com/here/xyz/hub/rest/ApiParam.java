@@ -30,7 +30,9 @@ import io.vertx.ext.web.RoutingContext;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -244,19 +246,15 @@ public class ApiParam {
 
       if(input.size() == 1 && "*".equals( input.get(0).toLowerCase() )) return input;
 
-      List<String> selection = new ArrayList<>();
+      HashSet<String> selection = new HashSet<String>(Arrays.asList("id","type"));
 
-      selection.add("id");
-      selection.add("type");
-      selection.add("geometry");
+      for (String s : input)
+       switch( s )
+       { case "properties": case "id" : case "type" : break;
+         default : selection.add( s.startsWith("p.") ? s.replace("p.", "properties.") : s); break;
+       }
 
-      for (String s : input) {
-        if (s.startsWith("p.")) {
-          selection.add(s.replace("p.", "properties."));
-        }
-      }
-
-      return selection;
+      return new ArrayList<String>(selection);
     }
     /**
      * Retures the parsed query parameter for space
