@@ -11,10 +11,12 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -28,14 +30,44 @@ public class OpenApiGenerator {
   private static final String FIND = "find";
   private static final String REGEX_SEARCH = "~=";
   private static final String EXACT_SEARCH = "=";
+  private static final String VERSION = "VERSION";
+  private static final String RECIPES = "recipes";
+  private static final String VALUES = "values";
+  private static final String NAME = "name";
+  private static final String EXTENDS = "extends";
 
   private static final ObjectMapper YAML_MAPPER = ObjectMapperFactory.createYaml();
-  private static final Map<String, String> ENV = new HashMap<String, String>() {{
-    put("VERSION", Service.BUILD_VERSION);
+  private static final Set<String> RECIPES_NAMES = new HashSet<>();
+  private static final Map<String, String> VALUES_MAP = new HashMap<String, String>() {{
+    put(VERSION, Service.BUILD_VERSION);
   }};
 
   private static JsonNode root;
   private static JsonNode recipe;
+
+  /**
+   * Selects one of the recipes from a list of recipes and transforms it based on the rules specified by this recipe.
+   * The main recipe contains a list of child recipes which can inherit properties and operations from each other.
+   * For more information about the possibilities, please check openapi-recipes.yaml.
+   * @param sourceBytes the original content which will be used to generate the final version after modifications.
+   * @param recipeBytes The main recipe which contains additional recipes within it.
+   * @param name The recipe name, must be a valid name found in the recipes list.
+   * @return an array of bytes which represents the modified source after processing.
+   * @throws Exception when something goes really wrong.
+   */
+  public static byte[] generate(byte[] sourceBytes, byte[] recipeBytes, final String name) throws Exception {
+    recipe = YAML_MAPPER.readTree(recipeBytes);
+
+    validateExtendedRecipe();
+    validateRecipeName(name);
+    validateInheritance();
+    validateValues();
+
+    loadValues();
+    prepareRecipe();
+
+    return generate(sourceBytes, recipe.toString().getBytes());
+  }
 
   /**
    * Process a yaml source by applying a yaml recipe in the top
@@ -43,7 +75,7 @@ public class OpenApiGenerator {
    * Result is a modified version of source.
    * @param sourceBytes the original content which will be used to generate the final version after modifications.
    * @param recipeBytes the recipe content which guides what will be excluded, included or replaced during the process.
-   * @return an array of bytes which represents the modified source after process.
+   * @return an array of bytes which represents the modified source after processing.
    * @throws Exception when something goes really wrong.
    */
   public static byte[] generate(byte[] sourceBytes, byte[] recipeBytes) throws Exception {
@@ -57,6 +89,85 @@ public class OpenApiGenerator {
     // write the results in YAML format
     final String result = YAML_MAPPER.writeValueAsString(root);
     return result.getBytes();
+  }
+
+  /**
+   * Validates whether the recipe which contains other recipes is valid.
+   * @throws Exception when it is not valid.
+   */
+  private static void validateExtendedRecipe() throws Exception {
+    if (!recipe.has(RECIPES) || !recipe.get(RECIPES).isArray() || recipe.get(RECIPES).size() == 0) {
+      throw new Exception("Invalid recipe. There must be a non-empty array named \"recipes\".");
+    }
+
+    final ArrayNode recipes = (ArrayNode) recipe.get(RECIPES);
+    for (JsonNode r : recipes) {
+      if (!r.isObject() || !r.has(NAME) || !r.get(NAME).isTextual()) {
+        throw new Exception("Invalid recipe. There must be a name for each of the individual recipes.");
+      }
+
+      RECIPES_NAMES.add(r.get(NAME).textValue());
+    }
+  }
+
+  /**
+   * Validates whether the name is contained within the recipes' names list.
+   * @param name the recipe name list.
+   * @throws Exception when the name is not in the list.
+   */
+  private static void validateRecipeName(final String name) throws Exception {
+    if (!RECIPES_NAMES.contains(name)) {
+      throw new Exception("Invalid recipe. Recipe name \"" + name + " not found.");
+    }
+  }
+
+  /**
+   * Validates whether the extended recipes reference a valid recipe name.
+   * @throws Exception when the extended recipe references a non-existing recipe within the recipes list.
+   */
+  private static void validateInheritance() throws Exception {
+    final ArrayNode recipes = (ArrayNode) recipe.get(RECIPES);
+    for (JsonNode recipe : recipes) {
+      if (recipe.has(EXTENDS)) {
+        if (!recipe.get(EXTENDS).isTextual() || !RECIPES_NAMES.contains(recipe.get(EXTENDS).textValue())) {
+          throw new Exception("Invalid recipe. Recipe's field \"extends\" must reference a valid recipe within the recipes' names list.");
+        }
+      }
+    }
+  }
+
+  /**
+   * Validates whether the field values is a valid key-value map (a yaml object).
+   * @throws Exception when it is not
+   */
+  private static void validateValues() throws Exception {
+    if (!recipe.has(VALUES)) return;
+
+    if (!recipe.get(VALUES).isObject()) {
+      throw new Exception("Invalid recipe. Recipe's field \"values\" must be a key-value pair map.");
+    }
+
+    for (Entry<Object, JsonNode> entry : elements(recipe.get(VALUES)).entrySet()) {
+      if (!entry.getValue().isTextual()) {
+        throw new Exception("Invalid recipe. Value with key \"" + entry.getKey() + "\" is not a string.");
+      }
+    }
+  }
+
+  /**
+   * Load the values which are available in the recipe into the replaceable values' list.
+   */
+  private static void loadValues() {
+    if (!recipe.has(VALUES)) return;
+
+    elements(recipe.get(VALUES)).forEach((k, v) -> VALUES_MAP.put((String) k, v.textValue()));
+  }
+
+  /**
+   * Extends the main recipe when needed and prepares it to be executed.
+   */
+  private static void prepareRecipe() {
+    // TODO recipe = the extended recipe
   }
 
   /**
@@ -208,7 +319,7 @@ public class OpenApiGenerator {
         }
         case VALUE: {
           if (replace.isTextual() && replace.textValue().startsWith("${") && replace.textValue().endsWith("}")) {
-            replace = new TextNode(ENV.get(StringUtils.substringBetween(replace.asText(), "${", "}")));
+            replace = new TextNode(VALUES_MAP.get(StringUtils.substringBetween(replace.asText(), "${", "}")));
           }
 
           if (parent.isObject()) {
