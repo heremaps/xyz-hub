@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,11 +24,10 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.here.xyz.events.ModifyFeaturesEvent;
-import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.util.Hasher;
-import com.jayway.jsonpath.JsonPath;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -43,43 +42,18 @@ import org.junit.Test;
 @SuppressWarnings("unused")
 public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
 
+  static Map<String, Object> connectorParams = new HashMap<String,Object>(){
+    {put(ConnectorParameters.CONNECTOR_ID, "test-connector"); put(ConnectorParameters.ENABLE_HASHED_SPACEID, true); put(ConnectorParameters.AUTO_INDEXING, true);}};
+
+
   @BeforeClass
-  public static void setupEnv() throws Exception {
-    logger.info("Setup environment...");
-
-    lambda = new PSQLXyzConnector();
-    lambda.reset();
-    lambda.setEmbedded(true);
-
-    invokeLambdaFromFile("/events/HealthCheckWithEnableHashedSpaceIdEvent.json");
-
-    logger.info("Setup Completed.");
-  }
+  public static void init() throws Exception { initEnv(connectorParams); }
 
   @Before
-  public void setup() throws Exception {
-    logger.info("Setup...");
-    // DELETE EXISTING FEATURES TO START FRESH
-    String response = deleteTestSpace();
-    assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
-    logger.info("Setup Completed.");
-  }
+  public void removeTestSpaces() throws Exception { deleteTestSpace(connectorParams); }
 
   @After
-  public void shutdown() throws Exception {
-    logger.info("Shutdown...");
-    String response = deleteTestSpace();
-    assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
-    logger.info("Shutdown Completed.");
-  }
-
-  private String deleteTestSpace() throws Exception{
-    ModifySpaceEvent msevent = new ModifySpaceEvent();
-    msevent.setSpace("foo");
-    msevent.withConnectorParams(new HashMap<String,Object>(){{put("enableHashedSpaceId", true);put("autoIndexing", true);}});
-    msevent.setOperation(ModifySpaceEvent.Operation.DELETE);
-    return invokeLambda(msevent.serialize());
-  }
+  public void shutdown() throws Exception { shutdownEnv(connectorParams); }
 
   @Test
   public void testTableCreation() throws Exception {
@@ -91,11 +65,11 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
       add(generateFeature(xyzNamespace, null));
     }};
 
-    ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
-    mfevent.setSpace(spaceId);
-    mfevent.setTransaction(true);
-    mfevent.setInsertFeatures(features);
-    mfevent.withConnectorParams(new HashMap<String,Object>(){{put("enableHashedSpaceId", true);}});
+    ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent()
+            .withSpace(spaceId)
+            .withConnectorParams(connectorParams)
+            .withTransaction(true)
+            .withInsertFeatures(features);
     invokeLambda(mfevent.serialize());
 
     /** Needed to trigger update on pg_stat */
@@ -115,11 +89,12 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
     final String hashedSpaceId = Hasher.getHash(spaceId);
 
     final List<Feature> features = get11kFeatureCollection().getFeatures();
-    ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
-    mfevent.setSpace(spaceId);
-    mfevent.setTransaction(true);
-    mfevent.setInsertFeatures(features);
-    mfevent.withConnectorParams(new HashMap<String,Object>(){{put("enableHashedSpaceId", true);put("autoIndexing", true);}});
+    ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent()
+            .withSpace(spaceId)
+            .withConnectorParams(connectorParams)
+            .withTransaction(true)
+            .withInsertFeatures(features);
+
     invokeLambda(mfevent.serialize());
 
     /** Needed to trigger update on pg_stat */
