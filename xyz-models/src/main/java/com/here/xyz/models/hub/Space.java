@@ -160,7 +160,7 @@ public class Space {
    */
   @JsonView({Public.class, Static.class})
   @JsonInclude(Include.NON_NULL)
-  private Boolean enableAutoIndexing = null;
+  private Boolean enableAutoSearchableProperties = null;
 
   /**
    * List of packages that this space belongs to.
@@ -420,16 +420,16 @@ public class Space {
     return this;
   }
 
-  public Boolean isEnableAutoIndexing() {
-    return enableAutoIndexing;
+  public Boolean isEnableAutoSearchableProperties() {
+    return enableAutoSearchableProperties;
   }
 
-  public void enableAutoIndexing(final Boolean enableAutoIndexing) {
-    this.enableAutoIndexing = enableAutoIndexing;
+  public void enableAutoSearchableProperties(final Boolean enableAutoSearchableProperties) {
+    this.enableAutoSearchableProperties = enableAutoSearchableProperties;
   }
 
-  public Space withEnableAutoIndexing(final Boolean enableAutoIndexing) {
-    this.enableAutoIndexing = enableAutoIndexing;
+  public Space withEnableAutoSearchableProperties(final Boolean enableAutoSearchableProperties) {
+    this.enableAutoSearchableProperties = enableAutoSearchableProperties;
     return this;
   }
 
