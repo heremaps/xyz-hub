@@ -64,9 +64,9 @@ public class ConnectorParameters {
     private int dbMinPoolSize = 1;
     private int dbMaxPoolSize = 1;
     private int dbAcquireIncrement = 1;
-    private int dbAcquireRetryAttempts = 1;
+    private int dbAcquireRetryAttempts = 5;
     private int dbCheckoutTimeout = 7;
-    private boolean dbTestConnectionOnCheckout = false;
+    private boolean dbTestConnectionOnCheckout = true;
     private Integer dbMaxIdleTime = null;
 
     private TraceItem TraceItem;
