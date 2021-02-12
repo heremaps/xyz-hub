@@ -148,9 +148,20 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 135
+ select 136
 $BODY$
   LANGUAGE sql IMMUTABLE;
+------------------------------------------------
+------------------------------------------------
+-- ADD NEW COLUMN TO IDX_STATUS TABLE
+DO $$
+BEGIN
+ALTER TABLE xyz_config.xyz_idxs_status
+    ADD COLUMN auto_indexing BOOLEAN;
+EXCEPTION
+	    WHEN duplicate_column THEN RAISE NOTICE 'column <auto_indexing> already exists in <xyz_idxs_status>.';
+END;
+$$;
 ------------------------------------------------
 ------------------------------------------------
 -- Function: xyz_index_dissolve_datatype(text)
@@ -795,9 +806,11 @@ $BODY$
 	DECLARE xyz_space_stat record;
 	DECLARE xyz_manual_idx record;
 	DECLARE xyz_needless_manual_idx record;
+    DECLARE xyz_needless_auto_idx record;
 
 	DECLARE xyz_idx_proposal record;
 	DECLARE idx_false_list TEXT[];
+    DECLARE is_auto_indexing boolean;
 
 	BEGIN
 		/** Check if table is present */
@@ -806,7 +819,9 @@ $BODY$
 		IF xyz_space_exists IS NULL THEN
 			DELETE FROM xyz_config.xyz_idxs_status
 				WHERE spaceid = space
-					AND schem = schema;
+					AND schem = schema
+                    AND idx_manual IS NULL
+                    AND auto_indexing IS NULL;
 			RAISE NOTICE 'SPACE DOES NOT EXIST %."%" ', schema, space;
 			RETURN;
 		END IF;
@@ -814,7 +829,8 @@ $BODY$
 		/** set indication that idx creation is running */
 		UPDATE xyz_config.xyz_idxs_status
 			SET idx_creation_finished = false
-				WHERE spaceid = space;
+				WHERE spaceid = space
+                  AND schem = schema;
 
 		EXECUTE xyz_index_check_comments(schema, space);
 
@@ -834,6 +850,7 @@ $BODY$
 						FROM xyz_config.xyz_idxs_status
 					WHERE idx_creation_finished = false
 						AND spaceid = space
+                        AND schem = schema
 			) A
 		LOOP
 			IF xyz_manual_idx.idx_required = false THEN
@@ -870,19 +887,38 @@ $BODY$
 					(jsonb_each(idx_manual)).value::text::boolean as idx_required
 					FROM xyz_config.xyz_idxs_status
 						where spaceid = space
+                          AND schem = schema
 			) A WHERE idx_required = true
 		LOOP
 			RAISE NOTICE '-- PROPERTY: % | SPACE: % |> DELETE UNWANTED IDX: %!',xyz_needless_manual_idx.idx_property, space, xyz_needless_manual_idx.idx_name;
 			EXECUTE FORMAT ('DROP INDEX IF EXISTS %s."%s" ', schema, xyz_needless_manual_idx.idx_name);
 		END LOOP;
 
-		/** Analyze IDX-Proposals aka AUTOMATIC MODE */
+        /** Check if auto-indexing is turend off - if yes, delete auto-indices */
+        select auto_indexing from xyz_config.xyz_idxs_status into is_auto_indexing where spaceid = space;
+
+        IF is_auto_indexing = false THEN
+            BEGIN
+                FOR xyz_needless_auto_idx IN
+                    SELECT idx_name, idx_property
+                    FROM xyz_index_list_all_available(schema,space)
+                    WHERE src='a'
+                        LOOP
+                            RAISE NOTICE '-- PROPERTY: % | SPACE: % |> DELETE UNWANTED AUTO-IDX: %!',xyz_needless_auto_idx.idx_property, space, xyz_needless_auto_idx.idx_name;
+                    EXECUTE FORMAT ('DROP INDEX IF EXISTS %s."%s" ', schema, xyz_needless_auto_idx.idx_name);
+                END LOOP;
+            END;
+        END IF;
+
+        /** Analyze IDX-Proposals aka AUTOMATIC MODE */
 		SELECT * FROM xyz_config.xyz_idxs_status
 			INTO xyz_space_stat
 				WHERE idx_proposals IS NOT NULL
 			AND idx_creation_finished = false
+            AND (auto_indexing IS NULL OR auto_indexing = true)
 			AND count >= 0
-			AND spaceid = space;
+			AND spaceid = space
+            AND schem = schema;
 
 		IF xyz_space_stat.idx_proposals IS NOT NULL THEN
 			RAISE NOTICE 'ANALYSE AUTOMATIC IDX PROPOSALS: % on SPACE:%', xyz_space_stat.idx_proposals, space;
@@ -903,7 +939,7 @@ $BODY$
 
 			BEGIN
 				RAISE NOTICE '--PROPERTY: % | TYPE: % | SPACE: % |> CREATE AUTOMATIC IDX!',xyz_idx_proposal.property, xyz_idx_proposal.type, space;
-				PERFORM xyz_index_creation_on_property(schema,space, xyz_idx_proposal.property,'a');
+				PERFORM xyz_index_creation_on_property(schema, space, xyz_idx_proposal.property,'a');
 
 				EXCEPTION WHEN OTHERS THEN
 					RAISE NOTICE '--PROPERTY: % | TYPE: % | SPACE: % |> IDX CREATION ERROR -> SKIP!',xyz_idx_proposal.property, xyz_idx_proposal.type, space;
@@ -915,11 +951,12 @@ $BODY$
 			SET idx_creation_finished = true,
 				idx_proposals = null,
 			    idx_available = (select jsonb_agg(FORMAT('{"property":"%s","src":"%s"}',idx_property, src)::jsonb) from (
-				select * from xyz_index_list_all_available(schema,space)
+				select * from xyz_index_list_all_available(schema, space)
 					order by idx_property
 			)b
 		)
-		WHERE spaceid = space;
+		WHERE spaceid = space
+          AND schem = schema;
 	END;
 $BODY$
   LANGUAGE plpgsql VOLATILE;
@@ -1237,6 +1274,11 @@ $BODY$
 		BEGIN
 			spaceid := xyz_spaces.spaceid;
 
+            --skip history tables
+            IF substring(spaceid,length(spaceid)-3) = '_hst' THEN
+                CONTINUE;
+            END IF;
+
 			EXECUTE format('SELECT tablesize, geometrytypes, properties, tags, count, bbox from xyz_statistic_space(''%s'',''%s'')',schema , xyz_spaces.spaceid)
 				INTO tablesize, geometrytypes, properties, tags, count, bbox;
 			RETURN NEXT;
@@ -1274,6 +1316,7 @@ $BODY$
 				WHERE idx_creation_finished = false
 					AND count > 0 --to avoid processing of spaces which are not already present (manual IDX)
 					AND count < 5000000 --temp
+					AND (auto_indexing IS NULL OR auto_indexing = true)
 		LOOP
 			BEGIN
 				IF xyz_space_stat.prop_stat != '[]'::jsonb THEN
@@ -1338,6 +1381,7 @@ $BODY$
 			  count bigint,
 			  prop_stat jsonb,
 			  idx_manual jsonb,
+              auto_indexing jsonb,
 			  CONSTRAINT xyz_idxs_status_pkey PRIMARY KEY (spaceid)
 			);
 			INSERT INTO xyz_config.xyz_idxs_status (spaceid,count) VALUES ('idx_in_progress','0');
@@ -1356,8 +1400,11 @@ $BODY$
 				    OR (
 						(COALESCE(reltuples,0) < min_table_count OR C.count IS NULL)
 						AND (idx_manual IS NULL OR idx_manual = '{}')
+                        AND auto_indexing IS NULL
 						AND C.spaceid != 'idx_in_progress'
-				    )
+                    )OR (
+                        substring(C.spaceid,length(C.spaceid)-3) = '_hst'
+                    )
 		LOOP
 			RAISE NOTICE 'Remove deleted space %',xyz_spaces.spaceid;
 			DELETE FROM xyz_config.xyz_idxs_status
@@ -2497,7 +2544,7 @@ CREATE OR REPLACE FUNCTION prj_input_validate(plist text[])
 RETURNS text[] AS
 $body$
 select array_agg( i.jpth ) from
-( with t1 as ( select unnest( plist ) jpth )
+( with t1 as ( select distinct unnest( plist ) jpth )
   select l.jpth from t1 l join t1 r on ( strpos( l.jpth, r.jpth ) = 1 )
   group by 1 having count(1) = 1
 ) i

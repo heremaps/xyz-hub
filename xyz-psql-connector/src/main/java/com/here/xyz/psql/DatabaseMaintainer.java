@@ -39,7 +39,7 @@ public class DatabaseMaintainer {
     private static final Logger logger = LogManager.getLogger();
 
     /** Is used to check against xyz_ext_version() */
-    private static final int XYZ_EXT_VERSION = 135;
+    private static final int XYZ_EXT_VERSION = 136;
 
     private DataSource dataSource;
     private PSQLConfig config;
@@ -142,7 +142,7 @@ public class DatabaseMaintainer {
                 stmt.execute(MaintenanceSQL.generateSearchPathSQL( config.getDatabaseSettings().getSchema() ));
                 stmt.execute(content);
 
-                logger.debug("{} Successfully created missing SQL-Functions on database: {} / {}@{}", traceItem, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost());
+                logger.info("{} Successfully created missing SQL-Functions on database: {} / {}@{}", traceItem, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost());
             } else {
                 logger.debug("{} All required SQL-Functions are already present on database: {} / {}@{}", traceItem, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost());
             }
