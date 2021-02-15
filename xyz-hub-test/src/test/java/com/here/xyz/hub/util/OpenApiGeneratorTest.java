@@ -22,6 +22,8 @@ package com.here.xyz.hub.util;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import com.here.xyz.hub.XYZHubRESTVerticle;
+import org.apache.commons.io.IOUtils;
 import org.junit.Test;
 
 public class OpenApiGeneratorTest {
@@ -29,6 +31,33 @@ public class OpenApiGeneratorTest {
   @Test
   public void validYamlOutputTest() throws Exception {
     byte[] result = OpenApiGenerator.generate(new byte[0], new byte[0]);
+    assertNotNull(result);
+    assertTrue("Expected result not empty", result.length > 0);
+  }
+
+  @Test
+  public void generateStableTest() throws Exception {
+    final byte[] openapiSource = IOUtils.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/openapi.yaml"));
+    final byte[] stableRecipe = IOUtils.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/recipes/openapi-recipe-stable.yaml"));
+    byte[] result = OpenApiGenerator.generate(openapiSource, stableRecipe);
+    assertNotNull(result);
+    assertTrue("Expected result not empty", result.length > 0);
+  }
+
+  @Test
+  public void generateExperimentalTest() throws Exception {
+    final byte[] openapiSource = IOUtils.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/openapi.yaml"));
+    final byte[] experimentalRecipe = IOUtils.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/recipes/openapi-recipe-experimental.yaml"));
+    byte[] result = OpenApiGenerator.generate(openapiSource, experimentalRecipe);
+    assertNotNull(result);
+    assertTrue("Expected result not empty", result.length > 0);
+  }
+
+  @Test
+  public void generateContractTest() throws Exception {
+    final byte[] openapiSource = IOUtils.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/openapi.yaml"));
+    final byte[] contractRecipe = IOUtils.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/recipes/openapi-recipe-contract.yaml"));
+    byte[] result = OpenApiGenerator.generate(openapiSource, contractRecipe);
     assertNotNull(result);
     assertTrue("Expected result not empty", result.length > 0);
   }

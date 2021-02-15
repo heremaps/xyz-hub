@@ -76,11 +76,11 @@ exclude:
   - components.schemas.Connector
 replace:
   - type: value
-    find: info.version
+    path: info.version
     replace: ${VERSION}
   - type: value
-    find: paths.'/spaces/{spaceId}/features'.post.description
+    path: paths.'/spaces/{spaceId}/features'.post.description
     replace: Create or patch features.
   - type: value
-    find: paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.description
+    path: paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.description
     replace: List the features selected by tile type and tile id.
