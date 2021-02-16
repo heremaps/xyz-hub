@@ -27,6 +27,7 @@ import com.here.xyz.hub.auth.JWTURIHandler;
 import com.here.xyz.hub.auth.JwtDummyHandler;
 import com.here.xyz.hub.auth.XyzAuthProvider;
 import com.here.xyz.hub.rest.AdminApi;
+import com.here.xyz.hub.rest.ConnectorApi;
 import com.here.xyz.hub.rest.FeatureApi;
 import com.here.xyz.hub.rest.FeatureQueryApi;
 import com.here.xyz.hub.rest.HistoryQueryApi;
@@ -105,6 +106,7 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
 
         new HealthApi(vertx, router);
         new AdminApi(vertx, router, jwtHandler);
+        new ConnectorApi(vertx, router, jwtHandler);
 
         //OpenAPI resources
         router.route("/hub/static/openapi/*").handler(createCorsHandler()).handler((routingContext -> {

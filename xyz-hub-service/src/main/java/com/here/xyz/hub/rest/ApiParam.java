@@ -90,6 +90,7 @@ public class ApiParam {
   public static class Path {
 
     public static final String SPACE_ID = "spaceId";
+    public static final String CONNECTOR_ID = "connectorId";
     static final String FEATURE_ID = "featureId";
     static final String TILE_ID = "tileId";
     static final String TILE_TYPE = "type";

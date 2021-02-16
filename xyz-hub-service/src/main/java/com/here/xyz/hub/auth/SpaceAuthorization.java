@@ -30,6 +30,8 @@ import static com.here.xyz.hub.auth.XyzHubAttributeMap.SPACE;
 import static com.here.xyz.hub.auth.XyzHubAttributeMap.STORAGE;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 
+import com.here.xyz.hub.Service;
+import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.ModifyOp;
@@ -41,9 +43,13 @@ import com.here.xyz.hub.task.TaskPipeline.Callback;
 import com.here.xyz.hub.util.diff.Difference.DiffMap;
 import com.here.xyz.hub.util.diff.Patcher;
 import com.here.xyz.models.hub.Space.Static;
+import io.vertx.core.CompositeFuture;
+import io.vertx.core.Future;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import org.checkerframework.checker.units.qual.C;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -176,22 +182,36 @@ public class SpaceAuthorization extends Authorization {
     if (isStorageEdit || isListenersEdit || isProcessorsEdit) {
       final XyzHubActionMatrix connectorsRights = new XyzHubActionMatrix();
 
+      Set<String> connectorIds = new HashSet<>();
+      List<Future> futureList = new ArrayList<>();
       //Check for storage.
-      if (isStorageEdit) {
-        connectorsRights.accessConnectors(new XyzHubAttributeMap().withValue(ID, getStorageFromInput(entry)));
-      }
+      if (isStorageEdit) connectorIds.add(getStorageFromInput(entry));
 
       //Check for listeners.
-      if (isListenersEdit) {
-        final Set<String> connectorIds = new HashSet<>(getConnectorIds(input, LISTENERS));
-        connectorIds.forEach(id -> connectorsRights.accessConnectors(XyzHubAttributeMap.forIdValues(id)));
-      }
+      if (isListenersEdit) connectorIds.addAll(getConnectorIds(input, LISTENERS));
 
       //Check for processors.
-      if (isProcessorsEdit) {
-        final Set<String> connectorIds = new HashSet<>(getConnectorIds(input, PROCESSORS));
-        connectorIds.forEach(id -> connectorsRights.accessConnectors(XyzHubAttributeMap.forIdValues(id)));
-      }
+      if (isProcessorsEdit) connectorIds.addAll(getConnectorIds(input, PROCESSORS));
+
+      connectorIds.forEach(id -> {
+        Future<Connector> f = Future.future();
+        futureList.add(f);
+        Service.connectorConfigClient.get(task.context.get("marker"), id, f.completer());
+      });
+
+      CompositeFuture.all(futureList).setHandler( compositeResult -> {
+        if (compositeResult.failed()) {
+          return;
+        }
+
+        List<Connector> connectors = compositeResult.result().list();
+        connectors.forEach(c -> {
+          if (c.owner != null)
+            connectorsRights.accessConnectors(XyzHubAttributeMap.forIdValues(c.owner, c.id));
+          else
+            connectorsRights.accessConnectors(XyzHubAttributeMap.forIdValues(c.id));
+        });
+      });
 
       if (connectorsRights.get("accessConnectors") != null && !connectorsRights.get("accessConnectors").isEmpty()) {
         task.canReadConnectorsProperties = tokenRights != null && tokenRights.matches(connectorsRights);

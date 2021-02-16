@@ -93,6 +93,20 @@ public abstract class ConnectorConfigClient implements Initializable {
     });
   }
 
+  public void getByOwner(Marker marker, String ownerId, Handler<AsyncResult<List<Connector>>> handler) {
+    getConnectorsByOwner(marker, ownerId, ar -> {
+      if (ar.succeeded()) {
+        final List<Connector> connectors = ar.result();
+        connectors.forEach(c -> cache.put(c.id, c));
+        handler.handle(Future.succeededFuture(connectors));
+      }
+      else {
+        logger.warn(marker, "storageId[{}]: Connectors for owner not found", ownerId);
+        handler.handle(Future.failedFuture(ar.cause()));
+      }
+    });
+  }
+
   public void store(Marker marker, Connector connector, Handler<AsyncResult<Connector>> handler) {
     store(marker, connector, handler, true);
   }
@@ -123,7 +137,7 @@ public abstract class ConnectorConfigClient implements Initializable {
         invalidateCache(connectorId);
         handler.handle(Future.succeededFuture(connectorResult));
       } else {
-        logger.error(marker, "storageId[{}]: Failed to store connector configuration, reason: ", connectorId, ar.cause());
+        logger.error(marker, "storageId[{}]: Failed to delete connector configuration, reason: ", connectorId, ar.cause());
         handler.handle(Future.failedFuture(ar.cause()));
       }
     });
@@ -254,6 +268,8 @@ public abstract class ConnectorConfigClient implements Initializable {
 
 
   protected abstract void getConnector(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler);
+
+  protected abstract void getConnectorsByOwner(Marker marker, String ownerId, Handler<AsyncResult<List<Connector>>> handler);
 
   protected abstract void storeConnector(Marker marker, Connector connector, Handler<AsyncResult<Connector>> handler);
 
