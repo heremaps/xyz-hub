@@ -98,6 +98,7 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
         new FeatureQueryApi(routerFactory);
         new SpaceApi(routerFactory);
         new HistoryQueryApi(routerFactory);
+        new ConnectorApi(routerFactory);
 
         final AuthHandler jwtHandler = createJWTHandler();
         routerFactory.addSecurityHandler("authToken", jwtHandler);
@@ -106,7 +107,6 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
 
         new HealthApi(vertx, router);
         new AdminApi(vertx, router, jwtHandler);
-        new ConnectorApi(vertx, router, jwtHandler);
 
         //OpenAPI resources
         router.route("/hub/static/openapi/*").handler(createCorsHandler()).handler((routingContext -> {

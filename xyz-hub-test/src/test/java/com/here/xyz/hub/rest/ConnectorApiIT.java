@@ -27,9 +27,7 @@ import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
 import static org.hamcrest.Matchers.*;
 
-public class ConnectorApiIT extends TestSpaceWithFeature {
-
-  private String cleanUpId;
+public class ConnectorApiIT extends RestAssuredTest {
 
   @After
   public void deleteConnector() {

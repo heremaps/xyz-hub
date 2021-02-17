@@ -23,17 +23,14 @@ import com.here.xyz.hub.auth.*;
 import com.here.xyz.hub.rest.admin.MessageBroker;
 import com.here.xyz.hub.task.ConnectorHandler;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
-import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.EncodeException;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
-import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.handler.AuthHandler;
+import io.vertx.ext.web.api.contract.openapi3.OpenAPI3RouterFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -47,39 +44,13 @@ import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 public class ConnectorApi extends Api {
   private static final Logger logger = LogManager.getLogger();
 
-  public static final String CONNECTOR_ENDPOINT = "/hub/connectors";
-  public static final String CONNECTOR_ENDPOINT_WITH_ID = "/hub/connectors/:connectorId";
-  private static final MessageBroker messageBroker = MessageBroker.getInstance();
-
-  public ConnectorApi(Vertx vertx, Router router, AuthHandler auth) {
-    router.route(HttpMethod.GET, CONNECTOR_ENDPOINT)
-        .handler(auth)
-        .produces(APPLICATION_JSON)
-        .handler(this::getConnectors);
-    router.route(HttpMethod.GET, CONNECTOR_ENDPOINT_WITH_ID)
-        .handler(auth)
-        .produces(APPLICATION_JSON)
-        .handler(this::getConnector);
-
-    router.route(HttpMethod.POST, CONNECTOR_ENDPOINT)
-        .consumes(APPLICATION_JSON)
-        .handler(auth)
-        .produces(APPLICATION_JSON)
-        .handler(this::createConnector);
-    router.route(HttpMethod.PUT, CONNECTOR_ENDPOINT_WITH_ID)
-        .consumes(APPLICATION_JSON)
-        .handler(auth)
-        .produces(APPLICATION_JSON)
-        .handler(this::replaceConnector);
-    router.route(HttpMethod.PATCH, CONNECTOR_ENDPOINT_WITH_ID)
-        .consumes(APPLICATION_JSON)
-        .handler(auth)
-        .produces(APPLICATION_JSON)
-        .handler(this::updateConnector);
-    router.route(HttpMethod.DELETE, CONNECTOR_ENDPOINT_WITH_ID)
-        .handler(auth)
-        .produces(APPLICATION_JSON)
-        .handler(this::deleteConnector);
+  public ConnectorApi(OpenAPI3RouterFactory routerFactory) {
+    routerFactory.addHandlerByOperationId("getConnectors", this::getConnectors);
+    routerFactory.addHandlerByOperationId("postConnector", this::createConnector);
+    routerFactory.addHandlerByOperationId("getConnector", this::getConnector);
+    routerFactory.addHandlerByOperationId("putConnector", this::replaceConnector);
+    routerFactory.addHandlerByOperationId("patchConnector", this::updateConnector);
+    routerFactory.addHandlerByOperationId("deleteConnector", this::deleteConnector);
   }
 
   private void getConnector(final RoutingContext context) {
