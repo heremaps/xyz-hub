@@ -67,15 +67,13 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
 
   static {
     try {
-      final byte[] openapiSource = IOUtils.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/openapi.yaml"));
-      final byte[] stableRecipe = IOUtils.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/recipes/openapi-recipe-stable.yaml"));
-      final byte[] experimentalRecipe = IOUtils.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/recipes/openapi-recipe-experimental.yaml"));
-      final byte[] contractRecipe = IOUtils.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/recipes/openapi-recipe-contract.yaml"));
+      final byte[] openapi = IOUtils.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/openapi.yaml"));
+      final byte[] recipes = IOUtils.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/openapi-recipes.yaml"));
 
-      FULL_API = new String(openapiSource);
-      STABLE_API = new String(generate(openapiSource, stableRecipe));
-      EXPERIMENTAL_API = new String(generate(openapiSource, experimentalRecipe));
-      CONTRACT_API = new String(generate(openapiSource, contractRecipe));
+      FULL_API = new String(openapi);
+      STABLE_API = new String(generate(openapi, recipes, "stable"));
+      EXPERIMENTAL_API = new String(generate(openapi, recipes, "experimental"));
+      CONTRACT_API = new String(generate(openapi, recipes, "contract"));
 
       final File tempFile = File.createTempFile("contract-", ".yaml");
       FileUtils.write(tempFile, CONTRACT_API);
