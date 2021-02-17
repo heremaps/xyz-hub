@@ -28,6 +28,7 @@ import com.here.xyz.hub.auth.JWTURIHandler;
 import com.here.xyz.hub.auth.JwtDummyHandler;
 import com.here.xyz.hub.auth.XyzAuthProvider;
 import com.here.xyz.hub.rest.AdminApi;
+import com.here.xyz.hub.rest.ConnectorApi;
 import com.here.xyz.hub.rest.FeatureApi;
 import com.here.xyz.hub.rest.FeatureQueryApi;
 import com.here.xyz.hub.rest.HistoryQueryApi;
@@ -104,6 +105,7 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
         new FeatureQueryApi(routerFactory);
         new SpaceApi(routerFactory);
         new HistoryQueryApi(routerFactory);
+        new ConnectorApi(routerFactory);
 
         final AuthHandler jwtHandler = createJWTHandler();
         routerFactory.addSecurityHandler("authToken", jwtHandler);

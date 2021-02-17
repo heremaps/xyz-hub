@@ -27,6 +27,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
+
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.Marker;
 
@@ -44,6 +46,12 @@ public class InMemConnectorConfigClient extends ConnectorConfigClient {
   protected void getConnector(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler) {
     Connector connector = storageMap.get(connectorId);
     handler.handle(Future.succeededFuture(connector));
+  }
+
+  @Override
+  protected void getConnectorsByOwner(Marker marker, String ownerId, Handler<AsyncResult<List<Connector>>> handler) {
+    List<Connector> connectors = storageMap.values().stream().filter(c -> c.owner.equals(ownerId)).collect(Collectors.toList());
+    handler.handle(Future.succeededFuture(connectors));
   }
 
   @Override

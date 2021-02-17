@@ -471,7 +471,7 @@ public abstract class Api {
     sendResponse(task, OK, APPLICATION_VND_MAPBOX_VECTOR_TILE, mvt);
   }
 
-  private long getMaxResponseLength(final RoutingContext context) {
+  protected long getMaxResponseLength(final RoutingContext context) {
     return XYZHttpContentCompressor.isCompressionEnabled(context.request().getHeader(ACCEPT_ENCODING)) ?
         MAX_SERVICE_RESPONSE_SIZE : MAX_HTTP_RESPONSE_SIZE;
   }

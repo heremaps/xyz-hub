@@ -1,0 +1,36 @@
+{
+  "remoteFunctions": {
+    "local": {
+      "type": "Embedded",
+      "id": "test-connector",
+      "warmUp": 0,
+      "className": "com.here.xyz.hub.connectors.test.TestStorageConnector",
+      "env": {}
+    }
+  },
+  "connectionSettings": {
+    "minConnections": 0,
+    "maxConnections": 128
+  },
+  "trusted": false,
+  "params": {
+  },
+  "contactEmails": [
+    "test@here.com"
+  ],
+  "id": "test-connector",
+  "capabilities": {
+    "searchablePropertiesConfiguration": true,
+    "clusteringTypes": [
+      "hexbin",
+      "quad",
+      "quadbin"
+    ],
+    "maxPayloadSize": 6291456,
+    "maxUncompressedSize": 1,
+    "preserializedResponseSupport": true,
+    "relocationSupport": true,
+    "enableAutoCache": true,
+    "propertySearch": true
+  }
+}
