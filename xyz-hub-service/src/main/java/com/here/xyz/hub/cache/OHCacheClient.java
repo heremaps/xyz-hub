@@ -20,10 +20,13 @@
 package com.here.xyz.hub.cache;
 
 import com.here.xyz.hub.Service;
+import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import java.nio.ByteBuffer;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.caffinitas.ohc.CacheSerializer;
 import org.caffinitas.ohc.Eviction;
 import org.caffinitas.ohc.OHCache;
@@ -31,6 +34,7 @@ import org.caffinitas.ohc.OHCacheBuilder;
 
 public class OHCacheClient implements CacheClient {
 
+  private static final Logger logger = LogManager.getLogger();
   private static OHCacheClient client;
 
   private final ScheduledExecutorService executors;
@@ -47,9 +51,14 @@ public class OHCacheClient implements CacheClient {
   }
 
   @Override
-  public void get(String key, Handler<byte[]> handler) {
-    byte[] result = cache.get(key.getBytes());
-    handler.handle(result);
+  public Future<byte[]> get(String key) {
+    try {
+      return Future.succeededFuture(cache.get(key.getBytes()));
+    }
+    catch (Throwable e) {
+      logger.warn("Error when trying to read key " + key + " from OH-cache", e);
+      return Future.succeededFuture(null);
+    }
   }
 
   @Override

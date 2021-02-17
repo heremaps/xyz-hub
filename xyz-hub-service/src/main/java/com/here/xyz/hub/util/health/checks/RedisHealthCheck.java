@@ -77,7 +77,7 @@ public class RedisHealthCheck extends ExecutableCheck {
 		//Try getting the value back
 		lastReceivedValue = null;
 		try {
-			client.get(HC_CACHE_KEY, result -> {
+			client.get(HC_CACHE_KEY).onSuccess(result -> {
 				lastReceivedValue = result;
 				synchronized (this) {
 					this.notify();

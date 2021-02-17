@@ -19,14 +19,13 @@
 
 package com.here.xyz.hub.cache;
 
-import io.vertx.core.Handler;
+import io.vertx.core.Future;
 
 public class NoopCacheClient implements CacheClient {
 
 	@Override
-	public void get(String key, Handler<byte[]> handler) {
-		handler.handle(null);
-		return;
+	public Future<byte[]> get(String key) {
+		return Future.succeededFuture(null);
 	}
 
 	@Override

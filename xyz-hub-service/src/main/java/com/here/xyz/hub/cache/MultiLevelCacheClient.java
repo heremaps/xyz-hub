@@ -19,7 +19,7 @@
 
 package com.here.xyz.hub.cache;
 
-import io.vertx.core.Handler;
+import io.vertx.core.Future;
 import java.util.Arrays;
 import java.util.List;
 
@@ -32,24 +32,24 @@ public class MultiLevelCacheClient implements CacheClient {
   }
 
   @Override
-  public void get(String key, Handler<byte[]> handler) {
-    _get(0, key, handler);
+  public Future<byte[]> get(String key) {
+    return get(0, key);
   }
 
-  public void _get(final int i, final String key, final Handler<byte[]> handler) {
-    clients.get(i).get(key, result -> {
+  private Future<byte[]> get(final int i, final String key) {
+    return clients.get(i).get(key).compose(result -> {
       if (result == null) {
-        if (clients.size() > i + 1) {
-          _get(i + 1, key, handler);
-        } else {
-          handler.handle(null);
-        }
-      } else {
+        if (clients.size() > i + 1)
+          return get(i + 1, key);
+        else
+          return Future.succeededFuture(null);
+      }
+      else {
         int j = i;
         while (--j >= 0) {
           clients.get(j).set(key, result, Integer.MAX_VALUE);
         }
-        handler.handle(result);
+        return Future.succeededFuture(result);
       }
     });
   }

@@ -337,7 +337,7 @@ public class FeatureTaskHandler {
       String cacheKey = task.getCacheKey();
 
       //Check the cache
-      Service.cacheClient.get(cacheKey, cacheResult -> {
+      Service.cacheClient.get(cacheKey).onSuccess(cacheResult -> {
         if (cacheResult == null) {
           //Cache MISS: Just go on in the task pipeline
           addStreamInfo(task, "CH=0;");
