@@ -107,6 +107,7 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
 
         new HealthApi(vertx, router);
         new AdminApi(vertx, router, jwtHandler);
+        new ConnectorApi(vertx, router, jwtHandler);
 
         //OpenAPI resources
         router.route("/hub/static/openapi/*").handler(createCorsHandler()).handler((routingContext -> {
