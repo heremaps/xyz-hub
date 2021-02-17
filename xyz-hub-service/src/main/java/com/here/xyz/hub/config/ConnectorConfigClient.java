@@ -57,6 +57,8 @@ public abstract class ConnectorConfigClient implements Initializable {
 
   private static final Logger logger = LogManager.getLogger();
 
+  private static final String ANONYMOUS_OWNER = "ANONYMOUS";
+
   public static final ExpiringMap<String, Connector> cache = ExpiringMap.builder()
       .expirationPolicy(ExpirationPolicy.CREATED)
       .expiration(3, TimeUnit.MINUTES)
@@ -83,6 +85,8 @@ public abstract class ConnectorConfigClient implements Initializable {
     getConnector(marker, connectorId, ar -> {
       if (ar.succeeded()) {
         final Connector connector = ar.result();
+        if (connector.owner != null && connector.owner.equals(ANONYMOUS_OWNER))
+          connector.owner = null;
         cache.put(connectorId, connector);
         handler.handle(Future.succeededFuture(connector));
       }
@@ -97,7 +101,11 @@ public abstract class ConnectorConfigClient implements Initializable {
     getConnectorsByOwner(marker, ownerId, ar -> {
       if (ar.succeeded()) {
         final List<Connector> connectors = ar.result();
-        connectors.forEach(c -> cache.put(c.id, c));
+        connectors.forEach(c -> {
+          if (c.owner != null && c.owner.equals(ANONYMOUS_OWNER))
+            c.owner = null;
+          cache.put(c.id, c);
+        });
         handler.handle(Future.succeededFuture(connectors));
       }
       else {
@@ -115,10 +123,15 @@ public abstract class ConnectorConfigClient implements Initializable {
     if (connector.id == null) {
       connector.id = RandomStringUtils.randomAlphanumeric(10);
     }
+    if (connector.owner == null) {
+      connector.owner = ANONYMOUS_OWNER;
+    }
 
     storeConnector(marker, connector, ar -> {
       if (ar.succeeded()) {
         final Connector connectorResult = ar.result();
+        if (connectorResult.owner != null && connectorResult.owner.equals(ANONYMOUS_OWNER))
+          connectorResult.owner = null;
         if (withInvalidation) {
           invalidateCache(connector.id);
         }
@@ -134,6 +147,8 @@ public abstract class ConnectorConfigClient implements Initializable {
     deleteConnector(marker, connectorId, ar -> {
       if (ar.succeeded()) {
         final Connector connectorResult = ar.result();
+        if (connectorResult.owner != null && connectorResult.owner.equals(ANONYMOUS_OWNER))
+          connectorResult.owner = null;
         invalidateCache(connectorId);
         handler.handle(Future.succeededFuture(connectorResult));
       } else {
@@ -147,7 +162,11 @@ public abstract class ConnectorConfigClient implements Initializable {
     getAllConnectors(marker, ar -> {
       if (ar.succeeded()) {
         final List<Connector> connectors = ar.result();
-        connectors.forEach(c -> cache.put(c.id, c));
+        connectors.forEach(c -> {
+          if (c.owner != null && c.owner.equals(ANONYMOUS_OWNER))
+            c.owner = null;
+          cache.put(c.id, c);
+        });
         handler.handle(Future.succeededFuture(connectors));
       } else {
         logger.error(marker, "Failed to load connectors, reason: ", ar.cause());

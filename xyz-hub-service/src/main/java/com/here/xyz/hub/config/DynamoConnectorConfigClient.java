@@ -19,11 +19,14 @@
 
 package com.here.xyz.hub.config;
 
+import com.amazonaws.services.dynamodbv2.document.DeleteItemOutcome;
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.QueryOutcome;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.internal.PageIterable;
+import com.amazonaws.services.dynamodbv2.document.spec.DeleteItemSpec;
 import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
+import com.amazonaws.services.dynamodbv2.model.ReturnValue;
 import com.here.xyz.hub.connectors.models.Connector;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -51,7 +54,7 @@ public class DynamoConnectorConfigClient extends ConnectorConfigClient {
   @Override
   public void init(Handler<AsyncResult<Void>> onReady) {
     if (dynamoClient.isLocal()) {
-      dynamoClient.createTable(connectors.getTableName(), "id:S", "id", null, null);
+      dynamoClient.createTable(connectors.getTableName(), "id:S,owner:S", "id", "owner", null);
     }
 
     onReady.handle(Future.succeededFuture());
@@ -137,7 +140,7 @@ public class DynamoConnectorConfigClient extends ConnectorConfigClient {
             handler.handle(Future.failedFuture("Error while storing connector."));
           }
           else {
-            handler.handle(Future.succeededFuture());
+            handler.handle(Future.succeededFuture(connector));
           }
         }
     );
@@ -149,8 +152,11 @@ public class DynamoConnectorConfigClient extends ConnectorConfigClient {
     DynamoClient.dynamoWorkers.executeBlocking(
         future -> {
           try {
-            connectors.deleteItem("id", connectorId);
-            future.complete();
+            DeleteItemSpec deleteItemSpec = new DeleteItemSpec()
+                .withPrimaryKey("id", connectorId)
+                .withReturnValues(ReturnValue.ALL_OLD);
+            DeleteItemOutcome response = connectors.deleteItem(deleteItemSpec);
+            future.complete(Json.decodeValue(response.getItem().toJSON(), Connector.class));
           }
           catch (Exception e) {
             future.fail(e);
@@ -162,7 +168,7 @@ public class DynamoConnectorConfigClient extends ConnectorConfigClient {
             handler.handle(Future.failedFuture("Error while deleting connector."));
           }
           else {
-            handler.handle(Future.succeededFuture());
+            handler.handle(Future.succeededFuture((Connector) ar.result()));
           }
         }
     );
