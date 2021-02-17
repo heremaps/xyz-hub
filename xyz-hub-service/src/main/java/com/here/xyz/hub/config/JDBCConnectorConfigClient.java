@@ -29,9 +29,13 @@ import io.vertx.core.Handler;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.ext.sql.SQLClient;
+
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -84,9 +88,35 @@ public class JDBCConnectorConfigClient extends ConnectorConfigClient {
   }
 
   @Override
+  protected void getConnectorsByOwner(Marker marker, String ownerId, Handler<AsyncResult<List<Connector>>> handler) {
+    final SQLQuery query = new SQLQuery(String.format("SELECT config FROM %s WHERE owner = ?", CONNECTOR_TABLE), ownerId);
+    client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
+      if (out.succeeded()) {
+        final Stream<String> config = out.result().getRows().stream().map(r -> r.getString("config"));
+        List<Connector> result = new ArrayList<>();
+        config.forEach(c -> {
+          if (c != null) {
+            final Connector connector = Json.decodeValue(c, Connector.class);
+            result.add(connector);
+            logger.debug(marker, "ownerId[{}]: Loaded connectors from the database.", ownerId);
+          }
+        });
+        handler.handle(Future.succeededFuture(result));
+
+      } else {
+        logger.debug(marker, "ownerId[{}]: Failed to load configurations, reason: ", ownerId, out.cause());
+        handler.handle(Future.failedFuture(out.cause()));
+      }
+    });
+  }
+
+  @Override
   protected void storeConnector(Marker marker, Connector connector, Handler<AsyncResult<Connector>> handler) {
-    final SQLQuery query = new SQLQuery(String.format("INSERT INTO %s(id, config) VALUES (?, cast(? as JSONB))", CONNECTOR_TABLE),
-        connector.id, Json.encode(connector));
+    final SQLQuery query = new SQLQuery(String.format("INSERT INTO %s(id, owner, config) VALUES (?, ?, cast(? as JSONB)) " +
+        "ON CONFLICT (id) DO " +
+        "UPDATE SET id = ?, owner = ?, config = cast(? as JSONB)", CONNECTOR_TABLE),
+        connector.id, connector.owner, Json.encode(connector),
+        connector.id, connector.owner, Json.encode(connector));
     updateWithParams(connector, query, handler);
   }
 
@@ -97,6 +127,7 @@ public class JDBCConnectorConfigClient extends ConnectorConfigClient {
       if (ar.succeeded()) {
         updateWithParams(ar.result(), query, handler);
       } else {
+        logger.error(ar.cause());
         handler.handle(Future.failedFuture(ar.cause()));
       }
     });

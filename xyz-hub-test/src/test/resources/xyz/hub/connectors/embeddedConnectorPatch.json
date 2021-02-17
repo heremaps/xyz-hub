@@ -1,0 +1,9 @@
+{
+  "contactEmails": [
+    "newEmail@here.com"
+  ],
+  "id": "test-connector",
+  "capabilities": {
+    "preserializedResponseSupport": false
+  }
+}

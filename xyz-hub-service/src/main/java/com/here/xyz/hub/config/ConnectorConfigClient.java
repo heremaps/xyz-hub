@@ -57,6 +57,8 @@ public abstract class ConnectorConfigClient implements Initializable {
 
   private static final Logger logger = LogManager.getLogger();
 
+  private static final String ANONYMOUS_OWNER = "ANONYMOUS";
+
   public static final ExpiringMap<String, Connector> cache = ExpiringMap.builder()
       .expirationPolicy(ExpirationPolicy.CREATED)
       .expiration(3, TimeUnit.MINUTES)
@@ -83,11 +85,31 @@ public abstract class ConnectorConfigClient implements Initializable {
     getConnector(marker, connectorId, ar -> {
       if (ar.succeeded()) {
         final Connector connector = ar.result();
+        if (connector.owner != null && connector.owner.equals(ANONYMOUS_OWNER))
+          connector.owner = null;
         cache.put(connectorId, connector);
         handler.handle(Future.succeededFuture(connector));
       }
       else {
         logger.warn(marker, "storageId[{}]: Connector not found", connectorId);
+        handler.handle(Future.failedFuture(ar.cause()));
+      }
+    });
+  }
+
+  public void getByOwner(Marker marker, String ownerId, Handler<AsyncResult<List<Connector>>> handler) {
+    getConnectorsByOwner(marker, ownerId, ar -> {
+      if (ar.succeeded()) {
+        final List<Connector> connectors = ar.result();
+        connectors.forEach(c -> {
+          if (c.owner != null && c.owner.equals(ANONYMOUS_OWNER))
+            c.owner = null;
+          cache.put(c.id, c);
+        });
+        handler.handle(Future.succeededFuture(connectors));
+      }
+      else {
+        logger.warn(marker, "storageId[{}]: Connectors for owner not found", ownerId);
         handler.handle(Future.failedFuture(ar.cause()));
       }
     });
@@ -101,10 +123,15 @@ public abstract class ConnectorConfigClient implements Initializable {
     if (connector.id == null) {
       connector.id = RandomStringUtils.randomAlphanumeric(10);
     }
+    if (connector.owner == null) {
+      connector.owner = ANONYMOUS_OWNER;
+    }
 
     storeConnector(marker, connector, ar -> {
       if (ar.succeeded()) {
         final Connector connectorResult = ar.result();
+        if (connectorResult.owner != null && connectorResult.owner.equals(ANONYMOUS_OWNER))
+          connectorResult.owner = null;
         if (withInvalidation) {
           invalidateCache(connector.id);
         }
@@ -120,10 +147,12 @@ public abstract class ConnectorConfigClient implements Initializable {
     deleteConnector(marker, connectorId, ar -> {
       if (ar.succeeded()) {
         final Connector connectorResult = ar.result();
+        if (connectorResult.owner != null && connectorResult.owner.equals(ANONYMOUS_OWNER))
+          connectorResult.owner = null;
         invalidateCache(connectorId);
         handler.handle(Future.succeededFuture(connectorResult));
       } else {
-        logger.error(marker, "storageId[{}]: Failed to store connector configuration, reason: ", connectorId, ar.cause());
+        logger.error(marker, "storageId[{}]: Failed to delete connector configuration, reason: ", connectorId, ar.cause());
         handler.handle(Future.failedFuture(ar.cause()));
       }
     });
@@ -133,7 +162,11 @@ public abstract class ConnectorConfigClient implements Initializable {
     getAllConnectors(marker, ar -> {
       if (ar.succeeded()) {
         final List<Connector> connectors = ar.result();
-        connectors.forEach(c -> cache.put(c.id, c));
+        connectors.forEach(c -> {
+          if (c.owner != null && c.owner.equals(ANONYMOUS_OWNER))
+            c.owner = null;
+          cache.put(c.id, c);
+        });
         handler.handle(Future.succeededFuture(connectors));
       } else {
         logger.error(marker, "Failed to load connectors, reason: ", ar.cause());
@@ -254,6 +287,8 @@ public abstract class ConnectorConfigClient implements Initializable {
 
 
   protected abstract void getConnector(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler);
+
+  protected abstract void getConnectorsByOwner(Marker marker, String ownerId, Handler<AsyncResult<List<Connector>>> handler);
 
   protected abstract void storeConnector(Marker marker, Connector connector, Handler<AsyncResult<Connector>> handler);
 
