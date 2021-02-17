@@ -419,11 +419,11 @@ public class RpcClient {
     Service.vertx.executeBlocking(
         future -> {
           try {
-            InputStream input = relocationClient.processRelocatedEvent(relocatedEvent);
+            InputStream input = relocationClient.processRelocatedEvent(relocatedEvent, getConnector().getRemoteFunction().getRegion());
             future.complete(ByteStreams.toByteArray(input));
           }
           catch (Exception e) {
-            logger.error("An error when processing a relocated response.", e);
+            logger.error("An error occurred when processing a relocated response.", e);
             future.fail(new HttpException(BAD_GATEWAY, "Unable to load the relocated event.", e));
           }
         },
