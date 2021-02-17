@@ -48,8 +48,11 @@ public class RelocationClient {
     this.bucket = bucket;
   }
 
-  private AmazonS3 getS3client(AmazonS3URI forUri) {
-    String region = forUri.getRegion() != null ? forUri.getRegion() : System.getenv("AWS_REGION");
+  private AmazonS3 getS3Client() {
+    return getS3Client(null);
+  }
+
+  private AmazonS3 getS3Client(String region) {
     if (region == null) {
       if (defaultS3Client == null)
         defaultS3Client = getS3ClientBuilder()
@@ -97,13 +100,25 @@ public class RelocationClient {
   }
 
   /**
-   * Returns the input stream of the relocated event.
+   * Returns the input stream of the original event after unwrapping the relocated event.
    *
    * @param event the relocation event.
-   * @return the input stream of the real event
+   * @return the input stream of the original event
    * @throws ErrorResponseException when any error occurred
    */
   public InputStream processRelocatedEvent(RelocatedEvent event) throws ErrorResponseException {
+    return processRelocatedEvent(event, null);
+  }
+
+  /**
+   * Returns the input stream of the original event after unwrapping the relocated event.
+   *
+   * @param event the relocation event.
+   * @param region if not null, the region from where to download the original content
+   * @return the input stream of the original event
+   * @throws ErrorResponseException when any error occurred
+   */
+  public InputStream processRelocatedEvent(RelocatedEvent event, String region) throws ErrorResponseException {
     if (event.getURI() == null && event.getLocation() != null) {
       event.setURI(createS3Uri(bucket, S3_PATH + event.getLocation()));
       logger.warn("{}, the RelocatedEvent returned by the connector still uses the deprecated \"location\" field."
@@ -112,7 +127,7 @@ public class RelocationClient {
     logger.debug("{}, Found relocation event, loading original event from '{}'", event.getStreamId(), event.getURI());
 
     if (event.getURI().startsWith("s3://") || event.getURI().startsWith("http")) {
-      return downloadFromS3(new AmazonS3URI(event.getURI()));
+      return downloadFromS3(new AmazonS3URI(event.getURI()), region);
     }
 
     throw new ErrorResponseException(event.getStreamId(), XyzError.ILLEGAL_ARGUMENT, "Unsupported URI type");
@@ -121,8 +136,9 @@ public class RelocationClient {
   /**
    * Downloads the file from S3.
    */
-  public InputStream downloadFromS3(AmazonS3URI amazonS3URI) {
-    return getS3client(amazonS3URI).getObject(amazonS3URI.getBucket(), amazonS3URI.getKey()).getObjectContent();
+  public InputStream downloadFromS3(AmazonS3URI amazonS3URI, String region) {
+    String downloadRegion = region != null ? region : amazonS3URI.getRegion();
+    return getS3Client(downloadRegion).getObject(amazonS3URI.getBucket(), amazonS3URI.getKey()).getObjectContent();
   }
 
   /**
@@ -131,7 +147,7 @@ public class RelocationClient {
   private void uploadToS3(AmazonS3URI amazonS3URI, byte[] content) {
     ObjectMetadata metaData = new ObjectMetadata();
     metaData.setContentLength(content.length);
-    getS3client(amazonS3URI).putObject(amazonS3URI.getBucket(), amazonS3URI.getKey(), new ByteArrayInputStream(content), metaData);
+    this.getS3Client().putObject(amazonS3URI.getBucket(), amazonS3URI.getKey(), new ByteArrayInputStream(content), metaData);
   }
 
   private String createS3Uri(String bucket, String key) {
