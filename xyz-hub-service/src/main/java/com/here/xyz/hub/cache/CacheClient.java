@@ -19,11 +19,11 @@
 
 package com.here.xyz.hub.cache;
 
-import io.vertx.core.Handler;
+import io.vertx.core.Future;
 
 public interface CacheClient {
 
-	void get(String key, Handler<byte[]> handler);
+	Future<byte[]> get(String key);
 
 	/**
 	 *

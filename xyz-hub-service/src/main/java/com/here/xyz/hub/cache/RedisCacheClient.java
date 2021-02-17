@@ -20,7 +20,7 @@
 package com.here.xyz.hub.cache;
 
 import com.here.xyz.hub.Service;
-import io.vertx.core.Handler;
+import io.vertx.core.Future;
 import io.vertx.core.net.NetClientOptions;
 import io.vertx.redis.client.Command;
 import io.vertx.redis.client.Redis;
@@ -77,14 +77,13 @@ public class RedisCacheClient implements CacheClient {
   }
 
   @Override
-  public void get(String key, Handler<byte[]> handler) {
+  public Future<byte[]> get(String key) {
     Request req = Request.cmd(Command.GET).arg(key);
-    getClient().send(req).onComplete(ar -> {
-      if (ar.failed()) {
-        //logger.warn("Error when trying to read key " + key + " from redis cache", ar.cause());
-      }
-      handler.handle(ar.result() == null ? null : ar.result().toBytes());
-    });
+    return getClient().send(req)
+        .compose(response -> Future.succeededFuture(response == null ? null : response.toBytes()), t -> {
+          logger.warn("Error when trying to read key " + key + " from redis cache", t);
+          return Future.succeededFuture(null);
+        });
   }
 
   @Override
