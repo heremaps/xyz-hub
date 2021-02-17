@@ -32,6 +32,7 @@ import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLamb
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.admin.Node;
+import com.here.xyz.hub.util.ARN;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.List;
@@ -281,10 +282,16 @@ public class Connector {
      * The ID of this remote function.
      */
     public String id;
+
     /**
      * The number of containers to keep warmed up.
      */
     public int warmUp;
+
+    @JsonIgnore
+    public String getRegion() {
+      return null;
+    }
 
     @Override
     public boolean equals(Object o) {
@@ -311,6 +318,12 @@ public class Connector {
        * See: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_terms-and-concepts.html#delegation
        */
       public String roleARN;
+
+      @JsonIgnore
+      @Override
+      public String getRegion() {
+        return new ARN(lambdaARN).getRegion();
+      }
 
       @Override
       public boolean equals(Object o) {
