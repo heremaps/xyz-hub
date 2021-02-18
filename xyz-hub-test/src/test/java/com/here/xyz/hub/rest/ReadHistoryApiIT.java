@@ -30,6 +30,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNotEquals;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
@@ -521,6 +524,75 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
     FeatureCollection fc = XyzSerializable.deserialize(body);
     checkFeatureListContent(fc.getFeatures(), false);
     assertEquals(1500, fc.getFeatures().size());
+  }
+
+  @Test
+  public void checkRootPropertyAndNullGeometry() throws JsonProcessingException {
+    FeatureCollection fe = XyzSerializable.deserialize("{\"type\": \"FeatureCollection\", \"features\" : [{\"id\": \"ID1234\", \"type\": \"Feature\", \"f_root\" : \"bar\", \"properties\":{\"f\":1}}]}");
+    /** got written in v15 */
+
+    ValidatableResponse response = given().
+            accept(APPLICATION_GEO_JSON).
+            contentType(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            body(fe.serialize()).
+            when().
+            post("/spaces/x-psql-test/features").
+            then().
+            statusCode(OK.code());
+
+    /** Check CompactChangeset */
+    String body =
+            given().
+                    accept(APPLICATION_VND_HERE_COMPACT_CHANGESET).
+                    headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+                    when().
+                    get("/spaces/x-psql-test/history?startVersion=15").
+                    getBody().asString();
+
+    CompactChangeset compactC = XyzSerializable.deserialize(body);
+    assertNotNull(compactC.getInserted());
+    assertEquals(1,compactC.getInserted().getFeatures().size());
+    assertNull(compactC.getInserted().getFeatures().get(0).getGeometry());
+    assertNotEquals(-1,XyzSerializable.serialize(compactC.getInserted().getFeatures().get(0)).indexOf("f_root"));
+
+    /** Check ChangesetCollection */
+    body =
+            given().
+                    accept(APPLICATION_VND_HERE_CHANGESET_COLLECTION).
+                    headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+                    when().
+                    get("/spaces/x-psql-test/history?startVersion=15").
+                    getBody().asString();
+
+    ChangesetCollection changeCol = XyzSerializable.deserialize(body);
+    assertNotNull(changeCol.getVersions().get(15));
+    assertNotNull(changeCol.getVersions().get(15).getInserted());
+    assertEquals(1,changeCol.getVersions().get(15).getInserted().getFeatures().size());
+    assertNull(changeCol.getVersions().get(15).getInserted().getFeatures().get(0).getGeometry());
+    assertNotEquals(-1,XyzSerializable.serialize(changeCol.getVersions().get(15).getInserted().getFeatures().get(0)).indexOf("f_root"));
+
+    /** Check Iteration over version */
+    body =
+            given().
+                    accept(APPLICATION_GEO_JSON).
+                    headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+                    when().
+                    get("/spaces/x-psql-test/iterate?version=15").
+                    getBody().asString();
+
+    FeatureCollection fc = XyzSerializable.deserialize(body);
+
+    assertNotNull(fc.getFeatures());
+    boolean foundFeature=false;
+    for (Feature f : fc.getFeatures()){
+      if(f.getId().equalsIgnoreCase("ID1234")){
+        assertNull(f.getGeometry());
+        assertNotEquals(-1, XyzSerializable.serialize(f).indexOf("f_root"));
+        foundFeature=true;
+      }
+    }
+    assertTrue(foundFeature);
   }
 
   public void writeFeatures(int totalCount, int chunksize, int startId, boolean free){
