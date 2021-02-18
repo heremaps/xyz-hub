@@ -648,9 +648,10 @@ public class SQLQueryBuilder {
     }
 
     public static SQLQuery buildHistoryQuery(IterateHistoryEvent event) {
-        SQLQuery query = new SQLQuery("SELECT operation, version, vid, (SELECT row_to_json(_) from (select f.type, f.id, f.geometry, f.properties) as _) As feature " +
-                "FROM ( " +
-                "   SELECT 'Feature' As type," +
+        SQLQuery query = new SQLQuery(
+                "SELECT vid," +
+                "   jsondata->>'id' as id," +
+                "   jsondata || jsonb_strip_nulls(jsonb_build_object('geometry',ST_AsGeoJSON(geo)::jsonb)) As feature,"+
                 "   ( CASE " +
                 "      WHEN (COALESCE((jsondata->'properties'->'@ns:com:here:xyz'->>'deleted')::boolean, false) IS true) THEN 'DELETED'" +
                 "      WHEN (jsondata->'properties'->'@ns:com:here:xyz'->'puuid' IS NULL" +
@@ -658,12 +659,8 @@ public class SQLQueryBuilder {
                 "          (COALESCE((jsondata->'properties'->'@ns:com:here:xyz'->>'deleted')::boolean, false) IS NOT true)" +
                 "      ) THEN 'INSERTED'" +
                 "      ELSE 'UPDATED' " +
-                "   END) as operation, " +
-                "   jsondata->'properties'->'@ns:com:here:xyz'->>'version' as version," +
-                "   ST_AsGeoJSON(geo)::json As geometry," +
-                "   jsondata->>'id' as id," +
-                "   vid,"+
-                "   jsondata->'properties' as properties" +
+                "   END) as operation," +
+                "   jsondata->'properties'->'@ns:com:here:xyz'->>'version' as version" +
                 "       FROM ${schema}.${hsttable}" +
                 "           WHERE 1=1");
 
@@ -684,16 +681,15 @@ public class SQLQueryBuilder {
 
         if(event.getLimit() != 0)
             query.append("LIMIT ?", event.getLimit());
-        query.append(") as f");
 
         return query;
     }
 
     public static SQLQuery buildSquashHistoryQuery(IterateHistoryEvent event){
-        SQLQuery query = new SQLQuery("SELECT operation, version, (SELECT row_to_json(_) from (select f.type, f.id, f.geometry, f.properties) as _) As feature, id " +
-                "FROM ( " +
-                "   SELECT distinct ON (jsondata->>'id') jsondata->>'id'," +
-                "   'Feature' As type," +
+        SQLQuery query = new SQLQuery(
+                "SELECT distinct ON (jsondata->>'id') jsondata->>'id'," +
+                "   jsondata->>'id' as id," +
+                "   jsondata || jsonb_strip_nulls(jsonb_build_object('geometry',ST_AsGeoJSON(geo)::jsonb)) As feature,"+
                 "   ( CASE " +
                 "      WHEN (COALESCE((jsondata->'properties'->'@ns:com:here:xyz'->>'deleted')::boolean, false) IS true) THEN 'DELETED'" +
                 "      WHEN (jsondata->'properties'->'@ns:com:here:xyz'->'puuid' IS NULL" +
@@ -702,10 +698,7 @@ public class SQLQueryBuilder {
                 "      ) THEN 'INSERTED'" +
                 "      ELSE 'UPDATED' " +
                 "   END) as operation, " +
-                "   jsondata->'properties'->'@ns:com:here:xyz'->>'version' as version," +
-                "   ST_AsGeoJSON(geo)::json As geometry," +
-                "   jsondata->>'id' as id," +
-                "   jsondata->'properties' as properties" +
+                "   jsondata->'properties'->'@ns:com:here:xyz'->>'version' as version" +
                 "       FROM ${schema}.${hsttable}" +
                 "           WHERE 1=1");
 
@@ -729,8 +722,6 @@ public class SQLQueryBuilder {
 
         if(event.getLimit() != 0)
             query.append("LIMIT ?", event.getLimit());
-
-        query.append(") as f");
 
         return query;
     }
