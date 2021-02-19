@@ -56,7 +56,7 @@ exclude:
   - components.schemas.OnMergeConflict
   - components.schemas.Connector
 include:
-  - key: components.parameters
+  - path: components.parameters
     value:
       Version:
         name: version
