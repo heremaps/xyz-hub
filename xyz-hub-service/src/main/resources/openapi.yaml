@@ -606,6 +606,10 @@ paths:
       tags:
         - Read Features
       summary: Get features with radius search
+      description: |
+        List the features which are inside the specified radius.
+        The origin radius point is calculated based either on latitude & longitude or by
+        specifying a features geometry.
       operationId: getFeaturesBySpatial
       parameters:
         - $ref: '#/components/parameters/SpaceId'
