@@ -27,6 +27,7 @@ recipes:
       - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*ConflictResolution$
       - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*Transactional$
       - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*PrefixId$
+      - paths.'/spaces/{spaceId}/features'.delete.parameters.$ref~=^.*TagList$
       - paths.'/spaces/{spaceId}/bbox'.get.parameters.$ref~=^.*Tweaks$
       - paths.'/spaces/{spaceId}/bbox'.get.parameters.$ref~=^.*TweaksParams$
       - paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.parameters.$ref~=^.*Tweaks$
@@ -97,6 +98,7 @@ recipes:
   - name: experimental
     extends: base
     exclude:
+      - paths.'/spaces/{spaceId}/features'.delete.parameters.$ref~=^.*TagList$
       - paths.'/spaces/{spaceId}/count'
       - components.responses.CountFeaturesResponse
       - components.schemas.CountResponse
