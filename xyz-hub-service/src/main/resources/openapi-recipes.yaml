@@ -18,7 +18,7 @@ recipes:
       - paths.'/spaces/{spaceId}/search'.get.parameters.$ref~=^.*TagList$
       - components.parameters.TagList
   - name: stable
-    extends: no-taglist
+    extends: base
     exclude:
       - paths.'/spaces'.get.parameters.name=includeConnectors
       - paths.'/spaces'.get.parameters.name=contentUpdatedAt
@@ -29,7 +29,6 @@ recipes:
       - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*PrefixId$
       - paths.'/spaces/{spaceId}/bbox'.get.parameters.$ref~=^.*Tweaks$
       - paths.'/spaces/{spaceId}/bbox'.get.parameters.$ref~=^.*TweaksParams$
-      - paths.'/spaces/{spaceId}/bbox'.get.parameters.$ref~=^.*TagList$
       - paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.parameters.$ref~=^.*Tweaks$
       - paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.parameters.$ref~=^.*TweaksParams$
       - paths.'/spaces/{spaceId}/history'
@@ -85,7 +84,7 @@ recipes:
         path: paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.description
         replace: ${get-tile-description}
   - name: experimental
-    extends: no-taglist
+    extends: base
     exclude:
       - paths.'/spaces/{spaceId}/count'
       - components.responses.CountFeaturesResponse
