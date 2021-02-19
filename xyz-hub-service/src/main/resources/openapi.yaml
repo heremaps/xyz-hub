@@ -2401,7 +2401,7 @@ components:
                 minItems: 4
     Space:
       type: object
-      description: A space declaration.
+      description: A data holder for features which points to a persistent storage.
       properties:
         id:
           description: >-
