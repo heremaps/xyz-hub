@@ -1,0 +1,28 @@
+---
+name: Data Hub API - Experimental
+exclude:
+  - paths.'/spaces/{spaceId}/features'.put.parameters.$ref~=^.*AddTags$
+  - paths.'/spaces/{spaceId}/features'.put.parameters.$ref~=^.*RemoveTags$
+  - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*AddTags$
+  - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*RemoveTags$
+  - paths.'/spaces/{spaceId}/features'.delete.parameters.$ref~=^.*TagList$
+  - paths.'/spaces/{spaceId}/features/{featureId}'.put.parameters.$ref~=^.*AddTags$
+  - paths.'/spaces/{spaceId}/features/{featureId}'.put.parameters.$ref~=^.*RemoveTags$
+  - paths.'/spaces/{spaceId}/features/{featureId}'.patch.parameters.$ref~=^.*AddTags$
+  - paths.'/spaces/{spaceId}/features/{featureId}'.patch.parameters.$ref~=^.*RemoveTags$
+  - paths.'/spaces/{spaceId}/bbox'.get.parameters.$ref~=^.*TagList$
+  - paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.parameters.$ref~=^.*TagList$
+  - paths.'/spaces/{spaceId}/spatial'.get.parameters.$ref~=^.*TagList$
+  - paths.'/spaces/{spaceId}/spatial'.post.parameters.$ref~=^.*TagList$
+  - paths.'/spaces/{spaceId}/search'.get.parameters.$ref~=^.*TagList$
+  - paths.'/spaces/{spaceId}/count'
+  - components.parameters.AddTags
+  - components.parameters.RemoveTags
+  - components.parameters.TagList
+  - components.responses.CountFeaturesResponse
+  - components.schemas.CountResponse
+  - components.schemas.Space.properties.tags
+replace:
+  - type: value
+    path: info.version
+    replace: ${VERSION}

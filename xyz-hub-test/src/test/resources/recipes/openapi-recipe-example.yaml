@@ -1,0 +1,101 @@
+---
+name: Data Hub API - Stable
+exclude:
+  - paths.'/spaces'.get.parameters.name=includeConnectors
+  - paths.'/spaces'.get.parameters.name=contentUpdatedAt
+  - paths.'/spaces/{spaceId}/features'.post.description
+  - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*IfExists$
+  - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*IfNotExists$
+  - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*ConflictResolution$
+  - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*Transactional$
+  - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*PrefixId$
+  - paths.'/spaces/{spaceId}/bbox'.get.parameters.$ref~=^.*Tweaks$
+  - paths.'/spaces/{spaceId}/bbox'.get.parameters.$ref~=^.*TweaksParams$
+  - paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.description
+  - paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.parameters.$ref~=^.*Tweaks$
+  - paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.parameters.$ref~=^.*TweaksParams$
+  - paths.'/spaces/{spaceId}/history'
+  - paths.'/spaces/{spaceId}/history/statistics'
+  - components.parameters.IfExists
+  - components.parameters.IfNotExists
+  - components.parameters.ConflictResolution
+  - components.parameters.NextPageToken
+  - components.parameters.V
+  - components.parameters.VStart
+  - components.parameters.VEnd
+  - components.parameters.NextPageToken
+  - components.parameters.Tweaks
+  - components.parameters.TweaksParams
+  - components.parameters.PrefixId
+  - components.parameters.Transactional
+  - components.responses.HistoryResponse
+  - components.responses.TileResponse.content.'application/vnd.mapbox-vector-tile'
+  - components.responses.SpaceResponse.content.'application/geo+json'
+  - components.requestBodies.FeatureCollectionOrFeatureModificationList.content.'application/vnd.here.feature-modification-list'
+  - components.schemas.CacheProfile
+  - components.schemas.Space.enableUUID
+  - components.schemas.Space.enableHistory
+  - components.schemas.Space.maxVersionCount
+  - components.schemas.Space.tags
+  - components.schemas.Space.cacheTTL
+  - components.schemas.Space.volatilityAtLastContentUpdate
+  - components.schemas.Space.volatility
+  - components.schemas.Space.autoCacheProfile
+  - components.schemas.Space.listeners
+  - components.schemas.Space.processors
+  - components.schemas.SpaceClient
+  - components.schemas.SpaceStorage
+  - components.schemas.SpaceStorageParams
+  - components.schemas.Changeset
+  - components.schemas.ChangesetCollectionResponse
+  - components.schemas.CompactChangesetResponse
+  - components.schemas.FeatureModificationList
+  - components.schemas.FeatureModification
+  - components.schemas.OnFeatureNotExists
+  - components.schemas.OnFeatureExists
+  - components.schemas.OnMergeConflict
+  - components.schemas.Connector
+include:
+  - key: components.parameters
+    value:
+      Version:
+        name: version
+        in: query
+        description: Define a version [feature version <= query version]
+        required: false
+        schema:
+          type: integer
+replace:
+  - type: value
+    find: paths.'/spaces'.get.tags.0
+    replace: Read Layers
+  - type: key
+    find: paths.'/spaces'.get.tags
+    replace: paths.'/spaces'.get.Tags123
+  - type: key
+    find: paths.'/spaces/{spaceId}'
+    replace: paths.'/interactive/v1/catalogs/{catalogHrn}/layers/{layerId}'
+  - type: value
+    find: paths.'/spaces/{spaceId}/features'.post.description
+    replace: |
+      Create or patch features.
+
+      This endpoint expects a FeatureCollection as request body, containing the features
+      you want to edit.
+
+      When a feature containing the same ID is found in Data Hub, a patch operation is performed,
+      otherwise, a new feature will be added to the space.
+
+      When features have no ID, an ID will be generated automatically and the feature will be added
+      to the space.
+  - type: value
+    find: paths.'/spaces'.post
+    replace:
+      a: 123
+      b: 456
+      c: {}
+      d:
+        - a
+        - 2
+        - here: 222
+          there: 444

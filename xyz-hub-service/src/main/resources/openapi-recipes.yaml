@@ -1,0 +1,158 @@
+---
+values:
+  patch-features-description: Create or patch features.
+  get-tile-description: List the features selected by tile type and tile id.
+recipes:
+  - name: base
+    replace:
+      - type: value
+        path: info.version
+        replace: ${VERSION}
+  - name: no-taglist
+    extends: base
+    exclude:
+      - paths.'/spaces/{spaceId}/bbox'.get.parameters.$ref~=^.*TagList$
+      - paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.parameters.$ref~=^.*TagList$
+      - paths.'/spaces/{spaceId}/spatial'.get.parameters.$ref~=^.*TagList$
+      - paths.'/spaces/{spaceId}/spatial'.post.parameters.$ref~=^.*TagList$
+      - paths.'/spaces/{spaceId}/search'.get.parameters.$ref~=^.*TagList$
+      - components.parameters.TagList
+  - name: stable
+    extends: base
+    exclude:
+      - paths.'/spaces'.get.parameters.name=includeConnectors
+      - paths.'/spaces'.get.parameters.name=contentUpdatedAt
+      - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*IfExists$
+      - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*IfNotExists$
+      - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*ConflictResolution$
+      - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*Transactional$
+      - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*PrefixId$
+      - paths.'/spaces/{spaceId}/bbox'.get.parameters.$ref~=^.*Tweaks$
+      - paths.'/spaces/{spaceId}/bbox'.get.parameters.$ref~=^.*TweaksParams$
+      - paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.parameters.$ref~=^.*Tweaks$
+      - paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.parameters.$ref~=^.*TweaksParams$
+      - paths.'/spaces/{spaceId}/history'
+      - paths.'/spaces/{spaceId}/history/statistics'
+      - paths.'/spaces/{spaceId}/count'
+      - paths.'/spaces/{spaceId}/iterate'.get.parameters.$ref~=^.*Version$
+      - components.parameters.IfExists
+      - components.parameters.IfNotExists
+      - components.parameters.ConflictResolution
+      - components.parameters.PageToken
+      - components.parameters.Version
+      - components.parameters.StartVersion
+      - components.parameters.EndVersion
+      - components.parameters.Tweaks
+      - components.parameters.TweaksParams
+      - components.parameters.PrefixId
+      - components.parameters.Transactional
+      - components.responses.CountFeaturesResponse
+      - components.responses.HistoryResponse
+      - components.responses.TileResponse.content.'application/vnd.mapbox-vector-tile'
+      - components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/vnd.here.feature-modification-list'
+      - components.schemas.CacheProfile
+      - components.schemas.CountResponse
+      - components.schemas.Space.properties.enableUUID
+      - components.schemas.Space.properties.enableHistory
+      - components.schemas.Space.properties.maxVersionCount
+      - components.schemas.Space.properties.tags
+      - components.schemas.Space.properties.cacheTTL
+      - components.schemas.Space.properties.volatilityAtLastContentUpdate
+      - components.schemas.Space.properties.volatility
+      - components.schemas.Space.properties.autoCacheProfile
+      - components.schemas.Space.properties.listeners
+      - components.schemas.Space.properties.processors
+      - components.schemas.Space.properties.storage
+      - components.schemas.Space.properties.client
+      - components.schemas.SpaceClient
+      - components.schemas.SpaceStorage
+      - components.schemas.SpaceStorageParams
+      - components.schemas.Changeset
+      - components.schemas.ChangesetCollectionResponse
+      - components.schemas.CompactChangesetResponse
+      - components.schemas.FeatureModificationList
+      - components.schemas.FeatureModification
+      - components.schemas.OnFeatureNotExists
+      - components.schemas.OnFeatureExists
+      - components.schemas.OnMergeConflict
+      - components.schemas.Connector
+    replace:
+      - type: value
+        path: paths.'/spaces/{spaceId}/features'.post.description
+        replace: ${patch-features-description}
+      - type: value
+        path: paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.description
+        replace: ${get-tile-description}
+  - name: experimental
+    extends: base
+    exclude:
+      - paths.'/spaces/{spaceId}/count'
+      - components.responses.CountFeaturesResponse
+      - components.schemas.CountResponse
+      - components.schemas.Space.properties.tags
+  - name: contract
+    extends: base
+    replace:
+      - type: value
+        path: info.version
+        replace: ${VERSION}
+      - type: value
+        path: servers.0.url
+        replace: /
+      - type: key
+        path: paths.'/spaces'
+        replace: paths.'/hub/spaces'
+      - type: key
+        path: paths.'/spaces/{spaceId}'
+        replace: paths.'/hub/spaces/{spaceId}'
+      - type: key
+        path: paths.'/spaces/{spaceId}/features'
+        replace: paths.'/hub/spaces/{spaceId}/features'
+      - type: key
+        path: paths.'/spaces/{spaceId}/features/{featureId}'
+        replace: paths.'/hub/spaces/{spaceId}/features/{featureId}'
+      - type: key
+        path: paths.'/spaces/{spaceId}/statistics'
+        replace: paths.'/hub/spaces/{spaceId}/statistics'
+      - type: key
+        path: paths.'/spaces/{spaceId}/bbox'
+        replace: paths.'/hub/spaces/{spaceId}/bbox'
+      - type: key
+        path: paths.'/spaces/{spaceId}/tile/{type}/{tileId}'
+        replace: paths.'/hub/spaces/{spaceId}/tile/{type}/{tileId}'
+      - type: key
+        path: paths.'/spaces/{spaceId}/spatial'
+        replace: paths.'/hub/spaces/{spaceId}/spatial'
+      - type: key
+        path: paths.'/spaces/{spaceId}/search'
+        replace: paths.'/hub/spaces/{spaceId}/search'
+      - type: key
+        path: paths.'/spaces/{spaceId}/iterate'
+        replace: paths.'/hub/spaces/{spaceId}/iterate'
+      - type: key
+        path: paths.'/spaces/{spaceId}/count'
+        replace: paths.'/hub/spaces/{spaceId}/count'
+      - type: key
+        path: paths.'/spaces/{spaceId}/history'
+        replace: paths.'/hub/spaces/{spaceId}/history'
+      - type: key
+        path: paths.'/spaces/{spaceId}/history/statistics'
+        replace: paths.'/hub/spaces/{spaceId}/history/statistics'
+      - type: key
+        path: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/geo+json'.schema
+        replace: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/geo+json'.x-schema
+      - type: key
+        path: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/vnd.here.feature-modification-list'.schema
+        replace: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/vnd.here.feature-modification-list'.x-schema
+      - type: key
+        path: components.requestBodies.FeatureCollectionRequest.content.'application/geo+json'.schema
+        replace: components.requestBodies.FeatureCollectionRequest.content.'application/geo+json'.x-schema
+      - type: key
+        path: components.requestBodies.FeatureRequest.content.'application/geo+json'.schema
+        replace: components.requestBodies.FeatureRequest.content.'application/geo+json'.x-schema
+      - type: key
+        path: components.requestBodies.GeometryRequest.content.'application/geo+json'.schema
+        replace: components.requestBodies.GeometryRequest.content.'application/geo+json'.x-schema
+      - type: key
+        path: components.requestBodies.SpaceRequest.content.'application/json'.schema
+        replace: components.requestBodies.SpaceRequest.content.'application/json'.x-schema
