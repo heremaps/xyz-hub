@@ -2333,7 +2333,7 @@ components:
         createdAt:
           description: >-
             The UNIX Epoch time of when this feature has been created (in
-            milliseconds sind 01.01.1970).
+            milliseconds since 01.01.1970).
           example: 1234567890123
           format: int64
           readOnly: true
@@ -2341,7 +2341,7 @@ components:
         updatedAt:
           description: >-
             The UNIX Epoch time of when this feature has been last updated (in
-            milliseconds sind 01.01.1970).
+            milliseconds since 01.01.1970).
           example: 1234567890123
           format: int64
           readOnly: true
@@ -2518,7 +2518,7 @@ components:
           default: 1538352000000
           description: >-
             The UNIX Epoch time of when this space has been last updated (in
-            milliseconds sind 01.01.1970). Defaults to October 1st, 2018.
+            milliseconds since 01.01.1970). Defaults to October 1st, 2018.
           example: 1538352000000
           format: int64
           readOnly: true
