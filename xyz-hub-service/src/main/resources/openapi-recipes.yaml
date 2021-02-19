@@ -94,9 +94,6 @@ recipes:
     extends: base
     replace:
       - type: value
-        path: info.version
-        replace: ${VERSION}
-      - type: value
         path: servers.0.url
         replace: /
       - type: key
