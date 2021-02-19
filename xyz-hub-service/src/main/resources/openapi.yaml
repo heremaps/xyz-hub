@@ -494,8 +494,6 @@ paths:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/FeatureId'
       responses:
-        '200':
-          $ref: '#/components/responses/FeatureResponse'
         '204':
           $ref: '#/components/responses/EmptyResponse'
         '401':
