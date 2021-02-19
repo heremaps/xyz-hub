@@ -278,10 +278,10 @@ public class OpenApiGenerator {
     final Iterator<JsonNode> it = recipe.get(INCLUDE).elements();
     while (it.hasNext()) {
       final JsonNode e = it.next();
-      final String key = e.get(KEY).asText();
+      final String path = e.get(PATH).asText();
       final JsonNode value = e.get(VALUE);
 
-      final String[] pathKeys = split(key);
+      final String[] pathKeys = split(path);
       JsonNode parent = root;
 
       // navigate to the last node
@@ -290,7 +290,7 @@ public class OpenApiGenerator {
       }
 
       if (parent == null) {
-        throw new Exception("Invalid path: " + key);
+        throw new Exception("Invalid path: " + path);
       }
 
       if (parent.isObject()) {
