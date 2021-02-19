@@ -11,15 +11,17 @@ security:
   - authToken: []
   - Bearer: []
 tags:
-  - name: Read Spaces
-  - name: Edit Spaces
+  - name: Manage Spaces
+    description: Space management endpoints.
   - name: Read Features
-  - name: Edit Features
+    description: Read only endpoints for features.
+  - name: Write Features
+    description: Read and write endpoints for features.
 paths:
   '/spaces':
     get:
       tags:
-        - Read Spaces
+        - Manage Spaces
       summary: List spaces
       description: >-
         Lists the spaces, which the current authenticated user has access to.
@@ -104,7 +106,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse401'
     post:
       tags:
-        - Edit Spaces
+        - Manage Spaces
       summary: Create a space
       description: Creates a new space.
       operationId: postSpace
@@ -126,7 +128,7 @@ paths:
   '/spaces/{spaceId}':
     get:
       tags:
-        - Read Spaces
+        - Manage Spaces
       summary: Get a space by ID
       description: Returns the space definition.
       operationId: getSpace
@@ -143,7 +145,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
     patch:
       tags:
-        - Edit Spaces
+        - Manage Spaces
       summary: Update a space
       description: Updates a space.
       operationId: patchSpace
@@ -168,7 +170,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse413'
     delete:
       tags:
-        - Edit Spaces
+        - Manage Spaces
       summary: Delete a space
       description: >-
         Deletes a space configuration. The data of the space may or may not be
@@ -217,7 +219,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse513'
     put:
       tags:
-        - Edit Features
+        - Write Features
       summary: Create or replace multiple features
       description: Create or replace the provided features.
       operationId: putFeatures
@@ -248,8 +250,8 @@ paths:
           $ref: '#/components/responses/ErrorResponse513'
     post:
       tags:
-        - Edit Features
-      summary: Modify features in the space.
+        - Write Features
+      summary: Modify features in the space
       description: >
         This method allows to create, update and delete features. The behavior
         of the POST handler is controlled by three query parameters described in
@@ -327,7 +329,7 @@ paths:
         version and not a partial update. If an _ORIGIN_ state is specified in
         the feature and it is not the same as the _HEAD_ state, the difference
         between the _ORIGIN_ state and provided version to the _HEAD_ state, but
-        only in the case that the differnce between _ORIGIN_ and _HEAD_ contains
+        only in the case that the difference between _ORIGIN_ and _HEAD_ contains
         no conflicting changes. Otherwise an error is raised, which will result
         in the batch operation being aborted, if the _transactional_ parameter
         is set to _true_.
@@ -384,9 +386,9 @@ paths:
           $ref: '#/components/responses/ErrorResponse513'
     delete:
       tags:
-        - Edit Features
-      summary: Delete multiple features from the space.
-      description: The wildcard sign(*) could be used to delete all features in the space.
+        - Write Features
+      summary: Delete multiple features
+      description: Delete multiple features from the space.
       operationId: deleteFeatures
       parameters:
         - $ref: '#/components/parameters/SpaceId'
@@ -428,7 +430,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse513'
     put:
       tags:
-        - Edit Features
+        - Write Features
       summary: Create or replace a feature
       description: Creates or replaces a feature in the space.
       operationId: putFeature
@@ -456,7 +458,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse513'
     patch:
       tags:
-        - Edit Features
+        - Write Features
       summary: Patch a feature
       description: Patches an existing feature.
       operationId: patchFeature
@@ -486,8 +488,8 @@ paths:
           $ref: '#/components/responses/ErrorResponse513'
     delete:
       tags:
-        - Edit Features
-      summary: Deletes a feature from the space.
+        - Write Features
+      summary: Deletes a feature from the space
       description: Deletes an existing feature.
       operationId: deleteFeature
       parameters:
@@ -508,7 +510,7 @@ paths:
     get:
       tags:
         - Read Features
-      summary: Get statistics.
+      summary: Get statistics
       description: Returns statistical information about this space.
       operationId: getStatistics
       parameters:
@@ -523,7 +525,7 @@ paths:
     get:
       tags:
         - Read Features
-      summary: Get features in bounding box
+      summary: Get features by bounding box
       description: >-
         Return the features which are inside a bounding box stipulated by
         west, north, east and south parameters.
@@ -702,7 +704,7 @@ paths:
     get:
       tags:
         - Read Features
-      summary: Iterate features in the space.
+      summary: Iterate features in the space
       description: >-
         Iterates all of the features in the space. The features in the response
         are ordered so that no feature is returned twice. If there are more
@@ -737,7 +739,7 @@ paths:
     get:
       tags:
         - Read Features
-      summary: Get feature count.
+      summary: Get feature count
       description: >-
         Returns the feature count of all features in the space or the count for
         the provided combination of tags.
@@ -759,8 +761,8 @@ paths:
   '/spaces/{spaceId}/history':
     get:
       tags:
-        - Read History
-      summary: Get historical data.
+        - Read Features
+      summary: Get historical data
       description: |
         Get  all features in a given version range.
 
@@ -799,9 +801,11 @@ paths:
   '/spaces/{spaceId}/history/statistics':
     get:
       tags:
-        - Read History
-      summary: Get history statistics.
-      description: Returns statistical information about this history. The Space must have "enableGolbalVersioning=true" setting.
+        - Read Features
+      summary: Get history statistics
+      description: |
+        Returns statistical information about this history.
+        The Space must have "enableGolbalVersioning=true" setting.
       operationId: getHistoryStatistics
       parameters:
         - $ref: '#/components/parameters/SpaceId'
@@ -963,7 +967,7 @@ components:
     EndVersion:
       name: endVersion
       in: query
-      description: Define end of version-range [version <= endVersion]
+      description: Define end of version-range [version <= endVersion].
       required: false
       schema:
         type: integer
@@ -1004,7 +1008,7 @@ components:
       in: query
       description: >-
         The action to execute, when a feature with the provided ID exists.
-        Default is _patch_
+        Default is _patch_.
       required: false
       schema:
         $ref: '#/components/schemas/OnFeatureExists'
@@ -1013,7 +1017,7 @@ components:
       in: query
       description: >-
         The action to execute, when a feature with the provided ID does not
-        exist or the feature contains no ID. Default is _create_
+        exist or the feature contains no ID. Default is _create_.
       required: false
       schema:
         $ref: '#/components/schemas/OnFeatureNotExists'
@@ -1059,7 +1063,8 @@ components:
         optimize resultset and geometries for dispaly. mode = [raw|viz]
 
 
-        Note: when using mode=viz, then the value of "limit" parameter will be set to its max value (100000) if not specified otherwise.
+        Note: when using mode=viz, the value of "limit" parameter will be set
+        to its max value (100000) if not specified otherwise.
       required: false
       schema:
         type: string
@@ -1081,15 +1086,13 @@ components:
     PageToken:
       name: pageToken
       in: query
-      description: >-
-        The nextPageToken to continue the iteration.
-      required: false
+      description: The page token where the iteration will continue.
       schema:
         type: string
     PrefixId:
       name: prefixId
       in: query
-      description: If set all feature IDs are prefixed with the provided string
+      description: If set all feature IDs are prefixed with the provided string.
       required: false
       schema:
         type: string
@@ -1155,9 +1158,11 @@ components:
     PropertiesSelection:
       name: selection
       in: query
-      description: >
+      description: |
         A list of properties to be returned in the features result list. Multiple attributes can be
-        specified by using comma(,). Example: ?selection=p.name,p.capacity,p.color,rootpropertyname
+        specified by using comma(,).
+
+        Example: ?selection=p.name,p.capacity,p.color,rootpropertyname
       explode: false
       schema:
         type: array
@@ -1174,8 +1179,11 @@ components:
       name: refFeatureId
       in: query
       description: >-
-        The unique identifier of a feature in the referenced space. The geometry of that feature
-        gets used for the spatial query. Always to use in combination with refCatalogHrn and refLayerId.
+        The unique identifier of a feature in the referenced space.
+
+        The geometry of that feature gets used for the spatial query.
+
+        Always to use in combination with refCatalogHrn and refLayerId.
       schema:
         type: string
     RefSpaceId:
@@ -1215,7 +1223,6 @@ components:
       in: query
       description: >-
         If set to _true_ the response is not returned from cache. Default is _false_.
-      required: false
       schema:
         type: boolean
     South:
@@ -1240,7 +1247,7 @@ components:
     StartVersion:
       name: startVersion
       in: query
-      description: Define start of version-range [version >= startVersion]
+      description: Define start of version-range [version >= startVersion].
       required: false
       schema:
         type: integer
@@ -1356,7 +1363,7 @@ components:
     Version:
       name: version
       in: query
-      description: Define a version [feature version <= query version]
+      description: Define a version [feature version <= query version].
       required: false
       schema:
         type: integer
@@ -1364,7 +1371,9 @@ components:
       name: vizSampling
       in: query
       description: >-
-        Choose sampling strength in case of mode = viz.  vizSampling = [low|med|high|off] - default:med
+        Choose sampling strength in case of mode = viz.
+
+        vizSampling = [low|med|high|off] - default:med.
       required: false
       schema:
         type: string
@@ -1395,13 +1404,13 @@ components:
             $ref: '#/components/schemas/CountFeatures'
     EmptyResponse:
       description: >-
-        An empty response (as a result of a user-request with accepted MIME type application/x-empty).
+        An empty response as a result of a user-request with accepted MIME type application/x-empty.
       content:
         application/x-empty:
           schema:
             type: string
     ErrorResponse400:
-      description: Malformed or Bad Request
+      description: Malformed or Bad Request.
       content:
         application/json:
           schema:
@@ -1440,7 +1449,7 @@ components:
             error: Exception
             errorMessage: The requested resource does not exist.
     ErrorResponse409:
-      description: Conflict
+      description: An error response which indicates a conflict.
       content:
         application/json:
           schema:
@@ -1457,7 +1466,7 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
     ErrorResponse513:
-      description: Response payload too large
+      description: Response payload too large.
       content:
         application/json:
           schema:
@@ -1513,8 +1522,7 @@ components:
           schema:
             $ref: '#/components/schemas/Feature'
     HistoryResponse:
-      description: >-
-        Changesets which are containing FeatureCollections grouped by operation/versions.
+      description: Changesets which are containing FeatureCollections grouped by operation/versions.
       content:
         application/vnd.here.changeset-collection:
           schema:
@@ -1529,15 +1537,13 @@ components:
           schema:
             $ref: '#/components/schemas/HistoryStatisticsResponse'
     IterateResponse:
-      description: >-
-        A FeatureCollection with handle, containing all features found for the provided
-        parameters.
+      description: A FeatureCollection with handle response.
       content:
         application/geo+json:
           schema:
             $ref: '#/components/schemas/FeatureCollectionIterable'
     SpaceResponse:
-      description: The space
+      description: The space.
       content:
         application/json:
           schema:
@@ -1553,7 +1559,7 @@ components:
                 createdAt: 1560417151751
                 updatedAt: 1561480482869
     SpacesResponse:
-      description: The list of spaces
+      description: The list of spaces.
       content:
         application/json:
           schema:
@@ -1578,7 +1584,7 @@ components:
             $ref: '#/components/schemas/Statistics'
     TileResponse:
       description: >-
-        A FeatureCollection, containing all features found for the provided parameters.
+        A FeatureCollection in GeoJSON or mvt format response.
       content:
         application/geo+json:
           schema:
@@ -1626,6 +1632,7 @@ components:
           schema:
             $ref: '#/components/schemas/Space'
   schemas:
+    # TODO add Typed and Iterable schemas
     CacheProfile:
       description: >-
         Provides cache information used to determine where and for how long the content should
@@ -1964,6 +1971,11 @@ components:
           description: A FeatureCollection GeoJSON object.
           required:
             - features
+          discriminator:
+            propertyName: type
+            mapping:
+              FeatureCollectionIterable: '#/components/schemas/FeatureCollectionIterable'
+              FeatureCollectionModification: '#/components/schemas/FeatureCollectionModification'
           properties:
             features:
               type: array
@@ -2070,13 +2082,12 @@ components:
                   description: Home of Liverpool Football Club
     FeatureModification:
       type: object
-      description: A FeatureModification object containing GeoJSON FeatureCollections
+      description: |
+        A FeatureModification object containing GeoJSON FeatureCollections
         (see [RFC-7946](https://tools.ietf.org/html/rfc7946)) or (in case if deletions) a list of
         feature IDs.
       required:
         - type
-      discriminator:
-        propertyName: type
       properties:
         type:
           type: string
@@ -2124,8 +2135,6 @@ components:
         url: 'https://tools.ietf.org/html/rfc7946'
       required:
         - type
-      discriminator:
-        propertyName: type
       properties:
         type:
           type: string
@@ -2172,11 +2181,24 @@ components:
             type: number
       discriminator:
         propertyName: type
+        mapping:
+          Feature: '#/components/schemas/Feature'
+          FeatureCollection: '#/components/schemas/FeatureCollection'
+          Geometry: '#/components/schemas/Geometry'
     Geometry:
       allOf:
         - $ref: '#/components/schemas/GeoJSON'
         - type: object
-      description: A Geometry object represents points, curves, and surfaces.
+          description: A Geometry object represents points, curves, and surfaces in coordinate layer.
+          discriminator:
+            propertyName: type
+            mapping:
+              MultiPoint: '#/components/schemas/MultiPoint'
+              MultiLineString: '#/components/schemas/MultiLineString'
+              LineString: '#/components/schemas/LineString'
+              MultiPolygon: '#/components/schemas/MultiPolygon'
+              Point: '#/components/schemas/Point'
+              Polygon: '#/components/schemas/Polygon'
     HistoryStatisticsResponse:
       description: The response returned to when counting features in a history.
       properties:
