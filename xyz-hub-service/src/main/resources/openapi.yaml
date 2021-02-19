@@ -213,8 +213,6 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
-        '409':
-          $ref: '#/components/responses/ErrorResponse409'
         '513':
           $ref: '#/components/responses/ErrorResponse513'
     put:
