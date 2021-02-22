@@ -29,6 +29,7 @@ import com.here.xyz.psql.SQLQuery;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.Promise;
 import io.vertx.core.json.EncodeException;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
@@ -49,7 +50,7 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
   private final SQLClient client;
 
   private JDBCSpaceConfigClient() {
-    this.client = JDBCConfig.getClient();
+    client = JDBCConfig.getClient();
   }
 
   public static JDBCSpaceConfigClient getInstance() {
@@ -65,64 +66,61 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
   }
 
 
-  private void updateWithParams(Space modifiedObject, SQLQuery query, Handler<AsyncResult<Space>> handler) {
+  private Future<Void> updateWithParams(Space modifiedObject, SQLQuery query) {
+    Promise<Void> p = Promise.promise();
     client.updateWithParams(query.text(), new JsonArray(query.parameters()), out -> {
-      if (out.succeeded()) {
-        handler.handle(Future.succeededFuture(modifiedObject));
-      } else {
-        handler.handle(Future.failedFuture(out.cause()));
-      }
+      if (out.succeeded())
+        p.complete();
+      else
+        p.fail(out.cause());
     });
+    return p.future();
   }
 
   @Override
-  public void getSpace(Marker marker, String spaceId, Handler<AsyncResult<Space>> handler) {
+  public Future<Space> getSpace(Marker marker, String spaceId) {
+    Promise<Space> p = Promise.promise();
     SQLQuery query = new SQLQuery(String.format("SELECT config FROM %s WHERE id = ?", SPACE_TABLE), spaceId);
     client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
         Optional<String> config = out.result().getRows().stream().map(r -> r.getString("config")).findFirst();
         if (config.isPresent()) {
           Space space = Json.decodeValue(config.get(), Space.class);
-          handler.handle(Future.succeededFuture(space));
-        } else {
-          handler.handle(Future.succeededFuture(null));
+          p.complete(space);
         }
-      } else {
-        handler.handle(Future.failedFuture(out.cause()));
+        else
+          p.complete();
       }
+      else
+        p.fail(out.cause());
     });
+    return p.future();
   }
 
   @Override
-  protected void storeSpace(Marker marker, Space space, Handler<AsyncResult<Space>> handler) {
+  protected Future<Void> storeSpace(Marker marker, Space space) {
     SQLQuery query = null;
     try {
       query = new SQLQuery(String.format(
           "INSERT INTO %s(id, owner, cid, config) VALUES (?, ?, ?, cast(? as JSONB)) ON CONFLICT (id) DO UPDATE SET owner = excluded.owner, cid = excluded.cid, config = excluded.config",
           SPACE_TABLE), space.getId(), space.getOwner(), space.getCid(),
           XyzSerializable.STATIC_MAPPER.get().writeValueAsString(space));
-      updateWithParams(space, query, handler);
-    } catch (JsonProcessingException e) {
-      handler.handle(Future.failedFuture(new EncodeException("Failed to encode as JSON: " + e.getMessage(), e)));
+      return updateWithParams(space, query).mapEmpty();
+    }
+    catch (JsonProcessingException e) {
+      return Future.failedFuture(new EncodeException("Failed to encode as JSON: " + e.getMessage(), e));
     }
   }
 
   @Override
-  protected void deleteSpace(Marker marker, String spaceId, Handler<AsyncResult<Space>> handler) {
+  protected Future<Space> deleteSpace(Marker marker, String spaceId) {
     SQLQuery query = new SQLQuery(String.format("DELETE FROM %s WHERE id = ?", SPACE_TABLE), spaceId);
-    get(marker, spaceId, ar -> {
-      if (ar.succeeded()) {
-        updateWithParams(ar.result(), query, handler);
-      } else {
-        handler.handle(Future.failedFuture(ar.cause()));
-      }
-    });
+    return get(marker, spaceId).compose(space -> updateWithParams(space, query).map(space));
   }
 
   @Override
-  protected void getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition,
-      SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery, 
-      Handler<AsyncResult<List<Space>>> handler) {
+  protected Future<List<Space>> getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition,
+      SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery) {
     //BUILD THE QUERY
     List<String> whereConjunctions = new ArrayList<>();
     String baseQuery = String.format("SELECT config FROM %s", SPACE_TABLE);
@@ -157,7 +155,7 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
     String query = baseQuery + (whereConjunctions.isEmpty() ? "" :
         " WHERE " + StringUtils.join(whereConjunctions, " AND "));
 
-    querySpaces(handler, query);
+    return querySpaces(query);
   }
 
   private List<String> generateWhereClausesFor(SpaceAuthorizationCondition condition) {
@@ -179,17 +177,19 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
   }
 
 
-  private void querySpaces(Handler<AsyncResult<List<Space>>> handler, String query) {
+  private Future<List<Space>> querySpaces(String query) {
+    Promise<List<Space>> p = Promise.promise();
     client.query(query, out -> {
       if (out.succeeded()) {
         List<Space> configs = out.result().getRows().stream()
             .map(r -> r.getString("config"))
             .map(json -> Json.decodeValue(json, Space.class))
             .collect(Collectors.toList());
-        handler.handle(Future.succeededFuture(configs));
-      } else {
-        handler.handle(Future.failedFuture(out.cause()));
+        p.complete(configs);
       }
+      else
+        p.fail(out.cause());
     });
+    return p.future();
   }
 }

@@ -346,7 +346,7 @@ public abstract class Api {
    * @param task the task for which to return an error response.
    * @param e the exception that should be used to generate an {@link ErrorResponse}, if null an internal server error is returned.
    */
-  void sendErrorResponse(final Task task, final Exception e) {
+  void sendErrorResponse(final Task task, final Throwable e) {
     sendErrorResponse(task.context, e);
   }
 
@@ -356,7 +356,7 @@ public abstract class Api {
    * @param context the context for which to return an error response.
    * @param e the exception that should be used to generate an {@link ErrorResponse}, if null an internal server error is returned.
    */
-  protected void sendErrorResponse(final RoutingContext context, final Exception e) {
+  protected void sendErrorResponse(final RoutingContext context, final Throwable e) {
     if (e instanceof HttpException) {
       final HttpException httpException = (HttpException) e;
 

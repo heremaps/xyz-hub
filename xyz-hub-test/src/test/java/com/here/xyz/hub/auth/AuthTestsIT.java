@@ -164,14 +164,14 @@ public class AuthTestsIT extends RestAssuredTest {
         .then();
   }
 
-  private static ValidatableResponse testSpaceListWithShared(String owner, AuthProfile profile) {
+  private static ValidatableResponse testSpaceListWithShared(String owner, AuthProfile readProfile) {
     createSpace("/xyz/hub/auth/createSharedSpace.json", AuthProfile.ACCESS_OWNER_1_ADMIN)
         .statusCode(OK.code());
 
     createSpace("/xyz/hub/auth/createDefaultSpace.json", AuthProfile.ACCESS_OWNER_2)
         .statusCode(OK.code());
 
-    return getSpacesList(owner, profile);
+    return getSpacesList(owner, readProfile);
   }
 
   private static ValidatableResponse testSpaceListWithShared(String owner) {
@@ -480,15 +480,19 @@ public class AuthTestsIT extends RestAssuredTest {
         .extract()
         .path("id");
 
+    //Try to remove the OSM package
     updateSpace(cleanUpId, "{\"packages\": [\"HERE\"]}", AuthProfile.ACCESS_OWNER_1_MANAGE_PACKAGES_HERE_WITH_OWNER)
         .statusCode(FORBIDDEN.code());
 
+    //Try to remove the HERE package
     updateSpace(cleanUpId, "{\"packages\": [\"OSM\"]}", AuthProfile.ACCESS_OWNER_1_MANAGE_PACKAGES_HERE)
         .statusCode(OK.code());
 
+    //Try to remove both packages
     updateSpace(cleanUpId, "{\"packages\": []}", AuthProfile.ACCESS_OWNER_1_MANAGE_PACKAGES_HERE)
         .statusCode(FORBIDDEN.code());
 
+    //Try to remove both packages with admin permissions
     updateSpace(cleanUpId, "{\"packages\": []}", AuthProfile.ACCESS_OWNER_2)
         .statusCode(OK.code());
   }
