@@ -31,7 +31,6 @@ public class ConnectorApiIT extends RestAssuredTest {
   @After
   public void deleteConnector() {
     given()
-        .contentType(APPLICATION_JSON)
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_CONNECTORS))
         .when()
@@ -151,5 +150,144 @@ public class ConnectorApiIT extends RestAssuredTest {
         .patch("/connectors/test-connector")
         .then()
         .statusCode(FORBIDDEN.code());
+  }
+
+  @Test
+  public void getConnectorFromOtherOwner() {
+    given()
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_2_WITH_MANAGE_CONNECTORS))
+        .when()
+        .get("/connectors/test-connector")
+        .then()
+        .statusCode(FORBIDDEN.code());
+  }
+
+  @Test
+  public void getConnectorWithRestrictedRights() {
+    given()
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_CONNECTOR_ONE_ID))
+        .when()
+        .get("/connectors/test-connector")
+        .then()
+        .statusCode(FORBIDDEN.code());
+  }
+
+  @Test
+  public void createConnectorWithInsufficientRights() {
+    given()
+        .contentType(APPLICATION_JSON)
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_MANAGE_ALL_SPACES_ONLY))
+        .body(content("/xyz/hub/connectors/embeddedConnector.json"))
+        .when()
+        .post("/connectors")
+        .then()
+        .statusCode(FORBIDDEN.code());
+  }
+
+  @Test
+  public void createConnectorWithInsufficientRights2() {
+    given()
+        .contentType(APPLICATION_JSON)
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_CONNECTOR_ONE_ID))
+        .body(content("/xyz/hub/connectors/embeddedConnector.json"))
+        .when()
+        .post("/connectors")
+        .then()
+        .statusCode(FORBIDDEN.code());
+  }
+
+  @Test
+  public void getConnectorWithInsufficientRights() {
+    given()
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_CONNECTOR_ONE_ID))
+        .when()
+        .get("/connectors/test-connector")
+        .then()
+        .statusCode(FORBIDDEN.code());
+  }
+
+  @Test
+  public void createConnectorWithSufficientAndMorePreciseRights() {
+    given()
+        .contentType(APPLICATION_JSON)
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_CONNECTOR_ONE_ID))
+        .body(content("/xyz/hub/connectors/embeddedConnector2.json"))
+        .when()
+        .post("/connectors")
+        .then()
+        .statusCode(CREATED.code())
+        .body("id", equalTo("test-connector2"));
+
+    given()
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_CONNECTOR_ONE_ID))
+        .when()
+        .delete("/connectors/test-connector2")
+        .then()
+        .statusCode(OK.code())
+        .body("id", equalTo("test-connector2"));
+  }
+
+  @Test
+  public void getGlobalConnectorWithInsufficientRights() {
+    given()
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_CONNECTOR_PSQL))
+        .when()
+        .get("/connectors/psql")
+        .then()
+        .statusCode(FORBIDDEN.code());
+  }
+
+  @Test
+  public void getGlobalConnectorWithInsufficientRightsQuery() {
+    given()
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_CONNECTOR_PSQL))
+        .when()
+        .get("/connectors/?id=psql")
+        .then()
+        .statusCode(FORBIDDEN.code());
+  }
+
+  @Test
+  public void updateGlobalConnectorWithInsufficientRights() {
+    given()
+        .contentType(APPLICATION_JSON)
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_CONNECTOR_PSQL))
+        .body(content("/xyz/hub/connectors/embeddedConnectorWithoutId.json"))
+        .when()
+        .patch("/connectors/psql")
+        .then()
+        .statusCode(FORBIDDEN.code());
+  }
+
+  @Test
+  public void getUnknownConnectorByQuery() {
+    given()
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_CONNECTORS))
+        .when()
+        .get("/connectors/?id=unknown")
+        .then()
+        .statusCode(NOT_FOUND.code());
+  }
+
+  @Test
+  public void getUnknownConnector() {
+    given()
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_CONNECTORS))
+        .when()
+        .get("/connectors/unknown")
+        .then()
+        .statusCode(NOT_FOUND.code());
   }
 }

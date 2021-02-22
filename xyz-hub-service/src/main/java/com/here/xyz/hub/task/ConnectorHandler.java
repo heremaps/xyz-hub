@@ -22,10 +22,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
 
@@ -38,7 +37,7 @@ public class ConnectorHandler {
 
     Service.connectorConfigClient.get(marker, connectorId, ar -> {
       if (ar.failed()) {
-        logger.error(marker, "The requested resource does not exist.'", ar.cause());
+        logger.warn(marker, "The requested resource does not exist.'", ar.cause());
         handler.handle(Future.failedFuture(new HttpException(NOT_FOUND, "The requested resource does not exist.", ar.cause())));
       } else {
         handler.handle(Future.succeededFuture(ar.result()));
@@ -46,12 +45,43 @@ public class ConnectorHandler {
     });
   }
 
+  public static void getConnectors(RoutingContext context, List<String> connectorIds, Handler<AsyncResult<List<Connector>>> handler) {
+    Marker marker = Api.Context.getMarker(context);
+
+    List<CompletableFuture<Connector>> completableFutureList = new ArrayList<>();
+    connectorIds.forEach(connectorId -> {
+      CompletableFuture<Connector> f = new CompletableFuture<>();
+      completableFutureList.add(f);
+      Service.connectorConfigClient.get(marker, connectorId, ar -> {
+        if (ar.failed()) {
+          logger.warn(marker, "The requested resource does not exist.'", ar.cause());
+          f.completeExceptionally(new HttpException(NOT_FOUND, "The requested resource '" + connectorId + "' does not exist.", ar.cause()));
+        } else {
+          f.complete(ar.result());
+        }
+      });
+    });
+
+    CompletableFuture.allOf(completableFutureList.toArray(new CompletableFuture[completableFutureList.size()]))
+        .exceptionally(getConnectorEx -> {
+          HttpException ex = (HttpException) getConnectorEx.getCause();
+          handler.handle(Future.failedFuture(ex));
+          return null;
+        })
+        .thenRun(() -> {
+          handler.handle(Future.succeededFuture(completableFutureList
+              .stream()
+              .map(cf -> cf.join())
+              .collect(Collectors.toList())));
+        });
+  }
+
   public static void getConnectors(RoutingContext context, String ownerId, Handler<AsyncResult<List<Connector>>> handler) {
     Marker marker = Api.Context.getMarker(context);
 
     Service.connectorConfigClient.getByOwner(marker, ownerId, ar -> {
       if (ar.failed()) {
-        logger.error(marker, "Unable to load resource definitions.'", ar.cause());
+        logger.warn(marker, "Unable to load resource definitions.'", ar.cause());
         handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definitions.", ar.cause())));
       } else {
         handler.handle(Future.succeededFuture(ar.result()));
