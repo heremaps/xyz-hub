@@ -24,9 +24,8 @@ import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
-import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
-import io.vertx.core.Handler;
+import io.vertx.core.Promise;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -50,7 +49,7 @@ public abstract class SpaceConfigClient implements Initializable {
       .expiration(3, TimeUnit.MINUTES)
       .build();
 
-  private static final Map<String, ConcurrentLinkedQueue<Handler<AsyncResult<Space>>>> pendingHandlers = new ConcurrentHashMap<>();
+  private static final Map<String, ConcurrentLinkedQueue<Promise<Space>>> pendingGetCalls = new ConcurrentHashMap<>();
   private static final Map<String, Monitor> getSpaceLocks = new ConcurrentHashMap<>();
   private SpaceSelectionCondition emptySpaceCondition = new SpaceSelectionCondition();
 
@@ -62,12 +61,11 @@ public abstract class SpaceConfigClient implements Initializable {
     }
   }
 
-  public void get(Marker marker, String spaceId, Handler<AsyncResult<Space>> handler) {
+  public Future<Space> get(Marker marker, String spaceId) {
     Space cached = cache.get(spaceId);
     if (cached != null) {
       logger.info(marker, "space[{}]: Loaded space with title \"{}\" from cache", spaceId, cached.getTitle());
-      handler.handle(Future.succeededFuture(cached));
-      return;
+      return Future.succeededFuture(cached);
     }
 
     /*
@@ -75,23 +73,24 @@ public abstract class SpaceConfigClient implements Initializable {
     then. This is a performance optimization for highly parallel requests coming from the user at once.
      */
     getSpaceLocks.putIfAbsent(spaceId, new Monitor());
+    Promise<Space> p = Promise.promise();
     try {
       getSpaceLocks.get(spaceId).enter();
-      boolean isFirstRequest = pendingHandlers.putIfAbsent(spaceId, new ConcurrentLinkedQueue<>()) == null;
-      pendingHandlers.get(spaceId).add(handler);
+      boolean isFirstRequest = pendingGetCalls.putIfAbsent(spaceId, new ConcurrentLinkedQueue<>()) == null;
+      pendingGetCalls.get(spaceId).add(p);
       if (!isFirstRequest) {
-        return;
+        return p.future();
       }
     }
     finally {
       getSpaceLocks.get(spaceId).leave();
     }
 
-    getSpace(marker, spaceId, ar -> {
-      ConcurrentLinkedQueue<Handler<AsyncResult<Space>>> handlersToCall;
+    getSpace(marker, spaceId).onComplete(ar -> {
+      ConcurrentLinkedQueue<Promise<Space>> handlersToCall;
       try {
         getSpaceLocks.get(spaceId).enter();
-        handlersToCall = pendingHandlers.remove(spaceId);
+        handlersToCall = pendingGetCalls.remove(spaceId);
       }
       finally {
         getSpaceLocks.get(spaceId).leave();
@@ -105,74 +104,62 @@ public abstract class SpaceConfigClient implements Initializable {
           logger.info(marker, "space[{}]: Space with this ID was not found", spaceId);
         }
         cache.put(spaceId, space);
-        handlersToCall.forEach(h -> h.handle(Future.succeededFuture(ar.result())));
-      } else {
+        handlersToCall.forEach(h -> h.complete(ar.result()));
+      }
+      else {
         logger.error(marker, "space[{}]: Failed to load the space, reason: {}", spaceId, ar.cause());
-        handlersToCall.forEach(h -> h.handle(Future.failedFuture(ar.cause())));
+        handlersToCall.forEach(h -> h.fail(ar.cause()));
       }
     });
+
+    return p.future();
   }
 
-  public void store(Marker marker, Space space, Handler<AsyncResult<Space>> handler) {
-    if (space.getId() == null) {
+  public Future<Void> store(Marker marker, Space space) {
+    if (space.getId() == null)
       space.setId(RandomStringUtils.randomAlphanumeric(10));
-    }
-
-    storeSpace(marker, space, ar -> {
-      if (ar.succeeded()) {
-        invalidateCache(space.getId());
-        logger.info(marker, "space[{}]: Stored successfully with title: \"{}\"", space.getId(), space.getTitle());
-        handler.handle(Future.succeededFuture(ar.result()));
-      } else {
-        logger.error(marker, "space[{}]: Failed storing the space", space.getId(), ar.cause());
-        handler.handle(Future.failedFuture(ar.cause()));
-      }
-    });
+    return storeSpace(marker, space)
+        .onSuccess(v -> {
+          invalidateCache(space.getId());
+          logger.info(marker, "space[{}]: Stored successfully with title: \"{}\"", space.getId(), space.getTitle());
+        })
+        .onFailure(t -> logger.error(marker, "space[{}]: Failed storing the space", space.getId(), t));
   }
 
-  public void delete(Marker marker, String spaceId, Handler<AsyncResult<Space>> handler) {
-    deleteSpace(marker, spaceId, ar -> {
-      if (ar.succeeded()) {
-        invalidateCache(spaceId);
-        logger.info(marker, "space[{}]: Deleted space", spaceId);
-        handler.handle(Future.succeededFuture(ar.result()));
-      } else {
-        logger.error(marker, "space[{}]: Failed deleting the space", spaceId, ar.cause());
-        handler.handle(Future.failedFuture(ar.cause()));
-      }
-    });
+  public Future<Space> delete(Marker marker, String spaceId) {
+    return deleteSpace(marker, spaceId)
+        .onSuccess(space -> {
+          invalidateCache(spaceId);
+          logger.info(marker, "space[{}]: Deleted space", spaceId);
+        })
+        .onFailure(t -> logger.error(marker, "space[{}]: Failed deleting the space", spaceId, t));
   }
 
-  public void getSelected(Marker marker, SpaceAuthorizationCondition authorizedCondition, SpaceSelectionCondition selectedCondition,
-    PropertiesQuery propsQuery, Handler<AsyncResult<List<Space>>> handler) {
-    getSelectedSpaces(marker, authorizedCondition, selectedCondition, propsQuery, ar -> {
-      if (ar.succeeded()) {
-        List<Space> spaces = ar.result();
-        spaces.forEach(s -> cache.put(s.getId(), s));
-        logger.info(marker, "Loaded spaces by condition");
-        handler.handle(Future.succeededFuture(ar.result()));
-      } else {
-        logger.error(marker, "Failed to load spaces by condition", ar.cause());
-        handler.handle(Future.failedFuture(ar.cause()));
-      }
-    });
+  public Future<List<Space>> getSelected(Marker marker, SpaceAuthorizationCondition authorizedCondition,
+      SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery) {
+    return getSelectedSpaces(marker, authorizedCondition, selectedCondition, propsQuery)
+        .onSuccess(spaces -> {
+          spaces.forEach(s -> cache.put(s.getId(), s));
+          logger.info(marker, "Loaded spaces by condition");
+        })
+        .onFailure(t -> logger.error(marker, "Failed to load spaces by condition", t));
   }
 
-  public void getOwn(Marker marker, String ownerId, Handler<AsyncResult<List<Space>>> handler) {
+  public Future<List<Space>> getSpacesForOwner(Marker marker, String ownerId) {
     SpaceSelectionCondition selectedCondition = new SpaceSelectionCondition();
     selectedCondition.ownerIds = Collections.singleton(ownerId);
     selectedCondition.shared = false;
-    getSelected(marker, emptySpaceCondition, selectedCondition, null, handler);
+    return getSelected(marker, emptySpaceCondition, selectedCondition, null);
   }
 
-  protected abstract void getSpace(Marker marker, String spaceId, Handler<AsyncResult<Space>> handler);
+  protected abstract Future<Space> getSpace(Marker marker, String spaceId);
 
-  protected abstract void storeSpace(Marker marker, Space space, Handler<AsyncResult<Space>> handler);
+  protected abstract Future<Void> storeSpace(Marker marker, Space space);
 
-  protected abstract void deleteSpace(Marker marker, String spaceId, Handler<AsyncResult<Space>> handler);
+  protected abstract Future<Space> deleteSpace(Marker marker, String spaceId);
 
-  protected abstract void getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition,
-      SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery, Handler<AsyncResult<List<Space>>> handler);
+  protected abstract Future<List<Space>> getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition,
+      SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery);
 
   public void invalidateCache(String spaceId) {
     cache.remove(spaceId);
@@ -180,7 +167,6 @@ public abstract class SpaceConfigClient implements Initializable {
   }
 
   public static class SpaceAuthorizationCondition {
-
     public Set<String> spaceIds;
     public Set<String> ownerIds;
     public Set<String> packages;
