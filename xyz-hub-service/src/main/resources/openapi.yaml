@@ -2042,12 +2042,8 @@ components:
             per-space basis.
           additionalProperties: true
     ConnectorConfig:
-      x-experimental: true
       type: object
       description: A connector declaration.
-      required:
-        - id
-        - contactEmails
       properties:
         id:
           description: >-
