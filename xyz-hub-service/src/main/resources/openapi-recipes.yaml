@@ -150,6 +150,12 @@ recipes:
         path: paths.'/spaces/{spaceId}/history/statistics'
         replace: paths.'/hub/spaces/{spaceId}/history/statistics'
       - type: key
+        path: paths.'/connectors'
+        replace: paths.'/hub/connectors'
+      - type: key
+        path: paths.'/connectors/{connectorId}'
+        replace: paths.'/hub/connectors/{connectorId}'
+      - type: key
         path: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/geo+json'.schema
         replace: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/geo+json'.x-schema
       - type: key
