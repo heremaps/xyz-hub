@@ -35,7 +35,10 @@ recipes:
       - paths.'/spaces/{spaceId}/history/statistics'
       - paths.'/spaces/{spaceId}/count'
       - paths.'/spaces/{spaceId}/iterate'.get.parameters.$ref~=^.*Version$
+      - paths.'/connectors'
+      - paths.'/connectors/{connectorId}'
       - components.parameters.IfExists
+      - components.parameters.ConnectorId
       - components.parameters.IfNotExists
       - components.parameters.ConflictResolution
       - components.parameters.PageToken
@@ -46,12 +49,19 @@ recipes:
       - components.parameters.TweaksParams
       - components.parameters.PrefixId
       - components.parameters.Transactional
+      - components.responses.ConnectorResponse
+      - components.responses.ConnectorsResponse
       - components.responses.CountFeaturesResponse
       - components.responses.HistoryResponse
       - components.responses.TileResponse.content.'application/vnd.mapbox-vector-tile'
+      - components.requestBodies.ConnectorConfig
       - components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/vnd.here.feature-modification-list'
+      - components.schemas.AWSLambda
       - components.schemas.CacheProfile
+      - components.schemas.ConnectorConfig
       - components.schemas.CountResponse
+      - components.schemas.Http
+      - components.schemas.RemoteFunctionConfig
       - components.schemas.Space.properties.enableUUID
       - components.schemas.Space.properties.enableHistory
       - components.schemas.Space.properties.maxVersionCount
@@ -67,6 +77,7 @@ recipes:
       - components.schemas.SpaceClient
       - components.schemas.SpaceStorage
       - components.schemas.SpaceStorageParams
+      - components.schemas.StorageCapabilities
       - components.schemas.Changeset
       - components.schemas.ChangesetCollectionResponse
       - components.schemas.CompactChangesetResponse
