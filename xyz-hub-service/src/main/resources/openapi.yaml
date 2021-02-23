@@ -817,6 +817,133 @@ paths:
           $ref: '#/components/responses/ErrorResponse400'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
+  '/connectors':
+    get:
+      tags:
+        - Read Connectors
+      summary: List connectors
+      description: >-
+        Lists the connectors, which the current authenticated user has access to.
+      operationId: getConnectors
+      parameters:
+        - name: id
+          in: query
+          description: Only query selected resources by id.
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/ConnectorsResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+    post:
+      tags:
+        - Edit Connectors
+      summary: Create a connector
+      description: Creates a new connector.
+      operationId: postConnector
+      requestBody:
+        $ref: '#/components/requestBodies/ConnectorConfig'
+      responses:
+        '200':
+          $ref: '#/components/responses/ConnectorResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+  '/connectors/{connectorId}':
+    get:
+      tags:
+        - Read Connectors
+      summary: Get a connector by ID
+      description: Returns the connector definition
+      operationId: getConnector
+      parameters:
+        - $ref: '#/components/parameters/ConnectorId'
+      responses:
+        '200':
+          $ref: '#/components/responses/ConnectorResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+    put:
+      tags:
+        - Edit Connectors
+      summary: Replace a connector
+      description: Replace a connector.
+      operationId: putConnector
+      parameters:
+        - $ref: '#/components/parameters/ConnectorId'
+      requestBody:
+        $ref: '#/components/requestBodies/ConnectorConfig'
+      responses:
+        '200':
+          $ref: '#/components/responses/ConnectorResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+    patch:
+      tags:
+        - Edit Connectors
+      summary: Update a connector
+      description: Updates a connector.
+      operationId: patchConnector
+      parameters:
+        - $ref: '#/components/parameters/ConnectorId'
+      requestBody:
+        $ref: '#/components/requestBodies/ConnectorConfig'
+      responses:
+        '200':
+          $ref: '#/components/responses/ConnectorResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+    delete:
+      tags:
+        - Edit Connectors
+      summary: Delete a connector
+      description: >-
+        Deletes a connector configuration.
+      operationId: deleteConnector
+      parameters:
+        - $ref: '#/components/parameters/ConnectorId'
+      responses:
+        '200':
+          $ref: '#/components/responses/ConnectorResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
 components:
   securitySchemes:
     authToken:
@@ -952,6 +1079,13 @@ components:
       required: false
       schema:
         $ref: '#/components/schemas/OnMergeConflict'
+    ConnectorId:
+      name: connectorId
+      in: path
+      description: The unique identifier of the connector.
+      required: true
+      schema:
+        type: string
     East:
       name: east
       in: query
@@ -1395,6 +1529,20 @@ components:
         minimum: -180
         maximum: 180
   responses:
+    ConnectorResponse:
+      description: The connector
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ConnectorConfig'
+    ConnectorsResponse:
+      description: The list of connectors
+      content:
+        application/json:
+          schema:
+            items:
+              $ref: '#/components/schemas/ConnectorConfig'
+            type: array
     CountFeaturesResponse:
       x-deprecated: true
       description: The number of features in a spaces, optionally counted by tag(s).
@@ -1595,6 +1743,12 @@ components:
             format: binary
           example: ''
   requestBodies:
+    ConnectorConfig:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ConnectorConfig'
     FeatureCollectionOrFeatureModificationListRequest:
       description: A FeatureCollection object or a FeatureModificationList object.
       required: true
@@ -1633,6 +1787,21 @@ components:
             $ref: '#/components/schemas/Space'
   schemas:
     # TODO add Typed and Iterable schemas
+    AWSLambda:
+      allOf:
+        - $ref: '#/components/schemas/RemoteFunctionConfig'
+        - type: object
+          properties:
+            lambdaARN:
+              description: >-
+                The ARN of the AWS lambda main function to be called for the respective operation.
+              type: string
+            roleARN:
+              description: >-
+                The ARN of an AWS IAM Role granting the permission to call the lambda function specified in {@link #lambdaARN}. The referenced role
+                needs to allow this service to assume it by adding this service' role ARN as principle into its trust policy.
+                See: [AWS Docs](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_terms-and-concepts.html#delegation)
+              type: string
     CacheProfile:
       description: >-
         Provides cache information used to determine where and for how long the content should
@@ -1872,6 +2041,119 @@ components:
             together within the event sent by Data Hub. It can be used to configure the connector
             per-space basis.
           additionalProperties: true
+    ConnectorConfig:
+      x-experimental: true
+      type: object
+      description: A connector declaration.
+      required:
+        - id
+        - contactEmails
+      properties:
+        id:
+          description: >-
+            The unique identifier of the connector.
+          example: my-custom-connector-id
+          type: string
+        active:
+          description: >-
+            Whether this connector is activated.
+            If this flag is set to false, no connector client will be available for it.
+            That means no requests can be performed to the connector.
+          type: boolean
+          default: true
+        skipAutoDisable:
+          description: >-
+            Whether to skip the automatic disabling of this connector even when being not healthy.
+          type: boolean
+          default: false
+        trusted:
+          description: >-
+            Whether the connector is a trusted connector. Trusted connectors will receive more information than normal connectors.
+          type: boolean
+          default: false
+        params:
+          description: >-
+            Arbitrary parameters to be provided to the remote function with the event.
+          type: object
+        capabilities:
+          $ref: '#/components/schemas/StorageCapabilities'
+        remoteFunctions:
+          description: >-
+            A map with AWS-Regions as keys (eu-west-1 & us-east-1) and a 'RemoteFunctionConfig' as value.
+          type: object
+          additionalProperties:
+            type: object
+        remoteFunction:
+          $ref: '#/components/schemas/RemoteFunctionConfig'
+        connectionSettings:
+          description: >-
+            The connection and throttling settings.
+          type: object
+          properties:
+            maxConnections:
+              description: The maximal amount of concurrent connector instances to use.
+              type: integer
+              format: int64
+              default: 64
+        defaultEventTypes:
+          description: >-
+            The default event types to register the connector for. Can be overridden in the space definition by the space creator.
+          type: array
+          items:
+            type: string
+            enum: [
+                ModifySpaceEvent.request,
+                ModifySpaceEvent.response,
+                GetStatisticsEvent.request,
+                GetStatisticsEvent.response,
+                GetFeaturesByIdEvent.request,
+                GetFeaturesByIdEvent.response,
+                SearchForFeaturesEvent.request,
+                SearchForFeaturesEvent.response,
+                IterateFeaturesEvent.request,
+                IterateFeaturesEvent.response,
+                GetFeaturesByTileEvent.request,
+                GetFeaturesByTileEvent.response,
+                GetFeaturesByBBoxEvent.request,
+                GetFeaturesByBBoxEvent.response,
+                GetFeaturesByGeometryEvent.request,
+                GetFeaturesByGeometryEvent.response,
+                ModifyFeaturesEvent.request,
+                ModifyFeaturesEvent.response,
+                DeleteFeaturesByTagEvent.request,
+                DeleteFeaturesByTagEvent.response,
+                ContentModifiedNotification.request
+            ]
+        contactEmails:
+          description: >-
+            A list of email addresses of responsible owners for this connector. These email addresses will be used to send potential health warnings and other notifications.
+          type: array
+          items:
+            type: string
+            format: email
+      example:
+        capabilities:
+          clusteringTypes:
+            - hexbin
+            - quad
+            - quadbin
+          preserializedResponseSupport: true
+          propertySearch: true
+          relocationSupport: true
+          searchablePropertiesConfiguration: true
+        contactEmails:
+          - MY_TEAM_E-MAIL@here.com
+          - DEVELOPER_E-MAIL@here.com
+        id: my-custom-unique-id
+        params:
+          ecps: myEncryptedAndVeryLongEcpsString
+          autoIndexing: true
+          propertySearch: true
+        remoteFunction:
+          id: test1
+          lambdaARN: arn:aws:lambda:eu-west-1:<myAwsAccountId>:function:test1
+          roleARN:
+          type: AWSLambda
     Copyright:
       type: object
       description: Provides some information about a copyright
@@ -2251,6 +2533,15 @@ components:
         maxVersion:
           value: 112
           estimated: true
+    Http:
+      allOf:
+        - $ref: '#/components/schemas/RemoteFunctionConfig'
+        - type: object
+          properties:
+            url:
+              description: >-
+                The URL of the endpoint to POST events to.
+              type: string
     LineString:
       allOf:
         - $ref: '#/components/schemas/Geometry'
@@ -2399,6 +2690,26 @@ components:
                   maxItems: 3
                   minItems: 2
                 minItems: 4
+    RemoteFunctionConfig:
+      type: object
+      description: A connector declaration.
+      discriminator:
+        propertyName: type
+      required:
+        - type
+      properties:
+        type:
+          type: string
+        id:
+          description: >-
+            The ID of this config.
+          example: my-id
+          type: string
+        warmUp:
+          description: >-
+            The number of containers to keep warmed up.
+          type: integer
+          format: int64
     Space:
       type: object
       description: A space declaration.
@@ -2742,3 +3053,48 @@ components:
             - key: PuneBusStop
               count: 29208
         etag: 072d3ec0f881b4e7
+    StorageCapabilities:
+      type: object
+      description: Arbitrary parameters to be provided to the remote function with the event.
+      properties:
+        preserializedResponseSupport:
+          description: >-
+            If the lambda supports pre-serialization.
+          type: boolean
+        relocationSupport:
+          description: >-
+            If the lambda supports relocation events.
+          type: boolean
+        maxUncompressedSize:
+          description: >-
+            The maximum size of the payload, which the connector accepts as uncompressed data.
+          format: int64
+          default: 2147483647
+          type: integer
+        maxPayloadSize:
+          description: >-
+            The maximum size of the event, which this connector can directly receive.
+          format: int64
+          default: 6291456
+          type: integer
+        propertySearch:
+          description: >-
+            Whether searching by properties is supported. (Only applicable for storage connectors)
+          default: false
+          type: boolean
+        searchablePropertiesConfiguration:
+          description: >-
+            Whether it's supported to configure the searchableProperties of spaces. (Only applicable for storage connectors)
+          default: false
+          type: boolean
+        enableAutoCache:
+          description: >-
+            Whether automatic caching configuration for spaces is supported.
+          default: false
+          type: boolean
+        clusteringTypes:
+          description: >-
+            A list of supported clustering types / algorithms. ("hexbin", "quad", "quadbin") (Only applicable for storage connectors)
+          items:
+            type: string
+          type: array
