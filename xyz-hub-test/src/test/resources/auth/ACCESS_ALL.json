@@ -22,6 +22,9 @@
       "accessConnectors": [
         {}
       ],
+      "manageConnectors": [
+        {}
+      ],
       "useCapabilities": [
         {}
       ]

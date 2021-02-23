@@ -1,7 +1,9 @@
 package com.here.xyz.hub.task;
 
+import com.here.xyz.connectors.AbstractConnectorHandler;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
+import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLambda;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
@@ -30,6 +32,8 @@ import static io.netty.handler.codec.http.HttpResponseStatus.*;
 
 public class ConnectorHandler {
 
+  private static final int ID_MIN_LENGTH = 4;
+  private static final int ID_MAX_LENGTH = 64;
   private static final Logger logger = LogManager.getLogger();
 
   public static void getConnector(RoutingContext context, String connectorId, Handler<AsyncResult<Connector>> handler) {
@@ -39,7 +43,8 @@ public class ConnectorHandler {
       if (ar.failed()) {
         logger.warn(marker, "The requested resource does not exist.'", ar.cause());
         handler.handle(Future.failedFuture(new HttpException(NOT_FOUND, "The requested resource does not exist.", ar.cause())));
-      } else {
+      }
+      else {
         handler.handle(Future.succeededFuture(ar.result()));
       }
     });
@@ -94,27 +99,38 @@ public class ConnectorHandler {
 
     Service.connectorConfigClient.get(marker, connector.getString("id"), ar -> {
       if (ar.failed()) {
-
-        Connector c = Json.mapper.convertValue(connector, Connector.class);
-        DiffMap diffMap = (DiffMap) Patcher.getDifference(new HashMap<>(), asMap(connector));
-        try {
-          validateAdminChanges(context, diffMap);
-          validate(context, c);
-
-          Service.connectorConfigClient.store(marker, c, ar2 -> {
-            if (ar2.failed()) {
-              logger.error(marker, "Unable to store resource definition.'", ar.cause());
-              handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to store the resource definition.", ar2.cause())));
-            } else {
-              handler.handle(Future.succeededFuture(ar2.result()));
-            }
-          });
-        } catch (HttpException e) {
-          handler.handle(Future.failedFuture(e));
-        }
-      } else {
+        storeConnector(context, connector, handler, marker, ar);
+      }
+      else {
         logger.info(marker, "Resource with the given ID already exists.");
         handler.handle(Future.failedFuture(new HttpException(BAD_REQUEST, "Resource with the given ID already exists.")));
+      }
+    });
+  }
+
+  protected static void storeConnector(RoutingContext context, JsonObject connector, Handler<AsyncResult<Connector>> handler, Marker marker,
+      AsyncResult<Connector> ar) {
+    Connector c = Json.mapper.convertValue(connector, Connector.class);
+    DiffMap diffMap = (DiffMap) Patcher.getDifference(new HashMap<>(), asMap(connector));
+    try {
+      //TODO: Do admin validation in ConnectorApi.ConnectorAuthorization
+      validateAdminChanges(context, diffMap);
+      storeConnector(context, handler, marker, ar, c);
+    } catch (HttpException e) {
+      handler.handle(Future.failedFuture(e));
+    }
+  }
+
+  private static void storeConnector(RoutingContext context, Handler<AsyncResult<Connector>> handler, Marker marker,
+      AsyncResult<Connector> ar, Connector c) throws HttpException {
+    validate(context, c);
+
+    Service.connectorConfigClient.store(marker, c, ar2 -> {
+      if (ar2.failed()) {
+        logger.error(marker, "Unable to store resource definition.'", ar.cause());
+        handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to store the resource definition.", ar2.cause())));
+      } else {
+        handler.handle(Future.succeededFuture(ar2.result()));
       }
     });
   }
@@ -126,25 +142,9 @@ public class ConnectorHandler {
       if (ar.failed()) {
         logger.error(marker, "Unable to load resource definition.'", ar.cause());
         handler.handle(Future.failedFuture(new HttpException(NOT_FOUND, "Unable to load the resource definition.", ar.cause())));
-      } else {
-
-        Connector c = Json.mapper.convertValue(connector, Connector.class);
-        DiffMap diffMap = (DiffMap) Patcher.getDifference(new HashMap<>(), asMap(connector));
-        try {
-          validateAdminChanges(context, diffMap);
-          validate(context, c);
-
-          Service.connectorConfigClient.store(marker, c, ar2 -> {
-            if (ar2.failed()) {
-              logger.error(marker, "Unable to store resource definition.'", ar.cause());
-              handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to store the resource definition.", ar2.cause())));
-            } else {
-              handler.handle(Future.succeededFuture(ar2.result()));
-            }
-          });
-        } catch (HttpException e) {
-          handler.handle(Future.failedFuture(e));
-        }
+      }
+      else {
+        storeConnector(context, connector, handler, marker, ar);
       }
     });
   }
@@ -162,19 +162,11 @@ public class ConnectorHandler {
         Map oldConnectorMap = asMap(oldConnector);
         DiffMap diffMap = (DiffMap) Patcher.calculateDifferenceOfPartialUpdate(oldConnectorMap, asMap(connector), null, true);
         try {
+          //TODO: Do admin validation in ConnectorApi.ConnectorAuthorization
           validateAdminChanges(context, diffMap);
           Patcher.patch(oldConnectorMap, diffMap);
           Connector newHeadConnector = asConnector(marker, oldConnectorMap);
-          validate(context, newHeadConnector);
-
-          Service.connectorConfigClient.store(marker, newHeadConnector, ar2 -> {
-            if (ar2.failed()) {
-              logger.error(marker, "Unable to store resource definition.'", ar.cause());
-              handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to store the resource definition.", ar2.cause())));
-            } else {
-              handler.handle(Future.succeededFuture(ar2.result()));
-            }
-          });
+          storeConnector(context, handler, marker, ar, newHeadConnector);
         } catch (HttpException e) {
           handler.handle(Future.failedFuture(e));
         }
@@ -197,8 +189,9 @@ public class ConnectorHandler {
 
   private static Map asMap(Object object) {
     try {
-      return Json.decodeValue(Json.mapper.writeValueAsString(object), Map.class);
-    } catch (Exception e) {
+      return Json.mapper.convertValue(object, Map.class);
+    }
+    catch (Exception e) {
       return Collections.emptyMap();
     }
   }
@@ -206,12 +199,14 @@ public class ConnectorHandler {
   private static Connector asConnector(Marker marker, Map object) throws HttpException {
     try {
       return Json.mapper.convertValue(object, Connector.class);
-    } catch (Exception e) {
+    }
+    catch (Exception e) {
       logger.error(marker, "Could not convert resource.", e.getCause());
       throw new HttpException(INTERNAL_SERVER_ERROR, "Could not convert resource.");
     }
   }
 
+  //TODO: Move to ConnectorApi.ConnectorAuthorization
   private static void validateAdminChanges(RoutingContext context, DiffMap diffMap) throws HttpException {
     //Is Admin change?
     checkParameterChange(diffMap.get("owner"), "owner", Api.Context.getJWT(context).aid);
@@ -219,6 +214,7 @@ public class ConnectorHandler {
     checkParameterChange(diffMap.get("trusted"), "trusted", false);
   }
 
+  //TODO: Move to ConnectorApi.ConnectorAuthorization
   private static void checkParameterChange(Difference diff, String parameterName, Object expected) throws HttpException {
     if (diff != null && diff instanceof Primitive) {
       Primitive prim = (Primitive) diff;
@@ -230,9 +226,9 @@ public class ConnectorHandler {
     //Validate general parameter
     if (connector.id == null)
       throw new HttpException(BAD_REQUEST, "Parameter 'id' for the resource is missing.");
-    else
-      if (!connector.id.matches("[a-z0-9-_]{4,64}"))
-        throw new HttpException(BAD_REQUEST, "Parameter 'id' needs to match [a-z0-9-_]{4,64}.");
+    else if (connector.id.length() < ID_MIN_LENGTH || connector.id.length() > ID_MAX_LENGTH)
+        throw new HttpException(BAD_REQUEST, "Parameter 'id' must have a minimum length of  " + ID_MIN_LENGTH + " and a "
+            + "maximum length of " + ID_MAX_LENGTH);
 
     if (connector.contactEmails == null || connector.contactEmails.isEmpty())
       throw new HttpException(BAD_REQUEST, "Parameter 'contactEmails' for the resource is missing or empty.");
@@ -263,85 +259,83 @@ public class ConnectorHandler {
 
   private static void validateAWSLambda(Connector connector, AWSLambda rf) throws HttpException {
     //Validate RemoteFunction
-    if (rf.id == null)
-      throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.id' for the resource is missing.");
-    else
-    if (!rf.id.matches("[a-z0-9-_]{4,64}"))
-      throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.id' needs to match [a-z0-9-_]{4,64}.");
+    validateRfId(rf);
 
     if (rf.lambdaARN == null)
       throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.lambdaARN' for the resource is missing.");
     else
     if (!rf.lambdaARN.matches("arn:aws:lambda:[a-z]{2}(-gov)?-[a-z]+-\\d{1}:\\d{12}:function:([a-zA-Z0-9-_]+)(:(\\$LATEST|[a-zA-Z0-9-_]+))?"))
-      throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.lambdaARN' needs to match arn:aws:lambda:[a-z]{2}(-gov)?-[a-z]+-\\d{1}:\\d{12}:function:([a-zA-Z0-9-_]+)(:(\\$LATEST|[a-zA-Z0-9-_]+))?.");
+      throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.lambdaARN' must be a valid Lambda function ARN.");
 
     if (rf.roleARN != null)
       if (!rf.roleARN.matches("arn:aws:iam::  \\d{12}:role/[a-zA-Z0-9_+=,.@-]+"))
-        throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.roleARN' needs to match arn:aws:iam::\\d{12}:role/[a-zA-Z0-9_+=,.@-]+");
+        throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.roleARN' must be a valid IAM role ARN");
 
     if (rf.warmUp < 0 || rf.warmUp > 32)
       throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.warmup' needs to be in the range of 0-32.");
 
-
     //Validate ConnectionSettings
-    if (connector.connectionSettings.getMinConnections() < 0 || connector.connectionSettings.getMinConnections() > 256)
-      throw new HttpException(BAD_REQUEST, "Parameter 'connectionSettings.minConnections' needs to be in the range of 0-256.");
-    if (connector.connectionSettings.maxConnections < 16 || connector.connectionSettings.maxConnections > 2048)
-      throw new HttpException(BAD_REQUEST, "Parameter 'connectionSettings.maxConnections' needs to be in the range of 16-2048.");
-
-    //Validate Capabilities
-    if (connector.capabilities.maxPayloadSize < 0 || connector.capabilities.maxPayloadSize > 6 * 1024 * 1024)
-      throw new HttpException(BAD_REQUEST, "Parameter 'capabilities.maxPayloadSize' needs to be in the range of 0-6291456 (default: 6291456).");
+    validateConnectionSettings(connector, 512);
+    validateMaxPayload(connector, 6);
   }
 
   private static void validateHttp(Connector connector, Http rf) throws HttpException {
     //Validate RemoteFunction
-    if (rf.id == null)
-      throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.id' for the resource is missing.");
-    else
-    if (!rf.id.matches("[a-z0-9-_]{4,64}"))
-      throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.id' needs to match [a-z0-9-_]{4,64}.");
+    validateRfId(rf);
 
     if (rf.url == null)
       throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.url' for the resource is missing.");
     else if (rf.url.toString().isEmpty())
       throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.url' for the resource is empty.");
 
-    if (rf.warmUp < 0 || rf.warmUp > 32)
-      throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.warmup' needs to be in the range of 0-32.");
-
+    if (rf.warmUp != 0)
+      throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.warmup' must not be set for HTTP connectors.");
 
     //Validate ConnectionSettings
-    if (connector.connectionSettings.getMinConnections() < 0 || connector.connectionSettings.getMinConnections() > 256)
-      throw new HttpException(BAD_REQUEST, "Parameter 'connectionSettings.minConnections' needs to be in the range of 0-256.");
-    if (connector.connectionSettings.maxConnections < 16 || connector.connectionSettings.maxConnections > 5096)
-      throw new HttpException(BAD_REQUEST, "Parameter 'connectionSettings.maxConnections' needs to be in the range of 16-5096.");
+    validateConnectionSettings(connector, 5096);
+    validateMaxPayload(connector, 50);
+  }
 
-    //Validate Capabilities
-    if (connector.capabilities.maxPayloadSize < 0 || connector.capabilities.maxPayloadSize > 50 * 1024 * 1024)
-      throw new HttpException(BAD_REQUEST, "Parameter 'capabilities.maxPayloadSize' needs to be in the range of 0-52.428.800 (default: 52.428.800).");
+  private static void validateRfId(RemoteFunctionConfig rf) throws HttpException {
+    if (rf.id == null)
+      throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.id' for the resource is missing.");
+    else if (rf.id.length() < ID_MIN_LENGTH || rf.id.length() > ID_MAX_LENGTH)
+      throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.id' must have a minimum length of  " + ID_MIN_LENGTH + " and a "
+          + "maximum length of " + ID_MAX_LENGTH);
   }
 
   private static void validateEmbedded(Connector connector, Embedded rf) throws HttpException {
     //Validate RemoteFunction
-    if (rf.id == null)
-      throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.id' for the resource is missing.");
-    else
-    if (!rf.id.matches("[a-z0-9-_]{4,64}"))
-      throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.id' needs to match [a-z0-9-_]{4,64}.");
+    validateRfId(rf);
+
+    if (rf.warmUp != 0)
+      throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.warmup' must not be set for HTTP connectors.");
 
     if (StringUtils.isEmpty(rf.className))
       throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.className' for the resource is missing.");
+    try {
+      Class<?> connectorClass = Class.forName(rf.className);
+      if (!AbstractConnectorHandler.class.isAssignableFrom(connectorClass))
+        throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.className' can't be resolved to a valid connector handler class.");
+    }
+    catch (ClassNotFoundException e) {
+      throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.className' can't be resolved to a class.");
+    }
+    validateConnectionSettings(connector, 5096);
+    validateMaxPayload(connector, 50);
+  }
 
-
+  private static void validateConnectionSettings(Connector connector, int maxConnections) throws HttpException {
     //Validate ConnectionSettings
     if (connector.connectionSettings.getMinConnections() < 0 || connector.connectionSettings.getMinConnections() > 256)
       throw new HttpException(BAD_REQUEST, "Parameter 'connectionSettings.minConnections' needs to be in the range of 0-256.");
-    if (connector.connectionSettings.maxConnections < 16 || connector.connectionSettings.maxConnections > 5096)
-      throw new HttpException(BAD_REQUEST, "Parameter 'connectionSettings.maxConnections' needs to be in the range of 16-5096.");
+    if (connector.connectionSettings.maxConnections < 16 || connector.connectionSettings.maxConnections > maxConnections)
+      throw new HttpException(BAD_REQUEST, "Parameter 'connectionSettings.maxConnections' needs to be in the range of 16-" + maxConnections + ".");
+  }
 
+  private static void validateMaxPayload(Connector connector, int maxPayloadSize) throws HttpException {
     //Validate Capabilities
-    if (connector.capabilities.maxPayloadSize < 0 || connector.capabilities.maxPayloadSize > 50 * 1024 * 1024)
-      throw new HttpException(BAD_REQUEST, "Parameter 'capabilities.maxPayloadSize' needs to be in the range of 0-52.428.800 (default: 52.428.800).");
+    if (connector.capabilities.maxPayloadSize < 0 || connector.capabilities.maxPayloadSize > maxPayloadSize * 1024 * 1024)
+      throw new HttpException(BAD_REQUEST, "Parameter 'capabilities.maxPayloadSize' needs to be in the range of 0-" + (maxPayloadSize * 1024 * 1024) + " (default: " + (maxPayloadSize * 1024 * 1024) + ").");
   }
 }

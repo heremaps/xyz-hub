@@ -19,7 +19,17 @@
 
 package com.here.xyz.hub.rest;
 
-import com.here.xyz.hub.auth.*;
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
+import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
+import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
+
+import com.here.xyz.hub.auth.Authorization;
+import com.here.xyz.hub.auth.XyzHubActionMatrix;
+import com.here.xyz.hub.auth.XyzHubAttributeMap;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.task.ConnectorHandler;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -34,19 +44,13 @@ import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.api.contract.openapi3.OpenAPI3RouterFactory;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.here.xyz.hub.rest.ApiParam.Query.OWNER;
-import static io.netty.handler.codec.http.HttpResponseStatus.*;
-import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
+import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class ConnectorApi extends Api {
   private static final Logger logger = LogManager.getLogger();
@@ -60,32 +64,43 @@ public class ConnectorApi extends Api {
     routerFactory.addHandlerByOperationId("deleteConnector", this::deleteConnector);
   }
 
+  private JsonObject getInput(final RoutingContext context) throws HttpException {
+    try {
+      return context.getBodyAsJson();
+    }
+    catch (DecodeException e) {
+      throw new HttpException(BAD_REQUEST, "Invalid JSON string");
+    }
+  }
+
   private void getConnector(final RoutingContext context) {
-
-    String connectorId = context.pathParam(ApiParam.Path.CONNECTOR_ID);
-
-    ConnectorAuthorization.authorizeManageConnectorsRights(context, connectorId, arAuth -> {
-      if (arAuth.failed()) {
-        sendErrorResponse(context, arAuth.cause());
-        return;
-      }
-
-      ConnectorHandler.getConnector(context, connectorId, ar -> {
-            if (ar.failed()) {
-              this.sendErrorResponse(context, ar.cause());
-            } else {
-              sendResponse(context, OK, ar.result());
-            }
+    try {
+      String connectorId = context.pathParam(ApiParam.Path.CONNECTOR_ID);
+      ConnectorAuthorization.authorizeManageConnectorsRights(context, connectorId, arAuth -> {
+        if (arAuth.failed()) {
+          sendErrorResponse(context, arAuth.cause());
+          return;
+        }
+        ConnectorHandler.getConnector(context, connectorId, ar -> {
+          if (ar.failed()) {
+            this.sendErrorResponse(context, ar.cause());
           }
-      );
-    });
+          else {
+            sendResponse(context, OK, ar.result());
+          }
+        });
+      });
+    }
+    catch (Exception e) {
+      sendErrorResponse(context, e);
+    }
   }
 
   private void getConnectors(final RoutingContext context) {
     List<String> queryIds = context.queryParam("id");
-    Handler<AsyncResult<Void>> handler = event -> {
-      if (event.failed()) {
-        sendErrorResponse(context, event.cause());
+    Handler<AsyncResult<Void>> handler = arAuth -> {
+      if (arAuth.failed()) {
+        sendErrorResponse(context, arAuth.cause());
         return;
       }
 
@@ -110,131 +125,116 @@ public class ConnectorApi extends Api {
       }
     };
 
-    if (queryIds.isEmpty()) {
-      try {
-        ConnectorAuthorization.authorizeManageConnectorsRights(context);
-        handler.handle(Future.succeededFuture());
-      } catch (HttpException e) {
-        sendErrorResponse(context, e);
-      }
-    } else {
-      ConnectorAuthorization.authorizeManageConnectorsRights(context, queryIds, handler);
-    }
+    ConnectorAuthorization.authorizeManageConnectorsRights(context, queryIds, handler);
   }
 
   private void createConnector(final RoutingContext context) {
-    JsonObject input;
     try {
-      input = context.getBodyAsJson();
-    } catch (DecodeException e) {
-      context.fail(new HttpException(BAD_REQUEST, "Invalid JSON string"));
-      return;
-    }
-
-    String connectorId = input.getString("id");
-    if (connectorId == null) {
-      sendErrorResponse(context, new HttpException(BAD_REQUEST, "Parameter 'id' for the resource is missing."));
-      return;
-    }
-
-    ConnectorAuthorization.authorizeManageConnectorsRights(context, connectorId, arAuth -> {
-      if (arAuth.failed()) {
-        sendErrorResponse(context, arAuth.cause());
-        return;
-      }
-
-      ConnectorHandler.createConnector(context, input, ar -> {
-        if (ar.failed()) {
-          this.sendErrorResponse(context, ar.cause());
-        } else {
-          sendResponse(context, CREATED, ar.result());
+      JsonObject input = getInput(context);
+      String connectorId = input.getString("id");
+      if (connectorId == null)
+        throw new HttpException(BAD_REQUEST, "Parameter 'id' for the resource is missing.");
+      ConnectorAuthorization.authorizeManageConnectorsRights(context, connectorId, arAuth -> {
+        if (arAuth.failed()) {
+          sendErrorResponse(context, arAuth.cause());
+          return;
         }
+        ConnectorHandler.createConnector(context, input, ar -> {
+          if (ar.failed()) {
+            this.sendErrorResponse(context, ar.cause());
+          }
+          else {
+            sendResponse(context, CREATED, ar.result());
+          }
+        });
       });
-    });
+    }
+    catch (Exception e) {
+      sendErrorResponse(context, e);
+    }
+  }
+
+  private void validateConnectorId(RoutingContext context, JsonObject input) throws HttpException {
+    String connectorId = context.pathParam(ApiParam.Path.CONNECTOR_ID);
+    if (input.getString("id") == null) {
+      input.put("id", connectorId);
+    }
+    else if (!input.getString("id").equals(connectorId)) {
+      throw new HttpException(BAD_REQUEST, "Path ID does not match resource ID in body.");
+    }
   }
 
   private void replaceConnector(final RoutingContext context) {
-    String connectorId = context.pathParam(ApiParam.Path.CONNECTOR_ID);
-    ConnectorAuthorization.authorizeManageConnectorsRights(context, connectorId, arAuth -> {
-      if (arAuth.failed()) {
-        sendErrorResponse(context, arAuth.cause());
-        return;
-      }
-
-      JsonObject input;
-      try {
-        input = context.getBodyAsJson();
-      } catch (DecodeException e) {
-        context.fail(new HttpException(BAD_REQUEST, "Invalid JSON string"));
-        return;
-      }
-
-      if (input.getString("id") == null) {
-        input.put("id", connectorId);
-      } else if (!input.getString("id").equals(connectorId)) {
-        sendErrorResponse(context, new HttpException(BAD_REQUEST, "Path ID does not match resource ID in body."));
-        return;
-      }
-
-      ConnectorHandler.replaceConnector(context, input, ar -> {
-        if (ar.failed()) {
-          this.sendErrorResponse(context, ar.cause());
-        } else {
-          sendResponse(context, OK, ar.result());
+    try {
+      String connectorId = context.pathParam(ApiParam.Path.CONNECTOR_ID);
+      JsonObject input = getInput(context);
+      validateConnectorId(context, input);
+      ConnectorAuthorization.authorizeManageConnectorsRights(context, connectorId, arAuth -> {
+        if (arAuth.failed()) {
+          sendErrorResponse(context, arAuth.cause());
+          return;
         }
+        ConnectorHandler.replaceConnector(context, input, ar -> {
+          if (ar.failed()) {
+            this.sendErrorResponse(context, ar.cause());
+          }
+          else {
+            sendResponse(context, OK, ar.result());
+          }
+        });
       });
-    });
+    }
+    catch (Exception e) {
+      sendErrorResponse(context, e);
+    }
   }
 
   private void updateConnector(final RoutingContext context) {
-    String connectorId = context.pathParam(ApiParam.Path.CONNECTOR_ID);
-    ConnectorAuthorization.authorizeManageConnectorsRights(context, connectorId, arAuth -> {
-      if (arAuth.failed()) {
-        sendErrorResponse(context, arAuth.cause());
-        return;
-      }
-
-      JsonObject input;
-      try {
-        input = context.getBodyAsJson();
-      } catch (DecodeException e) {
-        context.fail(new HttpException(BAD_REQUEST, "Invalid JSON string"));
-        return;
-      }
-
-      if (input.getString("id") == null) {
-        input.put("id", connectorId);
-      } else if (!input.getString("id").equals(connectorId)) {
-        sendErrorResponse(context, new HttpException(BAD_REQUEST, "Path ID does not match resource ID in body."));
-        return;
-      }
-
-      ConnectorHandler.updateConnector(context, input, ar -> {
-        if (ar.failed()) {
-          this.sendErrorResponse(context, ar.cause());
-        } else {
-          sendResponse(context, OK, ar.result());
+    try {
+      String connectorId = context.pathParam(ApiParam.Path.CONNECTOR_ID);
+      JsonObject input = getInput(context);
+      validateConnectorId(context, input);
+      ConnectorAuthorization.authorizeManageConnectorsRights(context, connectorId, arAuth -> {
+        if (arAuth.failed()) {
+          sendErrorResponse(context, arAuth.cause());
+          return;
         }
+        ConnectorHandler.updateConnector(context, input, ar -> {
+          if (ar.failed()) {
+            this.sendErrorResponse(context, ar.cause());
+          }
+          else {
+            sendResponse(context, OK, ar.result());
+          }
+        });
       });
-    });
+    }
+    catch (Exception e) {
+      sendErrorResponse(context, e);
+    }
   }
 
   private void deleteConnector(final RoutingContext context) {
-    String connectorId = context.pathParam(ApiParam.Path.CONNECTOR_ID);
-    ConnectorAuthorization.authorizeManageConnectorsRights(context, connectorId, arAuth -> {
-      if (arAuth.failed()) {
-        sendErrorResponse(context, arAuth.cause());
-        return;
-      }
-
-      ConnectorHandler.deleteConnector(context, connectorId, ar -> {
-        if (ar.failed()) {
-          this.sendErrorResponse(context, ar.cause());
-        } else {
-          sendResponse(context, OK, ar.result());
+    try {
+      String connectorId = context.pathParam(ApiParam.Path.CONNECTOR_ID);
+      ConnectorAuthorization.authorizeManageConnectorsRights(context, connectorId, arAuth -> {
+        if (arAuth.failed()) {
+          sendErrorResponse(context, arAuth.cause());
+          return;
         }
+        ConnectorHandler.deleteConnector(context, connectorId, ar -> {
+          if (ar.failed()) {
+            this.sendErrorResponse(context, ar.cause());
+          }
+          else {
+            sendResponse(context, OK, ar.result());
+          }
+        });
       });
-    });
+    }
+    catch (Exception e) {
+      sendErrorResponse(context, e);
+    }
   }
 
   private void sendResponse(RoutingContext context, HttpResponseStatus status, Object o) {
@@ -242,7 +242,7 @@ public class ConnectorApi extends Api {
 
     byte[] response;
     try {
-      response = Json.encode(o).getBytes(StandardCharsets.UTF_8);
+      response = Json.encode(o).getBytes();
     } catch (EncodeException e) {
       sendErrorResponse(context, new HttpException(INTERNAL_SERVER_ERROR, "Could not serialize response.", e));
       return;
@@ -259,13 +259,7 @@ public class ConnectorApi extends Api {
   }
 
   private void sendErrorResponse(RoutingContext context, Throwable throwable) {
-    HttpException e;
-    if (throwable instanceof HttpException) {
-      e = (HttpException) throwable;
-    } else {
-      e = new HttpException(INTERNAL_SERVER_ERROR, throwable.getMessage(), throwable);
-    }
-    sendErrorResponse(context, e);
+    super.sendErrorResponse(context, throwable instanceof Exception ? (Exception) throwable : new Exception(throwable));
   }
 
 
@@ -273,13 +267,11 @@ public class ConnectorApi extends Api {
     public static void authorizeManageConnectorsRights(RoutingContext context, String connectorId, Handler<AsyncResult<Void>> handler) {
       authorizeManageConnectorsRights(context, Arrays.asList(connectorId), handler);
     }
-
+      
     public static void authorizeManageConnectorsRights(RoutingContext context, List<String> connectorIds, Handler<AsyncResult<Void>> handler) {
       final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
-      List<CompletableFuture<Void>> futureList = new ArrayList<>();
-      connectorIds.forEach(connectorId ->
-          futureList.add(checkConnector(context, requestRights, connectorId))
-      );
+      List<CompletableFuture<Void>> futureList = connectorIds == null ? Collections.emptyList()
+          : connectorIds.stream().map(connectorId -> checkConnector(context, requestRights, connectorId)).collect(Collectors.toList());
 
       CompletableFuture.allOf(futureList.toArray(new CompletableFuture[futureList.size()]))
           .thenRun(() -> {
@@ -290,15 +282,6 @@ public class ConnectorApi extends Api {
               handler.handle(Future.failedFuture(e));
             }
           });
-    }
-
-    public static void authorizeManageConnectorsRights(RoutingContext context) throws HttpException {
-      JWTPayload jwt = Context.getJWT(context);
-
-      final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
-      requestRights.manageConnectors(new XyzHubAttributeMap().withValue(OWNER, jwt.aid));
-
-      evaluateRights(Context.getMarker(context), requestRights, jwt.getXyzHubMatrix());
     }
 
     private static CompletableFuture<Void> checkConnector(RoutingContext context, XyzHubActionMatrix requestRights, String connectorId) {
