@@ -101,7 +101,9 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
         try {
           //Add the handlers
           final RouterBuilder rb = ar.result()
-              .setOptions(new RouterBuilderOptions().setContractEndpoint(RouterBuilderOptions.STANDARD_CONTRACT_ENDPOINT));
+              .setOptions(new RouterBuilderOptions()
+                  .setContractEndpoint(RouterBuilderOptions.STANDARD_CONTRACT_ENDPOINT)
+                  .setRequireSecurityHandlers(false));
           new FeatureApi(rb);
           new FeatureQueryApi(rb);
           new SpaceApi(rb);
