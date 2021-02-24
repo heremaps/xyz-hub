@@ -23,6 +23,8 @@ import static com.here.xyz.hub.task.Task.TASK;
 import static com.here.xyz.hub.util.OpenApiGenerator.generate;
 import static io.vertx.core.http.HttpHeaders.CONTENT_LENGTH;
 
+import com.google.common.io.ByteStreams;
+import com.google.common.io.Files;
 import com.here.xyz.hub.auth.Authorization.AuthorizationType;
 import com.here.xyz.hub.auth.JWTURIHandler;
 import com.here.xyz.hub.auth.JwtDummyHandler;
@@ -51,8 +53,6 @@ import io.vertx.ext.web.openapi.RouterBuilder;
 import io.vertx.ext.web.openapi.RouterBuilderOptions;
 import java.io.File;
 import java.util.Hashtable;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -68,8 +68,8 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
 
   static {
     try {
-      final byte[] openapi = IOUtils.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/openapi.yaml"));
-      final byte[] recipes = IOUtils.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/openapi-recipes.yaml"));
+      final byte[] openapi = ByteStreams.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/openapi.yaml"));
+      final byte[] recipes = ByteStreams.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/openapi-recipes.yaml"));
 
       FULL_API = new String(openapi);
       STABLE_API = new String(generate(openapi, recipes, "stable"));
@@ -77,7 +77,7 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
       CONTRACT_API = new String(generate(openapi, recipes, "contract"));
 
       final File tempFile = File.createTempFile("contract-", ".yaml");
-      FileUtils.write(tempFile, CONTRACT_API);
+      Files.write(CONTRACT_API.getBytes(), tempFile);
       CONTRACT_LOCATION = tempFile.toURI().toString();
     } catch (Exception e) {
       logger.error("Unable to generate OpenApi specs.", e);

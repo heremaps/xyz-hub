@@ -19,10 +19,10 @@
 
 package com.here.xyz.hub.auth;
 
+import com.google.common.io.ByteStreams;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import org.apache.commons.io.IOUtils;
 
 public class TestAuthenticator {
 
@@ -34,8 +34,9 @@ public class TestAuthenticator {
 
   protected static String content(String file) {
     try {
-      return IOUtils.toString(TestAuthenticator.class.getResourceAsStream(file)).trim();
-    } catch (IOException e) {
+      return new String(ByteStreams.toByteArray(TestAuthenticator.class.getResourceAsStream(file))).trim();
+    }
+    catch (IOException e) {
       throw new RuntimeException("Error while reading token from resource file: " + file, e);
     }
   }
