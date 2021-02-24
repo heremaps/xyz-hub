@@ -43,7 +43,7 @@ import io.vertx.core.json.EncodeException;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.api.contract.openapi3.OpenAPI3RouterFactory;
+import io.vertx.ext.web.openapi.RouterBuilder;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -55,13 +55,13 @@ import org.apache.logging.log4j.Logger;
 public class ConnectorApi extends Api {
   private static final Logger logger = LogManager.getLogger();
 
-  public ConnectorApi(OpenAPI3RouterFactory routerFactory) {
-    routerFactory.addHandlerByOperationId("getConnectors", this::getConnectors);
-    routerFactory.addHandlerByOperationId("postConnector", this::createConnector);
-    routerFactory.addHandlerByOperationId("getConnector", this::getConnector);
-    routerFactory.addHandlerByOperationId("putConnector", this::replaceConnector);
-    routerFactory.addHandlerByOperationId("patchConnector", this::updateConnector);
-    routerFactory.addHandlerByOperationId("deleteConnector", this::deleteConnector);
+  public ConnectorApi(RouterBuilder rb) {
+    rb.operation("getConnectors").handler(this::getConnectors);
+    rb.operation("postConnector").handler(this::createConnector);
+    rb.operation("getConnector").handler(this::getConnector);
+    rb.operation("putConnector").handler(this::replaceConnector);
+    rb.operation("patchConnector").handler(this::updateConnector);
+    rb.operation("deleteConnector").handler(this::deleteConnector);
   }
 
   private JsonObject getInput(final RoutingContext context) throws HttpException {
@@ -257,11 +257,6 @@ public class ConnectorApi extends Api {
       httpResponse.end(Buffer.buffer(response));
     }
   }
-
-  private void sendErrorResponse(RoutingContext context, Throwable throwable) {
-    super.sendErrorResponse(context, throwable instanceof Exception ? (Exception) throwable : new Exception(throwable));
-  }
-
 
   private static class ConnectorAuthorization extends Authorization {
     public static void authorizeManageConnectorsRights(RoutingContext context, String connectorId, Handler<AsyncResult<Void>> handler) {

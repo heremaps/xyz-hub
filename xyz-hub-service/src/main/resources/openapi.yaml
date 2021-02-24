@@ -1079,7 +1079,12 @@ components:
         To abort the entry update select _error_.
       required: false
       schema:
-        $ref: '#/components/schemas/OnMergeConflict'
+        type: string
+        enum:
+          - error
+          - retain
+          - replace
+        default: error
     ConnectorId:
       name: connectorId
       in: path
@@ -1146,7 +1151,15 @@ components:
         Default is _patch_.
       required: false
       schema:
-        $ref: '#/components/schemas/OnFeatureExists'
+        type: string
+        enum:
+          - patch
+          - replace
+          - merge
+          - delete
+          - retain
+          - error
+        default: patch
     IfNotExists:
       name: ne
       in: query
@@ -1155,7 +1168,12 @@ components:
         exist or the feature contains no ID. Default is _create_.
       required: false
       schema:
-        $ref: '#/components/schemas/OnFeatureNotExists'
+        type: string
+        enum:
+          - retain
+          - error
+          - create
+        default: create
     Latitude:
       name: lat
       in: query
@@ -1406,7 +1424,7 @@ components:
         a plus sign (+). A comma separated list of tags means any tag may be
         found. A plus sign concatenated list means every tag is required.
       allowEmptyValue: true
-      allowReserved: true
+      #allowReserved: true
       style: form
       schema:
         type: array
