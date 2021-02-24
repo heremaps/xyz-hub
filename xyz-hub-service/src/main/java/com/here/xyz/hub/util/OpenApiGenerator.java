@@ -5,8 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.google.common.io.Files;
 import com.here.xyz.hub.Service;
-import io.swagger.v3.parser.ObjectMapperFactory;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -16,7 +17,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.Consumer;
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 
 public class OpenApiGenerator {
@@ -36,7 +36,7 @@ public class OpenApiGenerator {
   private static final String NAME = "name";
   private static final String EXTENDS = "extends";
 
-  private static final ObjectMapper YAML_MAPPER = ObjectMapperFactory.createYaml();
+  private static final ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory());
   private static final Map<String, JsonNode> RECIPES_MAP = new HashMap<>();
   private static final Map<String, String> VALUES_MAP = new HashMap<String, String>() {{
     put(VERSION, Service.BUILD_VERSION);
@@ -68,7 +68,7 @@ public class OpenApiGenerator {
     prepareRecipe(name);
 
     if (debug) {
-      FileUtils.writeByteArrayToFile(new File("processedRecipe.yaml"), YAML_MAPPER.writeValueAsString(recipe).getBytes());
+      Files.write(YAML_MAPPER.writeValueAsString(recipe).getBytes(), new File("processedRecipe.yaml"));
     }
     return generate(sourceBytes, recipe.toString().getBytes());
   }
@@ -558,12 +558,12 @@ public class OpenApiGenerator {
         i++;
       }
 
-      final byte[] sourceBytes = FileUtils.readFileToByteArray(new File(args[i++]));
-      final byte[] recipeBytes = FileUtils.readFileToByteArray(new File(args[i++]));
+      final byte[] sourceBytes = Files.toByteArray(new File(args[i++]));
+      final byte[] recipeBytes = Files.toByteArray(new File(args[i++]));
       final boolean useName = args.length - (debug ? 1 : 0) == 4;
       final byte[] result = useName ? generate(sourceBytes, recipeBytes, args[i]) : generate(sourceBytes, recipeBytes);
 
-      FileUtils.writeByteArrayToFile(new File(args[args.length-1]), result);
+      Files.write(result, new File(args[args.length-1]));
     } catch (Exception e) {
       if (debug) {
         e.printStackTrace();

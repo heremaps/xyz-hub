@@ -217,11 +217,6 @@
       <artifactId>vertx-web</artifactId>
       <groupId>io.vertx</groupId>
     </dependency>
-    <!-- Remove once Vert.x4 migration was done-->
-    <dependency>
-      <artifactId>vertx-web-api-contract</artifactId>
-      <groupId>io.vertx</groupId>
-    </dependency>
     <dependency>
       <artifactId>vertx-web-openapi</artifactId>
       <groupId>io.vertx</groupId>
