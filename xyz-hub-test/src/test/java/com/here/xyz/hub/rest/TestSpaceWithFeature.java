@@ -55,16 +55,15 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
   }
 
   protected static void createSpace() {
-    final ValidatableResponse response = given()
+    given()
         .contentType(APPLICATION_JSON)
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body(content("/xyz/hub/createSpace.json"))
         .when()
         .post("/spaces")
-        .then();
-
-    response.statusCode(OK.code())
+        .then()
+        .statusCode(OK.code())
         .body("id", equalTo("x-psql-test"))
         .body("title", equalTo("My Demo Space"))
         .body("storage.id", equalTo("psql"));
@@ -130,14 +129,14 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
 
   @SuppressWarnings("SameParameterValue")
   static void publishSpace(String spaceId) {
-    final ValidatableResponse response = given()
+    given()
         .contentType(APPLICATION_JSON)
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body(content("/xyz/hub/publishSpace.json"))
-        .when().patch("/spaces/" + spaceId).then();
-
-    response.statusCode(OK.code())
+        .when()
+        .patch("/spaces/" + spaceId).then()
+        .statusCode(OK.code())
         .body("id", equalTo(spaceId))
         .body("shared", equalTo(true));
   }
