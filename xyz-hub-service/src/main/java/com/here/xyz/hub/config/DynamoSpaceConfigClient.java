@@ -115,7 +115,9 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
           p.complete();
         }
         else {
-          final Space space = DatabindCodec.mapper().convertValue(spaceItem.asMap(), Space.class);
+          Map<String, Object> itemData = spaceItem.asMap();
+          itemData.put("shared", ((Number) itemData.get("shared")).intValue() == 1);
+          final Space space = DatabindCodec.mapper().convertValue(itemData, Space.class);
           if (space != null)
             logger.info(marker, "Space ID: {} with title: \"{}\" has been decoded", spaceId, space.getTitle());
           else
@@ -132,13 +134,32 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
   @Override
   public Future<Void> storeSpace(Marker marker, Space space) {
     logger.info(marker, "Storing space with ID: {}", space.getId());
+    return get(marker, space.getId())
+        .compose(originalSpace -> storeSpace(marker, space, originalSpace));
+  }
+
+  private Future<Void> storeSpace(Marker marker, Space space, Space originalSpace) {
+    boolean deletePackages = false, insertPackages = false;
+    if (originalSpace == null) {
+      //This is a space creation
+      deletePackages = false;
+      insertPackages = space.getPackages() != null && !space.getPackages().isEmpty();
+    }
+    else {
+      //This is a space update
+      deletePackages = insertPackages = !packagesEqual(originalSpace.getPackages(), space.getPackages());
+    }
+    final boolean delPackages = deletePackages, insPackages = insertPackages;
 
     return DynamoClient.dynamoWorkers.executeBlocking(p -> storeSpaceSync(space, p))
         .onFailure(t -> logger.error(marker, "Failure storing a space into DynamoDB", t))
-        .compose(v -> get(marker, space.getId()))
-        .compose(originalSpace -> Objects.equals(new HashSet<>(originalSpace.getPackages()), new HashSet<>(space.getPackages())) ?
-            Future.succeededFuture() : deleteSpaceFromPackages(marker, originalSpace).compose(v -> storeSpaceIntoPackages(marker, space)))
+        .compose(v -> delPackages ? deleteSpaceFromPackages(marker, originalSpace) : Future.succeededFuture())
+        .compose(v -> insPackages ? storeSpaceIntoPackages(marker, space) : Future.succeededFuture())
         .onSuccess(v -> logger.info(marker, "Space with ID: {} has been successfully stored", space.getId()));
+  }
+
+  private boolean packagesEqual(List<String> packages1, List<String> packages2) {
+    return Objects.equals(packages1 != null ? new HashSet<>(packages1) : null, packages2 != null ? new HashSet<>(packages2) : null);
   }
 
   private void storeSpaceSync(Space space, Promise p) {
