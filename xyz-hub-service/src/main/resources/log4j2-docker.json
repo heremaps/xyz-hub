@@ -5,9 +5,6 @@
     "name": "Default Log Config",
     "packages": "com.here.xyz",
 
-    "ThresholdFilter": {
-      "level": "stream"
-    },
     "CustomLevels": {
       "CustomLevel": [{
         "name": "STREAM",
@@ -40,7 +37,7 @@
     },
     "loggers": {
       "root": {
-        "level": "info",
+        "level": "stream",
         "AppenderRef": {
           "ref": "RollingFile-Appender"
         }

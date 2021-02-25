@@ -5,9 +5,6 @@
     "name": "Default Log Config",
     "packages": "com.here.xyz",
 
-    "ThresholdFilter": {
-      "level": "info"
-    },
     "CustomLevels": {
       "CustomLevel": [{
         "name": "STREAM",
