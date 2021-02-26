@@ -103,8 +103,11 @@
 -- xyz_qk_grird								:	select xyz_qk_grird(3)
 -- xyz_qk_child_calculation					:	select select * from xyz_qk_child_calculation('012',3,null)
 -- xyz_count_estimation                     :   select xyz_count_estimation('select 1')
--- xyz_index_get_plain_propkey              : select xyz_index_get_plain_propkey('foo.bar::string')
--- xyz_index_dissolve_datatype              : select xyz_index_dissolve_datatype('foo.bar::array')
+-- xyz_index_get_plain_propkey              :   select xyz_index_get_plain_propkey('foo.bar::string')
+-- xyz_index_dissolve_datatype              :   select xyz_index_dissolve_datatype('foo.bar::array')
+--
+-- xyz_build_sortable_idx_values            :   select * from xyz_build_sortable_idx_values( '["pth1.pth2.field21:desc", "pth3.field22:asc", "field23:desc"]'::jsonb )
+--
 ---------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------
 -- xyz_qk_point2lrc							:	select * from xyz_qk_point2lrc( ST_GeomFromText( 'POINT( -64.78767  32.29703)' ), 3 );
@@ -148,7 +151,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 136
+ select 137
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
@@ -781,6 +784,131 @@ $BODY$
 	END
 $BODY$
   LANGUAGE plpgsql VOLATILE;
+
+
+
+------------------------------------------------
+------------------------------------------------
+
+------------------------------------------------
+--- Begin : sortable indexes
+------------------------------------------------
+
+create or replace function xyz_build_sortable_idx_values( sortby_arr jsonb, out iname text, out icomment text, out ifields text )
+as
+$body$
+declare
+ selem record;
+ dflip boolean := false;
+ direction text := '';
+ idx_postfix text := '';
+ comma text := '';
+ btree_clause text := '';
+ pathname text := '';
+ jpth text := '';
+ jseg text := '';
+begin
+
+ icomment = '';
+ ifields = '';
+
+ for selem in 
+  select row_number() over () as pos, el::text as sentry, el::text ~* '^".+:desc"$' as isdesc from jsonb_array_elements( sortby_arr ) el
+ loop 
+ 
+  if selem.pos = 1 and selem.isdesc then
+	 dflip = true;
+	end if;
+	
+	if selem.isdesc != dflip then
+	 direction = 'desc';
+	 idx_postfix = idx_postfix || '0';
+	else
+	 direction = '';
+	 idx_postfix = idx_postfix || '1';
+	end if;
+	
+	if length( icomment ) > 0 then
+	 comma = ',';
+	end if;
+	
+	pathname = regexp_replace(selem.sentry, '^"([^:]+)(:(asc|desc))*"$','\1','i');
+	
+	jpth = 'jsondata';
+	foreach jseg in array regexp_split_to_array(pathname,'\.')
+	loop
+	 jpth = format('(%s->''%s'')',jpth, jseg );
+	end loop;
+	
+	ifields = ifields || format('%s %s,',jpth,direction);
+	
+	icomment = icomment || format('%s%s%s',comma, pathname , replace(direction,'desc',':desc'));
+  
+ end loop;
+ 
+ ifields = format('%s (jsondata->>''id'') %s', ifields, direction );
+ iname = format('idx_#spaceid#_%s_o%s', substr( md5( icomment ),1,7), idx_postfix );
+ 
+end;
+$body$ 
+language plpgsql immutable;
+
+create or replace function xyz_eval_o_idxs( schema text, space text )
+ returns table ( iexists text, iproperty text, src character, iname text, icomment text, ifields text ) as
+$body$
+ with 
+  indata as ( select xyz_eval_o_idxs.schema as schema, xyz_eval_o_idxs.space as space ),
+  availidx as ( select idx_name as iexists, idx_property as iproperty, src  from ( select (xyz_index_list_all_available( i.schema, i.space )).* from indata i ) r where src = 'o' ),
+  reqidx as ( select distinct on (iname) replace(iname,'#spaceid#', o.space ) as iname, icomment, ifields 
+			  from
+			  ( select i.space, (xyz_build_sortable_idx_values( jsonb_array_elements( nullif( s.idx_manual->'sortableProperties', 'null' ) ) )).*
+                from xyz_config.xyz_idxs_status s, indata i
+                where s.idx_creation_finished = false
+                and s.spaceid = i.space 
+			  ) o	
+ 		    )
+ select e.iexists, e.iproperty, e.src, r.iname, r.icomment, r.ifields 
+ from availidx e full join reqidx r on ( e.iexists = r.iname )
+ where 1 = 1
+   and ((e.iexists is null) or (r.iname is null))
+ order by e.iexists, r.iname	
+$body$ 
+language sql immutable;
+
+-- Function: xyz_maintain_o_idxs_for_space(text, text)
+-- DROP FUNCTION xyz_maintain_o_idxs_for_space(text, text);
+create or replace function xyz_maintain_o_idxs_for_space( schema text, space text)
+  returns void as
+$body$
+ declare
+  indata record;
+ begin
+  for indata in 
+	 select * from xyz_eval_o_idxs( schema, space )
+  loop 
+	 
+   if indata.iexists is not null then
+	 
+    raise notice '-- PROPERTY: % | SORTABLE | SPACE: % |> DELETE IDX: %!', indata.iproperty, space, indata.iexists;
+	execute format('drop index if exists %s."%s" ', schema, indata.iexists );
+
+   elsif indata.iname is not null then
+	 
+	raise notice '-- PROPERTY: % | SORTABLE | SPACE: % |> CREATE SORT IDX: %!', indata.icomment, space, indata.iname;
+    execute format('create index "%s" on %s."%s" using btree (%s) ', indata.iname, schema, space, indata.ifields );
+    execute format('comment on index %s."%s" is ''%s''', schema, indata.iname, indata.icomment );
+		
+   end if;
+	 
+  end loop;
+ end;
+$body$
+language plpgsql volatile;
+
+------------------------------------------------
+--- End : sortable indexes
+------------------------------------------------
+
 ------------------------------------------------
 ------------------------------------------------
 -- Function: xyz_maintain_idxs_for_space(text, text)
@@ -845,8 +973,8 @@ $BODY$
 				(SELECT * from xyz_index_property_available(schema, space, property)) as idx_available
 					from (
 				SELECT
-					(jsonb_each(idx_manual)).key as property,
-					(jsonb_each(idx_manual)).value::text::boolean as idx_required
+					(jsonb_each(coalesce(idx_manual->'searchableProperties', idx_manual))).key as property,
+					(jsonb_each(coalesce(idx_manual->'searchableProperties', idx_manual))).value::text::boolean as idx_required
 						FROM xyz_config.xyz_idxs_status
 					WHERE idx_creation_finished = false
 						AND spaceid = space
@@ -882,9 +1010,9 @@ $BODY$
 					WHERE src='m'
 			EXCEPT
 			SELECT idx_name, idx_property FROM(
-				SELECT  xyz_index_get_plain_propkey((jsonb_each(idx_manual)).key) as idx_property,
-					xyz_index_name_for_property(space, (jsonb_each(idx_manual)).key, 'm') as idx_name,
-					(jsonb_each(idx_manual)).value::text::boolean as idx_required
+				SELECT  xyz_index_get_plain_propkey((jsonb_each(coalesce(idx_manual->'searchableProperties', idx_manual))).key) as idx_property,
+					xyz_index_name_for_property(space, (jsonb_each(coalesce(idx_manual->'searchableProperties', idx_manual))).key, 'm') as idx_name,
+					(jsonb_each(coalesce(idx_manual->'searchableProperties', idx_manual))).value::text::boolean as idx_required
 					FROM xyz_config.xyz_idxs_status
 						where spaceid = space
                           AND schem = schema
@@ -945,6 +1073,8 @@ $BODY$
 					RAISE NOTICE '--PROPERTY: % | TYPE: % | SPACE: % |> IDX CREATION ERROR -> SKIP!',xyz_idx_proposal.property, xyz_idx_proposal.type, space;
 			END;
 		END LOOP;
+
+        perform xyz_maintain_o_idxs_for_space( schema, space );
 
 		/** set indication that idx creation is finished */
 		UPDATE xyz_config.xyz_idxs_status
@@ -2000,7 +2130,7 @@ $BODY$
 
 		spaceid := space_id;
 		propkey := xyz_index_get_plain_propkey(idx_split[1]);
-		source := idx_split[2];
+		source :=  regexp_replace(idx_split[2],'o1[01]*$','o');
 
 		RETURN NEXT;
 	END;
@@ -2773,4 +2903,5 @@ $BODY$
   LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
 ------------------------------------------------
+
 

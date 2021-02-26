@@ -23,6 +23,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
+import com.here.xyz.psql.factory.IterateSortSQL;
+
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -85,6 +87,26 @@ public class Capabilities {
     }
   }
 
+  public static boolean canSortBy(String space, List<String> sort, PSQLXyzConnector connector) 
+  {
+    if (sort == null || sort.isEmpty() ) return true;
+
+    try 
+    {
+     String normalizedSortProp = IterateSortSQL.IdxMaintenance.normalizedSortProperies(sort);
+     List<String> indices = IndexList.getIndexList(space, connector);
+              
+     if (indices == null) return true; // The table is small and not indexed. It's not listed in the xyz_idxs_status table
+
+     return indices.contains( "o:" + normalizedSortProp );
+    } 
+    catch (Exception e) 
+    { // In all cases, when something with the check went wrong, allow the sort 
+    }
+
+    return true;
+  }
+
   public static class IndexList {
     /** Cache indexList for 3 Minutes  */
     static long CACHE_INTERVAL_MS = TimeUnit.MINUTES.toMillis(3);
@@ -128,11 +150,13 @@ public class Capabilities {
          * Indices are marked as:
          * a = automatically created (auto-indexing)
          * m = manually created (on-demand)
+         * o = sortable - manually created (on-demand) --> first single sortable propertie is always ascending
          * s = basic system indices
          */
-        if (one.get("src").equals("a") || one.get("src").equals("m")) {
+        if (one.get("src").equals("a") || one.get("src").equals("m") ) 
           indices.add((String) one.get("property"));
-        }
+        else if( one.get("src").equals("o") )
+          indices.add( "o:" + (String) one.get("property"));
       }
       return new IndexList(indices);
     } catch (Exception e) {

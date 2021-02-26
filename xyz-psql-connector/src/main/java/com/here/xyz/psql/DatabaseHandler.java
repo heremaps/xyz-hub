@@ -31,6 +31,8 @@ import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
+import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.events.SearchForFeaturesOrderByEvent;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -934,10 +936,12 @@ public abstract class DatabaseHandler extends StorageConnector {
      */
 
     private final long MaxResultChars = 100 * 1024 *1024;
+    private final int F_Iterate = 1,
+                      F_IterateOrderBy  = 2; 
 
     protected FeatureCollection _defaultFeatureResultSetHandler(ResultSet rs, boolean skipNullGeom) throws SQLException {
-        final boolean isIterate = (event instanceof IterateFeaturesEvent);
-        long nextHandle = 0;
+        int hint = ((event instanceof IterateFeaturesEvent) ? F_Iterate : ((event instanceof SearchForFeaturesOrderByEvent ) ? F_IterateOrderBy : 0) );
+        String nextHandle = "";
 
         StringBuilder sb = new StringBuilder();
         String prefix = "[";
@@ -954,10 +958,12 @@ public abstract class DatabaseHandler extends StorageConnector {
             sb.append("}");
             sb.append(",");
 
-            if (isIterate) {
-                numFeatures++;
-                nextHandle = rs.getLong(3);
+            if ( hint > 0 ) numFeatures++;
+            switch( hint )
+            { case F_Iterate         : nextHandle = "" + rs.getLong(3); break;
+              case F_IterateOrderBy  : nextHandle = rs.getString(3); break;
             }
+                
         }
 
         if (sb.length() > prefix.length()) {
@@ -970,11 +976,8 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         if( MaxResultChars <= sb.length() ) throw new SQLException(String.format("Maxchar limit(%d) reached",MaxResultChars));
 
-        if (isIterate) {
-            if (numFeatures > 0 && numFeatures == ((IterateFeaturesEvent) event).getLimit()) {
-                featureCollection.setHandle("" + nextHandle);
-            }
-        }
+        if( hint > 0 && numFeatures > 0 && numFeatures == ((SearchForFeaturesEvent) event).getLimit() ) 
+         featureCollection.setHandle( nextHandle );
 
         return featureCollection;
     }
