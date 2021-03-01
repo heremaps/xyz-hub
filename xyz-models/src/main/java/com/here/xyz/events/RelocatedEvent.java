@@ -36,7 +36,9 @@ public final class RelocatedEvent extends Event<RelocatedEvent> {
 
   @JsonProperty("URI")
   private String URI;
+  @Deprecated
   private String location;
+  private String region;
 
   /**
    * Get the URI of the relocated event.
@@ -64,6 +66,19 @@ public final class RelocatedEvent extends Event<RelocatedEvent> {
     return this;
   }
 
+  public String getRegion() {
+    return region;
+  }
+
+  public void setRegion(String region) {
+    this.region = region;
+  }
+
+  public RelocatedEvent withRegion(String region) {
+    setRegion(region);
+    return this;
+  }
+
   @Deprecated
   public String getLocation() {
     return this.location;
@@ -75,6 +90,7 @@ public final class RelocatedEvent extends Event<RelocatedEvent> {
   }
 
   @SuppressWarnings("unused")
+  @Deprecated
   public RelocatedEvent withLocation(String location) {
     setLocation(location);
     return this;
