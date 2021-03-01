@@ -812,7 +812,7 @@ public class SQLQueryBuilder {
            /* update xyz_idx_status table with searchabelProperties information */
         String query = "INSERT INTO  "+IDX_STATUS_TABLE+" as x_s (spaceid,schem,idx_creation_finished,idx_manual "
                         + (enableAutoIndexing != null ? ",auto_indexing) ": ") ")
-                        + "		VALUES ('" + table + "', '" + schema + "', false, " + idx_manual_json + ") "
+                        + "		VALUES ('" + table + "', '" + schema + "', false, " + idx_manual_json + (enableAutoIndexing != null ? ","+enableAutoIndexing : " ")+") "
                         + "ON CONFLICT (spaceid) DO "
                         + "		UPDATE SET schem='" + schema + "', "
                         + "    			idx_manual = " + idx_manual_json + ", "

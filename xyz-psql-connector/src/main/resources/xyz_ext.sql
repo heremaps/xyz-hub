@@ -646,6 +646,66 @@ $BODY$
         END;
 $BODY$
   LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+-- Function: xyz_index_list_all_available(text, text)
+-- DROP FUNCTION xyz_index_list_all_available(text, text);
+CREATE OR REPLACE FUNCTION xyz_index_list_all_available(
+    IN schema text,
+    IN spaceid text)
+  RETURNS TABLE(idx_name text, idx_property text, src character) AS
+$BODY$
+	/**
+	* Description: This function return all properties which are indexed.
+	*
+	* Parameters:
+	*   @schema			- schema in which the XYZ-spaces are located
+	*   @spaceid		- id of XYZ-space (tablename)
+	*
+	* Returns (table):
+	*	idx_name		- Index-name
+	*	idx_property	- Property name on which the Index is based on
+	*	src				- source (a - automatic ; m - manual; s - system/unknown)
+	*/
+
+	DECLARE
+		/** blacklist of XYZ-System indexes */
+		ignore_idx text := 'NOT IN(''id'',''tags'',''geo'',''serial'')';
+		av_idx_list record;
+		comment_prefix text:='p.name=';
+	BEGIN
+		FOR av_idx_list IN
+			   SELECT indexname, substring(indexname from char_length(spaceid) + 6) as idx_on, COALESCE((SELECT source from xyz_index_name_dissolve_to_property(indexname,spaceid)),'s') as source
+				FROM pg_indexes
+					WHERE
+				schemaname = ''||schema||'' AND tablename = ''||spaceid||''
+		LOOP
+			src := av_idx_list.source;
+			idx_name := av_idx_list.indexname;
+
+			BEGIN
+				/** Check if comment with the property-name is present */
+				select * into idx_property
+					from obj_description( (concat('"',av_idx_list.indexname,'"')::regclass ));
+
+				EXCEPTION WHEN OTHERS THEN
+					/** do nothing - This Index is not a property index! */
+			END;
+
+			IF idx_property IS NOT null THEN
+				IF (position(''||comment_prefix||'' in ''||idx_property||'')) != 0 THEN
+					/** we found the name of the property in the comment */
+					idx_property := substring(idx_property, char_length(''||comment_prefix||'')+1);
+				END IF;
+			ELSE
+				idx_property := av_idx_list.idx_on;
+			END IF;
+
+			RETURN NEXT;
+		END LOOP;
+	END
+$BODY$
+  LANGUAGE plpgsql VOLATILE;
  ------------------------------------------------
 ------------------------------------------------
 -- Function: xyz_index_check_comments(text, text)
@@ -1991,66 +2051,6 @@ $BODY$
 
 		RETURN idx_name;
 	END;
-$BODY$
-  LANGUAGE plpgsql VOLATILE;
-------------------------------------------------
-------------------------------------------------
--- Function: xyz_index_list_all_available(text, text)
--- DROP FUNCTION xyz_index_list_all_available(text, text);
-CREATE OR REPLACE FUNCTION xyz_index_list_all_available(
-    IN schema text,
-    IN spaceid text)
-  RETURNS TABLE(idx_name text, idx_property text, src character) AS
-$BODY$
-	/**
-	* Description: This function return all properties which are indexed.
-	*
-	* Parameters:
-	*   @schema			- schema in which the XYZ-spaces are located
-	*   @spaceid		- id of XYZ-space (tablename)
-	*
-	* Returns (table):
-	*	idx_name		- Index-name
-	*	idx_property	- Property name on which the Index is based on
-	*	src				- source (a - automatic ; m - manual; s - system/unknown)
-	*/
-
-	DECLARE
-		/** blacklist of XYZ-System indexes */
-		ignore_idx text := 'NOT IN(''id'',''tags'',''geo'',''serial'')';
-		av_idx_list record;
-		comment_prefix text:='p.name=';
-	BEGIN
-		FOR av_idx_list IN
-			   SELECT indexname, substring(indexname from char_length(spaceid) + 6) as idx_on, COALESCE((SELECT source from xyz_index_name_dissolve_to_property(indexname,spaceid)),'s') as source
-				FROM pg_indexes
-					WHERE
-				schemaname = ''||schema||'' AND tablename = ''||spaceid||''
-		LOOP
-			src := av_idx_list.source;
-			idx_name := av_idx_list.indexname;
-
-			BEGIN
-				/** Check if comment with the property-name is present */
-				select * into idx_property
-					from obj_description( (concat('"',av_idx_list.indexname,'"')::regclass ));
-
-				EXCEPTION WHEN OTHERS THEN
-					/** do nothing - This Index is not a property index! */
-			END;
-
-			IF idx_property IS NOT null THEN
-				IF (position(''||comment_prefix||'' in ''||idx_property||'')) != 0 THEN
-					/** we found the name of the property in the comment */
-					idx_property := substring(idx_property, char_length(''||comment_prefix||'')+1);
-				END IF;
-			ELSE
-				idx_property := av_idx_list.idx_on;
-			END IF;
-
-			RETURN NEXT;
-		END LOOP;
-	END
 $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
