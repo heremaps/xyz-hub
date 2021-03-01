@@ -49,7 +49,7 @@ import org.apache.logging.log4j.MarkerManager;
 public class LogUtil {
 
   private static final Logger logger = LogManager.getLogger();
-  private static final Level STREAM_LEVEL = Level.getLevel("STREAM");
+  private static final Level STREAM_LEVEL = Level.forName("STREAM", 50);
   private static final Marker ACCESS_LOG_MARKER = MarkerManager.getMarker("ACCESS");
 
   private static List<String> skipLoggingHeaders = Collections.singletonList(X_FORWARDED_FOR);

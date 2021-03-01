@@ -3,13 +3,7 @@
     "status": "info",
 
     "name": "Default Log Config",
-    "packages": "com.here.xyz",
-
-    "CustomLevels": {
-      "CustomLevel": [{
-        "name": "STREAM",
-        "intLevel": 350
-      }]
+    "packages": "com.here.xyz"
     },
     "appenders": {
       "RollingRandomAccessFile": {
@@ -37,7 +31,7 @@
     },
     "loggers": {
       "root": {
-        "level": "stream",
+        "level": "warn",
         "AppenderRef": {
           "ref": "RollingFile-Appender"
         }
