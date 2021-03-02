@@ -39,6 +39,17 @@ public class Capabilities {
   /**
    * Determines if PropertiesQuery can be executed. Check if required Indices are created.
    */
+
+  private static List<String> sortableCanSearchForIndex( List<String> indices )
+  { if( indices == null ) return null;
+    List<String> skeys = new ArrayList<String>();
+    for( String k : indices)
+     if( k.startsWith("o:") )
+      skeys.add( k.replaceFirst("^o:([^,]+).*$", "$1") );
+   
+    return skeys;
+  }
+
   public static boolean canSearchFor(String space, PropertiesQuery query, PSQLXyzConnector connector) {
     if (query == null) {
       return true;
@@ -70,7 +81,10 @@ public class Capabilities {
             return true;
           }
 
-          if (indices.contains(key.substring("properties.".length()))) {
+          List<String> sindices = sortableCanSearchForIndex( indices );
+          String searchKey = key.substring("properties.".length());
+
+          if (indices.contains( searchKey ) || (sindices != null && sindices.contains(searchKey)) ) {
         	  /* Check if all properties are indexed */
         	  idx_check++;
           }
@@ -93,12 +107,12 @@ public class Capabilities {
 
     try 
     {
-     String normalizedSortProp = IterateSortSQL.IdxMaintenance.normalizedSortProperies(sort);
+     String normalizedSortProp = "o:" + IterateSortSQL.IdxMaintenance.normalizedSortProperies(sort);
      List<String> indices = IndexList.getIndexList(space, connector);
               
      if (indices == null) return true; // The table is small and not indexed. It's not listed in the xyz_idxs_status table
-
-     return indices.contains( "o:" + normalizedSortProp );
+     
+     return indices.contains(normalizedSortProp);
     } 
     catch (Exception e) 
     { // In all cases, when something with the check went wrong, allow the sort 

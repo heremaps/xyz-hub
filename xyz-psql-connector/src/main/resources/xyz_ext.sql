@@ -863,8 +863,8 @@ declare
  direction text := '';
  idx_postfix text := '';
  comma text := '';
- btree_clause text := '';
  pathname text := '';
+ fullpathname text := '';
  jpth text := '';
  jseg text := '';
 begin
@@ -894,8 +894,14 @@ begin
 	
 	pathname = regexp_replace(selem.sentry, '^"([^:]+)(:(asc|desc))*"$','\1','i');
 	
+	if pathname ~ '^f\.' then
+	 fullpathname = replace(pathname,'f.','properties.@ns:com:here:xyz.');
+	else 
+	 fullpathname = 'properties.' || pathname;
+	end if;
+	
 	jpth = 'jsondata';
-	foreach jseg in array regexp_split_to_array(pathname,'\.')
+	foreach jseg in array regexp_split_to_array(fullpathname,'\.')
 	loop
 	 jpth = format('(%s->''%s'')',jpth, jseg );
 	end loop;
@@ -912,6 +918,7 @@ begin
 end;
 $body$ 
 language plpgsql immutable;
+
 
 create or replace function xyz_eval_o_idxs( schema text, space text )
  returns table ( iexists text, iproperty text, src character, iname text, icomment text, ifields text ) as

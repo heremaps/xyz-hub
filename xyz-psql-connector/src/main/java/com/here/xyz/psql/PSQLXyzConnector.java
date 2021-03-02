@@ -504,16 +504,16 @@ public class PSQLXyzConnector extends DatabaseHandler {
             || ModifySpaceEvent.Operation.CREATE == event.getOperation())
             && config.getConnectorParams().isPropertySearch()) {
 
+      int onDemandLimit = config.getConnectorParams().getOnDemandIdxLimit();
+      int onDemandCounter = 0;
       if (event.getSpaceDefinition().getSearchableProperties() != null) {
-        int onDemandLimit = config.getConnectorParams().getOnDemandIdxLimit();
 
-        int cnt = 0;
         for (String property : event.getSpaceDefinition().getSearchableProperties().keySet()) {
           if (event.getSpaceDefinition().getSearchableProperties().get(property) != null
                   && event.getSpaceDefinition().getSearchableProperties().get(property) == Boolean.TRUE) {
-            cnt++;
+            onDemandCounter++;
           }
-          if (cnt > onDemandLimit) {
+          if ( onDemandCounter > onDemandLimit ) {
             throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
                     "On-Demand-Indexing - Maximum permissible: " + onDemandLimit + " searchable properties per space!");
           }
@@ -532,6 +532,24 @@ public class PSQLXyzConnector extends DatabaseHandler {
                     "Connector does not support Auto-indexing!");
           }
         }
+      }
+
+      if(event.getSpaceDefinition().getSortableProperties() != null )
+      { /* todo: eval #index limits, parameter validation  */ 
+        if( event.getSpaceDefinition().getSortableProperties().size() + onDemandCounter > onDemandLimit )
+         throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
+                 "On-Demand-Indexing - Maximum permissible: " + onDemandLimit + " sortable + searchable properties per space!");
+        
+        for( List<Object> l : event.getSpaceDefinition().getSortableProperties() )
+         for( Object p : l )
+         { String property = p.toString();
+           if( property.startsWith("f.") && !property.replaceFirst("(?i):(asc|desc)$","").matches("f\\.(createdAt|updatedAt)") )
+            throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
+              "On-Demand-Indexing [" + property + "] - only f.createdAt or f.updatedAt allowed!");
+           if( property.contains("\\") || property.contains("'") )
+            throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
+              "On-Demand-Indexing [" + property + "] - Characters ['\\] not allowed!");
+         }
       }
     }
   }
