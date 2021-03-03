@@ -24,6 +24,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 import com.here.xyz.connectors.AbstractConnectorHandler;
 import com.here.xyz.connectors.SimulatedContext;
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.rest.HttpException;
@@ -58,16 +59,16 @@ public class EmbeddedFunctionClient extends RemoteFunctionClient {
   synchronized protected void setConnectorConfig(final Connector newConnectorConfig) throws NullPointerException, IllegalArgumentException {
     super.setConnectorConfig(newConnectorConfig);
     shutdown(embeddedExecutor);
-    createExecutorService();
+    createExecutorService(newConnectorConfig.id);
   }
 
-  private void createExecutorService() {
+  private void createExecutorService(String connectorId) {
     if (!(getConnectorConfig().getRemoteFunction() instanceof RemoteFunctionConfig.Embedded)) {
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of Embedded");
     }
     int maxConnections = getMaxConnections();
     embeddedExecutor = new ThreadPoolExecutor(8, maxConnections, 10, TimeUnit.MINUTES,
-        new SynchronousQueue<>());
+        new SynchronousQueue<>(), Core.newThreadFactory("embeddedRfc-" + connectorId));
   }
 
   @Override

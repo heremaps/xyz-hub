@@ -1,12 +1,13 @@
 package com.here.xyz.hub.util;
 
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.cache.OHCacheClient;
 import com.here.xyz.hub.util.LimitedOffHeapQueue.OffHeapBuffer;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.caffinitas.ohc.OHCache;
@@ -24,7 +25,7 @@ import org.caffinitas.ohc.OHCache;
 public class LimitedOffHeapQueue<E extends OffHeapBuffer> extends LimitedQueue<E> {
 
   private static final long OH_TTL = 32_000; //ms
-  private static final ScheduledExecutorService executors = Executors.newScheduledThreadPool(2);
+  private static final ScheduledExecutorService executors = new ScheduledThreadPoolExecutor(2, Core.newThreadFactory("oh-queues"));
   private static final OHCache<byte[], byte[]> ohStorage = OHCacheClient.createCache(
       (int) (Service.configuration.GLOBAL_MAX_QUEUE_SIZE * 1.1), executors, true);
 
