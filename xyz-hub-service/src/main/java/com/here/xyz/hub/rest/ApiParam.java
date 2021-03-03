@@ -253,7 +253,7 @@ public class ApiParam {
       for (String s : input)
        switch( s )
        { case "properties": case "id" : case "type" : break;
-         default : selection.add( s.startsWith("p.") ? s.replace("p.", "properties.") : s); break;
+         default : selection.add( s.replaceFirst("^p\\.", "properties.") ); break;
        }
 
       return new ArrayList<String>(selection);
@@ -264,8 +264,8 @@ public class ApiParam {
       
       List<String> sort = new ArrayList<>();
       for (String s : Query.queryParam(Query.SORT, context)) 
-        if (s.startsWith("p.")) 
-         sort.add(s.replace("p.", "properties."));
+        if (s.startsWith("p.") || s.startsWith("f.")) 
+         sort.add( s.replaceFirst("p\\.", "properties.") );
 
       return sort;
     }

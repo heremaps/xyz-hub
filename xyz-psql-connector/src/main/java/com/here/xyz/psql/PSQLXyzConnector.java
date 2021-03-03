@@ -57,6 +57,7 @@ import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -613,6 +614,14 @@ public class PSQLXyzConnector extends DatabaseHandler {
    return hndl;       
   }
 
+  private List<String> translateSortSysValues(List<String> sort)
+  { if( sort == null ) return null;
+    List<String> r = new ArrayList<String>();
+    for( String f : sort )
+     r.add( f.replaceFirst("^f\\.", "properties.@ns:com:here:xyz.") );
+    return r; 
+  }
+
   protected XyzResponse findFeaturesSort(SearchForFeaturesOrderByEvent event ) throws Exception
   {
     try{
@@ -628,7 +637,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
                 .withErrorMessage("Invalid request parameters. Sorting by for the provided properties is not supported for this space.");
       }
 
-      if(event.getHandle() != null)  // decrypt handle and configure event
+      if(event.getHandle() == null)  // decrypt handle and configure event
+       event.setSort( translateSortSysValues( event.getSort() ));
+      else
        setPropTagQryFromHandle(event, PSQLConfig.decrypt(event.getHandle(),"findFeaturesSort" ) );
 
       SQLQuery query = SQLQueryBuilder.buildFeaturesSortQuery(event, dataSource) ;
