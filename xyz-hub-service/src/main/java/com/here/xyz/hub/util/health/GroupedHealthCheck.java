@@ -34,7 +34,7 @@ public abstract class GroupedHealthCheck extends ExecutableCheck {
   }
 
   public GroupedHealthCheck remove(ExecutableCheck c) {
-    executorService.setCorePoolSize(Math.max(executorService.getCorePoolSize() + 1, MIN_EXEC_POOL_SIZE));
+    executorService.setCorePoolSize(Math.max(executorService.getCorePoolSize() - 1, MIN_EXEC_POOL_SIZE));
     if (checks.contains(c)) {
       c.quit();
       checks.remove(c);
