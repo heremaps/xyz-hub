@@ -19,12 +19,13 @@
 
 package com.here.xyz.hub.cache;
 
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import io.vertx.core.Future;
-import io.vertx.core.Handler;
 import java.nio.ByteBuffer;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.caffinitas.ohc.CacheSerializer;
@@ -36,6 +37,7 @@ public class OHCacheClient implements CacheClient {
 
   private static final Logger logger = LogManager.getLogger();
   private static OHCacheClient client;
+  private static AtomicInteger clientCount = new AtomicInteger();
 
   private final ScheduledExecutorService executors;
   private OHCache<byte[], byte[]> cache;
@@ -46,7 +48,7 @@ public class OHCacheClient implements CacheClient {
   }
 
   private OHCacheClient() {
-    executors = Executors.newScheduledThreadPool(2);
+    executors = new ScheduledThreadPoolExecutor(2, Core.newThreadFactory("ohCache" + clientCount.getAndIncrement()));
     cache = createCache(Service.configuration.OFF_HEAP_CACHE_SIZE_MB, executors, false);
   }
 

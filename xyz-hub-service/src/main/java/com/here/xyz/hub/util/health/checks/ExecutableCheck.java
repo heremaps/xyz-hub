@@ -24,7 +24,6 @@ import static com.here.xyz.hub.util.health.Config.Setting.CHECK_DEFAULT_TIMEOUT;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.here.xyz.hub.Core;
-import com.here.xyz.hub.Service;
 import com.here.xyz.hub.util.health.Config;
 import com.here.xyz.hub.util.health.MainHealthCheck;
 import com.here.xyz.hub.util.health.schema.Check;
@@ -32,7 +31,6 @@ import com.here.xyz.hub.util.health.schema.Response;
 import com.here.xyz.hub.util.health.schema.Status;
 import com.here.xyz.hub.util.health.schema.Status.Result;
 import java.util.UUID;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -54,7 +52,7 @@ public abstract class ExecutableCheck extends Check implements Runnable {
 	private static final Logger logger = LogManager.getLogger();
 
 	protected static final int MIN_EXEC_POOL_SIZE = 30;
-	protected static ScheduledThreadPoolExecutor executorService = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(MIN_EXEC_POOL_SIZE);
+	protected static ScheduledThreadPoolExecutor executorService = new ScheduledThreadPoolExecutor(MIN_EXEC_POOL_SIZE, Core.newThreadFactory("health"));
 
 	static {
 		ScheduledThreadPoolExecutor executor = executorService;
@@ -97,7 +95,7 @@ public abstract class ExecutableCheck extends Check implements Runnable {
 	 */
 	public ExecutableCheck quit() {
 		if (commenced) {
-			executionHandle.cancel(false);
+			executionHandle.cancel(true);
 			commenced = false;
 		}
 		return this;
