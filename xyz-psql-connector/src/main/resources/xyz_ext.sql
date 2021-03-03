@@ -1359,8 +1359,8 @@ $BODY$
 		idxlist jsonb;
 	BEGIN
 		SELECT COALESCE(jsonb_agg(idx_property),'""'::jsonb) into idxlist
-			FROM( select idx_property from xyz_index_list_all_available($1,$2)
-		WHERE src IN ('a','m') )A;
+			FROM( select distinct split_part(idx_property,',',1) as idx_property from xyz_index_list_all_available($1,$2)
+		WHERE src IN ('a','m','o') and not idx_property ~ '^f\..*'  ) A;
 
 		IF tablesamplecnt is NULL
 			THEN
@@ -1373,8 +1373,8 @@ $BODY$
 					|| '		true as searchable, '
 					|| '		(SELECT * from xyz_property_datatype('''||schema||''','''||spaceid||''', propkey, 1000)) as datatype '
 					|| '	   FROM( '
-					|| '		select idx_property as propkey from xyz_index_list_all_available('''||schema||''','''||spaceid||''') '
-					|| '			WHERE src IN (''a'',''m'') '
+					|| '		select distinct split_part(idx_property,'','',1) as propkey from xyz_index_list_all_available('''||schema||''','''||spaceid||''') '
+					|| '			WHERE src IN (''a'',''m'', ''o'') and not idx_property ~ ''^f\..*'' '
 					|| '	   ) B group by propkey '
 					|| '	UNION '
 					|| '	SELECT  propkey, '
@@ -1399,8 +1399,8 @@ $BODY$
 				|| '		true as searchable, '
 				|| '		(SELECT * from xyz_property_datatype('''||schema||''','''||spaceid||''',propkey,'||tablesamplecnt||')) as datatype '
 				|| '	   FROM( '
-				|| '		select idx_property as propkey from xyz_index_list_all_available('''||schema||''','''||spaceid||''') '
-				|| '			WHERE src IN (''a'',''m'') '
+				|| '		select distinct split_part(idx_property,'','',1) as propkey from xyz_index_list_all_available('''||schema||''','''||spaceid||''') '
+				|| '			WHERE src IN (''a'',''m'', ''o'') and not idx_property ~ ''^f\..*'' '
 				|| '	   ) B group by propkey '
 				|| '	UNION '
 				|| '	SELECT  propkey, '
