@@ -151,7 +151,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 137
+ select 138
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
