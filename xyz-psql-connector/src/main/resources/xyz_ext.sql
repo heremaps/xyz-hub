@@ -148,7 +148,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 136
+ select 137
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
@@ -156,7 +156,7 @@ $BODY$
 -- ADD NEW COLUMN TO IDX_STATUS TABLE
 DO $$
 BEGIN
-ALTER TABLE xyz_config.xyz_idxs_status
+ALTER TABLE IF EXISTS xyz_config.xyz_idxs_status
     ADD COLUMN auto_indexing BOOLEAN;
 EXCEPTION
 	    WHEN duplicate_column THEN RAISE NOTICE 'column <auto_indexing> already exists in <xyz_idxs_status>.';
