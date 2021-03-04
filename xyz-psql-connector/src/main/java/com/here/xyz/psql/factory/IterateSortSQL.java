@@ -58,7 +58,8 @@ public class IterateSortSQL {
   }
 
   private static String buildOrderByClause(List<String> sortby) 
-  { if (sortby == null || sortby.size() == 0) return "";
+  { if (sortby == null || sortby.size() == 0) 
+     return "order by (jsondata->>'id')"; // in case no sort is specified
 
     String orderByClause = "", direction = "";
 
