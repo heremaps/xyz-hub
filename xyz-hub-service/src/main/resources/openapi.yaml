@@ -717,6 +717,7 @@ paths:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/PropertiesSelection'
+        - $ref: '#/components/parameters/Sort'
         - $ref: '#/components/parameters/Version'
         - $ref: '#/components/parameters/SkipCache'
         - $ref: '#/components/parameters/Handle'
@@ -1359,6 +1360,18 @@ components:
         If set to _true_ the response is not returned from cache. Default is _false_.
       schema:
         type: boolean
+    Sort:
+      name: sort
+      in: query
+      description: |
+        Specifies the sort order by a list of properties. Ascending assumed if no sort direction (:asc, :desc) is specified 
+    
+        Example: ?sort=p.name:asc,p.color:desc
+      explode: false
+      schema:
+        type: array
+        items:
+          type: string
     South:
       name: south
       in: query
