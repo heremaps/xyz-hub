@@ -170,24 +170,24 @@ public abstract class DatabaseHandler extends StorageConnector {
         String connectorId = traceItem.getConnectorId();
 
         if(connectorId == null) {
-            logger.warn("{} ConnectorId is missing as param in the Connector-Config!", traceItem);
+            logger.warn("{} ConnectorId is missing as param in the Connector-Config! {} / {}@{}", traceItem, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost());
             connectorId =config.getConfigValuesAsString();
         }
 
         if(dbInstanceMap.get(connectorId) != null){
             /** Check if db-params has changed*/
             if(!dbInstanceMap.get(connectorId).getConfigValuesAsString().equalsIgnoreCase(config.getConfigValuesAsString())) {
-                logger.info("{} Config has changed -> remove dbInstance from Pool", traceItem);
+                logger.info("{} Config has changed -> remove dbInstance from Pool. DbInstanceMap size:{}", traceItem, dbInstanceMap.size());
                 dbInstanceMap.remove(connectorId);
             }else{
-                logger.debug("{} Config already loaded -> load dbInstance from Pool", traceItem);
+                logger.debug("{} Config already loaded -> load dbInstance from Pool. DbInstanceMap size:{}", traceItem, dbInstanceMap.size());
             }
         }
 
         if (dbInstanceMap.get(connectorId) == null) {
 
             /** Init dataSource, readDataSource ..*/
-            logger.info("{} Config is missing -> add new dbInstance to Pool", traceItem);
+            logger.info("{} Config is missing -> add new dbInstance to Pool. DbInstanceMap size:{}", traceItem, dbInstanceMap.size());
             final ComboPooledDataSource source = getComboPooledDataSource(config.getDatabaseSettings(), config.getConnectorParams(), config.applicationName() , false);
 
             Map<String, String> m = new HashMap<>();
