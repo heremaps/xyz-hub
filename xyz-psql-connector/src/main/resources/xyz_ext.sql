@@ -159,7 +159,7 @@ $BODY$
 -- ADD NEW COLUMN TO IDX_STATUS TABLE
 DO $$
 BEGIN
-ALTER TABLE xyz_config.xyz_idxs_status
+ALTER TABLE IF EXISTS xyz_config.xyz_idxs_status
     ADD COLUMN auto_indexing BOOLEAN;
 EXCEPTION
 	    WHEN duplicate_column THEN RAISE NOTICE 'column <auto_indexing> already exists in <xyz_idxs_status>.';

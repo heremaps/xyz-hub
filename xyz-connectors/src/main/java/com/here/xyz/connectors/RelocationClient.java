@@ -82,15 +82,16 @@ public class RelocationClient {
    */
   public byte[] relocate(String streamId, byte[] bytes) {
     String name = UUID.randomUUID().toString();
-    RelocatedEvent event = new RelocatedEvent();
-    event.setStreamId(streamId);
+    RelocatedEvent event = new RelocatedEvent().withStreamId(streamId);
 
     if (runsAsConnectorWithRelocation())
       event.setURI(createS3Uri(System.getenv("AWS_REGION"), bucket, S3_PATH + name));
     else {
       //Keep backward compatibility.
-      event.setLocation(name);
-      event.setURI(createS3Uri(bucket, S3_PATH + name));
+      event
+          .withLocation(name)
+          .withURI(createS3Uri(bucket, S3_PATH + name))
+          .withRegion(System.getenv("AWS_REGION"));
     }
 
     logger.debug("{} - Relocating data to: {}", streamId, event.getURI());
@@ -124,6 +125,8 @@ public class RelocationClient {
       logger.warn("{}, the RelocatedEvent returned by the connector still uses the deprecated \"location\" field."
           + "The connector should use the field \"URI\" instead.");
     }
+    if (event.getRegion() != null && !event.getRegion().isEmpty())
+      region = event.getRegion();
     logger.debug("{}, Found relocation event, loading original event from '{}'", event.getStreamId(), event.getURI());
 
     if (event.getURI().startsWith("s3://") || event.getURI().startsWith("http")) {
