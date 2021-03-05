@@ -265,7 +265,7 @@ public class ApiParam {
       List<String> sort = new ArrayList<>();
       for (String s : Query.queryParam(Query.SORT, context)) 
         if (s.startsWith("p.") || s.startsWith("f.")) 
-         sort.add( s.replaceFirst("p\\.", "properties.") );
+         sort.add( s.replaceFirst("^p\\.", "properties.") );
 
       return sort;
     }

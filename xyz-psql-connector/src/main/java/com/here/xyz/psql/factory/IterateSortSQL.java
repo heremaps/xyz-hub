@@ -61,6 +61,12 @@ public class IterateSortSQL {
   { if (sortby == null || sortby.size() == 0) 
      return "order by (jsondata->>'id')"; // in case no sort is specified
 
+    if( sortby.size() == 1 && sortby.get(0).toLowerCase().startsWith("id") ) // usecase order by id
+     if( sortby.get(0).equalsIgnoreCase( "id:desc" ) )
+      return "order by (jsondata->>'id') desc";
+     else 
+      return "order by (jsondata->>'id')";
+       
     String orderByClause = "", direction = "";
 
     for (String s : sortby) 
@@ -88,7 +94,7 @@ public class IterateSortSQL {
    List<String> ret = new ArrayList<String>(),
                 sortby = convHandle2sortbyList( handle );
    JSONObject h = new JSONObject(handle);
-   boolean descendingLast = false;
+   boolean descendingLast = false, sortbyIdUseCase = false;
    String sqlWhereContinuation = "";
    int hdix = 1;   
 
@@ -99,12 +105,20 @@ public class IterateSortSQL {
 
      descendingLast = isDescending(s);
      
-     sqlWhereContinuation += String.format(" and %s = ('%s'::jsonb)->'%s'", jpathFromSortProperty(s), jo.toString() ,hkey );
+     if(!s.startsWith("id"))
+      sqlWhereContinuation += String.format(" and %s = ('%s'::jsonb)->'%s'", jpathFromSortProperty(s), jo.toString() ,hkey );
+     else
+     { sqlWhereContinuation += " and 1 = 1"; 
+       sortbyIdUseCase = true;
+       break;
+     } 
    }
 
    sqlWhereContinuation += String.format(" and (jsondata->>'id') %s '%s'", ( descendingLast ? "<" : ">" ) ,h.getString("h0"));
 
    ret.add( sqlWhereContinuation );
+
+   if( sortbyIdUseCase ) return ret;
    
    for(; !sortby.isEmpty(); sortby.remove(sortby.size()-1) )
    { 

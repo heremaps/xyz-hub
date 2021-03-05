@@ -108,6 +108,10 @@ public class Capabilities {
     try 
     {
      String normalizedSortProp = "o:" + IterateSortSQL.IdxMaintenance.normalizedSortProperies(sort);
+
+     if("o:f.id".equalsIgnoreCase(normalizedSortProp))
+      return true;
+
      List<String> indices = IndexList.getIndexList(space, connector);
               
      if (indices == null) return true; // The table is small and not indexed. It's not listed in the xyz_idxs_status table

@@ -618,7 +618,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
   { if( sort == null ) return null;
     List<String> r = new ArrayList<String>();
     for( String f : sort )
-     r.add( f.replaceFirst("^f\\.", "properties.@ns:com:here:xyz.") );
+     if( f.toLowerCase().startsWith("f.id" ) ) // f. sysval replacements 
+      r.add( f.replaceFirst("^f\\.", "") );
+     else
+      r.add( f.replaceFirst("^f\\.", "properties.@ns:com:here:xyz.") );
     return r; 
   }
 
