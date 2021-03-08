@@ -130,13 +130,9 @@ public class Core {
 
   static void changeLogLevel(String level) {
     logger.info("LOG LEVEL UPDATE requested. New level will be: " + level);
-    LoggerContext context = (LoggerContext) LogManager.getContext(false);
-    Configuration config = context.getConfiguration();
-    LoggerConfig rootConfig = config.getLoggerConfig(LogManager.ROOT_LOGGER_NAME);
-    rootConfig.setLevel(Level.getLevel(level));
 
-    //This causes all Loggers to re-fetch information from their LoggerConfig.
-    context.updateLoggers();
+    Configurator.setAllLevels(LogManager.getRootLogger().getName(), Level.getLevel(level));
+
     logger.info("LOG LEVEL UPDATE performed. New level is now: " + level);
   }
 
