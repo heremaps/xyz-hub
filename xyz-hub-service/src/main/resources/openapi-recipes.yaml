@@ -36,6 +36,7 @@ recipes:
       - paths.'/spaces/{spaceId}/history/statistics'
       - paths.'/spaces/{spaceId}/count'
       - paths.'/spaces/{spaceId}/iterate'.get.parameters.$ref~=^.*Version$
+      - paths.'/spaces/{spaceId}/iterate'.get.parameters.$ref~=^.*Sort$
       - paths.'/connectors'
       - paths.'/connectors/{connectorId}'
       - components.parameters.IfExists

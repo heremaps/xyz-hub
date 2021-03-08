@@ -23,6 +23,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
+import com.here.xyz.psql.factory.IterateSortSQL;
+
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -37,6 +39,17 @@ public class Capabilities {
   /**
    * Determines if PropertiesQuery can be executed. Check if required Indices are created.
    */
+
+  private static List<String> sortableCanSearchForIndex( List<String> indices )
+  { if( indices == null ) return null;
+    List<String> skeys = new ArrayList<String>();
+    for( String k : indices)
+     if( k.startsWith("o:") )
+      skeys.add( k.replaceFirst("^o:([^,]+).*$", "$1") );
+   
+    return skeys;
+  }
+
   public static boolean canSearchFor(String space, PropertiesQuery query, PSQLXyzConnector connector) {
     if (query == null) {
       return true;
@@ -68,7 +81,10 @@ public class Capabilities {
             return true;
           }
 
-          if (indices.contains(key.substring("properties.".length()))) {
+          List<String> sindices = sortableCanSearchForIndex( indices );
+          String searchKey = key.substring("properties.".length());
+
+          if (indices.contains( searchKey ) || (sindices != null && sindices.contains(searchKey)) ) {
         	  /* Check if all properties are indexed */
         	  idx_check++;
           }
@@ -83,6 +99,30 @@ public class Capabilities {
       // In all cases, when something with the check went wrong, allow the search
       return true;
     }
+  }
+
+  public static boolean canSortBy(String space, List<String> sort, PSQLXyzConnector connector) 
+  {
+    if (sort == null || sort.isEmpty() ) return true;
+
+    try 
+    {
+     String normalizedSortProp = "o:" + IterateSortSQL.IdxMaintenance.normalizedSortProperies(sort);
+
+     if("o:f.id".equalsIgnoreCase(normalizedSortProp))
+      return true;
+
+     List<String> indices = IndexList.getIndexList(space, connector);
+              
+     if (indices == null) return true; // The table is small and not indexed. It's not listed in the xyz_idxs_status table
+     
+     return indices.contains(normalizedSortProp);
+    } 
+    catch (Exception e) 
+    { // In all cases, when something with the check went wrong, allow the sort 
+    }
+
+    return true;
   }
 
   public static class IndexList {
@@ -128,11 +168,13 @@ public class Capabilities {
          * Indices are marked as:
          * a = automatically created (auto-indexing)
          * m = manually created (on-demand)
+         * o = sortable - manually created (on-demand) --> first single sortable propertie is always ascending
          * s = basic system indices
          */
-        if (one.get("src").equals("a") || one.get("src").equals("m")) {
+        if (one.get("src").equals("a") || one.get("src").equals("m") ) 
           indices.add((String) one.get("property"));
-        }
+        else if( one.get("src").equals("o") )
+          indices.add( "o:" + (String) one.get("property"));
       }
       return new IndexList(indices);
     } catch (Exception e) {
