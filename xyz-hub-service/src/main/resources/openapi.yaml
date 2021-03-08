@@ -9,7 +9,7 @@ servers:
   - url: /hub
 security:
   - AccessTokenAuth: []
-  - Bearer: []
+  - BearerAuth: []
 tags:
   - name: Manage Spaces
     description: Space management endpoints.
@@ -950,7 +950,7 @@ components:
       type: apiKey
       in: query
       name: access_token
-    Bearer:
+    BearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
