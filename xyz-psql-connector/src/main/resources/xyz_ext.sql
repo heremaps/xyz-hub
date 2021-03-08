@@ -1830,7 +1830,7 @@ $BODY$
 			/** Ignore manual deactivated idx */
 			SELECT * from(
 				SELECT *,
-					(SELECT idx_manual->key from xyz_config.xyz_idxs_status WHERE spaceid = _spaceid) as manual
+					(SELECT coalesce(idx_manual->'searchableProperties'->key, idx_manual->key) from xyz_config.xyz_idxs_status WHERE spaceid = _spaceid) as manual
 					from (
 						SELECT * from xyz_property_statistic(schema, _spaceid, auto_tablescan)
 				) A
