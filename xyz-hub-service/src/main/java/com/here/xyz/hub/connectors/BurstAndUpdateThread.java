@@ -102,6 +102,18 @@ public class BurstAndUpdateThread extends Thread {
         continue;
       }
 
+      if (!connectorMap.containsKey(oldConnector.id)) {
+        //Client needs to be destroyed, the connector configuration with the given ID has been removed.
+        try {
+          logger.warn("Connector {} was removed or deactivated. Destroying the according client.", oldConnector.id);
+          client.destroy();
+        }
+        catch (Exception e) {
+          logger.error("Unexpected exception while destroying RPC client", e);
+        }
+        continue;
+      }
+
       if (!connectorMap.get(oldConnector.id).skipAutoDisable && !Service.configuration.DEFAULT_STORAGE_ID.equals(oldConnector.id)) {
         RemoteFunctionHealthCheck rfcHc = HealthApi.rfcHcAggregator.getRfcHealthCheck(oldConnector.id);
         if (rfcHc != null) {
@@ -113,18 +125,6 @@ public class BurstAndUpdateThread extends Thread {
             connectorMap.remove(oldConnector.id);
           }
         }
-      }
-
-      if (!connectorMap.containsKey(oldConnector.id)) {
-        //Client needs to be destroyed, the connector configuration with the given ID has been removed.
-        try {
-          logger.warn("Connector {} was removed or deactivated. Destroying the according client.", oldConnector.id);
-          client.destroy();
-        }
-        catch (Exception e) {
-          logger.error("Unexpected exception while destroying RPC client", e);
-        }
-        continue;
       }
 
       Connector newConnector = connectorMap.get(oldConnector.id);
