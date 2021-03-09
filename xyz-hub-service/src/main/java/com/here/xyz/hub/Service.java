@@ -407,6 +407,11 @@ public class Service extends Core {
      */
     public String XYZ_HUB_REDIS_AUTH_TOKEN;
 
+    /**
+     * Adds backward-compatibility for the deprecated environment variables XYZ_HUB_REDIS_HOST & XYZ_HUB_REDIS_PORT.
+     * @return
+     */
+    //TODO: Remove this workaround after the deprecation period
     @JsonIgnore
     public String getRedisUri() {
       if (XYZ_HUB_REDIS_URI != null) return XYZ_HUB_REDIS_URI;
@@ -428,6 +433,20 @@ public class Service extends Core {
      * The public key used for verifying the signature of the JWT tokens.
      */
     public String JWT_PUB_KEY;
+
+    /**
+     * Adds backward-compatibility for public keys without header & footer.
+     * @return
+     */
+    //TODO: Remove this workaround after the deprecation period
+    @JsonIgnore
+    public String getJwtPubKey() {
+      if (JWT_PUB_KEY != null) {
+        if (!JWT_PUB_KEY.startsWith("-----")) JWT_PUB_KEY = "-----BEGIN PUBLIC KEY-----\n" + JWT_PUB_KEY;
+        if (!JWT_PUB_KEY.endsWith("-----")) JWT_PUB_KEY = JWT_PUB_KEY + "\n-----END PUBLIC KEY-----";
+      }
+      return JWT_PUB_KEY;
+    }
 
     /**
      * If set to true, the connectors configuration will be populated with connectors defined in connectors.json.

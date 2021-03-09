@@ -197,7 +197,7 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
   private AuthenticationHandler createJWTHandler() {
     JWTAuthOptions authConfig = new JWTAuthOptions().addPubSecKey(
         new PubSecKeyOptions().setAlgorithm("RS256")
-            .setBuffer(Service.configuration.JWT_PUB_KEY));
+            .setBuffer(Service.configuration.getJwtPubKey()));
 
     JWTAuth authProvider = new XyzAuthProvider(vertx, authConfig);
 
