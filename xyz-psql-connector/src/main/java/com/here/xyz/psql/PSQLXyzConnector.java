@@ -440,7 +440,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
               && config.getConnectorParams().isPropertySearch()) {
 
         //TODO: Check if config entry exists and idx_manual=null -> update it (erase on demand)
-        if(event.getSpaceDefinition().isEnableAutoSearchableProperties() != null || event.getSpaceDefinition().getSearchableProperties() != null)
+        if(   event.getSpaceDefinition().isEnableAutoSearchableProperties() != null 
+           || event.getSpaceDefinition().getSearchableProperties() != null
+           || event.getSpaceDefinition().getSortableProperties() != null
+          )
           executeUpdateWithRetry(  SQLQueryBuilder.buildSearchablePropertiesUpsertQuery(
                   event.getSpaceDefinition(),
                   event.getOperation(),

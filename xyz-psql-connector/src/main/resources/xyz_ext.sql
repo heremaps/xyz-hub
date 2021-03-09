@@ -1040,8 +1040,8 @@ $BODY$
 				(SELECT * from xyz_index_property_available(schema, space, property)) as idx_available
 					from (
 				SELECT
-					(jsonb_each(coalesce(idx_manual->'searchableProperties', idx_manual))).key as property,
-					(jsonb_each(coalesce(idx_manual->'searchableProperties', idx_manual))).value::text::boolean as idx_required
+				    (jsonb_each( case when idx_manual ? 'searchableProperties' then nullif( idx_manual->'searchableProperties', 'null' ) else idx_manual end )).key as property,
+                    (jsonb_each( case when idx_manual ? 'searchableProperties' then nullif( idx_manual->'searchableProperties', 'null' ) else idx_manual end )).value::text::boolean as idx_required
 						FROM xyz_config.xyz_idxs_status
 					WHERE idx_creation_finished = false
 						AND spaceid = space
@@ -1077,9 +1077,9 @@ $BODY$
 					WHERE src='m'
 			EXCEPT
 			SELECT idx_name, idx_property FROM(
-				SELECT  xyz_index_get_plain_propkey((jsonb_each(coalesce(idx_manual->'searchableProperties', idx_manual))).key) as idx_property,
-					xyz_index_name_for_property(space, (jsonb_each(coalesce(idx_manual->'searchableProperties', idx_manual))).key, 'm') as idx_name,
-					(jsonb_each(coalesce(idx_manual->'searchableProperties', idx_manual))).value::text::boolean as idx_required
+				SELECT  xyz_index_get_plain_propkey((jsonb_each( case when idx_manual ? 'searchableProperties' then nullif( idx_manual->'searchableProperties', 'null' ) else idx_manual end )).key) as idx_property,
+					xyz_index_name_for_property(space, (jsonb_each( case when idx_manual ? 'searchableProperties' then nullif( idx_manual->'searchableProperties', 'null' ) else idx_manual end )).key, 'm') as idx_name,
+					(jsonb_each( case when idx_manual ? 'searchableProperties' then nullif( idx_manual->'searchableProperties', 'null' ) else idx_manual end )).value::text::boolean as idx_required
 					FROM xyz_config.xyz_idxs_status
 						where spaceid = space
                           AND schem = schema
@@ -1830,7 +1830,7 @@ $BODY$
 			/** Ignore manual deactivated idx */
 			SELECT * from(
 				SELECT *,
-					(SELECT coalesce(idx_manual->'searchableProperties'->key, idx_manual->key) from xyz_config.xyz_idxs_status WHERE spaceid = _spaceid) as manual
+					(SELECT (case when idx_manual ? 'searchableProperties' then nullif( idx_manual->'searchableProperties', 'null' ) else idx_manual end)->key from xyz_config.xyz_idxs_status WHERE spaceid = _spaceid) as manual
 					from (
 						SELECT * from xyz_property_statistic(schema, _spaceid, auto_tablescan)
 				) A
