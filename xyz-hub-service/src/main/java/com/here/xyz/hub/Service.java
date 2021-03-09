@@ -20,6 +20,7 @@
 package com.here.xyz.hub;
 
 import com.amazonaws.services.cloudwatch.model.StandardUnit;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.cache.CacheClient;
@@ -385,19 +386,38 @@ public class Service extends Core {
     public String XYZ_HUB_PUBLIC_ENDPOINT;
 
     /**
+     * The redis host.
+     */
+    @Deprecated
+    public String XYZ_HUB_REDIS_HOST;
+
+    /**
+     * The redis port.
+     */
+    @Deprecated
+    public int XYZ_HUB_REDIS_PORT;
+
+    /**
      * The redis connection string.
      */
     public String XYZ_HUB_REDIS_URI;
 
     /**
-     * The urls of remote hub services, separated by semicolon ';'
-     */
-    public String XYZ_HUB_REMOTE_SERVICE_URLS;
-
-    /**
      * The redis auth token.
      */
     public String XYZ_HUB_REDIS_AUTH_TOKEN;
+
+    @JsonIgnore
+    public String getRedisUri() {
+      if (XYZ_HUB_REDIS_URI != null) return XYZ_HUB_REDIS_URI;
+      String protocol = XYZ_HUB_REDIS_AUTH_TOKEN != null ? "rediss" : "redis";
+      return protocol + "://" + XYZ_HUB_REDIS_HOST + ":" + XYZ_HUB_REDIS_PORT;
+    }
+
+    /**
+     * The urls of remote hub services, separated by semicolon ';'
+     */
+    public String XYZ_HUB_REMOTE_SERVICE_URLS;
 
     /**
      * The authorization type.

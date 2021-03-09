@@ -35,7 +35,7 @@ public class RedisCacheClient implements CacheClient {
   private static CacheClient instance;
   private static final Logger logger = LogManager.getLogger();
   private ThreadLocal<Redis> redis;
-  private String connectionString = Service.configuration.XYZ_HUB_REDIS_URI;
+  private String connectionString = Service.configuration.getRedisUri();
 
   private RedisCacheClient() {
     redis = ThreadLocal.withInitial(() -> {
@@ -58,7 +58,7 @@ public class RedisCacheClient implements CacheClient {
     if (instance != null)
       return instance;
 
-    if (Service.configuration.XYZ_HUB_REDIS_URI == null)
+    if (Service.configuration.getRedisUri() == null)
       instance = new NoopCacheClient();
     else {
       try {

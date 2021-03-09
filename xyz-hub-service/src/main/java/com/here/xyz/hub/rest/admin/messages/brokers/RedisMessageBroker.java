@@ -31,7 +31,7 @@ public class RedisMessageBroker implements MessageBroker {
   public RedisMessageBroker() {
     try {
       config = new RedisOptions()
-          .setConnectionString(Service.configuration.XYZ_HUB_REDIS_URI)
+          .setConnectionString(Service.configuration.getRedisUri())
           .setNetClientOptions(new NetClientOptions()
               .setTcpKeepAlive(true)
               .setIdleTimeout(30)
