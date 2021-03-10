@@ -732,6 +732,42 @@ public class AuthTestsIT extends RestAssuredTest {
   }
 
   @Test
+  public void testCreateSpaceWithSortablePropertiesAdmin() {
+    final ValidatableResponse response = given()
+        .contentType(APPLICATION_JSON)
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body(content("/xyz/hub/createSpaceWithSortableProperties.json"))
+        .when()
+        .post("/spaces")
+        .then();
+
+    cleanUpId = response.extract().path("id");
+
+    response.statusCode(FORBIDDEN.code());
+  }
+
+  @Test
+  public void testCreateSpaceWithSortableProperties() {
+    final ValidatableResponse response = given()
+        .contentType(APPLICATION_JSON)
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_USE_CAPABILITIES_AND_ADMIN))
+        .body(content("/xyz/hub/createSpaceWithSortableProperties.json"))
+        .when()
+        .post("/spaces")
+        .then();
+
+    cleanUpId = response.extract().path("id");
+
+    response
+        .statusCode(OK.code())
+        .body("sortableProperties[0][0]", equalTo("name"))
+        .body("sortableProperties[1][0]", equalTo("other"));
+  }
+
+
+  @Test
   public void testListFeaturesByBBoxWithClusteringNegative() {
     createSpaceWithFeatures(
         "/xyz/hub/auth/createDefaultSpace.json",
