@@ -207,7 +207,6 @@
       <groupId>com.lmax</groupId>
     </dependency>
 
-
     <!-- Vert.x -->
     <dependency>
       <artifactId>vertx-core</artifactId>
@@ -321,6 +320,12 @@
       <artifactId>mapbox-vector-tile</artifactId>
       <groupId>com.wdtinc</groupId>
       <version>2.0.0</version>
+    </dependency>
+
+    <!-- Utils -->
+    <dependency>
+      <groupId>commons-io</groupId>
+      <artifactId>commons-io</artifactId>
     </dependency>
 
     <!-- Test -->
