@@ -26,6 +26,7 @@ import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_INFO;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static io.netty.handler.codec.http.HttpResponseStatus.UNAUTHORIZED;
 import static io.vertx.core.http.HttpHeaders.AUTHORIZATION;
 import static io.vertx.core.http.HttpHeaders.CACHE_CONTROL;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
@@ -54,6 +55,7 @@ import io.vertx.core.json.Json;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.CorsHandler;
+import io.vertx.ext.web.handler.impl.HttpStatusException;
 import io.vertx.ext.web.validation.BadRequestException;
 import java.util.Arrays;
 import java.util.List;
@@ -148,11 +150,19 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
 
   protected Handler<RoutingContext> createFailureHandler() {
     return context -> {
+      String message = "A failure occurred during the execution.";
       if (context.failure() != null) {
-        sendErrorResponse(context, context.failure());
+        Throwable t = context.failure();
+        if (t instanceof HttpStatusException) {
+          //Transform Vert.x HTTP exception into ours
+          HttpResponseStatus status = HttpResponseStatus.valueOf(((HttpStatusException) t).getStatusCode());
+          if (status == UNAUTHORIZED)
+            message = "Missing auth credentials.";
+          t = new HttpException(status, message, t);
+        }
+        sendErrorResponse(context, t);
       }
       else {
-        String message = context.statusCode() == 401 ? "Missing auth credentials." : "A failure occurred during the execution.";
         HttpResponseStatus status = context.statusCode() >= 400 ? HttpResponseStatus.valueOf(context.statusCode()) : INTERNAL_SERVER_ERROR;
         sendErrorResponse(context, new HttpException(status, message));
       }
