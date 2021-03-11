@@ -31,6 +31,7 @@ public class XyzHubAttributeMap extends AttributeMap {
   public static final String LISTENERS = "listeners";
   public static final String PROCESSORS = "processors";
   public static final String SEARCHABLE_PROPERTIES = "searchableProperties";
+  public static final String SORTABLE_PROPERTIES = "sortableProperties";
   public static final String ID = "id";
 
   public static XyzHubAttributeMap forValues(String owner, String space, List<String> packages) {
