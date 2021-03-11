@@ -869,7 +869,11 @@ public abstract class DatabaseHandler extends StorageConnector {
                     }
 
                     if(!isEnableGlobalVersioning) {
-                        query = SQLQueryBuilder.deleteHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName);
+                        /** old naming */
+                        query = SQLQueryBuilder.deleteHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName)[0];
+                        stmt.addBatch(query);
+                        /** new naming */
+                        query = SQLQueryBuilder.deleteHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName)[1];
                         stmt.addBatch(query);
                     }
 
@@ -905,7 +909,11 @@ public abstract class DatabaseHandler extends StorageConnector {
                     /** Create Space-Table */
                     createSpaceStatement(stmt, tableName);
 
-                    String query = SQLQueryBuilder.deleteHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName);
+                    /** old naming */
+                    String query = SQLQueryBuilder.deleteHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName)[0];
+                    stmt.addBatch(query);
+                    /** new naming */
+                    query = SQLQueryBuilder.deleteHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName)[1];
                     stmt.addBatch(query);
 
                     query = SQLQueryBuilder.addHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName, maxVersionCount, compactHistory, isEnableGlobalVersioning);
