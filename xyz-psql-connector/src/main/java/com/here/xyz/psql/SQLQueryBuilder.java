@@ -1137,10 +1137,16 @@ public class SQLQueryBuilder {
         return SQLQuery.replaceVars(deleteIdArrayStmtSQL, schema, table);
     }
 
-    protected static String deleteHistoryTriggerSQL(final String schema, final String table){
+    protected static String[] deleteHistoryTriggerSQL(final String schema, final String table){
+        String[] sqls= new String[2];
+        /** Old naming */
+        String oldDeleteHistoryTriggerSQL = "DROP TRIGGER IF EXISTS TR_"+table.replaceAll("-","_")+"_HISTORY_WRITER ON  ${schema}.${table};";
+        /** New naming */
         String deleteHistoryTriggerSQL = "DROP TRIGGER IF EXISTS \"TR_"+table.replaceAll("-","_")+"_HISTORY_WRITER\" ON  ${schema}.${table};";
 
-        return SQLQuery.replaceVars(deleteHistoryTriggerSQL, schema, table);
+        sqls[0] = SQLQuery.replaceVars(oldDeleteHistoryTriggerSQL, schema, table);
+        sqls[1] = SQLQuery.replaceVars(deleteHistoryTriggerSQL, schema, table);
+        return sqls;
     }
 
     protected static String addHistoryTriggerSQL(final String schema, final String table, final Integer maxVersionCount, final boolean compactHistory, final boolean isEnableGlobalVersioning){
