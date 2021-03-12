@@ -136,6 +136,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
             .withPropertiesQuery(Query.getPropertiesQuery(context))
             .withSelection(Query.getSelection(context))
             .withSort(Query.getSort(context))
+            .withPart(Query.getPart(context))
             .withHandle(Query.getString(context, Query.HANDLE, null));
 
         final SearchQuery task = new SearchQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache);

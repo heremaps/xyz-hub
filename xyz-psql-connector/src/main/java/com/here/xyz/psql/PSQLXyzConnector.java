@@ -595,26 +595,30 @@ public class PSQLXyzConnector extends DatabaseHandler {
     }
   }
 
-  private void setPropTagQryFromHandle(SearchForFeaturesOrderByEvent event, String handle) throws JsonMappingException, JsonProcessingException 
+  private void setEventValuesFromHandle(SearchForFeaturesOrderByEvent event, String handle) throws JsonMappingException, JsonProcessingException 
   {
     ObjectMapper om = new ObjectMapper();
     JsonNode jn = om.readTree(handle);
     String ps = jn.get("p").toString();
     String ts = jn.get("t").toString();
+    String ms = jn.get("m").toString();
     PropertiesQuery pq = om.readValue( ps, PropertiesQuery.class );
     TagsQuery tq = om.readValue( ts, TagsQuery.class );
-
+    Integer[] part = om.readValue(ms,Integer[].class);
+    
+    event.setPart(part);
     event.setPropertiesQuery(pq);
     event.setTags(tq);
     event.setHandle(handle);
   }
 
-  private String addPropTagQryToHandle(SearchForFeaturesOrderByEvent event, String dbhandle)  throws JsonProcessingException
+  private String addEventValuesToHandle(SearchForFeaturesOrderByEvent event, String dbhandle)  throws JsonProcessingException
   {
    ObjectMapper om = new ObjectMapper();
    String pQry = String.format( ",\"p\":%s", event.getPropertiesQuery() != null ? om.writeValueAsString(event.getPropertiesQuery()) : "[]" ),
           tQry = String.format( ",\"t\":%s", event.getTags() != null ? om.writeValueAsString(event.getTags()) : "[]" ),
-          hndl = String.format("%s%s%s}", dbhandle.substring(0, dbhandle.lastIndexOf("}")), pQry, tQry );
+          mQry = String.format( ",\"m\":%s", event.getPart() != null ? om.writeValueAsString(event.getPart()) : "[]" ),
+          hndl = String.format("%s%s%s%s}", dbhandle.substring(0, dbhandle.lastIndexOf("}")), pQry, tQry, mQry );
    return hndl;       
   }
 
@@ -652,7 +656,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
        return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
                .withErrorMessage("Invalid request parameter. handle is corrupted");
       else         
-       try { setPropTagQryFromHandle(event, PSQLConfig.decrypt( event.getHandle().substring(HPREFIX.length()) ,"findFeaturesSort" ) ); }
+       try { setEventValuesFromHandle(event, PSQLConfig.decrypt( event.getHandle().substring(HPREFIX.length()) ,"findFeaturesSort" ) ); }
        catch ( GeneralSecurityException|IllegalArgumentException e)
        { return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
                  .withErrorMessage("Invalid request parameter. handle is corrupted");
@@ -663,7 +667,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       FeatureCollection collection = executeQueryWithRetry(query);
 
       if( collection.getHandle() != null ) // extend handle and encrypt 
-       collection.setHandle( HPREFIX + PSQLConfig.encrypt( addPropTagQryToHandle(event, collection.getHandle() ) , "findFeaturesSort" ) );
+       collection.setHandle( HPREFIX + PSQLConfig.encrypt( addEventValuesToHandle(event, collection.getHandle() ) , "findFeaturesSort" ) );
 
       return collection;
     }catch (SQLException e){

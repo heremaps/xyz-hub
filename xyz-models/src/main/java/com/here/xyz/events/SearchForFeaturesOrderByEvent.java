@@ -29,6 +29,7 @@ public final class SearchForFeaturesOrderByEvent extends SearchForFeaturesEvent<
 
   private String handle;
   private List<String> sort;
+  private Integer[] part;
 
 
   @SuppressWarnings("unused")
@@ -60,6 +61,22 @@ public final class SearchForFeaturesOrderByEvent extends SearchForFeaturesEvent<
   @SuppressWarnings("unused")
   public SearchForFeaturesOrderByEvent withSort(List<String> sort) {
     setSort(sort);
+    return this;
+  }
+
+  @SuppressWarnings("unused")
+  public Integer[] getPart() {
+    return this.part;
+  }
+
+  @SuppressWarnings("WeakerAccess")
+  public void setPart(Integer[] part) {
+    this.part = part;
+  }
+
+  @SuppressWarnings("unused")
+  public SearchForFeaturesOrderByEvent withPart(Integer[] part) {
+    setPart(part);
     return this;
   }
 

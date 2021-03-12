@@ -615,7 +615,7 @@ public class SQLQueryBuilder {
     {
         SQLQuery searchQuery = generateSearchQuery(event, dataSource);
 
-        SQLQuery innerQry = IterateSortSQL.innerSortedQry(searchQuery, event.getSort(), event.getHandle(), event.getLimit());
+        SQLQuery innerQry = IterateSortSQL.innerSortedQry(searchQuery, event.getSort(), event.getPart(), event.getHandle(), event.getLimit());
 
         final SQLQuery query = new SQLQuery("select");
         query.append(SQLQuery.selectJson(event.getSelection(), dataSource));
