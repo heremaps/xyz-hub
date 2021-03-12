@@ -441,11 +441,14 @@ public class Service extends Core {
     //TODO: Remove this workaround after the deprecation period
     @JsonIgnore
     public String getJwtPubKey() {
-      if (JWT_PUB_KEY != null) {
-        if (!JWT_PUB_KEY.startsWith("-----")) JWT_PUB_KEY = "-----BEGIN PUBLIC KEY-----\n" + JWT_PUB_KEY;
-        if (!JWT_PUB_KEY.endsWith("-----")) JWT_PUB_KEY = JWT_PUB_KEY + "\n-----END PUBLIC KEY-----";
+      String jwtPubKey = JWT_PUB_KEY;
+      if (jwtPubKey != null) {
+        if (!jwtPubKey.startsWith("-----"))
+          jwtPubKey = "-----BEGIN PUBLIC KEY-----\n" + jwtPubKey;
+        if (!jwtPubKey.endsWith("-----"))
+          jwtPubKey = jwtPubKey + "\n-----END PUBLIC KEY-----";
       }
-      return JWT_PUB_KEY;
+      return jwtPubKey;
     }
 
     /**
