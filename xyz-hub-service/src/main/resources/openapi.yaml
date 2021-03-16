@@ -1382,8 +1382,8 @@ components:
       name: sort
       in: query
       description: |
-        Specifies the sort order by a list of properties. Ascending assumed if no sort direction (:asc, :desc) is specified 
-    
+        Specifies the sort order by a list of properties. Ascending assumed if no sort direction (:asc, :desc) is specified
+
         Example: ?sort=p.name:asc,p.color:desc
       explode: false
       schema:
@@ -1437,7 +1437,6 @@ components:
         The tile identifier can be provided as quadkey (__1__), Web Mercator
         level,x,y coordinates (__1_1_0__) or OSGEO Tile Map Service
         level,x,y (__1_1_0__).
-      required: true
       schema:
         type: string
     TileType:
@@ -1446,7 +1445,6 @@ components:
       description: >-
         The type of tile identifier. "quadkey" - Virtual Earth, "web" - Web
         Mercator, "tms" - OSGEO Tile Map Service, "here" - Here Tile Schema.
-      required: true
       schema:
         type: string
         enum:
@@ -1454,7 +1452,6 @@ components:
           - web
           - tms
           - here
-        default: quadkey
     Transactional:
       name: transactional
       in: query
