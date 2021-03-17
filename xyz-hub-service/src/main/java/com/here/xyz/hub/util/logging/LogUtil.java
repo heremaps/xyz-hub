@@ -35,7 +35,7 @@ import com.here.xyz.hub.rest.Api;
 import io.vertx.core.MultiMap;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerResponse;
-import io.vertx.core.http.impl.Http2ServerResponseImpl;
+import io.vertx.core.http.impl.Http2ServerResponse;
 import io.vertx.ext.web.RoutingContext;
 import java.util.Collections;
 import java.util.List;
@@ -57,7 +57,7 @@ public class LogUtil {
   public static String responseToLogEntry(RoutingContext context) {
     HttpServerResponse response = context.response();
     StringBuilder buf = new StringBuilder();
-    String httpProto = response instanceof Http2ServerResponseImpl ? "HTTP/2" : "HTTP";
+    String httpProto = response instanceof Http2ServerResponse ? "HTTP/2" : "HTTP";
     buf.append(httpProto + " Response: \n");
     buf.append(response.getStatusCode());
     buf.append(' ');
