@@ -22,6 +22,7 @@ package com.here.xyz.hub;
 import static com.here.xyz.hub.task.Task.TASK;
 import static com.here.xyz.hub.util.OpenApiGenerator.generate;
 import static io.vertx.core.http.HttpHeaders.CONTENT_LENGTH;
+import static io.vertx.core.http.HttpHeaders.LOCATION;
 
 import com.google.common.io.ByteStreams;
 import com.google.common.io.Files;
@@ -38,6 +39,8 @@ import com.here.xyz.hub.rest.SpaceApi;
 import com.here.xyz.hub.rest.health.HealthApi;
 import com.here.xyz.hub.task.Task;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.vertx.core.Handler;
+import io.vertx.core.MultiMap;
 import io.vertx.core.Promise;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.ext.auth.PubSecKeyOptions;
@@ -147,7 +150,17 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
           }));
 
           //Static resources
-          router.route("/hub/static/*").handler(StaticHandler.create().setIndexPage("index.html")).handler(createCorsHandler());
+          router.route("/hub/static/*")
+              .handler(new DelegatingHandler<>(StaticHandler.create().setIndexPage("index.html"), context -> context.addHeadersEndHandler(v -> {
+                //This handler implements a workaround for an issue with CloudFront, which removes slashes at the end of the request-URL's path
+                MultiMap headers = context.response().headers();
+                if (headers.contains(LOCATION)) {
+                  String headerValue = headers.get(LOCATION);
+                  if (headerValue.endsWith("/"))
+                    headers.set(LOCATION, headerValue + "index.html");
+                }
+              }), null))
+              .handler(createCorsHandler());
           if (Service.configuration.FS_WEB_ROOT != null) {
             logger.debug("Serving extra web-root folder in file-system with location: {}", Service.configuration.FS_WEB_ROOT);
             //noinspection ResultOfMethodCallIgnored
@@ -210,5 +223,26 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
     }
 
     return authHandler;
+  }
+
+  private static class DelegatingHandler<E> implements Handler<E> {
+
+    private final Handler<E> before;
+    private final Handler<E> delegate;
+    private final Handler<E> after;
+
+    DelegatingHandler(Handler<E> delegate, Handler<E> before, Handler<E> after) {
+      assert delegate != null;
+      this.before = before;
+      this.delegate = delegate;
+      this.after = after;
+    }
+
+    @Override
+    public void handle(E event) {
+      if (before != null) before.handle(event);
+      delegate.handle(event);
+      if (after != null) after.handle(event);
+    }
   }
 }
