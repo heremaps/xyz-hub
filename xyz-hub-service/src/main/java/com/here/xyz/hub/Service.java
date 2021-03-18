@@ -414,9 +414,13 @@ public class Service extends Core {
     //TODO: Remove this workaround after the deprecation period
     @JsonIgnore
     public String getRedisUri() {
-      if (XYZ_HUB_REDIS_URI != null) return XYZ_HUB_REDIS_URI;
-      String protocol = XYZ_HUB_REDIS_AUTH_TOKEN != null ? "rediss" : "redis";
-      return protocol + "://" + XYZ_HUB_REDIS_HOST + ":" + XYZ_HUB_REDIS_PORT;
+      if (XYZ_HUB_REDIS_HOST != null) {
+        String protocol = XYZ_HUB_REDIS_AUTH_TOKEN != null ? "rediss" : "redis";
+        int port = XYZ_HUB_REDIS_PORT != 0 ? XYZ_HUB_REDIS_PORT : 6379;
+        return protocol + "://" + XYZ_HUB_REDIS_HOST + ":" + port;
+      }
+      else
+        return XYZ_HUB_REDIS_URI;
     }
 
     /**
