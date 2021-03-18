@@ -226,6 +226,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         replacements.put("idx_geo", "idx_" + table + "_geo");
         replacements.put("idx_createdAt", "idx_" + table + "_createdAt");
         replacements.put("idx_updatedAt", "idx_" + table + "_updatedAt");
+        replacements.put("idx_viz", "idx_" + table + "_viz");
 
         replacements.put("idx_hst_id", "idx_" + hstTable + "_id");
         replacements.put("idx_hst_uuid", "idx_" + hstTable + "_uuid");
@@ -800,13 +801,18 @@ public abstract class DatabaseHandler extends StorageConnector {
         query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
         stmt.addBatch(query);
 
-        query = "CREATE INDEX IF NOT EXISTS ${idx_updatedAt} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt'))";
+        query = "CREATE INDEX IF NOT EXISTS ${idx_updatedAt} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt'), (jsondata->>'id'))";
         query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
         stmt.addBatch(query);
 
-        query = "CREATE INDEX IF NOT EXISTS ${idx_createdAt} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'createdAt'))";
+        query = "CREATE INDEX IF NOT EXISTS ${idx_createdAt} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'createdAt'), (jsondata->>'id'))";
         query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
         stmt.addBatch(query);
+
+        query = "CREATE INDEX IF NOT EXISTS ${idx_viz} ON ${schema}.${table} USING btree (left( md5(''||i),5))";
+        query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
+        stmt.addBatch(query);
+
         stmt.setQueryTimeout(calculateTimeout());
     }
 
