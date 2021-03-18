@@ -153,11 +153,13 @@ public class IterateSortSQL {
       + "from dt s join ${schema}.${table} d on ( s.i = d.i ) "
       + "order by s.ord1, s.ord2 ";
 
+  public static String pg_hint_plan = "/*+ IndexOnlyScan( ht1  ) */";
+
   private static String partialSortedIterate = 
         " ("
       + "  select %1$d::integer as ord1, row_number() over () ord2, i " 
       + "  from " 
-      + "  ( select i from ${schema}.${table} "
+      + "  ( select i from ${schema}.${table} ht1 "
       + "    where 1 = 1 "
       + "    ##_SEARCHQRY_## "
       + "    %2$s "  // continuation sql
