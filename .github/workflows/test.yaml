@@ -14,6 +14,10 @@ jobs:
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             ${{ runner.os }}-maven-
+      - name: Setup Java
+        uses: actions/setup-java@v1
+        with:
+          java-version: '8'
       - name: Start the XYZ Hub stack
         run: mvn clean install -Pdocker -DskipTests=true -DdockerComposeFile=docker-compose-dynamodb.yml
       - name: Run tests

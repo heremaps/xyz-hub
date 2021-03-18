@@ -23,8 +23,10 @@ import static com.here.xyz.hub.rest.Api.CLIENT_CLOSED_REQUEST;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
 import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_INFO;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static io.netty.handler.codec.http.HttpResponseStatus.UNAUTHORIZED;
 import static io.vertx.core.http.HttpHeaders.AUTHORIZATION;
 import static io.vertx.core.http.HttpHeaders.CACHE_CONTROL;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
@@ -46,12 +48,15 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.Promise;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.json.Json;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.CorsHandler;
+import io.vertx.ext.web.handler.impl.HttpStatusException;
+import io.vertx.ext.web.validation.BadRequestException;
 import java.util.Arrays;
 import java.util.List;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -89,21 +94,21 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
   );
 
   public Future<Void> createHttpServer(int port, Router router) {
-    final Future<Void> future = Future.future();
+    Promise<Void> promise = Promise.promise();
 
     vertx.createHttpServer(SERVER_OPTIONS)
         .requestHandler(router)
         .listen(port, result -> {
           if (result.succeeded()) {
             logger.info("HTTP Server started on port {}", port);
-            future.complete();
+            promise.complete();
           } else {
             logger.error("An error occurred, during the initialization of the server.", result.cause());
-            future.fail(result.cause());
+            promise.fail(result.cause());
           }
         });
 
-    return future;
+    return promise.future();
   }
 
   /**
@@ -145,11 +150,19 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
 
   protected Handler<RoutingContext> createFailureHandler() {
     return context -> {
+      String message = "A failure occurred during the execution.";
       if (context.failure() != null) {
-        sendErrorResponse(context, context.failure());
+        Throwable t = context.failure();
+        if (t instanceof HttpStatusException) {
+          //Transform Vert.x HTTP exception into ours
+          HttpResponseStatus status = HttpResponseStatus.valueOf(((HttpStatusException) t).getStatusCode());
+          if (status == UNAUTHORIZED)
+            message = "Missing auth credentials.";
+          t = new HttpException(status, message, t);
+        }
+        sendErrorResponse(context, t);
       }
       else {
-        String message = context.statusCode() == 401 ? "Missing auth credentials." : "A failure occurred during the execution.";
         HttpResponseStatus status = context.statusCode() >= 400 ? HttpResponseStatus.valueOf(context.statusCode()) : INTERNAL_SERVER_ERROR;
         sendErrorResponse(context, new HttpException(status, message));
       }
@@ -241,11 +254,15 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
 
     public ErrorMessage(RoutingContext context, Throwable e) {
       Marker marker = Api.Context.getMarker(context);
-      this.streamId = marker.getName();
-      this.message = e.getMessage();
+      streamId = marker.getName();
+      message = e.getMessage();
       if (e instanceof HttpException) {
-        this.statusCode = ((HttpException) e).status.code();
-        this.reasonPhrase = ((HttpException) e).status.reasonPhrase();
+        statusCode = ((HttpException) e).status.code();
+        reasonPhrase = ((HttpException) e).status.reasonPhrase();
+      }
+      else if (e instanceof BadRequestException) {
+        statusCode = BAD_REQUEST.code();
+        reasonPhrase = BAD_REQUEST.reasonPhrase();
       }
 
       // The authentication providers do not pass the exception message

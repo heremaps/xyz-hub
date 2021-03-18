@@ -25,21 +25,20 @@ import com.here.xyz.hub.rest.ApiParam.Query;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.auth.authentication.Credentials;
+import io.vertx.ext.auth.authentication.TokenCredentials;
 import io.vertx.ext.auth.jwt.JWTAuth;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.JWTAuthHandler;
-import io.vertx.ext.web.handler.impl.AuthHandlerImpl;
+import io.vertx.ext.web.handler.impl.AuthenticationHandlerImpl;
 import io.vertx.ext.web.handler.impl.HttpStatusException;
 import java.util.List;
 
-public class JWTURIHandler extends AuthHandlerImpl implements JWTAuthHandler {
-
-  private final JsonObject options = new JsonObject();
+public class JWTURIHandler extends AuthenticationHandlerImpl<JWTAuth> implements JWTAuthHandler {
 
   private JWTURIHandler(JWTAuth authProvider) {
-    super(authProvider, "Bearer");
+    super(authProvider);
   }
 
   public static JWTAuthHandler create(JWTAuth authProvider) {
@@ -47,35 +46,17 @@ public class JWTURIHandler extends AuthHandlerImpl implements JWTAuthHandler {
   }
 
   @Override
-  public JWTAuthHandler setAudience(List<String> audience) {
-    options.put("audience", new JsonArray(audience));
-    return this;
-  }
-
-  @Override
-  public JWTAuthHandler setIssuer(String issuer) {
-    options.put("issuer", issuer);
-    return this;
-  }
-
-  @Override
-  public JWTAuthHandler setIgnoreExpiration(boolean ignoreExpiration) {
-    options.put("ignoreExpiration", ignoreExpiration);
-    return this;
-  }
-
-  @Override
-  public void parseCredentials(RoutingContext context, Handler<AsyncResult<JsonObject>> handler) {
+  public void parseCredentials(RoutingContext context, Handler<AsyncResult<Credentials>> handler) {
     final List<String> access_token = Query.queryParam(Query.ACCESS_TOKEN, context);
     if (access_token != null && access_token.size() > 0) {
-      handler.handle(Future.succeededFuture(new JsonObject().put("jwt", access_token.get(0)).put("options", options)));
+      handler.handle(Future.succeededFuture(new TokenCredentials(access_token.get(0))));
       return;
     }
     handler.handle(Future.failedFuture(new HttpStatusException(UNAUTHORIZED.code(), "Missing auth credentials.")));
   }
 
   @Override
-  protected String authenticateHeader(RoutingContext context) {
+  public String authenticateHeader(RoutingContext context) {
     return "Bearer";
   }
 }

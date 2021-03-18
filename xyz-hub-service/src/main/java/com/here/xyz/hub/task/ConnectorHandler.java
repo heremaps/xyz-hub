@@ -1,12 +1,17 @@
 package com.here.xyz.hub.task;
 
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
+import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+
 import com.here.xyz.connectors.AbstractConnectorHandler;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLambda;
-import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
+import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.util.diff.Difference;
@@ -16,19 +21,20 @@ import com.here.xyz.hub.util.diff.Patcher;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
-import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
+import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.web.RoutingContext;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
-
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
-
-import static io.netty.handler.codec.http.HttpResponseStatus.*;
 
 public class ConnectorHandler {
 
@@ -110,7 +116,7 @@ public class ConnectorHandler {
 
   protected static void storeConnector(RoutingContext context, JsonObject connector, Handler<AsyncResult<Connector>> handler, Marker marker,
       AsyncResult<Connector> ar) {
-    Connector c = Json.mapper.convertValue(connector, Connector.class);
+    Connector c = DatabindCodec.mapper().convertValue(connector, Connector.class);
     DiffMap diffMap = (DiffMap) Patcher.getDifference(new HashMap<>(), asMap(connector));
     try {
       //TODO: Do admin validation in ConnectorApi.ConnectorAuthorization
@@ -189,7 +195,7 @@ public class ConnectorHandler {
 
   private static Map asMap(Object object) {
     try {
-      return Json.mapper.convertValue(object, Map.class);
+      return DatabindCodec.mapper().convertValue(object, Map.class);
     }
     catch (Exception e) {
       return Collections.emptyMap();
@@ -198,7 +204,7 @@ public class ConnectorHandler {
 
   private static Connector asConnector(Marker marker, Map object) throws HttpException {
     try {
-      return Json.mapper.convertValue(object, Connector.class);
+      return DatabindCodec.mapper().convertValue(object, Connector.class);
     }
     catch (Exception e) {
       logger.error(marker, "Could not convert resource.", e.getCause());

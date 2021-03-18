@@ -55,9 +55,9 @@ import com.here.xyz.hub.task.TaskPipeline.Callback;
 import com.here.xyz.hub.util.diff.Difference;
 import com.here.xyz.hub.util.diff.Patcher;
 import com.here.xyz.models.hub.Space.ConnectorRef;
-import io.vertx.core.AsyncResult;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
+import io.vertx.core.json.jackson.DatabindCodec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -79,16 +79,15 @@ public class SpaceTaskHandler {
   private static final int CLIENT_VALUE_MAX_SIZE = 1024;
 
   static <X extends ReadQuery<?>> void readSpaces(final X task, final Callback<X> callback) {
-    Service.spaceConfigClient.getSelected(task.getMarker(), task.authorizedCondition, task.selectedCondition, task.propertiesQuery, ar -> {
-      if (ar.failed()) {
-        logger.error(task.getMarker(), "Unable to load space definitions.'", ar.cause());
-        callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definitions.", ar.cause()));
-        return;
-      }
-
-      task.responseSpaces = ar.result();
-      callback.call(task);
-    });
+    Service.spaceConfigClient.getSelected(task.getMarker(), task.authorizedCondition, task.selectedCondition, task.propertiesQuery)
+        .onFailure(t -> {
+          logger.error(task.getMarker(), "Unable to load space definitions.'", t);
+          callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definitions.", t));
+        })
+        .onSuccess(spaces -> {
+          task.responseSpaces = spaces;
+          callback.call(task);
+        });
   }
 
   static <X extends ReadQuery<?>> void readFromJWT(final X task, final Callback<X> callback) {
@@ -262,23 +261,20 @@ public class SpaceTaskHandler {
    * @param callback the callback to be invoked when done.
    */
   static void loadSpace(final ConditionalOperation task, final Callback<ConditionalOperation> callback) {
-    final Map<String,Object> space = task.modifyOp.entries.get(0).input;
-    final Object spaceId = space.get("id");
+    final Map<String,Object> inputSpace = task.modifyOp.entries.get(0).input;
+    final Object spaceId = inputSpace.get("id");
     if (!(spaceId instanceof String)) {
       callback.call(task);
       return;
     }
 
-    Service.spaceConfigClient.get(task.getMarker(), (String)spaceId, (arResult) -> {
-      if (arResult.failed()) {
-        callback.exception(new Exception(arResult.cause()));
-        return;
-      }
-      final Space headSpace = arResult.result();
-      task.modifyOp.entries.get(0).head = headSpace;
-      task.modifyOp.entries.get(0).base = headSpace;
-      callback.call(task);
-    });
+    Service.spaceConfigClient.get(task.getMarker(), (String)spaceId)
+        .onFailure(t -> callback.exception(t))
+        .onSuccess(headSpace -> {
+          task.modifyOp.entries.get(0).head = headSpace;
+          task.modifyOp.entries.get(0).base = headSpace;
+          callback.call(task);
+        });
   }
 
   static void modifySpaces(final ConditionalOperation task, final Callback<ConditionalOperation> callback) {
@@ -289,27 +285,22 @@ public class SpaceTaskHandler {
       return;
     }
 
-    if (entry.input != null && entry.result == null) {
+    if (entry.input != null && entry.result == null)
       Service.spaceConfigClient
-          .delete(task.getMarker(), entry.head.getId(), (arResult) -> handleSingleSpaceResponse(task, callback, arResult));
-    } else {
-      Service.spaceConfigClient.store(task.getMarker(), entry.result, (arResult) -> handleSingleSpaceResponse(task, callback, arResult));
-    }
-  }
-
-  private static void handleSingleSpaceResponse(ConditionalOperation task, Callback<ConditionalOperation> callback,
-      AsyncResult<Space> arResult) {
-    if (arResult.failed()) {
-      callback.exception(new Exception(arResult.cause()));
-      return;
-    }
-    final Space space = arResult.result();
-    if (task.isDelete()) {
-      task.responseSpaces = Collections.singletonList(task.modifyOp.entries.get(0).head);
-    } else {
-      task.responseSpaces = Collections.singletonList(space);
-    }
-    callback.call(task);
+          .delete(task.getMarker(), entry.head.getId())
+          .onFailure(t -> callback.exception(t))
+          .onSuccess(v -> {
+            task.responseSpaces = Collections.singletonList(task.modifyOp.entries.get(0).head);
+            callback.call(task);
+          });
+    else
+      Service.spaceConfigClient
+          .store(task.getMarker(), entry.result)
+          .onFailure(t -> callback.exception(t))
+          .onSuccess(v -> {
+            task.responseSpaces = Collections.singletonList(entry.result);
+            callback.call(task);
+          });
   }
 
   private static Space getSpaceTemplate(String owner, String cid) {
@@ -341,7 +332,7 @@ public class SpaceTaskHandler {
     final ActionMatrix accessMatrix = task.getJwt().getXyzHubMatrix();
 
     task.responseSpaces = task.responseSpaces.stream().map(g -> {
-          final SpaceWithRights space = Json.mapper.convertValue(g, SpaceWithRights.class);
+          final SpaceWithRights space = DatabindCodec.mapper().convertValue(g, SpaceWithRights.class);
           space.rights = new ArrayList<>();
           for (String op : operations) {
             final ActionMatrix readAccessMatrix = new ActionMatrix()
@@ -369,20 +360,17 @@ public class SpaceTaskHandler {
       return;
     }
 
-    Service.spaceConfigClient.getOwn(task.getMarker(), jwt.aid, ar -> {
-      if (ar.failed()) {
-        logger.info(task.getMarker(), "Unable to load the space definitions.", ar.cause());
-        callback.exception(new HttpException(BAD_GATEWAY, "Unable to load the resource definitions.", ar.cause()));
-        return;
-      }
-
-      List<Space> spaces = ar.result();
-      if (spaces.size() >= jwt.limits.maxSpaces) {
-        callback.exception(new HttpException(FORBIDDEN, "The maximum number of " + jwt.limits.maxSpaces + " spaces was reached."));
-        return;
-      }
-      callback.call(task);
-    });
+    Service.spaceConfigClient.getSpacesForOwner(task.getMarker(), jwt.aid)
+        .onFailure(t -> {
+          logger.warn(task.getMarker(), "Unable to load the space definitions.", t);
+          callback.exception(new HttpException(BAD_GATEWAY, "Unable to load the resource definitions.", t));
+        })
+        .onSuccess(spaces -> {
+          if (spaces.size() >= jwt.limits.maxSpaces)
+            callback.exception(new HttpException(FORBIDDEN, "The maximum number of " + jwt.limits.maxSpaces + " spaces was reached."));
+          else
+            callback.call(task);
+        });
   }
 
   static void sendEvents(ConditionalOperation task, Callback<ConditionalOperation> callback) {
@@ -420,7 +408,7 @@ public class SpaceTaskHandler {
         if (difference != null) {
           entry.isModified = true;
           Patcher.patch(resultClone, difference);
-          entry.result = Json.mapper.readValue(Json.encode(resultClone), Space.class);
+          entry.result = DatabindCodec.mapper().readValue(Json.encode(resultClone), Space.class);
         }
       }
 

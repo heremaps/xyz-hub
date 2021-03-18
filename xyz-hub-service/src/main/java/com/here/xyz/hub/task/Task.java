@@ -150,7 +150,7 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
     return ifNoneMatch != null && ifNoneMatch.equals(getEtag());
   }
 
-  public void execute(C1<X> onSuccess, C2<X, Exception> onException) {
+  public void execute(C1<X> onSuccess, C2<X, Throwable> onException) {
     if (!executed) {
       executed = true;
       getPipeline()

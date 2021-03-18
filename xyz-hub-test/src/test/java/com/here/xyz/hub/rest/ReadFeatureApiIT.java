@@ -43,6 +43,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
 import com.jayway.restassured.RestAssured;
+import com.jayway.restassured.response.Response;
+import com.jayway.restassured.response.ResponseOptions;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
@@ -777,13 +779,14 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testMTVResponse() throws IOException {
-    InputStream inputStream = given()
-            .contentType(APPLICATION_VND_MAPBOX_VECTOR_TILE)
-            .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-            .when()
-            .get("/spaces/x-psql-test/tile/quadkey/120203302032.mvt")
-            .getBody().asInputStream();
+  public void testMVTResponse() throws IOException {
+    Response r = given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .get("/spaces/x-psql-test/tile/quadkey/120203302032.mvt");
+
+    r.then().statusCode(OK.code());
+    InputStream inputStream = r.getBody().asInputStream();
 
     GeometryFactory geomFactory = new GeometryFactory();
     JtsMvt jtsMvt = MvtReader.loadMvt(
@@ -795,12 +798,12 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
     ArrayList<Geometry> geometries = (ArrayList<Geometry>) layer.getGeometries();
     Geometry geom = geometries.get(0).getGeometryN(0);
     Object userData = geometries.get(0).getUserData();
-    LinkedHashMap<String,Object> t = (LinkedHashMap<String,Object>)userData;
+    LinkedHashMap<String, Object> t = (LinkedHashMap<String,Object>) userData;
 
-    assertEquals("Commerzbank-Arena",t.get("name"));
-    assertEquals("association football",t.get("sport"));
-    assertEquals(51500l,t.get("capacity"));
-    assertEquals("Eintracht Frankfurt",t.get("occupant"));
+    assertEquals("Commerzbank-Arena", t.get("name"));
+    assertEquals("association football", t.get("sport"));
+    assertEquals(51500l, t.get("capacity"));
+    assertEquals("Eintracht Frankfurt", t.get("occupant"));
     assertNotNull(t.get("@ns:com:here:xyz"));
 
     Coordinate[] coordinates = geom.getCoordinates();

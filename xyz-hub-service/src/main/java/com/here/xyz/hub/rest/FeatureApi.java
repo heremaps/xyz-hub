@@ -47,7 +47,7 @@ import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.api.contract.openapi3.OpenAPI3RouterFactory;
+import io.vertx.ext.web.openapi.RouterBuilder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -62,15 +62,15 @@ public class FeatureApi extends SpaceBasedApi {
 
   private static final Logger logger = LogManager.getLogger();
 
-  public FeatureApi(OpenAPI3RouterFactory routerFactory) {
-    routerFactory.addHandlerByOperationId("getFeature", this::getFeature);
-    routerFactory.addHandlerByOperationId("getFeatures", this::getFeatures);
-    routerFactory.addHandlerByOperationId("putFeature", this::putFeature);
-    routerFactory.addHandlerByOperationId("putFeatures", this::putFeatures);
-    routerFactory.addHandlerByOperationId("postFeatures", this::postFeatures);
-    routerFactory.addHandlerByOperationId("patchFeature", this::patchFeature);
-    routerFactory.addHandlerByOperationId("deleteFeature", this::deleteFeature);
-    routerFactory.addHandlerByOperationId("deleteFeatures", this::deleteFeatures);
+  public FeatureApi(RouterBuilder rb) {
+    rb.operation("getFeature").handler(this::getFeature);
+    rb.operation("getFeatures").handler(this::getFeatures);
+    rb.operation("putFeature").handler(this::putFeature);
+    rb.operation("putFeatures").handler(this::putFeatures);
+    rb.operation("postFeatures").handler(this::postFeatures);
+    rb.operation("patchFeature").handler(this::patchFeature);
+    rb.operation("deleteFeature").handler(this::deleteFeature);
+    rb.operation("deleteFeatures").handler(this::deleteFeatures);
   }
 
   /**

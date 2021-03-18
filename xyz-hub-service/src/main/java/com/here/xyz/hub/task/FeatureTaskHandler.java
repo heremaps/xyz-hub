@@ -271,8 +271,9 @@ public class FeatureTaskHandler {
         if (now - task.space.contentUpdatedAt > Space.CONTENT_UPDATED_AT_INTERVAL_MILLIS) {
           task.space.contentUpdatedAt = Core.currentTimeMillis();
           task.space.volatilityAtLastContentUpdate = task.space.getVolatility();
-          Service.spaceConfigClient.store(task.getMarker(), task.space,
-              (ar) -> logger.info(task.getMarker(), "Updated contentUpdatedAt for space {}", task.space.getId()));
+          Service.spaceConfigClient.store(task.getMarker(), task.space)
+              .onSuccess(v -> logger.info(task.getMarker(), "Updated contentUpdatedAt for space {}", task.space.getId()))
+              .onFailure(t -> logger.error(task.getMarker(), "Error while updating contentUpdatedAt for space {}", task.space.getId(), t));
         }
       }
       //Send event to potentially registered request-listeners
@@ -337,7 +338,7 @@ public class FeatureTaskHandler {
       String cacheKey = task.getCacheKey();
 
       //Check the cache
-      Service.cacheClient.get(cacheKey, cacheResult -> {
+      Service.cacheClient.get(cacheKey).onSuccess(cacheResult -> {
         if (cacheResult == null) {
           //Cache MISS: Just go on in the task pipeline
           addStreamInfo(task, "CH=0;");
@@ -680,20 +681,19 @@ public class FeatureTaskHandler {
       }
 
       //Load the space definition.
-      Service.spaceConfigClient.get(task.getMarker(), task.getEvent().getSpace(), arSpace -> {
-        if (arSpace.failed()) {
-          logger
-              .info(task.getMarker(), "Unable to load the space definition for space '{}' {}", task.getEvent().getSpace(), arSpace.cause());
-          callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition", arSpace.cause()));
-          return;
-        }
-        task.space = arSpace.result();
-        if (task.space != null) {
-          task.getEvent().setParams(task.space.getStorage().getParams());
-        }
-        onSpaceResolved(task, callback);
-      });
-    } catch (Exception e) {
+      Service.spaceConfigClient.get(task.getMarker(), task.getEvent().getSpace())
+          .onFailure(t -> {
+            logger.warn(task.getMarker(), "Unable to load the space definition for space '{}' {}", task.getEvent().getSpace(), t);
+            callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition", t));
+          })
+          .onSuccess(space -> {
+            task.space = space;
+            if (task.space != null)
+              task.getEvent().setParams(task.space.getStorage().getParams());
+            onSpaceResolved(task, callback);
+          });
+    }
+    catch (Exception e) {
       callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition.", e));
     }
   }

@@ -20,6 +20,10 @@
 package com.here.xyz.psql;
 
 import com.amazonaws.services.lambda.runtime.Context;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
@@ -35,11 +39,15 @@ import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.events.SearchForFeaturesOrderByEvent;
+import com.here.xyz.events.TagsQuery;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.factory.H3SQL;
 import com.here.xyz.psql.factory.QuadbinSQL;
 import com.here.xyz.psql.factory.TweaksSQL;
@@ -49,6 +57,7 @@ import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -195,7 +204,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
           }
         }
 
-        int distStrength = 0;
+        int distStrength = 1;
 
         switch ( event.getTweakType().toLowerCase() )  {
 
@@ -221,7 +230,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
             {
               if( mvtFromDbRequested == 0 )
               { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, dataSource));
-                collection.setPartial(true);
+                if( distStrength > 0 ) collection.setPartial(true); // either ensure mode or explicit tweaks:sampling request where strenght in [1..100]
                 return collection;
               }
               else
@@ -237,7 +246,6 @@ public class PSQLXyzConnector extends DatabaseHandler {
           case TweaksSQL.SIMPLIFICATION: { 
             if( mvtFromDbRequested == 0 )
             { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams, dataSource));
-              collection.setPartial(true);
               return collection;
             }
             else
@@ -316,7 +324,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected XyzResponse processSearchForFeaturesEvent(SearchForFeaturesEvent event) throws Exception {
-    return findFeatures(event, null, false);
+    if(! (event instanceof SearchForFeaturesOrderByEvent) )
+     return findFeatures(event, null, false); 
+    else 
+     return findFeaturesSort( (SearchForFeaturesOrderByEvent) event );
   }
 
   @Override
@@ -428,7 +439,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
               && config.getConnectorParams().isPropertySearch()) {
 
         //TODO: Check if config entry exists and idx_manual=null -> update it (erase on demand)
-        if(event.getSpaceDefinition().isEnableAutoSearchableProperties() != null || event.getSpaceDefinition().getSearchableProperties() != null)
+        if(   event.getSpaceDefinition().isEnableAutoSearchableProperties() != null 
+           || event.getSpaceDefinition().getSearchableProperties() != null
+           || event.getSpaceDefinition().getSortableProperties() != null
+          )
           executeUpdateWithRetry(  SQLQueryBuilder.buildSearchablePropertiesUpsertQuery(
                   event.getSpaceDefinition(),
                   event.getOperation(),
@@ -493,16 +507,16 @@ public class PSQLXyzConnector extends DatabaseHandler {
             || ModifySpaceEvent.Operation.CREATE == event.getOperation())
             && config.getConnectorParams().isPropertySearch()) {
 
+      int onDemandLimit = config.getConnectorParams().getOnDemandIdxLimit();
+      int onDemandCounter = 0;
       if (event.getSpaceDefinition().getSearchableProperties() != null) {
-        int onDemandLimit = config.getConnectorParams().getOnDemandIdxLimit();
 
-        int cnt = 0;
         for (String property : event.getSpaceDefinition().getSearchableProperties().keySet()) {
           if (event.getSpaceDefinition().getSearchableProperties().get(property) != null
                   && event.getSpaceDefinition().getSearchableProperties().get(property) == Boolean.TRUE) {
-            cnt++;
+            onDemandCounter++;
           }
-          if (cnt > onDemandLimit) {
+          if ( onDemandCounter > onDemandLimit ) {
             throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
                     "On-Demand-Indexing - Maximum permissible: " + onDemandLimit + " searchable properties per space!");
           }
@@ -521,6 +535,24 @@ public class PSQLXyzConnector extends DatabaseHandler {
                     "Connector does not support Auto-indexing!");
           }
         }
+      }
+
+      if(event.getSpaceDefinition().getSortableProperties() != null )
+      { /* todo: eval #index limits, parameter validation  */ 
+        if( event.getSpaceDefinition().getSortableProperties().size() + onDemandCounter > onDemandLimit )
+         throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
+                 "On-Demand-Indexing - Maximum permissible: " + onDemandLimit + " sortable + searchable properties per space!");
+        
+        for( List<Object> l : event.getSpaceDefinition().getSortableProperties() )
+         for( Object p : l )
+         { String property = p.toString();
+           if( property.startsWith("f.") && !property.replaceFirst("(?i):(asc|desc)$","").matches("f\\.(createdAt|updatedAt)") )
+            throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
+              "On-Demand-Indexing [" + property + "] - only f.createdAt or f.updatedAt allowed!");
+           if( property.contains("\\") || property.contains("'") )
+            throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
+              "On-Demand-Indexing [" + property + "] - Characters ['\\] not allowed!");
+         }
       }
     }
   }
@@ -560,6 +592,78 @@ public class PSQLXyzConnector extends DatabaseHandler {
       logger.info("{} Finished "+event.getClass().getSimpleName(), traceItem);
     }
   }
+
+  private void setPropTagQryFromHandle(SearchForFeaturesOrderByEvent event, String handle) throws JsonMappingException, JsonProcessingException 
+  {
+    ObjectMapper om = new ObjectMapper();
+    JsonNode jn = om.readTree(handle);
+    String ps = jn.get("p").toString();
+    String ts = jn.get("t").toString();
+    PropertiesQuery pq = om.readValue( ps, PropertiesQuery.class );
+    TagsQuery tq = om.readValue( ts, TagsQuery.class );
+
+    event.setPropertiesQuery(pq);
+    event.setTags(tq);
+    event.setHandle(handle);
+  }
+
+  private String addPropTagQryToHandle(SearchForFeaturesOrderByEvent event, String dbhandle)  throws JsonProcessingException
+  {
+   ObjectMapper om = new ObjectMapper();
+   String pQry = String.format( ",\"p\":%s", event.getPropertiesQuery() != null ? om.writeValueAsString(event.getPropertiesQuery()) : "[]" ),
+          tQry = String.format( ",\"t\":%s", event.getTags() != null ? om.writeValueAsString(event.getTags()) : "[]" ),
+          hndl = String.format("%s%s%s}", dbhandle.substring(0, dbhandle.lastIndexOf("}")), pQry, tQry );
+   return hndl;       
+  }
+
+  private List<String> translateSortSysValues(List<String> sort)
+  { if( sort == null ) return null;
+    List<String> r = new ArrayList<String>();
+    for( String f : sort )
+     if( f.toLowerCase().startsWith("f.id" ) ) // f. sysval replacements 
+      r.add( f.replaceFirst("^f\\.", "") );
+     else
+      r.add( f.replaceFirst("^f\\.", "properties.@ns:com:here:xyz.") );
+    return r; 
+  }
+
+  protected XyzResponse findFeaturesSort(SearchForFeaturesOrderByEvent event ) throws Exception
+  {
+    try{
+      logger.info("{} - Received "+event.getClass().getSimpleName(), traceItem);
+
+      if (!Capabilities.canSearchFor(config.readTableFromEvent(event), event.getPropertiesQuery(), this)) {
+        return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
+                .withErrorMessage("Invalid request parameters. Search for the provided properties is not supported for this space.");
+      }
+
+      if (!Capabilities.canSortBy(config.readTableFromEvent(event), event.getSort(), this)) {
+        return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
+                .withErrorMessage("Invalid request parameters. Sorting by for the provided properties is not supported for this space.");
+      }
+
+      if(event.getHandle() == null)  // decrypt handle and configure event
+       event.setSort( translateSortSysValues( event.getSort() ));
+      else
+       setPropTagQryFromHandle(event, PSQLConfig.decrypt(event.getHandle(),"findFeaturesSort" ) );
+
+      SQLQuery query = SQLQueryBuilder.buildFeaturesSortQuery(event, dataSource) ;
+
+      FeatureCollection collection = executeQueryWithRetry(query);
+
+      if( collection.getHandle() != null ) // extend handle and encrypt 
+       collection.setHandle( PSQLConfig.encrypt( addPropTagQryToHandle(event, collection.getHandle() ) , "findFeaturesSort" ) );
+
+      return collection;
+    }catch (SQLException e){
+      return checkSQLException(e, config.readTableFromEvent(event));
+    }finally {
+      logger.info("{} - Finished "+event.getClass().getSimpleName(), traceItem);
+    }
+  }
+
+
+
 
   private static final Pattern ERRVALUE_22P02 = Pattern.compile("invalid input syntax for type numeric:\\s+\"([^\"]*)\"\\s+Query:"),
                                ERRVALUE_22P05 = Pattern.compile("ERROR:\\s+(.*)\\s+Detail:\\s+(.*)\\s+Where:");

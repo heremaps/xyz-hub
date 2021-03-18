@@ -26,6 +26,7 @@ import static com.here.xyz.hub.auth.XyzHubAttributeMap.OWNER;
 import static com.here.xyz.hub.auth.XyzHubAttributeMap.PACKAGES;
 import static com.here.xyz.hub.auth.XyzHubAttributeMap.PROCESSORS;
 import static com.here.xyz.hub.auth.XyzHubAttributeMap.SEARCHABLE_PROPERTIES;
+import static com.here.xyz.hub.auth.XyzHubAttributeMap.SORTABLE_PROPERTIES;
 import static com.here.xyz.hub.auth.XyzHubAttributeMap.SPACE;
 import static com.here.xyz.hub.auth.XyzHubAttributeMap.STORAGE;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
@@ -44,6 +45,7 @@ import com.here.xyz.models.hub.Space.Static;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import io.vertx.core.json.jackson.DatabindCodec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -60,7 +62,7 @@ public class SpaceAuthorization extends Authorization {
 
   public static List<String> basicEdit = Arrays
       .asList("id", "title", "description", "client", "copyright", "license", "shared", "enableUUID", "enableHistory", "maxVersionCount",
-          "cacheTTL", "readOnly", STORAGE, LISTENERS, PROCESSORS, SEARCHABLE_PROPERTIES);
+          "cacheTTL", "readOnly", STORAGE, LISTENERS, PROCESSORS, SEARCHABLE_PROPERTIES, SORTABLE_PROPERTIES );
 
   public static List<String> packageEdit = Collections.singletonList(PACKAGES);
 
@@ -93,7 +95,7 @@ public class SpaceAuthorization extends Authorization {
     final Space head = entry.head;
     final Space target = entry.result;
 
-    boolean isAdminEdit, isBasicEdit, isStorageEdit, isListenersEdit, isProcessorsEdit, isPackagesEdit, isSearchablePropertiesEdit,
+    boolean isAdminEdit, isBasicEdit, isStorageEdit, isListenersEdit, isProcessorsEdit, isPackagesEdit, isSearchablePropertiesEdit, isSortablePropertiesEdit,
         isIdEdit;
     final AttributeMap xyzhubFilter;
 
@@ -106,7 +108,7 @@ public class SpaceAuthorization extends Authorization {
     //CREATE
     if (task.isCreate()) {
       final Map templateAsMap = asMap(task.template);
-      final Map inputAsMap = asMap(Json.mapper.convertValue(input, Space.class));
+      final Map inputAsMap = asMap(DatabindCodec.mapper().convertValue(input, Space.class));
 
       xyzhubFilter = new XyzHubAttributeMap()
           .withValue(OWNER, input.get("owner"))
@@ -118,6 +120,7 @@ public class SpaceAuthorization extends Authorization {
       isProcessorsEdit = isPropertyEdit(templateAsMap, inputAsMap, PROCESSORS);
       isPackagesEdit = isPropertyEdit(templateAsMap, inputAsMap, PACKAGES);
       isSearchablePropertiesEdit = isPropertyEdit(templateAsMap, inputAsMap, SEARCHABLE_PROPERTIES);
+      isSortablePropertiesEdit   = isPropertyEdit(templateAsMap, inputAsMap, SORTABLE_PROPERTIES);
 
       final XyzHubActionMatrix adminMatrix = new XyzHubActionMatrix().adminSpaces(xyzhubFilter);
       boolean hasAdminPermissions = tokenRights != null && tokenRights.matches(adminMatrix);
@@ -146,6 +149,7 @@ public class SpaceAuthorization extends Authorization {
       isProcessorsEdit = !task.isDelete() && isPropertyEdit(targetAsMap, headAsMap, PROCESSORS);
       isPackagesEdit = !task.isDelete() && isPropertyEdit(targetAsMap, headAsMap, PACKAGES);
       isSearchablePropertiesEdit = !task.isDelete() && isPropertyEdit(targetAsMap, headAsMap, SEARCHABLE_PROPERTIES);
+      isSortablePropertiesEdit = !task.isDelete() && isPropertyEdit(targetAsMap, headAsMap, SORTABLE_PROPERTIES);
     }
 
     //Mark in the task, if the app is allowed to read the admin properties.
@@ -221,7 +225,7 @@ public class SpaceAuthorization extends Authorization {
     }
 
     //Checks if the user has useCapabilities: ['searchablePropertiesConfiguration']
-    if (isSearchablePropertiesEdit) {
+    if (isSearchablePropertiesEdit || isSortablePropertiesEdit) {
       requestRights.useCapabilities(new AttributeMap().withValue(ID, "searchablePropertiesConfiguration"));
     }
 
@@ -337,7 +341,7 @@ public class SpaceAuthorization extends Authorization {
   private static Map asMap(Object object) {
     try {
       return ModifyOp.filter(
-          Json.decodeValue(Json.mapper.writerWithView(Static.class).writeValueAsString(object), Map.class), ModifySpaceOp.metadataFilter);
+          Json.decodeValue(DatabindCodec.mapper().writerWithView(Static.class).writeValueAsString(object), Map.class), ModifySpaceOp.metadataFilter);
     } catch (Exception e) {
       return Collections.emptyMap();
     }

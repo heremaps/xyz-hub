@@ -19,9 +19,9 @@
 
 package com.here.xyz.hub.config;
 
-import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.connectors.models.Space;
+import com.here.xyz.psql.SQLQuery;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -31,7 +31,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.Marker;
 
@@ -46,29 +45,27 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
   }
 
   @Override
-  public void getSpace(Marker marker, String spaceId, Handler<AsyncResult<Space>> handler) {
-    Space space = spaceMap.get(spaceId);
-    handler.handle(Future.succeededFuture(space));
+  public Future<Space> getSpace(Marker marker, String spaceId) {
+    return Future.succeededFuture(spaceMap.get(spaceId));
   }
 
   @Override
-  public void storeSpace(Marker marker, Space space, Handler<AsyncResult<Space>> handler) {
+  public Future<Void> storeSpace(Marker marker, Space space) {
     if (space.getId() == null) {
       space.setId(RandomStringUtils.randomAlphanumeric(10));
     }
     spaceMap.put(space.getId(), space);
-    handler.handle(Future.succeededFuture(space));
+    return Future.succeededFuture();
   }
 
   @Override
-  public void deleteSpace(Marker marker, String spaceId, Handler<AsyncResult<Space>> handler) {
-    Space space = spaceMap.remove(spaceId);
-    handler.handle(Future.succeededFuture(space));
+  public Future<Space> deleteSpace(Marker marker, String spaceId) {
+    return Future.succeededFuture(spaceMap.remove(spaceId));
   }
 
   @Override
-  public void getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition, SpaceSelectionCondition selectedCondition,
-    PropertiesQuery propsQuery, Handler<AsyncResult<List<Space>>> handler) {
+  protected Future<List<Space>> getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition,
+      SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery) {
     //Sets are not even defined that means all access
     Predicate<Space> authorizationFilter = s -> authorizedCondition.spaceIds == null && authorizedCondition.ownerIds == null
         || authorizedCondition.spaceIds != null && authorizedCondition.spaceIds.contains(s.getId())
@@ -101,7 +98,7 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
         .filter(selectionFilter)
         .filter(contentUpdatedAtFilter)
         .collect(Collectors.toList());
-    handler.handle(Future.succeededFuture(spaces));
+    return Future.succeededFuture(spaces);
   }
 
   private boolean contentUpdatedAtOperation(long contentUpdatedAt, List<String> contentUpdatedAtList, int idx) {
@@ -110,17 +107,23 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
     else {
       switch (contentUpdatedAtList.get(0)) {
         case "=":
-          return Long.toString(contentUpdatedAt).equals(contentUpdatedAtList.get(idx)) || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
+          return Long.toString(contentUpdatedAt).equals(contentUpdatedAtList.get(idx))
+              || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
         case "<>":
-          return contentUpdatedAt != Long.parseLong(contentUpdatedAtList.get(idx)) || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
+          return contentUpdatedAt != Long.parseLong(contentUpdatedAtList.get(idx))
+              || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
         case "<":
-          return contentUpdatedAt < Long.parseLong(contentUpdatedAtList.get(idx)) || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
+          return contentUpdatedAt < Long.parseLong(contentUpdatedAtList.get(idx))
+              || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
         case ">":
-          return contentUpdatedAt > Long.parseLong(contentUpdatedAtList.get(idx)) || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
+          return contentUpdatedAt > Long.parseLong(contentUpdatedAtList.get(idx))
+              || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
         case "<=":
-          return contentUpdatedAt <= Long.parseLong(contentUpdatedAtList.get(idx)) || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
+          return contentUpdatedAt <= Long.parseLong(contentUpdatedAtList.get(idx))
+              || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
         case ">=":
-          return contentUpdatedAt >= Long.parseLong(contentUpdatedAtList.get(idx)) || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
+          return contentUpdatedAt >= Long.parseLong(contentUpdatedAtList.get(idx))
+              || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
       }
 
       return false;

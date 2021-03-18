@@ -47,6 +47,7 @@ import java.util.Map;
     @JsonSubTypes.Type(value = EventNotification.class, name = "EventNotification"),
     @JsonSubTypes.Type(value = DeleteFeaturesByTagEvent.class, name = "DeleteFeaturesByTagEvent"),
     @JsonSubTypes.Type(value = SearchForFeaturesEvent.class, name = "SearchForFeaturesEvent"),
+    @JsonSubTypes.Type(value = SearchForFeaturesOrderByEvent.class, name = "SearchForFeaturesOrderByEvent"),
     @JsonSubTypes.Type(value = IterateFeaturesEvent.class, name = "IterateFeaturesEvent"),
     @JsonSubTypes.Type(value = GetFeaturesByBBoxEvent.class, name = "GetFeaturesByBBoxEvent"),
     @JsonSubTypes.Type(value = GetFeaturesByGeometryEvent.class, name = "GetFeaturesByGeometryEvent"),

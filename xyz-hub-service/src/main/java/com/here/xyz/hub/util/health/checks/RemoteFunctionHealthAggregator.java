@@ -147,7 +147,7 @@ public class RemoteFunctionHealthAggregator extends GroupedHealthCheck {
 
   private Response fetchResponseFromCache() {
     CompletableFuture<Response> f = new CompletableFuture<>();
-    RedisCacheClient.getInstance().get(RFC_HC_CACHE_KEY, r -> {
+    RedisCacheClient.getInstance().get(RFC_HC_CACHE_KEY).onSuccess(r -> {
       Response response = null;
 
       try {

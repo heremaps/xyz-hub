@@ -212,6 +212,10 @@ public class Space {
   @JsonView({Public.class, Static.class})
   private Map<String, Boolean> searchableProperties;
 
+  @JsonInclude(Include.NON_EMPTY)
+  @JsonView({Public.class, Static.class})
+  private List<List<Object>> sortableProperties;
+
   public String getId() {
     return id;
   }
@@ -523,6 +527,20 @@ public class Space {
     this.searchableProperties = searchableProperties;
     return this;
   }
+
+  public List<List<Object>> getSortableProperties() {
+    return sortableProperties;
+  }
+
+  public void setSortableProperties(final List<List<Object>> sortableProperties) {
+    this.sortableProperties = sortableProperties;
+  }
+
+  public Space withSortableProperties(final List<List<Object>> sortableProperties) {
+    this.sortableProperties = sortableProperties;
+    return this;
+  }
+
 
   @SuppressWarnings("WeakerAccess")
   public static class Public {

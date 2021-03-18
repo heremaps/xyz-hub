@@ -37,19 +37,19 @@ import com.here.xyz.models.hub.Space.Copyright;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.api.contract.openapi3.OpenAPI3RouterFactory;
+import io.vertx.ext.web.openapi.RouterBuilder;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 public class SpaceApi extends SpaceBasedApi {
 
-  public SpaceApi(OpenAPI3RouterFactory routerFactory) {
-    routerFactory.addHandlerByOperationId("getSpace", this::getSpace);
-    routerFactory.addHandlerByOperationId("getSpaces", this::getSpaces);
-    routerFactory.addHandlerByOperationId("postSpace", this::postSpace);
-    routerFactory.addHandlerByOperationId("patchSpace", this::patchSpace);
-    routerFactory.addHandlerByOperationId("deleteSpace", this::deleteSpace);
+  public SpaceApi(RouterBuilder rb) {
+    rb.operation("getSpace").handler(this::getSpace);
+    rb.operation("getSpaces").handler(this::getSpaces);
+    rb.operation("postSpace").handler(this::postSpace);
+    rb.operation("patchSpace").handler(this::patchSpace);
+    rb.operation("deleteSpace").handler(this::deleteSpace);
   }
 
   /**

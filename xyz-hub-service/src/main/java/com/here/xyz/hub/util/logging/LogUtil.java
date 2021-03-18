@@ -35,7 +35,7 @@ import com.here.xyz.hub.rest.Api;
 import io.vertx.core.MultiMap;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerResponse;
-import io.vertx.core.http.impl.Http2ServerResponseImpl;
+import io.vertx.core.http.impl.Http2ServerResponse;
 import io.vertx.ext.web.RoutingContext;
 import java.util.Collections;
 import java.util.List;
@@ -49,7 +49,7 @@ import org.apache.logging.log4j.MarkerManager;
 public class LogUtil {
 
   private static final Logger logger = LogManager.getLogger();
-  private static final Level STREAM_LEVEL = Level.getLevel("STREAM");
+  private static final Level STREAM_LEVEL = Level.forName("STREAM", 50);
   private static final Marker ACCESS_LOG_MARKER = MarkerManager.getMarker("ACCESS");
 
   private static List<String> skipLoggingHeaders = Collections.singletonList(X_FORWARDED_FOR);
@@ -57,7 +57,7 @@ public class LogUtil {
   public static String responseToLogEntry(RoutingContext context) {
     HttpServerResponse response = context.response();
     StringBuilder buf = new StringBuilder();
-    String httpProto = response instanceof Http2ServerResponseImpl ? "HTTP/2" : "HTTP";
+    String httpProto = response instanceof Http2ServerResponse ? "HTTP/2" : "HTTP";
     buf.append(httpProto + " Response: \n");
     buf.append(response.getStatusCode());
     buf.append(' ');
@@ -92,7 +92,7 @@ public class LogUtil {
     accessLog.reqInfo.referer = context.request().getHeader(REFERER);
     accessLog.reqInfo.origin = context.request().getHeader(ORIGIN);
     if (POST.equals(method) || PUT.equals(method) || PATCH.equals(method)) {
-      accessLog.reqInfo.size = context.getBody().length();
+      accessLog.reqInfo.size = context.getBody() == null ? 0 : context.getBody().length();
     }
     accessLog.clientInfo.userAgent = context.request().getHeader(USER_AGENT);
     accessLog.reqInfo.contentType = context.request().getHeader(CONTENT_TYPE);

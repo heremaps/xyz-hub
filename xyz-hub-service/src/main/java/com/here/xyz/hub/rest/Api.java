@@ -63,10 +63,10 @@ import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.MultiMap;
 import io.vertx.core.buffer.Buffer;
-import io.vertx.core.http.CaseInsensitiveHeaders;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.Json;
+import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.web.RoutingContext;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
@@ -314,7 +314,7 @@ public abstract class Api {
           return;
         }
 
-        final String geoJson = Json.mapper.writerWithView(view).writeValueAsString(task.responseSpaces.get(0));
+        final String geoJson = DatabindCodec.mapper().writerWithView(view).writeValueAsString(task.responseSpaces.get(0));
         sendGeoJsonResponse(task, geoJson);
         return;
       }
@@ -325,7 +325,7 @@ public abstract class Api {
           return;
         }
 
-        final String geoJson = Json.mapper.writerWithView(view).writeValueAsString(task.responseSpaces);
+        final String geoJson = DatabindCodec.mapper().writerWithView(view).writeValueAsString(task.responseSpaces);
         sendJsonResponse(task, geoJson);
         return;
       }
@@ -346,7 +346,7 @@ public abstract class Api {
    * @param task the task for which to return an error response.
    * @param e the exception that should be used to generate an {@link ErrorResponse}, if null an internal server error is returned.
    */
-  void sendErrorResponse(final Task task, final Exception e) {
+  void sendErrorResponse(final Task task, final Throwable e) {
     sendErrorResponse(task.context, e);
   }
 
@@ -356,7 +356,7 @@ public abstract class Api {
    * @param context the context for which to return an error response.
    * @param e the exception that should be used to generate an {@link ErrorResponse}, if null an internal server error is returned.
    */
-  protected void sendErrorResponse(final RoutingContext context, final Exception e) {
+  protected void sendErrorResponse(final RoutingContext context, final Throwable e) {
     if (e instanceof HttpException) {
       final HttpException httpException = (HttpException) e;
 
@@ -573,7 +573,7 @@ public abstract class Api {
       }
       JWTPayload payload = context.get(JWT);
       if (payload == null && context.user() != null) {
-        payload = Json.mapper.convertValue(context.user().principal(), JWTPayload.class);
+        payload = DatabindCodec.mapper().convertValue(context.user().principal(), JWTPayload.class);
         context.put(JWT, payload);
       }
 
@@ -593,7 +593,7 @@ public abstract class Api {
       if (queryParams != null) {
         return queryParams;
       }
-      final MultiMap map = new CaseInsensitiveHeaders();
+      final MultiMap map = MultiMap.caseInsensitiveMultiMap();
 
       String query = context.request().query();
       if (query != null && query.length() > 0) {

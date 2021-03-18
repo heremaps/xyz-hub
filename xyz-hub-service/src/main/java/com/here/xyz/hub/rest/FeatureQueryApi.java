@@ -34,7 +34,9 @@ import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
+import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.events.SearchForFeaturesOrderByEvent;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.FeatureTask;
@@ -54,22 +56,22 @@ import com.here.xyz.models.geojson.implementation.Geometry;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.ext.web.ParsedHeaderValue;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.api.contract.openapi3.OpenAPI3RouterFactory;
+import io.vertx.ext.web.openapi.RouterBuilder;
 import java.io.IOException;
 import java.util.List;
 import org.apache.logging.log4j.Marker;
 
 public class FeatureQueryApi extends SpaceBasedApi {
 
-  public FeatureQueryApi(OpenAPI3RouterFactory routerFactory) {
-    routerFactory.addHandlerByOperationId("getFeaturesBySpatial", this::getFeaturesBySpatial);
-    routerFactory.addHandlerByOperationId("getFeaturesBySpatialPost", this::getFeaturesBySpatial);
-    routerFactory.addHandlerByOperationId("getFeaturesByBBox", this::getFeaturesByBBox);
-    routerFactory.addHandlerByOperationId("getFeaturesByTile", this::getFeaturesByTile);
-    routerFactory.addHandlerByOperationId("getFeaturesCount", this::getFeaturesCount);
-    routerFactory.addHandlerByOperationId("getStatistics", this::getStatistics);
-    routerFactory.addHandlerByOperationId("iterateFeatures", this::iterateFeatures);
-    routerFactory.addHandlerByOperationId("searchForFeatures", this::searchForFeatures);
+  public FeatureQueryApi(RouterBuilder rb) {
+    rb.operation("getFeaturesBySpatial").handler(this::getFeaturesBySpatial);
+    rb.operation("getFeaturesBySpatialPost").handler(this::getFeaturesBySpatial);
+    rb.operation("getFeaturesByBBox").handler(this::getFeaturesByBBox);
+    rb.operation("getFeaturesByTile").handler(this::getFeaturesByTile);
+    rb.operation("getFeaturesCount").handler(this::getFeaturesCount);
+    rb.operation("getStatistics").handler(this::getStatistics);
+    rb.operation("iterateFeatures").handler(this::iterateFeatures);
+    rb.operation("searchForFeatures").handler(this::searchForFeatures);
   }
 
   /**
@@ -121,6 +123,26 @@ public class FeatureQueryApi extends SpaceBasedApi {
       final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
       final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
       Integer version = Query.getInteger(context, Query.VERSION, null);
+
+      List<String> sort = Query.getSort(context);
+      String handle = Query.getString(context, Query.HANDLE, null);
+      PropertiesQuery pquery = Query.getPropertiesQuery(context);
+
+      if( sort != null || pquery != null || ( handle != null && handle.length() > 20 && handle.matches(".*[A-Za-z]+.*") ))
+      {
+        SearchForFeaturesOrderByEvent event = new SearchForFeaturesOrderByEvent();
+        event.withLimit(getLimit(context))
+            .withForce2D(force2D)
+            .withTags(Query.getTags(context))
+            .withPropertiesQuery(Query.getPropertiesQuery(context))
+            .withSelection(Query.getSelection(context))
+            .withSort(Query.getSort(context))
+            .withHandle(Query.getString(context, Query.HANDLE, null));
+
+        final SearchQuery task = new SearchQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache);
+        task.execute(this::sendResponse, this::sendErrorResponse);
+        return;
+      }
 
       IterateFeaturesEvent event = new IterateFeaturesEvent()
           .withLimit(getLimit(context))

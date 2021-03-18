@@ -18,8 +18,10 @@
  */
 package com.here.xyz.psql;
 
-import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.Event;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
@@ -31,6 +33,7 @@ import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.QueryEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.events.SearchForFeaturesOrderByEvent;
 import com.here.xyz.events.TagList;
 import com.here.xyz.events.TagsQuery;
 import com.here.xyz.models.geojson.WebMercatorTile;
@@ -41,6 +44,7 @@ import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.factory.H3SQL;
 import com.here.xyz.psql.factory.QuadbinSQL;
+import com.here.xyz.psql.factory.IterateSortSQL;
 import com.here.xyz.psql.factory.TweaksSQL;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -97,7 +101,7 @@ public class SQLQueryBuilder {
         throws SQLException{
         final BBox bbox = event.getBbox();
 
-        final SQLQuery searchQuery = generateSearchQuery(event,dataSource);
+        final SQLQuery searchQuery = generateSearchQuery(event, dataSource);
         final SQLQuery geoQuery = new SQLQuery("ST_Intersects(geo, ST_MakeEnvelope(?, ?, ?, ?, 4326))",
                 bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
 
@@ -268,7 +272,7 @@ public class SQLQueryBuilder {
 
     public static boolean mvtFromHubRequested( GetFeaturesByBBoxEvent event )
     {
-     return( (event instanceof GetFeaturesByTileEvent) && ( event.getBinaryType() != null ) && "hubmvt".equals(event.getBinaryType()) );
+     return( (event instanceof GetFeaturesByTileEvent) && "hubmvt".equals(event.getBinaryType()) );
     }
 
     public static int mvtFromDbRequested( GetFeaturesByBBoxEvent event )
@@ -607,7 +611,22 @@ public class SQLQueryBuilder {
         return query;
     }
 
-    public static SQLQuery buildDeleteFeaturesByTagQuery(boolean includeOldStates, SQLQuery searchQuery){
+    public static SQLQuery buildFeaturesSortQuery(final SearchForFeaturesOrderByEvent event, DataSource dataSource) throws Exception 
+    {
+        SQLQuery searchQuery = generateSearchQuery(event, dataSource);
+
+        SQLQuery innerQry = IterateSortSQL.innerSortedQry(searchQuery, event.getSort(), event.getHandle(), event.getLimit());
+
+        final SQLQuery query = new SQLQuery("select");
+        query.append(SQLQuery.selectJson(event.getSelection(), dataSource));
+        query.append(", replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "(geo)," + GEOMETRY_DECIMAL_DIGITS + "),'nan','0'), nxthandle from ( ");
+        query.append(innerQry);
+        query.append(" ) o");
+
+        return query;
+    }
+
+    public static SQLQuery buildDeleteFeaturesByTagQuery(boolean includeOldStates, SQLQuery searchQuery) {
 
         final SQLQuery query;
 
@@ -765,35 +784,50 @@ public class SQLQueryBuilder {
         return query;
     }
 
-    public static SQLQuery buildSearchablePropertiesUpsertQuery(Space spaceDefinition, ModifySpaceEvent.Operation operation,
-                                                                String schema, String table) throws SQLException {
+    private static class IdxManual
+    { public Map<String, Boolean> searchableProperties;
+      public List<List<Object>> sortableProperties;
+      IdxManual( Map<String, Boolean> searchableProperties, List<List<Object>> sortableProperties ) 
+      { this.searchableProperties = searchableProperties; this.sortableProperties = sortableProperties; }
+    }
+
+    private static String _buildSearchablePropertiesUpsertQuery(Space spaceDefinition, ModifySpaceEvent.Operation operation, String schema, String table) throws SQLException 
+    {
         Map<String, Boolean> searchableProperties = spaceDefinition.getSearchableProperties();
+        List<List<Object>> sortableProperties = spaceDefinition.getSortableProperties();
         Boolean enableAutoIndexing = spaceDefinition.isEnableAutoSearchableProperties();
+             
+        String idx_manual_json = null;
 
-        String searchablePropertiesJson = "";
-        final SQLQuery query = new SQLQuery("");
+        try 
+        { if(   ( searchableProperties != null && !searchableProperties.isEmpty() ) 
+             || ( sortableProperties != null && !sortableProperties.isEmpty())
+            )
+             idx_manual_json = (new ObjectMapper()).writeValueAsString( new IdxManual(searchableProperties, sortableProperties) );
+        } 
+        catch (JsonProcessingException e)  { throw new SQLException("_buildSearchablePropertiesUpsertQuery", e); }
 
-        if (searchableProperties != null) {
-            for (String property : searchableProperties.keySet()) {
-                searchablePropertiesJson += "\"" + property + "\":" + searchableProperties.get(property) + ",";
-            }
-            /* remove last comma */
-            searchablePropertiesJson = searchablePropertiesJson.substring(0, searchablePropertiesJson.length() - 1);
-        }
+        idx_manual_json = ( idx_manual_json == null ? "null" : String.format("'%s'::jsonb", idx_manual_json ));
 
-        /* update xyz_idx_status table with searchableProperties information */
-        query.append("INSERT INTO  "+IDX_STATUS_TABLE+" as x_s (spaceid, schem, idx_creation_finished, idx_manual "
-                        +(enableAutoIndexing != null ? ",auto_indexing) ": ") ")
-                        + "		VALUES ('" + table + "', '" + schema + "', false, '{" + searchablePropertiesJson
-                        + "}'::jsonb"+(enableAutoIndexing != null ? ","+enableAutoIndexing: " ")+") "
+           /* update xyz_idx_status table with searchabelProperties information */
+        String query = "INSERT INTO  "+IDX_STATUS_TABLE+" as x_s (spaceid,schem,idx_creation_finished,idx_manual "
+                        + (enableAutoIndexing != null ? ",auto_indexing) ": ") ")
+                        + "		VALUES ('" + table + "', '" + schema + "', false, " + idx_manual_json + (enableAutoIndexing != null ? ","+enableAutoIndexing : " ")+") "
                         + "ON CONFLICT (spaceid) DO "
                         + "		UPDATE SET schem='" + schema + "', "
-                        + "    			idx_manual = '{" + searchablePropertiesJson + "}'::jsonb, "
-                        + "				idx_creation_finished = false"
+                        + "    			idx_manual = " + idx_manual_json + ", "
+                        + "				idx_creation_finished = false "
                         + (enableAutoIndexing != null ? " ,auto_indexing = " + enableAutoIndexing : "")
-                        + "		WHERE x_s.spaceid = '" + table + "'");
+                        + "		WHERE x_s.spaceid = '" + table + "'";
+
         return query;
     }
+
+    public static SQLQuery buildSearchablePropertiesUpsertQuery(Space spaceDefinition, ModifySpaceEvent.Operation operation,
+                                                                   String schema, String table) throws SQLException 
+    { return new SQLQuery( _buildSearchablePropertiesUpsertQuery(spaceDefinition, operation,schema, table)  );  }
+
+
 
     public static SQLQuery buildDeleteIDXConfigEntryQuery(String schema, String table){
         final SQLQuery query = new SQLQuery("");
@@ -1103,10 +1137,16 @@ public class SQLQueryBuilder {
         return SQLQuery.replaceVars(deleteIdArrayStmtSQL, schema, table);
     }
 
-    protected static String deleteHistoryTriggerSQL(final String schema, final String table){
+    protected static String[] deleteHistoryTriggerSQL(final String schema, final String table){
+        String[] sqls= new String[2];
+        /** Old naming */
+        String oldDeleteHistoryTriggerSQL = "DROP TRIGGER IF EXISTS TR_"+table.replaceAll("-","_")+"_HISTORY_WRITER ON  ${schema}.${table};";
+        /** New naming */
         String deleteHistoryTriggerSQL = "DROP TRIGGER IF EXISTS \"TR_"+table.replaceAll("-","_")+"_HISTORY_WRITER\" ON  ${schema}.${table};";
 
-        return SQLQuery.replaceVars(deleteHistoryTriggerSQL, schema, table);
+        sqls[0] = SQLQuery.replaceVars(oldDeleteHistoryTriggerSQL, schema, table);
+        sqls[1] = SQLQuery.replaceVars(deleteHistoryTriggerSQL, schema, table);
+        return sqls;
     }
 
     protected static String addHistoryTriggerSQL(final String schema, final String table, final Integer maxVersionCount, final boolean compactHistory, final boolean isEnableGlobalVersioning){

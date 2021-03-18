@@ -22,8 +22,8 @@ package com.here.xyz.hub.util;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import com.google.common.io.ByteStreams;
 import com.here.xyz.hub.XYZHubRESTVerticle;
-import org.apache.commons.io.IOUtils;
 import org.junit.Test;
 
 public class OpenApiGeneratorTest {
@@ -37,8 +37,8 @@ public class OpenApiGeneratorTest {
 
   @Test
   public void generateStableTest() throws Exception {
-    final byte[] openapiSource = IOUtils.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/openapi.yaml"));
-    final byte[] stableRecipe = IOUtils.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/recipes/openapi-recipe-stable.yaml"));
+    final byte[] openapiSource = ByteStreams.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/openapi.yaml"));
+    final byte[] stableRecipe = ByteStreams.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/recipes/openapi-recipe-stable.yaml"));
     byte[] result = OpenApiGenerator.generate(openapiSource, stableRecipe);
     assertNotNull(result);
     assertTrue("Expected result not empty", result.length > 0);
@@ -46,8 +46,8 @@ public class OpenApiGeneratorTest {
 
   @Test
   public void generateExperimentalTest() throws Exception {
-    final byte[] openapiSource = IOUtils.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/openapi.yaml"));
-    final byte[] experimentalRecipe = IOUtils.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/recipes/openapi-recipe-experimental.yaml"));
+    final byte[] openapiSource = ByteStreams.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/openapi.yaml"));
+    final byte[] experimentalRecipe = ByteStreams.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/recipes/openapi-recipe-experimental.yaml"));
     byte[] result = OpenApiGenerator.generate(openapiSource, experimentalRecipe);
     assertNotNull(result);
     assertTrue("Expected result not empty", result.length > 0);
@@ -55,8 +55,8 @@ public class OpenApiGeneratorTest {
 
   @Test
   public void generateContractTest() throws Exception {
-    final byte[] openapiSource = IOUtils.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/openapi.yaml"));
-    final byte[] contractRecipe = IOUtils.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/recipes/openapi-recipe-contract.yaml"));
+    final byte[] openapiSource = ByteStreams.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/openapi.yaml"));
+    final byte[] contractRecipe = ByteStreams.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/recipes/openapi-recipe-contract.yaml"));
     byte[] result = OpenApiGenerator.generate(openapiSource, contractRecipe);
     assertNotNull(result);
     assertTrue("Expected result not empty", result.length > 0);

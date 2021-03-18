@@ -63,7 +63,7 @@ public class HealthApi extends Api {
               .withUpSince(Core.START_TIME)
               .withEndpoint(getPublicServiceEndpoint())
       )
-      .add(new RedisHealthCheck(Service.configuration.XYZ_HUB_REDIS_HOST, Service.configuration.XYZ_HUB_REDIS_PORT))
+      .add(new RedisHealthCheck(Service.configuration.getRedisUri()))
       .add(rfcHcAggregator)
       .add(new MemoryHealthCheck())
       .add(new ClusterHealthCheck());

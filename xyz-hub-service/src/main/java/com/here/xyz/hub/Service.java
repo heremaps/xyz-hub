@@ -20,12 +20,14 @@
 package com.here.xyz.hub;
 
 import com.amazonaws.services.cloudwatch.model.StandardUnit;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.cache.CacheClient;
 import com.here.xyz.hub.config.ConnectorConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.BurstAndUpdateThread;
+import com.here.xyz.hub.rest.admin.MessageBroker;
 import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.hub.util.ARN;
@@ -38,6 +40,7 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.client.WebClient;
@@ -62,9 +65,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.LoggerContext;
-import org.apache.logging.log4j.core.config.Configuration;
-import org.apache.logging.log4j.core.config.LoggerConfig;
+import org.apache.logging.log4j.core.config.Configurator;
 
 public class Service extends Core {
 
@@ -122,6 +123,11 @@ public class Service extends Core {
   public static CacheClient cacheClient;
 
   /**
+   * The node's MessageBroker which is used to send AdminMessages.
+   */
+  public static MessageBroker messageBroker;
+
+  /**
    * The hostname
    */
   private static String hostname;
@@ -147,7 +153,10 @@ public class Service extends Core {
     configuration = jsonConfig.mapTo(Config.class);
 
     cacheClient = CacheClient.getInstance();
-    Node.initialize();
+    MessageBroker.getInstance().onSuccess(mb -> {
+      messageBroker = mb;
+      Node.initialize();
+    });
     spaceConfigClient = SpaceConfigClient.getInstance();
     connectorConfigClient = ConnectorConfigClient.getInstance();
 
@@ -203,7 +212,8 @@ public class Service extends Core {
         .setWorker(false)
         .setInstances(numInstances);
 
-    final Future<AsyncResult<Void>> sharedDataFuture = Future.future();
+    final Promise<Void> sharedDataPromise = Promise.promise();
+    final Future<Void> sharedDataFuture = sharedDataPromise.future();
     final Hashtable<String, Object> sharedData = new Hashtable<String, Object>() {{
       put(GLOBAL_ROUTER, globalRouter);
     }};
@@ -212,20 +222,20 @@ public class Service extends Core {
       final List<Future> futures = new ArrayList<>();
 
       verticlesClassNames.forEach(className -> {
-        final Future<AsyncResult<String>> deployVerticleFuture = Future.future();
-        futures.add(deployVerticleFuture);
+        final Promise<AsyncResult<String>> deployVerticlePromise = Promise.promise();
+        futures.add(deployVerticlePromise.future());
 
         logger.info("Deploying verticle: " + className);
         vertx.deployVerticle(className, options, deployVerticleHandler -> {
           if (deployVerticleHandler.failed()) {
             logger.warn("Unable to load verticle class:" + className);
           }
-          deployVerticleFuture.complete();
+          deployVerticlePromise.complete();
         });
       });
 
       return CompositeFuture.all(futures);
-    }).setHandler(done -> {
+    }).onComplete(done -> {
       // at this point all verticles were initiated and all routers added as subrouter of globalRouter.
       vertx.eventBus().publish(SHARED_DATA, GLOBAL_ROUTER);
 
@@ -233,9 +243,9 @@ public class Service extends Core {
       logger.info("Native transport enabled: " + vertx.isNativeTransportEnabled());
     });
 
-    // shared data initialization
+    //Shared data initialization
     vertx.sharedData()
-        .getAsyncMap(SHARED_DATA, asyncMapResult -> asyncMapResult.result().put(SHARED_DATA, sharedData, sharedDataFuture::complete));
+        .getAsyncMap(SHARED_DATA, asyncMapResult -> asyncMapResult.result().put(SHARED_DATA, sharedData, sharedDataPromise));
 
     Thread.setDefaultUncaughtExceptionHandler((thread, t) -> logger.error("Uncaught exception: ", t));
 
@@ -378,22 +388,41 @@ public class Service extends Core {
     /**
      * The redis host.
      */
+    @Deprecated
     public String XYZ_HUB_REDIS_HOST;
 
     /**
      * The redis port.
      */
+    @Deprecated
     public int XYZ_HUB_REDIS_PORT;
 
     /**
-     * The urls of remote hub services, separated by semicolon ';'
+     * The redis connection string.
      */
-    public String XYZ_HUB_REMOTE_SERVICE_URLS;
+    public String XYZ_HUB_REDIS_URI;
 
     /**
      * The redis auth token.
      */
     public String XYZ_HUB_REDIS_AUTH_TOKEN;
+
+    /**
+     * Adds backward-compatibility for the deprecated environment variables XYZ_HUB_REDIS_HOST & XYZ_HUB_REDIS_PORT.
+     * @return
+     */
+    //TODO: Remove this workaround after the deprecation period
+    @JsonIgnore
+    public String getRedisUri() {
+      if (XYZ_HUB_REDIS_URI != null) return XYZ_HUB_REDIS_URI;
+      String protocol = XYZ_HUB_REDIS_AUTH_TOKEN != null ? "rediss" : "redis";
+      return protocol + "://" + XYZ_HUB_REDIS_HOST + ":" + XYZ_HUB_REDIS_PORT;
+    }
+
+    /**
+     * The urls of remote hub services, separated by semicolon ';'
+     */
+    public String XYZ_HUB_REMOTE_SERVICE_URLS;
 
     /**
      * The authorization type.
@@ -404,6 +433,23 @@ public class Service extends Core {
      * The public key used for verifying the signature of the JWT tokens.
      */
     public String JWT_PUB_KEY;
+
+    /**
+     * Adds backward-compatibility for public keys without header & footer.
+     * @return
+     */
+    //TODO: Remove this workaround after the deprecation period
+    @JsonIgnore
+    public String getJwtPubKey() {
+      String jwtPubKey = JWT_PUB_KEY;
+      if (jwtPubKey != null) {
+        if (!jwtPubKey.startsWith("-----"))
+          jwtPubKey = "-----BEGIN PUBLIC KEY-----\n" + jwtPubKey;
+        if (!jwtPubKey.endsWith("-----"))
+          jwtPubKey = jwtPubKey + "\n-----END PUBLIC KEY-----";
+      }
+      return jwtPubKey;
+    }
 
     /**
      * If set to true, the connectors configuration will be populated with connectors defined in connectors.json.
@@ -569,13 +615,9 @@ public class Service extends Core {
     @Override
     protected void handleAtDestination() {
       logger.info("LOG LEVEL UPDATE requested. New level will be: " + level);
-      LoggerContext context = (LoggerContext) LogManager.getContext(false);
-      Configuration config = context.getConfiguration();
-      LoggerConfig rootConfig = config.getLoggerConfig(LogManager.ROOT_LOGGER_NAME);
-      rootConfig.setLevel(Level.getLevel(level));
 
-      // This causes all Loggers to re-fetch information from their LoggerConfig.
-      context.updateLoggers();
+      Configurator.setAllLevels(LogManager.getRootLogger().getName(), Level.getLevel(level));
+
       logger.info("LOG LEVEL UPDATE performed. New level is now: " + level);
     }
   }

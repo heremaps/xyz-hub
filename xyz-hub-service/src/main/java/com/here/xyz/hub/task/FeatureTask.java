@@ -281,22 +281,19 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           return;
         }
         //Load the space definition.
-        Service.spaceConfigClient.get(getMarker(), refSpaceId, arSpace -> {
-          if (arSpace.failed()) {
-            c.exception(new HttpException(BAD_REQUEST, "The resource ID '" + refSpaceId + "' does not exist!", arSpace.cause()));
-            return;
-          }
-          refSpace = arSpace.result();
-
-          if (refSpace == null) {
-            c.exception(new HttpException(BAD_REQUEST, "The resource ID '" + refSpaceId + "' does not exist!", arSpace.cause()));
-            return;
-          }
-
-          gq.getEvent().setParams(gq.space.getStorage().getParams());
-          c.call(gq);
-        });
-      } catch (Exception e) {
+        Service.spaceConfigClient.get(getMarker(), refSpaceId)
+            .onFailure(t -> c.exception(new HttpException(BAD_REQUEST, "The resource ID '" + refSpaceId + "' does not exist!", t)))
+            .onSuccess(space -> {
+              refSpace = space;
+              if (refSpace == null)
+                c.exception(new HttpException(BAD_REQUEST, "The resource ID '" + refSpaceId + "' does not exist!"));
+              else {
+                gq.getEvent().setParams(gq.space.getStorage().getParams());
+                c.call(gq);
+              }
+            });
+      }
+      catch (Exception e) {
         c.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition.", e));
       }
     }

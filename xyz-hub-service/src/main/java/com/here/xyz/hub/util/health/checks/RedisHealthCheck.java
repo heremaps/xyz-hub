@@ -33,14 +33,12 @@ public class RedisHealthCheck extends ExecutableCheck {
 
 	private static final String HC_CACHE_KEY = "__SAMPLE_HEALTH_CHECK_KEY";
 	private static final byte[] HC_CACHE_VALUE = "someValue".getBytes();
-	private final String host;
-	private final int port;
+	private final String uri;
 	private RedisCacheClient client;
 	private volatile byte[] lastReceivedValue;
 
-	public RedisHealthCheck(String host, int port) {
-		this.host = host;
-		this.port = port;
+	public RedisHealthCheck(String uri) {
+		this.uri = uri;
 		setName("Redis");
 		setRole(Role.CACHE);
 		setTarget(Target.REMOTE);
@@ -50,9 +48,9 @@ public class RedisHealthCheck extends ExecutableCheck {
 	public Status execute() {
 		Status s = new Status();
 		Response r = new Response();
-		r.setNode(host + ":" + port);
-		if (host == null) {
-			setResponse(r.withMessage("No Redis host given."));
+		r.setNode(uri);
+		if (uri == null) {
+			setResponse(r.withMessage("No Redis URI given."));
 			return s.withResult(UNKNOWN);
 		}
 
@@ -79,7 +77,7 @@ public class RedisHealthCheck extends ExecutableCheck {
 		//Try getting the value back
 		lastReceivedValue = null;
 		try {
-			client.get(HC_CACHE_KEY, result -> {
+			client.get(HC_CACHE_KEY).onSuccess(result -> {
 				lastReceivedValue = result;
 				synchronized (this) {
 					this.notify();

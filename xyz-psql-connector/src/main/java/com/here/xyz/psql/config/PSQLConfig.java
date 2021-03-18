@@ -202,6 +202,12 @@ public class PSQLConfig {
     }
   }
 
+  @SuppressWarnings("unused")
+  public static String encrypt(String plaintext, String phrase) throws Exception { return encryptECPS( plaintext, phrase ); }  
+
+  @SuppressWarnings("unused")
+  public static String decrypt(String encryptedtext, String phrase) throws Exception { return AESGCMHelper.getInstance(phrase).decrypt(encryptedtext); }
+
   /**
    * Encrypt and decrypt ECPS Strings by using AesGcm
    */

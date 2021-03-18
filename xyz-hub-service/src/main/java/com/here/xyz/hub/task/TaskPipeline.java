@@ -33,7 +33,7 @@ public class TaskPipeline<V> {
   private TaskPipeline<V> next;
   private C2<V, Callback<V>> ifNotNull;
   private C1<V> finish;
-  private C2<V, Exception> finishException;
+  private C2<V, Throwable> finishException;
   private AtomicBoolean consumed = new AtomicBoolean(false);
 
   /**
@@ -44,9 +44,8 @@ public class TaskPipeline<V> {
    */
   private TaskPipeline(TaskPipeline<V> first) throws NullPointerException {
     this.first = first;
-    if (first.state == null) {
+    if (first.state == null)
       throw new NullPointerException();
-    }
     this.state = first.state;
   }
 
@@ -75,9 +74,8 @@ public class TaskPipeline<V> {
    * @throws IllegalStateException if this chain stage has already been initialized.
    */
   public TaskPipeline<V> then(C2<V, Callback<V>> nextFunction) throws NullPointerException, IllegalStateException {
-    if (next != null) {
+    if (next != null)
       throw new IllegalStateException("The chain stage is already initialized, the same stage can't be handled twice");
-    }
     this.ifNotNull = nextFunction;
     next = new TaskPipeline<>(first);
     return next;
@@ -93,13 +91,11 @@ public class TaskPipeline<V> {
    * @throws NullPointerException if the given method is null.
    * @throws IllegalStateException if this chain stage has already been initialized.
    */
-  public TaskPipeline<V> finish(C1<V> onSuccess, C2<V, Exception> onException) throws NullPointerException, IllegalStateException {
-    if (onSuccess == null) {
+  public TaskPipeline<V> finish(C1<V> onSuccess, C2<V, Throwable> onException) throws NullPointerException, IllegalStateException {
+    if (onSuccess == null)
       throw new NullPointerException("nextFunction");
-    }
-    if (next != null) {
+    if (next != null)
       throw new IllegalStateException("The chain stage is already initialized, the same stage can't be handled twice");
-    }
     this.finish = onSuccess;
     this.finishException = onException;
     return first;
@@ -113,12 +109,10 @@ public class TaskPipeline<V> {
    * value.
    */
   public TaskPipeline<V> execute() throws IllegalStateException {
-    if (state.isExecuted) {
+    if (state.isExecuted)
       throw new IllegalStateException("The chain was already executed");
-    }
-    if (first.state.value == null) {
+    if (first.state.value == null)
       throw new IllegalStateException("The chain was not initialized with a value, please invoke execute(chainValue)");
-    }
     state.isExecuted = true;
     first._execute();
     return first;
@@ -132,12 +126,10 @@ public class TaskPipeline<V> {
    * @throws IllegalStateException if the chain was already executed or the chain was created with an initial value.
    */
   public TaskPipeline<V> execute(V chainValue) throws IllegalStateException {
-    if (state.isExecuted) {
+    if (state.isExecuted)
       throw new IllegalStateException("The chain was already executed");
-    }
-    if (first.state.value != null) {
+    if (first.state.value != null)
       throw new IllegalStateException("The chain is already initialized with a value");
-    }
     state.isExecuted = true;
     first.state.value = chainValue;
     first._execute();
@@ -145,13 +137,12 @@ public class TaskPipeline<V> {
   }
 
   private void _execute() throws IllegalStateException {
-    if (!consumed.compareAndSet(false, true)) {
+    if (!consumed.compareAndSet(false, true))
       throw new IllegalStateException("This chain stage was already consumed");
-    }
 
     state.next = next;
 
-    // If there is no exception present.
+    //If there is no exception present.
     if (state.exception == null) {
       try {
         if (this.ifNotNull != null && state.value != null) {
@@ -163,29 +154,30 @@ public class TaskPipeline<V> {
           this.finish.call(state.value);
           return;
         }
-      } catch (Exception e) {
+      }
+      catch (Throwable e) {
         state.exception = e;
       }
     }
 
-    // If there is an exception present.
+    //If there is an exception present.
     if (state.exception != null) {
       if (this.finishException != null) {
         try {
-          final Exception theException = state.exception;
+          final Throwable theException = state.exception;
           state.exception = null;
           this.finishException.call(state.value, theException);
           return;
-        } catch (Exception e) {
+        }
+        catch (Throwable e) {
           state.exception = e;
         }
       }
     }
 
     //Execute the next chain stage, if there is any.
-    if (next != null && !state.isCancelled) {
+    if (next != null && !state.isCancelled)
       next._execute();
-    }
   }
 
   void cancel() {
@@ -204,7 +196,7 @@ public class TaskPipeline<V> {
      *
      * @param e the exception to report.
      */
-    void exception(Exception e);
+    void exception(Throwable e);
 
     /**
      * Report a new chain value and clears the current exception.
@@ -217,13 +209,13 @@ public class TaskPipeline<V> {
   @FunctionalInterface
   public interface C1<A> {
 
-    void call(A a) throws Exception;
+    void call(A a) throws Throwable;
   }
 
   @FunctionalInterface
   public interface C2<A, B> {
 
-    void call(A a, B b) throws Exception;
+    void call(A a, B b) throws Throwable;
   }
 
   /**
@@ -236,23 +228,21 @@ public class TaskPipeline<V> {
     private boolean isCancelled;
     private boolean isExecuted;
     private V value;
-    private Exception exception;
+    private Throwable exception;
     private TaskPipeline<V> next;
 
     @Override
-    public void exception(Exception e) {
+    public void exception(Throwable e) {
       this.exception = e;
-      if (next != null && !isCancelled) {
+      if (next != null && !isCancelled)
         next._execute();
-      }
     }
 
     @Override
     public void call(V value) {
       this.value = value;
-      if (next != null && !isCancelled) {
+      if (next != null && !isCancelled)
         next._execute();
-      }
     }
   }
 }
