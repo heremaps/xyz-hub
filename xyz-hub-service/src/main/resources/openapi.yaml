@@ -8,8 +8,8 @@ info:
 servers:
   - url: /hub
 security:
-  - authToken: []
-  - Bearer: []
+  - AccessTokenAuth: []
+  - BearerAuth: []
 tags:
   - name: Manage Spaces
     description: Space management endpoints.
@@ -777,7 +777,7 @@ paths:
         While the latter contains only the latest state of each feature which is within the start
         and end version range.
 
-        The Space needs to have "enableHistory=true" setting.
+        The Space must have "enableHistory=true" setting.
       operationId: iterateHistory
       parameters:
         - $ref: '#/components/parameters/SpaceId'
@@ -947,11 +947,11 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
 components:
   securitySchemes:
-    authToken:
-      bearerFormat: JWTPayload
-      scheme: bearer
-      type: http
-    Bearer:
+    AccessTokenAuth:
+      type: apiKey
+      in: query
+      name: access_token
+    BearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
