@@ -123,6 +123,7 @@ public class BurstAndUpdateThread extends Thread {
             logger.warn("For connector {} there are {} unhealthy health-checks. Max threshold is {}.", oldConnector.id,
                 consecutiveErrors, CONNECTOR_UNHEALTHY_THRESHOLD);
             connectorMap.remove(oldConnector.id);
+            continue;
           }
         }
       }
