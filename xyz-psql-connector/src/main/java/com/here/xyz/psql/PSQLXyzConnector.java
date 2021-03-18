@@ -204,7 +204,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
           }
         }
 
-        int distStrength = 0;
+        int distStrength = 1;
 
         switch ( event.getTweakType().toLowerCase() )  {
 
@@ -230,7 +230,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
             {
               if( mvtFromDbRequested == 0 )
               { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, dataSource));
-                collection.setPartial(true);
+                if( distStrength > 0 ) collection.setPartial(true); // either ensure mode or explicit tweaks:sampling request where strenght in [1..100]
                 return collection;
               }
               else
@@ -246,7 +246,6 @@ public class PSQLXyzConnector extends DatabaseHandler {
           case TweaksSQL.SIMPLIFICATION: { 
             if( mvtFromDbRequested == 0 )
             { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams, dataSource));
-              collection.setPartial(true);
               return collection;
             }
             else
