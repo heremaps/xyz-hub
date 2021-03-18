@@ -64,6 +64,10 @@ public class RedisMessageBroker implements MessageBroker {
 
   public void fetchSubscriberCount(Handler<AsyncResult<Integer>> handler) {
     Request req = Request.cmd(Command.PUBSUB).arg("NUMSUB").arg(CHANNEL);
+    if (redisConnection == null) {
+      handler.handle(Future.failedFuture("No redis connection was established."));
+      return;
+    }
     redisConnection.send(req).onComplete(ar -> {
       if (ar.succeeded())
         //The 2nd array element contains the channel-subscriber count
