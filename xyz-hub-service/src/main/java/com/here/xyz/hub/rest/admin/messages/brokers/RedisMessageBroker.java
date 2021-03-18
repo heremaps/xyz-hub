@@ -1,5 +1,6 @@
 package com.here.xyz.hub.rest.admin.messages.brokers;
 
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.admin.MessageBroker;
 import com.here.xyz.hub.rest.admin.Node;
@@ -27,6 +28,8 @@ public class RedisMessageBroker implements MessageBroker {
   public static final String CHANNEL = "XYZ_HUB_ADMIN_MESSAGES";
   private static int MAX_MESSAGE_SIZE = 1024 * 1024;
   private static volatile RedisMessageBroker instance;
+  private static int CONNECTION_KEEP_ALIVE = 30; //s
+  private static int MSG_CONNECTION_PING_PERIOD = (CONNECTION_KEEP_ALIVE - 10) * 1000;
 
   public RedisMessageBroker() {
     try {
@@ -64,11 +67,11 @@ public class RedisMessageBroker implements MessageBroker {
 
   public void fetchSubscriberCount(Handler<AsyncResult<Integer>> handler) {
     Request req = Request.cmd(Command.PUBSUB).arg("NUMSUB").arg(CHANNEL);
-    if (redisConnection == null) {
+    if (redis == null) {
       handler.handle(Future.failedFuture("No redis connection was established."));
       return;
     }
-    redisConnection.send(req).onComplete(ar -> {
+    redis.send(req).onComplete(ar -> {
       if (ar.succeeded())
         //The 2nd array element contains the channel-subscriber count
         handler.handle(Future.succeededFuture(ar.result().get(1).toInteger()));
@@ -80,21 +83,43 @@ public class RedisMessageBroker implements MessageBroker {
   private void subscribeOwnNode(AsyncResult ar) {
     logger.info("Subscribing the NODE=" + Node.OWN_INSTANCE.getUrl());
 
+    String errMsg = "The Node could not be subscribed as AdminMessage listener. No AdminMessages will be received by this node.";
     if (ar.succeeded()) {
-      logger.info("Subscription succeeded for NODE=" + Node.OWN_INSTANCE.getUrl());
-      //That defines the handler for incoming messages on the connection
-      redisConnection.handler(message -> {
-        receiveRawMessage(message.toString());
+      Request req = Request.cmd(Command.SUBSCRIBE).arg(CHANNEL);
+      redisConnection.send(req).onComplete(arSub -> {
+        if (arSub.succeeded()) {
+          logger.info("Subscription succeeded for NODE=" + Node.OWN_INSTANCE.getUrl());
+          //That defines the handler for incoming messages on the connection
+          redisConnection.handler(message -> {
+            if (message.size() >= 3 && "message".equals(message.get(0).toString()) && CHANNEL.equals(message.get(1).toString())) {
+              String rawMessage = message.get(2).toString();
+              receiveRawMessage(rawMessage);
+            }
+          });
+          startPinging();
+        }
+        else
+          logger.error(errMsg, arSub.cause());
       });
     }
-    else if (ar.failed())
-      logger.error("The Node could not be subscribed as AdminMessage listener. No AdminMessages will be received by this node.",
-          ar.cause());
+    else
+      logger.error(errMsg, ar.cause());
+  }
+
+  private void startPinging() {
+    if (Core.vertx != null) Core.vertx.setPeriodic(MSG_CONNECTION_PING_PERIOD, timerId -> ping());
+  }
+
+  /**
+   * Pings through the redisConnection to keep it alive at both ends.
+   */
+  private void ping() {
+    redisConnection.send(Request.cmd(Command.PING));
   }
 
   @Override
   public void sendRawMessage(String jsonMessage) {
-    if (redisConnection == null) {
+    if (redis == null) {
       logger.warn("The AdminMessage can not be sent as the MessageBroker is not ready. Message was: {}", jsonMessage);
       return;
     }
@@ -103,7 +128,7 @@ public class RedisMessageBroker implements MessageBroker {
     }
     //Send using Redis client
     Request req = Request.cmd(Command.PUBLISH).arg(CHANNEL).arg(jsonMessage);
-    redisConnection.send(req).onComplete(ar -> {
+    redis.send(req).onComplete(ar -> {
       if (ar.succeeded())
         logger.debug("Message has been sent with following content: {}", jsonMessage);
       else
