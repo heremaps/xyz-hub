@@ -125,11 +125,9 @@ public class FeatureQueryApi extends SpaceBasedApi {
       Integer version = Query.getInteger(context, Query.VERSION, null);
 
       List<String> sort = Query.getSort(context);
-      String handle = Query.getString(context, Query.HANDLE, null);
-      PropertiesQuery pquery = Query.getPropertiesQuery(context);
+      PropertiesQuery propertiesQuery = Query.getPropertiesQuery(context);
 
-      if( sort != null || pquery != null || ( handle != null && handle.length() > 20 && handle.matches(".*[A-Za-z]+.*") ))
-      {
+      if (sort != null || propertiesQuery != null) {
         SearchForFeaturesOrderByEvent event = new SearchForFeaturesOrderByEvent();
         event.withLimit(getLimit(context))
             .withForce2D(force2D)
