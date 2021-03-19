@@ -46,7 +46,7 @@ public class Capabilities {
     for( String k : indices)
      if( k.startsWith("o:") )
       skeys.add( k.replaceFirst("^o:([^,]+).*$", "$1") );
-   
+
     return skeys;
   }
 
@@ -57,42 +57,43 @@ public class Capabilities {
 
     try {
       List<String> keys = query.stream().flatMap(List::stream)
-          .filter(k -> k.getKey() != null && k.getKey().length() > 0).map(PropertyQuery::getKey).collect(Collectors.toList());
+              .filter(k -> k.getKey() != null && k.getKey().length() > 0).map(PropertyQuery::getKey).collect(Collectors.toList());
 
       int idx_check = 0;
 
       for (String key : keys) {
-        if (key.equals("id")) {
-          return true;
-        }
         String[] parts = key.split("\\.");
-        if (parts.length < 2 || !parts[0].equals("properties")) {
-          continue;
+        boolean isRootPropertyQuery = parts[0].equals("properties");
+
+        /** If property query hits default system index - allow search. [id, properties.@ns:com:here:xyz.createdAt, properties.@ns:com:here:xyz.updatedAt]" */
+        if (key.equals("id") || (parts.length == 3 && parts[1].equals("@ns:com:here:xyz")
+                && (parts[2].equals("createdAt") || parts[2].equals("updatedAt")))
+        ) {
+          return true;
         }
 
-        if (parts.length == 3 && parts[1].equals("@ns:com:here:xyz") && (parts[2].equals("createdAt") || parts[2].equals("updatedAt"))) {
-          return true;
-        }
+        /** Check if custom Indices are available. Eg.: properties.foo1&f.foo2*/
         if (parts.length >= 2) {
           List<String> indices = IndexList.getIndexList(space, connector);
 
-          // The table is small and not indexed. It's not listed in the xyz_idxs_status table
+          /** The table is small and not indexed. It's not listed in the xyz_idxs_status table */
           if (indices == null) {
             return true;
           }
 
           List<String> sindices = sortableCanSearchForIndex( indices );
-          String searchKey = key.substring("properties.".length());
+          /** If its not a rootPropertyQuery (f.foo) we need to cut the properties prefix */
+          String searchKey = isRootPropertyQuery ? key : key.substring("properties.".length()) ;
 
           if (indices.contains( searchKey ) || (sindices != null && sindices.contains(searchKey)) ) {
-        	  /* Check if all properties are indexed */
-        	  idx_check++;
+            /** Check if all properties are indexed */
+            idx_check++;
           }
         }
       }
 
       if(idx_check == keys.size())
-    	  return true;
+        return true;
 
       return IndexList.getIndexList(space, connector) == null;
     } catch (Exception e) {
@@ -101,24 +102,24 @@ public class Capabilities {
     }
   }
 
-  public static boolean canSortBy(String space, List<String> sort, PSQLXyzConnector connector) 
+  public static boolean canSortBy(String space, List<String> sort, PSQLXyzConnector connector)
   {
     if (sort == null || sort.isEmpty() ) return true;
 
-    try 
+    try
     {
      String normalizedSortProp = "o:" + IterateSortSQL.IdxMaintenance.normalizedSortProperies(sort);
 
      switch( normalizedSortProp.toLowerCase() ) { case "o:f.id" : case "o:f.createdat" : case "o:f.updatedat" : return true; }
 
      List<String> indices = IndexList.getIndexList(space, connector);
-              
+
      if (indices == null) return true; // The table is small and not indexed. It's not listed in the xyz_idxs_status table
-     
+
      return indices.contains(normalizedSortProp);
-    } 
-    catch (Exception e) 
-    { // In all cases, when something with the check went wrong, allow the sort 
+    }
+    catch (Exception e)
+    { // In all cases, when something with the check went wrong, allow the sort
     }
 
     return true;
@@ -170,7 +171,7 @@ public class Capabilities {
          * o = sortable - manually created (on-demand) --> first single sortable propertie is always ascending
          * s = basic system indices
          */
-        if (one.get("src").equals("a") || one.get("src").equals("m") ) 
+        if (one.get("src").equals("a") || one.get("src").equals("m") )
           indices.add((String) one.get("property"));
         else if( one.get("src").equals("o") )
           indices.add( "o:" + (String) one.get("property"));
