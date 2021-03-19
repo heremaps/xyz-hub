@@ -151,7 +151,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 138
+ select 139
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
@@ -816,25 +816,39 @@ $BODY$
 	*/
 
 	DECLARE
+        root_path text := '''properties''->';
 		prop_path text;
 		idx_type text := 'btree';
 	BEGIN
 		source = lower(source);
 		select into prop_path concat('''',replace(xyz_index_get_plain_propkey(propkey), '.', '''->'''),'''');
 
-		IF source not in ('a','m') THEN
-			RAISE NOTICE 'Source ''%'' not supported. Use ''m'' for manual or ''a'' for automatic!',source;
-		END IF;
+        /** root level property detected */
+        IF (lower(SUBSTRING(propkey from 0 for 3)) = 'f.') THEN
+            root_path:='';
+        END IF;
+
+        IF source not in ('a','m') THEN
+            RAISE NOTICE 'Source ''%'' not supported. Use ''m'' for manual or ''a'' for automatic!',source;
+        END IF;
 
 		/** In all other cases we are using btree */
 		IF datatype = 'array' THEN
 			idx_type = 'GIN';
 		END IF;
 
-		EXECUTE format('CREATE INDEX "%s" '
-				||'ON %s."%s" '
-				||' USING %s '
-				||'((jsondata->''properties''->%s))', idx_name, schema, spaceid, idx_type, prop_path);
+        IF propkey = 'f.geometryType' THEN
+            /** special handling for geometryType */
+            EXECUTE format('CREATE INDEX "%s" '
+                ||'ON %s."%s" '
+                ||' USING btree '
+                ||' (GeometryType(geo))', idx_name, schema, spaceid, idx_type);
+        ELSE
+            EXECUTE format('CREATE INDEX "%s" '
+                ||'ON %s."%s" '
+                ||' USING %s '
+                ||'((jsondata->%s %s))', idx_name, schema, spaceid, idx_type, root_path, prop_path);
+        END IF;
 
 		EXECUTE format('COMMENT ON INDEX %s."%s" '
 				||'IS ''p.name=%s''',
@@ -844,12 +858,6 @@ $BODY$
 	END
 $BODY$
   LANGUAGE plpgsql VOLATILE;
-
-
-
-------------------------------------------------
-------------------------------------------------
-
 ------------------------------------------------
 --- Begin : sortable indexes
 ------------------------------------------------
@@ -872,14 +880,14 @@ begin
  icomment = '';
  ifields = '';
 
- for selem in 
+ for selem in
   select row_number() over () as pos, el::text as sentry, el::text ~* '^".+:desc"$' as isdesc from jsonb_array_elements( sortby_arr ) el
- loop 
- 
+ loop
+
   if selem.pos = 1 and selem.isdesc then
 	 dflip = true;
 	end if;
-	
+
 	if selem.isdesc != dflip then
 	 direction = 'desc';
 	 idx_postfix = idx_postfix || '0';
@@ -887,59 +895,59 @@ begin
 	 direction = '';
 	 idx_postfix = idx_postfix || '1';
 	end if;
-	
+
 	if length( icomment ) > 0 then
 	 comma = ',';
 	end if;
-	
+
 	pathname = regexp_replace(selem.sentry, '^"([^:]+)(:(asc|desc))*"$','\1','i');
-	
+
 	if pathname ~ '^f\.' then
 	 fullpathname = replace(pathname,'f.','properties.@ns:com:here:xyz.');
-	else 
+	else
 	 fullpathname = 'properties.' || pathname;
 	end if;
-	
+
 	jpth = 'jsondata';
 	foreach jseg in array regexp_split_to_array(fullpathname,'\.')
 	loop
 	 jpth = format('(%s->''%s'')',jpth, jseg );
 	end loop;
-	
+
 	ifields = ifields || format('%s %s,',jpth,direction);
-	
+
 	icomment = icomment || format('%s%s%s',comma, pathname , replace(direction,'desc',':desc'));
-  
+
  end loop;
- 
+
  ifields = format('%s (jsondata->>''id'') %s', ifields, direction );
  iname = format('idx_#spaceid#_%s_o%s', substr( md5( icomment ),1,7), idx_postfix );
- 
+
 end;
-$body$ 
+$body$
 language plpgsql immutable;
 
 
 create or replace function xyz_eval_o_idxs( schema text, space text )
  returns table ( iexists text, iproperty text, src character, iname text, icomment text, ifields text ) as
 $body$
- with 
+ with
   indata as ( select xyz_eval_o_idxs.schema as schema, xyz_eval_o_idxs.space as space ),
   availidx as ( select idx_name as iexists, idx_property as iproperty, src  from ( select (xyz_index_list_all_available( i.schema, i.space )).* from indata i ) r where src = 'o' ),
-  reqidx as ( select distinct on (iname) replace(iname,'#spaceid#', o.space ) as iname, icomment, ifields 
+  reqidx as ( select distinct on (iname) replace(iname,'#spaceid#', o.space ) as iname, icomment, ifields
 			  from
 			  ( select i.space, (xyz_build_sortable_idx_values( jsonb_array_elements( nullif( s.idx_manual->'sortableProperties', 'null' ) ) )).*
                 from xyz_config.xyz_idxs_status s, indata i
                 where s.idx_creation_finished = false
-                and s.spaceid = i.space 
-			  ) o	
+                and s.spaceid = i.space
+			  ) o
  		    )
- select e.iexists, e.iproperty, e.src, r.iname, r.icomment, r.ifields 
+ select e.iexists, e.iproperty, e.src, r.iname, r.icomment, r.ifields
  from availidx e full join reqidx r on ( e.iexists = r.iname )
  where 1 = 1
    and ((e.iexists is null) or (r.iname is null))
- order by e.iexists, r.iname	
-$body$ 
+ order by e.iexists, r.iname
+$body$
 language sql immutable;
 
 -- Function: xyz_maintain_o_idxs_for_space(text, text)
@@ -950,23 +958,23 @@ $body$
  declare
   indata record;
  begin
-  for indata in 
+  for indata in
 	 select * from xyz_eval_o_idxs( schema, space )
-  loop 
-	 
+  loop
+
    if indata.iexists is not null then
-	 
+
     raise notice '-- PROPERTY: % | SORTABLE | SPACE: % |> DELETE IDX: %!', indata.iproperty, space, indata.iexists;
 	execute format('drop index if exists %s."%s" ', schema, indata.iexists );
 
    elsif indata.iname is not null then
-	 
+
 	raise notice '-- PROPERTY: % | SORTABLE | SPACE: % |> CREATE SORT IDX: %!', indata.icomment, space, indata.iname;
     execute format('create index "%s" on %s."%s" using btree (%s) ', indata.iname, schema, space, indata.ifields );
     execute format('comment on index %s."%s" is ''%s''', schema, indata.iname, indata.icomment );
-		
+
    end if;
-	 
+
   end loop;
  end;
 $body$
@@ -1374,7 +1382,7 @@ $BODY$
 					|| '		(SELECT * from xyz_property_datatype('''||schema||''','''||spaceid||''', propkey, 1000)) as datatype '
 					|| '	   FROM( '
 					|| '		select distinct split_part(idx_property,'','',1) as propkey from xyz_index_list_all_available('''||schema||''','''||spaceid||''') '
-					|| '			WHERE src IN (''a'',''m'', ''o'') and not idx_property ~ ''^f\..*'' '
+					|| '			WHERE src IN (''a'',''m'', ''o'') and not (idx_property ~ ''^f\..* '' AND src=''o'')'
 					|| '	   ) B group by propkey '
 					|| '	UNION '
 					|| '	SELECT  propkey, '
@@ -1400,7 +1408,7 @@ $BODY$
 				|| '		(SELECT * from xyz_property_datatype('''||schema||''','''||spaceid||''',propkey,'||tablesamplecnt||')) as datatype '
 				|| '	   FROM( '
 				|| '		select distinct split_part(idx_property,'','',1) as propkey from xyz_index_list_all_available('''||schema||''','''||spaceid||''') '
-				|| '			WHERE src IN (''a'',''m'', ''o'') and not idx_property ~ ''^f\..*'' '
+				|| '			WHERE src IN (''a'',''m'', ''o'') and not (idx_property ~ ''^f\..*'' AND src=''o'' )'
 				|| '	   ) B group by propkey '
 				|| '	UNION '
 				|| '	SELECT  propkey, '
