@@ -20,6 +20,7 @@
 package com.here.xyz.psql;
 
 import com.here.xyz.events.PropertyQuery;
+import org.apache.commons.lang3.ArrayUtils;
 
 import javax.sql.DataSource;
 import java.sql.Array;
@@ -112,11 +113,15 @@ public class SQLQuery {
     addText(text);
     if (parameters != null) {
       Collections.addAll(this.parameters, parameters);
+      /** IS (NOT) NULL does not require a parameter */
+      this.parameters.remove(".null");
     }
   }
 
   public void append(SQLQuery other) {
     addText(other.statement);
+    /** IS (NOT) NULL does not require a parameter */
+    other.parameters.remove(".null");
     parameters.addAll(other.parameters);
   }
 
@@ -232,12 +237,33 @@ public class SQLQuery {
 
   protected static SQLQuery createKey(String key) {
     String[] results = key.split("\\.");
+
+    /** Remove f. prefix for root property queries */
+    if(results[0].equalsIgnoreCase("f")) {
+      if(results.length > 1 && results[1].equalsIgnoreCase("geometryType")) {
+        /** special handling on geometry column */
+        return new SQLQuery("GeometryType(geo) ");
+      }
+      results = ArrayUtils.remove(results, 0);
+    }
+
     return new SQLQuery(
             "jsondata->" + Collections.nCopies(results.length, "?").stream().collect(Collectors.joining("->")), results);
   }
 
-  protected static String getValue(Object value, PropertyQuery.QueryOperation op) {
+  protected static String getValue(Object value, PropertyQuery.QueryOperation op, String key) {
+    if(key.equalsIgnoreCase("f.geometryType")){
+      if(value instanceof String && ((String) value).equalsIgnoreCase(".null"))
+        ;//skip
+      else
+        return "upper(?::text)";
+    }
+
     if (value instanceof String) {
+      if(op.equals(PropertyQuery.QueryOperation.EQUALS) && ((String) value).equalsIgnoreCase(".null"))
+        return "IS NULL";
+      else if(op.equals(PropertyQuery.QueryOperation.NOT_EQUALS) && ((String) value).equalsIgnoreCase(".null"))
+        return "IS NOT NULL";
       if(op.equals(PropertyQuery.QueryOperation.CONTAINS) && ((String) value).startsWith("{") && ((String) value).endsWith("}"))
         return "(?::jsonb || '[]'::jsonb)";
       return "to_jsonb(?::text)";

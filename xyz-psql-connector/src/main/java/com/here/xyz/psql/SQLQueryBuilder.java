@@ -866,16 +866,20 @@ public class SQLQueryBuilder {
                 // List with OR combined statements for one property key
                 final List<SQLQuery> keyDisjunctionQueries = new ArrayList<>();
                 propertyQuery.getValues().forEach(v -> {
+                    String value = SQLQuery.getValue(v, propertyQuery.getOperation(), propertyQuery.getKey());
 
-                    // The ID is indexed as text
+                    // Remove operation "=" in case a IS (NOT) NULL query came into. I this case we do not need an operator.
+                    String operation = value.equalsIgnoreCase("IS NULL") || value.equalsIgnoreCase("IS NOT NULL") ? "" : SQLQuery.getOperation(propertyQuery.getOperation());
+
+                    // id == f.id
                     if (propertyQuery.getKey().equals("id")) {
-                        keyDisjunctionQueries.add(new SQLQuery("jsondata->>'id'" + SQLQuery.getOperation(propertyQuery.getOperation()) + "?::text", v));
+                        // The ID is indexed as text
+                        keyDisjunctionQueries.add(new SQLQuery("jsondata->>'id'" + ( operation.equals("") ? value : SQLQuery.getOperation(propertyQuery.getOperation()) + "?::text"), v));
                     }
-                    // The rest are indexed as jsonb
                     else {
+                        // The rest are indexed as jsonb
                         SQLQuery q = SQLQuery.createKey(propertyQuery.getKey());
-
-                        q.append(new SQLQuery(SQLQuery.getOperation(propertyQuery.getOperation()) + SQLQuery.getValue(v,propertyQuery.getOperation()), v));
+                        q.append(new SQLQuery(operation + value, v));
                         keyDisjunctionQueries.add(q);
                     }
                 });
