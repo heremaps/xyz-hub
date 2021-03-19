@@ -85,17 +85,17 @@ public class RedisMessageBroker implements MessageBroker {
 
     String errMsg = "The Node could not be subscribed as AdminMessage listener. No AdminMessages will be received by this node.";
     if (ar.succeeded()) {
+      //That defines the handler for incoming messages on the connection
+      redisConnection.handler(message -> {
+        if (message.size() >= 3 && "message".equals(message.get(0).toString()) && CHANNEL.equals(message.get(1).toString())) {
+          String rawMessage = message.get(2).toString();
+          receiveRawMessage(rawMessage);
+        }
+      });
       Request req = Request.cmd(Command.SUBSCRIBE).arg(CHANNEL);
       redisConnection.send(req).onComplete(arSub -> {
         if (arSub.succeeded()) {
           logger.info("Subscription succeeded for NODE=" + Node.OWN_INSTANCE.getUrl());
-          //That defines the handler for incoming messages on the connection
-          redisConnection.handler(message -> {
-            if (message.size() >= 3 && "message".equals(message.get(0).toString()) && CHANNEL.equals(message.get(1).toString())) {
-              String rawMessage = message.get(2).toString();
-              receiveRawMessage(rawMessage);
-            }
-          });
           startPinging();
         }
         else
@@ -114,7 +114,7 @@ public class RedisMessageBroker implements MessageBroker {
    * Pings through the redisConnection to keep it alive at both ends.
    */
   private void ping() {
-    redisConnection.send(Request.cmd(Command.PING));
+    redisConnection.send(Request.cmd(Command.PING)).onComplete(r -> {});
   }
 
   @Override
