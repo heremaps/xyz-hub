@@ -80,7 +80,13 @@ public class ApiParam {
       put("f.updatedAt", "properties.@ns:com:here:xyz.updatedAt");
     }};
 
-    return keyReplacements.get(rawKey);
+    String replacement = keyReplacements.get(rawKey);
+
+    /** Allow root property search f.foo */
+    if(replacement == null && rawKey.indexOf("f.") == 0)
+      return rawKey;
+
+    return replacement;
   }
 
   public static class Header {
