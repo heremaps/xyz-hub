@@ -24,14 +24,19 @@ import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.config.ConnectorParameters;
+import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.responses.SuccessResponse;
+import com.here.xyz.responses.XyzError;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +57,239 @@ public class PSQLIndexIT extends PSQLAbstractIT {
 
     @After
     public void shutdown() throws Exception { shutdownEnv(connectorParams); }
+
+    @Test
+    public void testOnDemandIdxLimit() throws Exception {
+        Map<String,Boolean> searchableProperties = new HashMap(){{
+            put("foo1",true);
+            put("foo2",true);
+            put("foo3",true);
+            put("foo4",true);
+            put("foo5",true);
+        }};
+
+        /** Set 5 searchable Properties - 4 should be allowed by default */
+        ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent().withSpace("foo")
+            .withOperation(ModifySpaceEvent.Operation.CREATE)
+            .withConnectorParams(connectorParams)
+            .withSpaceDefinition(new Space()
+                    .withId("foo")
+                    .withSearchableProperties(searchableProperties)
+            );
+        ErrorResponse error = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
+        assertEquals(XyzError.ILLEGAL_ARGUMENT, error.getError());
+        assertEquals("On-Demand-Indexing - Maximum permissible: 4 searchable properties per space!", error.getErrorMessage());
+
+        searchableProperties.remove("foo5");
+
+        /** Set 4 searchable Properties */
+        modifySpaceEvent = new ModifySpaceEvent().withSpace("foo")
+            .withOperation(ModifySpaceEvent.Operation.CREATE)
+            .withConnectorParams(connectorParams)
+            .withSpaceDefinition(new Space()
+                    .withId("foo")
+                    .withSearchableProperties(searchableProperties)
+                    /** Table gets created also without features */
+                    .withEnableHistory(true)
+                    .withEnableUUID(true)
+            );
+
+        SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
+        assertEquals("OK",response.getStatus());
+
+        /** Increase to 5 allowed Indices */
+        connectorParams.put(ConnectorParameters.ON_DEMAND_IDX_LIMIT, 5);
+        /** deactivated ones does not get into account - result will be 5 which are required */
+        searchableProperties.put("foo5",true);
+        searchableProperties.put("foo6",false);
+        searchableProperties.put("foo7",false);
+
+        modifySpaceEvent = new ModifySpaceEvent().withSpace("foo")
+            .withOperation(ModifySpaceEvent.Operation.UPDATE)
+            .withConnectorParams(connectorParams)
+            .withSpaceDefinition(new Space()
+                    .withId("foo")
+                    .withSearchableProperties(searchableProperties)
+            );
+
+        response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
+        assertEquals("OK",response.getStatus());
+
+        try (final Connection connection = lambda.dataSource.getConnection()) {
+            /** Default System Indices */
+            List<String> systemIndices = new ArrayList<String>(){{
+                add("createdAt");
+                add("updatedAt");
+                add("serial");
+                add("geo");
+                add("tags");
+                add("id");
+            }};
+
+            Statement stmt = connection.createStatement();
+            stmt.execute("select xyz_maintain_idxs_for_space('public', 'foo');");
+
+            /** Check which Indices are available */
+            ResultSet resultSet = stmt.executeQuery("select idx_name, idx_property, src from xyz_index_list_all_available('public', 'foo');");
+            while(resultSet.next()){
+                String idxProperty = resultSet.getString("idx_property");
+                if(systemIndices.contains(idxProperty))
+                    systemIndices.remove(idxProperty);
+                else
+                    searchableProperties.remove(idxProperty);
+            }
+            /** If all System Indices could get found the list should be empty */
+            assertEquals(0,systemIndices.size());
+            /** If foo1:foo5 could get found only foo6 & foo7 should be in the map */
+            assertEquals(2,searchableProperties.size());
+        }
+    }
+
+    @Test
+    public void testOnDemandIdxCreation() throws Exception {
+        Map<String,Boolean> searchableProperties = new HashMap(){{
+            put("foo1",true);
+            put("foo2",true);
+            put("foo3",true);
+            put("foo4",true);
+            put("foo5",false);
+            put("foo6",false);
+        }};
+
+        ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent().withSpace("foo")
+                .withOperation(ModifySpaceEvent.Operation.UPDATE)
+                .withConnectorParams(connectorParams)
+                .withSpaceDefinition(new Space()
+                        .withId("foo")
+                        .withSearchableProperties(searchableProperties)
+                        /** Table gets created also without features */
+                        .withEnableHistory(true)
+                        .withEnableUUID(true)
+                );
+
+        SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
+        assertEquals("OK",response.getStatus());
+
+        try (final Connection connection = lambda.dataSource.getConnection()) {
+            /** Default System Indices */
+            List<String> systemIndices = new ArrayList<String>(){{
+                add("createdAt");
+                add("updatedAt");
+                add("serial");
+                add("geo");
+                add("tags");
+                add("id");
+            }};
+
+            Statement stmt = connection.createStatement();
+            stmt.execute("select xyz_maintain_idxs_for_space('public', 'foo');");
+
+            /** Check which Indices are available */
+            ResultSet resultSet = stmt.executeQuery("select idx_property, src from xyz_index_list_all_available('public', 'foo');");
+            while(resultSet.next()){
+                String idxProperty = resultSet.getString("idx_property");
+                if(systemIndices.contains(idxProperty)) {
+                    systemIndices.remove(idxProperty);
+                    assertEquals("s",resultSet.getString("src"));
+                }
+                else {
+                    searchableProperties.remove(idxProperty);
+                    assertEquals("m",resultSet.getString("src"));
+                }
+
+            }
+            /** If all System Indices could get found the list should be empty */
+            assertEquals(0,systemIndices.size());
+            /** If foo1:foo5 could get found only foo6 & foo7 should be in the map */
+            assertEquals(2,searchableProperties.size());
+        }
+
+        GetStatisticsEvent statisticsEvent = new GetStatisticsEvent()
+                .withSpace("foo")
+                .withConnectorParams(connectorParams);
+        // =========== Invoke GetStatisticsEvent ==========
+        StatisticsResponse resp = XyzSerializable.deserialize(invokeLambda(statisticsEvent.serialize()));
+        assertEquals(StatisticsResponse.PropertiesStatistics.Searchable.ALL, resp.getProperties().getSearchable());
+
+        List<StatisticsResponse.PropertyStatistics> propStatistics = resp.getProperties().getValue();
+        for (StatisticsResponse.PropertyStatistics propStat: propStatistics ) {
+           assertEquals("foo",propStat.getKey().substring(0,3));
+           /**TODO: Clarify Behavior (StatisticsResponse) */
+           //assertNull(propStat.isSearchable());
+        }
+    }
+    
+    @Test
+    public void testOnDemandIndexContent() throws Exception {
+        Map<String,Boolean> searchableProperties = new HashMap(){{
+            put("foo",true);
+            put("foo2::array",true);
+            put("foo.nested",true);
+            put("f.fooroot",true);
+        }};
+
+        ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent().withSpace("foo")
+                .withOperation(ModifySpaceEvent.Operation.UPDATE)
+                .withConnectorParams(connectorParams)
+                .withSpaceDefinition(new Space()
+                        .withId("foo")
+                        .withSearchableProperties(searchableProperties)
+                        /** Table gets created also without features */
+                        .withEnableHistory(true)
+                        .withEnableUUID(true)
+                );
+
+        SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
+        assertEquals("OK",response.getStatus());
+
+        try (final Connection connection = lambda.dataSource.getConnection()) {
+            Statement stmt = connection.createStatement();
+            stmt.execute("select xyz_maintain_idxs_for_space('public', 'foo');");
+
+            ResultSet resultSet = stmt.executeQuery("SELECT idx_name, idx_property, \n" +
+                    " (SELECT indexdef FROM pg_indexes WHERE tablename = 'foo' AND indexname=idx_name)\n" +
+                    " FROM xyz_index_list_all_available('public', 'foo')");
+
+            while(resultSet.next()) {
+                String idx_property = resultSet.getString("idx_property");
+                String idx_name = resultSet.getString("idx_name");
+                String indexdef = resultSet.getString("indexdef");
+
+                switch (idx_property){
+                    case "foo" :
+                        assertEquals("CREATE INDEX "+idx_name+" ON public.foo USING btree ((((jsondata -> 'properties'::text) -> 'foo'::text)))",indexdef);
+                        break;
+                    case "foo2" :
+                        assertEquals("CREATE INDEX "+idx_name+" ON public.foo USING gin ((((jsondata -> 'properties'::text) -> 'foo2'::text)))",indexdef);
+                        break;
+                    case "foo.nested" :
+                        assertEquals("CREATE INDEX "+idx_name+" ON public.foo USING btree (((((jsondata -> 'properties'::text) -> 'foo'::text) -> 'nested'::text)))",indexdef);
+                        break;
+                    case "foo.root" :
+                        assertEquals("CREATE INDEX "+indexdef+" ON public.foo USING btree ((((jsondata -> 'f'::text) -> 'fooroot'::text)))",indexdef);
+                        break;
+                    case "id" :
+                        assertEquals("CREATE UNIQUE INDEX idx_foo_id ON public.foo USING btree (((jsondata ->> 'id'::text)))",indexdef);
+                        break;
+                    case "geo" :
+                        assertEquals("CREATE INDEX idx_foo_geo ON public.foo USING gist (geo)",indexdef);
+                        break;
+                    case "serial" :
+                        assertEquals("CREATE INDEX idx_foo_serial ON public.foo USING btree (i)",indexdef);
+                        break;
+                    case "tags" :
+                        assertEquals("CREATE INDEX idx_foo_tags ON public.foo USING gin (((((jsondata -> 'properties'::text) -> '@ns:com:here:xyz'::text) -> 'tags'::text)))",indexdef);
+                        break;
+                    case "createdAt" :
+                        assertEquals("CREATE INDEX \"idx_foo_createdAt\" ON public.foo USING btree (((((jsondata -> 'properties'::text) -> '@ns:com:here:xyz'::text) -> 'createdAt'::text)))",indexdef);
+                        break;
+                    case "updatedAt" :
+                        assertEquals("CREATE INDEX \"idx_foo_updatedAt\" ON public.foo USING btree (((((jsondata -> 'properties'::text) -> '@ns:com:here:xyz'::text) -> 'updatedAt'::text)))",indexdef);
+                        break;
+                }
+            }
+        }
+    }
 
     @Test
     public void testAutoIndexing() throws Exception {
