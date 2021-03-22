@@ -210,7 +210,7 @@ public class SpaceAuthorization extends Authorization {
             connectorsRights.accessConnectors(XyzHubAttributeMap.forIdValues(c.owner, c.id));
           } else {
             //If connector does not exist.
-            logger.log(task.context.get("marker"), "Edit on non-existing connector {}", id, ar.cause());
+            logger.warn((Marker) task.context.get("marker"), "Tried to load non-existing connector '{}'.", id, ar.cause());
             connectorsRights.accessConnectors(XyzHubAttributeMap.forIdValues(id));
           }
           f.complete(null);
