@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,6 +48,10 @@ import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.jackson.DatabindCodec;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -61,7 +65,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
+@SuppressWarnings("rawtypes")
 public class SpaceAuthorization extends Authorization {
+  private static final Logger logger = LogManager.getLogger();
 
   public static List<String> basicEdit = Arrays
       .asList("id", "title", "description", "client", "copyright", "license", "shared", "enableUUID", "enableHistory", "maxVersionCount",
@@ -98,8 +104,7 @@ public class SpaceAuthorization extends Authorization {
     final Space head = entry.head;
     final Space target = entry.result;
 
-    boolean isAdminEdit, isBasicEdit, isStorageEdit, isListenersEdit, isProcessorsEdit, isPackagesEdit, isSearchablePropertiesEdit, isSortablePropertiesEdit,
-        isIdEdit;
+    boolean isAdminEdit, isBasicEdit, isStorageEdit, isListenersEdit, isProcessorsEdit, isPackagesEdit, isSearchablePropertiesEdit, isSortablePropertiesEdit;
     final AttributeMap xyzhubFilter;
 
     //Check if anonymous token is being used
@@ -197,23 +202,23 @@ public class SpaceAuthorization extends Authorization {
       if (isProcessorsEdit) connectorIds.addAll(getConnectorIds(input, PROCESSORS));
 
       connectorIds.forEach(id -> {
-        CompletableFuture<Void> f = new CompletableFuture();
+        CompletableFuture<Void> f = new CompletableFuture<>();
         futureList.add(f);
         Service.connectorConfigClient.get(task.context.get("marker"), id, ar -> {
           if (ar.succeeded()) {
             Connector c = ar.result();
             connectorsRights.accessConnectors(XyzHubAttributeMap.forIdValues(c.owner, c.id));
-            f.complete(null);
           } else {
             //If connector does not exist.
+            logger.log(task.context.get("marker"), "Edit on non-existing connector {}", id, ar.cause());
             connectorsRights.accessConnectors(XyzHubAttributeMap.forIdValues(id));
-            f.complete(null);
           }
+          f.complete(null);
         });
       });
     }
 
-    CompletableFuture.allOf(futureList.toArray(new CompletableFuture[futureList.size()]))
+    CompletableFuture.allOf(futureList.toArray(new CompletableFuture[0]))
         .thenRun(() -> {
           if (connectorsRights.get("accessConnectors") != null && !connectorsRights.get("accessConnectors").isEmpty()) {
             task.canReadConnectorsProperties = tokenRights != null && tokenRights.matches(connectorsRights);
@@ -265,6 +270,10 @@ public class SpaceAuthorization extends Authorization {
           }
 
           evaluateRights(requestRights, tokenRights, task, callback);
+        }).exceptionally(t -> {
+          logger.error((Marker) task.context.get("marker"), "Exception while checking connector permissions", t);
+          callback.exception(t);
+          return null;
         });
   }
 
@@ -359,6 +368,7 @@ public class SpaceAuthorization extends Authorization {
 
   private static Map asMap(Object object) {
     try {
+      //noinspection unchecked
       return ModifyOp.filter(
           Json.decodeValue(DatabindCodec.mapper().writerWithView(Static.class).writeValueAsString(object), Map.class), ModifySpaceOp.metadataFilter);
     } catch (Exception e) {
