@@ -52,6 +52,7 @@ import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.RpcClient.RpcContext;
 import com.here.xyz.hub.connectors.models.BinaryResponse;
 import com.here.xyz.hub.connectors.models.Connector;
+import com.here.xyz.hub.connectors.models.Connector.ForwardParamsConfig;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.connectors.models.Space.CacheProfile;
 import com.here.xyz.hub.connectors.models.Space.ConnectorType;
@@ -128,6 +129,10 @@ public class FeatureTaskHandler {
   private static ConcurrentHashMap<String, Long> contentModificationAdminTimers = new ConcurrentHashMap<>();
   private static final long CONTENT_MODIFICATION_INTERVAL = 1_000; //1s
   private static final long CONTENT_MODIFICATION_ADMIN_INTERVAL = 300_000; //5min
+
+  public static final String COOKIES = "cookies";
+  public static final String HEADERS = "headers";
+  public static final String QUERY_PARAMS = "queryParams";
 
   /**
    * The latest versions of the space contents as it has been seen on this service node. The key is the space ID and the value is the
@@ -443,9 +448,52 @@ public class FeatureTaskHandler {
   static void setAdditionalEventProps(NotificationContext nc, Connector connector, Event event) {
     event.setMetadata(nc.jwt.metadata);
     if (connector.trusted) {
-      event.setTid(nc.jwt.tid);
-      event.setAid(nc.jwt.aid);
-      event.setJwt(nc.jwt.jwt);
+      setTrustedParams(event, nc.jwt, connector.forwardParamsConfig, nc.task);
+    }
+  }
+
+  static void setTrustedParams(Event event, JWTPayload jwt, ForwardParamsConfig fwd, Task task) {
+    event.setTid(jwt.tid);
+    event.setAid(jwt.aid);
+    event.setJwt(jwt.jwt);
+
+    if (fwd != null) {
+      final Map<String, String> cookies = new HashMap<>();
+      final Map<String, String> headers = new HashMap<>();
+      final Map<String, String> queryParams = new HashMap<>();
+
+      if (fwd.cookieNames != null) {
+        fwd.cookieNames.forEach(name -> {
+          if (task.context.request().getCookie(name) != null) {
+            cookies.put(name, task.context.request().getCookie(name).getValue());
+          }
+        });
+      }
+
+      if (fwd.headerNames != null) {
+        fwd.headerNames.forEach(name -> {
+          if (task.context.request().headers().contains(name)) {
+            headers.put(name, task.context.request().headers().get(name));
+          }
+        });
+      }
+
+      if (fwd.queryParamNames != null) {
+        fwd.queryParamNames.forEach(name -> {
+          if (task.context.request().getParam(name) != null) {
+            queryParams.put(name, task.context.request().getParam(name));
+          }
+        });
+      }
+
+      if (!(cookies.isEmpty() && headers.isEmpty() && queryParams.isEmpty())) {
+        final Map<String, Object> trustedParams = new HashMap<>();
+        if (!cookies.isEmpty()) trustedParams.put(COOKIES, cookies);
+        if (!headers.isEmpty()) trustedParams.put(HEADERS, headers);
+        if (!queryParams.isEmpty()) trustedParams.put(QUERY_PARAMS, queryParams);
+
+        event.setTrustedParams(trustedParams);
+      }
     }
   }
 

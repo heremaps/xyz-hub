@@ -76,6 +76,7 @@ public abstract class Event<T extends Event> extends Payload {
   private Boolean preferPrimaryDataSource;
   @JsonView(ExcludeFromHash.class)
   private Map<String, Object> params;
+  private Map<String, Object> trustedParams;
   private String space;
   private Map<String, Object> metadata;
   @JsonView(ExcludeFromHash.class)
@@ -130,6 +131,27 @@ public abstract class Event<T extends Event> extends Payload {
     return (T) this;
   }
 
+  /**
+   * A parameter map which may contains sensitive information such as identities and is forwarded only to connectors
+   * marked with "trusted" flag.
+   *
+   * @return a map with arbitrary parameters.
+   */
+  public Map<String, Object> getTrustedParams() {
+    return this.trustedParams;
+  }
+
+  @SuppressWarnings("WeakerAccess")
+  public void setTrustedParams(Map<String, Object> trustedParams) {
+    this.trustedParams = trustedParams;
+  }
+
+  @SuppressWarnings("unused")
+  public T withTrustedParams(Map<String, Object> trustedParams) {
+    setTrustedParams(trustedParams);
+    //noinspection unchecked
+    return (T) this;
+  }
 
   /**
    * The stream identifier that should be used for logging purpose. In fact the XYZ Hub service will internally generate a unique stream
