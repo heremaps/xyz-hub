@@ -109,8 +109,7 @@ public class Capabilities {
     {
      String normalizedSortProp = "o:" + IterateSortSQL.IdxMaintenance.normalizedSortProperies(sort);
 
-     if("o:f.id".equalsIgnoreCase(normalizedSortProp))
-      return true;
+     switch( normalizedSortProp.toLowerCase() ) { case "o:f.id" : case "o:f.createdat" : case "o:f.updatedat" : return true; }
 
      List<String> indices = IndexList.getIndexList(space, connector);
               
