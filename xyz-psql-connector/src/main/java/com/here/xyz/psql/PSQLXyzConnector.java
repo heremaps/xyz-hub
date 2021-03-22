@@ -56,6 +56,8 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
+
+import java.security.GeneralSecurityException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -627,6 +629,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
     return r; 
   }
 
+  private static final String HPREFIX = "h07~";
+
   protected XyzResponse findFeaturesSort(SearchForFeaturesOrderByEvent event ) throws Exception
   {
     try{
@@ -644,15 +648,22 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       if(event.getHandle() == null)  // decrypt handle and configure event
        event.setSort( translateSortSysValues( event.getSort() ));
-      else
-       setPropTagQryFromHandle(event, PSQLConfig.decrypt(event.getHandle(),"findFeaturesSort" ) );
+      else if( !event.getHandle().startsWith( HPREFIX ) )
+       return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
+               .withErrorMessage("Invalid request parameter. handle is corrupted");
+      else         
+       try { setPropTagQryFromHandle(event, PSQLConfig.decrypt( event.getHandle().substring(HPREFIX.length()) ,"findFeaturesSort" ) ); }
+       catch ( GeneralSecurityException|IllegalArgumentException e)
+       { return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
+                 .withErrorMessage("Invalid request parameter. handle is corrupted");
+       }
 
       SQLQuery query = SQLQueryBuilder.buildFeaturesSortQuery(event, dataSource) ;
 
       FeatureCollection collection = executeQueryWithRetry(query);
 
       if( collection.getHandle() != null ) // extend handle and encrypt 
-       collection.setHandle( PSQLConfig.encrypt( addPropTagQryToHandle(event, collection.getHandle() ) , "findFeaturesSort" ) );
+       collection.setHandle( HPREFIX + PSQLConfig.encrypt( addPropTagQryToHandle(event, collection.getHandle() ) , "findFeaturesSort" ) );
 
       return collection;
     }catch (SQLException e){
