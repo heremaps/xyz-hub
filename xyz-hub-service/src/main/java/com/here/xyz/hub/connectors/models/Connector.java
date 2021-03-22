@@ -148,6 +148,11 @@ public class Connector {
   public String owner;
 
   /**
+   * An object containing the list of different params and their names that should be forwarded from Hub to the connector.
+   */
+  public ForwardParamsConfig forwardParamsConfig;
+
+  /**
    * Returns the maximal amount of requests to queue.
    *
    * @return the maximal amount of requests to queue.
@@ -387,4 +392,28 @@ public class Connector {
     }
   }
 
+  public static class ForwardParamsConfig {
+    public List<String> cookieNames;
+    public List<String> headerNames;
+    public List<String> queryParamNames;
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      ForwardParamsConfig that = (ForwardParamsConfig) o;
+      return Objects.equals(cookieNames, that.cookieNames) &&
+          Objects.equals(headerNames, that.headerNames) &&
+          Objects.equals(queryParamNames, that.queryParamNames);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(cookieNames, headerNames, queryParamNames);
+    }
+  }
 }
