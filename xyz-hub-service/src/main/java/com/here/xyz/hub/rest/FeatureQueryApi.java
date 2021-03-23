@@ -165,6 +165,8 @@ public class FeatureQueryApi extends SpaceBasedApi {
     try {
       final String refFeatureId = Query.getRefFeatureId(context);
       final String refSpaceId = Query.getRefSpaceId(context);
+      final String h3Index = Query.getH3Index(context);
+
       Geometry geometry = null;
 
       if(context.request().method() == HttpMethod.GET) {
@@ -174,11 +176,18 @@ public class FeatureQueryApi extends SpaceBasedApi {
           throw new HttpException(BAD_REQUEST,e.getMessage());
         }
 
-        if(geometry != null && refFeatureId != null && refSpaceId !=null)
+        if(geometry == null && refFeatureId == null && refSpaceId == null && h3Index ==null)
           throw new HttpException(BAD_REQUEST, "Invalid arguments! Define '"+Query.LAT+"' and '"+Query.LON+"' OR reference a '"+Query.REF_FEATURE_ID+"' in a '"+Query.REF_SPACE_ID+"'!");
 
-        if(geometry == null && (refFeatureId == null || refSpaceId ==null))
-          throw new HttpException(BAD_REQUEST, "Invalid arguments! Define '"+Query.LAT+"' and '"+Query.LON+"' or reference a '"+Query.REF_FEATURE_ID+"' in a '"+Query.REF_SPACE_ID+"'!");
+        if(geometry != null)
+          if(refFeatureId != null || refSpaceId != null || h3Index != null)
+            throw new HttpException(BAD_REQUEST, "Invalid arguments! Define '"+Query.LAT+"' and '"+Query.LON+"' or reference a '"+Query.REF_FEATURE_ID+"' in a '"+Query.REF_SPACE_ID+"'!");
+        if(refFeatureId != null || refSpaceId != null)
+          if(refFeatureId == null || refSpaceId == null || h3Index != null || geometry != null)
+            throw new HttpException(BAD_REQUEST, "Invalid arguments! Define '"+Query.LAT+"' and '"+Query.LON+"' or reference a '"+Query.REF_FEATURE_ID+"' in a '"+Query.REF_SPACE_ID+"'!");
+        if(h3Index != null)
+          if(refFeatureId != null || refSpaceId != null || geometry != null)
+            throw new HttpException(BAD_REQUEST, "Invalid arguments! Define '"+Query.LAT+"' and '"+Query.LON+"' or reference a '"+Query.REF_FEATURE_ID+"' in a '"+Query.REF_SPACE_ID+"'!");
       } else if(context.request().method() == HttpMethod.POST) {
           geometry = getBodyAsGeometry(context);
       }
@@ -189,6 +198,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
       GetFeaturesByGeometryEvent event = new GetFeaturesByGeometryEvent()
           .withGeometry(geometry)
           .withRadius(Query.getRadius(context))
+          .withH3Index(Query.getH3Index(context))
           .withLimit(getLimit(context))
           .withTags(Query.getTags(context))
           .withPropertiesQuery(Query.getPropertiesQuery(context))

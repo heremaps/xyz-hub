@@ -29,6 +29,22 @@ public class GetFeaturesByGeometryEvent extends SearchForFeaturesEvent<GetFeatur
 
   private int radius;
   private Geometry geometry;
+  private String h3Index;
+
+  @SuppressWarnings("unused")
+  public String getH3Index() {
+    return h3Index;
+  }
+
+  public void setH3Index(String h3Index) {
+    this.h3Index = h3Index;
+  }
+
+  @SuppressWarnings("unused")
+  public GetFeaturesByGeometryEvent withH3Index(String h3Index){
+    setH3Index(h3Index);
+    return this;
+  }
 
   @SuppressWarnings("unused")
   public int getRadius() {

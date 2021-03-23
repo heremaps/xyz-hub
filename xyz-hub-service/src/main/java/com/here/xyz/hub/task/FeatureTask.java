@@ -247,7 +247,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
 
     private void verifyResourceExists(GeometryQuery task, Callback<GeometryQuery> callback) {
-      if (this.getEvent().getGeometry() == null) {
+      if (this.getEvent().getGeometry() == null && this.getEvent().getH3Index() == null) {
         callback.exception(new HttpException(NOT_FOUND, "The 'refFeatureId' : '" + refFeatureId + "' does not exist."));
       } else {
         callback.call(task);
@@ -300,7 +300,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
 
     @SuppressWarnings("serial")
     private void loadObject(final GeometryQuery gq, final Callback<GeometryQuery> c) {
-      if (gq.getEvent().getGeometry() != null) {
+      if (gq.getEvent().getGeometry() != null || gq.getEvent().getH3Index() != null) {
         c.call(this);
         return;
       }

@@ -89,12 +89,19 @@ public class SQLQueryBuilder {
         final Geometry geometry = event.getGeometry();
 
         final SQLQuery searchQuery = generateSearchQuery(event, dataSource);
+        final SQLQuery geoQuery;
 
-        final SQLQuery geoQuery = radius != 0 ? new SQLQuery("ST_Intersects(geo, ST_Buffer(ST_GeomFromText('"
-                + WKTHelper.geometryToWKB(geometry) + "')::geography, ? )::geometry)", radius) : new SQLQuery("ST_Intersects(geo, ST_GeomFromText('"
-                + WKTHelper.geometryToWKB(geometry) + "',4326))");
-
-        return generateCombinedQuery(event, geoQuery, searchQuery, dataSource);
+        if(event.getH3Index() != null){
+            if(radius != 0)
+                geoQuery = new SQLQuery("st_intersects( geo, ST_Buffer(hexbin::geography,? )::geometry)", radius);
+            else
+                geoQuery = new SQLQuery("st_intersects( geo, hexbin)");
+        }else{
+            geoQuery = radius != 0 ? new SQLQuery("ST_Intersects(geo, ST_Buffer(ST_GeomFromText('"
+                    + WKTHelper.geometryToWKB(geometry) + "')::geography, ? )::geometry)", radius) : new SQLQuery("ST_Intersects(geo, ST_GeomFromText('"
+                    + WKTHelper.geometryToWKB(geometry) + "',4326))");
+        }
+        return generateCombinedQuery(event, geoQuery, searchQuery, dataSource, true, event.getH3Index());
     }
 
     public static SQLQuery buildGetFeaturesByBBoxQuery(final GetFeaturesByBBoxEvent event, boolean isBigQuery, DataSource dataSource)
@@ -107,7 +114,7 @@ public class SQLQueryBuilder {
 
         boolean bConvertGeo2GeoJson = ( mvtFromDbRequested(event) == 0 );
 
-        return generateCombinedQuery(event, geoQuery, searchQuery,dataSource, bConvertGeo2GeoJson );
+        return generateCombinedQuery(event, geoQuery, searchQuery,dataSource, bConvertGeo2GeoJson, null);
     }
 
     protected static SQLQuery buildCountFeaturesQuery(CountFeaturesEvent event, DataSource dataSource, String schema, String table)
@@ -391,7 +398,7 @@ public class SQLQueryBuilder {
                     tweakQuery = new SQLQuery(twqry);
 
      if( !bEnsureMode )
-      return generateCombinedQuery(event, tweakQuery, searchQuery , dataSource, bConvertGeo2Geojson );
+      return generateCombinedQuery(event, tweakQuery, searchQuery , dataSource, bConvertGeo2Geojson, null );
 
      /* TweaksSQL.ENSURE */
      boolean bTestTweaksGeoIfNull = false;
@@ -943,41 +950,44 @@ public class SQLQueryBuilder {
      return query;
     }
 
-    private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, DataSource dataSource, boolean bConvertGeo2Geojson ) throws SQLException
+    private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, DataSource dataSource, boolean bConvertGeo2Geojson, String h3Index ) throws SQLException
     {
-     final SQLQuery query = new SQLQuery();
+        final SQLQuery query = new SQLQuery();
 
-     query.append("SELECT");
+        if(h3Index != null)
+            query.append("WITH h AS (SELECT h3ToGeoBoundaryDeg( ('x' || '"+h3Index+"' )::bit(60)::bigint ) as hexbin )");
 
-     query.append(SQLQuery.selectJson(event.getSelection(),dataSource));
+        query.append("SELECT ");
 
-     if (event instanceof GetFeaturesByBBoxEvent) {
-         query.append(",");
-         query.append(geometrySelectorForEvent((GetFeaturesByBBoxEvent) event, bConvertGeo2Geojson));
-     }
-     else
-      query.append( bConvertGeo2Geojson ? ( ",replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') as geo" )
-                                        :  getForceMode(event.isForce2D()) + "(geo) as geo" );
+        query.append(SQLQuery.selectJson(event.getSelection(),dataSource));
 
-     query.append("FROM ${schema}.${table} WHERE");
-     query.append(indexedQuery);
+        if (event instanceof GetFeaturesByBBoxEvent) {
+            query.append(",");
+            query.append(geometrySelectorForEvent((GetFeaturesByBBoxEvent) event, bConvertGeo2Geojson));
+        }
+        else
+            query.append( bConvertGeo2Geojson ? ( ",replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') as geo" )
+                    :  getForceMode(event.isForce2D()) + "(geo) as geo" );
 
-     if( secondaryQuery != null )
-     { query.append(" and ");
-       query.append(secondaryQuery);
-     }
+        if(h3Index != null)
+            query.append("FROM ${schema}.${table},h  WHERE");
+        else
+            query.append("FROM ${schema}.${table}  WHERE");
 
-     query.append("LIMIT ?", event.getLimit());
-     return query;
+        query.append(indexedQuery);
+
+        if( secondaryQuery != null )
+        { query.append(" and ");
+            query.append(secondaryQuery);
+        }
+
+        query.append("LIMIT ?", event.getLimit());
+        return query;
     }
-
-    private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, DataSource dataSource ) throws SQLException
-    { return generateCombinedQuery( event, indexedQuery, secondaryQuery, dataSource, true ); }
 
     /**
      * Returns the query, which will contains the geometry object.
      */
-
     private static SQLQuery geometrySelectorForEvent(final GetFeaturesByBBoxEvent event, boolean bGeoJson) {
 
         if (!event.getClip()) {
@@ -993,11 +1003,8 @@ public class SQLQueryBuilder {
                geoSqlAttrib = ( bGeoJson ? String.format("replace(ST_AsGeoJson(ST_Intersection(ST_MakeValid(%s),ST_MakeEnvelope(?,?,?,?,4326)),%d),'nan','0') as geo", geoCol, GEOMETRY_DECIMAL_DIGITS )
                                          : String.format("ST_Intersection( ST_MakeValid(%s),ST_MakeEnvelope(?,?,?,?,4326) ) as geo", geoCol ) );
 
-            return new SQLQuery( geoSqlAttrib ,bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
+        return new SQLQuery( geoSqlAttrib ,bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
     }
-
-    private static SQLQuery geometrySelectorForEvent(final GetFeaturesByBBoxEvent event) { return geometrySelectorForEvent(event,true); }
-
 
     protected static SQLQuery generateSearchQuery(final QueryEvent event, final DataSource dataSource)
             throws SQLException {
