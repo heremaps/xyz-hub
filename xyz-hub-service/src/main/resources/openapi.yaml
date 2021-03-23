@@ -609,7 +609,8 @@ paths:
       description: |
         List the features which are inside the specified radius.
         The origin radius point is calculated based either on latitude & longitude or by
-        specifying a features geometry.
+        specifying a features geometry. As thrid option it is possible to use a H3 index
+        as input geometry.
       operationId: getFeaturesBySpatial
       parameters:
         - $ref: '#/components/parameters/SpaceId'
@@ -617,6 +618,7 @@ paths:
         - $ref: '#/components/parameters/Longitude'
         - $ref: '#/components/parameters/RefSpaceId'
         - $ref: '#/components/parameters/RefFeatureId'
+        - $ref: '#/components/parameters/H3Index'
         - $ref: '#/components/parameters/Radius'
         - $ref: '#/components/parameters/TagList'
         - $ref: '#/components/parameters/Limit'
@@ -1321,6 +1323,13 @@ components:
         type: array
         items:
           type: string
+    H3Index:
+      name: h3index
+      in: query
+      description: >-
+        H3 index
+      schema:
+        type: string
     Radius:
       name: radius
       in: query

@@ -130,6 +130,7 @@ public class ApiParam {
     static final String RADIUS = "radius";
     static final String REF_SPACE_ID = "refSpaceId";
     static final String REF_FEATURE_ID = "refFeatureId";
+    static final String H3_INDEX = "h3Index";
     static final String CONTENT_UPDATED_AT = "contentUpdatedAt";
 
     static final String CLUSTERING_PARAM_RESOLUTION = "resolution";
@@ -536,6 +537,10 @@ public class ApiParam {
 
     public static String getRefSpaceId(RoutingContext context) {
       return getString(context, REF_SPACE_ID , null);
+    }
+
+    public static String getH3Index(RoutingContext context) {
+      return getString(context, H3_INDEX , null);
     }
   }
 }
