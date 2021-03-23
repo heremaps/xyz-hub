@@ -238,13 +238,9 @@ public class SQLQuery {
   protected static SQLQuery createKey(String key) {
     String[] results = key.split("\\.");
 
-    /** Remove f. prefix for root property queries */
-    if(results[0].equalsIgnoreCase("f")) {
-      if(results.length > 1 && results[1].equalsIgnoreCase("geometryType")) {
-        /** special handling on geometry column */
+    /** special handling on geometry column */
+    if(results[0].equalsIgnoreCase("geometryType")) {
         return new SQLQuery("GeometryType(geo) ");
-      }
-      results = ArrayUtils.remove(results, 0);
     }
 
     return new SQLQuery(
@@ -252,12 +248,12 @@ public class SQLQuery {
   }
 
   protected static String getValue(Object value, PropertyQuery.QueryOperation op, String key) {
-    if(key.equalsIgnoreCase("f.geometryType")){
-      if(value instanceof String && ((String) value).equalsIgnoreCase(".null"))
-        ;//skip
-      else
+    if(key.equalsIgnoreCase("geometryType") && !(value instanceof String && ((String) value).equalsIgnoreCase(".null"))){
         return "upper(?::text)";
     }
+    /** The ID is indexed as text */
+    if(key.equalsIgnoreCase("id"))
+      value = ""+value;
 
     if (value instanceof String) {
       if(op.equals(PropertyQuery.QueryOperation.EQUALS) && ((String) value).equalsIgnoreCase(".null"))
