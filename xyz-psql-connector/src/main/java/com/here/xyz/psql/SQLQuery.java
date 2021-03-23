@@ -113,15 +113,11 @@ public class SQLQuery {
     addText(text);
     if (parameters != null) {
       Collections.addAll(this.parameters, parameters);
-      /** IS (NOT) NULL does not require a parameter */
-      this.parameters.remove(".null");
     }
   }
 
   public void append(SQLQuery other) {
     addText(other.statement);
-    /** IS (NOT) NULL does not require a parameter */
-    other.parameters.remove(".null");
     parameters.addAll(other.parameters);
   }
 
@@ -230,6 +226,10 @@ public class SQLQuery {
         return ">=";
       case CONTAINS:
         return "@>";
+      case IS_NULL:
+        return "IS NULL";
+      case IS_NOT_NULL:
+        return "IS NOT NULL";
     }
 
     return "";
@@ -248,18 +248,18 @@ public class SQLQuery {
   }
 
   protected static String getValue(Object value, PropertyQuery.QueryOperation op, String key) {
-    if(key.equalsIgnoreCase("geometryType") && !(value instanceof String && ((String) value).equalsIgnoreCase(".null"))){
+    if(op.equals(PropertyQuery.QueryOperation.IS_NULL) || op.equals(PropertyQuery.QueryOperation.IS_NOT_NULL))
+      return null;
+
+    if(key.equalsIgnoreCase("geometryType")){
         return "upper(?::text)";
     }
+
     /** The ID is indexed as text */
     if(key.equalsIgnoreCase("id"))
       value = ""+value;
 
     if (value instanceof String) {
-      if(op.equals(PropertyQuery.QueryOperation.EQUALS) && ((String) value).equalsIgnoreCase(".null"))
-        return "IS NULL";
-      else if(op.equals(PropertyQuery.QueryOperation.NOT_EQUALS) && ((String) value).equalsIgnoreCase(".null"))
-        return "IS NOT NULL";
       if(op.equals(PropertyQuery.QueryOperation.CONTAINS) && ((String) value).startsWith("{") && ((String) value).endsWith("}"))
         return "(?::jsonb || '[]'::jsonb)";
       return "to_jsonb(?::text)";
