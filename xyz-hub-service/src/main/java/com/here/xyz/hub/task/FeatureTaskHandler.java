@@ -450,31 +450,35 @@ public class FeatureTaskHandler {
   }
 
   static void setTrustedParams(Event event, JWTPayload jwt, ForwardParamsConfig fwd, Task task) {
-    event.setTid(jwt.tid);
-    event.setAid(jwt.aid);
-    event.setJwt(jwt.jwt);
+    if (event == null) return;
 
-    if (fwd != null) {
+    if (jwt != null) {
+      event.setTid(jwt.tid);
+      event.setAid(jwt.aid);
+      event.setJwt(jwt.jwt);
+    }
+
+    if (fwd != null && task != null) {
       final TrustedParams trustedParams = new TrustedParams();
 
-      if (fwd.cookieNames != null) {
-        fwd.cookieNames.forEach(name -> {
+      if (fwd.cookies != null) {
+        fwd.cookies.forEach(name -> {
           if (task.context.request().getCookie(name) != null) {
             trustedParams.putCookie(name, task.context.request().getCookie(name).getValue());
           }
         });
       }
 
-      if (fwd.headerNames != null) {
-        fwd.headerNames.forEach(name -> {
+      if (fwd.headers != null) {
+        fwd.headers.forEach(name -> {
           if (task.context.request().headers().contains(name)) {
             trustedParams.putHeader(name, task.context.request().headers().get(name));
           }
         });
       }
 
-      if (fwd.queryParamNames != null) {
-        fwd.queryParamNames.forEach(name -> {
+      if (fwd.queryParams != null) {
+        fwd.queryParams.forEach(name -> {
           if (task.context.request().getParam(name) != null) {
             trustedParams.putQueryParam(name, task.context.request().getParam(name));
           }
