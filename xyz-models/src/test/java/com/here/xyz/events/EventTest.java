@@ -22,15 +22,19 @@ package com.here.xyz.events;
 
 import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertNull;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.events.Event.TrustedParams;
 import com.here.xyz.models.geojson.implementation.LazyParsedFeatureCollectionTest;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.util.Arrays;
 import org.junit.Test;
 
 public class EventTest {
@@ -82,5 +86,33 @@ public class EventTest {
 
     assertEquals(event1.getHash(), event2.getHash());
     assertNotEquals(event1.getHash(), event3.getHash());
+  }
+
+  @Test
+  public void checkTrustedParams() throws Exception {
+    final ObjectMapper om = new ObjectMapper();
+    IterateFeaturesEvent event = om.readValue(eventJson, IterateFeaturesEvent.class);
+    assertNull(event.getTrustedParams());
+
+    event.setTrustedParams(new TrustedParams());
+    assertTrue(event.getTrustedParams().isEmpty());
+
+    event.getTrustedParams().putCookie("a", "a1");
+    event.getTrustedParams().putHeader("b", "b1");
+    event.getTrustedParams().putQueryParam("c", "c1");
+    event.getTrustedParams().put("customKey", "customValue");
+
+    assertEquals("a1", event.getTrustedParams().getCookie("a"));
+    assertEquals("b1", event.getTrustedParams().getHeader("b"));
+    assertEquals("c1", event.getTrustedParams().getQueryParam("c"));
+    assertEquals("customValue", event.getTrustedParams().get("customKey"));
+    assertFalse(event.getTrustedParams().isEmpty());
+
+    String json = XyzSerializable.serialize(event);
+    event = om.readValue(json, IterateFeaturesEvent.class);
+
+    assertNotNull(event.getTrustedParams());
+    assertFalse(event.getTrustedParams().isEmpty());
+    assertTrue(event.getTrustedParams().keySet().containsAll(Arrays.asList("cookies", "headers", "queryParams", "customKey")));
   }
 }
