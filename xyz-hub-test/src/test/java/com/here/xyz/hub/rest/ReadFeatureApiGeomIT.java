@@ -153,6 +153,42 @@ public class ReadFeatureApiGeomIT extends TestSpaceWithFeature {
   }
 
   @Test
+  public void testGeometryTypeOnPropertyLevel() {
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+            when().
+            get("/spaces/x-psql-test/search?p.geometryType=onPropertyLevel").
+            then().
+            statusCode(OK.code()).
+            body("features.size()", equalTo(1));
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+            when().
+            get("/spaces/x-psql-test/search?f.geometryType=point&p.geometryType=onPropertyLevel").
+            then().
+            statusCode(OK.code()).
+            body("features.size()", equalTo(1));
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+            when().
+            get("/spaces/x-psql-test/search?f.geometryType=polygon&p.geometryType=onPropertyLevel").
+            then().
+            statusCode(OK.code()).
+            body("features.size()", equalTo(0));
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+            when().
+            get("/spaces/x-psql-test/search?f.geometryType=.null&p.geometryType=onPropertyLevel").
+            then().
+            statusCode(OK.code()).
+            body("features.size()", equalTo(0));
+  }
+
+  @Test
   public void testFindNull() {
     given().
             accept(APPLICATION_GEO_JSON).
