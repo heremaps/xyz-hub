@@ -83,8 +83,8 @@ public class ApiParam {
     String replacement = keyReplacements.get(rawKey);
 
     /** Allow root property search f.foo */
-    if(replacement == null && rawKey.indexOf("f.") == 0)
-      return rawKey;
+    if(replacement == null && rawKey.startsWith("f."))
+      return rawKey.substring(2);
 
     return replacement;
   }

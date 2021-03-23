@@ -878,17 +878,9 @@ public class SQLQueryBuilder {
                     // Remove operation "=" in case a IS (NOT) NULL query came into. I this case we do not need an operator.
                     String operation = value.equalsIgnoreCase("IS NULL") || value.equalsIgnoreCase("IS NOT NULL") ? "" : SQLQuery.getOperation(propertyQuery.getOperation());
 
-                    // id == f.id
-                    if (propertyQuery.getKey().equals("id")) {
-                        // The ID is indexed as text
-                        keyDisjunctionQueries.add(new SQLQuery("jsondata->>'id'" + ( operation.equals("") ? value : SQLQuery.getOperation(propertyQuery.getOperation()) + "?::text"), v));
-                    }
-                    else {
-                        // The rest are indexed as jsonb
-                        SQLQuery q = SQLQuery.createKey(propertyQuery.getKey());
-                        q.append(new SQLQuery(operation + value, v));
-                        keyDisjunctionQueries.add(q);
-                    }
+                    SQLQuery q = SQLQuery.createKey(propertyQuery.getKey());
+                    q.append(new SQLQuery(operation + value, v));
+                    keyDisjunctionQueries.add(q);
                 });
                 conjunctionQueries.add(SQLQuery.join(keyDisjunctionQueries, "OR", true));
             });

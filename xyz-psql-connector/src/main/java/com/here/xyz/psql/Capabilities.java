@@ -63,7 +63,10 @@ public class Capabilities {
 
       for (String key : keys) {
         String[] parts = key.split("\\.");
-        boolean isRootPropertyQuery = parts[0].equals("properties");
+        /** properties.foo vs foo (root)
+         * If hub receives "f.foo=bar&p.foo=bar" it will generates a PropertyQuery with properties.foo=bar and foo=bar
+         **/
+        boolean isPropertyQuery = parts[0].equals("properties");
 
         /** If property query hits default system index - allow search. [id, properties.@ns:com:here:xyz.createdAt, properties.@ns:com:here:xyz.updatedAt]" */
         if (key.equals("id") || (parts.length == 3 && parts[1].equals("@ns:com:here:xyz")
@@ -73,22 +76,21 @@ public class Capabilities {
         }
 
         /** Check if custom Indices are available. Eg.: properties.foo1&f.foo2*/
-        if (parts.length >= 2) {
-          List<String> indices = IndexList.getIndexList(space, connector);
+        List<String> indices = IndexList.getIndexList(space, connector);
 
-          /** The table is small and not indexed. It's not listed in the xyz_idxs_status table */
-          if (indices == null) {
-            return true;
-          }
+        /** The table is small and not indexed. It's not listed in the xyz_idxs_status table */
+        if (indices == null) {
+          return true;
+        }
 
-          List<String> sindices = sortableCanSearchForIndex( indices );
-          /** If its not a rootPropertyQuery (f.foo) we need to cut the properties prefix */
-          String searchKey = isRootPropertyQuery ? key : key.substring("properties.".length()) ;
+        List<String> sindices = sortableCanSearchForIndex( indices );
+        /** If it is a root property query "foo=bar" we extend the suffix "f."
+         *  If it is a property query "properties.foo=bar" we remove the suffix "properties." */
+        String searchKey = isPropertyQuery ? key.substring("properties.".length()) : "f."+key;
 
-          if (indices.contains( searchKey ) || (sindices != null && sindices.contains(searchKey)) ) {
-            /** Check if all properties are indexed */
-            idx_check++;
-          }
+        if (indices.contains( searchKey ) || (sindices != null && sindices.contains(searchKey)) ) {
+          /** Check if all properties are indexed */
+          idx_check++;
         }
       }
 
