@@ -876,10 +876,14 @@ public class SQLQueryBuilder {
                     String value = SQLQuery.getValue(v, propertyQuery.getOperation(), propertyQuery.getKey());
 
                     // Remove operation "=" in case a IS (NOT) NULL query came into. I this case we do not need an operator.
-                    String operation = value.equalsIgnoreCase("IS NULL") || value.equalsIgnoreCase("IS NOT NULL") ? "" : SQLQuery.getOperation(propertyQuery.getOperation());
+                    String operation = SQLQuery.getOperation(propertyQuery.getOperation());
 
                     SQLQuery q = SQLQuery.createKey(propertyQuery.getKey());
-                    q.append(new SQLQuery(operation + value, v));
+
+                    if(value == null){
+                        q.append(new SQLQuery(operation));
+                    }else
+                        q.append(new SQLQuery(operation + (value == null ? "" : value), v));
                     keyDisjunctionQueries.add(q);
                 });
                 conjunctionQueries.add(SQLQuery.join(keyDisjunctionQueries, "OR", true));
