@@ -38,6 +38,7 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContentModifiedNotification;
 import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.Event;
+import com.here.xyz.events.Event.TrustedParams;
 import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetHistoryStatisticsEvent;
@@ -129,10 +130,6 @@ public class FeatureTaskHandler {
   private static ConcurrentHashMap<String, Long> contentModificationAdminTimers = new ConcurrentHashMap<>();
   private static final long CONTENT_MODIFICATION_INTERVAL = 1_000; //1s
   private static final long CONTENT_MODIFICATION_ADMIN_INTERVAL = 300_000; //5min
-
-  public static final String COOKIES = "cookies";
-  public static final String HEADERS = "headers";
-  public static final String QUERY_PARAMS = "queryParams";
 
   /**
    * The latest versions of the space contents as it has been seen on this service node. The key is the space ID and the value is the
@@ -458,14 +455,12 @@ public class FeatureTaskHandler {
     event.setJwt(jwt.jwt);
 
     if (fwd != null) {
-      final Map<String, String> cookies = new HashMap<>();
-      final Map<String, String> headers = new HashMap<>();
-      final Map<String, String> queryParams = new HashMap<>();
+      final TrustedParams trustedParams = new TrustedParams();
 
       if (fwd.cookieNames != null) {
         fwd.cookieNames.forEach(name -> {
           if (task.context.request().getCookie(name) != null) {
-            cookies.put(name, task.context.request().getCookie(name).getValue());
+            trustedParams.putCookie(name, task.context.request().getCookie(name).getValue());
           }
         });
       }
@@ -473,7 +468,7 @@ public class FeatureTaskHandler {
       if (fwd.headerNames != null) {
         fwd.headerNames.forEach(name -> {
           if (task.context.request().headers().contains(name)) {
-            headers.put(name, task.context.request().headers().get(name));
+            trustedParams.putHeader(name, task.context.request().headers().get(name));
           }
         });
       }
@@ -481,17 +476,12 @@ public class FeatureTaskHandler {
       if (fwd.queryParamNames != null) {
         fwd.queryParamNames.forEach(name -> {
           if (task.context.request().getParam(name) != null) {
-            queryParams.put(name, task.context.request().getParam(name));
+            trustedParams.putQueryParam(name, task.context.request().getParam(name));
           }
         });
       }
 
-      if (!(cookies.isEmpty() && headers.isEmpty() && queryParams.isEmpty())) {
-        final Map<String, Object> trustedParams = new HashMap<>();
-        if (!cookies.isEmpty()) trustedParams.put(COOKIES, cookies);
-        if (!headers.isEmpty()) trustedParams.put(HEADERS, headers);
-        if (!queryParams.isEmpty()) trustedParams.put(QUERY_PARAMS, queryParams);
-
+      if (!trustedParams.isEmpty()) {
         event.setTrustedParams(trustedParams);
       }
     }
