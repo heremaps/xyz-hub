@@ -393,9 +393,9 @@ public class Connector {
   }
 
   public static class ForwardParamsConfig {
-    public List<String> cookieNames;
-    public List<String> headerNames;
-    public List<String> queryParamNames;
+    public List<String> cookies;
+    public List<String> headers;
+    public List<String> queryParams;
 
     @Override
     public boolean equals(Object o) {
@@ -406,14 +406,14 @@ public class Connector {
         return false;
       }
       ForwardParamsConfig that = (ForwardParamsConfig) o;
-      return Objects.equals(cookieNames, that.cookieNames) &&
-          Objects.equals(headerNames, that.headerNames) &&
-          Objects.equals(queryParamNames, that.queryParamNames);
+      return Objects.equals(cookies, that.cookies) &&
+          Objects.equals(headers, that.headers) &&
+          Objects.equals(queryParams, that.queryParams);
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(cookieNames, headerNames, queryParamNames);
+      return Objects.hash(cookies, headers, queryParams);
     }
   }
 }
