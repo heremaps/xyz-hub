@@ -190,7 +190,7 @@ public class IterateSortSQL {
 
    SQLQuery wrappedQry = new SQLQuery();
 
-   if( part != null && part.length == 2 )
+   if( part != null && part.length == 2 && part[1] > 1 )
    { String partitionSql = String.format(" %s (( i %% %d ) = %d) ",searchQuery == null ? "" : "and", part[1], (part[0] - 1));
      if( searchQuery == null ) searchQuery = new SQLQuery();
      searchQuery.append(partitionSql); 
