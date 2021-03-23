@@ -92,7 +92,9 @@ import com.here.xyz.responses.XyzResponse;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.MultiMap;
 import io.vertx.core.buffer.Buffer;
+import io.vertx.core.http.Cookie;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import java.util.ArrayList;
@@ -445,42 +447,43 @@ public class FeatureTaskHandler {
   static void setAdditionalEventProps(NotificationContext nc, Connector connector, Event event) {
     event.setMetadata(nc.jwt.metadata);
     if (connector.trusted) {
-      setTrustedParams(event, nc.jwt, connector.forwardParamsConfig, nc.task);
+      setTrustedParams(nc, connector, event);
     }
   }
 
-  static void setTrustedParams(Event event, JWTPayload jwt, ForwardParamsConfig fwd, Task task) {
-    if (event == null) return;
+  static void setTrustedParams(NotificationContext nc, Connector connector, Event event) {
+    if (event == null || nc == null) return;
 
-    if (jwt != null) {
-      event.setTid(jwt.tid);
-      event.setAid(jwt.aid);
-      event.setJwt(jwt.jwt);
+    if (nc.jwt != null) {
+      event.setTid(nc.jwt.tid);
+      event.setAid(nc.jwt.aid);
+      event.setJwt(nc.jwt.jwt);
     }
 
-    if (fwd != null && task != null) {
+    if (connector != null && connector.forwardParamsConfig != null) {
+      final ForwardParamsConfig fwd = connector.forwardParamsConfig;
       final TrustedParams trustedParams = new TrustedParams();
 
-      if (fwd.cookies != null) {
+      if (fwd.cookies != null && nc.cookies != null) {
         fwd.cookies.forEach(name -> {
-          if (task.context.request().getCookie(name) != null) {
-            trustedParams.putCookie(name, task.context.request().getCookie(name).getValue());
+          if (nc.cookies.containsKey(name)) {
+            trustedParams.putCookie(name, nc.cookies.get(name).getValue());
           }
         });
       }
 
-      if (fwd.headers != null) {
+      if (fwd.headers != null && nc.headers != null) {
         fwd.headers.forEach(name -> {
-          if (task.context.request().headers().contains(name)) {
-            trustedParams.putHeader(name, task.context.request().headers().get(name));
+          if (nc.headers.contains(name)) {
+            trustedParams.putHeader(name, nc.headers.get(name));
           }
         });
       }
 
-      if (fwd.queryParams != null) {
+      if (fwd.queryParams != null && nc.queryParams != null) {
         fwd.queryParams.forEach(name -> {
-          if (task.context.request().getParam(name) != null) {
-            trustedParams.putQueryParam(name, task.context.request().getParam(name));
+          if (nc.queryParams.contains(name)) {
+            trustedParams.putQueryParam(name, nc.queryParams.get(name));
           }
         });
       }
@@ -1348,11 +1351,17 @@ public class FeatureTaskHandler {
     private Space space;
     private JWTPayload jwt;
     private FeatureTask task;
+    private Map<String, Cookie> cookies;
+    private MultiMap headers;
+    private MultiMap queryParams;
 
     public NotificationContext(FeatureTask task, boolean keepTask) {
       marker = task.getMarker();
       space = task.space;
       jwt = task.getJwt();
+      cookies = task.context.request().cookieMap();
+      headers = task.context.request().headers();
+      queryParams = task.context.request().params();
       if (keepTask)
         this.task = task;
     }
