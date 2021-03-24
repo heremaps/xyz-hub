@@ -174,7 +174,8 @@ public class Connector {
         && Objects.equals(remoteFunctions, other.remoteFunctions)
         && Objects.equals(connectionSettings, other.connectionSettings)
         && Objects.equals(defaultEventTypes, other.defaultEventTypes)
-        && Objects.equals(skipAutoDisable, other.skipAutoDisable);
+        && Objects.equals(skipAutoDisable, other.skipAutoDisable)
+        && Objects.equals(forwardParamsConfig, other.forwardParamsConfig);
   }
 
   @JsonIgnore
