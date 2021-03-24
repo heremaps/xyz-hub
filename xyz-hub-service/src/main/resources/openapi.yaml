@@ -1324,7 +1324,7 @@ components:
         items:
           type: string
     H3Index:
-      name: h3index
+      name: h3Index
       in: query
       description: >-
         H3 index
