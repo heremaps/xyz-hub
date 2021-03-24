@@ -1295,6 +1295,8 @@ components:
         The available operators are:
           - "=" - equals
           - "!=" - not equals
+          - "=.null" - is null
+          - "!=.null" - is not null
           - ">=" or "=gte=" - greater than or equals
           - "<=" or "=lte=" - less than or equals
           - ">" or "=gt=" - greater than
