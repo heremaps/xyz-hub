@@ -34,6 +34,12 @@
           "PSQL_MAX_CONN": 32
         }
       }
+    },
+    "trusted": true,
+    "forwardParamsConfig": {
+      "cookies": ["here_access", "here_access_st"],
+      "headers": ["AuthorizatioN", "realm"],
+      "queryParams": ["apiKey"]
     }
   },
   {
@@ -249,5 +255,47 @@
       }
     },
     "trusted": true
+  },
+  {
+    "connectionSettings": {
+      "maxConnections": 1024,
+      "minConnections": 0
+    },
+    "defaultEventTypes": null,
+    "id": "evaljs-trusted",
+    "params": {
+      "connectorId" : "evaljs-trusted"
+    },
+    "remoteFunctions": {
+      "local": {
+        "id": "evaljs-trusted",
+        "type": "Embedded",
+        "className": "com.here.xyz.hub.connectors.test.EvalConnector"
+      }
+    },
+    "forwardParamsConfig": {
+      "cookies": ["here_access"],
+      "headers": ["authn", "X-request-id", "custom_header"],
+      "queryParams": ["apiKey"]
+    },
+    "trusted": true
+  },
+  {
+    "connectionSettings": {
+      "maxConnections": 1024,
+      "minConnections": 0
+    },
+    "defaultEventTypes": null,
+    "id": "evaljs-untrusted",
+    "params": {
+      "connectorId" : "evaljs-untrusted"
+    },
+    "remoteFunctions": {
+      "local": {
+        "id": "evaljs-untrusted",
+        "type": "Embedded",
+        "className": "com.here.xyz.hub.connectors.test.EvalConnector"
+      }
+    }
   }
 ]
