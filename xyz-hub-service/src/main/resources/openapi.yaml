@@ -718,6 +718,7 @@ paths:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/Part'
         - $ref: '#/components/parameters/Version'
         - $ref: '#/components/parameters/SkipCache'
         - $ref: '#/components/parameters/Handle'
@@ -1242,6 +1243,19 @@ components:
       description: The page token where the iteration will continue.
       schema:
         type: string
+    Part:
+      name: part
+      in: query
+      description: |
+         Requests disjunct parts of iteration results. List of two integers "part,total". 
+         part=1,4 read as first part out of 4, ... until part=4,4 . 
+    
+         Example: ?part=7,9
+      explode: false
+      schema:
+        type: array
+        items:
+          type: integer
     PrefixId:
       name: prefixId
       in: query
