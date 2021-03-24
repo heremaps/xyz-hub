@@ -118,10 +118,15 @@ public class ConnectorHandler {
       AsyncResult<Connector> ar) {
     Connector c = DatabindCodec.mapper().convertValue(connector, Connector.class);
     DiffMap diffMap = (DiffMap) Patcher.getDifference(new HashMap<>(), asMap(connector));
+
     try {
       //TODO: Do admin validation in ConnectorApi.ConnectorAuthorization
-      validateAdminChanges(context, diffMap);
-      storeConnector(context, handler, marker, ar, c);
+      if (diffMap == null) {
+        handler.handle(Future.failedFuture(new HttpException(BAD_REQUEST, "Connector payload is empty.")));
+      } else {
+        validateAdminChanges(context, diffMap);
+        storeConnector(context, handler, marker, ar, c);
+      }
     } catch (HttpException e) {
       handler.handle(Future.failedFuture(e));
     }
@@ -169,10 +174,14 @@ public class ConnectorHandler {
         DiffMap diffMap = (DiffMap) Patcher.calculateDifferenceOfPartialUpdate(oldConnectorMap, asMap(connector), null, true);
         try {
           //TODO: Do admin validation in ConnectorApi.ConnectorAuthorization
-          validateAdminChanges(context, diffMap);
-          Patcher.patch(oldConnectorMap, diffMap);
-          Connector newHeadConnector = asConnector(marker, oldConnectorMap);
-          storeConnector(context, handler, marker, ar, newHeadConnector);
+          if (diffMap == null) {
+            handler.handle(Future.succeededFuture(oldConnector));
+          } else {
+            validateAdminChanges(context, diffMap);
+            Patcher.patch(oldConnectorMap, diffMap);
+            Connector newHeadConnector = asConnector(marker, oldConnectorMap);
+            storeConnector(context, handler, marker, ar, newHeadConnector);
+          }
         } catch (HttpException e) {
           handler.handle(Future.failedFuture(e));
         }
