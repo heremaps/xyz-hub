@@ -609,7 +609,7 @@ paths:
       description: |
         List the features which are inside the specified radius.
         The origin radius point is calculated based either on latitude & longitude or by
-        specifying a features geometry. As thrid option it is possible to use a H3 index
+        specifying a features geometry. As third option it is possible to use a H3 index
         as input geometry.
       operationId: getFeaturesBySpatial
       parameters:
