@@ -179,6 +179,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                 add("geo");
                 add("tags");
                 add("id");
+                add("viz");
             }};
 
             Statement stmt = connection.createStatement();
@@ -288,10 +289,10 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                         assertEquals("CREATE INDEX idx_foo_tags ON public.foo USING gin (((((jsondata -> 'properties'::text) -> '@ns:com:here:xyz'::text) -> 'tags'::text)))",indexdef);
                         break;
                     case "createdAt" :
-                        assertEquals("CREATE INDEX \"idx_foo_createdAt\" ON public.foo USING btree (((((jsondata -> 'properties'::text) -> '@ns:com:here:xyz'::text) -> 'createdAt'::text)))",indexdef);
+                        assertEquals("CREATE INDEX \"idx_foo_createdAt\" ON public.foo USING btree (((((jsondata -> 'properties'::text) -> '@ns:com:here:xyz'::text) -> 'createdAt'::text)), ((jsondata ->> 'id'::text)))",indexdef);
                         break;
                     case "updatedAt" :
-                        assertEquals("CREATE INDEX \"idx_foo_updatedAt\" ON public.foo USING btree (((((jsondata -> 'properties'::text) -> '@ns:com:here:xyz'::text) -> 'updatedAt'::text)))",indexdef);
+                        assertEquals("CREATE INDEX \"idx_foo_updatedAt\" ON public.foo USING btree (((((jsondata -> 'properties'::text) -> '@ns:com:here:xyz'::text) -> 'updatedAt'::text)), ((jsondata ->> 'id'::text)))",indexdef);
                         break;
                 }
             }
