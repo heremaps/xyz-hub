@@ -837,7 +837,7 @@ $BODY$
 			idx_type = 'GIN';
 		END IF;
 
-        IF propkey = 'f.geometryType' THEN
+        IF propkey = 'f.geometry.type' THEN
             /** special handling for geometryType */
             EXECUTE format('CREATE INDEX "%s" '
                 ||'ON %s."%s" '

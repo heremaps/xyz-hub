@@ -100,7 +100,9 @@
       "properties": {
         "foo": 1,
         "description" : "Point",
-        "geometryType" : "onPropertyLevel"
+        "geometry" : {
+          "type" : "onPropertyLevel"
+        }
       },
       "geometry": {
         "type": "Point",
