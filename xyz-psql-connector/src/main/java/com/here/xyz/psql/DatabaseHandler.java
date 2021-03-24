@@ -1366,7 +1366,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             String schema = getSchema(pdsIdt);  // config.schema();
             QueryRunner runner = new QueryRunner();
             try {
-                //runner.execute(c, "SET enable_seqscan = off;");
+                runner.execute(c, "SET enable_seqscan = off;");
                 runner.execute(c, "SET statement_timeout = " + (STATEMENT_TIMEOUT_SECONDS * 1000) + " ;");
                 runner.execute(c, "SET search_path=" + schema + ",h3,public,topology;");
             } catch (SQLException e) {
