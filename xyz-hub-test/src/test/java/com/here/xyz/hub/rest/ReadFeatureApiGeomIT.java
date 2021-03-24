@@ -69,7 +69,7 @@ public class ReadFeatureApiGeomIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/search?f.geometryType=point").
+            get("/spaces/x-psql-test/search?f.geometry.type=point").
             then().
             statusCode(OK.code()).
             body("features.size()", equalTo(3));
@@ -77,7 +77,7 @@ public class ReadFeatureApiGeomIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/search?f.geometryType=multipoint").
+            get("/spaces/x-psql-test/search?f.geometry.type=multipoint").
             then().
             statusCode(OK.code()).
             body("features.size()", equalTo(1));
@@ -85,7 +85,7 @@ public class ReadFeatureApiGeomIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/search?f.geometryType=linestring").
+            get("/spaces/x-psql-test/search?f.geometry.type=linestring").
             then().
             statusCode(OK.code()).
             body("features.size()", equalTo(2));
@@ -93,7 +93,7 @@ public class ReadFeatureApiGeomIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/search?f.geometryType=multilinestring").
+            get("/spaces/x-psql-test/search?f.geometry.type=multilinestring").
             then().
             statusCode(OK.code()).
             body("features.size()", equalTo(1));
@@ -101,7 +101,7 @@ public class ReadFeatureApiGeomIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/search?f.geometryType=polygon").
+            get("/spaces/x-psql-test/search?f.geometry.type=polygon").
             then().
             statusCode(OK.code()).
             body("features.size()", equalTo(2));
@@ -109,7 +109,7 @@ public class ReadFeatureApiGeomIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/search?f.geometryType=multipolygon").
+            get("/spaces/x-psql-test/search?f.geometry.type=multipolygon").
             then().
             statusCode(OK.code()).
             body("features.size()", equalTo(1));
@@ -122,7 +122,7 @@ public class ReadFeatureApiGeomIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/search?f.geometryType=point&p.foo=1").
+            get("/spaces/x-psql-test/search?f.geometry.type=point&p.foo=1").
             then().
             statusCode(OK.code()).
             body("features.size()", equalTo(2));
@@ -130,7 +130,7 @@ public class ReadFeatureApiGeomIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/search?f.geometryType=polygon&p.foo=1").
+            get("/spaces/x-psql-test/search?f.geometry.type=polygon&p.foo=1").
             then().
             statusCode(OK.code()).
             body("features.size()", equalTo(1));
@@ -138,7 +138,7 @@ public class ReadFeatureApiGeomIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/search?f.geometryType=MULTIPOLYGON&p.foo=1&p.description=MultiPolygon").
+            get("/spaces/x-psql-test/search?f.geometry.type=MULTIPOLYGON&p.foo=1&p.description=MultiPolygon").
             then().
             statusCode(OK.code()).
             body("features.size()", equalTo(1));
@@ -146,7 +146,7 @@ public class ReadFeatureApiGeomIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/search?f.geometryType=polygon&p.foo=3").
+            get("/spaces/x-psql-test/search?f.geometry.type=polygon&p.foo=3").
             then().
             statusCode(OK.code()).
             body("features.size()", equalTo(0));
@@ -158,7 +158,7 @@ public class ReadFeatureApiGeomIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/search?p.geometryType=onPropertyLevel").
+            get("/spaces/x-psql-test/search?p.geometry.type=onPropertyLevel").
             then().
             statusCode(OK.code()).
             body("features.size()", equalTo(1));
@@ -166,7 +166,7 @@ public class ReadFeatureApiGeomIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/search?f.geometryType=point&p.geometryType=onPropertyLevel").
+            get("/spaces/x-psql-test/search?f.geometry.type=point&p.geometry.type=onPropertyLevel").
             then().
             statusCode(OK.code()).
             body("features.size()", equalTo(1));
@@ -174,7 +174,7 @@ public class ReadFeatureApiGeomIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/search?f.geometryType=polygon&p.geometryType=onPropertyLevel").
+            get("/spaces/x-psql-test/search?f.geometry.type=polygon&p.geometry.type=onPropertyLevel").
             then().
             statusCode(OK.code()).
             body("features.size()", equalTo(0));
@@ -182,7 +182,7 @@ public class ReadFeatureApiGeomIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/search?f.geometryType=.null&p.geometryType=onPropertyLevel").
+            get("/spaces/x-psql-test/search?f.geometry.type=.null&p.geometry.type=onPropertyLevel").
             then().
             statusCode(OK.code()).
             body("features.size()", equalTo(0));
@@ -194,7 +194,7 @@ public class ReadFeatureApiGeomIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/search?f.geometryType=.null"). //&p.foo=1
+            get("/spaces/x-psql-test/search?f.geometry.type=.null"). //&p.foo=1
             then().
             statusCode(OK.code()).
             body("features.size()", equalTo(1));
@@ -202,7 +202,7 @@ public class ReadFeatureApiGeomIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/search?f.geometryType=.null&p.foo=1").
+            get("/spaces/x-psql-test/search?f.geometry.type=.null&p.foo=1").
             then().
             statusCode(OK.code()).
             body("features.size()", equalTo(1));
@@ -210,7 +210,7 @@ public class ReadFeatureApiGeomIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/search?f.geometryType=.null&p.foo=2").
+            get("/spaces/x-psql-test/search?f.geometry.type=.null&p.foo=2").
             then().
             statusCode(OK.code()).
             body("features.size()", equalTo(0));
@@ -222,7 +222,7 @@ public class ReadFeatureApiGeomIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/search?f.geometryType!=.null"). //&p.foo=1
+            get("/spaces/x-psql-test/search?f.geometry.type!=.null"). //&p.foo=1
             then().
             statusCode(OK.code()).
             body("features.size()", equalTo(10));
@@ -230,7 +230,7 @@ public class ReadFeatureApiGeomIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/search?f.geometryType!=.null&p.foo=1").
+            get("/spaces/x-psql-test/search?f.geometry.type!=.null&p.foo=1").
             then().
             statusCode(OK.code()).
             body("features.size()", equalTo(8));
@@ -238,7 +238,7 @@ public class ReadFeatureApiGeomIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/search?f.geometryType!=.null&p.foo!=2").
+            get("/spaces/x-psql-test/search?f.geometry.type!=.null&p.foo!=2").
             then().
             statusCode(OK.code()).
             body("features.size()", equalTo(8));

@@ -239,7 +239,7 @@ public class SQLQuery {
     String[] results = key.split("\\.");
 
     /** special handling on geometry column */
-    if(results[0].equalsIgnoreCase("geometryType")) {
+    if(results.length == 2 && results[0].equalsIgnoreCase("geometry") && results[1].equalsIgnoreCase("type")) {
         return new SQLQuery("GeometryType(geo) ");
     }
 
@@ -251,7 +251,7 @@ public class SQLQuery {
     if(op.equals(PropertyQuery.QueryOperation.IS_NULL) || op.equals(PropertyQuery.QueryOperation.IS_NOT_NULL))
       return null;
 
-    if(key.equalsIgnoreCase("geometryType")){
+    if(key.equalsIgnoreCase("geometry.type")){
         return "upper(?::text)";
     }
 

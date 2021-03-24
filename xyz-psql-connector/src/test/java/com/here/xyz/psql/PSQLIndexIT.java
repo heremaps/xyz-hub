@@ -226,7 +226,11 @@ public class PSQLIndexIT extends PSQLAbstractIT {
             put("foo2::array",true);
             put("foo.nested",true);
             put("f.fooroot",true);
+            put("f.geometry.type",true);
         }};
+
+        /** Increase to 5 allowed Indices */
+        connectorParams.put(ConnectorParameters.ON_DEMAND_IDX_LIMIT, 5);
 
         ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent().withSpace("foo")
                 .withOperation(ModifySpaceEvent.Operation.UPDATE)
@@ -265,8 +269,11 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                     case "foo.nested" :
                         assertEquals("CREATE INDEX "+idx_name+" ON public.foo USING btree (((((jsondata -> 'properties'::text) -> 'foo'::text) -> 'nested'::text)))",indexdef);
                         break;
-                    case "foo.root" :
-                        assertEquals("CREATE INDEX "+indexdef+" ON public.foo USING btree ((((jsondata -> 'f'::text) -> 'fooroot'::text)))",indexdef);
+                    case "f.fooroot" :
+                        assertEquals("CREATE INDEX "+idx_name+" ON public.foo USING btree ((((jsondata -> 'f'::text) -> 'fooroot'::text)))",indexdef);
+                        break;
+                    case "f.geometry.type" :
+                        assertEquals("CREATE INDEX "+idx_name+" ON public.foo USING btree (geometrytype(geo))",indexdef);
                         break;
                     case "id" :
                         assertEquals("CREATE UNIQUE INDEX idx_foo_id ON public.foo USING btree (((jsondata ->> 'id'::text)))",indexdef);
