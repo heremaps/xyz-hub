@@ -226,10 +226,6 @@ public class SQLQuery {
         return ">=";
       case CONTAINS:
         return "@>";
-      case IS_NULL:
-        return "IS NULL";
-      case IS_NOT_NULL:
-        return "IS NOT NULL";
     }
 
     return "";
@@ -248,12 +244,12 @@ public class SQLQuery {
   }
 
   protected static String getValue(Object value, PropertyQuery.QueryOperation op, String key) {
-    if(op.equals(PropertyQuery.QueryOperation.IS_NULL) || op.equals(PropertyQuery.QueryOperation.IS_NOT_NULL))
-      return null;
-
     if(key.equalsIgnoreCase("geometry.type")){
         return "upper(?::text)";
     }
+
+    if(value == null)
+      return null;
 
     /** The ID is indexed as text */
     if(key.equalsIgnoreCase("id"))

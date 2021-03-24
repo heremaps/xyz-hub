@@ -66,6 +66,9 @@ public class ApiParam {
       return rawValue.substring(1, rawValue.length() - 1);
     }
 
+    if(rawValue.equalsIgnoreCase(".null"))
+      return null;
+
     // String
     return rawValue;
   }
@@ -164,8 +167,6 @@ public class ApiParam {
     static final String PAGE_TOKEN = "pageToken";
 
     private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{
-      put("=.null", QueryOperation.IS_NULL);
-      put("!=.null", QueryOperation.IS_NOT_NULL);
       put("!=", QueryOperation.NOT_EQUALS);
       put(">=", QueryOperation.GREATER_THAN_OR_EQUALS);
       put("=gte=", QueryOperation.GREATER_THAN_OR_EQUALS);
@@ -356,10 +357,6 @@ public class ApiParam {
 
                 ArrayList<Object> values = new ArrayList<>();
                 for (String rawValue : rawValues) {
-                  /** Handling of Null Values outside from getConvertedValue() to be able to support "" string queries */
-                  if(propertyQuery.getOperation().equals(QueryOperation.IS_NULL) || propertyQuery.getOperation().equals(QueryOperation.IS_NOT_NULL))
-                    values.add(null);
-                  else
                     values.add(getConvertedValue(rawValue));
                 }
                 propertyQuery.setValues(values);

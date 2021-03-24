@@ -36,6 +36,7 @@ import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.SearchForFeaturesOrderByEvent;
 import com.here.xyz.events.TagList;
 import com.here.xyz.events.TagsQuery;
+import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
@@ -866,17 +867,24 @@ public class SQLQueryBuilder {
                 // List with OR combined statements for one property key
                 final List<SQLQuery> keyDisjunctionQueries = new ArrayList<>();
                 propertyQuery.getValues().forEach(v -> {
-                    String value = SQLQuery.getValue(v, propertyQuery.getOperation(), propertyQuery.getKey());
+                    final String psqlOperation;
+                    PropertyQuery.QueryOperation op = propertyQuery.getOperation();
 
-                    // Remove operation "=" in case a IS (NOT) NULL query came into. I this case we do not need an operator.
-                    String operation = SQLQuery.getOperation(propertyQuery.getOperation());
-
+                    String value = SQLQuery.getValue(v, op, propertyQuery.getKey());
                     SQLQuery q = SQLQuery.createKey(propertyQuery.getKey());
 
-                    if(value == null){
-                        q.append(new SQLQuery(operation));
-                    }else
-                        q.append(new SQLQuery(operation + (value == null ? "" : value), v));
+                    if(v == null){
+                        if(op.equals(PropertyQuery.QueryOperation.NOT_EQUALS))
+                            psqlOperation = "IS NOT NULL";
+                        else {
+                            //Overrides all operations e.g: p.foo=lte=.null => p.foo=.null
+                            psqlOperation = "IS NULL";
+                        }
+                        q.append(new SQLQuery(psqlOperation));
+                    }else{
+                        psqlOperation = SQLQuery.getOperation(op);
+                        q.append(new SQLQuery(psqlOperation + (value == null ? "" : value), v));
+                    }
                     keyDisjunctionQueries.add(q);
                 });
                 conjunctionQueries.add(SQLQuery.join(keyDisjunctionQueries, "OR", true));
