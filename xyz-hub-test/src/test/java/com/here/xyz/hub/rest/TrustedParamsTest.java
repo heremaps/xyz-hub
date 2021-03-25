@@ -13,6 +13,7 @@ import org.junit.Test;
 public class TrustedParamsTest extends TestWithSpaceCleanup {
 
   static final Map<String, String> exampleHeaders = new HashMap<String, String>() {{
+    putAll(getAuthHeaders(AuthProfile.ACCESS_ALL));
     put("AuthN", "bearer abc");
     put("never", "none");
     put("X-request-ID", "REQ-123-456");
