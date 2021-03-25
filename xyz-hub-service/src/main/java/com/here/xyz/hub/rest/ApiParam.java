@@ -114,6 +114,7 @@ public class ApiParam {
     static final String TAGS = "tags";
     static final String SELECTION = "selection";
     static final String SORT = "sort";
+    static final String PART = "part";
     static final String IF_EXISTS = "e";
     static final String IF_NOT_EXISTS = "ne";
     static final String TRANSACTIONAL = "transactional";
@@ -279,6 +280,23 @@ public class ApiParam {
 
       return sort;
     }
+
+    public static Integer[] getPart(RoutingContext context) {
+      if (Query.getString(context, Query.PART, null) == null) return null;
+
+      int part, total;
+      List<String> l = Query.queryParam(Query.PART, context);
+      if( l.size() == 2 ) 
+       try
+       { part  =  Integer.parseUnsignedInt( l.get(0) );
+         total =  Integer.parseUnsignedInt( l.get(1) );
+         return ( part == 0 || total == 0 ) ? null : new Integer[]{ Math.min(part, total), Math.max(part,total) };
+       }
+       catch(NumberFormatException e){}
+      
+      return null;
+    }
+
 
 
     /**

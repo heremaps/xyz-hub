@@ -108,8 +108,7 @@ public class IterateSortSQL {
      if(!s.startsWith("id"))
       sqlWhereContinuation += String.format(" and %s = ('%s'::jsonb)->'%s'", jpathFromSortProperty(s), jo.toString() ,hkey );
      else
-     { sqlWhereContinuation += " and 1 = 1"; 
-       sortbyIdUseCase = true;
+     { sortbyIdUseCase = true;
        break;
      } 
    }
@@ -154,11 +153,13 @@ public class IterateSortSQL {
       + "from dt s join ${schema}.${table} d on ( s.i = d.i ) "
       + "order by s.ord1, s.ord2 ";
 
+  public static String pg_hint_plan = "/*+ IndexOnlyScan( ht1  ) */";
+
   private static String partialSortedIterate = 
         " ("
       + "  select %1$d::integer as ord1, row_number() over () ord2, i " 
       + "  from " 
-      + "  ( select i from ${schema}.${table} "
+      + "  ( select i from ${schema}.${table} ht1 "
       + "    where 1 = 1 "
       + "    ##_SEARCHQRY_## "
       + "    %2$s "  // continuation sql
@@ -167,11 +168,11 @@ public class IterateSortSQL {
       + "  ) inr " 
       + " ) "; 
 
-  public static SQLQuery innerSortedQry(SQLQuery searchQuery, List<String> sortby, String handle, long limit) {
-    boolean useHandle = (handle != null) ;
+  public static SQLQuery innerSortedQry(SQLQuery searchQuery, List<String> sortby, Integer[] part, String handle, long limit) {
+   boolean useHandle = (handle != null) ;
 
-    if( useHandle ) 
-     sortby = convHandle2sortbyList(handle);
+   if( useHandle ) 
+    sortby = convHandle2sortbyList(handle);
     
    String orderByClause = buildOrderByClause(sortby),
           partialSQL = "";
@@ -185,18 +186,24 @@ public class IterateSortSQL {
      partialSQL += String.format(" %s %s", (partialSQL.length() > 0 ? " union all " : "") , String.format( partialSortedIterate, i, continuationWhereClause.get(i), orderByClause, limit ) );
    } 
 
-   String[] parts = partialSQL.split("##_SEARCHQRY_##");
+   String[] wrappedSql = partialSQL.split("##_SEARCHQRY_##");
 
-   SQLQuery partialQry = new SQLQuery();
+   SQLQuery wrappedQry = new SQLQuery();
+
+   if( part != null && part.length == 2 && part[1] > 1 )
+   { String partitionSql = String.format(" %s (( i %% %d ) = %d) ",searchQuery == null ? "" : "and", part[1], (part[0] - 1));
+     if( searchQuery == null ) searchQuery = new SQLQuery();
+     searchQuery.append(partitionSql); 
+   } 
 
    if( searchQuery == null )
-    partialQry.append( String.join("",parts) );
+    wrappedQry.append( String.join("",wrappedSql) );
    else
-    for( int i = 0; i < parts.length; i++ ) 
-    { partialQry.append(parts[i]);
-      if( i < parts.length - 1 ) 
-      { partialQry.append( " and " );
-        partialQry.append( searchQuery );
+    for( int i = 0; i < wrappedSql.length; i++ ) 
+    { wrappedQry.append(wrappedSql[i]);
+      if( i < wrappedSql.length - 1 ) 
+      { wrappedQry.append( " and " );
+        wrappedQry.append( searchQuery );
       }  
     }
 
@@ -206,7 +213,7 @@ public class IterateSortSQL {
    String[] outs = outerSQL.split("##_INNER_SEARCH_QRY_##");
 
    SQLQuery innerQry = new SQLQuery( outs[0] );
-   innerQry.append( partialQry );
+   innerQry.append( wrappedQry );
    innerQry.append( outs[1]);
           
    return innerQry;

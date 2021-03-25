@@ -623,9 +623,9 @@ public class SQLQueryBuilder {
     {
         SQLQuery searchQuery = generateSearchQuery(event, dataSource);
 
-        SQLQuery innerQry = IterateSortSQL.innerSortedQry(searchQuery, event.getSort(), event.getHandle(), event.getLimit());
+        SQLQuery innerQry = IterateSortSQL.innerSortedQry(searchQuery, event.getSort(), event.getPart(), event.getHandle(), event.getLimit());
 
-        final SQLQuery query = new SQLQuery("select");
+        final SQLQuery query = new SQLQuery( String.format("%s select",IterateSortSQL.pg_hint_plan));
         query.append(SQLQuery.selectJson(event.getSelection(), dataSource));
         query.append(", replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "(geo)," + GEOMETRY_DECIMAL_DIGITS + "),'nan','0'), nxthandle from ( ");
         query.append(innerQry);
