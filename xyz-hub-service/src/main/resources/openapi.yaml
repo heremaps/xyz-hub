@@ -1247,7 +1247,7 @@ components:
       name: part
       in: query
       description: |
-         Requests disjunct parts of iteration results. List of two integers "part,total". 
+         Requests disjunct parts of iteration results (used with sort). List of two integers "part,total". 
          part=1,4 read as first part out of 4, ... until part=4,4 . 
     
          Example: ?part=7,9
