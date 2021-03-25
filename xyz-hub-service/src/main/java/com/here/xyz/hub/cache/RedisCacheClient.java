@@ -26,7 +26,6 @@ import io.vertx.redis.client.Command;
 import io.vertx.redis.client.Redis;
 import io.vertx.redis.client.RedisOptions;
 import io.vertx.redis.client.Request;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -47,7 +46,7 @@ public class RedisCacheClient implements CacheClient {
               .setConnectTimeout(2000));
 
       //Use redis auth token when available
-      if (!StringUtils.isEmpty(Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN))
+      if (Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN != null)
         config.setPassword(Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN);
 
       return Redis.createClient(Service.vertx, config);
