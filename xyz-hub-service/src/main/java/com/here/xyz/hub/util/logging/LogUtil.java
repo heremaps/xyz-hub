@@ -113,6 +113,7 @@ public class LogUtil {
     accessLog.respInfo.statusMsg = context.response().getStatusMessage();
     accessLog.respInfo.size = context.response().bytesWritten();
     accessLog.respInfo.streamInfo = context.response().headers().get(STREAM_INFO);
+    accessLog.respInfo.contentType = context.response().headers().get(CONTENT_TYPE);
 
     final JWTPayload tokenPayload = Api.Context.getJWT(context);
     if (tokenPayload != null) {
