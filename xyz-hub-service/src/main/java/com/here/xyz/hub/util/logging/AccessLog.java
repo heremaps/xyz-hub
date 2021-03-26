@@ -87,6 +87,7 @@ public class AccessLog extends AccessLogExtended {
     public String statusMsg;
     public long size;
     public String streamInfo;
+    public String contentType;
   }
 
   @JsonInclude(Include.ALWAYS)
