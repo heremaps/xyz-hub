@@ -20,7 +20,7 @@
 package com.here.xyz.hub.util.logging;
 
 import static com.google.common.net.HttpHeaders.X_FORWARDED_FOR;
-import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_INFO;
+import static com.here.xyz.hub.XYZHubRESTVerticle.STREAM_INFO_CTX_KEY;
 import static io.vertx.core.http.HttpHeaders.ACCEPT;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 import static io.vertx.core.http.HttpHeaders.ORIGIN;
@@ -112,7 +112,7 @@ public class LogUtil {
     accessLog.respInfo.statusCode = context.response().getStatusCode();
     accessLog.respInfo.statusMsg = context.response().getStatusMessage();
     accessLog.respInfo.size = context.response().bytesWritten();
-    accessLog.respInfo.streamInfo = context.response().headers().get(STREAM_INFO);
+    accessLog.respInfo.streamInfo = context.get(STREAM_INFO_CTX_KEY);
     accessLog.respInfo.contentType = context.response().headers().get(CONTENT_TYPE);
 
     final JWTPayload tokenPayload = Api.Context.getJWT(context);

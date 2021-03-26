@@ -59,6 +59,8 @@ import io.vertx.ext.web.handler.impl.HttpStatusException;
 import io.vertx.ext.web.validation.BadRequestException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -74,6 +76,7 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
       .setTcpFastOpen(true)
       .setMaxInitialLineLength(16 * 1024)
       .setIdleTimeout(300);
+  public static final String STREAM_INFO_CTX_KEY = "streamInfo";
 
   private static final Logger logger = LogManager.getLogger();
   /**
@@ -189,8 +192,20 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
       LogUtil.addRequestInfo(context);
       context.response().putHeader(STREAM_ID, context.request().getHeader(STREAM_ID));
       context.response().endHandler(ar -> onResponseEnd(context));
+      context.addHeadersEndHandler(v -> headersEndHandler(context));
       context.next();
     };
+  }
+
+  protected static void headersEndHandler(RoutingContext context) {
+    Map<String, Object> streamInfo;
+    if (context != null && (streamInfo = context.get(STREAM_INFO_CTX_KEY)) != null) {
+      String streamInfoValues = "";
+      for (Entry<String, Object> e : streamInfo.entrySet())
+        streamInfoValues += e.getKey() + "=" + e.getValue() + ";";
+
+      context.response().putHeader(STREAM_INFO, streamInfoValues);
+    }
   }
 
   /**
