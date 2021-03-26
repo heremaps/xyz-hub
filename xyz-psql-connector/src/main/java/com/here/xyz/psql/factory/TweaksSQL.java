@@ -106,7 +106,7 @@ public class TweaksSQL
   private static String _mergeEndSql = 
     "   ) o "
    +"  ) oo "
-   +"  group by gh, gsz"
+   +"  group by gsz, gh"
    +" ) ooo "
    +") oooo "
    +"where 1 = 1 "
@@ -114,7 +114,8 @@ public class TweaksSQL
    
 
   public static String mergeEndSql(boolean bGeojson)
-  {  return _mergeEndSql + "and " + ( bGeojson ? "geo->>'type' != 'GeometryCollection' " : "geometrytype(geo) != 'GEOMETRYCOLLECTION'" );  }
+  {  return _mergeEndSql + "and " + ( bGeojson ? "geo->>'type' != 'GeometryCollection' and jsonb_array_length(geo->'coordinates') > 0 " 
+                                               : "geometrytype(geo) != 'GEOMETRYCOLLECTION' and not st_isempty(geo) " );  }
   
   public static String linemergeBeginSql = 
     "with "
