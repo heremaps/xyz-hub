@@ -27,6 +27,7 @@ import com.here.xyz.XyzSerializable;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.Map;
 
 @JsonInclude(Include.ALWAYS)
 public class AccessLog extends AccessLogExtended {
@@ -86,7 +87,7 @@ public class AccessLog extends AccessLogExtended {
     public long statusCode;
     public String statusMsg;
     public long size;
-    public String streamInfo;
+    public Map<String, Object> streamInfo;
     public String contentType;
   }
 
