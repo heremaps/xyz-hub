@@ -1,3 +1,22 @@
+/*
+ * Copyright (C) 2017-2021 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 package com.here.xyz.hub.task;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
@@ -73,18 +92,16 @@ public class ConnectorHandler {
       });
     });
 
-    CompletableFuture.allOf(completableFutureList.toArray(new CompletableFuture[completableFutureList.size()]))
+    CompletableFuture.allOf(completableFutureList.toArray(new CompletableFuture[0]))
         .exceptionally(getConnectorEx -> {
           HttpException ex = (HttpException) getConnectorEx.getCause();
           handler.handle(Future.failedFuture(ex));
           return null;
         })
-        .thenRun(() -> {
-          handler.handle(Future.succeededFuture(completableFutureList
-              .stream()
-              .map(cf -> cf.join())
-              .collect(Collectors.toList())));
-        });
+        .thenRun(() -> handler.handle(Future.succeededFuture(completableFutureList
+            .stream()
+            .map(CompletableFuture::join)
+            .collect(Collectors.toList()))));
   }
 
   public static void getConnectors(RoutingContext context, String ownerId, Handler<AsyncResult<List<Connector>>> handler) {
@@ -231,7 +248,7 @@ public class ConnectorHandler {
 
   //TODO: Move to ConnectorApi.ConnectorAuthorization
   private static void checkParameterChange(Difference diff, String parameterName, Object expected) throws HttpException {
-    if (diff != null && diff instanceof Primitive) {
+    if (diff instanceof Primitive) {
       Primitive prim = (Primitive) diff;
       if (prim.newValue() != null && !prim.newValue().equals(expected)) throw new HttpException(FORBIDDEN, "The property '" + parameterName + "' can not be changed manually.");
     }

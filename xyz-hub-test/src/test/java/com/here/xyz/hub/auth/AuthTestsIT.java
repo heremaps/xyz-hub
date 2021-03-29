@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -265,6 +265,59 @@ public class AuthTestsIT extends RestAssuredTest {
 
     updateSpaceStorage("psql", AuthProfile.STORAGE_AUTH_TEST_PSQL_ONLY)
         .statusCode(OK.code());
+  }
+
+  @Test
+  public void createSpaceStorageOwnerAndConnectorId() {
+    // Owner matches, ID does not
+    createSpace("/xyz/hub/auth/createTestStorageSpaceC2.json", AuthProfile.STORAGE_AUTH_TEST_C3_OWNER_AND_ID)
+            .statusCode(FORBIDDEN.code());
+    // Owner does not match, ID does
+    createSpace("/xyz/hub/auth/createTestStorageSpaceC2.json", AuthProfile.STORAGE_AUTH_TEST_C2_OTHER_OWNER_AND_ID)
+            .statusCode(FORBIDDEN.code());
+    // Owner and ID do not match
+    createSpace("/xyz/hub/auth/createTestStorageSpaceC3.json", AuthProfile.STORAGE_AUTH_TEST_C3_OTHER_OWNER_AND_ID)
+            .statusCode(FORBIDDEN.code());
+    // Owner and ID matches
+    createSpace("/xyz/hub/auth/createTestStorageSpaceC2.json", AuthProfile.STORAGE_AUTH_TEST_C2_OWNER_AND_ID)
+            .statusCode(OK.code());
+  }
+
+  @Test
+  public void createSpaceStorageOwnerAndConnectorIdLegacy() {
+    // Owner not set in connector, IDs match
+    createSpace("/xyz/hub/auth/createTestStorageSpace.json", AuthProfile.STORAGE_AUTH_TEST_C1_OWNER_AND_ID)
+            .statusCode(FORBIDDEN.code());
+    // Owner not set in connector, IDs do not match
+    createSpace("/xyz/hub/auth/createTestStorageSpaceC4.json", AuthProfile.STORAGE_AUTH_TEST_C1_OWNER_AND_ID)
+            .statusCode(FORBIDDEN.code());
+  }
+
+  @Test
+  public void createSpaceStorageOwnerNoConnectorId() {
+    // Owner set in connector, Owners do not match
+    createSpace("/xyz/hub/auth/createTestStorageSpaceC2.json", AuthProfile.STORAGE_AUTH_TEST_OTHER_OWNER_ID_ONLY)
+            .statusCode(FORBIDDEN.code());
+    // Owner set in connector, Owner IDs match
+    createSpace("/xyz/hub/auth/createTestStorageSpaceC2.json", AuthProfile.STORAGE_AUTH_TEST_OWNER_ID_ONLY)
+            .statusCode(OK.code());
+  }
+
+  @Test
+  public void createSpaceStorageNoOwnerId() {
+    // Connector do not IDs match, Connector has no ownerId
+    createSpace("/xyz/hub/auth/createTestStorageSpace.json", AuthProfile.STORAGE_AUTH_TEST_PSQL_ONLY)
+            .statusCode(FORBIDDEN.code());
+    // Connector do not IDs match, Connector has ownerId
+    createSpace("/xyz/hub/auth/createTestStorageSpaceC2.json", AuthProfile.STORAGE_AUTH_TEST_PSQL_ONLY)
+            .statusCode(FORBIDDEN.code());
+    // Connector IDs match, Connector has ownerId
+    createSpace("/xyz/hub/auth/createTestStorageSpaceC2.json", AuthProfile.STORAGE_AUTH_TEST_C1_ONLY)
+            .statusCode(FORBIDDEN.code());
+    // Connector IDs match, Connector has no ownerId
+    createSpace("/xyz/hub/auth/createTestStorageSpace.json", AuthProfile.STORAGE_AUTH_TEST_C1_ONLY)
+            .statusCode(OK.code());
+
   }
 
   @Test
