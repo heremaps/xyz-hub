@@ -102,6 +102,21 @@ public class BurstAndUpdateThread extends Thread {
         continue;
       }
 
+      Connector newConnector = connectorMap.get(oldConnector.id);
+      if (newConnector != null && !newConnector.skipAutoDisable
+          && !Service.configuration.DEFAULT_STORAGE_ID.equals(oldConnector.id)) {
+        RemoteFunctionHealthCheck rfcHc = HealthApi.rfcHcAggregator.getRfcHealthCheck(oldConnector.id);
+        if (rfcHc != null) {
+          //When the connector is responding with unhealthy status, disable it momentarily, until next BurstAndUpdateThread round.
+          int consecutiveErrors = rfcHc.getConsecutiveErrors();
+          if (consecutiveErrors >= CONNECTOR_UNHEALTHY_THRESHOLD) {
+            logger.warn("For connector {} there are {} unhealthy health-checks. Max threshold is {}.", oldConnector.id,
+                consecutiveErrors, CONNECTOR_UNHEALTHY_THRESHOLD);
+            connectorMap.remove(oldConnector.id);
+          }
+        }
+      }
+
       if (!connectorMap.containsKey(oldConnector.id)) {
         //Client needs to be destroyed, the connector configuration with the given ID has been removed.
         try {
@@ -114,21 +129,6 @@ public class BurstAndUpdateThread extends Thread {
         continue;
       }
 
-      if (!connectorMap.get(oldConnector.id).skipAutoDisable && !Service.configuration.DEFAULT_STORAGE_ID.equals(oldConnector.id)) {
-        RemoteFunctionHealthCheck rfcHc = HealthApi.rfcHcAggregator.getRfcHealthCheck(oldConnector.id);
-        if (rfcHc != null) {
-          //When the connector is responding with unhealthy status, disable it momentarily, until next BurstAndUpdateThread round.
-          int consecutiveErrors = rfcHc.getConsecutiveErrors();
-          if (consecutiveErrors >= CONNECTOR_UNHEALTHY_THRESHOLD) {
-            logger.warn("For connector {} there are {} unhealthy health-checks. Max threshold is {}.", oldConnector.id,
-                consecutiveErrors, CONNECTOR_UNHEALTHY_THRESHOLD);
-            connectorMap.remove(oldConnector.id);
-            continue;
-          }
-        }
-      }
-
-      Connector newConnector = connectorMap.get(oldConnector.id);
       if (!oldConnector.equalTo(newConnector)) {
         try {
           //Update the connector configuration of the client
