@@ -70,7 +70,6 @@ public class RedisHealthCheck extends ExecutableCheck {
 		}
 		catch (Throwable t) {
       setResponse(r.withMessage("Error when trying to set the sample health check record."));
-			resetClient();
 			return s.withResult(ERROR);
 		}
 
@@ -86,7 +85,6 @@ public class RedisHealthCheck extends ExecutableCheck {
 		}
 		catch (Throwable t) {
       setResponse(r.withMessage("Error when trying to get the sample health check record back."));
-			resetClient();
 			return s.withResult(ERROR);
 		}
 		try {
@@ -94,7 +92,6 @@ public class RedisHealthCheck extends ExecutableCheck {
 				this.wait(timeout);
 			}
 		} catch (InterruptedException e) {
-			resetClient();
 			return s.withResult(UNKNOWN);
 		}
 		if (Arrays.equals(HC_CACHE_VALUE, lastReceivedValue)) {
@@ -102,16 +99,6 @@ public class RedisHealthCheck extends ExecutableCheck {
 			return s.withResult(OK);
 		}
 		setResponse(r.withMessage("Wasn't able to retrieve the sample health check record back correctly."));
-		resetClient();
 		return s.withResult(CRITICAL);
 	}
-
-	/**
-	 * Resets the client when it might be that the connection needs to be re-established
-	 */
-	private void resetClient() {
-		client.shutdown();
-		client = null;
-	}
-
 }
