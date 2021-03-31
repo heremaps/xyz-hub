@@ -942,4 +942,70 @@ public class AuthTestsIT extends RestAssuredTest {
         .statusCode(OK.code())
         .body("id", notNullValue());
   }
+
+  @Test
+  public void patchSpaceWithNewListener() {
+    cleanUpId = createSpace("/xyz/hub/auth/createSpaceWithListenersObject.json", AuthProfile.ACCESS_ALL)
+        .statusCode(OK.code())
+        .extract()
+        .path("id");
+
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_LISTENER))
+        .body("{\"listeners\":{\"listener-test\": [{\"eventTypes\": [\"GetFeaturesByIdEvent.request\"], \"params\": {\"none\": true}}]}}")
+        .when()
+        .patch("/spaces/" + cleanUpId)
+        .then()
+        .statusCode(OK.code())
+        .body("listeners.another-listener", is(notNullValue()))
+        .body("listeners.listener-test", is(notNullValue()));
+  }
+
+  @Test
+  public void patchSpaceWithUnmodifiedListener() {
+    cleanUpId = createSpace("/xyz/hub/auth/createSpaceWithListenersObject.json", AuthProfile.ACCESS_ALL)
+        .statusCode(OK.code())
+        .extract()
+        .path("id");
+
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_LISTENER))
+        .body("{\"listeners\":{\"another-listener\": [{\"eventTypes\": [\"GetFeaturesByIdEvent.request\"], \"params\": {\"someSpaceSpecificParamForTheConnector\": \"some value\"}}]}}")
+        .when()
+        .patch("/spaces/" + cleanUpId)
+        .then()
+        .statusCode(OK.code())
+        .body("listeners.another-listener", is(notNullValue()));
+  }
+
+  @Test
+  public void patchSpaceWithModifiedListener() {
+    cleanUpId = createSpace("/xyz/hub/auth/createSpaceWithListenersObject.json", AuthProfile.ACCESS_ALL)
+        .statusCode(OK.code())
+        .extract()
+        .path("id");
+
+    final String body = "{\"listeners\":{\"another-listener\": [{\"eventTypes\": [\"GetFeaturesByIdEvent.request\"], \"params\": {\"anotherParam\": true}}]}}";
+
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_LISTENER))
+        .body(body)
+        .when()
+        .patch("/spaces/" + cleanUpId)
+        .then()
+        .statusCode(FORBIDDEN.code());
+
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_ANOTHER_LISTENER))
+        .body(body)
+        .when()
+        .patch("/spaces/" + cleanUpId)
+        .then()
+        .statusCode(OK.code())
+        .body("listeners.another-listener", is(notNullValue()));
+  }
 }

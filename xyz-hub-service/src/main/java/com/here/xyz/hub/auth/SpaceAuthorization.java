@@ -41,20 +41,15 @@ import com.here.xyz.hub.task.ModifySpaceOp;
 import com.here.xyz.hub.task.SpaceTask.ConditionalOperation;
 import com.here.xyz.hub.task.SpaceTask.MatrixReadQuery;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
+import com.here.xyz.hub.util.diff.Difference;
 import com.here.xyz.hub.util.diff.Difference.DiffMap;
 import com.here.xyz.hub.util.diff.Patcher;
 import com.here.xyz.models.hub.Space.Static;
 import io.vertx.core.json.Json;
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.jackson.DatabindCodec;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.Marker;
-
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -64,6 +59,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
 @SuppressWarnings("rawtypes")
 public class SpaceAuthorization extends Authorization {
@@ -104,6 +103,11 @@ public class SpaceAuthorization extends Authorization {
     final Space head = entry.head;
     final Space target = entry.result;
 
+    final Map templateAsMap = asMap(task.template);
+    final Map inputAsMap = asMap(DatabindCodec.mapper().convertValue(input, Space.class));
+    final Map targetAsMap = asMap(target);
+    final Map headAsMap = asMap(head);
+
     boolean isAdminEdit, isBasicEdit, isStorageEdit, isListenersEdit, isProcessorsEdit, isPackagesEdit, isSearchablePropertiesEdit, isSortablePropertiesEdit;
     final AttributeMap xyzhubFilter;
 
@@ -115,9 +119,6 @@ public class SpaceAuthorization extends Authorization {
 
     //CREATE
     if (task.isCreate()) {
-      final Map templateAsMap = asMap(task.template);
-      final Map inputAsMap = asMap(DatabindCodec.mapper().convertValue(input, Space.class));
-
       xyzhubFilter = new XyzHubAttributeMap()
           .withValue(OWNER, input.get("owner"))
           .withValue(SPACE, input.get("id"));
@@ -143,9 +144,6 @@ public class SpaceAuthorization extends Authorization {
     }
     //READ, UPDATE, DELETE
     else {
-      final Map targetAsMap = asMap(target);
-      final Map headAsMap = asMap(head);
-
       xyzhubFilter = new XyzHubAttributeMap()
           .withValue(OWNER, head.getOwner())
           .withValue(SPACE, head.getId())
@@ -196,10 +194,10 @@ public class SpaceAuthorization extends Authorization {
       if (isStorageEdit) connectorIds.add(getStorageFromInput(entry));
 
       //Check for listeners.
-      if (isListenersEdit) connectorIds.addAll(getConnectorIds(input, LISTENERS));
+      if (isListenersEdit) connectorIds.addAll(getConnectorIds(LISTENERS, targetAsMap, headAsMap));
 
       //Check for processors.
-      if (isProcessorsEdit) connectorIds.addAll(getConnectorIds(input, PROCESSORS));
+      if (isProcessorsEdit) connectorIds.addAll(getConnectorIds(PROCESSORS, targetAsMap, headAsMap));
 
       connectorIds.forEach(id -> {
         CompletableFuture<Void> f = new CompletableFuture<>();
@@ -277,22 +275,23 @@ public class SpaceAuthorization extends Authorization {
         });
   }
 
-  private static Collection<String> getConnectorIds(@Nonnull final Map<String, Object> input, @Nonnull final String field) {
-    final Object connectors = new JsonObject(input).getValue(field);
-    if (connectors instanceof JsonArray) {
-      return getConnectorIdsFromInput((JsonArray) connectors);
-    }
-    if (connectors instanceof JsonObject) {
-      return ((JsonObject) connectors).getMap().keySet();
-    }
-    return Collections.emptyList();
-  }
+  private static Set getConnectorIds(@Nonnull final String field, @Nonnull final Map target, @Nullable final Map head) {
+    if (!target.containsKey(field))
+      return Collections.emptySet();
 
-  private static List<String> getConnectorIdsFromInput(JsonArray connectors) {
-    if (connectors == null) {
-      return Collections.emptyList();
+    if (head == null)
+      return ((Map) target.get(field)).keySet();
+
+    // check the difference between head & input and return the modified ones
+    Difference diff = Patcher.getDifference(head, target);
+    if (diff instanceof DiffMap && ((DiffMap) diff).containsKey(field)) {
+      diff = ((DiffMap) diff).get(field);
+      if (diff instanceof DiffMap) {
+        return ((DiffMap) diff).keySet();
+      }
     }
-    return connectors.stream().map(l -> ((JsonObject) l).getString("id")).collect(Collectors.toList());
+
+    return Collections.emptySet();
   }
 
   private static boolean isAdminEdit(Map state1, Map state2) {
