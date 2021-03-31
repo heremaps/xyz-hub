@@ -220,6 +220,20 @@
     }
   },
   {
+    "id": "another-listener",
+    "params": {},
+    "capabilities": {},
+    "remoteFunctions": {
+      "local": {
+        "type": "Embedded",
+        "id": "xyz-listener-local2",
+        "warmUp": 0,
+        "className": "com.here.xyz.hub.connectors.test.DummyListener",
+        "env": {}
+      }
+    }
+  },
+  {
     "capabilities": {
       "clusteringTypes": [
         "hexbin",
