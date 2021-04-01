@@ -236,7 +236,7 @@ public class SQLQuery {
 
     /** ID is indexed as text */
     if(results.length == 1 && results[0].equalsIgnoreCase("id")) {
-      return new SQLQuery( "jsondata->>?", results);
+      return new SQLQuery( "jsondata->>'id'");
     }
 
     /** special handling on geometry column */
