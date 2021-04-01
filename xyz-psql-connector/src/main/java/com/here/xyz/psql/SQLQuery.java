@@ -234,6 +234,11 @@ public class SQLQuery {
   protected static SQLQuery createKey(String key) {
     String[] results = key.split("\\.");
 
+    /** ID is indexed as text */
+    if(results.length == 1 && results[0].equalsIgnoreCase("id")) {
+      return new SQLQuery( "jsondata->>?", results);
+    }
+
     /** special handling on geometry column */
     if(results.length == 2 && results[0].equalsIgnoreCase("geometry") && results[1].equalsIgnoreCase("type")) {
         return new SQLQuery("GeometryType(geo) ");
@@ -253,7 +258,7 @@ public class SQLQuery {
 
     /** The ID is indexed as text */
     if(key.equalsIgnoreCase("id"))
-      value = ""+value;
+      return "?::text";
 
     if (value instanceof String) {
       if(op.equals(PropertyQuery.QueryOperation.CONTAINS) && ((String) value).startsWith("{") && ((String) value).endsWith("}"))
