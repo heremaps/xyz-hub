@@ -21,11 +21,10 @@ package com.here.xyz.psql;
 
 import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import com.here.xyz.connectors.SimulatedContext;
-import java.util.HashMap;
-import java.util.Map;
-
 import com.here.xyz.psql.config.DatabaseSettings;
 import com.here.xyz.psql.config.PSQLConfig;
+import java.util.HashMap;
+import java.util.Map;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -48,6 +47,13 @@ public class GSContext extends SimulatedContext implements LambdaLogger {
   }
 
   public static GSContext newLocal() {
+    if (System.getenv().containsKey(DatabaseSettings.PSQL_HOST))
+      vars_local.put(DatabaseSettings.PSQL_HOST, System.getenv(DatabaseSettings.PSQL_HOST));
+    if (System.getenv().containsKey(DatabaseSettings.PSQL_USER))
+      vars_local.put(DatabaseSettings.PSQL_USER, System.getenv(DatabaseSettings.PSQL_USER));
+    if (System.getenv().containsKey(DatabaseSettings.PSQL_PASSWORD))
+      vars_local.put(DatabaseSettings.PSQL_PASSWORD, System.getenv(DatabaseSettings.PSQL_PASSWORD));
+
     return new GSContext("xyz-psql-local", vars_local);
   }
 
