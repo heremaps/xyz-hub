@@ -131,6 +131,7 @@ public class BurstAndUpdateThread extends Thread {
       if (!oldConnector.equalTo(newConnector)) {
         try {
           //Update the connector configuration of the client
+          logger.info("The incoming connector config for \"{}\" is different from the existing one. Updating the according RPC client.", newConnector.id);
           client.setConnectorConfig(newConnector);
         }
         catch (Exception e) {
@@ -140,6 +141,7 @@ public class BurstAndUpdateThread extends Thread {
       }
       else {
         //Use the existing connector configuration instance
+        logger.debug("The incoming connector config for \"{}\" was equal to the current one. No update.", newConnector.id);
         newConnector = oldConnector;
       }
 

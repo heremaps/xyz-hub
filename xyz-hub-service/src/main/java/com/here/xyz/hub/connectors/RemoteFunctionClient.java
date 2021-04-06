@@ -298,7 +298,7 @@ public abstract class RemoteFunctionClient {
     /*
     NOTE: For simplicity the queues will only get a fix maxByteSize which is dependent by their
     priority (minConnection-ratio) so now we're just doing the queue size (re-)adjustment for all queues once whenever a
-    new RemoteFunctionClient get's created.
+    new RemoteFunctionClient gets created.
     However, this behavior will be optimized in the future.
      */
     //TODO: Improve the calculation with respect to the throughput and do the adjustments when necessary at run-time
