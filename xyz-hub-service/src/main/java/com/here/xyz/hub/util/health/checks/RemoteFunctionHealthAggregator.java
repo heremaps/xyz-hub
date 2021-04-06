@@ -111,6 +111,11 @@ public class RemoteFunctionHealthAggregator extends GroupedHealthCheck {
           if (!checksByConnectorId.containsKey(connector.id)) {
             toAdd.add(connector);
           }
+          else if (!connector.equalTo(checksByConnectorId.get(connector.id).connector)) {
+            //In case of connector config changes, delete & recreate the RFC health-check
+            toDelete.add(connector.id);
+            toAdd.add(connector);
+          }
         });
 
         toDelete.forEach(this::removeRfcHc);

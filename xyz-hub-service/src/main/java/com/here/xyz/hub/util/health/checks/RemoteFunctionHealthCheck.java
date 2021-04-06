@@ -45,7 +45,7 @@ import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 public class RemoteFunctionHealthCheck extends ExecutableCheck {
 
   private Map<String, Object> rfcData = new HashMap<>();
-  private Connector connector;
+  Connector connector;
   private Status cachedStatus;
   private Response cachedResponse;
   private int consecutiveFailures;
