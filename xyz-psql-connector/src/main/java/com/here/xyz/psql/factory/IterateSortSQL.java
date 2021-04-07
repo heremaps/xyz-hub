@@ -113,7 +113,7 @@ public class IterateSortSQL {
      } 
    }
 
-   sqlWhereContinuation += String.format(" and (jsondata->>'id') %s '%s'", ( descendingLast ? "<" : ">" ) ,h.getString("h0"));
+   sqlWhereContinuation += String.format(" and (jsondata->>'id') %s '%s'", ( descendingLast ? "<" : ">" ) ,h.get("h0").toString());
 
    ret.add( sqlWhereContinuation );
 
