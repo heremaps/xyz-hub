@@ -294,7 +294,7 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
     }
 
     public T replace() throws ModifyOpError, HttpException {
-      if (inputUUID != null && !com.google.common.base.Objects.equal(inputUUID, getUuid(head))) {
+      if (inputUUID != null && getUuid(head) != null && !com.google.common.base.Objects.equal(inputUUID, getUuid(head))) {
         throw new ModifyOpError(
             "The feature with id " + getId(head) + " cannot be replaced. The provided UUID doesn't match the UUID of the head state: "
                 + getUuid(head));
@@ -303,7 +303,7 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
     }
 
     public T delete() throws ModifyOpError, HttpException {
-      if (inputUUID != null && !com.google.common.base.Objects.equal(inputUUID, getUuid(head))) {
+      if (inputUUID != null && getUuid(head) != null && !com.google.common.base.Objects.equal(inputUUID, getUuid(head))) {
         throw new ModifyOpError(
             "The feature with id " + getId(head) + " cannot be replaced. The provided UUID doesn't match the UUID of the head state: "
                 + getUuid(head));
