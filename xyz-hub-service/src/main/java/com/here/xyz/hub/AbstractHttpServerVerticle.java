@@ -54,6 +54,7 @@ import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.json.Json;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.CorsHandler;
 import io.vertx.ext.web.handler.impl.HttpStatusException;
 import io.vertx.ext.web.validation.BadRequestException;
@@ -125,6 +126,7 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
     //Add additional handler to the router
     router.route().failureHandler(createFailureHandler());
     router.route().order(0)
+        .handler(BodyHandler.create())
         .handler(createReceiveHandler())
         .handler(createCorsHandler());
     //Default NotFound handler
