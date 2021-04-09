@@ -82,8 +82,8 @@ recipes:
       - components.schemas.SpaceStorageParams
       - components.schemas.StorageCapabilities
       - components.schemas.Changeset
-      - components.schemas.ChangesetCollectionResponse
-      - components.schemas.CompactChangesetResponse
+      - components.schemas.ChangesetCollection
+      - components.schemas.CompactChangeset
       - components.schemas.FeatureModificationList
       - components.schemas.FeatureModification
       - components.schemas.OnFeatureNotExists
