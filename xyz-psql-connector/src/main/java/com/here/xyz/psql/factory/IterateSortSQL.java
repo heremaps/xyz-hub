@@ -42,6 +42,8 @@ public class IterateSortSQL {
     return jpth;  
   }
 
+  private static String PropertyDoesNotExistIndikator = "#zJfCzPCz#";
+
   private static String buildNextHandleAttribute(List<String> sortby) 
   { String nhandle = "jsonb_set('{}','{h0}', jsondata->'id')", svalue = "";
     int hDepth = 1;
@@ -51,7 +53,7 @@ public class IterateSortSQL {
       {
         svalue += String.format("%s\"%s\"", (svalue.length() == 0 ? "" : ","), s);
 
-        nhandle = String.format("jsonb_set(%s,'{h%d}',%s)", nhandle, hDepth++, jpathFromSortProperty(s) );
+        nhandle = String.format("jsonb_set(%s,'{h%d}',coalesce(%s,'\"%s\"'::jsonb))", nhandle, hDepth++, jpathFromSortProperty(s), PropertyDoesNotExistIndikator);
       }
 
     return String.format("jsonb_set(%s,'{s}','[%s]')", nhandle, svalue);
@@ -100,20 +102,23 @@ public class IterateSortSQL {
 
    for (String s : sortby) 
    { String hkey = "h" + hdix++;
+     Object v = h.get(hkey);
+     boolean bNull = PropertyDoesNotExistIndikator.equals(v.toString());
      JSONObject jo = new JSONObject();
-     jo.put(hkey, h.get(hkey));
+     jo.put(hkey, v);
+     
 
      descendingLast = isDescending(s);
      
-     if(!s.startsWith("id"))
+     if(s.startsWith("id"))
+     { sortbyIdUseCase = true; break; } 
+     else if( !bNull )
       sqlWhereContinuation += String.format(" and %s = ('%s'::jsonb)->'%s'", jpathFromSortProperty(s), jo.toString() ,hkey );
-     else
-     { sortbyIdUseCase = true;
-       break;
-     } 
-   }
+     else 
+      sqlWhereContinuation += String.format(" and %s is null", jpathFromSortProperty(s) );
+    }
 
-   sqlWhereContinuation += String.format(" and (jsondata->>'id') %s '%s'", ( descendingLast ? "<" : ">" ) ,h.getString("h0"));
+   sqlWhereContinuation += String.format(" and (jsondata->>'id') %s '%s'", ( descendingLast ? "<" : ">" ) ,h.get("h0").toString());
 
    ret.add( sqlWhereContinuation );
 
@@ -123,20 +128,36 @@ public class IterateSortSQL {
    { 
      sqlWhereContinuation = "";
      hdix = 1;
+     boolean bNullLastEnd = false;
 
      for (String s : sortby) 
      { String op   = (( hdix < sortby.size() ) ? "=" : (isDescending(s) ? "<" : ">" ) ),
               hkey = "h" + hdix++;
-              
+            
+       Object v = h.get(hkey);
+       boolean bNull = PropertyDoesNotExistIndikator.equals(v.toString());
+                       
        JSONObject jo = new JSONObject();
-       jo.put(hkey, h.get(hkey));
+       jo.put(hkey, v);
   
        descendingLast = isDescending(s);
        
-       sqlWhereContinuation += String.format(" and %s %s ('%s'::jsonb)->'%s'", jpathFromSortProperty(s), op ,jo.toString() ,hkey );
+       if(!bNull)
+        switch( op )
+        { case "=" : 
+          case "<" : sqlWhereContinuation += String.format(" and %s %s ('%s'::jsonb)->'%s'", jpathFromSortProperty(s), op ,jo.toString() ,hkey ); break;
+          case ">" : sqlWhereContinuation += String.format(" and ( %1$s > ('%2$s'::jsonb)->'%3$s' or %1$s is null )", jpathFromSortProperty(s), jo.toString() ,hkey ); break;
+        }
+       else 
+        switch( op )
+        { case "=" : sqlWhereContinuation += String.format(" and %s is null", jpathFromSortProperty(s) ); break;
+          case ">" : bNullLastEnd = true; break; // nothing greater than null. this is due to default "NULLS LAST" on ascending dbindex 
+          case "<" : sqlWhereContinuation += String.format(" and %s is not null", jpathFromSortProperty(s) ); break;
+        }
      }
-       
-     ret.add( sqlWhereContinuation );
+     
+     if(!bNullLastEnd)
+      ret.add( sqlWhereContinuation );
    }
    
    return ret;
