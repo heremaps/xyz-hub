@@ -881,13 +881,14 @@ public class SQLQueryBuilder {
                     SQLQuery q = SQLQuery.createKey(propertyQuery.getKey());
 
                     if(v == null){
-                        if(op.equals(PropertyQuery.QueryOperation.NOT_EQUALS))
-                            psqlOperation = "IS NOT NULL";
-                        else {
-                            //Overrides all operations e.g: p.foo=lte=.null => p.foo=.null
-                            psqlOperation = "IS NULL";
-                        }
-                        q.append(new SQLQuery(psqlOperation));
+                        //Overrides all operations e.g: p.foo=lte=.null => p.foo=.null
+                        //>> [not] (jsondata->?->? is not null and jsondata->?->? != 'null'::jsonb )
+                        SQLQuery q1 = new SQLQuery( op.equals(PropertyQuery.QueryOperation.NOT_EQUALS) ? "((" : "not ((" );
+                        q1.append(q);
+                        q1.append("is not null and");
+                        q1.append(q);
+                        q1.append("!= 'null'::jsonb))" );
+                        q = q1;
                     }else{
                         psqlOperation = SQLQuery.getOperation(op);
                         q.append(new SQLQuery(psqlOperation + (value == null ? "" : value), v));
