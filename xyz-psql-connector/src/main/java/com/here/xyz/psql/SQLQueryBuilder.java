@@ -888,7 +888,7 @@ public class SQLQueryBuilder {
                         q1.append(q);
                         q1.append("is not null");
 
-                        if(! "id".equals(key) )
+                        if(! ("id".equals(key) || "geometry.type".equals(key)) )
                         { q1.append("and"); q1.append(q); q1.append("!= 'null'::jsonb" ); }
 
                         q1.append("))");
