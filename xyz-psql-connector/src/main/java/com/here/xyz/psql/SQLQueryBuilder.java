@@ -877,17 +877,22 @@ public class SQLQueryBuilder {
                     final String psqlOperation;
                     PropertyQuery.QueryOperation op = propertyQuery.getOperation();
 
-                    String value = SQLQuery.getValue(v, op, propertyQuery.getKey());
-                    SQLQuery q = SQLQuery.createKey(propertyQuery.getKey());
+                    String  key = propertyQuery.getKey(),
+                            value = SQLQuery.getValue(v, op, key);
+                    SQLQuery q = SQLQuery.createKey(key);
 
                     if(v == null){
-                        if(op.equals(PropertyQuery.QueryOperation.NOT_EQUALS))
-                            psqlOperation = "IS NOT NULL";
-                        else {
-                            //Overrides all operations e.g: p.foo=lte=.null => p.foo=.null
-                            psqlOperation = "IS NULL";
-                        }
-                        q.append(new SQLQuery(psqlOperation));
+                        //Overrides all operations e.g: p.foo=lte=.null => p.foo=.null
+                        //>> [not] (jsondata->?->? is not null and jsondata->?->? != 'null'::jsonb )
+                        SQLQuery q1 = new SQLQuery( op.equals(PropertyQuery.QueryOperation.NOT_EQUALS) ? "((" : "not ((" );
+                        q1.append(q);
+                        q1.append("is not null");
+
+                        if(! ("id".equals(key) || "geometry.type".equals(key)) )
+                        { q1.append("and"); q1.append(q); q1.append("!= 'null'::jsonb" ); }
+
+                        q1.append("))");
+                        q = q1;
                     }else{
                         psqlOperation = SQLQuery.getOperation(op);
                         q.append(new SQLQuery(psqlOperation + (value == null ? "" : value), v));
