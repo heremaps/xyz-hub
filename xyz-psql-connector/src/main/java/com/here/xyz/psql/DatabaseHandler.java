@@ -153,16 +153,11 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     void reset() {
-      dbInstanceMap.values().forEach(config -> {
-        try {
-          ((PooledDataSource) config.getDataSource()).close();
-        } catch (SQLException e) {
-          logger.warn("Error while closing connections: ", e);
+        // clear the map and free resources for GC
+        for ( String connectorId : dbInstanceMap.keySet()) {
+            removeDbInstanceFromMap(connectorId);
         }
-      });
-
-      // clear the map and free resources for GC
-      dbInstanceMap.clear();
+        dbInstanceMap.clear();
     }
 
     @Override
@@ -180,7 +175,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             /** Check if db-params has changed*/
             if(!dbInstanceMap.get(connectorId).getConfigValuesAsString().equalsIgnoreCase(config.getConfigValuesAsString())) {
                 logger.info("{} Config has changed -> remove dbInstance from Pool. DbInstanceMap size:{}", traceItem, dbInstanceMap.size());
-                dbInstanceMap.remove(connectorId);
+                removeDbInstanceFromMap(connectorId);
             }else{
                 logger.debug("{} Config already loaded -> load dbInstance from Pool. DbInstanceMap size:{}", traceItem, dbInstanceMap.size());
             }
@@ -236,6 +231,17 @@ public abstract class DatabaseHandler extends StorageConnector {
         replacements.put("idx_hst_lastVersion", "idx_" + hstTable + "_lastVersion");
         replacements.put("idx_hst_idvsort", "idx_" + hstTable + "_idvsort");
         replacements.put("idx_hst_vidsort", "idx_" + hstTable + "_vidsort");
+    }
+
+    private void removeDbInstanceFromMap(String connectorId){
+        synchronized (dbInstanceMap) {
+            try {
+                ((PooledDataSource) (dbInstanceMap.get(connectorId).getDataSource())).close();
+            } catch (SQLException e) {
+                logger.warn("Error while closing connections: ", e);
+            }
+            dbInstanceMap.remove(connectorId);
+        }
     }
 
     private ComboPooledDataSource getComboPooledDataSource(DatabaseSettings dbSettings, ConnectorParameters connectorParameters, String applicationName, boolean useReplica) {
@@ -951,7 +957,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private final long MaxResultChars = 100 * 1024 *1024;
     private final int F_Iterate = 1,
-                      F_IterateOrderBy  = 2; 
+                      F_IterateOrderBy  = 2;
 
     protected FeatureCollection _defaultFeatureResultSetHandler(ResultSet rs, boolean skipNullGeom) throws SQLException {
         int hint = ((event instanceof IterateFeaturesEvent) ? F_Iterate : ((event instanceof SearchForFeaturesOrderByEvent ) ? F_IterateOrderBy : 0) );
@@ -977,7 +983,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             { case F_Iterate         : nextHandle = "" + rs.getLong(3); break;
               case F_IterateOrderBy  : nextHandle = rs.getString(3); break;
             }
-                
+
         }
 
         if (sb.length() > prefix.length()) {
@@ -990,7 +996,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         if( MaxResultChars <= sb.length() ) throw new SQLException(String.format("Maxchar limit(%d) reached",MaxResultChars));
 
-        if( hint > 0 && numFeatures > 0 && numFeatures == ((SearchForFeaturesEvent) event).getLimit() ) 
+        if( hint > 0 && numFeatures > 0 && numFeatures == ((SearchForFeaturesEvent) event).getLimit() )
          featureCollection.setHandle( nextHandle );
 
         return featureCollection;
