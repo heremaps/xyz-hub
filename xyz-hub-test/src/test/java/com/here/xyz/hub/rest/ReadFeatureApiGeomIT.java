@@ -243,4 +243,26 @@ public class ReadFeatureApiGeomIT extends TestSpaceWithFeature {
             statusCode(OK.code()).
             body("features.size()", equalTo(8));
   }
+
+  @Test
+  public void testSpatialH3Search() {
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+            when().
+            get("/spaces/x-psql-test/spatial?h3Index=851faeaffffffff").
+            then().
+            statusCode(OK.code()).
+            body("features.size()", equalTo(3));
+
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+            when().
+            get("/spaces/x-psql-test/spatial?h3Index=851faeaffffffff&p.foo=2").
+            then().
+            statusCode(OK.code()).
+            body("features.size()", equalTo(1)).
+            body("features[0].properties.foo", equalTo(2));
+  }
 }
