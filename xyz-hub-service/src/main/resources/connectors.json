@@ -320,7 +320,6 @@
     "capabilities": {
       "clusteringTypes": [
         "hexbin",
-        "quad",
         "quadbin"
       ],
       "enableAutoCache": true,

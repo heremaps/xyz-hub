@@ -167,6 +167,7 @@ public class Service extends Core {
         .setTcpQuickAck(true)
         .setTcpFastOpen(true)
         .setTryUseCompression(true)
+        .setPipelining(true)
     );
 
     globalRouter = Router.router(vertx);
