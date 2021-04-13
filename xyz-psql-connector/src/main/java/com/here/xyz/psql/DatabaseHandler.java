@@ -127,8 +127,8 @@ public abstract class DatabaseHandler extends StorageConnector {
         String connectorId = traceItem.getConnectorId();
 
         if(connectorId == null) {
-            logger.warn("ConnectorId is missing as param in the Connector-Config!");
-            return new ErrorResponse().withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage("ConnectorId is missing as param in the Connector-Config!");
+            logger.warn("{} ConnectorId is missing as param in the Connector-Config! {} / {}@{}", traceItem, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost());
+            return new ErrorResponse().withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage("ConnectorId is missing as param in the Connector-Config! ");
         }
 
         if (event.getWarmupCount() == 0) {
