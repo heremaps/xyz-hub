@@ -174,7 +174,7 @@ public class IterateSortSQL {
       + "from dt s join ${schema}.${table} d on ( s.i = d.i ) "
       + "order by s.ord1, s.ord2 ";
 
-  public static String pg_hint_plan = "/*+ Set(seq_page_cost 10.0) IndexOnlyScan( ht1 ) */";
+  public static String pg_hint_plan = "/*+ Set(seq_page_cost 100.0) IndexOnlyScan( ht1 ) */";
 
   private static String partialSortedIterate = 
         " ("
