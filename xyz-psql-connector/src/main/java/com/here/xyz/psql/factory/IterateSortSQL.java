@@ -146,7 +146,8 @@ public class IterateSortSQL {
         switch( op )
         { case "=" : 
           case "<" : sqlWhereContinuation += String.format(" and %s %s ('%s'::jsonb)->'%s'", jpathFromSortProperty(s), op ,jo.toString() ,hkey ); break;
-          case ">" : sqlWhereContinuation += String.format(" and ( %1$s > ('%2$s'::jsonb)->'%3$s' or %1$s is null )", jpathFromSortProperty(s), jo.toString() ,hkey ); break;
+          case ">" : ret.add( sqlWhereContinuation + String.format(" and ( %1$s > ('%2$s'::jsonb)->'%3$s' )", jpathFromSortProperty(s), jo.toString() ,hkey ) );
+                     sqlWhereContinuation += String.format(" and ( %1$s is null )", jpathFromSortProperty(s) ); break;
         }
        else 
         switch( op )
