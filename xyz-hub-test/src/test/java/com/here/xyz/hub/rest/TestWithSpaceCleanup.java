@@ -22,6 +22,7 @@ package com.here.xyz.hub.rest;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.jayway.restassured.RestAssured.given;
 
+import com.google.common.base.Strings;
 import com.here.xyz.hub.auth.TestAuthenticator;
 import org.junit.After;
 
@@ -34,7 +35,26 @@ public class TestWithSpaceCleanup extends RestAssuredTest {
         accept(APPLICATION_JSON).
         headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL)).
         when().
-        delete("/spaces/" + spaceId);
+        delete(getSpacesPath() + "/" + spaceId);
+  }
+
+  static String getCreateSpacePath() {
+    final String spaceName = (System.getenv().containsKey("SPACE_NAME") ? System.getenv("SPACE_NAME") : "");
+    return getCreateSpacePath(spaceName);
+  }
+
+  static String getCreateSpacePath(String spaceName) {
+    if (System.getenv().containsKey("SPACES_PATH"))
+      return getSpacesPath() + (Strings.isNullOrEmpty(spaceName) ? "" : ("/" + spaceName));
+    return getSpacesPath();
+  }
+
+  protected static String getSpacesPath() {
+    return (System.getenv().containsKey("SPACES_PATH") ? System.getenv("SPACES_PATH") : "spaces");
+  }
+
+  static String getSpaceId() {
+    return (System.getenv().containsKey("SPACE_ID") ? System.getenv("SPACE_ID") : "x-psql-test");
   }
 
   @After

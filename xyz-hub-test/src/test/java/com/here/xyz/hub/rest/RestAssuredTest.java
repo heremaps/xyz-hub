@@ -24,7 +24,6 @@ import static com.jayway.restassured.config.EncoderConfig.encoderConfig;
 
 import com.here.xyz.hub.auth.TestAuthenticator;
 import com.jayway.restassured.RestAssured;
-import java.nio.charset.StandardCharsets;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 

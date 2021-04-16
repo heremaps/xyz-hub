@@ -27,10 +27,7 @@ import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import org.junit.Test;
-import org.junit.experimental.categories.Category;
 
-
-@Category(RestTests.class)
 public class ApiParamTest {
 
   @SuppressWarnings("OptionalGetWithoutIsPresent")
