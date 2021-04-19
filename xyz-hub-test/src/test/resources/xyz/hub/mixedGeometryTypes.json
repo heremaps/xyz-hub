@@ -161,6 +161,7 @@
       }
     },
     {
+      "id": "foo_polygon",
       "type": "Feature",
       "properties": {
         "foo": 2,
