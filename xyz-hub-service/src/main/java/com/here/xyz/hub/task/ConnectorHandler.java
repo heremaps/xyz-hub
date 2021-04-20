@@ -20,7 +20,6 @@
 package com.here.xyz.hub.task;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
-import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
@@ -32,10 +31,9 @@ import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLamb
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.Api;
+import com.here.xyz.hub.rest.ConnectorApi;
 import com.here.xyz.hub.rest.HttpException;
-import com.here.xyz.hub.util.diff.Difference;
 import com.here.xyz.hub.util.diff.Difference.DiffMap;
-import com.here.xyz.hub.util.diff.Difference.Primitive;
 import com.here.xyz.hub.util.diff.Patcher;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -137,11 +135,10 @@ public class ConnectorHandler {
     DiffMap diffMap = (DiffMap) Patcher.getDifference(new HashMap<>(), asMap(connector));
 
     try {
-      //TODO: Do admin validation in ConnectorApi.ConnectorAuthorization
       if (diffMap == null) {
         handler.handle(Future.failedFuture(new HttpException(BAD_REQUEST, "Connector payload is empty.")));
       } else {
-        validateAdminChanges(context, diffMap);
+        ConnectorApi.ConnectorAuthorization.validateAdminChanges(context, diffMap);
         storeConnector(context, handler, marker, ar, c);
       }
     } catch (HttpException e) {
@@ -190,11 +187,10 @@ public class ConnectorHandler {
         Map oldConnectorMap = asMap(oldConnector);
         DiffMap diffMap = (DiffMap) Patcher.calculateDifferenceOfPartialUpdate(oldConnectorMap, asMap(connector), null, true);
         try {
-          //TODO: Do admin validation in ConnectorApi.ConnectorAuthorization
           if (diffMap == null) {
             handler.handle(Future.succeededFuture(oldConnector));
           } else {
-            validateAdminChanges(context, diffMap);
+            ConnectorApi.ConnectorAuthorization.validateAdminChanges(context, diffMap);
             Patcher.patch(oldConnectorMap, diffMap);
             Connector newHeadConnector = asConnector(marker, oldConnectorMap);
             storeConnector(context, handler, marker, ar, newHeadConnector);
@@ -238,21 +234,6 @@ public class ConnectorHandler {
     }
   }
 
-  //TODO: Move to ConnectorApi.ConnectorAuthorization
-  private static void validateAdminChanges(RoutingContext context, DiffMap diffMap) throws HttpException {
-    //Is Admin change?
-    checkParameterChange(diffMap.get("owner"), "owner", Api.Context.getJWT(context).aid);
-    checkParameterChange(diffMap.get("skipAutoDisable"), "skipAutoDisable", false);
-    checkParameterChange(diffMap.get("trusted"), "trusted", false);
-  }
-
-  //TODO: Move to ConnectorApi.ConnectorAuthorization
-  private static void checkParameterChange(Difference diff, String parameterName, Object expected) throws HttpException {
-    if (diff instanceof Primitive) {
-      Primitive prim = (Primitive) diff;
-      if (prim.newValue() != null && !prim.newValue().equals(expected)) throw new HttpException(FORBIDDEN, "The property '" + parameterName + "' can not be changed manually.");
-    }
-  }
 
   private static void validate(RoutingContext context, Connector connector) throws HttpException {
     //Validate general parameter
@@ -341,7 +322,7 @@ public class ConnectorHandler {
     validateRfId(rf);
 
     if (rf.warmUp != 0)
-      throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.warmup' must not be set for HTTP connectors.");
+      throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.warmup' must not be set for Embedded connectors.");
 
     if (StringUtils.isEmpty(rf.className))
       throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.className' for the resource is missing.");
