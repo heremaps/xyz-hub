@@ -98,7 +98,7 @@ public class AccessLog extends AccessLogExtended {
 
 @JsonInclude(Include.ALWAYS)
 class AccessLogExtended {
-  private static DateTimeFormatter dtFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneId.of("UTC"));
+  private static DateTimeFormatter dtFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss,SSS").withZone(ZoneId.of("UTC"));
   private long start;
   public String t = "STREAM";
   public String src;
