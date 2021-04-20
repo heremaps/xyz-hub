@@ -357,6 +357,7 @@ public class RpcClient {
 
       if (Payload.isGzipped(bytes))
         bytes = Payload.decompress(bytes);
+      checkUncompressedResponseSize(marker, bytes);
 
       stringResponse = new String(bytes);
       bytes = null; //GC may collect the bytes now.
@@ -467,11 +468,31 @@ public class RpcClient {
     if (ArrayUtils.isEmpty(bytes))
       throw new NullPointerException("Response string is null or empty");
 
-    if (Payload.isGzipped(bytes) && bytes.length > Api.MAX_HTTP_RESPONSE_SIZE || bytes.length > Api.MAX_SERVICE_RESPONSE_SIZE) {
-      logger.warn(marker, "Too large payload received from the connector \"{}\"", getConnector().id);
-      throw new HttpException(Api.RESPONSE_PAYLOAD_TOO_LARGE, Api.RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE);
+    // When MAX_HTTP_RESPONSE_SIZE is bigger than zero, check whether a gzipped payload is bigger than MAX_HTTP_RESPONSE_SIZE
+    if (Api.MAX_HTTP_RESPONSE_SIZE > 0 && Payload.isGzipped(bytes) && bytes.length > Api.MAX_HTTP_RESPONSE_SIZE) {
+      throwResponseSizeException(marker);
+    }
+
+    // When MAX_SERVICE_RESPONSE_SIZE is bigger than zero, check whether an ungzipped payload is bigger than MAX_SERVICE_RESPONSE_SIZE
+    if (Api.MAX_SERVICE_RESPONSE_SIZE > 0 && bytes.length > Api.MAX_SERVICE_RESPONSE_SIZE) {
+      throwResponseSizeException(marker);
     }
   }
+
+  protected void checkUncompressedResponseSize(Marker marker, byte[] bytes) throws HttpException {
+    if (ArrayUtils.isEmpty(bytes))
+      throw new NullPointerException("Response string is null or empty");
+
+    if (Service.configuration.MAX_UNCOMPRESSED_RESPONSE_SIZE > 0 && bytes.length > Service.configuration.MAX_UNCOMPRESSED_RESPONSE_SIZE) {
+      throwResponseSizeException(marker);
+    }
+  }
+
+  protected void throwResponseSizeException(Marker marker) throws HttpException {
+    logger.warn(marker, "Too large payload received from the connector \"{}\"", getConnector().id);
+    throw new HttpException(Api.RESPONSE_PAYLOAD_TOO_LARGE, Api.RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE);
+  }
+
 
   public static class RpcContext {
     private int requestSize = -1;
