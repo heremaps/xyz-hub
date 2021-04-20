@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.AdminApi;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.hub.rest.admin.messages.brokers.RedisMessageBroker;
-import io.vertx.core.Promise;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.Arrays;
@@ -34,8 +33,7 @@ import java.util.concurrent.TimeUnit;
 
 import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
-import io.vertx.ext.web.client.WebClient;
-import io.vertx.ext.web.client.WebClientOptions;
+import io.vertx.core.net.impl.ConnectionBase;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -69,7 +67,7 @@ public interface MessageBroker {
           jsonMessage = mapper.get().writeValueAsString(message);
           //Re-set the relay value to its original value
           rm.relay = originalRelay;
-          sendRawMessagesToRemoteCluster(jsonMessage);
+          sendRawMessagesToRemoteCluster(jsonMessage, 0);
         }
 
         //Send the local version of the message
@@ -91,7 +89,9 @@ public interface MessageBroker {
     receiveMessage(message);
   }
 
-  default void sendRawMessagesToRemoteCluster(String jsonMessage) {
+  default void sendRawMessagesToRemoteCluster(String jsonMessage, int tryCount) {
+    int finalTryCount = tryCount++;
+
     if (hubRemoteUrls != null && !hubRemoteUrls.isEmpty()) {
       for (String remoteUrl : hubRemoteUrls) {
         if (remoteUrl.isEmpty()) continue;
@@ -102,9 +102,15 @@ public interface MessageBroker {
               .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
               .putHeader("Authorization", "Bearer " + Service.configuration.ADMIN_MESSAGE_JWT)
               .sendBuffer(Buffer.buffer(jsonMessage), ar -> {
-                if (ar.failed())
-                  logger.error("Failed to sent message to remote cluster. URLs: " + remoteUrl,
-                          ar.cause());
+                if (ar.failed()) {
+                  if (ar.cause() == ConnectionBase.CLOSED_EXCEPTION && finalTryCount <= 1) {
+                    logger.warn("Closed connection. Retrying to sent message to remote cluster. URLs:" + remoteUrl);
+                    sendRawMessagesToRemoteCluster(jsonMessage, finalTryCount);
+                  } else {
+                    logger.error("Failed to sent message to remote cluster. URLs: " + remoteUrl,
+                        ar.cause());
+                  }
+                }
               });
         }
         catch (Exception e) {
