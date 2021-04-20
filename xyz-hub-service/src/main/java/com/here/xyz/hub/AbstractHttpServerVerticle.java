@@ -26,6 +26,7 @@ import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_INFO;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static io.netty.handler.codec.http.HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE;
 import static io.netty.handler.codec.http.HttpResponseStatus.UNAUTHORIZED;
 import static io.vertx.core.http.HttpHeaders.AUTHORIZATION;
 import static io.vertx.core.http.HttpHeaders.CACHE_CONTROL;
@@ -126,8 +127,9 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
     //Add additional handler to the router
     router.route().failureHandler(createFailureHandler());
     router.route().order(0)
-        .handler(BodyHandler.create())
+        .handler(createBodyHandler())
         .handler(createReceiveHandler())
+        .handler(createMaxRequestSizeHandler())
         .handler(createCorsHandler());
     //Default NotFound handler
     router.route().last().handler(createNotFoundHandler());
@@ -179,6 +181,30 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
    */
   protected Handler<RoutingContext> createNotFoundHandler() {
     return context -> sendErrorResponse(context, new HttpException(NOT_FOUND, "The requested resource does not exist."));
+  }
+
+  protected BodyHandler createBodyHandler() {
+    BodyHandler bodyHandler = BodyHandler.create();
+    if (Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE > 0) {
+      bodyHandler = bodyHandler.setBodyLimit(Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE);
+    }
+
+    return bodyHandler;
+  }
+
+  /**
+   * The max request size handler.
+   */
+  protected Handler<RoutingContext> createMaxRequestSizeHandler() {
+    return context -> {
+      if (Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE > 0) {
+        if (context.getBody() != null && context.getBody().length() > Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE) {
+          sendErrorResponse(context, new HttpException(REQUEST_ENTITY_TOO_LARGE, "The request payload is bigger than the maximum allowed."));
+        }
+      }
+
+      context.next();
+    };
   }
 
   /**
