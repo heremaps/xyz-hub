@@ -40,6 +40,7 @@ import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.SearchForFeaturesOrderByEvent;
 import com.here.xyz.events.TagsQuery;
@@ -69,6 +70,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -634,24 +636,72 @@ public class PSQLXyzConnector extends DatabaseHandler {
   }
 
   private static final String HPREFIX = "h07~";
+  
+  private List<String> getSearchKeys(  PropertiesQuery p )
+  { return p.stream()
+             .flatMap(List::stream)
+             .filter(k -> k.getKey() != null && k.getKey().length() > 0)
+             .map(PropertyQuery::getKey)
+             .collect(Collectors.toList()); 
+  }
 
+  private List<String> getSortFromSearchKeys( List<String> searchKeys, String space, PSQLXyzConnector connector ) throws Exception
+  {
+   List<String> indices = Capabilities.IndexList.getIndexList(space, connector);
+   if( indices == null ) return null;
+
+   indices.sort((s1, s2) -> s1.length() - s2.length());
+
+   for(String sk : searchKeys )
+    switch( sk )
+    { case "id" : return null; // none is always sorted by ID;
+      case "properties.@ns:com:here:xyz.createdAt" : return Arrays.asList("f.createdAt");
+      case "properties.@ns:com:here:xyz.updatedAt" : return Arrays.asList("f.updatedAt");
+      default:
+       if( !sk.startsWith("properties.") ) sk = "o:f." + sk;
+       else sk = sk.replaceFirst("^properties\\.","o:");
+
+       for(String idx : indices)
+        if( idx.startsWith(sk) )
+        { List<String> r = new ArrayList<String>();
+          String[] sortIdx = idx.replaceFirst("^o:","").split(",");
+          for( int i = 0; i < sortIdx.length; i++)
+           r.add( sortIdx[i].startsWith("f.") ? sortIdx[i] : "properties." + sortIdx[i] );
+          return r;
+        }
+      break;
+    }
+
+   return null;
+  }
+  
   protected XyzResponse findFeaturesSort(SearchForFeaturesOrderByEvent event ) throws Exception
   {
     try{
       logger.info("{} - Received "+event.getClass().getSimpleName(), traceItem);
 
-      if (!Capabilities.canSearchFor(config.readTableFromEvent(event), event.getPropertiesQuery(), this)) {
-        return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
-                .withErrorMessage("Invalid request parameters. Search for the provided properties is not supported for this space.");
-      }
+      boolean hasHandle = (event.getHandle() != null);
+      String space = config.readTableFromEvent(event);
 
-      if (!Capabilities.canSortBy(config.readTableFromEvent(event), event.getSort(), this)) {
-        return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
-                .withErrorMessage("Invalid request parameters. Sorting by for the provided properties is not supported for this space.");
-      }
+      if( !hasHandle )  // decrypt handle and configure event
+      {
+        if (!Capabilities.canSearchFor(space, event.getPropertiesQuery(), this)) {
+          return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
+                  .withErrorMessage("Invalid request parameters. Search for the provided properties is not supported for this space.");
+        }
 
-      if(event.getHandle() == null)  // decrypt handle and configure event
-       event.setSort( translateSortSysValues( event.getSort() ));
+        if( event.getPropertiesQuery() != null && (event.getSort() == null || event.getSort().isEmpty()) )
+        {
+         event.setSort( getSortFromSearchKeys( getSearchKeys( event.getPropertiesQuery() ), space, this ) );
+        } 
+        else if (!Capabilities.canSortBy(space, event.getSort(), this)) 
+        {
+          return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
+                  .withErrorMessage("Invalid request parameters. Sorting by for the provided properties is not supported for this space.");
+        }
+
+        event.setSort( translateSortSysValues( event.getSort() ));
+      } 
       else if( !event.getHandle().startsWith( HPREFIX ) )
        return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
                .withErrorMessage("Invalid request parameter. handle is corrupted");
