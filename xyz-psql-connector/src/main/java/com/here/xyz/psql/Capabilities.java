@@ -62,11 +62,11 @@ public class Capabilities {
       int idx_check = 0;
 
       for (String key : keys) {
-        String[] parts = key.split("\\.");
+
         /** properties.foo vs foo (root)
          * If hub receives "f.foo=bar&p.foo=bar" it will generates a PropertyQuery with properties.foo=bar and foo=bar
          **/
-        boolean isPropertyQuery = parts[0].equals("properties");
+        boolean isPropertyQuery = key.startsWith("properties.");
 
         /** If property query hits default system index - allow search. [id, properties.@ns:com:here:xyz.createdAt, properties.@ns:com:here:xyz.updatedAt]" */
         if (     key.equals("id") 
