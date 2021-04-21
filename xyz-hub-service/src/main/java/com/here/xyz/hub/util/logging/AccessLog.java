@@ -22,6 +22,7 @@ package com.here.xyz.hub.util.logging;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import java.time.Instant;
@@ -29,11 +30,13 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
+@JsonPropertyOrder({"time"})
 @JsonInclude(Include.ALWAYS)
 public class AccessLog extends AccessLogExtended {
   public ClientInfo clientInfo;
   public RequestInfo reqInfo;
   public ResponseInfo respInfo;
+  public Map<String, Object> streamInfo;
 
   @JsonIgnore
   public String[] classified;
@@ -47,14 +50,6 @@ public class AccessLog extends AccessLogExtended {
 
   public void end() {
     super.end();
-    reqInfo.requestSize = reqInfo.size;
-    reqInfo.remoteAddress = clientInfo.remoteAddress;
-    reqInfo.ip = clientInfo.ip;
-    reqInfo.userAgent = clientInfo.userAgent;
-    reqInfo.clientId = clientInfo.userId;
-    reqInfo.aid = clientInfo.userId;
-    reqInfo.cid = clientInfo.appId;
-    respInfo.responseSize = respInfo.size;
   }
 
   public String serialize() {
@@ -83,11 +78,10 @@ public class AccessLog extends AccessLogExtended {
   }
 
   @JsonInclude(Include.ALWAYS)
-  public static class ResponseInfo extends ResponseInfoExtended {
+  public static class ResponseInfo {
     public long statusCode;
     public String statusMsg;
     public long size;
-    public Map<String, Object> streamInfo;
     public String contentType;
   }
 
@@ -104,18 +98,15 @@ public class AccessLog extends AccessLogExtended {
 
 @JsonInclude(Include.ALWAYS)
 class AccessLogExtended {
-  private static DateTimeFormatter dtFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ssZ").withZone(ZoneId.of("UTC"));
+  private static DateTimeFormatter dtFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss,SSS").withZone(ZoneId.of("UTC"));
   private long start;
   public String t = "STREAM";
   public String src;
   public String streamId;
   public long unixtime;
-  public long timestamp;
   public String time;
   public long us;
   public long ms;
-  public long total_us;
-  public long total_ms;
 
   public AccessLogExtended() {
     start = System.nanoTime();
@@ -126,29 +117,15 @@ class AccessLogExtended {
     long end = System.nanoTime();
 
     unixtime = now.toEpochMilli();
-    timestamp = unixtime;
     time = dtFormatter.format(now);
     us = end-start;
     ms = us / 1000 / 1000;
-    total_us = us;
-    total_ms = ms;
   }
 }
 
 @JsonInclude(Include.ALWAYS)
 class RequestInfoExtended {
-  public long requestSize;
-  public String remoteAddress;
-  public String ip;
-  public String userAgent;
   public String contentType;
   public String accept;
-  public String clientId;
-  public String aid;
-  public String cid;
 }
 
-@JsonInclude(Include.ALWAYS)
-class ResponseInfoExtended {
-  public long responseSize;
-}
