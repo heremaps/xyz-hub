@@ -1,40 +1,38 @@
 {
   "configuration": {
     "status": "info",
-
     "name": "Default Log Config",
     "packages": "com.here.xyz"
-    },
-    "appenders": {
-      "RollingRandomAccessFile": {
-        "name": "RollingFile-Appender",
-        "fileName": "${env:LOG_PATH}/trace.log.0",
-        "filePattern": "${env:LOG_PATH}/trace.log.%i",
-        "PatternLayout": {
-          "MarkerPatternSelector": {
-            "defaultPattern": "{\"t\":\"%p\",\"time\":\"%d{ISO8601}\",\"unixtime\":\"%d{UNIX_MILLIS}\",\"msg\":\"%enc{%.-4096msg%ex}{JSON} \",\"streamId\":\"%marker\",\"src\":\"%c{1}\"}%n%xEx{none}",
-            "PatternMatch": {
-              "key": "ACCESS",
-              "pattern": "%m%n"
-            }
+  },
+  "appenders": {
+    "RollingRandomAccessFile": {
+      "name": "RollingFile-Appender",
+      "fileName": "${env:LOG_PATH}/trace.log.0",
+      "filePattern": "${env:LOG_PATH}/trace.log.%i",
+      "PatternLayout": {
+        "MarkerPatternSelector": {
+          "defaultPattern": "{\"t\":\"%p\",\"time\":\"%d{ISO8601}\",\"unixtime\":\"%d{UNIX_MILLIS}\",\"msg\":\"%enc{%.-4096msg%ex}{JSON} \",\"streamId\":\"%marker\",\"src\":\"%c{1}\"}%n%xEx{none}",
+          "PatternMatch": {
+            "key": "ACCESS",
+            "pattern": "%m%n"
           }
-        },
-        "Policies": {
-          "SizeBasedTriggeringPolicy": {
-            "size": "64 MB"
-          }
-        },
-        "DefaultRolloverStrategy": {
-          "max": "2"
         }
+      },
+      "Policies": {
+        "SizeBasedTriggeringPolicy": {
+          "size": "64 MB"
+        }
+      },
+      "DefaultRolloverStrategy": {
+        "max": "2"
       }
-    },
-    "loggers": {
-      "root": {
-        "level": "info",
-        "AppenderRef": {
-          "ref": "RollingFile-Appender"
-        }
+    }
+  },
+  "loggers": {
+    "root": {
+      "level": "info",
+      "AppenderRef": {
+        "ref": "RollingFile-Appender"
       }
     }
   }

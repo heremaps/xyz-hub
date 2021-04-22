@@ -1,12 +1,12 @@
 {
   "configuration": {
     "status": "info",
-
     "name": "Default Log Config",
     "packages": "com.here.xyz"
-    },
-    "appenders": {
-      "RollingRandomAccessFile": [{
+  },
+  "appenders": {
+    "RollingRandomAccessFile": [
+      {
         "name": "DefaultAppender",
         "fileName": "${env:LOG_PATH}/trace.log.0",
         "filePattern": "${env:LOG_PATH}/trace.log.%i",
@@ -27,7 +27,8 @@
         "DefaultRolloverStrategy": {
           "max": "2"
         }
-      }, {
+      },
+      {
         "name": "AccessLogAppender",
         "fileName": "${env:LOG_PATH}/access.log.0",
         "filePattern": "${env:LOG_PATH}/access.log.%i",
@@ -47,26 +48,30 @@
         "DefaultRolloverStrategy": {
           "max": "2"
         }
-      }],
-      "Console": {
-        "name": "STDOUT",
-        "PatternLayout": {
-          "pattern": "%m%n"
-        }
       }
-    },
-    "loggers": {
-      "root": {
-        "level": "info",
-        "includeLocation": true,
-        "AppenderRef": [{
+    ],
+    "Console": {
+      "name": "STDOUT",
+      "PatternLayout": {
+        "pattern": "%m%n"
+      }
+    }
+  },
+  "loggers": {
+    "root": {
+      "level": "info",
+      "includeLocation": true,
+      "AppenderRef": [
+        {
           "ref": "STDOUT"
-        }, {
+        },
+        {
           "ref": "DefaultAppender"
-        }, {
+        },
+        {
           "ref": "AccessLogAppender"
-        }]
-      }
+        }
+      ]
     }
   }
 }
