@@ -547,9 +547,6 @@ public class PSQLXyzConnector extends DatabaseHandler {
         for( List<Object> l : event.getSpaceDefinition().getSortableProperties() )
          for( Object p : l )
          { String property = p.toString();
-           if( property.startsWith("f.") && !property.replaceFirst("(?i):(asc|desc)$","").matches("f\\.(createdAt|updatedAt)") )
-            throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-              "On-Demand-Indexing [" + property + "] - only f.createdAt or f.updatedAt allowed!");
            if( property.contains("\\") || property.contains("'") )
             throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
               "On-Demand-Indexing [" + property + "] - Characters ['\\] not allowed!");
@@ -624,12 +621,13 @@ public class PSQLXyzConnector extends DatabaseHandler {
   private List<String> translateSortSysValues(List<String> sort)
   { if( sort == null ) return null;
     List<String> r = new ArrayList<String>();
-    for( String f : sort )
-     if( f.toLowerCase().startsWith("f.id" ) ) // f. sysval replacements
-      r.add( f.replaceFirst("^f\\.", "") );
-     else
+    for( String f : sort )      // f. sysval replacements - f.sysval:desc -> sysval:desc
+     if( f.toLowerCase().startsWith("f.createdat" ) || f.toLowerCase().startsWith("f.updatedat" ) )
       r.add( f.replaceFirst("^f\\.", "properties.@ns:com:here:xyz.") );
-    return r;
+     else 
+      r.add( f.replaceFirst("^f\\.", "") );
+      
+    return r; 
   }
 
   private static final String HPREFIX = "h07~";

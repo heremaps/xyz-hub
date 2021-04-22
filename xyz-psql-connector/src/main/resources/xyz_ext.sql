@@ -902,8 +902,10 @@ begin
 
 	pathname = regexp_replace(selem.sentry, '^"([^:]+)(:(asc|desc))*"$','\1','i');
 
-	if pathname ~ '^f\.' then
-	 fullpathname = replace(pathname,'f.','properties.@ns:com:here:xyz.');
+	if pathname ~ '^f\.(createdAt|updatedAt)' then
+	 fullpathname = regexp_replace(pathname,'^f\.','properties.@ns:com:here:xyz.');
+	elsif pathname ~ '^f\.' then
+	 fullpathname = regexp_replace(pathname,'^f\.','');
 	else
 	 fullpathname = 'properties.' || pathname;
 	end if;
@@ -1382,7 +1384,7 @@ $BODY$
 					|| '		(SELECT * from xyz_property_datatype('''||schema||''','''||spaceid||''', propkey, 1000)) as datatype '
 					|| '	   FROM( '
 					|| '		select distinct split_part(idx_property,'','',1) as propkey from xyz_index_list_all_available('''||schema||''','''||spaceid||''') '
-					|| '			WHERE src IN (''a'',''m'', ''o'') and not (idx_property ~ ''^f\..* '' AND src=''o'')'
+					|| '			WHERE src IN (''a'',''m'', ''o'') '
 					|| '	   ) B group by propkey '
 					|| '	UNION '
 					|| '	SELECT  propkey, '
@@ -1408,7 +1410,7 @@ $BODY$
 				|| '		(SELECT * from xyz_property_datatype('''||schema||''','''||spaceid||''',propkey,'||tablesamplecnt||')) as datatype '
 				|| '	   FROM( '
 				|| '		select distinct split_part(idx_property,'','',1) as propkey from xyz_index_list_all_available('''||schema||''','''||spaceid||''') '
-				|| '			WHERE src IN (''a'',''m'', ''o'') and not (idx_property ~ ''^f\..*'' AND src=''o'' )'
+				|| '			WHERE src IN (''a'',''m'', ''o'') '
 				|| '	   ) B group by propkey '
 				|| '	UNION '
 				|| '	SELECT  propkey, '
