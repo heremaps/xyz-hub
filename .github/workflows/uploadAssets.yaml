@@ -6,6 +6,7 @@ on:
       releaseTag:
         description: The tag name of the release for which to build & upload the assets
         required: true
+        default: ''
 
 name: Upload Release Assets
 
@@ -15,11 +16,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-        if: ${{ env.INPUT_RELEASETAG == '' }}
+        if: ${{ github.event.inputs.releaseTag == '' }}
       - uses: actions/checkout@v2
-        if: ${{ env.INPUT_RELEASETAG != '' }}
+        if: ${{ github.event.inputs.releaseTag != '' }}
         with:
-          ref: ${{ env.INPUT_RELEASETAG }}
+          ref: ${{ github.event.inputs.releaseTag }}
       - name: Cache local Maven repository
         uses: actions/cache@v2
         with:
@@ -37,13 +38,13 @@ jobs:
           mvn -f xyz-hub-service package shade:shade
       - uses: pdamianik/release-tag-to-upload-url-action@v1.0.1
         id: get-upload-url
-        if: ${{ env.INPUT_RELEASETAG != '' }}
+        if: ${{ github.event.inputs.releaseTag != '' }}
         with:
-          tag: ${{ env.INPUT_RELEASETAG }}
+          tag: ${{ github.event.inputs.releaseTag }}
           token: ${{ secrets.GITHUB_TOKEN }}
       - id: set-upload-url
         run: |
-          if [ -z "${{ env.INPUT_RELEASETAG }}" ]; then
+          if [ -z "${{ github.event.inputs.releaseTag }}" ]; then
             echo "::set-output name=uploadUrl::${{ github.event.release.upload_url }}"
           else
             echo "::set-output name=uploadUrl::${{ steps.get-upload-url.outputs.uploadUrl }}"
