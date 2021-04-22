@@ -1,0 +1,68 @@
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      releaseTag:
+        description: The tag name of the release for which to build & upload the assets
+        required: true
+
+name: Upload Release Assets
+
+jobs:
+  build:
+    name: Upload Release Assets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        if: ${{ env.INPUT_RELEASETAG == '' }}
+      - uses: actions/checkout@v2
+        if: ${{ env.INPUT_RELEASETAG != '' }}
+        with:
+          ref: ${{ env.INPUT_RELEASETAG }}
+      - name: Cache local Maven repository
+        uses: actions/cache@v2
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+      - name: Setup Java
+        uses: actions/setup-java@v1
+        with:
+          java-version: '8'
+      - name: Build & package project
+        run: |
+          mvn install -Dmaven.test.skip=true
+          mvn -f xyz-hub-service package shade:shade
+      - uses: pdamianik/release-tag-to-upload-url-action@v1.0.1
+        id: get-upload-url
+        if: ${{ env.INPUT_RELEASETAG != '' }}
+        with:
+          tag: ${{ env.INPUT_RELEASETAG }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - id: set-upload-url
+        run: |
+          if [ -z "${{ env.INPUT_RELEASETAG }}" ]; then
+            echo "::set-output name=uploadUrl::${{ github.event.release.upload_url }}"
+          else
+            echo "::set-output name=uploadUrl::${{ steps.get-upload-url.outputs.uploadUrl }}"
+          fi
+      - name: Upload XYZ Hub Service Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.set-upload-url.outputs.uploadUrl }}
+          asset_path: xyz-hub-service/target/xyz-hub-service.jar
+          asset_name: xyz-hub-service.jar
+          asset_content_type: application/java-archive
+      - name: Upload XYZ PSQL Connector Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.set-upload-url.outputs.uploadUrl }}
+          asset_path: xyz-psql-connector/target/xyz-psql-connector.jar
+          asset_name: xyz-psql-connector.jar
+          asset_content_type: application/java-archive
