@@ -219,24 +219,26 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         int[] batchStmtResult;
         int[] batchStmtResult2;
 
-        if(idList.size() > 0) {
-            logger.debug("{} batch execution [{}]: {} ", traceItem, type , batchStmt);
+        try {
+            if (idList.size() > 0) {
+                logger.debug("{} batch execution [{}]: {} ", traceItem, type, batchStmt);
 
-            batchStmt.setQueryTimeout(dbh.calculateTimeout());
-            batchStmtResult = batchStmt.executeBatch();
-            fillFailList(batchStmtResult, fails, idList, handleUUID, type);
+                batchStmt.setQueryTimeout(dbh.calculateTimeout());
+                batchStmtResult = batchStmt.executeBatch();
+                fillFailList(batchStmtResult, fails, idList, handleUUID, type);
+            }
+
+            if (idList2.size() > 0) {
+                logger.debug("{} batch2 execution [{}]: {} ", traceItem, type, batchStmt2);
+
+                batchStmt2.setQueryTimeout(dbh.calculateTimeout());
+                batchStmtResult2 = batchStmt2.executeBatch();
+                fillFailList(batchStmtResult2, fails, idList2, handleUUID, type);
+            }
+        }finally {
+            batchStmt.close();
+            batchStmt2.close();
         }
-
-        if(idList2.size() > 0) {
-            logger.debug("{} batch2 execution [{}]: {} ", traceItem, type , batchStmt2);
-
-            batchStmt2.setQueryTimeout(dbh.calculateTimeout());
-            batchStmtResult2 = batchStmt2.executeBatch();
-            fillFailList(batchStmtResult2, fails, idList2, handleUUID, type);
-        }
-
-        batchStmt.close();
-        batchStmt2.close();
     }
 
     private static void fillFailList(int[] batchResult, List<FeatureCollection.ModificationFailure> fails,  List<String> idList, boolean handleUUID, int type){

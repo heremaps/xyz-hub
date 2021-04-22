@@ -56,7 +56,6 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
-
 import java.security.GeneralSecurityException;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -197,11 +196,11 @@ public class PSQLXyzConnector extends DatabaseHandler {
           tweakParams = new HashMap<String, Object>();
           switch( event.getVizSampling().toLowerCase() )
           { case "high" : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 15 ) ); break;
-            case "low"  : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 70 ) ); break;    
-            case "off"  : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 100 )); 
+            case "low"  : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 70 ) ); break;
+            case "off"  : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 100 ));
                           bVizSamplingOff = true;
-                          break;    
-            case "med"  : 
+                          break;
+            case "med"  :
             default     : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 30 ) ); break;
           }
         }
@@ -217,10 +216,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
             if( event.getSelection() == null && !bDefaultSelectionHandling && !bSelectionStar )
              event.setSelection(Arrays.asList("id","type"));
-                        
+
             distStrength = TweaksSQL.calculateDistributionStrength( rCount, Math.max(Math.min((int) tweakParams.getOrDefault(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD,10),100),10) * 1000 );
 
-            HashMap<String, Object> hmap = new HashMap<String, Object>();    
+            HashMap<String, Object> hmap = new HashMap<String, Object>();
             hmap.put("algorithm", new String("distribution"));
             hmap.put("strength", new Integer( distStrength ));
             tweakParams = hmap;
@@ -243,9 +242,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
             { // fall thru tweaks=simplification e.g. mode=viz and vizSampling=off
               tweakParams.put("algorithm", new String("gridbytilelevel"));
             }
-          }            
-          
-          case TweaksSQL.SIMPLIFICATION: { 
+          }
+
+          case TweaksSQL.SIMPLIFICATION: {
             if( mvtFromDbRequested == 0 )
             { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams, dataSource));
               return collection;
@@ -327,8 +326,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
   @Override
   protected XyzResponse processSearchForFeaturesEvent(SearchForFeaturesEvent event) throws Exception {
     if(! (event instanceof SearchForFeaturesOrderByEvent) )
-     return findFeatures(event, null, false); 
-    else 
+     return findFeatures(event, null, false);
+    else
      return findFeaturesSort( (SearchForFeaturesOrderByEvent) event );
   }
 
@@ -441,7 +440,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
               && config.getConnectorParams().isPropertySearch()) {
 
         //TODO: Check if config entry exists and idx_manual=null -> update it (erase on demand)
-        if(   event.getSpaceDefinition().isEnableAutoSearchableProperties() != null 
+        if(   event.getSpaceDefinition().isEnableAutoSearchableProperties() != null
            || event.getSpaceDefinition().getSearchableProperties() != null
            || event.getSpaceDefinition().getSortableProperties() != null
           )
@@ -540,11 +539,11 @@ public class PSQLXyzConnector extends DatabaseHandler {
       }
 
       if(event.getSpaceDefinition().getSortableProperties() != null )
-      { /* todo: eval #index limits, parameter validation  */ 
+      { /* todo: eval #index limits, parameter validation  */
         if( event.getSpaceDefinition().getSortableProperties().size() + onDemandCounter > onDemandLimit )
          throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
                  "On-Demand-Indexing - Maximum permissible: " + onDemandLimit + " sortable + searchable properties per space!");
-        
+
         for( List<Object> l : event.getSpaceDefinition().getSortableProperties() )
          for( Object p : l )
          { String property = p.toString();
@@ -595,7 +594,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
     }
   }
 
-  private void setEventValuesFromHandle(SearchForFeaturesOrderByEvent event, String handle) throws JsonMappingException, JsonProcessingException 
+  private void setEventValuesFromHandle(SearchForFeaturesOrderByEvent event, String handle) throws JsonMappingException, JsonProcessingException
   {
     ObjectMapper om = new ObjectMapper();
     JsonNode jn = om.readTree(handle);
@@ -605,7 +604,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
     PropertiesQuery pq = om.readValue( ps, PropertiesQuery.class );
     TagsQuery tq = om.readValue( ts, TagsQuery.class );
     Integer[] part = om.readValue(ms,Integer[].class);
-    
+
     event.setPart(part);
     event.setPropertiesQuery(pq);
     event.setTags(tq);
@@ -619,18 +618,18 @@ public class PSQLXyzConnector extends DatabaseHandler {
           tQry = String.format( ",\"t\":%s", event.getTags() != null ? om.writeValueAsString(event.getTags()) : "[]" ),
           mQry = String.format( ",\"m\":%s", event.getPart() != null ? om.writeValueAsString(event.getPart()) : "[]" ),
           hndl = String.format("%s%s%s%s}", dbhandle.substring(0, dbhandle.lastIndexOf("}")), pQry, tQry, mQry );
-   return hndl;       
+   return hndl;
   }
 
   private List<String> translateSortSysValues(List<String> sort)
   { if( sort == null ) return null;
     List<String> r = new ArrayList<String>();
     for( String f : sort )
-     if( f.toLowerCase().startsWith("f.id" ) ) // f. sysval replacements 
+     if( f.toLowerCase().startsWith("f.id" ) ) // f. sysval replacements
       r.add( f.replaceFirst("^f\\.", "") );
      else
       r.add( f.replaceFirst("^f\\.", "properties.@ns:com:here:xyz.") );
-    return r; 
+    return r;
   }
 
   private static final String HPREFIX = "h07~";
@@ -655,7 +654,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       else if( !event.getHandle().startsWith( HPREFIX ) )
        return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
                .withErrorMessage("Invalid request parameter. handle is corrupted");
-      else         
+      else
        try { setEventValuesFromHandle(event, PSQLConfig.decrypt( event.getHandle().substring(HPREFIX.length()) ,"findFeaturesSort" ) ); }
        catch ( GeneralSecurityException|IllegalArgumentException e)
        { return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
@@ -666,7 +665,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       FeatureCollection collection = executeQueryWithRetry(query);
 
-      if( collection.getHandle() != null ) // extend handle and encrypt 
+      if( collection.getHandle() != null ) // extend handle and encrypt
        collection.setHandle( HPREFIX + PSQLConfig.encrypt( addEventValuesToHandle(event, collection.getHandle() ) , "findFeaturesSort" ) );
 
       return collection;
@@ -738,7 +737,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
        return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
                                  .withErrorMessage("Cannot get a connection to the database.");
 
-      if( e.getMessage().indexOf("Maxchar limit") > -1 )
+       if( e.getMessage().indexOf("Maxchar limit") > -1 )
         return new ErrorResponse().withStreamId(streamId).withError(XyzError.PAYLOAD_TO_LARGE)
                                                          .withErrorMessage("Database result - Maxchar limit exceed");
 

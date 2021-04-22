@@ -152,22 +152,11 @@ public class Connector {
    */
   public ForwardParamsConfig forwardParamsConfig;
 
-  /**
-   * Returns the maximal amount of requests to queue.
-   *
-   * @return the maximal amount of requests to queue.
-   */
-  @JsonIgnore
-  @Deprecated
-  public int queueSize() {
-    return connectionSettings.maxConnections * 32;
-  }
-
   public <T extends Connector> boolean equalTo(T other) {
-    return (other != null
+    return other != null
         && Objects.equals(id, other.id)
         && active == other.active
-        && trusted == other.trusted)
+        && trusted == other.trusted
         && Objects.equals(params, other.params)
         && Objects.equals(capabilities, other.capabilities)
         && Objects.equals(getRemoteFunction(), other.getRemoteFunction()) //TODO: Kept for backwards compatibility

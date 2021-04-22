@@ -21,12 +21,15 @@ package com.here.xyz.hub.util.health.checks;
 
 import static com.here.xyz.hub.util.health.schema.Status.Result.ERROR;
 import static com.here.xyz.hub.util.health.schema.Status.Result.OK;
+import static com.here.xyz.hub.util.health.schema.Status.Result.TIMEOUT;
 import static com.here.xyz.hub.util.health.schema.Status.Result.UNKNOWN;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.here.xyz.events.HealthCheckEvent;
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.connectors.RemoteFunctionClient;
 import com.here.xyz.hub.connectors.RpcClient;
+import com.here.xyz.hub.connectors.RpcClient.RpcContext;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLambda;
@@ -42,10 +45,10 @@ import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 public class RemoteFunctionHealthCheck extends ExecutableCheck {
 
   private Map<String, Object> rfcData = new HashMap<>();
-  private Connector connector;
+  Connector connector;
   private Status cachedStatus;
   private Response cachedResponse;
-  private int consecutiveErrors;
+  private int consecutiveFailures;
 
   RemoteFunctionHealthCheck(Connector connector) {
     this.connector = connector;
@@ -62,13 +65,17 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
   @Override
   public Status execute() throws InterruptedException {
     Status s = new Status();
+    long t1 = Core.currentTimeMillis();
 
+    RpcContext hcHandle = null;
     try {
       if (cachedStatus != null) {
         Status tmpStatus = cachedStatus;
         setResponse(cachedResponse);
-        if (tmpStatus.getResult() == ERROR) consecutiveErrors++;
-        else consecutiveErrors = 0;
+        if (tmpStatus.getResult().compareTo(TIMEOUT) >= 0)
+          consecutiveFailures++;
+        else
+          consecutiveFailures = 0;
         //Reset the injected status / response for the next execution
         cachedStatus = null;
         cachedResponse = null;
@@ -77,42 +84,58 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
       else {
         HealthCheckEvent healthCheck = new HealthCheckEvent();
         //Just generate a stream ID here as the stream actually "begins" here
-        final String healthCheckStreamId = UUID.randomUUID().toString();
+        final String healthCheckStreamId = "HC-" + UUID.randomUUID().toString();
         healthCheck.setStreamId(healthCheckStreamId);
-        getClient().execute(new Log4jMarker(healthCheckStreamId), healthCheck, true, ar -> {
-          if (ar.failed()) {
-            setResponse(generateResponse().withMessage("Error in connector health-check: " + ar.cause().getMessage()));
-            s.setResult(ERROR);
-            consecutiveErrors++;
+        hcHandle = getClient().execute(new Log4jMarker(healthCheckStreamId), healthCheck, true, ar -> {
+          try {
+            if (ar.failed()) {
+              setResponse(generateResponse().withMessage("Error in connector health-check: " + ar.cause().getMessage()));
+              s.setResult(ERROR);
+              consecutiveFailures++;
+            }
+            else {
+              setResponse(generateResponse());
+              s.setResult(OK);
+              consecutiveFailures = 0;
+            }
           }
-          else {
-            setResponse(generateResponse());
-            s.setResult(OK);
-            consecutiveErrors = 0;
-          }
-          synchronized (s) {
-            s.notify();
+          finally {
+            synchronized (s) {
+              s.notify();
+            }
           }
         });
 
-        while (s.getResult() == UNKNOWN) {
-          synchronized (s) {
-            s.wait();
+        synchronized (s) {
+          while (s.getResult() == UNKNOWN) {
+            s.wait(timeout > 500 ? timeout - 500 : timeout);
+            //Check for timeouts explicitly to enable setting the consecutiveFailures correctly
+            if (timeout > 500 && Core.currentTimeMillis() - t1 >= timeout - 500) {
+              cancelHcRequest(hcHandle);
+              setResponse(generateResponse());
+              consecutiveFailures++;
+              return s.withResult(TIMEOUT);
+            }
           }
-          Thread.sleep(100);
         }
       }
     }
     catch (InterruptedException interruption) {
       setResponse(generateResponse());
+      cancelHcRequest(hcHandle);
       throw interruption;
     }
     catch (Exception e) {
       setResponse(generateResponse().withMessage("Error trying to execute health-check event: " + e.getMessage()));
+      cancelHcRequest(hcHandle);
       return s.withResult(ERROR);
     }
 
     return s;
+  }
+
+  private void cancelHcRequest(RpcContext hcHandle) {
+    if (hcHandle != null) hcHandle.cancelRequest();
   }
 
   /**
@@ -128,8 +151,8 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
   }
 
   @JsonIgnore
-  public int getConsecutiveErrors() {
-    return consecutiveErrors;
+  public int getConsecutiveFailures() {
+    return consecutiveFailures;
   }
 
   private Response generateResponse() {
@@ -158,7 +181,7 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
       rfcData.put("arrivalRate", rfc.getArrivalRate());
       rfcData.put("throughput", rfc.getThroughput());
       rfcData.put("priority", rfc.getPriority());
-      rfcData.put("consecutiveErrors", consecutiveErrors);
+      rfcData.put("consecutiveFailures", consecutiveFailures);
 
       return r.withAdditionalProperty("statistics", rfcData);
     }

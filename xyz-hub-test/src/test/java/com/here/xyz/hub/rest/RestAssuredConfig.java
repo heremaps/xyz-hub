@@ -38,7 +38,8 @@ public class RestAssuredConfig {
   private static RestAssuredConfig localConfig() {
     RestAssuredConfig config = new RestAssuredConfig();
     String envPort = System.getenv("HTTP_PORT");
-    config.baseURI = "http://localhost/hub";
+    String host = System.getenv().containsKey("HTTP_HOST") ? System.getenv("HTTP_HOST") : "localhost";
+    config.baseURI = "http://"+host+"/hub";
     config.port = 8080;
     try {
       config.port = Integer.parseInt(envPort);

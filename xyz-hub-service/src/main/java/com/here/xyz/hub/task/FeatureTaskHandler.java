@@ -19,7 +19,7 @@
 
 package com.here.xyz.hub.task;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_INFO;
+import static com.here.xyz.hub.XYZHubRESTVerticle.STREAM_INFO_CTX_KEY;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.BBOX;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.ID;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
@@ -247,7 +247,7 @@ public class FeatureTaskHandler {
             }
           });
         });
-        addStreamInfo(task, "SReqSize=" + responseContext.rpcContext.getRequestSize() + ";");
+        addStreamInfo(task, "SReqSize", responseContext.rpcContext.getRequestSize());
         task.addCancellingHandler(unused -> responseContext.rpcContext.cancelRequest());
       }
       catch (IllegalStateException e) {
@@ -303,10 +303,15 @@ public class FeatureTaskHandler {
   }
 
   private static <T extends FeatureTask> void addStoragePerformanceInfo(T task, long storageTime, RpcContext rpcContext) {
-    String connectorPerformanceValues = "STime=" + storageTime + ";";
+    addStreamInfo(task, "STime", storageTime);
     if (rpcContext != null)
-      connectorPerformanceValues += "SResSize=" + rpcContext.getResponseSize() + ";";
-    addStreamInfo(task, connectorPerformanceValues);
+      addStreamInfo(task, "SResSize", rpcContext.getResponseSize());
+  }
+
+  private static <T extends FeatureTask> void addProcessorPerformanceInfo(T task, int processorNo, long processorTime, RpcContext rpcContext) {
+    addStreamInfo(task, "P" + processorNo + "Time", processorTime);
+    if (rpcContext != null)
+      addStreamInfo(task, "P" + processorNo + "ResSize", rpcContext.getResponseSize());
   }
 
   private static XyzResponse transform(byte[] value) throws JsonProcessingException {
@@ -342,27 +347,32 @@ public class FeatureTaskHandler {
       String cacheKey = task.getCacheKey();
 
       //Check the cache
+      final long cacheRequestStart = Core.currentTimeMillis();
       Service.cacheClient.get(cacheKey).onSuccess(cacheResult -> {
         if (cacheResult == null) {
           //Cache MISS: Just go on in the task pipeline
-          addStreamInfo(task, "CH=0;");
+          addStreamInfo(task, "CH",0);
           logger.info(task.getMarker(), "Cache MISS for cache key {}", cacheKey);
-        } else {
+        }
+        else {
           //Cache HIT: Set the response for the task to the result from the cache so invoke (in the task pipeline) won't have anything to do
           try {
             task.setResponse(transform(cacheResult));
             task.setCacheHit(true);
-            addStreamInfo(task, "CH=1;");
+            addStreamInfo(task, "CH", 1);
             logger.info(task.getMarker(), "Cache HIT for cache key {}", cacheKey);
-          } catch (JsonProcessingException e) {
+          }
+          catch (JsonProcessingException e) {
             //Actually, this should never happen as we're controlling how the data is written to the cache, but you never know ;-)
             //Treating an error as a Cache MISS
             logger.info(task.getMarker(), "Cache MISS (as of JSON parse exception) for cache key {} {}", cacheKey, e);
           }
         }
+        addStreamInfo(task, "CTime", Core.currentTimeMillis() - cacheRequestStart);
         callback.call(task);
       });
-    } else {
+    }
+    else {
       callback.call(task);
     }
   }
@@ -690,15 +700,26 @@ public class FeatureTaskHandler {
       return f;
     }
     //Execute the processor with the event / response payload (do pre-processing / post-processing)
-    RpcContext rpcContext = client.execute(nc.marker, createNotification(nc, payload, notificationEventType, p), ar -> {
+    final long processorRequestStart = Core.currentTimeMillis();
+    final RpcContextHolder rpcContextHolder = new RpcContextHolder();
+    rpcContextHolder.rpcContext = client.execute(nc.marker, createNotification(nc, payload, notificationEventType, p), ar -> {
+      if (p.getOrder() != null && rpcContextHolder.rpcContext != null)
+        addProcessorPerformanceInfo(nc.task, p.getOrder(), Core.currentTimeMillis() - processorRequestStart,
+            rpcContextHolder.rpcContext);
+
       if (ar.failed()) {
         f.completeExceptionally(ar.cause());
-      } else {
+      }
+      else {
         f.complete(ar.result());
       }
     });
-    nc.task.addCancellingHandler(unused -> rpcContext.cancelRequest());
+    nc.task.addCancellingHandler(unused -> rpcContextHolder.rpcContext.cancelRequest());
     return f;
+  }
+
+  private static class RpcContextHolder {
+    RpcContext rpcContext;
   }
 
   private static EventNotification createNotification(NotificationContext nc, Payload payload, String notificationEventType,
@@ -751,7 +772,7 @@ public class FeatureTaskHandler {
     logger.debug(task.getMarker(), "Given space configuration is: {}", Json.encode(task.space));
 
     final String storageId = task.space.getStorage().getId();
-    addStreamInfo(task, "SID=" + storageId + ";");
+    addStreamInfo(task, "SID", storageId);
     Space.resolveConnector(task.getMarker(), storageId, (arStorage) -> {
       if (arStorage.failed()) {
         callback.exception(new InvalidStorageException("Unable to load the definition for this storage."));
@@ -1174,11 +1195,11 @@ public class FeatureTaskHandler {
     callback.call(task);
   }
 
-  private static <T extends FeatureTask> void addStreamInfo(T task, String streamInfoValues) {
-    if (task.context.response().headers().contains(STREAM_INFO))
-      streamInfoValues = task.context.response().headers().get(STREAM_INFO) + streamInfoValues;
+  private static <T extends FeatureTask> void addStreamInfo(T task, String streamInfoKey, Object streamInfoValue) {
+    if (task.context.get(STREAM_INFO_CTX_KEY) == null)
+      task.context.put(STREAM_INFO_CTX_KEY, new HashMap<String, Object>());
 
-    task.context.response().putHeader(STREAM_INFO, streamInfoValues);
+    ((Map<String, Object>) task.context.get(STREAM_INFO_CTX_KEY)).put(streamInfoKey, streamInfoValue);
   }
 
   public static <X extends FeatureTask<?, X>> void validate(X task, Callback<X> callback) {

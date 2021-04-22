@@ -30,12 +30,15 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.geojson.coordinates.LineStringCoordinates;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.coordinates.Position;
 import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.LineString;
 import com.here.xyz.models.geojson.implementation.Point;
+import java.util.UUID;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -401,5 +404,37 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         .get("/spaces/x-psql-test/features?id=" + featureId)
         .then()
         .statusCode(OK.code()), featureId);
+  }
+
+  @Test
+  public void postFeatureWithUUIDnonUUIDSpace() throws Exception {
+    FeatureCollection featureCollection = XyzSerializable.deserialize(content("/xyz/hub/updateFeatureById.json"));
+    featureCollection.getFeatures().get(0).getProperties().getXyzNamespace().setUuid(UUID.randomUUID().toString());
+
+    given().
+        accept(APPLICATION_GEO_JSON).
+        contentType(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        body(XyzSerializable.serialize(featureCollection)).
+        when().
+        post("/spaces/x-psql-test/features").
+        then().
+        statusCode(OK.code());
+  }
+
+  @Test
+  public void patchFeatureWithUUIDnonUUIDSpace() throws Exception {
+    Feature feature = XyzSerializable.deserialize(content("/xyz/hub/updateFeature.json"));
+    feature.getProperties().getXyzNamespace().setUuid(UUID.randomUUID().toString());
+
+    given().
+        accept(APPLICATION_GEO_JSON).
+        contentType(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        body(XyzSerializable.serialize(feature)).
+        when().
+        patch("/spaces/x-psql-test/features/Q2838923").
+        then().
+        statusCode(OK.code());
   }
 }

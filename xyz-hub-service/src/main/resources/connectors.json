@@ -189,6 +189,89 @@
     }
   },
   {
+    "id": "c2",
+    "params": {
+      "connectorId" : "c2"
+    },
+    "capabilities": {
+      "preserializedResponseSupport": true
+    },
+    "owner": "XYZ-01234567-89ab-cdef-0123-456789aUSER1",
+    "connectionSettings": {
+      "maxConnections": 32
+    },
+    "remoteFunctions": {
+      "local": {
+        "type": "Embedded",
+        "id": "xyz-psql-local",
+        "warmUp": 0,
+        "className": "com.here.xyz.psql.PSQLXyzConnector",
+        "env": {
+          "PSQL_HOST": "${PSQL_HOST}",
+          "PSQL_PORT": "${PSQL_PORT}",
+          "PSQL_DB": "${PSQL_DB}",
+          "PSQL_USER": "${PSQL_USER}",
+          "PSQL_PASSWORD": "${PSQL_PASSWORD}"
+        }
+      }
+    }
+  },
+  {
+    "id": "c3",
+    "params": {
+      "connectorId" : "c3"
+    },
+    "capabilities": {
+      "preserializedResponseSupport": true
+    },
+    "owner": "XYZ-01234567-89ab-cdef-0123-456789aUSER1",
+    "connectionSettings": {
+      "maxConnections": 32
+    },
+    "remoteFunctions": {
+      "local": {
+        "type": "Embedded",
+        "id": "xyz-psql-local",
+        "warmUp": 0,
+        "className": "com.here.xyz.psql.PSQLXyzConnector",
+        "env": {
+          "PSQL_HOST": "${PSQL_HOST}",
+          "PSQL_PORT": "${PSQL_PORT}",
+          "PSQL_DB": "${PSQL_DB}",
+          "PSQL_USER": "${PSQL_USER}",
+          "PSQL_PASSWORD": "${PSQL_PASSWORD}"
+        }
+      }
+    }
+  },
+  {
+    "id": "c4",
+    "params": {
+      "connectorId" : "c4"
+    },
+    "capabilities": {
+      "preserializedResponseSupport": true
+    },
+    "connectionSettings": {
+      "maxConnections": 32
+    },
+    "remoteFunctions": {
+      "local": {
+        "type": "Embedded",
+        "id": "xyz-psql-local",
+        "warmUp": 0,
+        "className": "com.here.xyz.psql.PSQLXyzConnector",
+        "env": {
+          "PSQL_HOST": "${PSQL_HOST}",
+          "PSQL_PORT": "${PSQL_PORT}",
+          "PSQL_DB": "${PSQL_DB}",
+          "PSQL_USER": "${PSQL_USER}",
+          "PSQL_PASSWORD": "${PSQL_PASSWORD}"
+        }
+      }
+    }
+  },
+  {
     "id": "test",
     "params": {},
     "capabilities": {},
@@ -220,10 +303,23 @@
     }
   },
   {
+    "id": "another-listener",
+    "params": {},
+    "capabilities": {},
+    "remoteFunctions": {
+      "local": {
+        "type": "Embedded",
+        "id": "xyz-listener-local2",
+        "warmUp": 0,
+        "className": "com.here.xyz.hub.connectors.test.DummyListener",
+        "env": {}
+      }
+    }
+  },
+  {
     "capabilities": {
       "clusteringTypes": [
         "hexbin",
-        "quad",
         "quadbin"
       ],
       "enableAutoCache": true,

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,7 +44,6 @@ import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -248,7 +247,7 @@ public class ConnectorApi extends Api {
       return;
     }
 
-    if (response == null || response.length == 0) {
+    if (response.length == 0) {
       httpResponse.setStatusCode(NO_CONTENT.code()).end();
     } else if (response.length > getMaxResponseLength(context)) {
       sendErrorResponse(context, new HttpException(RESPONSE_PAYLOAD_TOO_LARGE, RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE));
@@ -260,7 +259,7 @@ public class ConnectorApi extends Api {
 
   private static class ConnectorAuthorization extends Authorization {
     public static void authorizeManageConnectorsRights(RoutingContext context, String connectorId, Handler<AsyncResult<Void>> handler) {
-      authorizeManageConnectorsRights(context, Arrays.asList(connectorId), handler);
+      authorizeManageConnectorsRights(context, Collections.singletonList(connectorId), handler);
     }
       
     public static void authorizeManageConnectorsRights(RoutingContext context, List<String> connectorIds, Handler<AsyncResult<Void>> handler) {
@@ -268,7 +267,7 @@ public class ConnectorApi extends Api {
       List<CompletableFuture<Void>> futureList = connectorIds == null ? Collections.emptyList()
           : connectorIds.stream().map(connectorId -> checkConnector(context, requestRights, connectorId)).collect(Collectors.toList());
 
-      CompletableFuture.allOf(futureList.toArray(new CompletableFuture[futureList.size()]))
+      CompletableFuture.allOf(futureList.toArray(new CompletableFuture[0]))
           .thenRun(() -> {
             try {
               evaluateRights(Context.getMarker(context), requestRights, Context.getJWT(context).getXyzHubMatrix());

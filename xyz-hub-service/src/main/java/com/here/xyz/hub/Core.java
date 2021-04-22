@@ -28,7 +28,9 @@ import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
 import io.vertx.core.json.JsonObject;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -141,5 +143,27 @@ public class Core {
       return ConfigDecryptor.decryptSecret(encryptedSecret);
     }
     return encryptedSecret;
+  }
+
+  public static final ThreadFactory newThreadFactory(String groupName) {
+    return new DefaultThreadFactory(groupName);
+  }
+
+  private static class DefaultThreadFactory implements ThreadFactory {
+
+    private ThreadGroup group;
+    private final AtomicInteger threadNumber = new AtomicInteger(1);
+    private final String namePrefix;
+
+    public DefaultThreadFactory(String groupName) {
+      assert groupName != null;
+      group = new ThreadGroup(groupName);
+      namePrefix = groupName + "-";
+    }
+
+    @Override
+    public Thread newThread(Runnable r) {
+      return new Thread(group, r, namePrefix + threadNumber.getAndIncrement());
+    }
   }
 }

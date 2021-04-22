@@ -1,0 +1,24 @@
+{
+  "urm": {
+    "xyz-hub": {
+      "manageSpaces": [
+        {
+          "owner": "XYZ-01234567-89ab-cdef-0123-456789aUSER1"
+        }
+      ],
+      "adminSpaces": [
+        {
+          "owner": "XYZ-01234567-89ab-cdef-0123-456789aUSER1"
+        }
+      ],
+      "accessConnectors": [
+        {
+          "owner": "XYZ-01234567-89ab-cdef-0123-456789aUSER1"
+        }
+      ]
+    }
+  },
+  "aid": "XYZ-01234567-89ab-cdef-0123-456789aUSER1",
+  "iat": 1521982864,
+  "exp": 2000000000
+}

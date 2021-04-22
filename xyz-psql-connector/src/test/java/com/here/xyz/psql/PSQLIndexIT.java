@@ -126,11 +126,13 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                 add("id");
             }};
 
+            String sqlSpaceSchema = "(select schema_name::text from information_schema.schemata where schema_name in ('xyz','public') order by 1 desc limit 1)";
+
             Statement stmt = connection.createStatement();
-            stmt.execute("select xyz_maintain_idxs_for_space('public', 'foo');");
+            stmt.execute( String.format("select xyz_maintain_idxs_for_space( %s, 'foo');",sqlSpaceSchema));
 
             /** Check which Indices are available */
-            ResultSet resultSet = stmt.executeQuery("select idx_name, idx_property, src from xyz_index_list_all_available('public', 'foo');");
+            ResultSet resultSet = stmt.executeQuery( String.format("select idx_name, idx_property, src from xyz_index_list_all_available(%s, 'foo');",sqlSpaceSchema));
             while(resultSet.next()){
                 String idxProperty = resultSet.getString("idx_property");
                 if(systemIndices.contains(idxProperty))
@@ -182,11 +184,13 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                 add("viz");
             }};
 
+            String sqlSpaceSchema = "(select schema_name::text from information_schema.schemata where schema_name in ('xyz','public') order by 1 desc limit 1)";
+
             Statement stmt = connection.createStatement();
-            stmt.execute("select xyz_maintain_idxs_for_space('public', 'foo');");
+            stmt.execute( String.format("select xyz_maintain_idxs_for_space( %s, 'foo');",sqlSpaceSchema));
 
             /** Check which Indices are available */
-            ResultSet resultSet = stmt.executeQuery("select idx_property, src from xyz_index_list_all_available('public', 'foo');");
+            ResultSet resultSet = stmt.executeQuery( String.format("select idx_property, src from xyz_index_list_all_available(%s, 'foo');",sqlSpaceSchema));
             while(resultSet.next()){
                 String idxProperty = resultSet.getString("idx_property");
                 if(systemIndices.contains(idxProperty)) {

@@ -28,7 +28,6 @@ import com.here.xyz.hub.util.health.checks.RemoteFunctionHealthCheck;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
-import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
@@ -108,10 +107,10 @@ public class BurstAndUpdateThread extends Thread {
         RemoteFunctionHealthCheck rfcHc = HealthApi.rfcHcAggregator.getRfcHealthCheck(oldConnector.id);
         if (rfcHc != null) {
           //When the connector is responding with unhealthy status, disable it momentarily, until next BurstAndUpdateThread round.
-          int consecutiveErrors = rfcHc.getConsecutiveErrors();
-          if (consecutiveErrors >= CONNECTOR_UNHEALTHY_THRESHOLD) {
+          int consecutiveFailures = rfcHc.getConsecutiveFailures();
+          if (consecutiveFailures >= CONNECTOR_UNHEALTHY_THRESHOLD) {
             logger.warn("For connector {} there are {} unhealthy health-checks. Max threshold is {}.", oldConnector.id,
-                consecutiveErrors, CONNECTOR_UNHEALTHY_THRESHOLD);
+                consecutiveFailures, CONNECTOR_UNHEALTHY_THRESHOLD);
             connectorMap.remove(oldConnector.id);
           }
         }
@@ -132,6 +131,7 @@ public class BurstAndUpdateThread extends Thread {
       if (!oldConnector.equalTo(newConnector)) {
         try {
           //Update the connector configuration of the client
+          logger.info("The incoming connector config for \"{}\" is different from the existing one. Updating the according RPC client.", newConnector.id);
           client.setConnectorConfig(newConnector);
         }
         catch (Exception e) {
@@ -141,6 +141,7 @@ public class BurstAndUpdateThread extends Thread {
       }
       else {
         //Use the existing connector configuration instance
+        logger.debug("The incoming connector config for \"{}\" was equal to the current one. No update.", newConnector.id);
         newConnector = oldConnector;
       }
 

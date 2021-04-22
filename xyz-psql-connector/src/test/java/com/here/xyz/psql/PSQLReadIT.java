@@ -373,6 +373,50 @@ public class PSQLReadIT extends PSQLAbstractIT {
         assertEquals(new Integer(1), properties.get("foo2"));
         assertNull(properties.get("foo"));
         logger.info("Area Query with MULTIPOLYGON + SELECTION tested successfully");
+
+        // =========== QUERY WITH H3Index ==========
+        geometryEvent = new GetFeaturesByGeometryEvent()
+                .withConnectorParams(defaultTestConnectorParams)
+                .withSpace("foo")
+                //Large one
+                .withH3Index("821fa7fffffffff");
+
+        queryResponse = invokeLambda(geometryEvent.serialize());
+        featureCollection = XyzSerializable.deserialize(queryResponse);
+        assertNotNull(featureCollection);
+        assertEquals(404, featureCollection.getFeatures().size());
+        logger.info("Hexbin Query (large) tested successfully");
+
+        geometryEvent = new GetFeaturesByGeometryEvent()
+                .withConnectorParams(defaultTestConnectorParams)
+                .withSpace("foo")
+                //Small one
+                .withH3Index("861fa3a07ffffff");
+
+        queryResponse = invokeLambda(geometryEvent.serialize());
+        featureCollection = XyzSerializable.deserialize(queryResponse);
+        assertNotNull(featureCollection);
+        assertEquals(42, featureCollection.getFeatures().size());
+        logger.info("H3Index Query (small) tested successfully");
+
+        pq = new PropertiesQuery();
+        pql = new PropertyQueryList();
+        pql.add(new PropertyQuery().withKey("geometry.type").withOperation(PropertyQuery.QueryOperation.EQUALS)
+                .withValues(new ArrayList<>(Collections.singletonList("Polygon"))));
+        pq.add(pql);
+
+        geometryEvent = new GetFeaturesByGeometryEvent()
+                .withConnectorParams(defaultTestConnectorParams)
+                .withSpace("foo")
+                .withPropertiesQuery(pq)
+                //Small one
+                .withH3Index("861fa3a07ffffff");
+
+        queryResponse = invokeLambda(geometryEvent.serialize());
+        featureCollection = XyzSerializable.deserialize(queryResponse);
+        assertNotNull(featureCollection);
+        assertEquals(1, featureCollection.getFeatures().size());
+        logger.info("H3Index Query (small) with property query tested successfully");
     }
 
     @Test

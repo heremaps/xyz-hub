@@ -26,6 +26,7 @@ import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_INFO;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static io.netty.handler.codec.http.HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE;
 import static io.netty.handler.codec.http.HttpResponseStatus.UNAUTHORIZED;
 import static io.vertx.core.http.HttpHeaders.AUTHORIZATION;
 import static io.vertx.core.http.HttpHeaders.CACHE_CONTROL;
@@ -54,11 +55,14 @@ import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.json.Json;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.CorsHandler;
 import io.vertx.ext.web.handler.impl.HttpStatusException;
 import io.vertx.ext.web.validation.BadRequestException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -74,6 +78,7 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
       .setTcpFastOpen(true)
       .setMaxInitialLineLength(16 * 1024)
       .setIdleTimeout(300);
+  public static final String STREAM_INFO_CTX_KEY = "streamInfo";
 
   private static final Logger logger = LogManager.getLogger();
   /**
@@ -122,7 +127,9 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
     //Add additional handler to the router
     router.route().failureHandler(createFailureHandler());
     router.route().order(0)
+        .handler(createBodyHandler())
         .handler(createReceiveHandler())
+        .handler(createMaxRequestSizeHandler())
         .handler(createCorsHandler());
     //Default NotFound handler
     router.route().last().handler(createNotFoundHandler());
@@ -176,6 +183,30 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
     return context -> sendErrorResponse(context, new HttpException(NOT_FOUND, "The requested resource does not exist."));
   }
 
+  protected BodyHandler createBodyHandler() {
+    BodyHandler bodyHandler = BodyHandler.create();
+    if (Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE > 0) {
+      bodyHandler = bodyHandler.setBodyLimit(Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE);
+    }
+
+    return bodyHandler;
+  }
+
+  /**
+   * The max request size handler.
+   */
+  protected Handler<RoutingContext> createMaxRequestSizeHandler() {
+    return context -> {
+      if (Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE > 0) {
+        if (context.getBody() != null && context.getBody().length() > Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE) {
+          sendErrorResponse(context, new HttpException(REQUEST_ENTITY_TOO_LARGE, "The request payload is bigger than the maximum allowed."));
+        }
+      }
+
+      context.next();
+    };
+  }
+
   /**
    * The initial request handler.
    */
@@ -189,8 +220,20 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
       LogUtil.addRequestInfo(context);
       context.response().putHeader(STREAM_ID, context.request().getHeader(STREAM_ID));
       context.response().endHandler(ar -> onResponseEnd(context));
+      context.addHeadersEndHandler(v -> headersEndHandler(context));
       context.next();
     };
+  }
+
+  protected static void headersEndHandler(RoutingContext context) {
+    Map<String, Object> streamInfo;
+    if (context != null && (streamInfo = context.get(STREAM_INFO_CTX_KEY)) != null) {
+      String streamInfoValues = "";
+      for (Entry<String, Object> e : streamInfo.entrySet())
+        streamInfoValues += e.getKey() + "=" + e.getValue() + ";";
+
+      context.response().putHeader(STREAM_INFO, streamInfoValues);
+    }
   }
 
   /**

@@ -202,6 +202,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
           .withH3Index(Query.getH3Index(context))
           .withLimit(getLimit(context))
           .withTags(Query.getTags(context))
+          .withClip(Query.getBoolean(context, Query.CLIP, false))
           .withPropertiesQuery(Query.getPropertiesQuery(context))
           .withSelection(Query.getSelection(context))
           .withForce2D(force2D);
