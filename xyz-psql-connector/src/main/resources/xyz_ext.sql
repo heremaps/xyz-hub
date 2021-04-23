@@ -151,7 +151,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 139
+ select 140
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
@@ -821,7 +821,7 @@ $BODY$
 		idx_type text := 'btree';
 	BEGIN
 		source = lower(source);
-		select into prop_path concat('''',replace(xyz_index_get_plain_propkey(propkey), '.', '''->'''),'''');
+		prop_path := '''' || replace( regexp_replace( xyz_index_get_plain_propkey(propkey),'^f\.',''),'.','''->''') || ''''; 
 
         /** root level property detected */
         IF (lower(SUBSTRING(propkey from 0 for 3)) = 'f.') THEN

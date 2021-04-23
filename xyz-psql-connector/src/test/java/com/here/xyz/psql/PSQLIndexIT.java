@@ -275,7 +275,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                         assertEquals("CREATE INDEX "+idx_name+" ON public.foo USING btree (((((jsondata -> 'properties'::text) -> 'foo'::text) -> 'nested'::text)))",indexdef);
                         break;
                     case "f.fooroot" :
-                        assertEquals("CREATE INDEX "+idx_name+" ON public.foo USING btree ((((jsondata -> 'f'::text) -> 'fooroot'::text)))",indexdef);
+                        assertEquals("CREATE INDEX "+idx_name+" ON public.foo USING btree (((jsondata -> 'fooroot'::text)))",indexdef);
                         break;
                     case "f.geometry.type" :
                         assertEquals("CREATE INDEX "+idx_name+" ON public.foo USING btree (geometrytype(geo))",indexdef);
