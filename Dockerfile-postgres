@@ -8,3 +8,16 @@ ENV POSTGRES_PASSWORD password
 
 RUN apt-get update && \
     apt-get -y install postgresql-10-postgis-2.5
+
+RUN apt-get -y install alien
+RUN curl -L "https://osdn.net/dl/pghintplan/pg_hint_plan10-1.3.6-1.el7.x86_64.rpm" --output pg_hint_plan10-1.3.6-1.el7.x86_64.rpm
+RUN alien -i pg_hint_plan10-1.3.6-1.el7.x86_64.rpm
+RUN rm pg_hint_plan10-1.3.6-1.el7.x86_64.rpm
+RUN ln -sf /usr/pgsql-10/lib/pg_hint_plan.so /usr/lib/postgresql/10/lib/pg_hint_plan.so
+RUN echo "#!/bin/sh -e\n\
+\n\n\
+sed -i.org -e \"s/#shared_preload_libraries = ''/shared_preload_libraries = 'pg_hint_plan'/\" /var/lib/postgresql/data/postgresql.conf\n\n\
+\n\n\
+" > /docker-entrypoint-initdb.d/cfg_pg_hint_plan.sh
+
+RUN chmod 755 /docker-entrypoint-initdb.d/cfg_pg_hint_plan.sh
