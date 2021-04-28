@@ -19,15 +19,13 @@
 
 package com.here.xyz.psql.factory;
 
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
 import com.here.xyz.psql.SQLQuery;
 
-import org.json.JSONObject;
-import org.apache.commons.codec.digest.DigestUtils;
 import org.json.JSONArray;
+import org.json.JSONObject;
 
 public class IterateSortSQL {
 
