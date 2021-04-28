@@ -19,6 +19,7 @@
 
 package com.here.xyz.psql.factory;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -44,8 +45,9 @@ public class IterateSortSQL {
 
   private static String PropertyDoesNotExistIndikator = "#zJfCzPCz#";
 
-  private static String buildNextHandleAttribute(List<String> sortby) 
-  { String nhandle = "jsonb_set('{}','{h0}', jsondata->'id')", svalue = "";
+  private static String buildNextHandleAttribute(List<String> sortby, boolean partOver_i) 
+  { String nhandle = !partOver_i ? "jsonb_set('{}','{h0}', jsondata->'id')" : "jsonb_set('{}','{i}',to_jsonb(s.i))", 
+           svalue = "";
     int hDepth = 1;
 
     if (sortby != null && sortby.size() > 0)
@@ -59,9 +61,9 @@ public class IterateSortSQL {
     return String.format("jsonb_set(%s,'{s}','[%s]')", nhandle, svalue);
   }
 
-  private static String buildOrderByClause(List<String> sortby) 
-  { if (sortby == null || sortby.size() == 0) 
-     return "order by (jsondata->>'id')"; // in case no sort is specified
+  private static String buildOrderByClause(List<String> sortby, boolean partOver_i) 
+  { if (sortby == null || sortby.size() == 0)
+     return !partOver_i ? "order by (jsondata->>'id')" : "order by i"; // in case no sort is specified
 
     if( sortby.size() == 1 && sortby.get(0).toLowerCase().startsWith("id") ) // usecase order by id
      if( sortby.get(0).equalsIgnoreCase( "id:desc" ) )
@@ -91,6 +93,9 @@ public class IterateSortSQL {
     return(sortby);
   }
 
+  private static boolean isPartOverI( String handle )
+  { return (new JSONObject(handle)).has("i"); }
+
   private static List<String> buildContinuationConditions( String handle )
   {
    List<String> ret = new ArrayList<String>(),
@@ -98,7 +103,12 @@ public class IterateSortSQL {
    JSONObject h = new JSONObject(handle);
    boolean descendingLast = false, sortbyIdUseCase = false;
    String sqlWhereContinuation = "";
-   int hdix = 1;   
+   int hdix = 1;
+
+   if( h.has("i") ) // partOver_i
+   { ret.add( String.format(" and i > %d", h.getBigInteger("i") ) );
+     return ret;
+   }
 
    for (String s : sortby) 
    { String hkey = "h" + hdix++;
@@ -191,12 +201,15 @@ public class IterateSortSQL {
       + " ) "; 
 
   public static SQLQuery innerSortedQry(SQLQuery searchQuery, List<String> sortby, Integer[] part, String handle, long limit) {
-   boolean useHandle = (handle != null) ;
+   boolean useHandle = (handle != null),
+           partOver_i = (part != null && handle == null && sortby == null && searchQuery == null);
 
    if( useHandle ) 
-    sortby = convHandle2sortbyList(handle);
+   { sortby = convHandle2sortbyList(handle);
+     partOver_i = isPartOverI( handle );
+   }
     
-   String orderByClause = buildOrderByClause(sortby),
+   String orderByClause = buildOrderByClause(sortby, partOver_i ),
           partialSQL = "";
 
    if(! useHandle )
@@ -229,7 +242,7 @@ public class IterateSortSQL {
       }  
     }
 
-   String nextHandleJson = buildNextHandleAttribute(sortby),
+   String nextHandleJson = buildNextHandleAttribute(sortby, partOver_i ),
           outerSQL = String.format( sortedIterate, (!useHandle ? "" : String.format("order by ord1, ord2 limit %1$d",limit) ) , nextHandleJson );
 
    String[] outs = outerSQL.split("##_INNER_SEARCH_QRY_##");
