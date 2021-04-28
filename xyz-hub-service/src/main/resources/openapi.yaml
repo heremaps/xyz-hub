@@ -8,8 +8,8 @@ info:
 servers:
   - url: /hub
 security:
-  - AccessTokenAuth: []
-  - BearerAuth: []
+  - AccessToken: []
+  - Bearer: []
 tags:
   - name: Manage Spaces
     description: Space management endpoints.
@@ -952,18 +952,14 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
 components:
   securitySchemes:
-    AccessTokenAuth:
+    AccessToken:
       type: apiKey
       in: query
       name: access_token
-    BearerAuth:
+    Bearer:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: |
-        A client access token needs to be obtained from a separate endpoint using the client credentials and an OAuth 1.0a HMAC-SHA256 signed request.
-
-        See https://developer.here.com/olp/documentation/access_control/api-reference-swagger.html#operation/clientcredentialsgrant
   parameters:
     AddTags:
       name: addTags
