@@ -35,7 +35,9 @@ import java.util.List;
 public class StatisticsResponse extends XyzResponse<StatisticsResponse> {
 
   private Value<Long> count;
+  @Deprecated
   private Value<Long> byteSize;
+  private Value<Long> dataSize;
   private Value<BBox> bbox;
   private PropertiesStatistics properties;
   private Value<List<PropertyStatistics>> tags;
@@ -76,6 +78,7 @@ public class StatisticsResponse extends XyzResponse<StatisticsResponse> {
    * Returns the amount of bytes that are stored in the space.
    *
    * @return the amount of bytes that are stored in the space.
+   * @deprecated use {@link #getDataSize()} instead.
    */
   @SuppressWarnings({"unused"})
   public Value<Long> getByteSize() {
@@ -86,6 +89,7 @@ public class StatisticsResponse extends XyzResponse<StatisticsResponse> {
    * Sets the amount of bytes that are stored in the space.
    *
    * @param byteSize the amount of bytes that are stored in the space.
+   * @deprecated use {@link #setDataSize(Value)} instead.
    */
   @SuppressWarnings({"WeakerAccess"})
   public void setByteSize(Value<Long> byteSize) {
@@ -96,10 +100,42 @@ public class StatisticsResponse extends XyzResponse<StatisticsResponse> {
    * Sets the amount of bytes that are stored in the space.
    *
    * @return this.
+   * @deprecated use {@link #withDataSize(Value)} instead.
    */
   @SuppressWarnings({"unused"})
   public StatisticsResponse withByteSize(Value<Long> byteSize) {
     setByteSize(byteSize);
+    return this;
+  }
+
+  /**
+   * Returns the amount of bytes that are stored in the space.
+   *
+   * @return the amount of bytes that are stored in the space.
+   */
+  @SuppressWarnings({"unused"})
+  public Value<Long> getDataSize() {
+    return this.dataSize;
+  }
+
+  /**
+   * Sets the amount of bytes that are stored in the space.
+   *
+   * @param dataSize the amount of bytes that are stored in the space.
+   */
+  @SuppressWarnings({"WeakerAccess"})
+  public void setDataSize(Value<Long> dataSize) {
+    this.dataSize = dataSize;
+  }
+
+  /**
+   * Sets the amount of bytes that are stored in the space.
+   *
+   * @return this.
+   */
+  @SuppressWarnings({"unused"})
+  public StatisticsResponse withDataSize(Value<Long> dataSize) {
+    setDataSize(dataSize);
     return this;
   }
 
