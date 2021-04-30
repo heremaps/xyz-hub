@@ -41,9 +41,11 @@ import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
+import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.SearchForFeaturesOrderByEvent;
 import com.here.xyz.events.TagsQuery;
+import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -672,6 +674,36 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
    return null;
   }
+  
+  private String createHandle(SearchForFeaturesOrderByEvent event, String jsonData ) throws Exception
+  { return HPREFIX + PSQLConfig.encrypt( addEventValuesToHandle(event, jsonData ) , "findFeaturesSort" ); }
+
+  private XyzResponse requestIterationHandles(SearchForFeaturesOrderByEvent event, int nrHandles ) throws Exception
+  {
+    event.setPart(null);
+    event.setTags(null);
+    
+    FeatureCollection cl = executeQueryWithRetry( SQLQueryBuilder.buildGetIterateHandlesQuery(nrHandles));
+    List<List<Object>> hdata = cl.getFeatures().get(0).getProperties().get("handles");
+    for( List<Object> entry : hdata )
+    { 
+      event.setPropertiesQuery(null);
+      if( entry.get(2) != null )
+      { PropertyQuery pqry = new PropertyQuery();
+        pqry.setKey("id");
+        pqry.setOperation(QueryOperation.LESS_THAN);
+        pqry.setValues(Arrays.asList( entry.get(2)) );
+        PropertiesQuery pqs = new PropertiesQuery();
+        PropertyQueryList pql = new PropertyQueryList();
+        pql.add( pqry );
+        pqs.add( pql );
+
+        event.setPropertiesQuery( pqs );
+      }
+      entry.set(0, createHandle(event,String.format("{\"h\":\"%s\",\"s\":[]}",entry.get(1).toString()))); 
+    }
+    return cl;
+  }
 
   protected XyzResponse findFeaturesSort(SearchForFeaturesOrderByEvent event ) throws Exception
   {
@@ -683,6 +715,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       if( !hasHandle )  // decrypt handle and configure event
       {
+        if( event.getPart() != null && event.getPart()[0] == -1 )
+         return requestIterationHandles( event, event.getPart()[1] );
+        
         if (!Capabilities.canSearchFor(space, event.getPropertiesQuery(), this)) {
           return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
                   .withErrorMessage("Invalid request parameters. Search for the provided properties is not supported for this space.");
@@ -714,11 +749,11 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       FeatureCollection collection = executeQueryWithRetry(query);
 
-      if (collection.getHandle() != null) {// extend handle and encrypt
-        final String handle = HPREFIX + PSQLConfig.encrypt(addEventValuesToHandle(event, collection.getHandle()), "findFeaturesSort");
-        collection.setHandle(handle);
+      if( collection.getHandle() != null ) // extend handle and encrypt
+      { final String handle = createHandle( event, collection.getHandle() ); 
+        collection.setHandle( handle );
         collection.setNextPageToken(handle);
-      }
+      }  
 
       return collection;
     } catch (SQLException e){
