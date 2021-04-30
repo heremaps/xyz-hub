@@ -267,7 +267,7 @@ public class IterateSortSQL {
     + "iidata   as ( select id, ntile( %1$d ) over ( order by id ) as bucket from idata ), "
     + "iiidata  as ( select min(id) as id, bucket from iidata group by bucket ), "
     + "iiiidata as ( select bucket, id as i_from, lead( id, 1) over ( order by id ) as i_to from iiidata ) "
-    + "select  jsonb_set('{\"type\":\"Feature\",\"properties\":{}}','{properties,handles}', jsonb_agg(jsonb_build_array(bucket, i_from, i_to ))), null, null from iiiidata ";
+    + "select  jsonb_set('{\"type\":\"Feature\",\"properties\":{}}','{properties,handles}', jsonb_agg(jsonb_build_array(bucket, i_from, i_to ))),'{\"type\":\"Point\",\"coordinates\":[]}', null from iiiidata ";
 
   public static SQLQuery getIterateHandles(int nrHandles) 
   { return new SQLQuery(String.format(bucketOfIdsSql, nrHandles)); }
