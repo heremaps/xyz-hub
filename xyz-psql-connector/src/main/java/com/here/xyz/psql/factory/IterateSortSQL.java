@@ -104,7 +104,12 @@ public class IterateSortSQL {
    int hdix = 1;
 
    if( h.has("i") ) // partOver_i
-   { ret.add( String.format(" and i > %d", h.getBigInteger("i") ) );
+   { ret.add(String.format(" and i > %d", h.getBigInteger("i")));
+     return ret;
+   }
+
+   if( h.has("h") ) // start handle partitioned by id
+   { ret.add(String.format(" and (jsondata->>'id') >= '%s'",h.get("h").toString())); 
      return ret;
    }
 
@@ -252,6 +257,21 @@ public class IterateSortSQL {
    return innerQry;
   }
 
+  private static String bucketOfIdsSql = 
+      "with  "
+    + "idata as "
+    + "(  select min( jsondata->>'id' ) as id from ${schema}.${table} "
+    + "  union  "
+    + "   select jsondata->>'id' as id from ${schema}.${table} tablesample system( 0.001 ) " //-- repeatable ( 0.7 )
+    + "), "
+    + "iidata   as ( select id, ntile( %1$d ) over ( order by id ) as bucket from idata ), "
+    + "iiidata  as ( select min(id) as id, bucket from iidata group by bucket ), "
+    + "iiiidata as ( select bucket, id as i_from, lead( id, 1) over ( order by id ) as i_to from iiidata ) "
+    + "select  jsonb_set('{\"type\":\"Feature\",\"properties\":{}}','{properties,handles}', jsonb_agg(jsonb_build_array(bucket, i_from, i_to ))), null, null from iiiidata ";
+
+  public static SQLQuery getIterateHandles(int nrHandles) 
+  { return new SQLQuery(String.format(bucketOfIdsSql, nrHandles)); }
+    
 
 public static class IdxMaintenance // idx Maintenance
 {
@@ -313,6 +333,7 @@ public static class IdxMaintenance // idx Maintenance
   }
 
  }
+
 }
 
 
