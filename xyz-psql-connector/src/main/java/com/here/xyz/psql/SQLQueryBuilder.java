@@ -634,6 +634,9 @@ public class SQLQueryBuilder {
         return query;
     }
 
+    public static SQLQuery buildGetIterateHandlesQuery( int nrHandles ) throws Exception 
+    { return IterateSortSQL.getIterateHandles(nrHandles);  }
+
     public static SQLQuery buildDeleteFeaturesByTagQuery(boolean includeOldStates, SQLQuery searchQuery) {
 
         final SQLQuery query;
