@@ -262,7 +262,8 @@ public class IterateSortSQL {
     + "idata as "
     + "(  select min( jsondata->>'id' ) as id from ${schema}.${table} "
     + "  union  "
-    + "   select jsondata->>'id' as id from ${schema}.${table} tablesample system( 0.001 ) " //-- repeatable ( 0.7 )
+    + "   select jsondata->>'id' as id from ${schema}.${table} "
+    + "    tablesample system( (select least((100000/greatest(reltuples,1)),100) from pg_catalog.pg_class where oid = format('%%s.%%s','${schema}', '${table}' )::regclass) ) " //-- repeatable ( 0.7 )
     + "), "
     + "iidata   as ( select id, ntile( %1$d ) over ( order by id ) as bucket from idata ), "
     + "iiidata  as ( select min(id) as id, bucket from iidata group by bucket ), "
