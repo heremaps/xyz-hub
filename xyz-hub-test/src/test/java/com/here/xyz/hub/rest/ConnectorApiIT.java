@@ -98,6 +98,28 @@ public class ConnectorApiIT extends RestAssuredTest {
   }
 
   @Test
+  public void createConnectorForDifferentUserAsAdmin() {
+    addConnector(AuthProfile.ACCESS_ALL, "/xyz/hub/connectors/embeddedConnectorWithOwner2.json")
+        .statusCode(CREATED.code());
+
+    given()
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_OWN_CONNECTORS))
+        .when()
+        .get("/connectors/test-connector")
+        .then()
+        .statusCode(FORBIDDEN.code());
+
+    given()
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_2_WITH_MANAGE_CONNECTORS))
+        .when()
+        .get("/connectors/test-connector")
+        .then()
+        .statusCode(OK.code());
+  }
+
+  @Test
   public void replaceConnector() {
     addTestConnector();
 

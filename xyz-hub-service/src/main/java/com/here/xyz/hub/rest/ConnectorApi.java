@@ -20,18 +20,16 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
-import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
-import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
-import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
-import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.netty.handler.codec.http.HttpResponseStatus.*;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 
+import com.here.xyz.hub.auth.AttributeMap;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.auth.XyzHubActionMatrix;
 import com.here.xyz.hub.auth.XyzHubAttributeMap;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.task.ConnectorHandler;
+import com.here.xyz.hub.util.diff.Difference;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -257,7 +255,7 @@ public class ConnectorApi extends Api {
     }
   }
 
-  private static class ConnectorAuthorization extends Authorization {
+  public static class ConnectorAuthorization extends Authorization {
     public static void authorizeManageConnectorsRights(RoutingContext context, String connectorId, Handler<AsyncResult<Void>> handler) {
       authorizeManageConnectorsRights(context, Collections.singletonList(connectorId), handler);
     }
@@ -295,6 +293,37 @@ public class ConnectorApi extends Api {
         }
       });
       return f;
+    }
+
+    public static void validateAdminChanges(RoutingContext context, Difference.DiffMap diffMap) throws HttpException {
+      //Is Admin change?
+      if (!isAdmin(context)) {
+        checkParameterChange(diffMap.get("owner"), "owner", Api.Context.getJWT(context).aid);
+        checkParameterChange(diffMap.get("skipAutoDisable"), "skipAutoDisable", false);
+        checkParameterChange(diffMap.get("trusted"), "trusted", false);
+      }
+    }
+
+    private static boolean isAdmin(RoutingContext context) {
+      XyzHubActionMatrix xyzHubActionMatrix = Api.Context.getJWT(context).getXyzHubMatrix();
+      if (xyzHubActionMatrix == null) return false;
+      List<AttributeMap> manageConnectorsRights = xyzHubActionMatrix.get(XyzHubActionMatrix.MANAGE_CONNECTORS);
+      if (manageConnectorsRights != null) {
+        for (AttributeMap attributeMap : manageConnectorsRights) {
+          //If manageConnectors[{}] -> Admin (no restrictions)
+          if (attributeMap.isEmpty()) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    private static void checkParameterChange(Difference diff, String parameterName, Object expected) throws HttpException {
+      if (diff instanceof Difference.Primitive) {
+        Difference.Primitive prim = (Difference.Primitive) diff;
+        if (prim.newValue() != null && !prim.newValue().equals(expected)) throw new HttpException(FORBIDDEN, "The property '" + parameterName + "' can not be changed manually.");
+      }
     }
   }
 }

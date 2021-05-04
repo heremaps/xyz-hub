@@ -94,9 +94,9 @@ public class SQLQueryBuilder {
 
         if(event.getH3Index() != null){
             if(radius != 0)
-                geoQuery = new SQLQuery("st_intersects( geo, ST_Buffer(hexbin::geography,? )::geometry)", radius);
+                geoQuery = new SQLQuery("ST_Intersects( geo, ST_Buffer(hexbin::geography,? )::geometry)", radius);
             else
-                geoQuery = new SQLQuery("st_intersects( geo, hexbin)");
+                geoQuery = new SQLQuery("ST_Intersects( geo, hexbin)");
         }else{
             geoQuery = radius != 0 ? new SQLQuery("ST_Intersects(geo, ST_Buffer(ST_GeomFromText('"
                     + WKTHelper.geometryToWKB(geometry) + "')::geography, ? )::geometry)", radius) : new SQLQuery("ST_Intersects(geo, ST_GeomFromText('"
@@ -634,6 +634,9 @@ public class SQLQueryBuilder {
         return query;
     }
 
+    public static SQLQuery buildGetIterateHandlesQuery( int nrHandles ) throws Exception 
+    { return IterateSortSQL.getIterateHandles(nrHandles);  }
+
     public static SQLQuery buildDeleteFeaturesByTagQuery(boolean includeOldStates, SQLQuery searchQuery) {
 
         final SQLQuery query;
@@ -973,14 +976,8 @@ public class SQLQueryBuilder {
         query.append("SELECT ");
 
         query.append(SQLQuery.selectJson(event.getSelection(),dataSource));
-
-        if (event instanceof GetFeaturesByBBoxEvent) {
-            query.append(",");
-            query.append(geometrySelectorForEvent((GetFeaturesByBBoxEvent) event, bConvertGeo2Geojson));
-        }
-        else
-            query.append( bConvertGeo2Geojson ? ( ",replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') as geo" )
-                    :  getForceMode(event.isForce2D()) + "(geo) as geo" );
+        query.append(",");
+        query.append(geometrySelectorForEvent( event, bConvertGeo2Geojson, indexedQuery));
 
         if(h3Index != null)
             query.append("FROM ${schema}.${table},h  WHERE");
@@ -1001,22 +998,50 @@ public class SQLQueryBuilder {
     /**
      * Returns the query, which will contains the geometry object.
      */
-    private static SQLQuery geometrySelectorForEvent(final GetFeaturesByBBoxEvent event, boolean bGeoJson) {
+    private static SQLQuery geometrySelectorForEvent(final QueryEvent event, boolean bGeoJson, SQLQuery indexedQuery) {
+        String forceMode = null;
+        boolean isClipped = false;
 
-        if (!event.getClip()) {
-          String  geoSqlAttrib = ( bGeoJson ? String.format("replace(ST_AsGeojson(%s(geo),%d),'nan','0') as geo", getForceMode(event.isForce2D()), GEOMETRY_DECIMAL_DIGITS )
-                                            : String.format("%s(geo) as geo",getForceMode(event.isForce2D())));
-
-          return new SQLQuery( geoSqlAttrib );
+        if(event instanceof GetFeaturesByBBoxEvent){
+            isClipped = ((GetFeaturesByBBoxEvent)event).getClip();
+            forceMode = getForceMode(((GetFeaturesByBBoxEvent)event).isForce2D());
+        }
+        else if(event instanceof  GetFeaturesByGeometryEvent){
+            isClipped = ((GetFeaturesByGeometryEvent)event).getClip();
+            forceMode = getForceMode(((GetFeaturesByGeometryEvent)event).isForce2D());
         }
 
-        final BBox bbox = event.getBbox();
+        if(!isClipped){
+            return (bGeoJson ?
+                    new SQLQuery("replace(ST_AsGeojson("+forceMode+"(geo),?::INTEGER),'nan','0') as geo", GEOMETRY_DECIMAL_DIGITS)
+                    : new SQLQuery(forceMode+"(geo) as geo"));
+        }else{
+            if(event instanceof GetFeaturesByBBoxEvent){
+                final BBox bbox = ((GetFeaturesByBBoxEvent)event).getBbox();
+                String geoSqlAttrib = (bGeoJson ? String.format("replace(ST_AsGeoJson(ST_Intersection(ST_MakeValid(geo),ST_MakeEnvelope(?,?,?,?,4326)),%d),'nan','0') as geo", GEOMETRY_DECIMAL_DIGITS)
+                        : "ST_Intersection( ST_MakeValid(geo),ST_MakeEnvelope(?,?,?,?,4326) ) as geo");
 
-        String geoCol = "geo",
-               geoSqlAttrib = ( bGeoJson ? String.format("replace(ST_AsGeoJson(ST_Intersection(ST_MakeValid(%s),ST_MakeEnvelope(?,?,?,?,4326)),%d),'nan','0') as geo", geoCol, GEOMETRY_DECIMAL_DIGITS )
-                                         : String.format("ST_Intersection( ST_MakeValid(%s),ST_MakeEnvelope(?,?,?,?,4326) ) as geo", geoCol ) );
+                return new SQLQuery(geoSqlAttrib, bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
+            }else if(event instanceof GetFeaturesByGeometryEvent){
+                //Clip=true =>  Use input Geometry for clipping
+                final Geometry geometry = ((GetFeaturesByGeometryEvent)event).getGeometry();
+                //If h3Index is given - use it as input geometry
+                final String h3Index =  ((GetFeaturesByGeometryEvent)event).getH3Index();
 
-        return new SQLQuery( geoSqlAttrib ,bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
+                String wktGeom = h3Index == null ? "ST_GeomFromText('" + WKTHelper.geometryToWKB(geometry) + "',4326)" : "hexbin" ;
+
+                //If radius is not null
+                if(((GetFeaturesByGeometryEvent)event).getRadius() != 0){
+                    //Enlarge input geometry with ST_Buffer
+                    wktGeom = (h3Index == null ?
+                            String.format("ST_Buffer(ST_GeomFromText('" + WKTHelper.geometryToWKB(geometry) + "')::geography, %d )::geometry", ((GetFeaturesByGeometryEvent)event).getRadius())
+                            : String.format("ST_Buffer(hexbin::geography,%d)::geometry", ((GetFeaturesByGeometryEvent)event).getRadius()));
+                }
+                return new SQLQuery("replace(ST_AsGeoJson(ST_Intersection(ST_MakeValid(geo),"+wktGeom+"),?::INTEGER),'nan','0') as geo", GEOMETRY_DECIMAL_DIGITS);
+            }
+        }
+        //Should not happen (currently only used with GetFeaturesByBBoxEvent / GetFeaturesByGeometryEvent)
+        return new SQLQuery("ST_AsGeojson(geo) as geo");
     }
 
     protected static SQLQuery generateSearchQuery(final QueryEvent event, final DataSource dataSource)

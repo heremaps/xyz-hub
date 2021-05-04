@@ -114,7 +114,7 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
           new ConnectorApi(rb);
 
           final AuthenticationHandler jwtHandler = createJWTHandler();
-          rb.securityHandler("BearerAuth", jwtHandler);
+          rb.securityHandler("Bearer", jwtHandler);
 
           final Router router = rb.createRouter();
 

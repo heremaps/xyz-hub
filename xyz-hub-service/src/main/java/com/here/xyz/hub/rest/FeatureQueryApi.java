@@ -127,17 +127,18 @@ public class FeatureQueryApi extends SpaceBasedApi {
       List<String> sort = Query.getSort(context);
       PropertiesQuery propertiesQuery = Query.getPropertiesQuery(context);
       String handle = Query.getString(context, Query.HANDLE, null);
+      Integer[] part = Query.getPart(context);
 
-      if (sort != null || propertiesQuery != null || ( handle != null && handle.startsWith("h07~"))) {
+      if (sort != null || propertiesQuery != null || part != null || ( handle != null && handle.startsWith("h07~"))) {
         SearchForFeaturesOrderByEvent event = new SearchForFeaturesOrderByEvent();
         event.withLimit(getLimit(context))
             .withForce2D(force2D)
             .withTags(Query.getTags(context))
-            .withPropertiesQuery(Query.getPropertiesQuery(context))
+            .withPropertiesQuery(propertiesQuery)
             .withSelection(Query.getSelection(context))
-            .withSort(Query.getSort(context))
-            .withPart(Query.getPart(context))
-            .withHandle(Query.getString(context, Query.HANDLE, null));
+            .withSort(sort)
+            .withPart(part)
+            .withHandle(handle);
 
         final SearchQuery task = new SearchQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache);
         task.execute(this::sendResponse, this::sendErrorResponse);
@@ -202,6 +203,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
           .withH3Index(Query.getH3Index(context))
           .withLimit(getLimit(context))
           .withTags(Query.getTags(context))
+          .withClip(Query.getBoolean(context, Query.CLIP, false))
           .withPropertiesQuery(Query.getPropertiesQuery(context))
           .withSelection(Query.getSelection(context))
           .withForce2D(force2D);

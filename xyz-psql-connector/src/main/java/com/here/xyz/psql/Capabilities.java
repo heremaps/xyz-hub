@@ -62,18 +62,18 @@ public class Capabilities {
       int idx_check = 0;
 
       for (String key : keys) {
-        String[] parts = key.split("\\.");
+
         /** properties.foo vs foo (root)
          * If hub receives "f.foo=bar&p.foo=bar" it will generates a PropertyQuery with properties.foo=bar and foo=bar
          **/
-        boolean isPropertyQuery = parts[0].equals("properties");
+        boolean isPropertyQuery = key.startsWith("properties.");
 
         /** If property query hits default system index - allow search. [id, properties.@ns:com:here:xyz.createdAt, properties.@ns:com:here:xyz.updatedAt]" */
-        if (key.equals("id") || (parts.length == 3 && parts[1].equals("@ns:com:here:xyz")
-                && (parts[2].equals("createdAt") || parts[2].equals("updatedAt")))
-        ) {
-          return true;
-        }
+        if (     key.equals("id") 
+             ||  key.equals("properties.@ns:com:here:xyz.createdAt") 
+             ||  key.equals("properties.@ns:com:here:xyz.updatedAt") 
+        )
+         return true;
 
         /** Check if custom Indices are available. Eg.: properties.foo1&f.foo2*/
         List<String> indices = IndexList.getIndexList(space, connector);
@@ -118,7 +118,10 @@ public class Capabilities {
 
      if (indices == null) return true; // The table is small and not indexed. It's not listed in the xyz_idxs_status table
 
-     return indices.contains(normalizedSortProp);
+     for( String idx : indices )
+      if( idx.startsWith( normalizedSortProp) ) return true;
+     
+     return false; 
     }
     catch (Exception e)
     { // In all cases, when something with the check went wrong, allow the sort

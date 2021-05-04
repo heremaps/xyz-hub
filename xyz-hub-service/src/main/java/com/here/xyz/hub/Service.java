@@ -586,12 +586,29 @@ public class Service extends Core {
 
     /**
      * The maximum size of an event transiting between connector -> service -> client.
+     * Validation is only applied when MAX_SERVICE_RESPONSE_SIZE is bigger than zero.
+     * @deprecated Use instead MAX_UNCOMPRESSED_RESPONSE_SIZE
      */
     public int MAX_SERVICE_RESPONSE_SIZE;
 
     /**
+     * The maximum uncompressed request size in bytes supported on API calls.
+     * If uncompressed request size is bigger than MAX_UNCOMPRESSED_REQUEST_SIZE, an error with status code 413 will be sent.
+     */
+    public long MAX_UNCOMPRESSED_REQUEST_SIZE;
+
+    /**
+     * The maximum uncompressed response size in bytes supported on API calls.
+     * If uncompressed response size is bigger than MAX_UNCOMPRESSED_RESPONSE_SIZE, an error with status code 513 will be sent.
+     */
+    public long MAX_UNCOMPRESSED_RESPONSE_SIZE;
+
+
+    /**
      * The maximum http response size in bytes supported on API calls.
      * If response size is bigger than MAX_HTTP_RESPONSE_SIZE, an error with status code 513 will be sent.
+     * Validation is only applied when MAX_HTTP_RESPONSE_SIZE is bigger than zero.
+     * @deprecated Use instead MAX_UNCOMPRESSED_RESPONSE_SIZE
      */
     public int MAX_HTTP_RESPONSE_SIZE;
   }

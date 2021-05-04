@@ -30,6 +30,7 @@ public class GetFeaturesByGeometryEvent extends SearchForFeaturesEvent<GetFeatur
   private int radius;
   private Geometry geometry;
   private String h3Index;
+  private boolean clip;
 
   @SuppressWarnings("unused")
   public String getH3Index() {
@@ -71,6 +72,22 @@ public class GetFeaturesByGeometryEvent extends SearchForFeaturesEvent<GetFeatur
 
   public GetFeaturesByGeometryEvent withGeometry(Geometry geometry) {
     setGeometry(geometry);
+    return this;
+  }
+
+  @SuppressWarnings("unused")
+  public Boolean getClip() {
+    return this.clip;
+  }
+
+  @SuppressWarnings("WeakerAccess")
+  public void setClip(Boolean clip) {
+    this.clip = clip;
+  }
+
+  @SuppressWarnings("unused")
+  public GetFeaturesByGeometryEvent withClip(boolean clip) {
+    setClip(clip);
     return this;
   }
 }

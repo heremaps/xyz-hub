@@ -52,10 +52,10 @@ import com.here.xyz.models.hub.Space.Public;
 import com.here.xyz.models.hub.Space.WithConnectors;
 import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.HistoryStatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
-import com.here.xyz.responses.HistoryStatisticsResponse;
 import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.responses.changesets.CompactChangeset;
 import io.netty.handler.codec.compression.ZlibWrapper;
@@ -472,8 +472,9 @@ public abstract class Api {
   }
 
   protected long getMaxResponseLength(final RoutingContext context) {
-    return XYZHttpContentCompressor.isCompressionEnabled(context.request().getHeader(ACCEPT_ENCODING)) ?
-        MAX_SERVICE_RESPONSE_SIZE : MAX_HTTP_RESPONSE_SIZE;
+    long serviceSize = MAX_SERVICE_RESPONSE_SIZE > 0 ? MAX_SERVICE_RESPONSE_SIZE : Long.MAX_VALUE;
+    long httpSize = MAX_HTTP_RESPONSE_SIZE > 0 ? MAX_HTTP_RESPONSE_SIZE : Long.MAX_VALUE;
+    return XYZHttpContentCompressor.isCompressionEnabled(context.request().getHeader(ACCEPT_ENCODING)) ? serviceSize : httpSize;
   }
 
   private void sendResponse(final Task task, HttpResponseStatus status, String contentType, final byte[] response) {

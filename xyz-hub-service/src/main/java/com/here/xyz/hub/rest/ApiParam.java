@@ -286,10 +286,10 @@ public class ApiParam {
 
       int part, total;
       List<String> l = Query.queryParam(Query.PART, context);
-      if( l.size() == 2 ) 
+      if( l.size() <= 2 && l.size() >= 1 ) 
        try
        { part  =  Integer.parseUnsignedInt( l.get(0) );
-         total =  Integer.parseUnsignedInt( l.get(1) );
+         total =  ( l.size() > 1 ? Integer.parseUnsignedInt( l.get(1) ) : -1 );
          return ( part == 0 || total == 0 ) ? null : new Integer[]{ Math.min(part, total), Math.max(part,total) };
        }
        catch(NumberFormatException e){}
@@ -452,7 +452,7 @@ public class ApiParam {
             if( CLUSTERING_PARAM_RESOLUTION_RELATIVE.equals(key) && ((long)value < -2 || (long)value > 4))
              throw new Exception(String.format("Invalid clustering.%s value. Expect Integer hexbin:[-2,2], quadbin:[0-4].",key));
 
-            if(!CLUSTERING_PARAM_RESOLUTION_ABSOLUTE.equals(key) && ((long)value < 0 || (long)value > 18))
+            if(!CLUSTERING_PARAM_RESOLUTION_RELATIVE.equals(key) && ((long)value < 0 || (long)value > 18))
               throw new Exception(String.format("Invalid clustering.%s value. Expect Integer hexbin:[0,13], quadbin:[0,18].",key));
             break;
 

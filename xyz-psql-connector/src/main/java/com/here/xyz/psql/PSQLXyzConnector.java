@@ -40,9 +40,12 @@ import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.events.PropertyQuery;
+import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.SearchForFeaturesOrderByEvent;
 import com.here.xyz.events.TagsQuery;
+import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -68,6 +71,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -547,9 +551,6 @@ public class PSQLXyzConnector extends DatabaseHandler {
         for( List<Object> l : event.getSpaceDefinition().getSortableProperties() )
          for( Object p : l )
          { String property = p.toString();
-           if( property.startsWith("f.") && !property.replaceFirst("(?i):(asc|desc)$","").matches("f\\.(createdAt|updatedAt)") )
-            throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-              "On-Demand-Indexing [" + property + "] - only f.createdAt or f.updatedAt allowed!");
            if( property.contains("\\") || property.contains("'") )
             throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
               "On-Demand-Indexing [" + property + "] - Characters ['\\] not allowed!");
@@ -624,33 +625,115 @@ public class PSQLXyzConnector extends DatabaseHandler {
   private List<String> translateSortSysValues(List<String> sort)
   { if( sort == null ) return null;
     List<String> r = new ArrayList<String>();
-    for( String f : sort )
-     if( f.toLowerCase().startsWith("f.id" ) ) // f. sysval replacements
-      r.add( f.replaceFirst("^f\\.", "") );
-     else
+    for( String f : sort )      // f. sysval replacements - f.sysval:desc -> sysval:desc
+     if( f.toLowerCase().startsWith("f.createdat" ) || f.toLowerCase().startsWith("f.updatedat" ) )
       r.add( f.replaceFirst("^f\\.", "properties.@ns:com:here:xyz.") );
+     else
+      r.add( f.replaceFirst("^f\\.", "") );
+
     return r;
   }
 
   private static final String HPREFIX = "h07~";
+
+  private List<String> getSearchKeys(  PropertiesQuery p )
+  { return p.stream()
+             .flatMap(List::stream)
+             .filter(k -> k.getKey() != null && k.getKey().length() > 0)
+             .map(PropertyQuery::getKey)
+             .collect(Collectors.toList());
+  }
+
+  private List<String> getSortFromSearchKeys( List<String> searchKeys, String space, PSQLXyzConnector connector ) throws Exception
+  {
+   List<String> indices = Capabilities.IndexList.getIndexList(space, connector);
+   if( indices == null ) return null;
+
+   indices.sort((s1, s2) -> s1.length() - s2.length());
+
+   for(String sk : searchKeys )
+    switch( sk )
+    { case "id" : return null; // none is always sorted by ID;
+      case "properties.@ns:com:here:xyz.createdAt" : return Arrays.asList("f.createdAt");
+      case "properties.@ns:com:here:xyz.updatedAt" : return Arrays.asList("f.updatedAt");
+      default:
+       if( !sk.startsWith("properties.") ) sk = "o:f." + sk;
+       else sk = sk.replaceFirst("^properties\\.","o:");
+
+       for(String idx : indices)
+        if( idx.startsWith(sk) )
+        { List<String> r = new ArrayList<String>();
+          String[] sortIdx = idx.replaceFirst("^o:","").split(",");
+          for( int i = 0; i < sortIdx.length; i++)
+           r.add( sortIdx[i].startsWith("f.") ? sortIdx[i] : "properties." + sortIdx[i] );
+          return r;
+        }
+      break;
+    }
+
+   return null;
+  }
+
+  private String createHandle(SearchForFeaturesOrderByEvent event, String jsonData ) throws Exception
+  { return HPREFIX + PSQLConfig.encrypt( addEventValuesToHandle(event, jsonData ) , "findFeaturesSort" ); }
+
+  private XyzResponse requestIterationHandles(SearchForFeaturesOrderByEvent event, int nrHandles ) throws Exception
+  {
+    event.setPart(null);
+    event.setTags(null);
+
+    FeatureCollection cl = executeQueryWithRetry( SQLQueryBuilder.buildGetIterateHandlesQuery(nrHandles));
+    List<List<Object>> hdata = cl.getFeatures().get(0).getProperties().get("handles");
+    for( List<Object> entry : hdata )
+    {
+      event.setPropertiesQuery(null);
+      if( entry.get(2) != null )
+      { PropertyQuery pqry = new PropertyQuery();
+        pqry.setKey("id");
+        pqry.setOperation(QueryOperation.LESS_THAN);
+        pqry.setValues(Arrays.asList( entry.get(2)) );
+        PropertiesQuery pqs = new PropertiesQuery();
+        PropertyQueryList pql = new PropertyQueryList();
+        pql.add( pqry );
+        pqs.add( pql );
+
+        event.setPropertiesQuery( pqs );
+      }
+      entry.set(0, createHandle(event,String.format("{\"h\":\"%s\",\"s\":[]}",entry.get(1).toString())));
+    }
+    return cl;
+  }
 
   protected XyzResponse findFeaturesSort(SearchForFeaturesOrderByEvent event ) throws Exception
   {
     try{
       logger.info("{} - Received "+event.getClass().getSimpleName(), traceItem);
 
-      if (!Capabilities.canSearchFor(config.readTableFromEvent(event), event.getPropertiesQuery(), this)) {
-        return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
-                .withErrorMessage("Invalid request parameters. Search for the provided properties is not supported for this space.");
-      }
+      boolean hasHandle = (event.getHandle() != null);
+      String space = config.readTableFromEvent(event);
 
-      if (!Capabilities.canSortBy(config.readTableFromEvent(event), event.getSort(), this)) {
-        return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
-                .withErrorMessage("Invalid request parameters. Sorting by for the provided properties is not supported for this space.");
-      }
+      if( !hasHandle )  // decrypt handle and configure event
+      {
+        if( event.getPart() != null && event.getPart()[0] == -1 )
+         return requestIterationHandles( event, event.getPart()[1] );
 
-      if(event.getHandle() == null)  // decrypt handle and configure event
-       event.setSort( translateSortSysValues( event.getSort() ));
+        if (!Capabilities.canSearchFor(space, event.getPropertiesQuery(), this)) {
+          return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
+                  .withErrorMessage("Invalid request parameters. Search for the provided properties is not supported for this space.");
+        }
+
+        if( event.getPropertiesQuery() != null && (event.getSort() == null || event.getSort().isEmpty()) )
+        {
+         event.setSort( getSortFromSearchKeys( getSearchKeys( event.getPropertiesQuery() ), space, this ) );
+        }
+        else if (!Capabilities.canSortBy(space, event.getSort(), this))
+        {
+          return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
+                  .withErrorMessage("Invalid request parameters. Sorting by for the provided properties is not supported for this space.");
+        }
+
+        event.setSort( translateSortSysValues( event.getSort() ));
+      }
       else if( !event.getHandle().startsWith( HPREFIX ) )
        return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
                .withErrorMessage("Invalid request parameter. handle is corrupted");
@@ -666,7 +749,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       FeatureCollection collection = executeQueryWithRetry(query);
 
       if( collection.getHandle() != null ) // extend handle and encrypt
-       collection.setHandle( HPREFIX + PSQLConfig.encrypt( addEventValuesToHandle(event, collection.getHandle() ) , "findFeaturesSort" ) );
+       collection.setHandle( createHandle( event, collection.getHandle() ));
 
       return collection;
     }catch (SQLException e){
@@ -737,7 +820,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
        return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
                                  .withErrorMessage("Cannot get a connection to the database.");
 
-      if( e.getMessage().indexOf("Maxchar limit") > -1 )
+       if( e.getMessage().indexOf("Maxchar limit") > -1 )
         return new ErrorResponse().withStreamId(streamId).withError(XyzError.PAYLOAD_TO_LARGE)
                                                          .withErrorMessage("Database result - Maxchar limit exceed");
 

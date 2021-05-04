@@ -8,8 +8,8 @@ info:
 servers:
   - url: /hub
 security:
-  - AccessTokenAuth: []
-  - BearerAuth: []
+  - AccessToken: []
+  - Bearer: []
 tags:
   - name: Manage Spaces
     description: Space management endpoints.
@@ -622,6 +622,7 @@ paths:
         - $ref: '#/components/parameters/Radius'
         - $ref: '#/components/parameters/TagList'
         - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Clip'
         - $ref: '#/components/parameters/PropertiesQuery'
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/SkipCache'
@@ -652,6 +653,7 @@ paths:
         - $ref: '#/components/parameters/Radius'
         - $ref: '#/components/parameters/TagList'
         - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Clip'
         - $ref: '#/components/parameters/PropertiesQuery'
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/SkipCache'
@@ -950,18 +952,14 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
 components:
   securitySchemes:
-    AccessTokenAuth:
+    AccessToken:
       type: apiKey
       in: query
       name: access_token
-    BearerAuth:
+    Bearer:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: |
-        A client access token needs to be obtained from a separate endpoint using the client credentials and an OAuth 1.0a HMAC-SHA256 signed request.
-
-        See https://developer.here.com/olp/documentation/access_control/api-reference-swagger.html#operation/clientcredentialsgrant
   parameters:
     AddTags:
       name: addTags
@@ -978,7 +976,7 @@ components:
       in: query
       description: >-
         If set to _true_ the features' geometries are clipped to the geometry of
-        the tile or bounding box. Default is _false_.
+        the tile, bounding box or input geometry. Default is _false_.
       required: false
       schema:
         type: boolean
@@ -1249,9 +1247,9 @@ components:
       name: part
       in: query
       description: |
-         Requests disjunct parts of iteration results (used with sort). List of two integers "part,total". 
-         part=1,4 read as first part out of 4, ... until part=4,4 . 
-    
+         Requests disjunct parts of iteration results (used with sort). List of two integers "part,total".
+         part=1,4 read as first part out of 4, ... until part=4,4 .
+
          Example: ?part=7,9
       explode: false
       schema:

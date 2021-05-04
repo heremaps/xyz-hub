@@ -43,6 +43,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
@@ -96,6 +97,11 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
   public static final String ENV_DECRYPTOR = "EVENT_DECRYPTOR";
 
   /**
+   * Environment variable or connector param for setting the max uncompressed response size which can be written out of the connector.
+   */
+  public static final String MAX_UNCOMPRESSED_RESPONSE_SIZE = "MAX_UNCOMPRESSED_RESPONSE_SIZE";
+
+  /**
    * The maximal response size in bytes that can be sent back without relocating the response.
    */
   @SuppressWarnings("WeakerAccess")
@@ -138,6 +144,11 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    * {@link EventDecryptor} used for decrypting the parameters.
    */
   final protected EventDecryptor eventDecryptor;
+
+  /**
+   * The max uncompressed response size in bytes read from connector params or environment variables
+   */
+  protected long maxUncompressedResponseSize = Long.MAX_VALUE;
 
   /**
    * Default constructor that sets the correct decryptor based on the {@see ENV_DECRYPTOR} environment variable.
@@ -193,9 +204,10 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
 
         String connectorId = null;
         streamId = event.getStreamId();
-        if(event.getConnectorParams() != null  && event.getConnectorParams().get("connectorId") != null)
+        if (event.getConnectorParams() != null  && event.getConnectorParams().get("connectorId") != null)
           connectorId = (String) event.getConnectorParams().get("connectorId");
 
+        maxUncompressedResponseSize = getMaxUncompressedResponseSize(event);
         traceItem = new TraceItem(streamId, connectorId);
 
         ifNoneMatch = event.getIfNoneMatch();
@@ -259,12 +271,24 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    */
   @SuppressWarnings("UnstableApiUsage")
   void writeDataOut(OutputStream output, Typed dataOut, String ifNoneMatch) {
+
     try {
       byte[] bytes = dataOut == null ? null : dataOut.serialize().getBytes();
+
       if (bytes == null) {
         return;
       }
+
       logger.debug("{} Writing data out for response with type: {}", traceItem, dataOut.getClass().getSimpleName());
+
+      if (bytes.length > maxUncompressedResponseSize) {
+        bytes = new ErrorResponse()
+            .withStreamId(streamId)
+            .withError(XyzError.PAYLOAD_TO_LARGE)
+            .withErrorMessage("Response size is too large")
+            .serialize()
+            .getBytes(StandardCharsets.UTF_8);
+      }
 
       //Calculate ETag
       String hash = Hashing.murmur3_128().newHasher().putBytes(bytes).hash().toString();
@@ -378,6 +402,20 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
 
     public String getConnectorId() {
       return connectorId;
+    }
+  }
+
+  private long getMaxUncompressedResponseSize(Event event) {
+    String size = System.getenv(MAX_UNCOMPRESSED_RESPONSE_SIZE);
+
+    if (event.getConnectorParams() != null && event.getConnectorParams().containsKey(MAX_UNCOMPRESSED_RESPONSE_SIZE))
+      size = event.getConnectorParams().get(MAX_UNCOMPRESSED_RESPONSE_SIZE).toString();
+
+    try {
+      long lSize = Long.parseLong(size);
+      return lSize > 0 ? lSize : Long.MAX_VALUE;
+    } catch (NumberFormatException e) {
+      return Long.MAX_VALUE;
     }
   }
 }

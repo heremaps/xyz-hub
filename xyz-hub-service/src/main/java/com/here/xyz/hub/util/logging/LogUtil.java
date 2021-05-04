@@ -33,13 +33,19 @@ import static io.vertx.core.http.HttpMethod.PUT;
 import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.rest.Api;
 import io.vertx.core.MultiMap;
+import io.vertx.core.http.HttpConnection;
 import io.vertx.core.http.HttpMethod;
+import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.http.impl.Http2ServerResponse;
+import io.vertx.core.net.SocketAddress;
+import io.vertx.ext.web.Route;
 import io.vertx.ext.web.RoutingContext;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -53,6 +59,29 @@ public class LogUtil {
   private static final Marker ACCESS_LOG_MARKER = MarkerManager.getMarker("ACCESS");
 
   private static List<String> skipLoggingHeaders = Collections.singletonList(X_FORWARDED_FOR);
+
+  private static final String IPV4_REGEX = "^(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(\\.(?!$)|$)){4}$";
+  private static final String IPV6_STD_REGEX = "^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$";
+  private static final String IPV6_HEX_COMPRESSED_REGEX = "^((?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4})*)?)::((?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4})*)?)$";
+
+  private static final Pattern IPV4_PATTERN = Pattern.compile(IPV4_REGEX);
+  private static final Pattern IPV6_STD_PATTERN = Pattern.compile(IPV6_STD_REGEX);
+  private static final Pattern IPV6_HEX_COMPRESSED_PATTERN = Pattern.compile(IPV6_HEX_COMPRESSED_REGEX);
+
+  private static String getIp(RoutingContext context) {
+    String ips = context.request().getHeader(X_FORWARDED_FOR);
+    if(!StringUtils.isEmpty(ips)) {
+      String ip = ips.split(", ")[0];
+
+      if(IPV4_PATTERN.matcher(ip).matches() ||
+              IPV6_STD_PATTERN.matcher(ip).matches() ||
+              IPV6_HEX_COMPRESSED_PATTERN.matcher(ip).matches()) {
+        return ip;
+      }
+    }
+
+    return context.request().connection().remoteAddress().host();
+  }
 
   public static String responseToLogEntry(RoutingContext context) {
     HttpServerResponse response = context.response();
@@ -94,6 +123,8 @@ public class LogUtil {
     if (POST.equals(method) || PUT.equals(method) || PATCH.equals(method)) {
       accessLog.reqInfo.size = context.getBody() == null ? 0 : context.getBody().length();
     }
+    accessLog.clientInfo.ip = getIp(context);
+    accessLog.clientInfo.remoteAddress = context.request().connection().remoteAddress().toString();
     accessLog.clientInfo.userAgent = context.request().getHeader(USER_AGENT);
     accessLog.reqInfo.contentType = context.request().getHeader(CONTENT_TYPE);
     accessLog.reqInfo.accept = context.request().getHeader(ACCEPT);
@@ -112,8 +143,9 @@ public class LogUtil {
     accessLog.respInfo.statusCode = context.response().getStatusCode();
     accessLog.respInfo.statusMsg = context.response().getStatusMessage();
     accessLog.respInfo.size = context.response().bytesWritten();
-    accessLog.respInfo.streamInfo = context.get(STREAM_INFO_CTX_KEY);
     accessLog.respInfo.contentType = context.response().headers().get(CONTENT_TYPE);
+
+    accessLog.streamInfo = context.get(STREAM_INFO_CTX_KEY);
 
     final JWTPayload tokenPayload = Api.Context.getJWT(context);
     if (tokenPayload != null) {
