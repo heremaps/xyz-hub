@@ -154,7 +154,7 @@ public class H3SQL
    int pxSize = 64,   // 64 in general, but clashes when h3 res is to fine grained (e.g. resulting in holes in hex areas). 
        pdiff = (h3res - maxResForLevel);
 
-   if(  pdiff == 2 ) pxSize = 88;
+   if(  pdiff == 2 ) pxSize = 160;
    else if (  pdiff >= 3 ) pxSize = 256;
 
    return( pxSize );
