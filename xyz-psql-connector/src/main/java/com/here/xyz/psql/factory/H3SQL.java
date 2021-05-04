@@ -107,7 +107,7 @@ public class H3SQL
           + "              from ${schema}.${table} v " 
           + "               left join lateral "
           + "                ( select st_force3d(st_setsrid( h3ToGeoDeg( coveringDeg( case ST_Within(geo, %5$s ) " 
-          + "                                                                          when true then geo "
+          + "                                                                          when true then ST_MakeValid(geo) "
           + "                                                                          else ST_Intersection( ST_MakeValid(geo), %5$s ) "
           + "                                                                         end, %1$d)), st_srid(geo))) "
           + "                  where st_geometrytype(v.geo) != 'ST_Point'"
