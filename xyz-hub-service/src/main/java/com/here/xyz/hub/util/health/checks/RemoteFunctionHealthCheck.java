@@ -22,6 +22,7 @@ package com.here.xyz.hub.util.health.checks;
 import static com.here.xyz.hub.util.health.schema.Status.Result.ERROR;
 import static com.here.xyz.hub.util.health.schema.Status.Result.OK;
 import static com.here.xyz.hub.util.health.schema.Status.Result.TIMEOUT;
+import static com.here.xyz.hub.util.health.schema.Status.Result.UNAVAILABLE;
 import static com.here.xyz.hub.util.health.schema.Status.Result.UNKNOWN;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -72,7 +73,7 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
       if (cachedStatus != null) {
         Status tmpStatus = cachedStatus;
         setResponse(cachedResponse);
-        if (tmpStatus.getResult().compareTo(TIMEOUT) >= 0)
+        if (tmpStatus.getResult().compareTo(UNAVAILABLE) >= 0)
           consecutiveFailures++;
         else
           consecutiveFailures = 0;
@@ -113,7 +114,6 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
             if (timeout > 500 && Core.currentTimeMillis() - t1 >= timeout - 500) {
               cancelHcRequest(hcHandle);
               setResponse(generateResponse());
-              consecutiveFailures++;
               return s.withResult(TIMEOUT);
             }
           }
