@@ -777,7 +777,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
         if ( e.getMessage().indexOf("ERROR: stats for") != -1 )
          return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( "statistical data for this space is missing (analyze)" );
         if ( e.getMessage().indexOf("TopologyException") != -1 )
-         return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( "viz: geometry with irregular topology" );
+         return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( "geometry with irregular topology (self-intersection, clipping)" );
         //fall thru - timeout assuming timeout
 
      case "57014" : /* 57014 - query_canceled */
