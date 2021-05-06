@@ -533,14 +533,14 @@
     </repository>
 
     <repository>
-      <id>geomajas</id>
+      <id>boundlessgeo</id>
       <layout>default</layout>
-      <name>geomajas-repo</name>
+      <name>boundlessgeo-repo</name>
       <releases>
         <checksumPolicy>warn</checksumPolicy>
         <enabled>true</enabled>
       </releases>
-      <url>http://maven.geomajas.org/</url>
+      <url>https://repo.boundlessgeo.com/</url>
     </repository>
 
     <repository>
