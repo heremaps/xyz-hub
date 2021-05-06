@@ -115,6 +115,19 @@ public class ConnectorHandler {
     });
   }
 
+  public static void getAllConnectors(RoutingContext context, Handler<AsyncResult<List<Connector>>> handler) {
+    Marker marker = Api.Context.getMarker(context);
+
+    Service.connectorConfigClient.getAll(marker, ar -> {
+      if (ar.failed()) {
+        logger.warn(marker, "Unable to load resource definitions.'", ar.cause());
+        handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definitions.", ar.cause())));
+      } else {
+        handler.handle(Future.succeededFuture(ar.result()));
+      }
+    });
+  }
+
   public static void createConnector(RoutingContext context, JsonObject connector, Handler<AsyncResult<Connector>> handler) {
     Marker marker = Api.Context.getMarker(context);
 
