@@ -532,7 +532,7 @@
       <url>https://repo.osgeo.org</url>
     </repository>
 
-    <!-- repository>
+    <repository>
       <id>geomajas</id>
       <layout>default</layout>
       <name>geomajas-repo</name>
@@ -541,7 +541,7 @@
         <enabled>true</enabled>
       </releases>
       <url>http://maven.geomajas.org/</url>
-    </repository -->
+    </repository>
 
     <repository>
       <id>mvnapache</id>
