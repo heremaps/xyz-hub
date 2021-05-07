@@ -2880,7 +2880,7 @@ begin
  end if;
 
  h = geoToH3Deg_p(c,res);
- hg = h3ToGeoBoundaryDeg_p( h );
+ hg = ST_MakeValid( h3ToGeoBoundaryDeg_p( h ) );
  
  insert into h3cache ( h3, res, geo ) values( h,res, hg );
 
@@ -3368,7 +3368,7 @@ begin
   return hg;
  end if;
 
- hg = h3ToGeoBoundaryDeg_p( h3 );
+ hg = ST_MakeValid( h3ToGeoBoundaryDeg_p( h3 ) );
  
  insert into h3cache ( h3, res, geo ) values( h3, H3_GET_RESOLUTION(h3), hg );
 
