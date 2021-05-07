@@ -521,26 +521,13 @@
   </dependencyManagement>
 
   <repositories>
-    <repository>
-      <id>osgeo</id>
-      <layout>default</layout>
-      <name>osgeo-repo</name>
-      <releases>
-        <checksumPolicy>warn</checksumPolicy>
-        <enabled>true</enabled>
-      </releases>
-      <url>https://repo.osgeo.org</url>
-    </repository>
 
-    <repository>
-      <id>boundlessgeo</id>
-      <layout>default</layout>
-      <name>boundlessgeo-repo</name>
-      <releases>
-        <checksumPolicy>warn</checksumPolicy>
-        <enabled>true</enabled>
-      </releases>
-      <url>https://repo.boundlessgeo.com/</url>
+     <repository>
+        <id>osgeo</id>
+        <name>OSGeo Release Repository</name>
+        <url>https://repo.osgeo.org/repository/release/</url>
+        <snapshots><enabled>false</enabled></snapshots>
+        <releases><enabled>true</enabled></releases>
     </repository>
 
     <repository>
