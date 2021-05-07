@@ -826,7 +826,7 @@ paths:
   '/connectors':
     get:
       tags:
-        - Read Connectors
+        - Manage Connectors
       summary: List connectors
       description: >-
         Lists the connectors, which the current authenticated user has access to.
@@ -851,7 +851,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
     post:
       tags:
-        - Edit Connectors
+        - Manage Connectors
       summary: Create a connector
       description: Creates a new connector.
       operationId: postConnector
@@ -871,7 +871,7 @@ paths:
   '/connectors/{connectorId}':
     get:
       tags:
-        - Read Connectors
+        - Manage Connectors
       summary: Get a connector by ID
       description: Returns the connector definition
       operationId: getConnector
@@ -888,30 +888,9 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
-    put:
-      tags:
-        - Edit Connectors
-      summary: Replace a connector
-      description: Replace a connector.
-      operationId: putConnector
-      parameters:
-        - $ref: '#/components/parameters/ConnectorId'
-      requestBody:
-        $ref: '#/components/requestBodies/ConnectorConfig'
-      responses:
-        '200':
-          $ref: '#/components/responses/ConnectorResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
-        '404':
-          $ref: '#/components/responses/ErrorResponse404'
     patch:
       tags:
-        - Edit Connectors
+        - Manage Connectors
       summary: Update a connector
       description: Updates a connector.
       operationId: patchConnector
@@ -932,7 +911,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
     delete:
       tags:
-        - Edit Connectors
+        - Manage Connectors
       summary: Delete a connector
       description: >-
         Deletes a connector configuration.

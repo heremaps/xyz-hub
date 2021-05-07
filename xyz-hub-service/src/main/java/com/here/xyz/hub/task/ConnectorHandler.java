@@ -160,20 +160,6 @@ public class ConnectorHandler {
     });
   }
 
-  public static void replaceConnector(RoutingContext context, JsonObject connector, Handler<AsyncResult<Connector>> handler) {
-    Marker marker = Api.Context.getMarker(context);
-
-    Service.connectorConfigClient.get(marker, connector.getString("id"), ar -> {
-      if (ar.failed()) {
-        logger.error(marker, "Unable to load resource definition.'", ar.cause());
-        handler.handle(Future.failedFuture(new HttpException(NOT_FOUND, "Unable to load the resource definition.", ar.cause())));
-      }
-      else {
-        storeConnector(context, connector, handler, marker, ar);
-      }
-    });
-  }
-
   public static void updateConnector(RoutingContext context, JsonObject connector, Handler<AsyncResult<Connector>> handler) {
     Marker marker = Api.Context.getMarker(context);
 
