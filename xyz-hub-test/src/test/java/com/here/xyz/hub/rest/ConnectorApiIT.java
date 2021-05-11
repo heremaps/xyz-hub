@@ -120,25 +120,7 @@ public class ConnectorApiIT extends RestAssuredTest {
   }
 
   @Test
-  public void replaceConnector() {
-    addTestConnector();
-
-    given()
-        .contentType(APPLICATION_JSON)
-        .accept(APPLICATION_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_OWN_CONNECTORS))
-        .body(content("/xyz/hub/connectors/embeddedConnectorReplace.json"))
-        .when()
-        .put("/connectors/test-connector")
-        .then()
-        .statusCode(OK.code())
-        .body("connectionSettings.minConnections", equalTo(64))
-        .body("connectionSettings.maxConnections", equalTo(256))
-        .body("capabilities.propertySearch", equalTo(false));
-  }
-
-  @Test
-  public void replaceConnectorWithMisMatchingUrl() {
+  public void patchConnectorWithMisMatchingUrl() {
     addTestConnector();
 
     given()
@@ -147,7 +129,7 @@ public class ConnectorApiIT extends RestAssuredTest {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_OWN_CONNECTORS))
         .body(content("/xyz/hub/connectors/embeddedConnector.json"))
         .when()
-        .put("/connectors/wrongConnectorId")
+        .patch("/connectors/wrongConnectorId")
         .then()
         .statusCode(BAD_REQUEST.code());
   }

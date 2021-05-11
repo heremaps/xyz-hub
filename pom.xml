@@ -41,7 +41,7 @@
 
   <groupId>com.here.xyz</groupId>
   <artifactId>xyz-hub</artifactId>
-  <version>1.18.4-SNAPSHOT</version>
+  <version>1.18.5-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -521,26 +521,13 @@
   </dependencyManagement>
 
   <repositories>
-    <repository>
-      <id>osgeo</id>
-      <layout>default</layout>
-      <name>osgeo-repo</name>
-      <releases>
-        <checksumPolicy>warn</checksumPolicy>
-        <enabled>true</enabled>
-      </releases>
-      <url>https://repo.osgeo.org</url>
-    </repository>
 
-    <repository>
-      <id>geomajas</id>
-      <layout>default</layout>
-      <name>geomajas-repo</name>
-      <releases>
-        <checksumPolicy>warn</checksumPolicy>
-        <enabled>true</enabled>
-      </releases>
-      <url>http://maven.geomajas.org/</url>
+     <repository>
+        <id>osgeo</id>
+        <name>OSGeo Release Repository</name>
+        <url>https://repo.osgeo.org/repository/release/</url>
+        <snapshots><enabled>false</enabled></snapshots>
+        <releases><enabled>true</enabled></releases>
     </repository>
 
     <repository>

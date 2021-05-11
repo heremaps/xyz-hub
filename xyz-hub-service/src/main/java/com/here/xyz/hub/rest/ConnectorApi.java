@@ -56,7 +56,6 @@ public class ConnectorApi extends Api {
     rb.operation("getConnectors").handler(this::getConnectors);
     rb.operation("postConnector").handler(this::createConnector);
     rb.operation("getConnector").handler(this::getConnector);
-    rb.operation("putConnector").handler(this::replaceConnector);
     rb.operation("patchConnector").handler(this::updateConnector);
     rb.operation("deleteConnector").handler(this::deleteConnector);
   }
@@ -102,14 +101,25 @@ public class ConnectorApi extends Api {
       }
 
       if (queryIds.isEmpty()) {
-        ConnectorHandler.getConnectors(context, Context.getJWT(context).aid, ar -> {
-              if (ar.failed()) {
-                sendErrorResponse(context, ar.cause());
-              } else {
-                sendResponse(context, OK, ar.result());
+        if (ConnectorAuthorization.isAdmin(context)) {
+          ConnectorHandler.getAllConnectors(context, ar -> {
+                if (ar.failed()) {
+                  sendErrorResponse(context, ar.cause());
+                } else {
+                  sendResponse(context, OK, ar.result());
+                }
               }
-            }
-        );
+          );
+        } else {
+          ConnectorHandler.getConnectors(context, Context.getJWT(context).aid, ar -> {
+                if (ar.failed()) {
+                  sendErrorResponse(context, ar.cause());
+                } else {
+                  sendResponse(context, OK, ar.result());
+                }
+              }
+          );
+        }
       } else {
         ConnectorHandler.getConnectors(context, queryIds, ar -> {
               if (ar.failed()) {
@@ -158,31 +168,6 @@ public class ConnectorApi extends Api {
     }
     else if (!input.getString("id").equals(connectorId)) {
       throw new HttpException(BAD_REQUEST, "Path ID does not match resource ID in body.");
-    }
-  }
-
-  private void replaceConnector(final RoutingContext context) {
-    try {
-      String connectorId = context.pathParam(ApiParam.Path.CONNECTOR_ID);
-      JsonObject input = getInput(context);
-      validateConnectorId(context, input);
-      ConnectorAuthorization.authorizeManageConnectorsRights(context, connectorId, arAuth -> {
-        if (arAuth.failed()) {
-          sendErrorResponse(context, arAuth.cause());
-          return;
-        }
-        ConnectorHandler.replaceConnector(context, input, ar -> {
-          if (ar.failed()) {
-            this.sendErrorResponse(context, ar.cause());
-          }
-          else {
-            sendResponse(context, OK, ar.result());
-          }
-        });
-      });
-    }
-    catch (Exception e) {
-      sendErrorResponse(context, e);
     }
   }
 

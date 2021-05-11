@@ -43,7 +43,9 @@ public class FeatureCollection extends XyzResponse<FeatureCollection> {
   private LazyParsable<List<Feature>> features;
   private BBox bbox;
   private Boolean partial;
+  @Deprecated
   private String handle;
+  private String nextPageToken;
   private Long count;
   private List<String> inserted;
   private List<String> updated;
@@ -155,6 +157,7 @@ public class FeatureCollection extends XyzResponse<FeatureCollection> {
 
   /**
    * Returns the Space handle which is used to iterate above data.
+   * @deprecated use {@link #getNextPageToken()} instead.
    *
    * @return the handle.
    */
@@ -164,6 +167,7 @@ public class FeatureCollection extends XyzResponse<FeatureCollection> {
 
   /**
    * Sets the Space handle that can be used to continue an iterate.
+   * @deprecated use {@link #setNextPageToken(String)} instead.
    *
    * @param handle the handle, if null the handle property is removed.
    */
@@ -172,9 +176,37 @@ public class FeatureCollection extends XyzResponse<FeatureCollection> {
     this.handle = handle;
   }
 
+  /**
+   * @deprecated use {@link #withNextPageToken(String)} instead.
+   */
   @SuppressWarnings("unused")
   public FeatureCollection withHandle(final String handle) {
     setHandle(handle);
+    return this;
+  }
+
+  /**
+   * Returns the Space nextPageToken which is used to iterate above data.
+   *
+   * @return the nextPageToken.
+   */
+  public String getNextPageToken() {
+    return this.nextPageToken;
+  }
+
+  /**
+   * Sets the Space nextPageToken that can be used to continue an iterate.
+   *
+   * @param nextPageToken the nextPageToken, if null the nextPageToken property is removed.
+   */
+  @SuppressWarnings("WeakerAccess")
+  public void setNextPageToken(String nextPageToken) {
+    this.nextPageToken = nextPageToken;
+  }
+
+  @SuppressWarnings("unused")
+  public FeatureCollection withNextPageToken(final String nextPageToken) {
+    setNextPageToken(nextPageToken);
     return this;
   }
 

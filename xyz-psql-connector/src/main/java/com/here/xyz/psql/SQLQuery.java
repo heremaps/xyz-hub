@@ -201,8 +201,20 @@ public class SQLQuery {
    * Creates a SQL Array of the given type.
    */
   protected static Array createSQLArray(final String[] strings, String type, DataSource dataSource) throws SQLException {
+    return createSQLArrayWithRetry(strings, type, dataSource, 10, 2);
+  }
+
+  /**
+   * Creates a SQL Array of the given type with retry.
+   */
+  protected static Array createSQLArrayWithRetry(final String[] strings, String type, DataSource dataSource, int timeOutInSeconds, int retryCount) throws SQLException {
+    if(retryCount == 0)
+      throw new SQLException("Connection is invalid","57014");
     try (Connection conn = dataSource.getConnection()) {
-      return conn.createArrayOf(type, strings);
+      if(conn.isValid(timeOutInSeconds)) {
+        return conn.createArrayOf(type, strings);
+      }else
+        return createSQLArrayWithRetry(strings, type, dataSource, timeOutInSeconds, --retryCount);
     }
   }
 
