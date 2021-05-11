@@ -585,6 +585,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       FeatureCollection collection = executeQueryWithRetry(query);
       if (isIterate && hasSearch && collection.getHandle() != null) {
         collection.setHandle("" + (start + event.getLimit()));
+        collection.setNextPageToken("" + (start + event.getLimit()));
       }
 
       return collection;
@@ -628,20 +629,20 @@ public class PSQLXyzConnector extends DatabaseHandler {
     for( String f : sort )      // f. sysval replacements - f.sysval:desc -> sysval:desc
      if( f.toLowerCase().startsWith("f.createdat" ) || f.toLowerCase().startsWith("f.updatedat" ) )
       r.add( f.replaceFirst("^f\\.", "properties.@ns:com:here:xyz.") );
-     else 
+     else
       r.add( f.replaceFirst("^f\\.", "") );
-      
-    return r; 
+
+    return r;
   }
 
   private static final String HPREFIX = "h07~";
-  
+
   private List<String> getSearchKeys(  PropertiesQuery p )
   { return p.stream()
              .flatMap(List::stream)
              .filter(k -> k.getKey() != null && k.getKey().length() > 0)
              .map(PropertyQuery::getKey)
-             .collect(Collectors.toList()); 
+             .collect(Collectors.toList());
   }
 
   private List<String> getSortFromSearchKeys( List<String> searchKeys, String space, PSQLXyzConnector connector ) throws Exception
@@ -725,15 +726,15 @@ public class PSQLXyzConnector extends DatabaseHandler {
         if( event.getPropertiesQuery() != null && (event.getSort() == null || event.getSort().isEmpty()) )
         {
          event.setSort( getSortFromSearchKeys( getSearchKeys( event.getPropertiesQuery() ), space, this ) );
-        } 
-        else if (!Capabilities.canSortBy(space, event.getSort(), this)) 
+        }
+        else if (!Capabilities.canSortBy(space, event.getSort(), this))
         {
           return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
                   .withErrorMessage("Invalid request parameters. Sorting by for the provided properties is not supported for this space.");
         }
 
         event.setSort( translateSortSysValues( event.getSort() ));
-      } 
+      }
       else if( !event.getHandle().startsWith( HPREFIX ) )
        return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
                .withErrorMessage("Invalid request parameter. handle is corrupted");
@@ -749,12 +750,15 @@ public class PSQLXyzConnector extends DatabaseHandler {
       FeatureCollection collection = executeQueryWithRetry(query);
 
       if( collection.getHandle() != null ) // extend handle and encrypt
-       collection.setHandle( createHandle( event, collection.getHandle() ));
+      { final String handle = createHandle( event, collection.getHandle() ); 
+        collection.setHandle( handle );
+        collection.setNextPageToken(handle);
+      }  
 
       return collection;
-    }catch (SQLException e){
+    } catch (SQLException e){
       return checkSQLException(e, config.readTableFromEvent(event));
-    }finally {
+    } finally {
       logger.info("{} - Finished "+event.getClass().getSimpleName(), traceItem);
     }
   }

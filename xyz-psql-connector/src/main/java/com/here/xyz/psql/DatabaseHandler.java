@@ -996,8 +996,10 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         if( MaxResultChars <= sb.length() ) throw new SQLException(String.format("Maxchar limit(%d) reached",MaxResultChars));
 
-        if( hint > 0 && numFeatures > 0 && numFeatures == ((SearchForFeaturesEvent) event).getLimit() )
-         featureCollection.setHandle( nextHandle );
+        if( hint > 0 && numFeatures > 0 && numFeatures == ((SearchForFeaturesEvent) event).getLimit() ) {
+          featureCollection.setHandle(nextHandle);
+          featureCollection.setNextPageToken(nextHandle);
+        }
 
         return featureCollection;
     }
@@ -1198,6 +1200,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         if (numFeatures > 0 && numFeatures == ((IterateFeaturesEvent) event).getLimit()) {
             featureCollection.setHandle(id);
+            featureCollection.setNextPageToken(id);
         }
 
         return featureCollection;
@@ -1303,6 +1306,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
             return new HistoryStatisticsResponse()
                     .withByteSize(tablesize)
+                    .withDataSize(tablesize)
                     .withCount(count)
                     .withMaxVersion(maxversion);
         } catch (Exception e) {
@@ -1354,6 +1358,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             return new StatisticsResponse()
                     .withBBox(new StatisticsResponse.Value<BBox>().withValue(bbox).withEstimated(bboxMap.get("estimated") == Boolean.TRUE))
                     .withByteSize(tablesize)
+                    .withDataSize(tablesize)
                     .withCount(count)
                     .withGeometryTypes(geometryTypes)
                     .withTags(tags)

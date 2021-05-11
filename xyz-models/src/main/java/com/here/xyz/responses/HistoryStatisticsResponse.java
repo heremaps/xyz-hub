@@ -20,13 +20,8 @@
 package com.here.xyz.responses;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.xyz.events.GetStatisticsEvent;
-import com.here.xyz.models.geojson.coordinates.BBox;
-
-import java.util.List;
 
 /**
  * The response that is sent for a {@link GetStatisticsEvent}.
@@ -36,7 +31,9 @@ import java.util.List;
 public class HistoryStatisticsResponse extends XyzResponse<HistoryStatisticsResponse> {
 
   private StatisticsResponse.Value<Long> count;
+  @Deprecated
   private StatisticsResponse.Value<Long>  byteSize;
+  private StatisticsResponse.Value<Long>  dataSize;
   private StatisticsResponse.Value<Integer>  maxVersion;
 
   /**
@@ -98,6 +95,37 @@ public class HistoryStatisticsResponse extends XyzResponse<HistoryStatisticsResp
   @SuppressWarnings({"unused"})
   public HistoryStatisticsResponse withByteSize(StatisticsResponse.Value<Long>  byteSize) {
     setByteSize(byteSize);
+    return this;
+  }
+
+  /**
+   * Returns the amount of bytes that are stored in the space.
+   *
+   * @return the amount of bytes that are stored in the space.
+   */
+  @SuppressWarnings({"unused"})
+  public StatisticsResponse.Value<Long>  getDataSize() {
+    return this.dataSize;
+  }
+
+  /**
+   * Sets the amount of bytes that are stored in the space.
+   *
+   * @param dataSize the amount of bytes that are stored in the space.
+   */
+  @SuppressWarnings({"WeakerAccess"})
+  public void setDataSize(StatisticsResponse.Value<Long> dataSize) {
+    this.dataSize = dataSize;
+  }
+
+  /**
+   * Sets the amount of bytes that are stored in the space.
+   *
+   * @return this.
+   */
+  @SuppressWarnings({"unused"})
+  public HistoryStatisticsResponse withDataSize(StatisticsResponse.Value<Long>  dataSize) {
+    setDataSize(dataSize);
     return this;
   }
 
