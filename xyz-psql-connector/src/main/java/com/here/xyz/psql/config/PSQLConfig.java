@@ -168,18 +168,21 @@ public class PSQLConfig {
 
   public String readTableFromEvent(Event event) {
     if (event != null && event.getSpace() != null && event.getSpace().length() > 0) {
-      return compareAndConvertTableName(event.getSpace());
+      if (connectorParams.isEnableHashedSpaceId()) {
+        return Hasher.getHash(event.getSpace());
+      }
+      else if (connectorParams.isHrnShortening()) {
+        String[] splitHrn = event.getSpace().split(":");
+        if (splitHrn.length > 0)
+          return splitHrn[splitHrn.length - 1];
+      }
+      else {
+        return event.getSpace();
+      }
     }
 
     return null;
   }
-
-  private String compareAndConvertTableName(String spaceId) {
-    if (connectorParams.isEnableHashedSpaceId())
-      spaceId = Hasher.getHash(spaceId);
-    return spaceId;
-  }
-
 
   /**
    * Encodes the connector ecps.

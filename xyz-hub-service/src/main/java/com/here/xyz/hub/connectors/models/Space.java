@@ -69,6 +69,10 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
   @JsonView({Public.class, Static.class})
   public long contentUpdatedAt = 0;
 
+  @JsonInclude(Include.NON_DEFAULT)
+  @JsonView({Internal.class, Static.class})
+  public boolean notSendDeleteMse = false;
+
   /**
    * An indicator, if the data in the space is edited often (value tends to 1) or static (value tends to 0).
    */
