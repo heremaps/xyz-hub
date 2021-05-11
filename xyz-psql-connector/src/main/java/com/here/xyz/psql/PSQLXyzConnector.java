@@ -674,8 +674,11 @@ public class PSQLXyzConnector extends DatabaseHandler {
    return null;
   }
   
+  private String chrE( String s ) { return s.replace('+','-').replace('/','_').replace('=','.'); }
+  private String chrD( String s ) { return s.replace('-','+').replace('_','/').replace('.','='); }
+
   private String createHandle(SearchForFeaturesOrderByEvent event, String jsonData ) throws Exception
-  { return HPREFIX + PSQLConfig.encrypt( addEventValuesToHandle(event, jsonData ) , "findFeaturesSort" ); }
+  { return HPREFIX + chrE( PSQLConfig.encrypt( addEventValuesToHandle(event, jsonData ) , "findFeaturesSort" )); }
 
   private XyzResponse requestIterationHandles(SearchForFeaturesOrderByEvent event, int nrHandles ) throws Exception
   {
@@ -738,7 +741,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
        return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
                .withErrorMessage("Invalid request parameter. handle is corrupted");
       else
-       try { setEventValuesFromHandle(event, PSQLConfig.decrypt( event.getHandle().substring(HPREFIX.length()) ,"findFeaturesSort" ) ); }
+       try { setEventValuesFromHandle(event, PSQLConfig.decrypt( chrD( event.getHandle().substring(HPREFIX.length()) ) ,"findFeaturesSort" ) ); }
        catch ( GeneralSecurityException|IllegalArgumentException e)
        { return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
                  .withErrorMessage("Invalid request parameter. handle is corrupted");
