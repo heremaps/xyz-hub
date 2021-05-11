@@ -36,6 +36,8 @@ public class ConnectorParameters {
     public final static String ENABLE_HASHED_SPACEID = "enableHashedSpaceId";
     public final static String COMPACT_HISTORY = "compactHistory";
     public final static String ON_DEMAND_IDX_LIMIT = "onDemandIdxLimit";
+    public final static String HRN_SHORTENING = "hrnShortening";
+    public final static String IGNORE_CREATE_MSE = "ignoreCreateMse";
 
     public final static String DB_INITIAL_POOL_SIZE = "dbInitialPoolSize";
     public final static String DB_MIN_POOL_SIZE = "dbMinPoolSize";
@@ -55,6 +57,8 @@ public class ConnectorParameters {
     private boolean enableHashedSpaceId = false;
     private boolean compactHistory = true;
     private int onDemandIdxLimit = 4;
+    private boolean hrnShortening = false;
+    private boolean ignoreCreateMse = false;
     private String ecps;
 
     /**
@@ -81,6 +85,8 @@ public class ConnectorParameters {
             this.enableHashedSpaceId = parseValue(connectorParams, Boolean.class, enableHashedSpaceId, ENABLE_HASHED_SPACEID);
             this.compactHistory = parseValue(connectorParams, Boolean.class, compactHistory, COMPACT_HISTORY);
             this.onDemandIdxLimit = parseValue(connectorParams, Integer.class, onDemandIdxLimit, ON_DEMAND_IDX_LIMIT);
+            hrnShortening = parseValue(connectorParams, Boolean.class, hrnShortening, HRN_SHORTENING);
+            ignoreCreateMse = parseValue(connectorParams, Boolean.class, ignoreCreateMse, IGNORE_CREATE_MSE);
 
             this.dbInitialPoolSize = parseValue(connectorParams, Integer.class, dbInitialPoolSize, DB_INITIAL_POOL_SIZE);
             this.dbMinPoolSize = parseValue(connectorParams, Integer.class, dbMinPoolSize, DB_MIN_POOL_SIZE);
@@ -143,6 +149,14 @@ public class ConnectorParameters {
 
     public int getOnDemandIdxLimit() {
         return onDemandIdxLimit;
+    }
+
+    public boolean isHrnShortening() {
+        return hrnShortening;
+    }
+
+    public boolean isIgnoreCreateMse() {
+        return ignoreCreateMse;
     }
 
     public int getDbInitialPoolSize() {
