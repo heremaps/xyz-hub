@@ -101,14 +101,25 @@ public class ConnectorApi extends Api {
       }
 
       if (queryIds.isEmpty()) {
-        ConnectorHandler.getConnectors(context, Context.getJWT(context).aid, ar -> {
-              if (ar.failed()) {
-                sendErrorResponse(context, ar.cause());
-              } else {
-                sendResponse(context, OK, ar.result());
+        if (ConnectorAuthorization.isAdmin(context)) {
+          ConnectorHandler.getAllConnectors(context, ar -> {
+                if (ar.failed()) {
+                  sendErrorResponse(context, ar.cause());
+                } else {
+                  sendResponse(context, OK, ar.result());
+                }
               }
-            }
-        );
+          );
+        } else {
+          ConnectorHandler.getConnectors(context, Context.getJWT(context).aid, ar -> {
+                if (ar.failed()) {
+                  sendErrorResponse(context, ar.cause());
+                } else {
+                  sendResponse(context, OK, ar.result());
+                }
+              }
+          );
+        }
       } else {
         ConnectorHandler.getConnectors(context, queryIds, ar -> {
               if (ar.failed()) {
