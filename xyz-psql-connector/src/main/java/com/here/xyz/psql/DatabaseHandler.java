@@ -407,19 +407,14 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
-    protected XyzResponse executeLoadFeatures(LoadFeaturesEvent event) throws Exception {
+    protected XyzResponse executeLoadFeatures(LoadFeaturesEvent event) throws SQLException {
         final Map<String, String> idMap = event.getIdsMap();
         final Boolean enabledHistory = event.getEnableHistory() == Boolean.TRUE;
 
         if (idMap == null || idMap.size() == 0) {
             return new FeatureCollection();
         }
-
-        try {
-            return executeQueryWithRetry(SQLQueryBuilder.buildLoadFeaturesQuery(idMap, enabledHistory, dataSource));
-        }catch (Exception e){
-            throw e;
-        }
+        return executeQueryWithRetry(SQLQueryBuilder.buildLoadFeaturesQuery(idMap, enabledHistory, dataSource));
     }
 
     protected XyzResponse executeIterateHistory(IterateHistoryEvent event) throws SQLException {
