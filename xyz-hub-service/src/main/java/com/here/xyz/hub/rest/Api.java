@@ -539,7 +539,8 @@ public abstract class Api {
       }
       Marker marker = context.get(MARKER);
       if (marker == null) {
-        marker = new Log4jMarker(context.request().getHeader(STREAM_ID));
+        String sid = context.request().getHeader(STREAM_ID);
+        marker = new Log4jMarker( sid != null ? sid : STREAM_ID + "-null" );
         context.put(MARKER, marker);
       }
       return marker;
