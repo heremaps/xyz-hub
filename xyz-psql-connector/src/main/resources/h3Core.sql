@@ -30,7 +30,7 @@ create schema if not exists h3;
 create or replace function h3_version() 
 returns integer as
 $body$
- select 106
+ select 107
 $body$ 
 language sql immutable;
 
@@ -3792,7 +3792,10 @@ create or replace function polyfillDeg_s( geoPolygon geometry, res integer )
  returns table ( h3 H3Index ) as
 $body$
 declare
+ SIN_60 double precision := 0.86602540378443864676372317075294;
  minK integer;
+ dx integer;
+ dy integer;
  bbox geometry;
  center geometry;
  centerH3 H3Index;
@@ -3804,8 +3807,30 @@ begin
  center = st_centroid( bbox );
 
  centerH3 = geoToH3(radians(st_y(center)), radians(st_x(center)), res);
+ 
+ -- RAISE NOTICE 'minK(%) centerH3(%)', minK, centerH3;
 
- if( minK > 2 ) then
+ if( minK > 10 ) then
+   -- instead of factor (2 * SIN_60), use (1.7 * SIN_60) to increase density of points. e.g. assure that it hits all possible hexbins in geoPolygon (preventing some "wholes")
+  dx = ceil( st_length( st_makeline(st_makepoint(st_xmin(bbox),st_ymin(bbox)), st_makepoint(st_xmax(bbox),st_ymin(bbox)))::geography ) / (1.7 * SIN_60 * edgeLengthM( res )) );
+	dy = ceil( st_length( st_makeline(st_makepoint(st_xmin(bbox),st_ymin(bbox)), st_makepoint(st_xmin(bbox),st_ymax(bbox)))::geography ) / (1.7 * SIN_60 * edgeLengthM( res )) );
+	
+  -- RAISE NOTICE 'dx(%) dy(%)', dx , dy; 
+	
+  return query
+		select distinct
+		 coveringDeg( 
+			 (ST_PixelAsCentroids(
+				 st_setvalue(
+					ST_SetBandNoDataValue( 
+					 ST_AddBand( 
+						ST_MakeEmptyRaster( dx, dy, st_xmin(bbox), st_ymax(bbox), ( (st_xmax(bbox) - st_xmin(bbox))/dx::float )::float , ( (st_ymin(bbox) - st_ymax(bbox))/dy::float )::float, 0,0, 4326 ),
+						'1BB' ),
+					 0),
+					geoPolygon,1.0))
+			 ).geom, res) as h3;
+ 
+ elsif ( minK > 2 ) then
 
   return query    -- paint the boundary - outline and holes
    select cl.h3 from coveringDeg( ST_Boundary( geoPolygon ) , res ) cl;
@@ -4102,6 +4127,7 @@ $body$
 $body$ 
 language sql immutable;
 
+/*
 create or replace function coveringLineDeg( line geometry, res integer ) 
  returns table ( h3 H3Index ) as
 $body$
@@ -4109,6 +4135,55 @@ $body$
  from( select nr, lead, h3 as h3_start, geo as p_start, lead( h3 ) over ( order by nr) as h3_end, lead( geo ) over ( order by nr) as p_end from _line_coords_seq( line ,res) order by 1 ) o  
 $body$ 
 language sql immutable;
+
+create or replace function coveringLineDeg( line geometry, res integer ) 
+ returns table ( h3 H3Index ) as
+$body$
+declare
+ SIN_60 double precision := 0.86602540378443864676372317075294;
+ dx integer;
+ dy integer;
+ bbox geometry;
+begin
+
+ bbox = st_envelope(st_buffer(line,0.000001));
+
+   -- instead of factor (2 * SIN_60), use (1.7 * SIN_60) to increase density of points. e.g. assure that it hits all possible hexbins in geoPolygon (preventing some "wholes")
+ dx = ceil( st_length( st_makeline(st_makepoint(st_xmin(bbox),st_ymin(bbox)), st_makepoint(st_xmax(bbox),st_ymin(bbox)))::geography ) / ( SIN_60 * edgeLengthM( res )) );
+ dy = ceil( st_length( st_makeline(st_makepoint(st_xmin(bbox),st_ymin(bbox)), st_makepoint(st_xmin(bbox),st_ymax(bbox)))::geography ) / ( SIN_60 * edgeLengthM( res )) );
+	
+  -- RAISE NOTICE 'dx(%) dy(%) bbox(%)', dx , dy, st_astext( bbox );
+	
+	return query
+		select distinct
+		 geotoh3deg( 
+			 (ST_PixelAsCentroids(
+				 st_setvalue(
+					ST_SetBandNoDataValue( 
+					 ST_AddBand( 
+						ST_MakeEmptyRaster( dx, dy, st_xmin(bbox), st_ymax(bbox), ( (st_xmax(bbox) - st_xmin(bbox))/dx::float )::float , ( (st_ymin(bbox) - st_ymax(bbox))/dy::float )::float, 0,0, 4326 ),
+						'1BB' ),
+					 0),
+					line,1.0))
+			 ).geom, res) as h3;
+ 
+end;
+$body$ 
+language plpgsql immutable;
+*/
+
+create or replace function coveringLineDeg( line geometry, res integer ) 
+ returns table ( h3 H3Index ) as
+$body$
+begin
+
+ return query
+   select distinct geotoh3deg( geom, res ) as h3 from st_dumppoints( ST_Segmentize(line::geography, edgeLengthM(res))::geometry );
+ 
+end;
+$body$ 
+language plpgsql immutable;
+
 
 create or replace function coveringDeg( geo geometry, res integer ) 
  returns table ( h3 H3Index ) as
