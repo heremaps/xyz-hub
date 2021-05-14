@@ -522,14 +522,6 @@
 
   <repositories>
 
-     <repository>
-        <id>osgeo</id>
-        <name>OSGeo Release Repository</name>
-        <url>https://repo.osgeo.org/repository/release/</url>
-        <snapshots><enabled>false</enabled></snapshots>
-        <releases><enabled>true</enabled></releases>
-    </repository>
-
     <repository>
       <id>mvnapache</id>
       <layout>default</layout>
@@ -539,6 +531,14 @@
         <enabled>true</enabled>
       </releases>
       <url>https://repo.maven.apache.org/maven2/</url>
+    </repository>
+
+     <repository>
+        <id>osgeo</id>
+        <name>OSGeo Release Repository</name>
+        <url>https://repo.osgeo.org/repository/release/</url>
+        <snapshots><enabled>false</enabled></snapshots>
+        <releases><enabled>true</enabled></releases>
     </repository>
 
   </repositories>
