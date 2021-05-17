@@ -72,17 +72,6 @@
       </resource>
     </resources>
   </build>
-
-  <pluginRepositories>
-    <pluginRepository>
-      <id>cme-content-tools-virtual</id>
-      <name>HERE Artifactory - Content Tools Virtual</name>
-      <snapshots>
-        <updatePolicy>always</updatePolicy>
-      </snapshots>
-      <url>https://artifactory.in.here.com/artifactory/cme-content-tools-virtual</url>
-    </pluginRepository>
-  </pluginRepositories>
   <profiles>
     <profile>
       <activation>
