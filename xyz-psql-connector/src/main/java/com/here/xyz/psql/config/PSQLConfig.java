@@ -167,14 +167,20 @@ public class PSQLConfig {
   }
 
   public String readTableFromEvent(Event event) {
+    if (event != null && event.getParams() != null) {
+      final String TABLE_NAME = "tableName";
+      Object tableName = event.getParams().get(TABLE_NAME);
+      if (tableName instanceof String && ((String) tableName).length() > 0)
+        return (String) tableName;
+    }
     if (event != null && event.getSpace() != null && event.getSpace().length() > 0) {
-      if (connectorParams.isEnableHashedSpaceId()) {
-        return Hasher.getHash(event.getSpace());
-      }
-      else if (connectorParams.isHrnShortening()) {
+      if (connectorParams.isHrnShortening()) {
         String[] splitHrn = event.getSpace().split(":");
         if (splitHrn.length > 0)
           return splitHrn[splitHrn.length - 1];
+      }
+      else if (connectorParams.isEnableHashedSpaceId()) {
+        return Hasher.getHash(event.getSpace());
       }
       else {
         return event.getSpace();
