@@ -111,7 +111,7 @@ public class PSQLHistoryFullIT extends PSQLAbstractIT {
 
         try (final Connection connection = lambda.dataSource.getConnection()) {
             Statement stmt = connection.createStatement();
-            String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt' DESC;";
+            String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'foo', jsondata->'properties'->'@ns:com:here:xyz'->'deleted' desc";
 
             ResultSet resultSet = stmt.executeQuery(sql);
             int oldestFooValue = 0;
