@@ -135,7 +135,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
 
         try (final Connection connection = lambda.dataSource.getConnection()) {
             Statement stmt = connection.createStatement();
-            String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt' DESC;";
+            String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'foo'";
 
             ResultSet resultSet = stmt.executeQuery(sql);
             int oldestFooValue = 5;
@@ -174,7 +174,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
 
         try (final Connection connection = lambda.dataSource.getConnection()) {
             Statement stmt = connection.createStatement();
-            String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt' DESC;";
+            String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'foo'";
 
             ResultSet resultSet = stmt.executeQuery(sql);
             //Oldes history item has foo=9
@@ -212,7 +212,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
 
         try (final Connection connection = lambda.dataSource.getConnection()) {
             Statement stmt = connection.createStatement();
-            String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt' DESC;";
+            String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'foo'";
 
             ResultSet resultSet = stmt.executeQuery(sql);
             //Oldest history item has foo=19 - all other should be deleted related to maxVersionCount=2 update
