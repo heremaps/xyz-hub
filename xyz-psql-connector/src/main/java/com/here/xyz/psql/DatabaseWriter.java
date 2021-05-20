@@ -63,6 +63,10 @@ public class DatabaseWriter {
         final String json;
 
         try {
+            List<String> tags = feature.getProperties().getXyzNamespace().getTags();
+            if( tags != null && tags.size() == 0 ) 
+             feature.getProperties().getXyzNamespace().setTags(null);
+
             if(version != null)
                 feature.getProperties().getXyzNamespace().setVersion(version);
             json = feature.serialize();

@@ -72,7 +72,8 @@ public class XyzNamespace implements XyzSerializable {
   /**
    * The list of tags being attached to the feature.
    */
-  private List<String> tags;
+   @JsonInclude(JsonInclude.Include.NON_NULL)
+   private List<String> tags;
 
   /**
    * A flag indicating the object should be treated as being deleted. This flag is only informative and is not relevant for the XYZ Hub
@@ -175,6 +176,7 @@ public class XyzNamespace implements XyzSerializable {
    */
   @SuppressWarnings("WeakerAccess")
   public static void fixNormalizedTags(final List<String> tags) {
+    if( tags == null ) return;
     int j = 0;
     StringBuilder sb = null;
     while (j < tags.size()) {
