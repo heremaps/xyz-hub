@@ -407,19 +407,14 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
-    protected XyzResponse executeLoadFeatures(LoadFeaturesEvent event) throws Exception {
+    protected XyzResponse executeLoadFeatures(LoadFeaturesEvent event) throws SQLException {
         final Map<String, String> idMap = event.getIdsMap();
         final Boolean enabledHistory = event.getEnableHistory() == Boolean.TRUE;
 
         if (idMap == null || idMap.size() == 0) {
             return new FeatureCollection();
         }
-
-        try {
-            return executeQueryWithRetry(SQLQueryBuilder.buildLoadFeaturesQuery(idMap, enabledHistory, dataSource));
-        }catch (Exception e){
-            throw e;
-        }
+        return executeQueryWithRetry(SQLQueryBuilder.buildLoadFeaturesQuery(idMap, enabledHistory, dataSource));
     }
 
     protected XyzResponse executeIterateHistory(IterateHistoryEvent event) throws SQLException {
@@ -996,8 +991,10 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         if( MaxResultChars <= sb.length() ) throw new SQLException(String.format("Maxchar limit(%d) reached",MaxResultChars));
 
-        if( hint > 0 && numFeatures > 0 && numFeatures == ((SearchForFeaturesEvent) event).getLimit() )
-         featureCollection.setHandle( nextHandle );
+        if( hint > 0 && numFeatures > 0 && numFeatures == ((SearchForFeaturesEvent) event).getLimit() ) {
+          featureCollection.setHandle(nextHandle);
+          featureCollection.setNextPageToken(nextHandle);
+        }
 
         return featureCollection;
     }
@@ -1198,6 +1195,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         if (numFeatures > 0 && numFeatures == ((IterateFeaturesEvent) event).getLimit()) {
             featureCollection.setHandle(id);
+            featureCollection.setNextPageToken(id);
         }
 
         return featureCollection;
@@ -1303,6 +1301,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
             return new HistoryStatisticsResponse()
                     .withByteSize(tablesize)
+                    .withDataSize(tablesize)
                     .withCount(count)
                     .withMaxVersion(maxversion);
         } catch (Exception e) {
@@ -1354,6 +1353,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             return new StatisticsResponse()
                     .withBBox(new StatisticsResponse.Value<BBox>().withValue(bbox).withEstimated(bboxMap.get("estimated") == Boolean.TRUE))
                     .withByteSize(tablesize)
+                    .withDataSize(tablesize)
                     .withCount(count)
                     .withGeometryTypes(geometryTypes)
                     .withTags(tags)

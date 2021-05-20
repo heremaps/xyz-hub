@@ -107,7 +107,7 @@ public class H3SQL
           + "              from ${schema}.${table} v " 
           + "               left join lateral "
           + "                ( select st_force3d(st_setsrid( h3ToGeoDeg( coveringDeg( case ST_Within(geo, %5$s ) " 
-          + "                                                                          when true then geo "
+          + "                                                                          when true then ST_MakeValid(geo) "
           + "                                                                          else ST_Intersection( ST_MakeValid(geo), %5$s ) "
           + "                                                                         end, %1$d)), st_srid(geo))) "
           + "                  where st_geometrytype(v.geo) != 'ST_Point'"
@@ -154,7 +154,7 @@ public class H3SQL
    int pxSize = 64,   // 64 in general, but clashes when h3 res is to fine grained (e.g. resulting in holes in hex areas). 
        pdiff = (h3res - maxResForLevel);
 
-   if(  pdiff == 2 ) pxSize = 88;
+   if(  pdiff == 2 ) pxSize = 160;
    else if (  pdiff >= 3 ) pxSize = 256;
 
    return( pxSize );

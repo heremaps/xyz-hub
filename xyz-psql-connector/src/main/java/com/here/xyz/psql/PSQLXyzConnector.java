@@ -424,6 +424,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
     try{
       logger.info("{} Received ModifySpaceEvent", traceItem);
 
+
+      if (config.getConnectorParams().isIgnoreCreateMse())
+        return new SuccessResponse().withStatus("OK");
+
       validateModifySpaceEvent(event);
 
       if(event.getSpaceDefinition() != null && event.getSpaceDefinition().isEnableHistory()){
@@ -585,6 +589,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       FeatureCollection collection = executeQueryWithRetry(query);
       if (isIterate && hasSearch && collection.getHandle() != null) {
         collection.setHandle("" + (start + event.getLimit()));
+        collection.setNextPageToken("" + (start + event.getLimit()));
       }
 
       return collection;
@@ -674,8 +679,11 @@ public class PSQLXyzConnector extends DatabaseHandler {
    return null;
   }
 
+  private String chrE( String s ) { return s.replace('+','-').replace('/','_').replace('=','.'); }
+  private String chrD( String s ) { return s.replace('-','+').replace('_','/').replace('.','='); }
+
   private String createHandle(SearchForFeaturesOrderByEvent event, String jsonData ) throws Exception
-  { return HPREFIX + PSQLConfig.encrypt( addEventValuesToHandle(event, jsonData ) , "findFeaturesSort" ); }
+  { return HPREFIX + chrE( PSQLConfig.encrypt( addEventValuesToHandle(event, jsonData ) , "findFeaturesSort" )); }
 
   private XyzResponse requestIterationHandles(SearchForFeaturesOrderByEvent event, int nrHandles ) throws Exception
   {
@@ -738,7 +746,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
        return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
                .withErrorMessage("Invalid request parameter. handle is corrupted");
       else
-       try { setEventValuesFromHandle(event, PSQLConfig.decrypt( event.getHandle().substring(HPREFIX.length()) ,"findFeaturesSort" ) ); }
+       try { setEventValuesFromHandle(event, PSQLConfig.decrypt( chrD( event.getHandle().substring(HPREFIX.length()) ) ,"findFeaturesSort" ) ); }
        catch ( GeneralSecurityException|IllegalArgumentException e)
        { return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
                  .withErrorMessage("Invalid request parameter. handle is corrupted");
@@ -749,12 +757,15 @@ public class PSQLXyzConnector extends DatabaseHandler {
       FeatureCollection collection = executeQueryWithRetry(query);
 
       if( collection.getHandle() != null ) // extend handle and encrypt
-       collection.setHandle( createHandle( event, collection.getHandle() ));
+      { final String handle = createHandle( event, collection.getHandle() );
+        collection.setHandle( handle );
+        collection.setNextPageToken(handle);
+      }
 
       return collection;
-    }catch (SQLException e){
+    } catch (SQLException e){
       return checkSQLException(e, config.readTableFromEvent(event));
-    }finally {
+    } finally {
       logger.info("{} - Finished "+event.getClass().getSimpleName(), traceItem);
     }
   }
@@ -777,7 +788,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
         if ( e.getMessage().indexOf("ERROR: stats for") != -1 )
          return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( "statistical data for this space is missing (analyze)" );
         if ( e.getMessage().indexOf("TopologyException") != -1 )
-         return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( "viz: geometry with irregular topology" );
+         return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( "geometry with irregular topology (self-intersection, clipping)" );
         //fall thru - timeout assuming timeout
 
      case "57014" : /* 57014 - query_canceled */

@@ -167,7 +167,7 @@ public class Service extends Core {
         .setTcpQuickAck(true)
         .setTcpFastOpen(true)
         .setTryUseCompression(true)
-        .setPipelining(true)
+        .setPipelining(Service.configuration.HTTP_CLIENT_PIPELINING)
     );
 
     globalRouter = Router.router(vertx);
@@ -611,6 +611,11 @@ public class Service extends Core {
      * @deprecated Use instead MAX_UNCOMPRESSED_RESPONSE_SIZE
      */
     public int MAX_HTTP_RESPONSE_SIZE;
+
+    /**
+     * Whether to activate pipelining for the HTTP client of the service.
+     */
+    public boolean HTTP_CLIENT_PIPELINING;
   }
 
   /**

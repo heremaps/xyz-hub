@@ -383,6 +383,12 @@ public class SpaceTaskHandler {
     Entry<Space> entry = task.modifyOp.entries.get(0);
 
     Space space = task.isDelete() ? entry.head : entry.result;
+
+    if (task.isDelete() && space.notSendDeleteMse) {
+      callback.call(task);
+      return;
+    }
+
     final ModifySpaceEvent event = new ModifySpaceEvent()
         .withOperation(op)
         .withSpaceDefinition(space)

@@ -30,7 +30,7 @@ create schema if not exists h3;
 create or replace function h3_version() 
 returns integer as
 $body$
- select 106
+ select 107
 $body$ 
 language sql immutable;
 
@@ -2880,7 +2880,7 @@ begin
  end if;
 
  h = geoToH3Deg_p(c,res);
- hg = h3ToGeoBoundaryDeg_p( h );
+ hg = ST_MakeValid( h3ToGeoBoundaryDeg_p( h ) );
  
  insert into h3cache ( h3, res, geo ) values( h,res, hg );
 
@@ -3368,7 +3368,7 @@ begin
   return hg;
  end if;
 
- hg = h3ToGeoBoundaryDeg_p( h3 );
+ hg = ST_MakeValid( h3ToGeoBoundaryDeg_p( h3 ) );
  
  insert into h3cache ( h3, res, geo ) values( h3, H3_GET_RESOLUTION(h3), hg );
 
@@ -3792,7 +3792,10 @@ create or replace function polyfillDeg_s( geoPolygon geometry, res integer )
  returns table ( h3 H3Index ) as
 $body$
 declare
+ SIN_60 double precision := 0.86602540378443864676372317075294;
  minK integer;
+ dx integer;
+ dy integer;
  bbox geometry;
  center geometry;
  centerH3 H3Index;
@@ -3804,8 +3807,30 @@ begin
  center = st_centroid( bbox );
 
  centerH3 = geoToH3(radians(st_y(center)), radians(st_x(center)), res);
+ 
+ -- RAISE NOTICE 'minK(%) centerH3(%)', minK, centerH3;
 
- if( minK > 2 ) then
+ if( minK > 10 ) then
+   -- instead of factor (2 * SIN_60), use (1.7 * SIN_60) to increase density of points. e.g. assure that it hits all possible hexbins in geoPolygon (preventing some "wholes")
+  dx = ceil( st_length( st_makeline(st_makepoint(st_xmin(bbox),st_ymin(bbox)), st_makepoint(st_xmax(bbox),st_ymin(bbox)))::geography ) / (1.7 * SIN_60 * edgeLengthM( res )) );
+	dy = ceil( st_length( st_makeline(st_makepoint(st_xmin(bbox),st_ymin(bbox)), st_makepoint(st_xmin(bbox),st_ymax(bbox)))::geography ) / (1.7 * SIN_60 * edgeLengthM( res )) );
+	
+  -- RAISE NOTICE 'dx(%) dy(%)', dx , dy; 
+	
+  return query
+		select distinct
+		 coveringDeg( 
+			 (ST_PixelAsCentroids(
+				 st_setvalue(
+					ST_SetBandNoDataValue( 
+					 ST_AddBand( 
+						ST_MakeEmptyRaster( dx, dy, st_xmin(bbox), st_ymax(bbox), ( (st_xmax(bbox) - st_xmin(bbox))/dx::float )::float , ( (st_ymin(bbox) - st_ymax(bbox))/dy::float )::float, 0,0, 4326 ),
+						'1BB' ),
+					 0),
+					geoPolygon,1.0))
+			 ).geom, res) as h3;
+ 
+ elsif ( minK > 2 ) then
 
   return query    -- paint the boundary - outline and holes
    select cl.h3 from coveringDeg( ST_Boundary( geoPolygon ) , res ) cl;
@@ -4102,6 +4127,7 @@ $body$
 $body$ 
 language sql immutable;
 
+/*
 create or replace function coveringLineDeg( line geometry, res integer ) 
  returns table ( h3 H3Index ) as
 $body$
@@ -4109,6 +4135,55 @@ $body$
  from( select nr, lead, h3 as h3_start, geo as p_start, lead( h3 ) over ( order by nr) as h3_end, lead( geo ) over ( order by nr) as p_end from _line_coords_seq( line ,res) order by 1 ) o  
 $body$ 
 language sql immutable;
+
+create or replace function coveringLineDeg( line geometry, res integer ) 
+ returns table ( h3 H3Index ) as
+$body$
+declare
+ SIN_60 double precision := 0.86602540378443864676372317075294;
+ dx integer;
+ dy integer;
+ bbox geometry;
+begin
+
+ bbox = st_envelope(st_buffer(line,0.000001));
+
+   -- instead of factor (2 * SIN_60), use (1.7 * SIN_60) to increase density of points. e.g. assure that it hits all possible hexbins in geoPolygon (preventing some "wholes")
+ dx = ceil( st_length( st_makeline(st_makepoint(st_xmin(bbox),st_ymin(bbox)), st_makepoint(st_xmax(bbox),st_ymin(bbox)))::geography ) / ( SIN_60 * edgeLengthM( res )) );
+ dy = ceil( st_length( st_makeline(st_makepoint(st_xmin(bbox),st_ymin(bbox)), st_makepoint(st_xmin(bbox),st_ymax(bbox)))::geography ) / ( SIN_60 * edgeLengthM( res )) );
+	
+  -- RAISE NOTICE 'dx(%) dy(%) bbox(%)', dx , dy, st_astext( bbox );
+	
+	return query
+		select distinct
+		 geotoh3deg( 
+			 (ST_PixelAsCentroids(
+				 st_setvalue(
+					ST_SetBandNoDataValue( 
+					 ST_AddBand( 
+						ST_MakeEmptyRaster( dx, dy, st_xmin(bbox), st_ymax(bbox), ( (st_xmax(bbox) - st_xmin(bbox))/dx::float )::float , ( (st_ymin(bbox) - st_ymax(bbox))/dy::float )::float, 0,0, 4326 ),
+						'1BB' ),
+					 0),
+					line,1.0))
+			 ).geom, res) as h3;
+ 
+end;
+$body$ 
+language plpgsql immutable;
+*/
+
+create or replace function coveringLineDeg( line geometry, res integer ) 
+ returns table ( h3 H3Index ) as
+$body$
+begin
+
+ return query
+   select distinct geotoh3deg( geom, res ) as h3 from st_dumppoints( ST_Segmentize(line::geography, edgeLengthM(res))::geometry );
+ 
+end;
+$body$ 
+language plpgsql immutable;
+
 
 create or replace function coveringDeg( geo geometry, res integer ) 
  returns table ( h3 H3Index ) as
@@ -4188,62 +4263,3 @@ from ( select 40.689167 as lat, -74.044444 as lon, 10 as res ) i
 
 */
 
-/*
---- Geoserver rendering views
-
-create or replace view rdr.h3 as 
- select oo.zm, oo.p, oo.h3, st_centroid(oo.geo) as c, oo.geo
- from 
- ( select o1.zm, h3ispentagon( o1.h3) as p, to_hex(o1.h3::bigint) as h3, h3togeoboundarydeg(o1.h3)::geometry(polygon,4326) as geo
-    from 
-    ( select o.zm, kRing(o.h3, bboxHexRadiusDeg( o.ibox, zoom2resolution(o.zm) )) as h3
-      from 
-      ( with info as ( select i.ibox, st_centroid(i.ibox) as c, coalesce(bbox2zooml(i.ibox), '-1'::integer) as zm 
-                       from ( select st_setsrid(coalesce(gsrv_getreqbbox(current_query()), st_geomfromtext(replace('polyxxx'::text, 'xxx'::text, 'gon'::text) || '((8.65722656250009 50.0923932109386,8.65722656250009 50.1205780979601,8.7011718750001 50.1205780979601,8.7011718750001 50.0923932109386,8.65722656250009 50.0923932109386))'::text)), 4326) as ibox) i
-                     )
-        select b.zm, b.ibox, geotoh3(radians(st_y(b.c)), radians(st_x(b.c)), zoom2resolution(b.zm)) as h3
-        from info b
-        where 1 = 1
-      ) o
-    ) o1
-    where 1 = 1
-      and o1.h3 != 0
- ) oo
- where 1 = 1;
-
-create or replace view rdr_cal.wv_cluster_delta_h3_f01a as -- select h3, value as total, geo from rdr_cal.wvm_cluster_delta_h3_f01a
-select  -- 'POLXXXYGON ((22.32421875 -0.1714300432299857, 22.32421875 22.114475576668156, 45.17578125 22.114475576668156, 45.17578125 -0.1714300432299857, 22.32421875 -0.1714300432299857))'
- to_hex( o.h3 ) as h3,
- o.bqty,
- o.total::bigint AS total,
- o.geo
-from 
-( 
- with curr_bbox as
- ( select rdr.bbox2zooml( i.ibox ) as zm, i.ibox  
-   from 
-   ( select st_setsrid( st_envelope(ST_MinimumBoundingCircle(st_envelope(ST_MinimumBoundingCircle( gsrv_getreqbbox(current_query()))))) , 4326 ) AS ibox 
-   ) i 
- )
- select i2.h3, sum(w.value) as total, count(1) as bqty, i2.geo
- from rdr_cal.wvm_cluster_delta_h3_f01a w,
- (
-  select i1.h3, h3togeoboundarydeg( i1.h3 )::geometry(polygon,4326) as geo
-  from
-  ( select distinct
-     h3ToParent( v.h3, least( greatest( h3.zoom2resolution(b.zm), 4),8) ) AS h3
-     from rdr_cal.wvm_cluster_delta_h3_f01a v, curr_bbox b
-    where 1 = 1
-      and v.geo && b.ibox
-      and st_intersects(v.geo, b.ibox)
-    -- group by 1 
-   ) i1
-  ) i2
-  where 1 = 1
-    and w.geo && i2.geo
-    and st_intersects(w.geo, i2.geo)
-    and h3IsParent( i2.h3, w.h3 ) 
-  group by 1 ,4
-) o;
-
-*/

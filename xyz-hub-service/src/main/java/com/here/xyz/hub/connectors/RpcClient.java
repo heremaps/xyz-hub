@@ -46,8 +46,11 @@ import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.HealthStatus;
+import com.here.xyz.responses.HistoryStatisticsResponse;
+import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -388,6 +391,7 @@ public class RpcClient {
       }
       else {
         validateResponsePayload(marker, payload);
+        postProcessResponsePayload(marker, payload);
         callback.handle(Future.succeededFuture((XyzResponse) payload));
       }
     }
@@ -493,6 +497,28 @@ public class RpcClient {
     throw new HttpException(Api.RESPONSE_PAYLOAD_TOO_LARGE, Api.RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE);
   }
 
+  private void postProcessResponsePayload(Marker marker, final Typed payload) {
+    if (payload instanceof FeatureCollection) {
+      final FeatureCollection fc = (FeatureCollection) payload;
+      // TODO copy handle property over nextPageToken, when handle is finally removed, this code won't be necessary anymore
+      fc.setNextPageToken(fc.getHandle());
+      return;
+    }
+
+    if (payload instanceof StatisticsResponse) {
+      final StatisticsResponse sr = (StatisticsResponse) payload;
+      // TODO copy byteSize property over dataSize, when byteSize is finally removed, this code won't be necessary anymore
+      sr.setDataSize(sr.getByteSize());
+      return;
+    }
+
+    if (payload instanceof HistoryStatisticsResponse) {
+      final HistoryStatisticsResponse hsr = (HistoryStatisticsResponse) payload;
+      // TODO copy byteSize property over dataSize, when byteSize is finally removed, this code won't be necessary anymore
+      hsr.setDataSize(hsr.getByteSize());
+      return;
+    }
+  }
 
   public static class RpcContext {
     private int requestSize = -1;
