@@ -22,6 +22,7 @@ package com.here.xyz.hub.rest;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.jayway.restassured.RestAssured.given;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -246,6 +247,45 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
         then().
         body("features.size()", equalTo(1)).
         body("features[0].properties.name", equalTo(""));
+  }
+
+  @Test
+  public void testEqualsWithComma() {
+    given().
+        urlEncodingEnabled(false).
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        when().
+        get("/spaces/x-psql-test/search?p.sport=association%20football,American%20football").
+        then().
+        body("features.size()", equalTo(206));
+
+    given().
+        contentType(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        when().
+        body("{\"type\": \"Feature\", \"properties\": {\"sport\": \"association, football\"}}").
+        patch("/spaces/x-psql-test/features/Q2736585").
+        then().
+        statusCode(OK.code());
+
+    given().
+        urlEncodingEnabled(false).
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        when().
+        get("/spaces/x-psql-test/search?p.sport=association,%20football").
+        then().
+        body("features.size()", equalTo(0));
+
+    given().
+        urlEncodingEnabled(false).
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        when().
+        get("/spaces/x-psql-test/search?p.sport=association%2C%20football").
+        then().
+        body("features.size()", equalTo(1));
   }
 
   @Test
