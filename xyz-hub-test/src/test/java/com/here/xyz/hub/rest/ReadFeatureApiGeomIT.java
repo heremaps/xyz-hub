@@ -378,7 +378,7 @@ public class ReadFeatureApiGeomIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get(getSpacesPath() + "/x-psql-test/spatial?refSpaceId=x-psql-test&refFeatureId=foo_polygon&clip=true").
+            get(getSpacesPath() + "/x-psql-test/spatial?refSpaceId="+ getSpaceId() + "&refFeatureId=foo_polygon&clip=true").
             getBody().asString();
 
     fc = XyzSerializable.deserialize(body);
