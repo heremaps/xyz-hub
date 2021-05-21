@@ -515,6 +515,10 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/StatisticsResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
   '/spaces/{spaceId}/bbox':
