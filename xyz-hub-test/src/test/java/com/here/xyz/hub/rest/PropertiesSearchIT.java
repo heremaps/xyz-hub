@@ -256,7 +256,7 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         when().
-        get("/spaces/x-psql-test/search?p.sport=association%20football,American%20football").
+        get(getSpacesPath() + "/x-psql-test/search?p.sport=association%20football,American%20football").
         then().
         body("features.size()", equalTo(206));
 
@@ -265,7 +265,7 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         when().
         body("{\"type\": \"Feature\", \"properties\": {\"sport\": \"association, football\"}}").
-        patch("/spaces/x-psql-test/features/Q2736585").
+        patch(getSpacesPath() + "/x-psql-test/features/Q2736585").
         then().
         statusCode(OK.code());
 
@@ -274,7 +274,7 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         when().
-        get("/spaces/x-psql-test/search?p.sport=association,%20football").
+        get(getSpacesPath() + "/x-psql-test/search?p.sport=association,%20football").
         then().
         body("features.size()", equalTo(0));
 
@@ -283,7 +283,7 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         when().
-        get("/spaces/x-psql-test/search?p.sport=association%2C%20football").
+        get(getSpacesPath() + "/x-psql-test/search?p.sport=association%2C%20football").
         then().
         body("features.size()", equalTo(1));
   }
