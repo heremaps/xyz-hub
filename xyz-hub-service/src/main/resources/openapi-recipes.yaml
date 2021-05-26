@@ -62,7 +62,7 @@ recipes:
       - components.schemas.AWSLambda
       - components.schemas.CacheProfile
       - components.schemas.ConnectorConfig
-      - components.schemas.CountResponse
+      - components.schemas.CountFeatures
       - components.schemas.Http
       - components.schemas.RemoteFunctionConfig
       - components.schemas.Space.properties.enableUUID
@@ -103,7 +103,7 @@ recipes:
       - paths.'/spaces/{spaceId}/features'.delete.parameters.$ref~=^.*TagList$
       - paths.'/spaces/{spaceId}/count'
       - components.responses.CountFeaturesResponse
-      - components.schemas.CountResponse
+      - components.schemas.CountFeatures
       - components.schemas.Space.properties.tags
   - name: contract
     extends: base
