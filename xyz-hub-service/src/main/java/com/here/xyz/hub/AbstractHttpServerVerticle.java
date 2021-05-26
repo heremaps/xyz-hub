@@ -23,6 +23,7 @@ import static com.here.xyz.hub.rest.Api.CLIENT_CLOSED_REQUEST;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
 import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_INFO;
+import static com.here.xyz.hub.rest.Api.HeaderValues.STRICT_TRANSPORT_SECURITY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
@@ -63,6 +64,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -220,6 +222,7 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
       //Log the request information.
       LogUtil.addRequestInfo(context);
       context.response().putHeader(STREAM_ID, context.request().getHeader(STREAM_ID));
+      context.response().putHeader(STRICT_TRANSPORT_SECURITY, "max-age=" + TimeUnit.MINUTES.toSeconds(1));
       context.response().endHandler(ar -> onResponseEnd(context));
       context.addHeadersEndHandler(v -> headersEndHandler(context));
       context.next();
