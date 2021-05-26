@@ -28,23 +28,23 @@ import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
-import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.GetHistoryStatisticsEvent;
+import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
+import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
-import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.hub.Core;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
-import com.here.xyz.responses.XyzError;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.responses.SuccessResponse;
+import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import java.util.Arrays;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -69,7 +69,7 @@ public class TestStorageConnector extends StorageConnector {
     if (RANDOM_FEATURE_SPACE.equals(event.getSpace())) {
       return new SuccessResponse();
     }
-    if (event.getSpace().startsWith(HUGE_RESPONSE_SPACE)) {
+    if (event.getSpace().contains(HUGE_RESPONSE_SPACE)) {
       return new SuccessResponse();
     }
     if (XyzError.forValue(event.getSpace()) != null) {
@@ -113,8 +113,8 @@ public class TestStorageConnector extends StorageConnector {
               .withGeometry(new Point().withCoordinates(new PointCoordinates(0, 0)))
               .withProperties(new Properties())));
       return fc;
-    } else if (space.startsWith(HUGE_RESPONSE_SPACE)) {
-      int size = Integer.parseInt(space.substring(HUGE_RESPONSE_SPACE.length())) * 1024 * 1024;
+    } else if (space.contains(HUGE_RESPONSE_SPACE)) {
+      int size = Integer.parseInt(space.substring(space.lastIndexOf("_")+1)) * 1024 * 1024;
 
       int numFeatures = size / sampleKBFeature.serialize().getBytes().length;
 

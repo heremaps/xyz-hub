@@ -33,9 +33,11 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 import org.junit.runners.MethodSorters;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
+@Category(RestTests.class)
 public class StoreFeaturesApiIT extends TestSpaceWithFeature {
 
   @BeforeClass
@@ -62,7 +64,7 @@ public class StoreFeaturesApiIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         body(content("/xyz/hub/processedData.json")).
         when().
-        put("/spaces/x-psql-test/features").
+        put(getSpacesPath() + "/x-psql-test/features").
         then().
         statusCode(NO_CONTENT.code());
   }
@@ -74,7 +76,7 @@ public class StoreFeaturesApiIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         body("{\"features\":[{\"geometry\":{\"coordinates\":[-2.960777,53.430777],\"type\":\"Point\"}}],\"type\":\"FeatureCollection\"}").
         when().
-        put("/spaces/x-psql-test/features").
+        put(getSpacesPath() + "/x-psql-test/features").
         then().
         statusCode(OK.code());
   }
@@ -89,7 +91,7 @@ public class StoreFeaturesApiIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         body(fc.serialize()).
         when().
-        put("/spaces/x-psql-test/features").
+        put(getSpacesPath() + "/x-psql-test/features").
         then().
         statusCode(OK.code());
 
@@ -102,7 +104,7 @@ public class StoreFeaturesApiIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         body(fcUpdate.serialize()).
         when().
-        post("/spaces/x-psql-test/features?ne=retain&e=error&transactional=false").prettyPeek().
+        post(getSpacesPath() + "/x-psql-test/features?ne=retain&e=error&transactional=false").prettyPeek().
         then().
         statusCode(OK.code()).
         body("failed[0].id", equalTo("T1"));

@@ -28,10 +28,12 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.FixMethodOrder;
+import org.junit.experimental.categories.Category;
 import org.junit.runners.MethodSorters;
 
 @SuppressWarnings("unused")
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
+@Category(RestTests.class)
 public class ModifyLargeDatasetsIT extends TestSpaceWithFeature {
 
   @BeforeClass
