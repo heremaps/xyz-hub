@@ -61,10 +61,10 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body(content("/xyz/hub/createSpace.json"))
         .when()
-        .post("/spaces")
+        .post(getCreateSpacePath())
         .then()
         .statusCode(OK.code())
-        .body("id", equalTo("x-psql-test"))
+        .body("id", equalTo(getSpaceId()))
         .body("title", equalTo("My Demo Space"))
         .body("storage.id", equalTo("psql"));
   }
@@ -84,14 +84,14 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .path("id");
   }
 
-  static void addFeatures() {
+  protected static void addFeatures() {
     given()
         .contentType(APPLICATION_GEO_JSON)
         .accept(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body(content("/xyz/hub/processedData.json"))
         .when()
-        .put("/spaces/x-psql-test/features")
+        .put(getSpacesPath() + "/x-psql-test/features")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(252));
@@ -118,7 +118,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
             .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
             .body(f.serialize())
             .when()
-            .post("/spaces/x-psql-test/features")
+            .post(getSpacesPath() + "/x-psql-test/features")
             .then()
             .statusCode(OK.code());
       });
@@ -172,7 +172,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test/statistics")
+        .get(getSpacesPath() + "/x-psql-test/statistics")
         .then()
         .statusCode(OK.code())
         .body("count.value", equalTo(expected),"count.estimated", equalTo(false));
@@ -241,5 +241,4 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
     String[] allowedFieldNames = {"space", "createdAt", "updatedAt", "tags"};
     assertThat(xyzNs.fieldNames(), everyItem(isIn(allowedFieldNames)));
   }
-
 }

@@ -574,7 +574,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       final long start = hasHandle ? Long.parseLong(handle) : 0L;
 
       // For testing purposes.
-      if (event.getSpace().equals("illegal_argument")) {
+      if (event.getSpace().contains("illegal_argument")) {
         return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
                 .withErrorMessage("Invalid request parameters.");
       }
@@ -678,7 +678,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
    return null;
   }
-  
+
   private String chrE( String s ) { return s.replace('+','-').replace('/','_').replace('=','.'); }
   private String chrD( String s ) { return s.replace('-','+').replace('_','/').replace('.','='); }
 
@@ -689,11 +689,11 @@ public class PSQLXyzConnector extends DatabaseHandler {
   {
     event.setPart(null);
     event.setTags(null);
-    
+
     FeatureCollection cl = executeQueryWithRetry( SQLQueryBuilder.buildGetIterateHandlesQuery(nrHandles));
     List<List<Object>> hdata = cl.getFeatures().get(0).getProperties().get("handles");
     for( List<Object> entry : hdata )
-    { 
+    {
       event.setPropertiesQuery(null);
       if( entry.get(2) != null )
       { PropertyQuery pqry = new PropertyQuery();
@@ -707,7 +707,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
         event.setPropertiesQuery( pqs );
       }
-      entry.set(0, createHandle(event,String.format("{\"h\":\"%s\",\"s\":[]}",entry.get(1).toString()))); 
+      entry.set(0, createHandle(event,String.format("{\"h\":\"%s\",\"s\":[]}",entry.get(1).toString())));
     }
     return cl;
   }
@@ -724,7 +724,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       {
         if( event.getPart() != null && event.getPart()[0] == -1 )
          return requestIterationHandles( event, event.getPart()[1] );
-        
+
         if (!Capabilities.canSearchFor(space, event.getPropertiesQuery(), this)) {
           return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
                   .withErrorMessage("Invalid request parameters. Search for the provided properties is not supported for this space.");
@@ -757,10 +757,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
       FeatureCollection collection = executeQueryWithRetry(query);
 
       if( collection.getHandle() != null ) // extend handle and encrypt
-      { final String handle = createHandle( event, collection.getHandle() ); 
+      { final String handle = createHandle( event, collection.getHandle() );
         collection.setHandle( handle );
         collection.setNextPageToken(handle);
-      }  
+      }
 
       return collection;
     } catch (SQLException e){

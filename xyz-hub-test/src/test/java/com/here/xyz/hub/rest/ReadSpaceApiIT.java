@@ -66,7 +66,6 @@ public class ReadSpaceApiIT extends TestSpaceWithFeature {
     return nrCurrentSpaces == 0;
   }
 
-
   @BeforeClass
   public static void setupClass() {
     remove();

@@ -29,10 +29,10 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
@@ -52,9 +52,11 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 import org.junit.runners.MethodSorters;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
+@Category(RestTests.class)
 public class ReadHistoryApiIT extends TestSpaceWithFeature {
 
   @BeforeClass
@@ -70,10 +72,10 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body(content("/xyz/hub/createSpaceWithGlobalVersioning.json"))
-        .when().post("/spaces").then();
+        .when().post(getCreateSpacePath()).then();
 
     response.statusCode(OK.code())
-        .body("id", equalTo("x-psql-test"))
+        .body("id", equalTo(getSpaceId()))
         .body("title", equalTo("My Demo Space"))
         .body("enableHistory", equalTo(true))
         .body("enableUUID", equalTo(true))
@@ -85,7 +87,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
             accept(APPLICATION_VND_HERE_CHANGESET_COLLECTION).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get("/spaces/x-psql-test/history").
+            get(getSpacesPath() + "/x-psql-test/history").
             then().
             statusCode(OK.code()).
             body("startVersion", equalTo(0)).
@@ -96,7 +98,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
             accept(APPLICATION_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get("/spaces/x-psql-test/history/statistics").
+            get(getSpacesPath() + "/x-psql-test/history/statistics").
             then().
             statusCode(OK.code()).
             body("count.value", equalTo(0)).
@@ -134,7 +136,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/features/5000").
+            get(getSpacesPath() + "/x-psql-test/features/5000").
             then().
             statusCode(OK.code()).
             body("properties.@ns:com:here:xyz.version", equalTo(10));
@@ -146,7 +148,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/features/100").
+            get(getSpacesPath() + "/x-psql-test/features/100").
             then().
             statusCode(OK.code()).
             body("properties.@ns:com:here:xyz.version", equalTo(11));
@@ -155,7 +157,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/features/150").
+            get(getSpacesPath() + "/x-psql-test/features/150").
             then().
             statusCode(OK.code()).
             body("properties.@ns:com:here:xyz.version", equalTo(12));
@@ -167,7 +169,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/features/150").
+            get(getSpacesPath() + "/x-psql-test/features/150").
             then().
             statusCode(OK.code()).
             body("properties.@ns:com:here:xyz.version", equalTo(13));
@@ -180,7 +182,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/features?"+idList).
+            get(getSpacesPath() + "/x-psql-test/features?"+idList).
             then().
             statusCode(OK.code()).
             body("features.size()", equalTo(0));
@@ -198,7 +200,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
             accept(APPLICATION_VND_HERE_CHANGESET_COLLECTION).
             headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
             when().
-            get("/spaces/x-psql-test/history?startVersion=1&endVersion=2").
+            get(getSpacesPath() + "/x-psql-test/history?startVersion=1&endVersion=2").
             getBody().asString();
 
     ChangesetCollection ccol = XyzSerializable.deserialize(body);
@@ -228,7 +230,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                     accept(APPLICATION_VND_HERE_CHANGESET_COLLECTION).
                     headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
                     when().
-                    get("/spaces/x-psql-test/history?startVersion=13&endVersion=14").
+                    get(getSpacesPath() + "/x-psql-test/history?startVersion=13&endVersion=14").
                     getBody().asString();
 
     ccol = XyzSerializable.deserialize(body);
@@ -271,7 +273,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                       accept(APPLICATION_VND_HERE_CHANGESET_COLLECTION).
                       headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
                       when().
-                      get("/spaces/x-psql-test/history?startVersion="+i+"&endVersion="+i).
+                      get(getSpacesPath() + "/x-psql-test/history?startVersion="+i+"&endVersion="+i).
                       getBody().asString();
 
       ChangesetCollection ccol = XyzSerializable.deserialize(body);
@@ -320,7 +322,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                       accept(APPLICATION_VND_HERE_CHANGESET_COLLECTION).
                       headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
                       when().
-                      get("/spaces/x-psql-test/history?endVersion=25&limit=1000&pageToken="+npt).
+                      get(getSpacesPath() + "/x-psql-test/history?endVersion=25&limit=1000&pageToken="+npt).
                       getBody().asString();
 
       ChangesetCollection ccol = XyzSerializable.deserialize(body);
@@ -357,7 +359,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                     accept(APPLICATION_VND_HERE_COMPACT_CHANGESET).
                     headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
                     when().
-                    get("/spaces/x-psql-test/history?startVersion=11&endVersion=14").
+                    get(getSpacesPath() + "/x-psql-test/history?startVersion=11&endVersion=14").
                     getBody().asString();
 
     CompactChangeset compc = XyzSerializable.deserialize(body);
@@ -393,7 +395,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                     accept(APPLICATION_VND_HERE_COMPACT_CHANGESET).
                     headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
                     when().
-                    get("/spaces/x-psql-test/history?startVersion=1&endVersion=12").
+                    get(getSpacesPath() + "/x-psql-test/history?startVersion=1&endVersion=12").
                     getBody().asString();
 
     compc = XyzSerializable.deserialize(body);
@@ -437,7 +439,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                       accept(APPLICATION_VND_HERE_COMPACT_CHANGESET).
                       headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
                       when().
-                      get("/spaces/x-psql-test/history?endVersion=14&limit=1000&pageToken="+npt).
+                      get(getSpacesPath() + "/x-psql-test/history?endVersion=14&limit=1000&pageToken="+npt).
                       getBody().asString();
 
       CompactChangeset compc = XyzSerializable.deserialize(body);
@@ -489,7 +491,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                       accept(APPLICATION_GEO_JSON).
                       headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
                       when().
-                      get("/spaces/x-psql-test/iterate?version=25&limit=1000&handle="+handle).
+                      get(getSpacesPath() + "/x-psql-test/iterate?version=25&limit=1000&handle="+handle).
                       getBody().asString();
 
       FeatureCollection fc = XyzSerializable.deserialize(body);
@@ -518,7 +520,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                     accept(APPLICATION_GEO_JSON).
                     headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
                     when().
-                    get("/spaces/x-psql-test/iterate?version=3&limit=5000").
+                    get(getSpacesPath() + "/x-psql-test/iterate?version=3&limit=5000").
                     getBody().asString();
 
     FeatureCollection fc = XyzSerializable.deserialize(body);
@@ -537,7 +539,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             body(fe.serialize()).
             when().
-            post("/spaces/x-psql-test/features").
+            post(getSpacesPath() + "/x-psql-test/features").
             then().
             statusCode(OK.code());
 
@@ -547,7 +549,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                     accept(APPLICATION_VND_HERE_COMPACT_CHANGESET).
                     headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
                     when().
-                    get("/spaces/x-psql-test/history?startVersion=15").
+                    get(getSpacesPath() + "/x-psql-test/history?startVersion=15").
                     getBody().asString();
 
     CompactChangeset compactC = XyzSerializable.deserialize(body);
@@ -562,7 +564,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                     accept(APPLICATION_VND_HERE_CHANGESET_COLLECTION).
                     headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
                     when().
-                    get("/spaces/x-psql-test/history?startVersion=15").
+                    get(getSpacesPath() + "/x-psql-test/history?startVersion=15").
                     getBody().asString();
 
     ChangesetCollection changeCol = XyzSerializable.deserialize(body);
@@ -578,7 +580,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                     accept(APPLICATION_GEO_JSON).
                     headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
                     when().
-                    get("/spaces/x-psql-test/iterate?version=15").
+                    get(getSpacesPath() + "/x-psql-test/iterate?version=15").
                     getBody().asString();
 
     FeatureCollection fc = XyzSerializable.deserialize(body);
@@ -609,7 +611,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             body(featureCollection.serialize()).
             when().
-            post("/spaces/x-psql-test/features").
+            post(getSpacesPath() + "/x-psql-test/features").
             then().
             statusCode(OK.code());
   }
@@ -618,7 +620,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
     given()
             .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
             .when()
-            .delete("/spaces/x-psql-test/features?"+idList)
+            .delete(getSpacesPath() + "/x-psql-test/features?"+idList)
             .then()
             .statusCode(NO_CONTENT.code());
   }

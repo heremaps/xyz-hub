@@ -19,13 +19,18 @@
 
 package com.here.xyz.hub.rest;
 
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
+import com.here.xyz.models.geojson.coordinates.PointCoordinates;
+import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.models.geojson.implementation.Point;
 import com.jayway.restassured.response.ValidatableResponse;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -73,4 +78,26 @@ public class UpdateSpaceApiIT extends TestSpaceWithFeature {
             when().patch("/spaces/x-psql-test").then()
                 .statusCode(BAD_REQUEST.code());
     }
+
+  @Test
+  public void testReadOnly() {
+    given().
+        contentType(APPLICATION_JSON).
+        accept(APPLICATION_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        body("{\"readOnly\":true}").
+        when().patch("/spaces/x-psql-test").then().statusCode(OK.code());
+
+    Feature point = Feature.createEmptyFeature()
+        .withId("C001")
+        .withGeometry(new Point().withCoordinates(new PointCoordinates(0, 1)));
+    given().
+        accept(APPLICATION_GEO_JSON).
+        contentType(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+        body(point.serialize()).
+        when().
+        put("/spaces/x-psql-test/features/C001").
+        then().statusCode(METHOD_NOT_ALLOWED.code());
+  }
 }

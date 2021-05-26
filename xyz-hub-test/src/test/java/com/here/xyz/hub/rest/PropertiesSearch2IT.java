@@ -19,16 +19,18 @@
 
 package com.here.xyz.hub.rest;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+
 @SuppressWarnings("unused")
+@Category(RestTests.class)
 public class PropertiesSearch2IT extends TestSpaceWithFeature {
 
   @BeforeClass
@@ -54,7 +56,7 @@ public class PropertiesSearch2IT extends TestSpaceWithFeature {
             .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
             .body(content("/xyz/hub/mixedGeometryTypes.json"))
             .when()
-            .put("/spaces/x-psql-test/features")
+            .put(getSpacesPath() + "/x-psql-test/features")
             .then()
             .statusCode(OK.code())
             .body("features.size()", equalTo(11));
@@ -71,35 +73,35 @@ public class PropertiesSearch2IT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get("/spaces/x-psql-test/search?p.bar=.null").
+            get(getSpacesPath() + "/x-psql-test/search?p.bar=.null").
             then().
             body("features.size()", equalTo(10));
     given().
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get("/spaces/x-psql-test/search?p.foo.nested=.null").
+            get(getSpacesPath() + "/x-psql-test/search?p.foo.nested=.null").
             then().
             body("features.size()", equalTo(11));
     given().
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get("/spaces/x-psql-test/search?f.id=.null").
+            get(getSpacesPath() + "/x-psql-test/search?f.id=.null").
             then().
             body("features.size()", equalTo(0));
     given().
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get("/spaces/x-psql-test/search?f.fooroot=.null").
+            get(getSpacesPath() + "/x-psql-test/search?f.fooroot=.null").
             then().
             body("features.size()", equalTo(9));
     given().
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get("/spaces/x-psql-test/search?f.fooroot.nested=.null").
+            get(getSpacesPath() + "/x-psql-test/search?f.fooroot.nested=.null").
             then().
             body("features.size()", equalTo(11));
   }
@@ -110,35 +112,35 @@ public class PropertiesSearch2IT extends TestSpaceWithFeature {
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get("/spaces/x-psql-test/search?p.bar!=.null").
+            get(getSpacesPath() + "/x-psql-test/search?p.bar!=.null").
             then().
             body("features.size()", equalTo(1));
     given().
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get("/spaces/x-psql-test/search?p.foo.nested!=.null").
+            get(getSpacesPath() + "/x-psql-test/search?p.foo.nested!=.null").
             then().
             body("features.size()", equalTo(0));
     given().
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get("/spaces/x-psql-test/search?f.id!=.null").
+            get(getSpacesPath() + "/x-psql-test/search?f.id!=.null").
             then().
             body("features.size()", equalTo(11));
     given().
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get("/spaces/x-psql-test/search?f.fooroot!=.null").
+            get(getSpacesPath() + "/x-psql-test/search?f.fooroot!=.null").
             then().
             body("features.size()", equalTo(2));
     given().
             accept(APPLICATION_GEO_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             when().
-            get("/spaces/x-psql-test/search?f.fooroot.nested!=.null").
+            get(getSpacesPath() + "/x-psql-test/search?f.fooroot.nested!=.null").
             then().
             body("features.size()", equalTo(0));
   }

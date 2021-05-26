@@ -24,7 +24,6 @@ import static com.jayway.restassured.config.EncoderConfig.encoderConfig;
 
 import com.here.xyz.hub.auth.TestAuthenticator;
 import com.jayway.restassured.RestAssured;
-import java.nio.charset.StandardCharsets;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -35,6 +34,7 @@ public class RestAssuredTest extends TestAuthenticator {
         RestAssured.baseURI = RestAssuredConfig.config().baseURI;
         RestAssured.port = RestAssuredConfig.config().port;
         RestAssured.enableLoggingOfRequestAndResponseIfValidationFails();
+        RestAssured.config = RestAssured.config().httpClient(RestAssured.config().getHttpClientConfig().reuseHttpClientInstance());
         RestAssured.config = RestAssured.config().encoderConfig(encoderConfig().defaultContentCharset("UTF-8"));
         RestAssured.config = RestAssured.config().decoderConfig(decoderConfig().defaultContentCharset("UTF-8"));
     }
