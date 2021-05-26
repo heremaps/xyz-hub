@@ -18,8 +18,12 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.Consumer;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class OpenApiGenerator {
+  private static final Logger logger = LogManager.getLogger();
+
   private static final String EXCLUDE = "exclude";
   private static final String INCLUDE = "include";
   private static final String REPLACE = "replace";
@@ -209,9 +213,8 @@ public class OpenApiGenerator {
    *   - by regex value match
    * The first mode is a simple path match.
    * The last two modes will search only inside array of objects.
-   * @throws Exception in case of any error related to the exclusion process.
    */
-  private static void processExclusions() throws Exception {
+  private static void processExclusions() {
     if (!recipe.has(EXCLUDE))
       return;
 
@@ -229,7 +232,8 @@ public class OpenApiGenerator {
         final String[] splitString = excludeString.split(regexSearch ? REGEX_SEARCH : EXACT_SEARCH);
 
         if (splitString.length != 2) {
-          throw new Exception("Invalid path: " + excludeString);
+          logger.warn("Invalid path: " + excludeString);
+          continue;
         }
 
         path = splitString[0];
@@ -245,11 +249,17 @@ public class OpenApiGenerator {
       }
 
       if (parent == null) {
-        throw new Exception("Invalid path: " + excludeString);
+        logger.warn("Invalid path: " + excludeString);
+        continue;
       }
 
       final String lastKey = pathKeys[pathKeys.length - 1];
       if (!(regexSearch || exactSearch)) {
+        if (get(parent, lastKey) == null) {
+          logger.warn("Invalid path: " + excludeString);
+          continue;
+        }
+
         remove(parent, lastKey);
       } else {
         for (Entry<Object, JsonNode> entry : elements(parent).entrySet()) {
@@ -270,9 +280,8 @@ public class OpenApiGenerator {
    * It works with objects and arrays.
    * If parent is an object, value's keys are extracted and injected within the parent object.
    * If parent is an array, value is simply added to the end of the array.
-   * @throws Exception in case of any error related to the inclusion process.
    */
-  private static void processInclusions() throws Exception {
+  private static void processInclusions() {
     if (!recipe.has(INCLUDE)) return;
 
     final Iterator<JsonNode> it = recipe.get(INCLUDE).elements();
@@ -290,7 +299,8 @@ public class OpenApiGenerator {
       }
 
       if (parent == null) {
-        throw new Exception("Invalid path: " + path);
+        logger.warn("Invalid path: " + path);
+        continue;
       }
 
       if (parent.isObject()) {
@@ -308,9 +318,8 @@ public class OpenApiGenerator {
    * Replacements can either be of types "key" or "value".
    * When "type" is of type value, it accepts path=* which replaces strings over the entire source object.
    * Otherwise, executes replacement by matching the node's path.
-   * @throws Exception in case of any error related to the replacement process.
    */
-  private static void processReplacements() throws Exception {
+  private static void processReplacements() {
     if (!recipe.has(REPLACE)) return;
 
     final Iterator<JsonNode> it = recipe.get(REPLACE).elements();
@@ -362,9 +371,8 @@ public class OpenApiGenerator {
    * @param path the path where the replacement will occur.
    * @param find the string to be found within the value pointed by "path"
    * @param replace the string replace the old value
-   * @throws Exception when the path is invalid
    */
-  private static void processPathReplacement(String type, String path, JsonNode find, JsonNode replace) throws Exception {
+  private static void processPathReplacement(String type, String path, JsonNode find, JsonNode replace) {
     final String[] pathKeys = split(path);
     final String lastKey = pathKeys[pathKeys.length-1];
     JsonNode parent = root;
@@ -374,19 +382,24 @@ public class OpenApiGenerator {
       parent = get(parent, pathKeys[i]);
     }
 
-    if (parent == null) {
-      throw new Exception("Invalid path: " + path);
+    if (parent == null || get(parent, lastKey) == null) {
+      logger.warn("Invalid path: " + path);
+      return;
     }
 
     switch (type) {
       case KEY: {
-        if (!parent.isObject()) break;
+        if (!parent.isObject()) {
+          logger.warn("Invalid path: " + path);
+          break;
+        }
 
         final String[] pathReplaceKeys = split(replace.textValue());
         final String lastReplaceKey = pathReplaceKeys[pathReplaceKeys.length-1];
 
         final ObjectNode objectNode = (ObjectNode) parent;
         final JsonNode value = get(parent, lastKey);
+
         objectNode.remove(lastKey);
         objectNode.set(lastReplaceKey, value);
 
