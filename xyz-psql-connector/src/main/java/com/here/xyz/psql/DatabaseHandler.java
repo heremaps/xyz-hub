@@ -742,7 +742,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private static void advisoryUnlock(String tablename, Connection connection ) throws SQLException { _advisory(tablename,connection,false); }
 
-    protected void ensureSpace() throws SQLException {
+    protected void ensureSpace( int partitions ) throws SQLException {
         // Note: We can assume that when the table exists, the postgis extensions are installed.
         if (hasTable()) return;
 
@@ -757,7 +757,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                   connection.setAutoCommit(false);
 
                 try (Statement stmt = connection.createStatement()) {
-                    createSpaceStatement(stmt,tableName);
+                    createSpaceStatement(stmt,tableName, partitions);
 
                     stmt.setQueryTimeout(calculateTimeout());
                     stmt.executeBatch();
@@ -780,42 +780,65 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
-    private void createSpaceStatement(Statement stmt, String tableName) throws SQLException {
+    protected void ensureSpace() throws SQLException { ensureSpace(0); }
+
+    private void createSpaceStatement(Statement stmt, String tableName, int partitions ) throws SQLException {
+
+        partitions = Math.max( partitions, 1 );
+        String schema = config.getDatabaseSettings().getSchema();
+
         String query = "CREATE TABLE IF NOT EXISTS ${schema}.${table} (jsondata jsonb, geo geometry(GeometryZ,4326), i BIGSERIAL)";
 
-        query = SQLQuery.replaceVars(query, config.getDatabaseSettings().getSchema(), tableName);
+        if( partitions > 1 )
+         query = String.format( "%s partition by list ( (('x' || left( md5( jsondata->>'id' ), 4 ))::bit(16)::integer %% %d) )", query, partitions );
+
+        query = SQLQuery.replaceVars(query, schema, tableName);
         stmt.addBatch(query);
 
-        query = "CREATE UNIQUE INDEX IF NOT EXISTS ${idx_id} ON ${schema}.${table} ((jsondata->>'id'))";
-        query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
-        stmt.addBatch(query);
+        for( int pnr = 0; pnr < partitions; pnr++ )
+        {
+         int hint = ( partitions == 1 ? -1 : pnr );
+         String partitionTableName = null;
 
-        query = "CREATE INDEX IF NOT EXISTS ${idx_tags} ON ${schema}.${table} USING gin ((jsondata->'properties'->'@ns:com:here:xyz'->'tags') jsonb_ops)";
-        query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
-        stmt.addBatch(query);
+         if(! (hint < 0))
+         { partitionTableName = tableName + "_" + hint;
+           query = String.format( "create table ${schema}.${table} partition of ${schema}.\"%s\" for values in (%d)", tableName, hint);
+           query = SQLQuery.replaceVars(query, replacements, schema, tableName, partitionTableName);
+           stmt.addBatch(query);
+         }
 
-        query = "CREATE INDEX IF NOT EXISTS ${idx_geo} ON ${schema}.${table} USING gist ((geo))";
-        query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
-        stmt.addBatch(query);
+         query = "CREATE UNIQUE INDEX IF NOT EXISTS ${idx_id} ON ${schema}.${table} ((jsondata->>'id'))";
+         query = SQLQuery.replaceVars(query, replacements, schema, tableName, partitionTableName);
+         stmt.addBatch(query);
 
-        query = "CREATE INDEX IF NOT EXISTS ${idx_serial} ON ${schema}.${table}  USING btree ((i))";
-        query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
-        stmt.addBatch(query);
+         query = "CREATE INDEX IF NOT EXISTS ${idx_tags} ON ${schema}.${table} USING gin ((jsondata->'properties'->'@ns:com:here:xyz'->'tags') jsonb_ops)";
+         query = SQLQuery.replaceVars(query, replacements, schema, tableName, partitionTableName);
+         stmt.addBatch(query);
 
-        query = "CREATE INDEX IF NOT EXISTS ${idx_updatedAt} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt'), (jsondata->>'id'))";
-        query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
-        stmt.addBatch(query);
+         query = "CREATE INDEX IF NOT EXISTS ${idx_geo} ON ${schema}.${table} USING gist ((geo))";
+         query = SQLQuery.replaceVars(query, replacements, schema, tableName, partitionTableName);
+         stmt.addBatch(query);
 
-        query = "CREATE INDEX IF NOT EXISTS ${idx_createdAt} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'createdAt'), (jsondata->>'id'))";
-        query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
-        stmt.addBatch(query);
+         query = "CREATE INDEX IF NOT EXISTS ${idx_serial} ON ${schema}.${table}  USING btree ((i))";
+         query = SQLQuery.replaceVars(query, replacements, schema, tableName, partitionTableName);
+         stmt.addBatch(query);
 
-        query = "CREATE INDEX IF NOT EXISTS ${idx_viz} ON ${schema}.${table} USING btree (left( md5(''||i),5))";
-        query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
-        stmt.addBatch(query);
+         query = "CREATE INDEX IF NOT EXISTS ${idx_updatedAt} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt'), (jsondata->>'id'))";
+         query = SQLQuery.replaceVars(query, replacements, schema, tableName, partitionTableName);
+         stmt.addBatch(query);
 
+         query = "CREATE INDEX IF NOT EXISTS ${idx_createdAt} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'createdAt'), (jsondata->>'id'))";
+         query = SQLQuery.replaceVars(query, replacements, schema, tableName, partitionTableName);
+         stmt.addBatch(query);
+
+         query = "CREATE INDEX IF NOT EXISTS ${idx_viz} ON ${schema}.${table} USING btree (left( md5(''||i),5))";
+         query = SQLQuery.replaceVars(query, replacements, schema, tableName, partitionTableName);
+         stmt.addBatch(query);
+        }
         stmt.setQueryTimeout(calculateTimeout());
     }
+
+    private void createSpaceStatement(Statement stmt, String tableName) throws SQLException { createSpaceStatement(stmt,tableName,0); }
 
     protected void ensureHistorySpace(Integer maxVersionCount, boolean compactHistory, boolean isEnableGlobalVersioning) throws SQLException {
         final String tableName = config.readTableFromEvent(event);

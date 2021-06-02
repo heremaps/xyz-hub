@@ -50,6 +50,7 @@ import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.factory.H3SQL;
 import com.here.xyz.psql.factory.QuadbinSQL;
@@ -429,6 +430,14 @@ public class PSQLXyzConnector extends DatabaseHandler {
         return new SuccessResponse().withStatus("OK");
 
       validateModifySpaceEvent(event);
+
+      Space spaceDef = event.getSpaceDefinition();
+
+      if(  spaceDef != null && spaceDef.getPartitions() != null && spaceDef.getPartitions() > 1
+         && !spaceDef.isEnableHistory()
+         && ModifySpaceEvent.Operation.CREATE == event.getOperation()
+        )
+      { ensureSpace( spaceDef.getPartitions() ); }  
 
       if(event.getSpaceDefinition() != null && event.getSpaceDefinition().isEnableHistory()){
         Integer maxVersionCount = event.getSpaceDefinition().getMaxVersionCount();
