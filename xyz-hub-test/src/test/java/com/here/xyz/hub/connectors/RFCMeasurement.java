@@ -95,12 +95,11 @@ public class RFCMeasurement {
         assertEquals("throughput should match", expectedThroughput, Math.round(tp));
     }
 
-    @Test
+    //@Test
     public void checkMeasuringBelowLimits() throws InterruptedException {
         checkMeasuring(4, 200, 1000, 1300, 4, 4);
     }
 
-    //TODO: Write more tests
     //@Test
     public void checkMeasuringExceedConcurrencyLimit() throws InterruptedException {
         checkMeasuring(10,200, 1000, 1300, 10, RFC_MAX_CONNECTIONS);

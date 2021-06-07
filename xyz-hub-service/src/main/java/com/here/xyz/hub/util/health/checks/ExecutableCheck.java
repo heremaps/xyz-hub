@@ -131,6 +131,9 @@ public abstract class ExecutableCheck extends Check implements Runnable {
 				setResponse(null);
 			}
 		}
+		catch (InterruptedException ignored) {
+			//Nothing to do here.
+		}
 		catch (Exception e) {
 			logger.error("{}: Error when executing check", this.getClass().getSimpleName(), e);
 		}
