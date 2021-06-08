@@ -17,6 +17,8 @@ tags:
     description: Read only endpoints for features.
   - name: Write Features
     description: Read and write endpoints for features.
+  - name: Manage Connectors
+    description: Read and write endpoints for connectors.
 paths:
   '/spaces':
     get:
