@@ -289,7 +289,7 @@ public class ApiParam {
       if( l.size() <= 2 && l.size() >= 1 ) 
        try
        { part  =  Integer.parseUnsignedInt( l.get(0) );
-         total =  ( l.size() > 1 ? Integer.parseUnsignedInt( l.get(1) ) : -1 );
+         total =  ( l.size() > 1 ? Integer.parseUnsignedInt( l.get(1) ) : /* -1 */ 1 ); // -1 to use n-handle modus
          return ( part == 0 || total == 0 ) ? null : new Integer[]{ Math.min(part, total), Math.max(part,total) };
        }
        catch(NumberFormatException e){}
