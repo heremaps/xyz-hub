@@ -8,15 +8,6 @@ recipes:
       - type: value
         path: info.version
         replace: ${VERSION}
-  - name: no-taglist
-    extends: base
-    exclude:
-      - paths.'/spaces/{spaceId}/bbox'.get.parameters.$ref~=^.*TagList$
-      - paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.parameters.$ref~=^.*TagList$
-      - paths.'/spaces/{spaceId}/spatial'.get.parameters.$ref~=^.*TagList$
-      - paths.'/spaces/{spaceId}/spatial'.post.parameters.$ref~=^.*TagList$
-      - paths.'/spaces/{spaceId}/search'.get.parameters.$ref~=^.*TagList$
-      - components.parameters.TagList
   - name: stable
     extends: base
     exclude:

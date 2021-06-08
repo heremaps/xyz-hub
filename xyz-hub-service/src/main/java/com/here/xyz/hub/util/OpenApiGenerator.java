@@ -10,6 +10,7 @@ import com.google.common.io.Files;
 import com.here.xyz.hub.Service;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -137,7 +138,7 @@ public class OpenApiGenerator {
     final ArrayNode recipes = (ArrayNode) recipe.get(RECIPES);
     for (JsonNode recipe : recipes) {
       if (recipe.has(EXTENDS)) {
-        if (!recipe.get(EXTENDS).isTextual() || !RECIPES_MAP.containsKey(recipe.get(EXTENDS).textValue())) {
+        if (!recipe.get(EXTENDS).isTextual() || !RECIPES_MAP.keySet().containsAll(Arrays.asList(recipe.get(EXTENDS).textValue().split(",")))) {
           throw new Exception("Invalid recipe. Recipe's field \"extends\" must reference a valid recipe within the recipes' names list.");
         }
       }
@@ -173,35 +174,36 @@ public class OpenApiGenerator {
 
   /**
    * Extends the main recipe when needed and prepares it to be executed.
+   * Process recipe extensions by joining the elements from all of the recipes listed on extends parameter.
+   * The first recipe name on extends list becomes the first block of instructions in the resulting recipe.
+   * The last instruction block in the resulting recipe is the current recipe's instruction block.
+   * Only the extension of the current recipe are processed. Hierarchical extensions are not processed.
+   *
+   * E.g. when processing recipe A, if A extends B and B extends C,
+   * the resulting recipe contains instruction block B then A. Recipe C is ignored.
    * @param name the recipe name to be prepared.
    */
   private static void prepareRecipe(final String name) {
-    recipe = prepareRecursively(RECIPES_MAP.get(name));
-  }
+    recipe = RECIPES_MAP.get(name);
 
-  /**
-   * Navigates through the recipes hierarchy concatenating the recipes operation.
-   * @param recipe the initial recipe.
-   * @return the final recipe containing instructions from all parent recipes.
-   */
-  private static JsonNode prepareRecursively(final JsonNode recipe) {
-    if (!recipe.has(EXTENDS)) return recipe;
+    if (recipe.has(EXTENDS)) {
+      final List<String> extensions = Arrays.asList(recipe.get(EXTENDS).textValue().split(","));
+      Collections.reverse(extensions);
 
-    final String extension = recipe.get(EXTENDS).textValue();
-    final JsonNode parent = prepareRecursively(RECIPES_MAP.get(extension));
+      for (String extension : extensions) {
+        final JsonNode parent = RECIPES_MAP.get(extension);
+        elements(parent).entrySet().stream().filter(entry -> entry.getValue().isArray()).forEach(entry -> {
+          final String key = (String) entry.getKey();
+          final ArrayNode array = (ArrayNode) entry.getValue();
 
-    elements(parent).entrySet().stream().filter(entry -> entry.getValue().isArray()).forEach(entry -> {
-      final String key = (String) entry.getKey();
-      final ArrayNode array = (ArrayNode) entry.getValue();
+          if (recipe.has(key)) {
+            array.addAll((ArrayNode) recipe.get(key));
+          }
 
-      if (recipe.has(key)) {
-        array.addAll((ArrayNode) recipe.get(key));
+          ((ObjectNode) recipe).set(key, array);
+        });
       }
-
-      ((ObjectNode) recipe).set(key, array);
-    });
-
-    return recipe;
+    }
   }
 
   /**
@@ -280,6 +282,7 @@ public class OpenApiGenerator {
    * It works with objects and arrays.
    * If parent is an object, value's keys are extracted and injected within the parent object.
    * If parent is an array, value is simply added to the end of the array.
+   * TODO add possibility to include in certain position e.g. 0 (first), -1 (last), 5 (arbitrary)
    */
   private static void processInclusions() {
     if (!recipe.has(INCLUDE)) return;
@@ -318,6 +321,7 @@ public class OpenApiGenerator {
    * Replacements can either be of types "key" or "value".
    * When "type" is of type value, it accepts path=* which replaces strings over the entire source object.
    * Otherwise, executes replacement by matching the node's path.
+   * TODO replacement should occur in the same position where the previous key was inserted
    */
   private static void processReplacements() {
     if (!recipe.has(REPLACE)) return;
