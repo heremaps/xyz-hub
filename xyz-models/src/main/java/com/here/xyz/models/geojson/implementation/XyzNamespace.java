@@ -40,6 +40,7 @@ public class XyzNamespace implements XyzSerializable {
   /**
    * The space ID the feature belongs to.
    */
+  @JsonInclude(Include.NON_NULL)
   private String space;
 
   /**
@@ -72,6 +73,7 @@ public class XyzNamespace implements XyzSerializable {
   /**
    * The list of tags being attached to the feature.
    */
+  @JsonInclude(Include.NON_NULL)
   private List<String> tags;
 
   /**
@@ -132,32 +134,6 @@ public class XyzNamespace implements XyzSerializable {
       }
     }
     return tags;
-  }
-
-  /**
-   * A method to normalize all tags of the given feature.
-   *
-   * @param feature the feature in which to normalize the tags.
-   */
-  public static void normalizeTagsOfFeature(final Feature feature) {
-    if (feature == null) {
-      return;
-    }
-    final Properties properties = feature.getProperties();
-    if (properties == null) {
-      return;
-    }
-    final XyzNamespace nsXyz = properties.getXyzNamespace();
-    if (nsXyz == null) {
-      return;
-    }
-    final List<String> tags = nsXyz.getTags();
-    if (tags == null) {
-      return;
-    }
-    for (int i = 0; i < tags.size(); i++) {
-      tags.set(i, normalizeTag(tags.get(i)));
-    }
   }
 
   /**

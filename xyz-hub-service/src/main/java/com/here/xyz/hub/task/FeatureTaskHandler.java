@@ -104,12 +104,14 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -901,8 +903,6 @@ public class FeatureTaskHandler {
       final Map<String, String> delete = new HashMap<>();
       List<FeatureCollection.ModificationFailure> fails = new ArrayList<>();
 
-      long now = Core.currentTimeMillis();
-
       Iterator<FeatureEntry> it = task.modifyOp.entries.iterator();
       int i=-1;
       while( it.hasNext() ){
@@ -940,50 +940,9 @@ public class FeatureTaskHandler {
             throw new HttpException(BAD_REQUEST, e.getMessage() + ". Feature: \n" + Json.encode(entry.input));
           }
 
-          final XyzNamespace nsXyz = result.getProperties().getXyzNamespace();
-
-          // Set the space ID
-          nsXyz.setSpace(task.space.getId());
-
-          // Normalize the tags
-          final List<String> tags = nsXyz.getTags();
-          if (tags != null) {
-            XyzNamespace.normalizeTagsOfFeature(result);
-          } else {
-            nsXyz.setTags(new ArrayList<>());
-          }
-
-          nsXyz.withInputPosition((long) i);
-
-          // INSERT
-          if (entry.head == null) {
-            // Timestamps
-            nsXyz.setCreatedAt(now);
-            nsXyz.setUpdatedAt(now);
-
-            // UUID
-            if (task.space.isEnableUUID()) {
-              nsXyz.setUuid(java.util.UUID.randomUUID().toString());
-            }
-            insert.add(result);
-          }
-          // UPDATE
-          else {
-            // Timestamps
-            nsXyz.setCreatedAt(entry.head.getProperties().getXyzNamespace().getCreatedAt());
-            nsXyz.setUpdatedAt(now);
-
-            // UUID
-            if (task.space.isEnableUUID()) {
-              nsXyz.setUuid(java.util.UUID.randomUUID().toString());
-              nsXyz.setPuuid(entry.head.getProperties().getXyzNamespace().getUuid());
-              // If the user was updating an older version, set it under the merge uuid
-              if (!entry.base.equals(entry.head)) {
-                nsXyz.setMuuid(entry.base.getProperties().getXyzNamespace().getUuid());
-              }
-            }
-            update.add(result);
-          }
+          boolean isInsert = entry.head == null;
+          processNamespace(task, entry, result.getProperties().getXyzNamespace(), isInsert, i);
+          (isInsert ? insert : update).add(result);
         }
 
         // DELETE
@@ -1017,6 +976,45 @@ public class FeatureTaskHandler {
     } catch (ModifyOpError e) {
       logger.info(task.getMarker(), "ConditionalOperationError: {}", e.getMessage(), e);
       throw new HttpException(CONFLICT, e.getMessage());
+    }
+  }
+
+  static void processNamespace(ConditionalOperation task, FeatureEntry entry, XyzNamespace nsXyz, boolean isInsert, long inputPosition) {
+    // Set the space ID
+    boolean spaceIsOptional = StringUtils.contains(Service.configuration.FEATURE_NAMESPACE_OPTIONAL_FIELDS, "space");
+    nsXyz.setSpace(spaceIsOptional ? null : task.space.getId());
+
+    // Normalize the tags
+    XyzNamespace.normalizeTags(nsXyz.getTags());
+    if (nsXyz.getTags() == null) {
+      nsXyz.setTags(new ArrayList<>());
+    }
+
+    // Optionally set tags
+    boolean tagsIsOptional = StringUtils.contains(Service.configuration.FEATURE_NAMESPACE_OPTIONAL_FIELDS, "tags");
+    if (tagsIsOptional && nsXyz.getTags().isEmpty()) {
+      nsXyz.setTags(null);
+    }
+
+    // current entry position
+    nsXyz.setInputPosition(inputPosition);
+
+    // Timestamp fields
+    long now = Core.currentTimeMillis();
+    nsXyz.setCreatedAt(isInsert ? now : entry.head.getProperties().getXyzNamespace().getCreatedAt());
+    nsXyz.setUpdatedAt(now);
+
+    // UUID fields
+    if (task.space.isEnableUUID()) {
+      nsXyz.setUuid(UUID.randomUUID().toString());
+
+      if (!isInsert) {
+        nsXyz.setPuuid(entry.head.getProperties().getXyzNamespace().getUuid());
+        // If the user was updating an older version, set it under the merge uuid
+        if (!entry.base.equals(entry.head)) {
+          nsXyz.setMuuid(entry.base.getProperties().getXyzNamespace().getUuid());
+        }
+      }
     }
   }
 
