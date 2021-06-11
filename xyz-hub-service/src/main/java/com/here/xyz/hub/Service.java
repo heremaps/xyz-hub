@@ -616,6 +616,11 @@ public class Service extends Core {
      * Whether to activate pipelining for the HTTP client of the service.
      */
     public boolean HTTP_CLIENT_PIPELINING;
+
+    /**
+     * List of fields, separated by comma, which are optional on feature's namespace property.
+     */
+    public String FEATURE_NAMESPACE_OPTIONAL_FIELDS;
   }
 
   /**
