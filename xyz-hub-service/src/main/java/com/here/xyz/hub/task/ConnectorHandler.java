@@ -149,8 +149,8 @@ public class ConnectorHandler {
       c = DatabindCodec.mapper().convertValue(connector, Connector.class);
     }
     catch (Exception e) {
-      logger.error(marker, "Could not convert resource.", e.getCause());
-      handler.handle(Future.failedFuture(new HttpException(BAD_REQUEST, "Could not convert resource.")));
+      logger.error(marker, "Invalid connector definition..", e.getCause());
+      handler.handle(Future.failedFuture(new HttpException(BAD_REQUEST, "Invalid connector definition..")));
       return;
     }
     DiffMap diffMap = (DiffMap) Patcher.getDifference(new HashMap<>(), asMap(connector));
