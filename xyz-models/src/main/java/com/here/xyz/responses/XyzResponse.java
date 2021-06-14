@@ -26,6 +26,8 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.responses.changesets.CompactChangeset;
+import com.here.xyz.responses.maintenance.ConnectorStatus;
+import com.here.xyz.responses.maintenance.SpaceStatus;
 
 /**
  * All classes that represent a valid response of any remote procedure to the XYZ Hub need to extend this class.
@@ -45,7 +47,9 @@ import com.here.xyz.responses.changesets.CompactChangeset;
     @JsonSubTypes.Type(value = BinResponse.class, name = "BinResponse"),
     @JsonSubTypes.Type(value = Changeset.class, name = "Changeset"),
     @JsonSubTypes.Type(value = CompactChangeset.class, name = "CompactChangeset"),
-    @JsonSubTypes.Type(value = ChangesetCollection.class, name = "ChangesetCollection")
+    @JsonSubTypes.Type(value = ChangesetCollection.class, name = "ChangesetCollection"),
+    @JsonSubTypes.Type(value = ConnectorStatus.class, name = "ConnectorStatus"),
+    @JsonSubTypes.Type(value = SpaceStatus.class, name = "SpaceStatus")
 })
 public abstract class XyzResponse<T extends XyzResponse> extends Payload {
 
