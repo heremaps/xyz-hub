@@ -123,7 +123,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
       HttpResponseStatus upstreamStatus = Strings.isNullOrEmpty(response.statusMessage()) ?
           HttpResponseStatus.valueOf(response.statusCode()) : new HttpResponseStatus(response.statusCode(), response.statusMessage());
       HttpException upstreamHttpEx = new HttpException(upstreamStatus, "Remote HTTP connector service responded with: " + upstreamStatus);
-      if (upstreamStatus == GATEWAY_TIMEOUT)
+      if (upstreamStatus.equals(GATEWAY_TIMEOUT))
         throw upstreamHttpEx;
       throw new HttpException(BAD_GATEWAY, "Remote HTTP connector service did not respond with 200(OK)", upstreamHttpEx);
     }
