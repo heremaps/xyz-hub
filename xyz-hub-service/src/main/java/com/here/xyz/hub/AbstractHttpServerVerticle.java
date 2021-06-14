@@ -187,7 +187,7 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
 
   protected BodyHandler createBodyHandler() {
     BodyHandler bodyHandler = BodyHandler.create();
-    if (Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE > 0) {
+    if (Service.configuration != null && Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE > 0) {
       // This check works only for multipart or url encoded content types, not for application/geo+json
       bodyHandler = bodyHandler.setBodyLimit(Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE);
     }
@@ -200,7 +200,7 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
    */
   protected Handler<RoutingContext> createMaxRequestSizeHandler() {
     return context -> {
-      if (Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE > 0) {
+      if (Service.configuration != null && Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE > 0) {
         if (context.getBody() != null && context.getBody().length() > Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE) {
           sendErrorResponse(context, new HttpException(REQUEST_ENTITY_TOO_LARGE, "The request payload is bigger than the maximum allowed."));
         }
