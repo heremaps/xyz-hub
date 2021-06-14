@@ -39,7 +39,9 @@ public class DatabaseMaintainer {
     private static final Logger logger = LogManager.getLogger();
 
     /** Is used to check against xyz_ext_version() */
-    private static final int XYZ_EXT_VERSION = 141;
+    public static final int XYZ_EXT_VERSION = 141;
+
+    public static final int H3_CORE_VERSION = 107;
 
     private DataSource dataSource;
     private PSQLConfig config;
@@ -99,6 +101,7 @@ public class DatabaseMaintainer {
                 final boolean mainSchema = rs.getBoolean("main_schema");
                 boolean configSchema = rs.getBoolean("config_schema");
                 final boolean idx_table = rs.getBoolean("idx_table");
+                final boolean db_status_table = rs.getBoolean("db_status_table");
 
                 try {
                     /** Create Missing Schemas */
@@ -115,6 +118,11 @@ public class DatabaseMaintainer {
                     if (!idx_table && hasPropertySearch) {
                         /** Create Missing IDX_Maintenance Table */
                         stmt.execute(MaintenanceSQL.createIDXTableSQL);
+                    }
+
+                    if (!db_status_table) {
+                        /** Create Missing IDX_Maintenance Table */
+                        stmt.execute(MaintenanceSQL.createDbStatusTable);
                     }
                 } catch (Exception e) {
                     logger.warn("{} Failed to create missing Schema(s) on database: {} / {}@{} '{}'", traceItem, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost(), e);
@@ -220,7 +228,7 @@ public class DatabaseMaintainer {
         }
     }
 
-    private String readResource(String resource) throws IOException {
+    public static String readResource(String resource) throws IOException {
         InputStream is = DatabaseHandler.class.getResourceAsStream(resource);
         try (BufferedReader buffer = new BufferedReader(new InputStreamReader(is))) {
             return buffer.lines().collect(Collectors.joining("\n"));

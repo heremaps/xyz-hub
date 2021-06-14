@@ -44,7 +44,7 @@ public class PSQLConfig {
   private static final Logger logger = LogManager.getLogger();
   public static final String ECPS_PHRASE = "ECPS_PHRASE";
 
-    private DataSource dataSource;
+  private DataSource dataSource;
   private DataSource readDataSource;
   private DatabaseMaintainer databaseMaintainer;
 
@@ -76,6 +76,7 @@ public class PSQLConfig {
 
   private final ConnectorParameters connectorParams;
   private final DatabaseSettings databaseSettings;
+  private final String ecps;
   private Map<String, Object> decodedECPSDatabaseSettings;
 
   private final Context context;
@@ -85,6 +86,7 @@ public class PSQLConfig {
     this.context = context;
     this.connectorParams = event == null ? new ConnectorParameters(null, traceItem) : new ConnectorParameters(event.getConnectorParams(), traceItem);
     this.applicationName = context.getFunctionName();
+    this.ecps = connectorParams.getEcps() ;
 
     /** Stored in env variable */
     String ecpsPhrase = DatabaseSettings.readFromEnvVars(ECPS_PHRASE, context);
@@ -95,7 +97,7 @@ public class PSQLConfig {
       connectorParams.setDbMaxPoolSize(databaseSettings.getMaxConnections());
 
     /** If there exists an ECPS String override the databaseSetting with the decoded content */
-    if(connectorParams.getEcps() != null){
+    if(ecps != null){
       /** Decrypt ECPS String */
       this.decodedECPSDatabaseSettings = decryptECPS(connectorParams.getEcps(), ecpsPhrase);
 
@@ -119,6 +121,8 @@ public class PSQLConfig {
       }
     }
   }
+
+  public String getEcps(){ return ecps; }
 
   public ConnectorParameters getConnectorParams() {
     return connectorParams;
@@ -202,7 +206,7 @@ public class PSQLConfig {
    * Decodes the connector ecps.
    */
   @SuppressWarnings("unchecked")
-  private static Map<String, Object> decryptECPS(String ecps, String phrase) {
+  public static Map<String, Object> decryptECPS(String ecps, String phrase) {
     try {
       return new ObjectMapper().readValue(AESGCMHelper.getInstance(phrase).decrypt(ecps), Map.class);
     } catch (Exception e) {

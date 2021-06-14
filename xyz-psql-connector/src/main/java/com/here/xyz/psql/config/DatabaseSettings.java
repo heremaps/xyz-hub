@@ -81,6 +81,25 @@ public class DatabaseSettings {
     @Deprecated
     private Integer maxConnections;
 
+    public DatabaseSettings(){
+        if(this.user == null)
+            this.user = "postgres";
+        if(this.password == null)
+            this.password = "password";
+        if(this.host == null)
+            this.host = "localhost";
+        if(this.replicaHost == null)
+            this.replicaHost = null;
+        if(this.db == null)
+            this.db = "postgres";
+        if(this.schema == null)
+            this.schema = "public";
+        if(this.port == null)
+            this.port = 5432;
+        if(this.readOnly == null)
+            this.readOnly = false;
+    }
+
     public DatabaseSettings(Context context){
         this.user = readFromEnvVars(PSQL_USER,context);
         this.password = readFromEnvVars(PSQL_PASSWORD,context);
@@ -192,5 +211,9 @@ public class DatabaseSettings {
                 ", schema='" + schema + '\'' +
                 ", port=" + port +
                 '}';
+    }
+
+    public String getConfigValuesAsString() {
+        return host+replicaHost+db+user+schema+port+password;
     }
 }

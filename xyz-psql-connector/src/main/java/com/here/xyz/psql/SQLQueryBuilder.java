@@ -1120,7 +1120,7 @@ public class SQLQueryBuilder {
         return SQLQuery.replaceVars(updateStmtSQL, schema, table);
     }
 
-    protected static String deleteOldHistoryEntries(final String schema, final String table, long version){
+    public static String deleteOldHistoryEntries(final String schema, final String table, long version){
         /** Delete rows which have a too old version - only used if maxVersionCount is set */
 
         String deleteOldHistoryEntriesSQL =
@@ -1144,7 +1144,7 @@ public class SQLQueryBuilder {
         return SQLQuery.replaceVars(deleteOldHistoryEntriesSQL, schema, table);
     }
 
-    protected static String flagOutdatedHistoryEntries(final String schema, final String table, long version){
+    public static String flagOutdatedHistoryEntries(final String schema, final String table, long version){
         /** Set version=0 for objects which are too old - only used if maxVersionCount is set */
 
         String flagOutdatedHistoryEntries =
@@ -1162,7 +1162,7 @@ public class SQLQueryBuilder {
         return SQLQuery.replaceVars(flagOutdatedHistoryEntries, schema, table);
     }
 
-    protected static String deleteHistoryEntriesWithDeleteFlag(final String schema, final String table){
+    public static String deleteHistoryEntriesWithDeleteFlag(final String schema, final String table){
         /** Remove deleted objects with version 0 - only used if maxVersionCount is set */
         String deleteHistoryEntriesWithDeleteFlag =
                 "DELETE FROM ${schema}.${table} " +
