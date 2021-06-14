@@ -144,7 +144,15 @@ public class ConnectorHandler {
 
   protected static void storeConnector(RoutingContext context, JsonObject connector, Handler<AsyncResult<Connector>> handler, Marker marker,
       AsyncResult<Connector> ar) {
-    Connector c = DatabindCodec.mapper().convertValue(connector, Connector.class);
+    Connector c;
+    try {
+      c = DatabindCodec.mapper().convertValue(connector, Connector.class);
+    }
+    catch (Exception e) {
+      logger.error(marker, "Could not convert resource.", e.getCause());
+      handler.handle(Future.failedFuture(new HttpException(BAD_REQUEST, "Could not convert resource.")));
+      return;
+    }
     DiffMap diffMap = (DiffMap) Patcher.getDifference(new HashMap<>(), asMap(connector));
 
     try {
