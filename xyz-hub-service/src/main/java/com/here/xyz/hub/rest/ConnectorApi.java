@@ -19,9 +19,7 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
-import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 
 import com.here.xyz.hub.auth.AttributeMap;
 import com.here.xyz.hub.auth.Authorization;
@@ -30,15 +28,10 @@ import com.here.xyz.hub.auth.XyzHubAttributeMap;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.task.ConnectorHandler;
 import com.here.xyz.hub.util.diff.Difference;
-import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
-import io.vertx.core.buffer.Buffer;
-import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.DecodeException;
-import io.vertx.core.json.EncodeException;
-import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
@@ -82,7 +75,7 @@ public class ConnectorApi extends Api {
             this.sendErrorResponse(context, ar.cause());
           }
           else {
-            sendResponse(context, OK, ar.result());
+            this.sendResponse(context, OK, ar.result());
           }
         });
       });
@@ -216,27 +209,6 @@ public class ConnectorApi extends Api {
     }
     catch (Exception e) {
       sendErrorResponse(context, e);
-    }
-  }
-
-  private void sendResponse(RoutingContext context, HttpResponseStatus status, Object o) {
-    HttpServerResponse httpResponse = context.response().setStatusCode(status.code());
-
-    byte[] response;
-    try {
-      response = Json.encode(o).getBytes();
-    } catch (EncodeException e) {
-      sendErrorResponse(context, new HttpException(INTERNAL_SERVER_ERROR, "Could not serialize response.", e));
-      return;
-    }
-
-    if (response.length == 0) {
-      httpResponse.setStatusCode(NO_CONTENT.code()).end();
-    } else if (response.length > getMaxResponseLength(context)) {
-      sendErrorResponse(context, new HttpException(RESPONSE_PAYLOAD_TOO_LARGE, RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE));
-    } else {
-      httpResponse.putHeader(CONTENT_TYPE, APPLICATION_JSON);
-      httpResponse.end(Buffer.buffer(response));
     }
   }
 
