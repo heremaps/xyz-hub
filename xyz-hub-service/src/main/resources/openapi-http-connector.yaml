@@ -1,0 +1,341 @@
+openapi: 3.0.2
+info:
+  title: HERE HTTP-PSQL Connector
+  description: |-
+    HERE HTTP-PSQL Connector is a PSQL-Connector which provides a REST API to access data and maintain database related stuff.
+  contact: {}
+  version: 1.0.0
+servers:
+  - url: /
+tags:
+  - name: Service
+    description: Endpoint for Events
+  - name: Status
+    description: Retreive status
+  - name: Maintain Connector
+    description: Initialize or maintain underlying databases
+  - name: Maintain Spaces
+    description: Maintain database releated stuff on space level
+  - name: Maintain History
+    description: Maintain database releated stuff on history level
+paths:
+  '/psql/event':
+    post:
+      tags:
+        - Service
+      summary: Event Endpoint
+      description: >-
+        Process an Event.
+      operationId: postEvent
+      requestBody:
+        description: Entire Event
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Event'
+      responses:
+        '200':
+          description: Connector Response
+        '201':
+          description: Connector Response
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+  '/psql/status':
+    get:
+      tags:
+        - Status
+      summary: Get status of Connector
+      description: >-
+        Get the status of a connector in focus of its configured underlying database.
+      operationId: getStatus
+      parameters:
+        - $ref: '#/components/parameters/ConnectorId'
+        - $ref: '#/components/parameters/ECPS'
+        - $ref: '#/components/parameters/Passphrase'
+        - name: passphrase
+          in: query
+          description: >-
+            Provide ECPS Passphrase
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/ConnectorStatusResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+  '/psql/health':
+    get:
+      tags:
+        - Status
+      summary: Health-Check endpoint
+      description: >-
+        Performes a connector Health-Check
+      operationId: getHealthCheck
+      responses:
+        '200':
+          $ref: '#/components/responses/HealthResponse'
+  '/psql/initialization':
+    post:
+      tags:
+        - Maintain Connector
+      summary:  Connector Initialization
+      description: Initialize the underlying database from a connector
+      operationId: postInitialization
+      parameters:
+        - $ref: '#/components/parameters/ConnectorId'
+        - $ref: '#/components/parameters/ECPS'
+        - $ref: '#/components/parameters/Passphrase'
+        - name: force
+          in: query
+          description: >-
+            Force
+          required: false
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description : OK
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+  '/psql/maintain/indices':
+    post:
+      tags:
+        - Maintain Connector
+      summary: Trigger Index Maintenance
+      description: Maintain all Indices which are getting created automatically
+      operationId: postMaintainIndices
+      parameters:
+        - $ref: '#/components/parameters/ConnectorId'
+        - $ref: '#/components/parameters/ECPS'
+        - $ref: '#/components/parameters/Passphrase'
+        - name: autoIndexing
+          in: query
+          description: >-
+            Choose if AutoIndexing should get triggerd
+          required: true
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description : OK
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+  '/psql/maintain/space/{spaceId}':
+    get:
+      tags:
+        - Maintain Spaces
+      summary: Get maintainance status of a Space
+      description: Reteives information about the current maintenance status of a space.
+      operationId: getMaintenanceStatusSpace
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/ConnectorId'
+        - $ref: '#/components/parameters/ECPS'
+        - $ref: '#/components/parameters/Passphrase'
+      responses:
+        '200':
+          description : OK
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+    post:
+      tags:
+        - Maintain Spaces
+      summary: Trigger Space Maintenance
+      description: Maintain all Indices which are required for a space
+      operationId: postMaintainSpace
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/ConnectorId'
+        - $ref: '#/components/parameters/ECPS'
+        - $ref: '#/components/parameters/Passphrase'
+      responses:
+        '200':
+          description : OK
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+  '/psql/maintain/space/{spaceId}/history':
+    post:
+      tags:
+        - Maintain History
+      summary: Trigger History Maintenance
+      description: Reduce the size of a History based on globale versions
+      operationId: postMaintainHistory
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/ConnectorId'
+        - $ref: '#/components/parameters/ECPS'
+        - $ref: '#/components/parameters/Passphrase'
+        - name: maxVersionCount
+          in: query
+          description: >-
+            Provide maxVersionCount
+          required: false
+          schema:
+            type: integer
+        - name: currentVersion
+          in: query
+          description: >-
+            Provide current Version
+          required: false
+          schema:
+            type: integer
+            #default: false
+        - name: passphrase
+          in: query
+          description: >-
+            Provide ECPS Passphrase
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description : OK
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+components:
+  parameters:
+    SpaceId:
+      name: spaceId
+      in: path
+      description: The unique identifier of the space.
+      required: true
+      schema:
+        type: string
+    ConnectorId:
+      name: connectorId
+      in: query
+      description: >-
+        Provide ConnectorId
+      required: true
+      schema:
+        type: string
+    ECPS:
+      name: ecps
+      in: query
+      description: >-
+        Provide ECPS String
+      required: true
+      schema:
+        type: string
+    Passphrase:
+      name: passphrase
+      in: query
+      description: >-
+        Provide ECPS Passphrase
+      required: false
+      schema:
+        type: string
+  responses:
+    EmptyResponse:
+      description: >-
+        An empty response as a result of a user-request with accepted MIME type application/x-empty.
+      content:
+        application/x-empty:
+          schema:
+            type: string
+    ErrorResponse400:
+      description: Malformed or Bad Request.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            type: ErrorResponse
+            streamId: 7480e28a-e273-11e8-9af8-7508bbe361d9
+            error: Exception
+            errorMessage: <Invalid request details>
+    ErrorResponse404:
+      description: Not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            type: ErrorResponse
+            streamId: 7480e28a-e273-11e8-9af8-7508bbe361d9
+            error: Exception
+            errorMessage: The requested resource does not exist.
+    ErrorResponse409:
+      description: An error response which indicates a conflict.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            type: ErrorResponse
+            streamId: 7480e28a-e273-11e8-9af8-7508bbe361d9
+            error: Exception
+            errorMessage: The record exists.
+    HealthResponse:
+      description: HealhCheck Response
+      content:
+        application/json:
+          examples:
+            response:
+              value:
+                status: OK
+    ConnectorStatusResponse:
+      description: ConnectorStatus Response
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ConnectorStatus'
+  schemas:
+    Error:
+      type: object
+      description: >-
+        The response send when the request failed. This response may be send for
+        certain HTTP error codes like 403 Forbidden or 502 Bad Gateway and
+        should hold more details about the error reason.
+      properties:
+        streamId:
+          description: >-
+            A unique identifier of the request. This identifier should be
+            provided when reporting errors. Its used to track requests
+            through the XYZ platform.
+          type: string
+        type:
+          type: string
+          description: The type of the error. Defaults to 'ErrorResponse'.
+        error:
+          type: string
+          description: The error summary.
+        errorMessage:
+          type: string
+          description: >-
+            A human readable message in English that should provide a more
+            detailed description of the error reason.
+    Event:
+      type: object
+      description: A data holder for features which points to a persistent storage.
+      properties:
+        type:
+          description: >-
+            The unique identifier of the event type
+          example: HealthCheckEvent
+          type: string
+      example:
+        type: HealthCheckEvent
+        connectorParams:
+          connectorId: test
+          propertySearch: true
+    ConnectorStatus:
+      type: object
+      description: A data holder for the status of a Connector
+      example:
+        type: ConnectorStatus
+        initialized: true
+        extensions:
+          - postgis
+          - dblink
+        scriptVersions:
+          h3: 100
+          ext: 141
+        maintenanceStatus:
+          AUTO_INDEXING:
+            maintainedAt: 1622531941945
+            maintenanceRunning:
+              - 1622531941945
