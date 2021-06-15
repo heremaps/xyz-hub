@@ -167,6 +167,7 @@ public class SpaceStatus extends XyzResponse<SpaceStatus> {
     private String key;
     private String datatype;
     private Long count;
+    private Boolean searchable;
 
     public String getKey() {
       return key;
@@ -190,6 +191,14 @@ public class SpaceStatus extends XyzResponse<SpaceStatus> {
 
     public void setCount(Long count) {
       this.count = count;
+    }
+
+    public Boolean getSearchable() {
+      return searchable;
+    }
+
+    public void setSearchable(Boolean searchable) {
+      this.searchable = searchable;
     }
   }
 
