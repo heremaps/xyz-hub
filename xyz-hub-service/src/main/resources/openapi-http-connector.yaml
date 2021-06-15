@@ -53,13 +53,6 @@ paths:
         - $ref: '#/components/parameters/ConnectorId'
         - $ref: '#/components/parameters/ECPS'
         - $ref: '#/components/parameters/Passphrase'
-        - name: passphrase
-          in: query
-          description: >-
-            Provide ECPS Passphrase
-          required: false
-          schema:
-            type: string
       responses:
         '200':
           $ref: '#/components/responses/ConnectorStatusResponse'
