@@ -69,6 +69,7 @@ import io.vertx.core.json.EncodeException;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.web.RoutingContext;
+import java.io.ByteArrayOutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.nio.charset.Charset;
@@ -501,7 +502,10 @@ public abstract class Api {
 
     byte[] response;
     try {
-      response = Json.encode(o).getBytes();
+      if(o instanceof ByteArrayOutputStream)
+        response = ((ByteArrayOutputStream) o).toByteArray();
+      else
+        response = Json.encode(o).getBytes();
     } catch (EncodeException e) {
       sendErrorResponse(context, new HttpException(INTERNAL_SERVER_ERROR, "Could not serialize response.", e));
       return;

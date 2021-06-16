@@ -25,8 +25,6 @@ import com.here.xyz.hub.connectors.EmbeddedFunctionClient;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.HttpConnectorTaskHandler;
 import com.here.xyz.responses.SuccessResponse;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import io.vertx.core.buffer.Buffer;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
 import org.apache.logging.log4j.LogManager;
@@ -36,9 +34,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
-import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 
 public class HttpConnectorApi extends Api {
 
@@ -64,18 +60,14 @@ public class HttpConnectorApi extends Api {
   }
 
   private void postEvent(final RoutingContext context) {
+    String streamId = Context.getMarker(context).getName();
     byte[] inputBytes = new byte[context.getBody().length()];
     context.getBody().getBytes(inputBytes);
     InputStream inputStream = new ByteArrayInputStream(inputBytes);
     ByteArrayOutputStream os = new ByteArrayOutputStream();
     EmbeddedFunctionClient.EmbeddedContext embeddedContext = new EmbeddedFunctionClient.EmbeddedContext(Context.getMarker(context), "psql", PsqlHttpVerticle.getEnvMap());
-    connector.handleRequest(inputStream, os, embeddedContext);
-
-    context.response()
-            .setStatusCode(HttpResponseStatus.OK.code())
-            .setStatusMessage(HttpResponseStatus.OK.reasonPhrase())
-            .putHeader(CONTENT_TYPE, APPLICATION_JSON)
-            .end(Buffer.buffer(os.toByteArray()));
+    connector.handleRequest(inputStream, os, embeddedContext, streamId);
+    this.sendResponse(context, OK, os);
   }
 
   private void postDatabaseInitialization(final RoutingContext context) {
