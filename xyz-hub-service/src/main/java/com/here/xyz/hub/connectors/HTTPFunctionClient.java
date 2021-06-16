@@ -141,6 +141,8 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
       }
     }
     logger.warn(fc.marker, "Error while calling remote HTTP service", e);
+    if (e instanceof TimeoutException)
+      e = new HttpException(GATEWAY_TIMEOUT, "Timeout while calling HTTP connector.", e);
     if (!(e instanceof HttpException))
       e = new HttpException(BAD_GATEWAY, "Connector error.", e);
     callback.handle(Future.failedFuture(e));
