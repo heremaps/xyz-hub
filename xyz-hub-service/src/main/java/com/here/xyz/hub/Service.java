@@ -55,10 +55,13 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 import org.apache.commons.lang3.StringUtils;
@@ -620,7 +623,18 @@ public class Service extends Core {
     /**
      * List of fields, separated by comma, which are optional on feature's namespace property.
      */
-    public String FEATURE_NAMESPACE_OPTIONAL_FIELDS;
+    public List<String> FEATURE_NAMESPACE_OPTIONAL_FIELDS = Collections.emptyList();
+    private Map<String, Object> FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP;
+
+    public boolean containsFeatureNamespaceOptionalField(String field) {
+      if (FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP == null) {
+        FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP = new HashMap<String,Object>() {{
+          FEATURE_NAMESPACE_OPTIONAL_FIELDS.forEach(k -> put(k, null));
+        }};
+      }
+
+      return FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP.containsKey(field);
+    }
   }
 
   /**
