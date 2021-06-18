@@ -111,7 +111,6 @@ import java.util.concurrent.TimeUnit;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -981,7 +980,7 @@ public class FeatureTaskHandler {
 
   static void processNamespace(ConditionalOperation task, FeatureEntry entry, XyzNamespace nsXyz, boolean isInsert, long inputPosition) {
     // Set the space ID
-    boolean spaceIsOptional = StringUtils.contains(Service.configuration.FEATURE_NAMESPACE_OPTIONAL_FIELDS, "space");
+    boolean spaceIsOptional = Service.configuration.containsFeatureNamespaceOptionalField("space");
     nsXyz.setSpace(spaceIsOptional ? null : task.space.getId());
 
     // Normalize the tags
@@ -991,7 +990,7 @@ public class FeatureTaskHandler {
     }
 
     // Optionally set tags
-    boolean tagsIsOptional = StringUtils.contains(Service.configuration.FEATURE_NAMESPACE_OPTIONAL_FIELDS, "tags");
+    boolean tagsIsOptional = Service.configuration.containsFeatureNamespaceOptionalField("tags");
     if (tagsIsOptional && nsXyz.getTags().isEmpty()) {
       nsXyz.setTags(null);
     }
