@@ -128,7 +128,9 @@ public class QuadbinSQL {
 
         query.append(
                 "WITH stats AS("+
-                        "    SELECT reltuples as est_cnt FROM pg_class WHERE oid = '"+schema+".\""+space+"\"'::regclass"+
+                        "    select sum( coalesce( c2.reltuples, c1.reltuples ) )::bigint as est_cnt "+
+                        "    from pg_class c1 left join pg_inherits pm on ( c1.oid = pm.inhparent ) left join pg_class c2 on ( c2.oid = pm.inhrelid ) "+
+                        "    where c1.oid = '"+schema+".\""+space+"\"'::regclass"+
                         ")"+
                         "SELECT jsondata, "+ geoPrj +" as geo from ("+
                         "SELECT  (SELECT concat('{\"id\": \"', ('x' || left(md5(qk),15) )::bit(60)::bigint ,'\", \"type\": \"Feature\""+
