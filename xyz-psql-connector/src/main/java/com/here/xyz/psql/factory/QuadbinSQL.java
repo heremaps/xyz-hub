@@ -85,6 +85,7 @@ public class QuadbinSQL {
 
         double bufferSizeInDeg = tile.getBBox(false).widthInDegree(true) / (Math.pow(2, resolution) *  1024.0);
         String realCountCondition = "",
+               _pureEstimation = "case when exists (select 1 from pg_stats where schemaname = '"+schema+"' and tablename = '"+space+"' and attname = 'geo') then _postgis_selectivity( '"+schema+".\""+space+"\"'::regclass, 'geo',qkbbox) else 0.0 end ", 
                pureEstimation = "",
                estCalc = "cond_est_cnt",
                qkGeo   = (!noBuffer ? String.format("ST_Buffer(qkbbox, -%f)",bufferSizeInDeg) : "qkbbox"),
@@ -96,7 +97,7 @@ public class QuadbinSQL {
         switch (quadMode) {
             case QuadbinSQL.COUNTMODE_REAL:
                 realCountCondition = "TRUE";
-                pureEstimation = "_postgis_selectivity( '"+schema+".\""+space+"\"'::regclass, 'geo',qkbbox)";
+                pureEstimation = _pureEstimation;
                 break;
             case QuadbinSQL.COUNTMODE_ESTIMATED:
             case QuadbinSQL.COUNTMODE_MIXED:
@@ -105,7 +106,7 @@ public class QuadbinSQL {
                     if (propQuery != null) {
                         realCountCondition = "cond_est_cnt < 100 AND est_cnt < "+ LIMIT_COUNTMODE_MIXED;
                     } else {
-                        realCountCondition = "cond_est_cnt < (1000 / est_cnt) AND est_cnt < "+ LIMIT_COUNTMODE_MIXED;
+                        realCountCondition = "cond_est_cnt < (1000 / (est_cnt+1)) AND est_cnt < "+ LIMIT_COUNTMODE_MIXED;
                     }
                 }else
                     realCountCondition = "FALSE";
@@ -120,7 +121,7 @@ public class QuadbinSQL {
                                     "'))";
                     estCalc = "cond_est_cnt"; // "(CASE WHEN cond_est_cnt <= 1 THEN 0 ELSE cond_est_cnt END)";
                 }else{
-                    pureEstimation = "_postgis_selectivity( '"+schema+".\""+space+"\"'::regclass, 'geo',qkbbox)";
+                    pureEstimation = _pureEstimation;
                     estCalc += " * est_cnt ";
                 }
                 break;
