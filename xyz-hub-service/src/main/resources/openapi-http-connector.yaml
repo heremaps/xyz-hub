@@ -92,6 +92,8 @@ paths:
           description : OK
         '400':
           $ref: '#/components/responses/ErrorResponse400'
+        '405':
+          $ref: '#/components/responses/ErrorResponse405'
   '/psql/maintain/indices':
     post:
       tags:
@@ -251,6 +253,17 @@ components:
             streamId: 7480e28a-e273-11e8-9af8-7508bbe361d9
             error: Exception
             errorMessage: The requested resource does not exist.
+    ErrorResponse405:
+      description: Not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            type: ErrorResponse
+            streamId: 7480e28a-e273-11e8-9af8-7508bbe361d9
+            error: Exception
+            errorMessage: Method Not Allowed.
     ErrorResponse409:
       description: An error response which indicates a conflict.
       content:

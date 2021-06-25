@@ -99,7 +99,7 @@ public class HttpConnectorTaskHandler {
         handler.handle(Future.succeededFuture(new SuccessResponse().withStatus("Ok")));
       } else {
         logger.error("Database not initialized for connector: {}",connectorId);
-        handler.handle(Future.failedFuture(new HttpException(BAD_REQUEST, "Database not initialized!")));
+        handler.handle(Future.failedFuture(new HttpException(METHOD_NOT_ALLOWED, "Database not initialized!")));
         return;
       }
     }catch (Exception e) {
