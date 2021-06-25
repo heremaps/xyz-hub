@@ -199,15 +199,16 @@ public class MaintenanceClient {
 
         SQLQuery updateDBStatus= new SQLQuery(MaintenanceSQL.updateConnectorStatusBeginMaintenance, maintenanceJobId ,maintenanceJobId, maintenanceJobId, dbSettings.getSchema(),  dbInstance.connectorId);
         executeUpdate(updateDBStatus, source);
+        try {
+            SQLQuery triggerIndexing = new SQLQuery(MaintenanceSQL.createIDX, dbSettings.getSchema(), 100, 0, mode, dbUser);
 
-        SQLQuery triggerIndexing= new SQLQuery(MaintenanceSQL.createIDX, dbSettings.getSchema(), 100, 0, mode, dbUser);
-
-        logger.info("Start Indexing..");
-        executeQueryWithoutResults(triggerIndexing, source);
-        updateDBStatus= new SQLQuery(MaintenanceSQL.updateConnectorStatusMaintenanceComplete, maintenanceJobId, maintenanceJobId, dbInstance.getDbSettings().getSchema(), dbInstance.connectorId);
-
-        logger.info("Mark Indexing as finished");
-        executeUpdate(updateDBStatus, source);
+            logger.info("Start Indexing..");
+            executeQueryWithoutResults(triggerIndexing, source);
+        }finally {
+            updateDBStatus= new SQLQuery(MaintenanceSQL.updateConnectorStatusMaintenanceComplete, maintenanceJobId, maintenanceJobId, dbInstance.getDbSettings().getSchema(), dbInstance.connectorId);
+            logger.info("Mark Indexing as finished");
+            executeUpdate(updateDBStatus, source);
+        }
     }
 
     public SpaceStatus getMaintenanceStatusOfSpace(String connectorId, String ecps, String passphrase, String spaceId) throws SQLException,DecodeException {
