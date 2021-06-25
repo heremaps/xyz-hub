@@ -144,7 +144,7 @@ public class SpaceStatus extends XyzResponse<SpaceStatus> {
 
   public static class IDXManual{
     private Map<String,Boolean> searchableProperties;
-    private Map<String,Boolean> sortableProperties;
+    private List<List<Object>>sortableProperties;
 
     public Map<String, Boolean> getSearchableProperties() {
       return searchableProperties;
@@ -154,11 +154,11 @@ public class SpaceStatus extends XyzResponse<SpaceStatus> {
       this.searchableProperties = searchableProperties;
     }
 
-    public Map<String, Boolean> getSortableProperties() {
+    public List<List<Object>> getSortableProperties() {
       return sortableProperties;
     }
 
-    public void setSortableProperties(Map<String, Boolean> sortableProperties) {
+    public void setSortableProperties(List<List<Object>> sortableProperties) {
       this.sortableProperties = sortableProperties;
     }
   }
