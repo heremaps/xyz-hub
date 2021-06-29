@@ -164,9 +164,11 @@ public class Service extends Core {
     connectorConfigClient = ConnectorConfigClient.getInstance();
 
     webClient = WebClient.create(vertx, new WebClientOptions()
-//        .setMaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)
+        .setMaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)
+        .setHttp2MaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)
         .setUserAgent(XYZ_HUB_USER_AGENT)
-//        .setTcpKeepAlive(true)
+        .setTcpKeepAlive(configuration.HTTP_CLIENT_TCP_KEEPALIVE)
+        .setIdleTimeout(configuration.HTTP_CLIENT_IDLE_TIMEOUT)
         .setTcpQuickAck(true)
         .setTcpFastOpen(true)
         .setTryUseCompression(true)
@@ -619,6 +621,17 @@ public class Service extends Core {
      * Whether to activate pipelining for the HTTP client of the service.
      */
     public boolean HTTP_CLIENT_PIPELINING;
+
+    /**
+     * Whether to activate TCP keepalive for the HTTP client of the service.
+     */
+    public boolean HTTP_CLIENT_TCP_KEEPALIVE = true;
+
+    /**
+     * The idle connection timeout in seconds for the HTTP client of the service.
+     * Setting it to 0 will make the connections not timing out at all.
+     */
+    public int HTTP_CLIENT_IDLE_TIMEOUT = 120;
 
     /**
      * List of fields, separated by comma, which are optional on feature's namespace property.
