@@ -146,6 +146,13 @@ paths:
         - $ref: '#/components/parameters/ConnectorId'
         - $ref: '#/components/parameters/ECPS'
         - $ref: '#/components/parameters/Passphrase'
+        - name: force
+          in: query
+          description: >-
+            Force
+          required: false
+          schema:
+            type: boolean
       responses:
         '200':
           description : OK

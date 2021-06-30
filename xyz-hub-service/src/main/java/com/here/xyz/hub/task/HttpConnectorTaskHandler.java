@@ -108,14 +108,16 @@ public class HttpConnectorTaskHandler {
   }
 
   public static void maintainSpace(String connectorId, String ecps, String passphrase, String spaceId,
-                                   Handler<AsyncResult<XyzResponse>> handler) {
+                                  boolean force, Handler<AsyncResult<XyzResponse>> handler) {
     try {
 
-      SpaceStatus maintenanceStatusOfSpace = HttpConnector.maintenanceClient.getMaintenanceStatusOfSpace(connectorId, ecps, passphrase, spaceId);
-      if(maintenanceStatusOfSpace != null && maintenanceStatusOfSpace.isIdxCreationFinished() != null && !maintenanceStatusOfSpace.isIdxCreationFinished()){
-        logger.warn("Index creation is currently running on {}/{}", spaceId, connectorId);
-        handler.handle(Future.failedFuture(new HttpException(CONFLICT, "Index creation is currently running!")));
-        return;
+      if(!force) {
+        SpaceStatus maintenanceStatusOfSpace = HttpConnector.maintenanceClient.getMaintenanceStatusOfSpace(connectorId, ecps, passphrase, spaceId);
+        if (maintenanceStatusOfSpace != null && maintenanceStatusOfSpace.isIdxCreationFinished() != null && !maintenanceStatusOfSpace.isIdxCreationFinished()) {
+          logger.warn("Index creation is currently running on {}/{}", spaceId, connectorId);
+          handler.handle(Future.failedFuture(new HttpException(CONFLICT, "Index creation is currently running!")));
+          return;
+        }
       }
 
       HttpConnector.maintenanceClient.maintainSpace(connectorId, ecps, passphrase, spaceId);

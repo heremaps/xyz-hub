@@ -133,9 +133,10 @@ public class HttpConnectorApi extends Api {
     if (context.pathParam(ApiParam.Path.SPACE_ID) != null) {
       spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
     }
+    final boolean force = Query.getBoolean(context, "force", false);
 
     try {
-      HttpConnectorTaskHandler.maintainSpace(params[0],params[1], params[2],  spaceId, ar -> {
+      HttpConnectorTaskHandler.maintainSpace(params[0],params[1], params[2],  spaceId, force, ar -> {
         if (ar.failed()) {
           this.sendErrorResponse(context, ar.cause());
         }
