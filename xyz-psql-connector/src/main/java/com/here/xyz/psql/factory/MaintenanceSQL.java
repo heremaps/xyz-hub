@@ -247,4 +247,9 @@ public class MaintenanceSQL {
 
     public static String createIDX=
             "SELECT xyz_create_idxs(?, ?, ?, ?, ?)";
+
+    public static String updateIDXEntry =
+            "UPDATE "+MaintenanceSQL.XYZ_CONFIG_SCHEMA + "."+MaintenanceSQL.XYZ_CONFIG_IDX_TABLE
+            +"  SET idx_creation_finished = null "
+            +"		WHERE schem=? AND spaceid=?";
 }

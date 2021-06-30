@@ -235,6 +235,10 @@ public class MaintenanceClient {
         DatabaseSettings dbSettings = dbInstance.getDbSettings();
         DataSource source = dbInstance.getSource();
 
+        SQLQuery updateIDXEntry = new SQLQuery(MaintenanceSQL.updateIDXEntry, dbSettings.getSchema(), spaceId);
+        logger.info("Set idx_creation_finished=NULL {}",spaceId);
+        executeQueryWithoutResults(updateIDXEntry, source);
+
         SQLQuery maintainSpace = new SQLQuery(MaintenanceSQL.maintainIDXOfSpace,dbSettings.getSchema(), spaceId);
         logger.info("Start maintaining space '{}'..",spaceId);
         executeQueryWithoutResults(maintainSpace, source);
