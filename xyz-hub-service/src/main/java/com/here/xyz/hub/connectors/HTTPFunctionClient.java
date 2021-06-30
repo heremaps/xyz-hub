@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.connectors;
 
+import static com.google.common.net.HttpHeaders.ACCEPT_ENCODING;
 import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
 import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
@@ -79,6 +80,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
           .timeout(REQUEST_TIMEOUT)
           .putHeader(CONTENT_TYPE, "application/json; charset=" + Charset.defaultCharset().name())
           .putHeader(STREAM_ID, fc.marker.getName())
+          .putHeader(ACCEPT_ENCODING, "gzip")
           .sendBuffer(Buffer.buffer(fc.consumePayload()), ar -> {
             if (fc.fireAndForget) return;
             if (ar.failed()) {

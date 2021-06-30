@@ -171,7 +171,6 @@ public class Service extends Core {
         .setIdleTimeout(configuration.HTTP_CLIENT_IDLE_TIMEOUT)
         .setTcpQuickAck(true)
         .setTcpFastOpen(true)
-        .setTryUseCompression(true)
         .setPipelining(Service.configuration.HTTP_CLIENT_PIPELINING)
     );
 
