@@ -130,7 +130,7 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
       }
     });
 
-    ECPS_PASSPHRASE = (envMap.get("ECPS_PHRASE") == null ? "ECPS_PHRASE" : envMap.get("ECPS_PHRASE")) ;
+    ECPS_PASSPHRASE = (envMap.get("ECPS_PHRASE") == null ? "local" : envMap.get("ECPS_PHRASE")) ;
     HTTP_PORT = Integer.parseInt((envMap.get("HTTP_PORT") == null ? "9090" : envMap.get("HTTP_PORT")));
 
     DB_INITIAL_POOL_SIZE = Integer.parseInt((envMap.get("DB_INITIAL_POOL_SIZE") == null ? "5" : envMap.get("DB_INITIAL_POOL_SIZE")));

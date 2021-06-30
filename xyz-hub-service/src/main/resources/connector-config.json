@@ -1,9 +1,9 @@
 {
   "LOG_CONFIG": "log4j2-console-plain.json",
   "HTTP_PORT": 9090,
-  "ECPS_PHRASE": "ECPS_PHRASE",
+  "ECPS_PHRASE": "local",
 
-  "DB_STATEMENT_TIMEOUT_IN_S" : 60,
+  "DB_STATEMENT_TIMEOUT_IN_S" : 3600,
   "DB_INITIAL_POOL_SIZE" : 5,
   "DB_MIN_POOL_SIZE" : 5,
   "DB_MAX_POOL_SIZE" : 50,
