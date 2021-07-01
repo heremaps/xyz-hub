@@ -24,6 +24,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
 import static io.netty.handler.codec.http.HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE;
 import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 
+import com.amazonaws.AbortedException;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.SdkClientException;
 import com.amazonaws.auth.AWSCredentialsProvider;
@@ -251,6 +252,11 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
     }
     if (e instanceof HttpRequestTimeoutException || e instanceof SdkClientException && e.getCause() instanceof HttpRequestTimeoutException)
       return new HttpException(GATEWAY_TIMEOUT, "The connector did not respond in time.", e);
+
+    if ( e instanceof AbortedException )
+    { logger.warn(marker,"AbortedException: Client closed request", e);
+      return new HttpException(BAD_GATEWAY, "Error while contacting lambda function.", e);
+    }
 
     logger.error(marker, "Unexpected exception while contacting lambda function", e);
     return new HttpException(BAD_GATEWAY, "Error while contacting lambda function.", e);
