@@ -22,6 +22,11 @@ package com.here.xyz.psql;
 import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
 import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.factory.MaintenanceSQL;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -55,12 +60,36 @@ public class DatabaseMaintainer {
         final boolean hasPropertySearch = config.getConnectorParams().isPropertySearch();
         final boolean autoIndexing = config.getConnectorParams().isAutoIndexing();
 
-        /** Check if all required extensions, schemas, tables and functions are present  */
-        this.initialDBSetup(traceItem, autoIndexing, hasPropertySearch);
+        if(config.getMaintenanceEndpoint() != null){
+            try (CloseableHttpClient client = HttpClients.createDefault()){
+                HttpPost request = new HttpPost(config.getMaintenanceEndpoint()
+                        +"/maintain/indices?connectorId="+traceItem.getConnectorId()
+                        +"&ecps="+config.getEcps()+"&autoIndexing=true"
+                );
 
-        if (hasPropertySearch) {
-            /** Trigger missing Index Maintenance (On-Demand & Auto-Indexing) */
-            this.triggerIndexing(traceItem, autoIndexing);
+                HttpResponse response = client.execute(request);
+                if(response.getStatusLine().getStatusCode() == 405){
+                    logger.warn("{} Database not initialized!",traceItem);
+                    request = new HttpPost(config.getMaintenanceEndpoint()
+                            +"/initialization?connectorId="+traceItem.getConnectorId()
+                            +"&ecps="+config.getEcps()+"&autoIndexing=true");
+                    response = client.execute(request);
+                    if(response.getStatusLine().getStatusCode() >= 400){
+                        logger.warn("{} Could not initialize Database! {}",traceItem, EntityUtils.toString(response.getEntity()));
+                    }
+                } else if(response.getStatusLine().getStatusCode() >= 400)
+                    logger.warn("{} Could not maintain Database! {}",traceItem, EntityUtils.toString(response.getEntity()));
+            }catch (Exception e){
+                logger.error("{} Could not maintain Database!",traceItem);
+            }
+        }else {
+            /** Check if all required extensions, schemas, tables and functions are present  */
+            this.initialDBSetup(traceItem, autoIndexing, hasPropertySearch);
+
+            if (hasPropertySearch) {
+                /** Trigger missing Index Maintenance (On-Demand & Auto-Indexing) */
+                this.triggerIndexing(traceItem, autoIndexing);
+            }
         }
     }
 
@@ -225,6 +254,52 @@ public class DatabaseMaintainer {
             }
         } catch (Exception e) {
             logger.error("{} Failed run indexing on database: {} / {}@{} '{}'", traceItem, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost(), e);
+        }
+    }
+
+    public SQLQuery maintainHistory(TraceItem traceItem, String schema, String table, int currentVersion, int maxVersionCount){
+        long maxAllowedVersion = currentVersion - maxVersionCount;
+
+        if(maxAllowedVersion <= 0)
+            return null;
+
+        if(config.getMaintenanceEndpoint() != null){
+            try (CloseableHttpClient client = HttpClients.createDefault()){
+
+                HttpPost request = new HttpPost(config.getMaintenanceEndpoint()
+                        +"/maintain/space/"+table+"/history?connectorId="+traceItem.getConnectorId()
+                        +"&ecps="+config.getEcps()+"&maxVersionCount="+maxVersionCount+"&currentVersion="+currentVersion
+                );
+
+                HttpResponse response = client.execute(request);
+                if(response.getStatusLine().getStatusCode() >= 400)
+                    logger.warn("{} Could not maintain history! {}/{} {}", traceItem, schema, table, EntityUtils.toString(response.getEntity()));
+            }catch (Exception e){
+                logger.error("{} Could not maintain history! {}/{}", traceItem, schema, table);
+            }
+            return null;
+        }else {
+            SQLQuery q = new SQLQuery(SQLQueryBuilder.deleteOldHistoryEntries(schema, table + "_hst", maxAllowedVersion));
+            q.append(new SQLQuery(SQLQueryBuilder.flagOutdatedHistoryEntries(schema, table + "_hst", maxAllowedVersion)));
+            q.append(new SQLQuery(SQLQueryBuilder.deleteHistoryEntriesWithDeleteFlag(schema, table + "_hst")));
+            return q;
+        }
+    }
+
+    public void maintainSpace(TraceItem traceItem, String schema, String table){
+        if(config.getMaintenanceEndpoint() != null){
+            try (CloseableHttpClient client = HttpClients.createDefault()){
+                HttpPost request = new HttpPost(config.getMaintenanceEndpoint()
+                        +"/maintain/space/"+table+"?connectorId="+traceItem.getConnectorId()
+                        +"&ecps="+config.getEcps()+"&force=true"
+                );
+
+                HttpResponse response = client.execute(request);
+                if(response.getStatusLine().getStatusCode() >= 400)
+                    logger.warn("{} Could not maintain space!{}/{} {}", traceItem, schema, table, EntityUtils.toString(response.getEntity()));
+            }catch (Exception e){
+                logger.error("{} Could not maintain space!{}/{}", traceItem, schema, table);
+            }
         }
     }
 

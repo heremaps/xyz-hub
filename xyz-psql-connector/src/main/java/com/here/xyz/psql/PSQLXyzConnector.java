@@ -447,17 +447,14 @@ public class PSQLXyzConnector extends DatabaseHandler {
               || ModifySpaceEvent.Operation.UPDATE == event.getOperation())
               && config.getConnectorParams().isPropertySearch()) {
 
-        //TODO: Check if config entry exists and idx_manual=null -> update it (erase on demand)
-        if(   event.getSpaceDefinition().isEnableAutoSearchableProperties() != null
-           || event.getSpaceDefinition().getSearchableProperties() != null
-           || event.getSpaceDefinition().getSortableProperties() != null
-          )
           executeUpdateWithRetry(  SQLQueryBuilder.buildSearchablePropertiesUpsertQuery(
                   event.getSpaceDefinition(),
                   event.getOperation(),
                   config.getDatabaseSettings().getSchema(),
                   config.readTableFromEvent(event))
           );
+
+          dbMaintainer.maintainSpace(traceItem, config.getDatabaseSettings().getSchema(), config.readTableFromEvent(event));
       }
 
       if (ModifySpaceEvent.Operation.DELETE == event.getOperation()) {
