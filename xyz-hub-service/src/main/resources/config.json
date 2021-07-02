@@ -21,6 +21,7 @@
   "STORAGE_DB_PASSWORD": "password",
 
   "INSERT_LOCAL_CONNECTORS": true,
+  "ENABLE_CONNECTOR_HEALTH_CHECKS" : false,
 
   "XYZ_HUB_PUBLIC_ENDPOINT": "http://localhost:8080",
 
