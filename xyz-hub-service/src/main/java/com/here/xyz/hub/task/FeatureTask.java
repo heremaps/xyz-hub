@@ -66,8 +66,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?>> extends Task<T, X> {
+
+  private static final Logger logger = LogManager.getLogger();
 
   /**
    * The space for this operation.
@@ -668,6 +672,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
         getRpcClient(s.storage).execute(getMarker(), event, r -> processLoadEvent(c, event, r));
       }
       catch (Exception e) {
+        logger.warn(s.getMarker(), "Error trying to process LoadFeaturesEvent.", e);
         c.exception(e);
       }
     }

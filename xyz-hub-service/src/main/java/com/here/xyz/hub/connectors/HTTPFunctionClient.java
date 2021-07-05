@@ -81,12 +81,8 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
           .putHeader(STREAM_ID, fc.marker.getName())
           .sendBuffer(Buffer.buffer(fc.consumePayload()), ar -> {
             if (fc.fireAndForget) return;
-            if (ar.failed()) {
-              if (ar.cause() instanceof TimeoutException)
-                callback.handle(Future.failedFuture(new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.")));
-              else
-                handleFailure(fc.marker, callback, new RuntimeException(ar.cause()));
-            }
+            if (ar.failed())
+              handleFailure(fc.marker, callback, ar.cause());
             else {
               try {
                 validateHttpStatus(ar.result());
@@ -120,14 +116,15 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
       throw new HttpException(BAD_GATEWAY, "Response body from remote HTTP connector service was empty.");
   }
 
-  private void handleFailure(Marker marker, Handler<AsyncResult<byte[]>> callback, Exception e) {
-    if (e == ConnectionBase.CLOSED_EXCEPTION)
-      e = new RuntimeException("Connection was already closed.", e);
-    logger.warn(marker, "Error while calling remote HTTP service", e);
-    if (e instanceof TimeoutException)
-      e = new HttpException(GATEWAY_TIMEOUT, "Timeout while calling HTTP connector.", e);
-    if (!(e instanceof HttpException))
-      e = new HttpException(BAD_GATEWAY, "Connector error.", e);
-    callback.handle(Future.failedFuture(e));
+  private void handleFailure(Marker marker, Handler<AsyncResult<byte[]>> callback, Throwable t) {
+    if (t == ConnectionBase.CLOSED_EXCEPTION)
+      //Re-attach a stack-trace until here
+      t = new RuntimeException("Connection was already closed.", t);
+    logger.warn(marker, "Error while calling remote HTTP service", t);
+    if (t instanceof TimeoutException)
+      t = new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.", t);
+    if (!(t instanceof HttpException))
+      t = new HttpException(BAD_GATEWAY, "Connector error.", t);
+    callback.handle(Future.failedFuture(t));
   }
 }
