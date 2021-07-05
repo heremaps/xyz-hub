@@ -33,6 +33,7 @@ import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.task.TaskPipeline.C1;
 import com.here.xyz.hub.task.TaskPipeline.C2;
+import com.here.xyz.hub.task.TaskPipeline.Callback;
 import io.netty.util.internal.ConcurrentSet;
 import io.vertx.ext.web.RoutingContext;
 import java.util.Objects;
@@ -141,6 +142,8 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
     state = IN_PROGRESS;
     return event;
   }
+
+  protected <X extends Task<?, X>> void cleanup(X task, Callback<X> callback) {}
 
   public String getCacheKey() {
     return null;

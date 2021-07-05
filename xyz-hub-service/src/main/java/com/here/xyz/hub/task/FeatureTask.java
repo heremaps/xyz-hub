@@ -65,6 +65,7 @@ import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?>> extends Task<T, X> {
 
@@ -600,7 +601,8 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
 
   public static class ConditionalOperation extends FeatureTask<ModifyFeaturesEvent, ConditionalOperation> {
 
-    public final ModifyFeatureOp modifyOp;
+    public ModifyFeatureOp modifyOp;
+    public List<Feature> unmodifiedFeatures;
     private final boolean requireResourceExists;
     public List<String> addTags;
     public List<String> removeTags;
@@ -629,7 +631,22 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::processConditionalOp)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::enforceUsageQuotas)
+          .then(this::extractUnmodifiedFeatures)
+          .then(this::cleanup)
           .then(FeatureTaskHandler::invoke);
+    }
+
+    @Override
+    protected <X extends Task<?, X>> void cleanup(X task, Callback<X> callback) {
+      super.cleanup(task, callback);
+      modifyOp = null;
+      callback.call(task);
+    }
+
+    private <X extends FeatureTask<?, X>> void extractUnmodifiedFeatures(X task, Callback<X> callback) {
+      if (modifyOp != null && modifyOp.entries != null)
+        unmodifiedFeatures = modifyOp.entries.stream().filter(e -> e.isModified).map(fe -> fe.result).collect(Collectors.toList());
+      callback.call(task);
     }
 
     private void verifyResourceExists(ConditionalOperation task, Callback<ConditionalOperation> callback) {
