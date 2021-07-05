@@ -152,13 +152,6 @@ public class FeatureTaskHandler {
    * @param <T> the type of the FeatureTask
    */
   public static <T extends FeatureTask> void invoke(T task, Callback<T> callback) {
-    /**
-     * NOTE: The event may only be consumed once. Once it was consumed it should only be referenced in the request-phase. Referencing it in the
-     *     response-phase will keep the whole event-data in the memory and could cause many major GCs to because of large request-payloads.
-     *
-     * @see Task#consumeEvent()
-     */
-    Event event = task.consumeEvent();
     /*
     In case there is already, nothing has to be done here (happens if the response was set by an earlier process in the task pipeline
     e.g. when having a cache hit)
@@ -167,6 +160,13 @@ public class FeatureTaskHandler {
       callback.call(task);
       return;
     }
+    /**
+     * NOTE: The event may only be consumed once. Once it was consumed it should only be referenced in the request-phase. Referencing it in the
+     *     response-phase will keep the whole event-data in the memory and could cause many major GCs to because of large request-payloads.
+     *
+     * @see Task#consumeEvent()
+     */
+    Event event = task.consumeEvent();
 
     if (!task.storage.active) {
       if (event instanceof ModifySpaceEvent && ((ModifySpaceEvent) event).getOperation() == ModifySpaceEvent.Operation.DELETE) {
@@ -1345,12 +1345,12 @@ public class FeatureTaskHandler {
     }
 
     <T extends FeatureTask, R extends XyzResponse> void enrichResponse(T task, R response) {
-      if (task instanceof ConditionalOperation && response instanceof FeatureCollection && ((ConditionalOperation) task).hasNonModified) {
-        ((ConditionalOperation) task).modifyOp.entries.stream().filter(e -> !e.isModified).forEach(e -> {
-          try {
-            ((FeatureCollection) response).getFeatures().add(e.result);
-          } catch (JsonProcessingException ignored) {}
-        });
+      if (task instanceof ConditionalOperation && response instanceof FeatureCollection && ((ConditionalOperation) task).hasNonModified
+          && ((ConditionalOperation) task).unmodifiedFeatures != null) {
+        try {
+          ((FeatureCollection) response).getFeatures().addAll(((ConditionalOperation) task).unmodifiedFeatures);
+        }
+        catch (JsonProcessingException ignored) {}
       }
       if (eventType.isAssignableFrom(ModifyFeaturesEvent.class) && failedModifications != null && !failedModifications.isEmpty()) {
         //Copy over the failed modifications information to the response
