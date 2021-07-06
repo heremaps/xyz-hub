@@ -21,10 +21,8 @@ package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
 import static com.here.xyz.hub.rest.ApiParam.Query.FORCE_2D;
 import static com.here.xyz.hub.rest.ApiParam.Query.SKIP_CACHE;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.vertx.core.http.HttpHeaders.ACCEPT;
 
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
@@ -43,12 +41,8 @@ import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.http.HttpHeaders;
-import io.vertx.core.json.DecodeException;
-import io.vertx.core.json.JsonArray;
-import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
-import io.vertx.ext.web.validation.impl.RequestParametersImpl;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -57,7 +51,6 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.Marker;
 
 public class FeatureApi extends SpaceBasedApi {
 
@@ -126,7 +119,7 @@ public class FeatureApi extends SpaceBasedApi {
    * Creates or replaces a feature.
    */
   private void putFeature(final RoutingContext context) {
-    executeFeatureModification(false, context, ApiResponseType.FEATURE, IfExists.REPLACE, IfNotExists.CREATE, true, ConflictResolution.ERROR);
+    executeConditionalOperationChain(false, context, ApiResponseType.FEATURE, IfExists.REPLACE, IfNotExists.CREATE, true, ConflictResolution.ERROR);
   }
 
   /**
@@ -135,7 +128,7 @@ public class FeatureApi extends SpaceBasedApi {
    * @param context the routing context
    */
   private void putFeatures(final RoutingContext context) {
-    executeFeatureModification(false, context, getEmptyResponseTypeOr(context, ApiResponseType.FEATURE_COLLECTION), IfExists.REPLACE,
+    executeConditionalOperationChain(false, context, getEmptyResponseTypeOr(context, ApiResponseType.FEATURE_COLLECTION), IfExists.REPLACE,
         IfNotExists.CREATE, true, ConflictResolution.ERROR);
   }
 
@@ -143,7 +136,7 @@ public class FeatureApi extends SpaceBasedApi {
    * Patches a feature
    */
   private void patchFeature(final RoutingContext context) {
-    executeFeatureModification(true, context, ApiResponseType.FEATURE, IfExists.PATCH, IfNotExists.RETAIN, true, ConflictResolution.ERROR);
+    executeConditionalOperationChain(true, context, ApiResponseType.FEATURE, IfExists.PATCH, IfNotExists.RETAIN, true, ConflictResolution.ERROR);
   }
 
   /**
@@ -155,14 +148,7 @@ public class FeatureApi extends SpaceBasedApi {
     final ConflictResolution conflictResolution = ConflictResolution.of(Query.getString(context, Query.CONFLICT_RESOLUTION, "error"));
     boolean transactional = Query.getBoolean(context, Query.TRANSACTIONAL, true);
 
-    if (APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST.equals(context.parsedHeaders().contentType().rawValue())) {
-      executeHolisticFeatureModification(false, context,
-          getEmptyResponseTypeOr(context, ApiResponseType.FEATURE_COLLECTION), ifExists, ifNotExists, transactional, conflictResolution);
-    }
-    else {
-      executeFeatureModification(false, context, getEmptyResponseTypeOr(context, ApiResponseType.FEATURE_COLLECTION),
-          ifExists, ifNotExists, transactional, conflictResolution);
-    }
+    executeConditionalOperationChain(false, context, getEmptyResponseTypeOr(context, ApiResponseType.FEATURE_COLLECTION), ifExists, ifNotExists, transactional, conflictResolution);
   }
 
   /**
@@ -210,54 +196,16 @@ public class FeatureApi extends SpaceBasedApi {
   /**
    * Creates and executes a ModifyFeatureOp
    */
-  private void executeFeatureModification(boolean requireResourceExists, final RoutingContext context,
+  private void executeConditionalOperationChain(boolean requireResourceExists, final RoutingContext context,
       ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional, ConflictResolution cr) {
-    try {
-      List<Map<String, Object>> features = getObjectsAsList(context);
-      if (apiResponseTypeType == ApiResponseType.FEATURE) { //TODO: Replace that evil hack
-        features.get(0).put("id", context.pathParam(ApiParam.Path.FEATURE_ID));
-      }
-      Map<String, Object> featureCollection = Collections.singletonMap("features", features);
-
-      executeConditionalOperationChain(requireResourceExists, context, apiResponseTypeType, ifExists, ifNotExists, transactional, cr,
-          Collections.singletonList(Collections.singletonMap("featureData", featureCollection)));
-    }
-    catch (HttpException e) {
-      sendErrorResponse(context, e);
-    }
-    catch (Exception e) {
-      context.fail(e);
-    }
+    executeConditionalOperationChain(requireResourceExists, context, apiResponseTypeType, ifExists, ifNotExists, transactional, cr, null);
   }
 
-  /**
-   * Executes a feature modification of which the operation may be any combination be of the types create, update or delete.
-   * The overall modification may be transactional or not.
-   * Existence-handlers and/or conflict-resolution can be provided per feature-collection.
-   */
-  private void executeHolisticFeatureModification(boolean requireResourceExists, final RoutingContext context,
-      ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional, ConflictResolution cr) {
-    try {
-      executeConditionalOperationChain(requireResourceExists, context, apiResponseTypeType, ifExists, ifNotExists, transactional, cr,
-          getObjectsAsList(context));
-    }
-    catch (HttpException e) {
-      sendErrorResponse(context, e);
-    }
-    catch (Exception e) {
-      context.fail(e);
-    }
-  }
-
-  /**
-   * Creates and executes a ModifyFeatureOp
-   */
   private void executeConditionalOperationChain(boolean requireResourceExists, final RoutingContext context,
       ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional, ConflictResolution cr,
       List<Map<String, Object>> featureModifications) {
     ModifyFeaturesEvent event = new ModifyFeaturesEvent().withTransaction(transactional);
-    ConditionalOperation task = new ConditionalOperation(event, context, apiResponseTypeType,
-        new ModifyFeatureOp(featureModifications, ifNotExists, ifExists, transactional, cr), requireResourceExists);
+    ConditionalOperation task = buildConditionalOperation(event, context, apiResponseTypeType, featureModifications, ifNotExists, ifExists, transactional, cr, requireResourceExists);
     final List<String> addTags = Query.queryParam(Query.ADD_TAGS, context);
     final List<String> removeTags = Query.queryParam(Query.REMOVE_TAGS, context);
     task.addTags = XyzNamespace.normalizeTags(addTags);
@@ -268,61 +216,20 @@ public class FeatureApi extends SpaceBasedApi {
     task.execute(this::sendResponse, this::sendErrorResponse);
   }
 
-  /**
-   * Parses the body of the request as a FeatureCollection, Feature or a FeatureModificationList object and returns the features as a list.
-   */
-  private List<Map<String, Object>> getObjectsAsList(final RoutingContext context) throws HttpException {
-    final Marker logMarker = Context.getMarker(context);
-    try {
-      JsonObject json = context.getBodyAsJson();
-      return getJsonObjects(json, context);
-    }
-    catch (DecodeException e) {
-      logger.warn(logMarker, "Invalid input encoding.", e);
-      try {
-        //Some types of exceptions could be avoided by reading the entire string.
-        JsonObject json = new JsonObject(context.getBodyAsString());
-        return getJsonObjects(json, context);
-      }
-      catch (DecodeException ex) {
-        logger.info(logMarker, "Error in the provided content", ex.getCause());
-        throw new HttpException(BAD_REQUEST, "Invalid JSON input string: " + ex.getMessage());
-      }
-    }
-    catch (Exception e) {
-      logger.info(logMarker, "Error in the provided content", e);
-      throw new HttpException(BAD_REQUEST, "Cannot read input JSON string.");
-    }
-    finally {
-      context.setBody(null);
-      ((RequestParametersImpl)context.data().get("requestParameters")).setBody(null);
-    }
-  }
+  private ConditionalOperation buildConditionalOperation(
+      ModifyFeaturesEvent event,
+      RoutingContext context,
+      ApiResponseType apiResponseTypeType,
+      List<Map<String, Object>> featureModifications,
+      IfNotExists ifNotExists,
+      IfExists ifExists,
+      boolean transactional,
+      ConflictResolution cr,
+      boolean requireResourceExists) {
+    if (featureModifications == null)
+      return new ConditionalOperation(event, context, apiResponseTypeType, ifNotExists, ifExists, transactional, cr, requireResourceExists);
 
-  private List<Map<String, Object>> getJsonObjects(JsonObject json, RoutingContext context) throws HttpException {
-    try {
-      if (json == null) {
-        throw new HttpException(BAD_REQUEST, "Missing content");
-      }
-      if ("FeatureCollection".equals(json.getString("type"))) {
-        //noinspection unchecked
-        return json.getJsonArray("features", new JsonArray()).getList();
-      }
-      if ("FeatureModificationList".equals(json.getString("type"))) {
-        //noinspection unchecked
-        return json.getJsonArray("modifications", new JsonArray()).getList();
-      }
-      if ("Feature".equals(json.getString("type"))) {
-        return Collections.singletonList(json.getMap());
-      }
-      else {
-        throw new HttpException(BAD_REQUEST, "The provided content does not have a type of FeatureCollection,"
-            + " Feature or FeatureModificationList.");
-      }
-    }
-    catch (Exception e) {
-      logger.info(Context.getMarker(context), "Error in the provided content", e);
-      throw new HttpException(BAD_REQUEST, "Cannot read input JSON string.");
-    }
+    final ModifyFeatureOp modifyFeatureOp = new ModifyFeatureOp(featureModifications, ifNotExists, ifExists, transactional, cr);
+    return new ConditionalOperation(event, context, apiResponseTypeType, modifyFeatureOp, requireResourceExists);
   }
 }
