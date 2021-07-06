@@ -55,6 +55,8 @@ import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.FeatureTaskHandler.InvalidStorageException;
 import com.here.xyz.hub.task.ModifyOp.Entry;
+import com.here.xyz.hub.task.TaskPipeline.C1;
+import com.here.xyz.hub.task.TaskPipeline.C2;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -94,6 +96,11 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
    */
   private String cacheKey;
 
+  /**
+   * The number of bytes the request body is / was having initially.
+   */
+  public final int requestBodySize;
+
   public static final class FeatureKey {
 
     public static final String ID = "id";
@@ -109,12 +116,17 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
   }
 
   private FeatureTask(T event, RoutingContext context, ApiResponseType responseType, boolean skipCache) {
+    this(event, context, responseType, skipCache, 0);
+  }
+
+  private FeatureTask(T event, RoutingContext context, ApiResponseType responseType, boolean skipCache, int requestBodySize) {
     super(event, context, responseType, skipCache);
     event.setStreamId(getMarker().getName());
 
     if (context.pathParam(ApiParam.Path.SPACE_ID) != null) {
       event.setSpace(context.pathParam(ApiParam.Path.SPACE_ID));
     }
+    this.requestBodySize = requestBodySize;
   }
 
   public CacheProfile getCacheProfile() {
@@ -322,6 +334,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
         getRpcClient(refConnector).execute(getMarker(), event, r -> processLoadEvent(c, event, r));
       }
       catch (Exception e) {
+        logger.warn(gq.getMarker(), "Error trying to process LoadFeaturesEvent.", e);
         c.exception(e);
       }
     }
@@ -616,8 +629,8 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public boolean hasNonModified;
 
     public ConditionalOperation(ModifyFeaturesEvent event, RoutingContext context, ApiResponseType apiResponseTypeType,
-        ModifyFeatureOp modifyOp, boolean requireResourceExists) {
-      super(event, context, apiResponseTypeType, true);
+        ModifyFeatureOp modifyOp, boolean requireResourceExists, int requestBodySize) {
+      super(event, context, apiResponseTypeType, true, requestBodySize);
       this.modifyOp = modifyOp;
       this.requireResourceExists = requireResourceExists;
     }
@@ -626,6 +639,8 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<ConditionalOperation> getPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(FeatureTaskHandler::registerRequestMemory)
+          .then(FeatureTaskHandler::throttleIfNecessary)
           .then(FeatureTaskHandler::injectSpaceParams)
           .then(FeatureTaskHandler::checkPreconditions)
           .then(FeatureTaskHandler::preprocessConditionalOp)
@@ -638,6 +653,24 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(this::extractUnmodifiedFeatures)
           .then(this::cleanup)
           .then(FeatureTaskHandler::invoke);
+    }
+
+    @Override
+    public void execute(C1<ConditionalOperation> onSuccess, final C2<ConditionalOperation, Throwable> onException) {
+      C1<ConditionalOperation> wrappedSuccessHandler = task -> {
+        requestCompleted(task);
+        onSuccess.call(task);
+      };
+      C2<ConditionalOperation, Throwable> wrappedExceptionHandler = (task, ex) -> {
+        requestCompleted(task);
+        onException.call(task, ex);
+      };
+      super.execute(wrappedSuccessHandler, wrappedExceptionHandler);
+    }
+
+    private void requestCompleted(FeatureTask task) {
+      if (task.storage != null)
+        FeatureTaskHandler.deregisterRequestMemory(task.storage.id, task.requestBodySize);
     }
 
     @Override

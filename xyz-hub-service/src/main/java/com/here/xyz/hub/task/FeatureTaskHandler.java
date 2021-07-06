@@ -31,6 +31,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.Payload;
@@ -49,6 +50,7 @@ import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.JWTPayload;
+import com.here.xyz.hub.connectors.RemoteFunctionClient;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.RpcClient.RpcContext;
 import com.here.xyz.hub.connectors.models.BinaryResponse;
@@ -108,6 +110,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.LongAdder;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -143,6 +146,12 @@ public class FeatureTaskHandler {
    * performed by this service-node.
    */
   private static ConcurrentHashMap<String, Integer> latestSeenContentVersions = new ConcurrentHashMap<>();
+
+  /**
+   * Contains the amount of all in-flight requests for each storage ID.
+   */
+  private static ConcurrentHashMap<String, LongAdder> inflightRequestMemory = new ConcurrentHashMap<>();
+  private static LongAdder globalInflightRequestMemory = new LongAdder();
 
   /**
    * Sends the event to the connector client and write the response as the responseCollection of the task.
@@ -779,23 +788,26 @@ public class FeatureTaskHandler {
         callback.exception(new InvalidStorageException("Unable to load the definition for this storage."));
         return;
       }
-
       task.storage = arStorage.result();
-
-      try {
-        //Also resolve all listeners & processors
-        CompletableFuture.allOf(
-            resolveConnectors(task.getMarker(), task.space, ConnectorType.LISTENER),
-            resolveConnectors(task.getMarker(), task.space, ConnectorType.PROCESSOR)
-        ).thenRun(() -> {
-          //All listener & processor refs have been resolved now
-          callback.call(task);
-        });
-      } catch (Exception e) {
-        logger.error(task.getMarker(), "The listeners for this space cannot be initialized", e);
-        callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "The listeners for this space cannot be initialized"));
-      }
+      onStorageResolved(task, callback);
     });
+  }
+
+  private static <X extends FeatureTask> void onStorageResolved(final X task, final Callback<X> callback) {
+    try {
+      //Also resolve all listeners & processors
+      CompletableFuture.allOf(
+          resolveConnectors(task.getMarker(), task.space, ConnectorType.LISTENER),
+          resolveConnectors(task.getMarker(), task.space, ConnectorType.PROCESSOR)
+      ).thenRun(() -> {
+        //All listener & processor refs have been resolved now
+        callback.call(task);
+      });
+    }
+    catch (Exception e) {
+      logger.error(task.getMarker(), "The listeners for this space cannot be initialized", e);
+      callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "The listeners for this space cannot be initialized"));
+    }
   }
 
   private static CompletableFuture<Void> resolveConnectors(Marker marker, final Space space, final ConnectorType connectorType) {
@@ -845,6 +857,54 @@ public class FeatureTaskHandler {
         .thenRun(() -> future.complete(null));
 
     return future;
+  }
+
+  static <X extends FeatureTask> void registerRequestMemory(final X task, final Callback<X> callback) {
+    try {
+      registerRequestMemory(task.storage.id, task.requestBodySize);
+    }
+    finally {
+      callback.call(task);
+    }
+  }
+
+  private static void registerRequestMemory(String storageId, int byteSize) {
+    if (byteSize <= 0) return;
+    LongAdder usedMemory = inflightRequestMemory.get(storageId);
+    if (usedMemory == null)
+      inflightRequestMemory.put(storageId, usedMemory = new LongAdder());
+    usedMemory.add(byteSize);
+    globalInflightRequestMemory.add(byteSize);
+  }
+
+  public static void deregisterRequestMemory(String storageId, int byteSize) {
+    if (byteSize <= 0) return;
+    inflightRequestMemory.get(storageId).add(-byteSize);
+    globalInflightRequestMemory.add(-byteSize);
+  }
+
+  static <X extends FeatureTask> void throttleIfNecessary(final X task, final Callback<X> callback) {
+    Connector storage = task.storage;
+    //Only throttle requests if the memory filled up over the specified threshold
+    if (globalInflightRequestMemory.sum() >
+        RemoteFunctionClient.GLOBAL_MAX_QUEUE_BYTE_SIZE * Service.configuration.IN_FLIGHT_REQUEST_MEMORY_HIGH_UTILIZATION_THRESHOLD) {
+      LongAdder storageInflightRequestMemory = inflightRequestMemory.get(storage.id);
+      long storageInflightRequestMemorySum = 0;
+      if (storageInflightRequestMemory == null || (storageInflightRequestMemorySum = storageInflightRequestMemory.sum()) == 0)
+        callback.call(task); //Nothing to throttle
+
+      try {
+        RpcClient rpcClient = getRpcClient(storage);
+        if (storageInflightRequestMemorySum > rpcClient.getFunctionClient().getPriority() * RemoteFunctionClient.GLOBAL_MAX_QUEUE_BYTE_SIZE)
+          throw new HttpException(TOO_MANY_REQUESTS, "Too many requests for the storage.");
+      }
+      catch (HttpException e) {
+        logger.warn(task.getMarker(), e.getMessage(), e);
+        callback.exception(e);
+        return;
+      }
+    }
+    callback.call(task);
   }
 
   static void preprocessConditionalOp(ConditionalOperation task, Callback<ConditionalOperation> callback) throws Exception {
