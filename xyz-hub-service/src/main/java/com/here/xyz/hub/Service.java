@@ -540,6 +540,12 @@ public class Service extends Core {
     public float REMOTE_FUNCTION_CONNECTION_HIGH_UTILIZATION_THRESHOLD;
 
     /**
+     * A value between 0 and 1 defining a threshold as percentage of utilized memory for in-flight request after which to start
+     * prioritizing more important connectors over less important ones.
+     */
+    public float IN_FLIGHT_REQUEST_MEMORY_HIGH_UTILIZATION_THRESHOLD;
+
+    /**
      * The remote function pool ID to be used to select the according remote functions for this Service environment.
      */
     public String REMOTE_FUNCTION_POOL_ID;

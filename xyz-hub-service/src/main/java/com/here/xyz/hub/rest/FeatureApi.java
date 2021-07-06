@@ -62,6 +62,7 @@ import org.apache.logging.log4j.Marker;
 public class FeatureApi extends SpaceBasedApi {
 
   private static final Logger logger = LogManager.getLogger();
+  public static final String REQUEST_BODY_SIZE = "requestBodySize";
 
   public FeatureApi(RouterBuilder rb) {
     rb.operation("getFeature").handler(this::getFeature);
@@ -256,8 +257,10 @@ public class FeatureApi extends SpaceBasedApi {
       ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional, ConflictResolution cr,
       List<Map<String, Object>> featureModifications) {
     ModifyFeaturesEvent event = new ModifyFeaturesEvent().withTransaction(transactional);
+    Integer bodySize = context.get(REQUEST_BODY_SIZE);
     ConditionalOperation task = new ConditionalOperation(event, context, apiResponseTypeType,
-        new ModifyFeatureOp(featureModifications, ifNotExists, ifExists, transactional, cr), requireResourceExists);
+        new ModifyFeatureOp(featureModifications, ifNotExists, ifExists, transactional, cr), requireResourceExists,
+        bodySize != null ? bodySize : 0);
     final List<String> addTags = Query.queryParam(Query.ADD_TAGS, context);
     final List<String> removeTags = Query.queryParam(Query.REMOVE_TAGS, context);
     task.addTags = XyzNamespace.normalizeTags(addTags);
@@ -294,6 +297,7 @@ public class FeatureApi extends SpaceBasedApi {
       throw new HttpException(BAD_REQUEST, "Cannot read input JSON string.");
     }
     finally {
+      context.put(REQUEST_BODY_SIZE, context.getBody() != null ? context.getBody().length() : 0);
       context.setBody(null);
       ((RequestParametersImpl)context.data().get("requestParameters")).setBody(null);
     }
