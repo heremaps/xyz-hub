@@ -48,6 +48,7 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
+import io.vertx.ext.web.validation.impl.RequestParametersImpl;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -291,6 +292,10 @@ public class FeatureApi extends SpaceBasedApi {
     catch (Exception e) {
       logger.info(logMarker, "Error in the provided content", e);
       throw new HttpException(BAD_REQUEST, "Cannot read input JSON string.");
+    }
+    finally {
+      context.setBody(null);
+      ((RequestParametersImpl)context.data().get("requestParameters")).setBody(null);
     }
   }
 
