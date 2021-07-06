@@ -649,7 +649,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
 
     private <X extends FeatureTask<?, X>> void extractUnmodifiedFeatures(X task, Callback<X> callback) {
       if (modifyOp != null && modifyOp.entries != null)
-        unmodifiedFeatures = modifyOp.entries.stream().filter(e -> e.isModified).map(fe -> fe.result).collect(Collectors.toList());
+        unmodifiedFeatures = modifyOp.entries.stream().filter(e -> !e.isModified).map(fe -> fe.result).collect(Collectors.toList());
       callback.call(task);
     }
 
