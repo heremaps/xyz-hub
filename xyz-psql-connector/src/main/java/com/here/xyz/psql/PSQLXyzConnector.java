@@ -172,7 +172,11 @@ public class PSQLXyzConnector extends DatabaseHandler {
       WebMercatorTile mvtTile = null;
 
       if( mvtTypeRequested > 0 )
-      { GetFeaturesByTileEvent e = (GetFeaturesByTileEvent) event; // TileEvent is garanteed
+      { 
+        if( event.getConnectorParams() == null || event.getConnectorParams().get("mvtSupport") != Boolean.TRUE )
+         throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "mvt format is not supported");
+        
+        GetFeaturesByTileEvent e = (GetFeaturesByTileEvent) event; // TileEvent is garanteed
         mvtTile = WebMercatorTile.forWeb(e.getLevel(), e.getX(), e.getY());
         mvtMargin = e.getMargin();
       }

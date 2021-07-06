@@ -2183,6 +2183,7 @@ components:
           ecps: myEncryptedAndVeryLongEcpsString
           autoIndexing: true
           propertySearch: true
+          mvtSupport: true
         remoteFunction:
           id: test1
           lambdaARN: arn:aws:lambda:eu-west-1:<myAwsAccountId>:function:test1
@@ -3165,3 +3166,8 @@ components:
           items:
             type: string
           type: array
+        mvtSupport:
+          description: >-
+            Whether mvt format is supported
+          type: boolean
+  
