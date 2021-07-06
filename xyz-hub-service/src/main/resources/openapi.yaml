@@ -3166,8 +3166,4 @@ components:
           items:
             type: string
           type: array
-        mvtSupport:
-          description: >-
-            Whether mvt format is supported
-          type: boolean
   
