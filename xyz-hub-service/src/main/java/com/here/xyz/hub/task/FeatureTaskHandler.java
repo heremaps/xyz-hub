@@ -902,7 +902,7 @@ public class FeatureTaskHandler {
 
       try {
         RpcClient rpcClient = getRpcClient(storage);
-        if (storageInflightRequestMemorySum > rpcClient.getFunctionClient().getPriority() * RemoteFunctionClient.GLOBAL_MAX_QUEUE_BYTE_SIZE)
+        if (storageInflightRequestMemorySum > rpcClient.getFunctionClient().getPriority() * GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE)
           throw new HttpException(TOO_MANY_REQUESTS, "Too many requests for the storage.");
       }
       catch (HttpException e) {
