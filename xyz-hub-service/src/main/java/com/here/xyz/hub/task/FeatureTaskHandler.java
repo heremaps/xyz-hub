@@ -890,8 +890,10 @@ public class FeatureTaskHandler {
         RemoteFunctionClient.GLOBAL_MAX_QUEUE_BYTE_SIZE * Service.configuration.IN_FLIGHT_REQUEST_MEMORY_HIGH_UTILIZATION_THRESHOLD) {
       LongAdder storageInflightRequestMemory = inflightRequestMemory.get(storage.id);
       long storageInflightRequestMemorySum = 0;
-      if (storageInflightRequestMemory == null || (storageInflightRequestMemorySum = storageInflightRequestMemory.sum()) == 0)
+      if (storageInflightRequestMemory == null || (storageInflightRequestMemorySum = storageInflightRequestMemory.sum()) == 0) {
         callback.call(task); //Nothing to throttle
+        return;
+      }
 
       try {
         RpcClient rpcClient = getRpcClient(storage);
