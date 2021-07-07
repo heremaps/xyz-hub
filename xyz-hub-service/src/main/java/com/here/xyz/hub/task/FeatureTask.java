@@ -640,7 +640,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureTaskHandler::registerRequestMemory)
-          .then(FeatureTaskHandler::throttleIfNecessary)
+          .then(FeatureTaskHandler::throttle)
           .then(FeatureTaskHandler::injectSpaceParams)
           .then(FeatureTaskHandler::checkPreconditions)
           .then(FeatureTaskHandler::preprocessConditionalOp)

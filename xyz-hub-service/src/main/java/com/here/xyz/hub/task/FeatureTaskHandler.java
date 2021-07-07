@@ -887,7 +887,7 @@ public class FeatureTaskHandler {
     globalInflightRequestMemory.add(-byteSize);
   }
 
-  static <X extends FeatureTask> void throttleIfNecessary(final X task, final Callback<X> callback) {
+  static <X extends FeatureTask> void throttle(final X task, final Callback<X> callback) {
     Connector storage = task.storage;
     final long GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE = (long) Service.configuration.GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE_MB * 1024 * 1024;
     //Only throttle requests if the memory filled up over the specified threshold
