@@ -873,21 +873,26 @@ public class FeatureTaskHandler {
     LongAdder usedMemory = inflightRequestMemory.get(storageId);
     if (usedMemory == null)
       inflightRequestMemory.put(storageId, usedMemory = new LongAdder());
+
+    byteSize *= Service.configuration.INFLIGHT_REQUEST_BODY_OVERHEAD_FACTOR;
     usedMemory.add(byteSize);
     globalInflightRequestMemory.add(byteSize);
   }
 
   public static void deregisterRequestMemory(String storageId, int byteSize) {
     if (byteSize <= 0) return;
+
+    byteSize *= Service.configuration.INFLIGHT_REQUEST_BODY_OVERHEAD_FACTOR;
     inflightRequestMemory.get(storageId).add(-byteSize);
     globalInflightRequestMemory.add(-byteSize);
   }
 
   static <X extends FeatureTask> void throttleIfNecessary(final X task, final Callback<X> callback) {
     Connector storage = task.storage;
+    final long GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE = (long) Service.configuration.GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE_MB * 1024 * 1024;
     //Only throttle requests if the memory filled up over the specified threshold
     if (globalInflightRequestMemory.sum() >
-        RemoteFunctionClient.GLOBAL_MAX_QUEUE_BYTE_SIZE * Service.configuration.IN_FLIGHT_REQUEST_MEMORY_HIGH_UTILIZATION_THRESHOLD) {
+        GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE * Service.configuration.GLOBAL_INFLIGHT_REQUEST_MEMORY_HIGH_UTILIZATION_THRESHOLD) {
       LongAdder storageInflightRequestMemory = inflightRequestMemory.get(storage.id);
       long storageInflightRequestMemorySum = 0;
       if (storageInflightRequestMemory == null || (storageInflightRequestMemorySum = storageInflightRequestMemory.sum()) == 0) {
