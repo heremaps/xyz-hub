@@ -55,6 +55,7 @@ import org.apache.logging.log4j.Logger;
 public class FeatureApi extends SpaceBasedApi {
 
   private static final Logger logger = LogManager.getLogger();
+  public static final String REQUEST_BODY_SIZE = "requestBodySize";
 
   public FeatureApi(RouterBuilder rb) {
     rb.operation("getFeature").handler(this::getFeature);
@@ -205,6 +206,7 @@ public class FeatureApi extends SpaceBasedApi {
       ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional, ConflictResolution cr,
       List<Map<String, Object>> featureModifications) {
     ModifyFeaturesEvent event = new ModifyFeaturesEvent().withTransaction(transactional);
+    Integer bodySize = context.get(REQUEST_BODY_SIZE);
     ConditionalOperation task = buildConditionalOperation(event, context, apiResponseTypeType, featureModifications, ifNotExists, ifExists, transactional, cr, requireResourceExists);
     final List<String> addTags = Query.queryParam(Query.ADD_TAGS, context);
     final List<String> removeTags = Query.queryParam(Query.REMOVE_TAGS, context);
@@ -225,11 +227,12 @@ public class FeatureApi extends SpaceBasedApi {
       IfExists ifExists,
       boolean transactional,
       ConflictResolution cr,
-      boolean requireResourceExists) {
+      boolean requireResourceExists,
+      int bodySize) {
     if (featureModifications == null)
-      return new ConditionalOperation(event, context, apiResponseTypeType, ifNotExists, ifExists, transactional, cr, requireResourceExists);
+      return new ConditionalOperation(event, context, apiResponseTypeType, ifNotExists, ifExists, transactional, cr, requireResourceExists, bodySize);
 
     final ModifyFeatureOp modifyFeatureOp = new ModifyFeatureOp(featureModifications, ifNotExists, ifExists, transactional, cr);
-    return new ConditionalOperation(event, context, apiResponseTypeType, modifyFeatureOp, requireResourceExists);
+    return new ConditionalOperation(event, context, apiResponseTypeType, modifyFeatureOp, requireResourceExists, bodySize);
   }
 }
