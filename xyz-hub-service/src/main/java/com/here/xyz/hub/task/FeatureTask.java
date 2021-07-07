@@ -55,9 +55,12 @@ import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.FeatureTaskHandler.InvalidStorageException;
 import com.here.xyz.hub.task.ModifyOp.Entry;
+import com.here.xyz.hub.task.ModifyOp.IfExists;
+import com.here.xyz.hub.task.ModifyOp.IfNotExists;
 import com.here.xyz.hub.task.TaskPipeline.C1;
 import com.here.xyz.hub.task.TaskPipeline.C2;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
+import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.XyzResponse;
@@ -619,6 +622,10 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
   public static class ConditionalOperation extends FeatureTask<ModifyFeaturesEvent, ConditionalOperation> {
 
     public ModifyFeatureOp modifyOp;
+    public IfNotExists ifNotExists;
+    public IfExists ifExists;
+    public boolean transactional;
+    public ConflictResolution conflictResolution;
     public List<Feature> unmodifiedFeatures;
     private final boolean requireResourceExists;
     public List<String> addTags;
@@ -635,6 +642,15 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       this.requireResourceExists = requireResourceExists;
     }
 
+    public ConditionalOperation(ModifyFeaturesEvent event, RoutingContext context, ApiResponseType apiResponseTypeType,
+        IfNotExists ifNotExists, IfExists ifExists, boolean transactional, ConflictResolution conflictResolution, boolean requireResourceExists, int requestBodySize) {
+      this(event, context, apiResponseTypeType, null, requireResourceExists, requestBodySize);
+      this.ifNotExists = ifNotExists;
+      this.ifExists = ifExists;
+      this.transactional = transactional;
+      this.conflictResolution = conflictResolution;
+    }
+
     @Override
     public TaskPipeline<ConditionalOperation> getPipeline() {
       return TaskPipeline.create(this)
@@ -643,6 +659,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::throttle)
           .then(FeatureTaskHandler::injectSpaceParams)
           .then(FeatureTaskHandler::checkPreconditions)
+          .then(FeatureTaskHandler::prepareModifyFeatureOp)
           .then(FeatureTaskHandler::preprocessConditionalOp)
           .then(this::loadObjects)
           .then(this::verifyResourceExists)

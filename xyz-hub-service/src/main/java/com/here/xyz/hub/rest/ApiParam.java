@@ -100,9 +100,9 @@ public class ApiParam {
 
     public static final String SPACE_ID = "spaceId";
     public static final String CONNECTOR_ID = "connectorId";
-    static final String FEATURE_ID = "featureId";
-    static final String TILE_ID = "tileId";
-    static final String TILE_TYPE = "type";
+    public static final String FEATURE_ID = "featureId";
+    public static final String TILE_ID = "tileId";
+    public static final String TILE_TYPE = "type";
   }
 
   public static class Query {
@@ -272,10 +272,10 @@ public class ApiParam {
 
     public static List<String> getSort(RoutingContext context) {
       if (Query.getString(context, Query.SORT, null) == null) return null;
-      
+
       List<String> sort = new ArrayList<>();
-      for (String s : Query.queryParam(Query.SORT, context)) 
-        if (s.startsWith("p.") || s.startsWith("f.")) 
+      for (String s : Query.queryParam(Query.SORT, context))
+        if (s.startsWith("p.") || s.startsWith("f."))
          sort.add( s.replaceFirst("^p\\.", "properties.") );
 
       return sort;
@@ -286,14 +286,14 @@ public class ApiParam {
 
       int part, total;
       List<String> l = Query.queryParam(Query.PART, context);
-      if( l.size() <= 2 && l.size() >= 1 ) 
+      if( l.size() <= 2 && l.size() >= 1 )
        try
        { part  =  Integer.parseUnsignedInt( l.get(0) );
          total =  ( l.size() > 1 ? Integer.parseUnsignedInt( l.get(1) ) : /* -1 */ 1 ); // -1 to use n-handle modus
          return ( part == 0 || total == 0 ) ? null : new Integer[]{ Math.min(part, total), Math.max(part,total) };
        }
        catch(NumberFormatException e){}
-      
+
       return null;
     }
 

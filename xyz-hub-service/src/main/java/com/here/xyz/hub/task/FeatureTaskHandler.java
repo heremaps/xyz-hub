@@ -20,6 +20,7 @@
 package com.here.xyz.hub.task;
 
 import static com.here.xyz.hub.XYZHubRESTVerticle.STREAM_INFO_CTX_KEY;
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.BBOX;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.ID;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
@@ -50,7 +51,6 @@ import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.JWTPayload;
-import com.here.xyz.hub.connectors.RemoteFunctionClient;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.RpcClient.RpcContext;
 import com.here.xyz.hub.connectors.models.BinaryResponse;
@@ -61,6 +61,8 @@ import com.here.xyz.hub.connectors.models.Space.CacheProfile;
 import com.here.xyz.hub.connectors.models.Space.ConnectorType;
 import com.here.xyz.hub.connectors.models.Space.ResolvableListenerConnectorRef;
 import com.here.xyz.hub.rest.Api;
+import com.here.xyz.hub.rest.Api.Context;
+import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.FeatureTask.ConditionalOperation;
@@ -97,9 +99,14 @@ import io.vertx.core.Handler;
 import io.vertx.core.MultiMap;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.Cookie;
+import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.Json;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.validation.impl.RequestParametersImpl;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -912,6 +919,97 @@ public class FeatureTaskHandler {
       }
     }
     callback.call(task);
+  }
+
+  public static void prepareModifyFeatureOp(ConditionalOperation task, Callback<ConditionalOperation> callback) {
+    if (task.modifyOp != null) {
+      callback.call(task);
+      return;
+    }
+
+    try {
+      task.modifyOp = new ModifyFeatureOp(getFeatureModifications(task), task.ifNotExists, task.ifExists, task.transactional, task.conflictResolution);
+      callback.call(task);
+    } catch (HttpException e) {
+      logger.warn(task.getMarker(), e.getMessage(), e);
+      callback.exception(e);
+    } catch (Exception e) {
+      logger.warn(task.getMarker(), e.getMessage(), e);
+      callback.exception(new HttpException(BAD_REQUEST, "Unable to process the request input."));
+    }
+  }
+
+  private static List<Map<String, Object>> getFeatureModifications(ConditionalOperation task) throws Exception {
+    if (APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST.equals(task.context.parsedHeaders().contentType().rawValue())) {
+      return getObjectsAsList(task.context);
+    }
+
+    List<Map<String, Object>> features = getObjectsAsList(task.context);
+    if (task.responseType == ApiResponseType.FEATURE) { //TODO: Replace that evil hack
+      features.get(0).put("id", task.context.pathParam(ApiParam.Path.FEATURE_ID));
+    }
+
+    Map<String, Object> featureCollection = Collections.singletonMap("features", features);
+    return Collections.singletonList(Collections.singletonMap("featureData", featureCollection));
+  }
+
+  /**
+   * Parses the body of the request as a FeatureCollection, Feature or a FeatureModificationList object and returns the features as a list.
+   */
+  private static List<Map<String, Object>> getObjectsAsList(final RoutingContext context) throws HttpException {
+    final Marker logMarker = Context.getMarker(context);
+    try {
+      JsonObject json = context.getBodyAsJson();
+      return getJsonObjects(json, context);
+    }
+    catch (DecodeException e) {
+      logger.warn(logMarker, "Invalid input encoding.", e);
+      try {
+        //Some types of exceptions could be avoided by reading the entire string.
+        JsonObject json = new JsonObject(context.getBodyAsString());
+        return getJsonObjects(json, context);
+      }
+      catch (DecodeException ex) {
+        logger.info(logMarker, "Error in the provided content", ex.getCause());
+        throw new HttpException(BAD_REQUEST, "Invalid JSON input string: " + ex.getMessage());
+      }
+    }
+    catch (Exception e) {
+      logger.info(logMarker, "Error in the provided content", e);
+      throw new HttpException(BAD_REQUEST, "Cannot read input JSON string.");
+    }
+    finally {
+      context.setBody(null);
+      context.data().remove("requestParameters");
+      context.data().remove("parsedParameters");
+    }
+  }
+
+  private static List<Map<String, Object>> getJsonObjects(JsonObject json, RoutingContext context) throws HttpException {
+    try {
+      if (json == null) {
+        throw new HttpException(BAD_REQUEST, "Missing content");
+      }
+      if ("FeatureCollection".equals(json.getString("type"))) {
+        //noinspection unchecked
+        return json.getJsonArray("features", new JsonArray()).getList();
+      }
+      if ("FeatureModificationList".equals(json.getString("type"))) {
+        //noinspection unchecked
+        return json.getJsonArray("modifications", new JsonArray()).getList();
+      }
+      if ("Feature".equals(json.getString("type"))) {
+        return Collections.singletonList(json.getMap());
+      }
+      else {
+        throw new HttpException(BAD_REQUEST, "The provided content does not have a type of FeatureCollection,"
+            + " Feature or FeatureModificationList.");
+      }
+    }
+    catch (Exception e) {
+      logger.info(Context.getMarker(context), "Error in the provided content", e);
+      throw new HttpException(BAD_REQUEST, "Cannot read input JSON string.");
+    }
   }
 
   static void preprocessConditionalOp(ConditionalOperation task, Callback<ConditionalOperation> callback) throws Exception {
