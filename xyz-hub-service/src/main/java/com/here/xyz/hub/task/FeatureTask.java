@@ -643,8 +643,8 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
 
     public ConditionalOperation(ModifyFeaturesEvent event, RoutingContext context, ApiResponseType apiResponseTypeType,
-        IfNotExists ifNotExists, IfExists ifExists, boolean transactional, ConflictResolution conflictResolution, boolean requireResourceExists) {
-      this(event, context, apiResponseTypeType, null, requireResourceExists);
+        IfNotExists ifNotExists, IfExists ifExists, boolean transactional, ConflictResolution conflictResolution, boolean requireResourceExists, int requestBodySize) {
+      this(event, context, apiResponseTypeType, null, requireResourceExists, requestBodySize);
       this.ifNotExists = ifNotExists;
       this.ifExists = ifExists;
       this.transactional = transactional;

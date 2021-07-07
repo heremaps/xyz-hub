@@ -49,13 +49,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 public class FeatureApi extends SpaceBasedApi {
-
-  private static final Logger logger = LogManager.getLogger();
-  public static final String REQUEST_BODY_SIZE = "requestBodySize";
 
   public FeatureApi(RouterBuilder rb) {
     rb.operation("getFeature").handler(this::getFeature);
@@ -206,8 +201,8 @@ public class FeatureApi extends SpaceBasedApi {
       ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional, ConflictResolution cr,
       List<Map<String, Object>> featureModifications) {
     ModifyFeaturesEvent event = new ModifyFeaturesEvent().withTransaction(transactional);
-    Integer bodySize = context.get(REQUEST_BODY_SIZE);
-    ConditionalOperation task = buildConditionalOperation(event, context, apiResponseTypeType, featureModifications, ifNotExists, ifExists, transactional, cr, requireResourceExists);
+    int bodySize = context.getBody() != null ? context.getBody().length() : 0;
+    ConditionalOperation task = buildConditionalOperation(event, context, apiResponseTypeType, featureModifications, ifNotExists, ifExists, transactional, cr, requireResourceExists, bodySize);
     final List<String> addTags = Query.queryParam(Query.ADD_TAGS, context);
     final List<String> removeTags = Query.queryParam(Query.REMOVE_TAGS, context);
     task.addTags = XyzNamespace.normalizeTags(addTags);
