@@ -285,9 +285,11 @@ public class FeatureQueryApi extends SpaceBasedApi {
       GetFeaturesByTileEvent event = new GetFeaturesByTileEvent();
 
       String optimMode = Query.getString(context, Query.OPTIM_MODE, "raw");
+      
+      boolean defClip = ( "viz".equals(optimMode) && (Query.getBoolean(context, Query.CLIP, false) != Query.getBoolean(context, Query.CLIP, true)) ? true : false );
 
       try {
-        event.withClip(Query.getBoolean(context, Query.CLIP, false) || responseType == ApiResponseType.MVT || responseType == ApiResponseType.MVT_FLATTENED)
+        event.withClip(Query.getBoolean(context, Query.CLIP, defClip) || responseType == ApiResponseType.MVT || responseType == ApiResponseType.MVT_FLATTENED)
               .withMargin(Query.getInteger(context, Query.MARGIN, 0))
               .withClusteringType(Query.getString(context, Query.CLUSTERING, null))
               .withClusteringParams(Query.getAdditionalParams(context, Query.CLUSTERING))

@@ -403,8 +403,17 @@ public class SQLQueryBuilder {
 
      /* TweaksSQL.ENSURE */
      boolean bTestTweaksGeoIfNull = false;
-     String tweaksGeoSql = clipProjGeom(bbox,"geo");
-     tweaksGeoSql = map2MvtGeom( event, bbox, tweaksGeoSql );
+     String tweaksGeoSql;
+
+     if (event.getClip())
+     { tweaksGeoSql = clipProjGeom(bbox,"geo");
+       tweaksGeoSql = map2MvtGeom( event, bbox, tweaksGeoSql );
+     }
+     else
+     { double tolerance = Math.abs( bbox.maxLon() - bbox.minLon() ) / 4096;
+       tweaksGeoSql = String.format("ST_SnapToGrid(%s, %f)","geo", tolerance );
+     }
+     
      //convert to geojson
      tweaksGeoSql = ( bConvertGeo2Geojson ? String.format("replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "( %s ),%d),'nan','0')",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS)
                                           : String.format( getForceMode(event.isForce2D()) + "( %s )",tweaksGeoSql ) );

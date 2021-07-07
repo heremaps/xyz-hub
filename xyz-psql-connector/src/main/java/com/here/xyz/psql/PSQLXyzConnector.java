@@ -244,7 +244,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
             }
             else
             { // fall thru tweaks=simplification e.g. mode=viz and vizSampling=off
-              tweakParams.put("algorithm", new String("gridbytilelevel"));
+              tweakParams.remove("strength");
+              tweakParams.put("algorithm", event.getClip() ? new String("gridbytilelevel") : new String("grid") );
             }
           }
 
