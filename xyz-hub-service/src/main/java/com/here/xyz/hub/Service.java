@@ -532,6 +532,11 @@ public class Service extends Core {
     public int REMOTE_FUNCTION_MAX_CONNECTIONS;
 
     /**
+     * The amount of memory (in MB) which can be taken by incoming requests.
+     */
+    public int GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE_MB;
+
+    /**
      * A value between 0 and 1 defining a threshold as percentage of utilized RemoteFunction max-connections after which to start
      * prioritizing more important connectors over less important ones.
      *
@@ -543,7 +548,13 @@ public class Service extends Core {
      * A value between 0 and 1 defining a threshold as percentage of utilized memory for in-flight request after which to start
      * prioritizing more important connectors over less important ones.
      */
-    public float IN_FLIGHT_REQUEST_MEMORY_HIGH_UTILIZATION_THRESHOLD;
+    public float GLOBAL_INFLIGHT_REQUEST_MEMORY_HIGH_UTILIZATION_THRESHOLD;
+
+    /**
+     * A factor by which to multiply the incoming request body size to get an estimated value for
+     * the memory the request is going to utilize.
+     */
+    public float INFLIGHT_REQUEST_BODY_OVERHEAD_FACTOR;
 
     /**
      * The remote function pool ID to be used to select the according remote functions for this Service environment.
