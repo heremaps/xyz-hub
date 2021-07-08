@@ -39,7 +39,7 @@ public class DatabaseMaintainer {
     private static final Logger logger = LogManager.getLogger();
 
     /** Is used to check against xyz_ext_version() */
-    private static final int XYZ_EXT_VERSION = 141;
+    private static final int XYZ_EXT_VERSION = 142;
 
     private DataSource dataSource;
     private PSQLConfig config;

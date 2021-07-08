@@ -85,7 +85,7 @@ public class QuadbinSQL {
 
         double bufferSizeInDeg = tile.getBBox(false).widthInDegree(true) / (Math.pow(2, resolution) *  1024.0);
         String realCountCondition = "",
-               _pureEstimation = "case when exists (select 1 from pg_stats where schemaname = '"+schema+"' and tablename = '"+space+"' and attname = 'geo') then _postgis_selectivity( '"+schema+".\""+space+"\"'::regclass, 'geo',qkbbox) else 0.0 end ", 
+               _pureEstimation = "xyz_postgis_selectivity( '"+schema+".\""+space+"\"'::regclass, 'geo',qkbbox) ",
                pureEstimation = "",
                estCalc = "cond_est_cnt",
                qkGeo   = (!noBuffer ? String.format("ST_Buffer(qkbbox, -%f)",bufferSizeInDeg) : "qkbbox"),
