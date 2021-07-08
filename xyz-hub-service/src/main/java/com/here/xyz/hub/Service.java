@@ -467,6 +467,12 @@ public class Service extends Core {
     public boolean INSERT_LOCAL_CONNECTORS;
 
     /**
+     * If set to true, the connectors will receive health checks. Further an unhealthy connector gets deactivated
+     * automatically if the connector config does not include skipAutoDisable.
+     */
+    public boolean ENABLE_CONNECTOR_HEALTH_CHECKS;
+
+    /**
      * The ID of the default storage connector.
      */
     public String DEFAULT_STORAGE_ID;
