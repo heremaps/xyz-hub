@@ -55,10 +55,13 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 import org.apache.commons.lang3.StringUtils;
@@ -161,9 +164,11 @@ public class Service extends Core {
     connectorConfigClient = ConnectorConfigClient.getInstance();
 
     webClient = WebClient.create(vertx, new WebClientOptions()
-//        .setMaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)
+        .setMaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)
+        .setHttp2MaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)
         .setUserAgent(XYZ_HUB_USER_AGENT)
-//        .setTcpKeepAlive(true)
+        .setTcpKeepAlive(configuration.HTTP_CLIENT_TCP_KEEPALIVE)
+        .setIdleTimeout(configuration.HTTP_CLIENT_IDLE_TIMEOUT)
         .setTcpQuickAck(true)
         .setTcpFastOpen(true)
         .setTryUseCompression(true)
@@ -462,6 +467,12 @@ public class Service extends Core {
     public boolean INSERT_LOCAL_CONNECTORS;
 
     /**
+     * If set to true, the connectors will receive health checks. Further an unhealthy connector gets deactivated
+     * automatically if the connector config does not include skipAutoDisable.
+     */
+    public boolean ENABLE_CONNECTOR_HEALTH_CHECKS;
+
+    /**
      * The ID of the default storage connector.
      */
     public String DEFAULT_STORAGE_ID;
@@ -527,12 +538,29 @@ public class Service extends Core {
     public int REMOTE_FUNCTION_MAX_CONNECTIONS;
 
     /**
+     * The amount of memory (in MB) which can be taken by incoming requests.
+     */
+    public int GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE_MB;
+
+    /**
      * A value between 0 and 1 defining a threshold as percentage of utilized RemoteFunction max-connections after which to start
      * prioritizing more important connectors over less important ones.
      *
      * @see Config#REMOTE_FUNCTION_MAX_CONNECTIONS
      */
     public float REMOTE_FUNCTION_CONNECTION_HIGH_UTILIZATION_THRESHOLD;
+
+    /**
+     * A value between 0 and 1 defining a threshold as percentage of utilized memory for in-flight request after which to start
+     * prioritizing more important connectors over less important ones.
+     */
+    public float GLOBAL_INFLIGHT_REQUEST_MEMORY_HIGH_UTILIZATION_THRESHOLD;
+
+    /**
+     * A factor by which to multiply the incoming request body size to get an estimated value for
+     * the memory the request is going to utilize.
+     */
+    public float INFLIGHT_REQUEST_BODY_OVERHEAD_FACTOR;
 
     /**
      * The remote function pool ID to be used to select the according remote functions for this Service environment.
@@ -616,6 +644,33 @@ public class Service extends Core {
      * Whether to activate pipelining for the HTTP client of the service.
      */
     public boolean HTTP_CLIENT_PIPELINING;
+
+    /**
+     * Whether to activate TCP keepalive for the HTTP client of the service.
+     */
+    public boolean HTTP_CLIENT_TCP_KEEPALIVE = true;
+
+    /**
+     * The idle connection timeout in seconds for the HTTP client of the service.
+     * Setting it to 0 will make the connections not timing out at all.
+     */
+    public int HTTP_CLIENT_IDLE_TIMEOUT = 120;
+
+    /**
+     * List of fields, separated by comma, which are optional on feature's namespace property.
+     */
+    public List<String> FEATURE_NAMESPACE_OPTIONAL_FIELDS = Collections.emptyList();
+    private Map<String, Object> FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP;
+
+    public boolean containsFeatureNamespaceOptionalField(String field) {
+      if (FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP == null) {
+        FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP = new HashMap<String,Object>() {{
+          FEATURE_NAMESPACE_OPTIONAL_FIELDS.forEach(k -> put(k, null));
+        }};
+      }
+
+      return FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP.containsKey(field);
+    }
   }
 
   /**

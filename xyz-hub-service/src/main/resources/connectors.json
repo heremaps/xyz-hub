@@ -4,6 +4,7 @@
     "params": {
       "autoIndexing": true,
       "propertySearch": true,
+      "mvtSupport": true,
       "connectorId" : "psql"
     },
     "capabilities": {

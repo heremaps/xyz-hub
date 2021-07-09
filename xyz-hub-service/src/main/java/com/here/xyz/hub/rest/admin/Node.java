@@ -31,6 +31,7 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
+import io.vertx.core.net.impl.ConnectionBase;
 import io.vertx.ext.web.client.HttpResponse;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -54,6 +55,7 @@ public class Node {
   private static final int NODE_COUNT_FETCH_PERIOD = 30_000; //ms
   private static final int CLUSTER_NODES_CHECKER_PERIOD = 120_000; //ms
   private static final int CLUSTER_NODES_PING_PERIOD = 600_000; //ms
+  private static final int MAX_HC_FAILURE_COUNT = 3;
 
   public static final Node OWN_INSTANCE = new Node(Service.HOST_ID, Service.getHostname(),
       Service.configuration != null ? Service.getPublicPort() : -1);
@@ -63,6 +65,7 @@ public class Node {
   public String id;
   public String ip;
   public int port;
+  public int consecutiveHcFailures;
   @JsonIgnore
   private URL url;
 
@@ -99,7 +102,13 @@ public class Node {
   private static void initNodeChecker() {
     if (Service.vertx != null) {
       Service.vertx.setPeriodic(CLUSTER_NODES_CHECKER_PERIOD, timerId -> otherClusterNodes.forEach(otherNode -> otherNode.isHealthy(ar -> {
-        if (ar.failed()) otherClusterNodes.remove(otherNode);
+        if (ar.failed()) {
+          otherNode.consecutiveHcFailures++;
+          if (otherNode.consecutiveHcFailures >= MAX_HC_FAILURE_COUNT)
+            otherClusterNodes.remove(otherNode);
+        }
+        else
+          otherNode.consecutiveHcFailures = 0;
       })));
     }
   }
@@ -117,28 +126,37 @@ public class Node {
   }
 
   private void callHealthCheck(boolean onlyAliveCheck, Handler<AsyncResult<Void>> callback) {
-    Service.webClient.get(port, ip, HealthApi.MAIN_HEALTCHECK_ENDPOINT)
-        .timeout(TimeUnit.SECONDS.toMillis(HEALTH_TIMEOUT))
-        .putHeader(Config.getHealthCheckHeaderName(), Config.getHealthCheckHeaderValue())
-        .send(ar -> {
-          if (ar.succeeded()) {
-            HttpResponse<Buffer> response = ar.result();
-            if (onlyAliveCheck || response.statusCode() == 200) {
-              Response r = response.bodyAsJson(Response.class);
-              if (id.equals(r.getNode()))
-                callback.handle(Future.succeededFuture());
-              else
-                callback.handle(Future.failedFuture("Node with ID " + id + " and IP " + ip + " is not existing anymore. "
-                    + "IP is now used by node with ID " + r.getNode()));
+    try {
+      Service.webClient.get(port, ip, HealthApi.MAIN_HEALTCHECK_ENDPOINT)
+          .timeout(TimeUnit.SECONDS.toMillis(HEALTH_TIMEOUT))
+          .putHeader(Config.getHealthCheckHeaderName(), Config.getHealthCheckHeaderValue())
+          .send(ar -> {
+            if (ar.succeeded()) {
+              HttpResponse<Buffer> response = ar.result();
+              if (onlyAliveCheck || response.statusCode() == 200) {
+                Response r = response.bodyAsJson(Response.class);
+                if (id.equals(r.getNode()))
+                  callback.handle(Future.succeededFuture());
+                else
+                  callback.handle(Future.failedFuture("Node with ID " + id + " and IP " + ip + " is not existing anymore. "
+                      + "IP is now used by node with ID " + r.getNode()));
+              }
+              else {
+                callback.handle(Future.failedFuture("Node with ID " + id + " and IP " + ip + " is not healthy."));
+              }
             }
             else {
-              callback.handle(Future.failedFuture("Node with ID " + id + " and IP " + ip + " is not healthy."));
+              callback.handle(Future.failedFuture("Node with ID " + id + " and IP " + ip + " is not reachable."));
             }
-          }
-          else {
-            callback.handle(Future.failedFuture("Node with ID " + id + " and IP " + ip + " is not reachable."));
-          }
-        });
+          });
+    }
+    catch (RuntimeException e) {
+      if (e == ConnectionBase.CLOSED_EXCEPTION) {
+        e = new RuntimeException("Connection was already closed.", e);
+        logger.warn("Error calling health-check of other service node.", e);
+      }
+      callback.handle(Future.failedFuture(e));
+    }
   }
 
   @JsonIgnore

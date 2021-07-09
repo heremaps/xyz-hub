@@ -166,15 +166,18 @@ public class PSQLXyzConnector extends DatabaseHandler {
               bSelectionStar = false,
               bClustering = (event.getClusteringType() != null);
 
-      int mvtFromDbRequested = SQLQueryBuilder.mvtFromDbRequested(event),
+      int mvtTypeRequested = SQLQueryBuilder.mvtTypeRequested(event),
           mvtMargin = 0;
-      boolean bMvtFlattend = ( mvtFromDbRequested > 1 ),
-              bMvtFromHub  = SQLQueryBuilder.mvtFromHubRequested(event);
+      boolean bMvtFlattend = ( mvtTypeRequested > 1 );
 
       WebMercatorTile mvtTile = null;
 
-      if( mvtFromDbRequested > 0 )
-      { GetFeaturesByTileEvent e = (GetFeaturesByTileEvent) event; // TileEvent is garanteed
+      if( mvtTypeRequested > 0 )
+      { 
+        if( event.getConnectorParams() == null || event.getConnectorParams().get("mvtSupport") != Boolean.TRUE )
+         throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "mvt format is not supported");
+        
+        GetFeaturesByTileEvent e = (GetFeaturesByTileEvent) event; // TileEvent is garanteed
         mvtTile = WebMercatorTile.forWeb(e.getLevel(), e.getX(), e.getY());
         mvtMargin = e.getMargin();
       }
@@ -184,14 +187,14 @@ public class PSQLXyzConnector extends DatabaseHandler {
         bSelectionStar = true; // differentiation needed, due to different semantic of "event.getSelection() == null" tweaks vs. nonTweaks
       }
 
-      if( !bClustering && ( bTweaks || bOptViz || bMvtFromHub ) )
+      if( !bClustering && ( bTweaks || bOptViz ) )
       {
         Map<String, Object> tweakParams;
         boolean bVizSamplingOff = false;
 
         if( bTweaks )
          tweakParams = event.getTweakParams();
-        else if ( bMvtFromHub && !bOptViz )
+        else if ( !bOptViz )
         { event.setTweakType( TweaksSQL.SIMPLIFICATION );
           tweakParams = new HashMap<String, Object>();
           tweakParams.put("algorithm", new String("gridbytilelevel"));
@@ -234,7 +237,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
           case TweaksSQL.SAMPLING: {
             if( bTweaks || !bVizSamplingOff )
             {
-              if( mvtFromDbRequested == 0 )
+              if( mvtTypeRequested == 0 )
               { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, dataSource));
                 if( distStrength > 0 ) collection.setPartial(true); // either ensure mode or explicit tweaks:sampling request where strenght in [1..100]
                 return collection;
@@ -250,7 +253,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
           }
 
           case TweaksSQL.SIMPLIFICATION: {
-            if( mvtFromDbRequested == 0 )
+            if( mvtTypeRequested == 0 )
             { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams, dataSource));
               return collection;
             }
@@ -269,7 +272,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
         switch(event.getClusteringType().toLowerCase())
         {
           case H3SQL.HEXBIN :
-           if( mvtFromDbRequested == 0 )
+           if( mvtTypeRequested == 0 )
             return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource));
            else
             return executeBinQueryWithRetry(
@@ -284,7 +287,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
            QuadbinSQL.checkQuadbinInput(countMode, relResolution, event, config.readTableFromEvent(event), streamId, this);
 
-            if( mvtFromDbRequested == 0 )
+            if( mvtTypeRequested == 0 )
               return executeQueryWithRetry(SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config, noBuffer));
             else
               return executeBinQueryWithRetry(
@@ -304,7 +307,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
         }
       }
 
-      if( mvtFromDbRequested == 0 )
+      if( mvtTypeRequested == 0 )
        return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource));
       else
        return executeBinQueryWithRetry( SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource), mvtTile, mvtMargin, bMvtFlattend ) );

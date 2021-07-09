@@ -1199,7 +1199,7 @@ components:
       name: mode
       in: query
       description: >-
-        optimize resultset and geometries for dispaly. mode = [raw|viz]
+        Optimize resultset and geometries for dispaly. mode = [raw|viz]
 
 
         Note: when using mode=viz, the value of "limit" parameter will be set
@@ -1545,7 +1545,7 @@ components:
       description: >-
         Choose sampling strength in case of mode = viz.
 
-        vizSampling = [low|med|high|off] - default:med.
+        vizSampling = [low|med|high|off] - default: med.
       required: false
       schema:
         type: string
@@ -2183,6 +2183,7 @@ components:
           ecps: myEncryptedAndVeryLongEcpsString
           autoIndexing: true
           propertySearch: true
+          mvtSupport: true
         remoteFunction:
           id: test1
           lambdaARN: arn:aws:lambda:eu-west-1:<myAwsAccountId>:function:test1
@@ -2505,6 +2506,7 @@ components:
           Feature: '#/components/schemas/Feature'
           FeatureCollection: '#/components/schemas/FeatureCollection'
           Geometry: '#/components/schemas/Geometry'
+      additionalProperties: true
     Geometry:
       allOf:
         - $ref: '#/components/schemas/GeoJSON'
@@ -3165,3 +3167,4 @@ components:
           items:
             type: string
           type: array
+  

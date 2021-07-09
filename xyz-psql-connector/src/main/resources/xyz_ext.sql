@@ -151,7 +151,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 142
+ select 143
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
@@ -3379,5 +3379,19 @@ $BODY$
   LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
 ------------------------------------------------
-
-
+CREATE OR REPLACE FUNCTION xyz_postgis_selectivity( tbl regclass, att_name text, geom geometry )
+ returns double precision
+language 'plpgsql'
+cost 1
+volatile strict parallel safe
+as
+$body$
+declare
+begin
+ return _postgis_selectivity( tbl, att_name, geom );
+ exception when others then
+  return 0.0;
+end;
+$body$;
+------------------------------------------------
+------------------------------------------------

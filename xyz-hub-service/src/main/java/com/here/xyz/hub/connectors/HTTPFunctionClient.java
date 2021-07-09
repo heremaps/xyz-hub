@@ -44,6 +44,7 @@ import java.nio.charset.Charset;
 import java.util.concurrent.TimeoutException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
 public class HTTPFunctionClient extends RemoteFunctionClient {
 
@@ -69,43 +70,27 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
   }
 
   protected void invoke(FunctionCall fc, Handler<AsyncResult<byte[]>> callback) {
-    invokeWithRetry(fc, 0, callback);
-  }
-
-  private void invokeWithRetry(FunctionCall fc, int tryCount, Handler<AsyncResult<byte[]>> callback) {
     final RemoteFunctionConfig remoteFunction = getConnectorConfig().getRemoteFunction();
     logger.info(fc.marker, "Invoke http remote function '{}' URL is: {} Event size is: {}",
         remoteFunction.id, url, fc.getByteSize());
 
-    final int nextTryCount = tryCount + 1;
     try {
       Service.webClient.postAbs(url)
           .timeout(REQUEST_TIMEOUT)
           .putHeader(CONTENT_TYPE, "application/json; charset=" + Charset.defaultCharset().name())
           .putHeader(STREAM_ID, fc.marker.getName())
-          .sendBuffer(Buffer.buffer(fc.getPayload()), ar -> {
+          .sendBuffer(Buffer.buffer(fc.consumePayload()), ar -> {
             if (fc.fireAndForget) return;
-            if (ar.failed()) {
-              if (ar.cause() instanceof TimeoutException) {
-                callback.handle(Future.failedFuture(new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.")));
-              }
-              else {
-                handleFailure(fc, nextTryCount, callback, new RuntimeException(ar.cause()));
-              }
-            }
+            if (ar.failed())
+              handleFailure(fc.marker, callback, ar.cause());
             else {
-              try {
-                fc.consumePayload();
-              }
-              catch (PayloadVanishedException ignore) {}
               try {
                 validateHttpStatus(ar.result());
                 byte[] responseBytes = ar.result().body().getBytes();
                 callback.handle(Future.succeededFuture(responseBytes));
               }
               catch (Exception e) {
-                handleFailure(fc, nextTryCount, callback,
-                    new HttpException(BAD_GATEWAY, "Error while handling response of HTTP connector.", e));
+                handleFailure(fc.marker, callback, new HttpException(BAD_GATEWAY, "Error while handling response of HTTP connector.", e));
               }
             }
           });
@@ -114,7 +99,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
       callback.handle(Future.failedFuture(new HttpException(TOO_MANY_REQUESTS, "Remote function is busy or cannot be invoked.")));
     }
     catch (Exception e) {
-      handleFailure(fc, nextTryCount, callback, e);
+      handleFailure(fc.marker, callback, e);
     }
   }
 
@@ -123,7 +108,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
       HttpResponseStatus upstreamStatus = Strings.isNullOrEmpty(response.statusMessage()) ?
           HttpResponseStatus.valueOf(response.statusCode()) : new HttpResponseStatus(response.statusCode(), response.statusMessage());
       HttpException upstreamHttpEx = new HttpException(upstreamStatus, "Remote HTTP connector service responded with: " + upstreamStatus);
-      if (upstreamStatus == GATEWAY_TIMEOUT)
+      if (upstreamStatus.equals(GATEWAY_TIMEOUT))
         throw upstreamHttpEx;
       throw new HttpException(BAD_GATEWAY, "Remote HTTP connector service did not respond with 200(OK)", upstreamHttpEx);
     }
@@ -131,18 +116,15 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
       throw new HttpException(BAD_GATEWAY, "Response body from remote HTTP connector service was empty.");
   }
 
-  private void handleFailure(FunctionCall fc, int tryCount, Handler<AsyncResult<byte[]>> callback, Exception e) {
-    if (e == ConnectionBase.CLOSED_EXCEPTION) {
-      e = new RuntimeException("Connection was already closed.", e);
-      if (tryCount <= 1) {
-        logger.warn(fc.marker, e.getMessage() + " Retrying ...", e);
-        invokeWithRetry(fc, tryCount, callback);
-        return;
-      }
-    }
-    logger.warn(fc.marker, "Error while calling remote HTTP service", e);
-    if (!(e instanceof HttpException))
-      e = new HttpException(BAD_GATEWAY, "Connector error.", e);
-    callback.handle(Future.failedFuture(e));
+  private void handleFailure(Marker marker, Handler<AsyncResult<byte[]>> callback, Throwable t) {
+    if (t == ConnectionBase.CLOSED_EXCEPTION)
+      //Re-attach a stack-trace until here
+      t = new RuntimeException("Connection was already closed.", t);
+    logger.warn(marker, "Error while calling remote HTTP service", t);
+    if (t instanceof TimeoutException)
+      t = new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.", t);
+    if (!(t instanceof HttpException))
+      t = new HttpException(BAD_GATEWAY, "Connector error.", t);
+    callback.handle(Future.failedFuture(t));
   }
 }
