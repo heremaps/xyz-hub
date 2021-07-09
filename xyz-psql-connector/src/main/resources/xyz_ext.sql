@@ -2850,54 +2850,6 @@ $body$
 $body$
 language sql immutable;
 
-
-------------------------------------------------
-------------------------------------------------
--- Function: xyz_statistic_space_obsolete(text, text)
--- DROP FUNCTION xyz_statistic_space(text, text);
-CREATE OR REPLACE FUNCTION xyz_statistic_space(
-    IN schema text,
-    IN spaceid text)
-  RETURNS TABLE(tablesize jsonb, geometrytypes jsonb, properties jsonb, tags jsonb, count jsonb, bbox jsonb, searchable text) AS
-$BODY$
-	/**
-	* Description: Returns complete statistic about a XYZ-space. The thresholds for small and big tables are defined here.
-	*
-	* Parameters:
-	*   @schema			- schema in which the XYZ-spaces are located
-	*   @spaceid		- id of the space (tablename)
-	*
-	* Returns (table):
-	*   tabelsize		- storage size of space
-	*   geometrytypes	- list of geometrytypes which are present
-	*   properties		- list of available properties and their counts
-	*   tags			- number of tags found in space
-	*   count			- number of records found in space
-	*   bbox			- bbox in which the space objects are located
-	*	searchable		- ALL | PARTIAL
-	*/
-
-	/**  Defines how much records a big table has */
-	DECLARE big_space_threshold integer := 10000;
-
-	/** Defines the value for the tablesample statement */
-	DECLARE tablesamplecnt integer := 1000;
-
-	/** used for big-spaces and get filled via pg_class */
-	DECLARE estimate_cnt bigint;
-
-	BEGIN
-		SELECT reltuples into estimate_cnt FROM pg_class WHERE oid = concat('"',$1, '"."', $2, '"')::regclass;
-
-		IF estimate_cnt > big_space_threshold THEN
-			RETURN QUERY EXECUTE 'select * from xyz_statistic_xl_space('''||schema||''', '''||spaceid||''' , '||tablesamplecnt||')';
-		ELSE
-			RETURN QUERY EXECUTE 'select * from xyz_statistic_xs_space('''||schema||''','''||spaceid||''')';
-		END IF;
-        END;
-$BODY$
-  LANGUAGE plpgsql VOLATILE;
-
 CREATE OR REPLACE FUNCTION xyz_statistic_space499(
     IN schema text,
     IN spaceid text)
@@ -2926,11 +2878,32 @@ $BODY$
 $BODY$
   LANGUAGE plpgsql VOLATILE;
 
+------------------------------------------------
+------------------------------------------------
+-- Function: xyz_statistic_space(text, text)
+-- DROP FUNCTION xyz_statistic_space(text, text);
+
 CREATE OR REPLACE FUNCTION xyz_statistic_space(
     IN schema text,
     IN spaceid text)
   RETURNS TABLE(tablesize jsonb, geometrytypes jsonb, properties jsonb, tags jsonb, count jsonb, bbox jsonb, searchable text) AS
 $BODY$
+	/**
+	* Description: Returns complete statistic about a XYZ-space. The thresholds for small and big tables are defined here.
+	*
+	* Parameters:
+	*   @schema			- schema in which the XYZ-spaces are located
+	*   @spaceid		- id of the space (tablename)
+	*
+	* Returns (table):
+	*   tabelsize		- storage size of space
+	*   geometrytypes	- list of geometrytypes which are present
+	*   properties		- list of available properties and their counts
+	*   tags			- number of tags found in space
+	*   count			- number of records found in space
+	*   bbox			- bbox in which the space objects are located
+	*	searchable		- ALL | PARTIAL
+	*/
   select * from xyz_statistic_space499(schema,spaceid)
 $BODY$
  LANGUAGE sql VOLATILE;
