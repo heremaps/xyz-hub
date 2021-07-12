@@ -292,9 +292,10 @@ public class SQLQueryBuilder {
 
     private static String map2MvtGeom( GetFeaturesByBBoxEvent event, BBox bbox, String tweaksGeoSql )
     {
-     boolean bExtend512 = (   "viz".equals(event.getOptimizationMode())
-                           || (event.getTweakParams() != null && event.getTweakParams().size() > 0 )); // -> 512 only if tweaks or viz been specified explicit
-     int extend = ( bExtend512 ? 512 : 4096 ), extendPerMargin = extend / WebMercatorTile.TileSizeInPixel, extendWithMargin = extend, level = -1, tileX = -1, tileY = -1, margin = 0;
+     boolean bExtendTweaks = // -> 2048 only if tweaks or viz been specified explicit
+      ( "viz".equals(event.getOptimizationMode()) || (event.getTweakParams() != null && event.getTweakParams().size() > 0 ) ); 
+
+     int extend = ( bExtendTweaks ? 2048 : 4096 ), extendPerMargin = extend / WebMercatorTile.TileSizeInPixel, extendWithMargin = extend, level = -1, tileX = -1, tileY = -1, margin = 0;
 
      if( event instanceof GetFeaturesByTileEvent )
      { GetFeaturesByTileEvent tevnt = (GetFeaturesByTileEvent) event;
@@ -395,10 +396,10 @@ public class SQLQueryBuilder {
      final SQLQuery searchQuery = generateSearchQuery(event,dataSource),
                     tweakQuery = new SQLQuery(twqry);
 
-     if( !bEnsureMode )
+     if( !bEnsureMode || !bConvertGeo2Geojson )  
       return generateCombinedQuery(event, tweakQuery, searchQuery , dataSource, bConvertGeo2Geojson, null );
 
-     /* TweaksSQL.ENSURE */
+     /* TweaksSQL.ENSURE and geojson requested (no mvt) */
      boolean bTestTweaksGeoIfNull = false;
      String tweaksGeoSql = clipProjGeom(bbox,"geo");
      tweaksGeoSql = map2MvtGeom( event, bbox, tweaksGeoSql );
