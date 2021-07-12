@@ -65,9 +65,11 @@ import io.vertx.core.MultiMap;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpServerResponse;
+import io.vertx.core.json.EncodeException;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.web.RoutingContext;
+import java.io.ByteArrayOutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.nio.charset.Charset;
@@ -83,8 +85,8 @@ public abstract class Api {
 
   private static final Logger logger = LogManager.getLogger();
 
-  public static final int MAX_SERVICE_RESPONSE_SIZE = Service.configuration.MAX_SERVICE_RESPONSE_SIZE;
-  public static final int MAX_HTTP_RESPONSE_SIZE = Service.configuration.MAX_HTTP_RESPONSE_SIZE;
+  public static final int MAX_SERVICE_RESPONSE_SIZE = (Service.configuration == null ? 0 :  Service.configuration.MAX_SERVICE_RESPONSE_SIZE);
+  public static final int MAX_HTTP_RESPONSE_SIZE = (Service.configuration == null ? 0 :Service.configuration.MAX_HTTP_RESPONSE_SIZE);
   public static final HttpResponseStatus RESPONSE_PAYLOAD_TOO_LARGE = new HttpResponseStatus(513, "Response payload too large");
   public static final String RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE =
       "The response payload was too large. Please try to reduce the expected amount of data.";
@@ -495,6 +497,30 @@ public abstract class Api {
       sendErrorResponse(task.context, new HttpException(RESPONSE_PAYLOAD_TOO_LARGE, RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE));
     } else {
       httpResponse.putHeader(CONTENT_TYPE, contentType);
+      httpResponse.end(Buffer.buffer(response));
+    }
+  }
+
+  protected void sendResponse(RoutingContext context, HttpResponseStatus status, Object o) {
+    HttpServerResponse httpResponse = context.response().setStatusCode(status.code());
+
+    byte[] response;
+    try {
+      if(o instanceof ByteArrayOutputStream)
+        response = ((ByteArrayOutputStream) o).toByteArray();
+      else
+        response = Json.encode(o).getBytes();
+    } catch (EncodeException e) {
+      sendErrorResponse(context, new HttpException(INTERNAL_SERVER_ERROR, "Could not serialize response.", e));
+      return;
+    }
+
+    if (response.length == 0) {
+      httpResponse.setStatusCode(NO_CONTENT.code()).end();
+    } else if (response.length > getMaxResponseLength(context)) {
+      sendErrorResponse(context, new HttpException(RESPONSE_PAYLOAD_TOO_LARGE, RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE));
+    } else {
+      httpResponse.putHeader(CONTENT_TYPE, APPLICATION_JSON);
       httpResponse.end(Buffer.buffer(response));
     }
   }

@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.crypto.tink.aead.AeadConfig;
 import com.google.crypto.tink.subtle.AesGcmJce;
 import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
+import com.here.xyz.connectors.SimulatedContext;
 import com.here.xyz.events.Event;
 import com.here.xyz.psql.DatabaseMaintainer;
 import com.here.xyz.util.Hasher;
@@ -43,10 +44,12 @@ import static com.here.xyz.psql.config.DatabaseSettings.*;
 public class PSQLConfig {
   private static final Logger logger = LogManager.getLogger();
   public static final String ECPS_PHRASE = "ECPS_PHRASE";
+  public static final String MAINTENANCE_ENDPOINT = "MAINTENANCE_SERVICE_ENDPOINT";
 
-    private DataSource dataSource;
+  private DataSource dataSource;
   private DataSource readDataSource;
   private DatabaseMaintainer databaseMaintainer;
+  private String maintenanceServiceEndpoint;
 
   public void addDataSource(DataSource dataSource){
     this.dataSource = dataSource;
@@ -73,21 +76,21 @@ public class PSQLConfig {
     return this.readDataSource;
   }
 
-
   private final ConnectorParameters connectorParams;
   private final DatabaseSettings databaseSettings;
+  private final String ecps;
   private Map<String, Object> decodedECPSDatabaseSettings;
 
-  private final Context context;
   private String applicationName;
 
   public PSQLConfig(Event event, Context context, TraceItem traceItem) {
-    this.context = context;
     this.connectorParams = event == null ? new ConnectorParameters(null, traceItem) : new ConnectorParameters(event.getConnectorParams(), traceItem);
     this.applicationName = context.getFunctionName();
+    this.ecps = connectorParams.getEcps() ;
 
     /** Stored in env variable */
-    String ecpsPhrase = DatabaseSettings.readFromEnvVars(ECPS_PHRASE, context);
+    String ecpsPhrase = readFromEnvVars(ECPS_PHRASE, context);
+    maintenanceServiceEndpoint = readFromEnvVars(MAINTENANCE_ENDPOINT, context);
     databaseSettings = new DatabaseSettings(context);
 
     /** Fallback: support old env-variable */
@@ -95,7 +98,7 @@ public class PSQLConfig {
       connectorParams.setDbMaxPoolSize(databaseSettings.getMaxConnections());
 
     /** If there exists an ECPS String override the databaseSetting with the decoded content */
-    if(connectorParams.getEcps() != null){
+    if(ecps != null){
       /** Decrypt ECPS String */
       this.decodedECPSDatabaseSettings = decryptECPS(connectorParams.getEcps(), ecpsPhrase);
 
@@ -119,6 +122,10 @@ public class PSQLConfig {
       }
     }
   }
+
+  public String getMaintenanceEndpoint(){ return maintenanceServiceEndpoint;}
+
+  public String getEcps(){ return ecps; }
 
   public ConnectorParameters getConnectorParams() {
     return connectorParams;
@@ -191,6 +198,13 @@ public class PSQLConfig {
     return null;
   }
 
+  protected static String readFromEnvVars(String name, Context context) {
+    if (context instanceof SimulatedContext) {
+      return ((SimulatedContext) context).getEnv(name);
+    }
+    return System.getenv(name);
+  }
+
   /**
    * Encodes the connector ecps.
    */
@@ -203,7 +217,7 @@ public class PSQLConfig {
    * Decodes the connector ecps.
    */
   @SuppressWarnings("unchecked")
-  private static Map<String, Object> decryptECPS(String ecps, String phrase) {
+  public static Map<String, Object> decryptECPS(String ecps, String phrase) {
     try {
       return new ObjectMapper().readValue(AESGCMHelper.getInstance(phrase).decrypt(ecps), Map.class);
     } catch (Exception e) {

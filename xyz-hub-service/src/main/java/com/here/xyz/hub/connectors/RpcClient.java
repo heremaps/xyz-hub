@@ -57,6 +57,7 @@ import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.JsonObject;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
 import java.util.Collections;
@@ -480,6 +481,14 @@ public class RpcClient {
     // When MAX_SERVICE_RESPONSE_SIZE is bigger than zero, check whether an ungzipped payload is bigger than MAX_SERVICE_RESPONSE_SIZE
     if (Api.MAX_SERVICE_RESPONSE_SIZE > 0 && bytes.length > Api.MAX_SERVICE_RESPONSE_SIZE) {
       throwResponseSizeException(marker);
+    }
+
+    // when the data from connector is uncompressed and its size is bigger than the current MAX_HTTP_RESPONSE_SIZE, compress it and check again.
+    if (!Payload.isGzipped(bytes) && Api.MAX_HTTP_RESPONSE_SIZE > 0 && bytes.length > Api.MAX_HTTP_RESPONSE_SIZE) {
+      // uncompressed data should be checked whether it's compression would fit under MAX_HTTP_RESPONSE_SIZE
+      byte[] compressed = Payload.compress(bytes);
+      if (compressed != null && compressed.length > Api.MAX_HTTP_RESPONSE_SIZE)
+        throwResponseSizeException(marker);
     }
   }
 

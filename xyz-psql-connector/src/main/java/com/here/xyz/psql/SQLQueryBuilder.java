@@ -18,6 +18,7 @@
  */
 package com.here.xyz.psql;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.here.xyz.events.Event;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,6 +49,7 @@ import com.here.xyz.psql.factory.QuadbinSQL;
 import com.here.xyz.psql.factory.IterateSortSQL;
 import com.here.xyz.psql.factory.TweaksSQL;
 import java.sql.SQLException;
+import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -790,11 +792,25 @@ public class SQLQueryBuilder {
         return query;
     }
 
-    private static class IdxManual
-    { public Map<String, Boolean> searchableProperties;
-      public List<List<Object>> sortableProperties;
-      IdxManual( Map<String, Boolean> searchableProperties, List<List<Object>> sortableProperties ) 
-      { this.searchableProperties = searchableProperties; this.sortableProperties = sortableProperties; }
+    private static class IdxManual {
+        @JsonInclude(JsonInclude.Include.NON_EMPTY)
+        public Map<String, Boolean> searchableProperties;
+        @JsonInclude(JsonInclude.Include.NON_EMPTY)
+        public List<List<Object>> sortableProperties;
+
+        IdxManual( Map<String, Boolean> searchableProperties, List<List<Object>> sortableProperties ){
+          this.searchableProperties = searchableProperties;
+          this.sortableProperties = sortableProperties;
+          if(this.searchableProperties != null) {
+              //Remove entries with null values
+              Map<String, Boolean> clearedSearchableProperties = new HashMap<>(searchableProperties);
+              for (String property : searchableProperties.keySet()) {
+                  if (searchableProperties.get(property) == null)
+                      clearedSearchableProperties.remove(property);
+              }
+              this.searchableProperties = clearedSearchableProperties;
+          }
+        }
     }
 
     private static String _buildSearchablePropertiesUpsertQuery(Space spaceDefinition, ModifySpaceEvent.Operation operation, String schema, String table) throws SQLException 
@@ -803,12 +819,9 @@ public class SQLQueryBuilder {
         List<List<Object>> sortableProperties = spaceDefinition.getSortableProperties();
         Boolean enableAutoIndexing = spaceDefinition.isEnableAutoSearchableProperties();
              
-        String idx_manual_json = null;
+        String idx_manual_json;
 
-        try 
-        { if(   ( searchableProperties != null && !searchableProperties.isEmpty() ) 
-             || ( sortableProperties != null && !sortableProperties.isEmpty())
-            )
+        try{
              idx_manual_json = (new ObjectMapper()).writeValueAsString( new IdxManual(searchableProperties, sortableProperties) );
         } 
         catch (JsonProcessingException e)  { throw new SQLException("_buildSearchablePropertiesUpsertQuery", e); }
@@ -824,7 +837,7 @@ public class SQLQueryBuilder {
                         + "    			idx_manual = " + idx_manual_json + ", "
                         + "				idx_creation_finished = false "
                         + (enableAutoIndexing != null ? " ,auto_indexing = " + enableAutoIndexing : "")
-                        + "		WHERE x_s.spaceid = '" + table + "'";
+                        + "		WHERE x_s.spaceid = '" + table + "' AND x_s.schem='"+schema+"'";
 
         return query;
     }
@@ -1115,7 +1128,7 @@ public class SQLQueryBuilder {
         return SQLQuery.replaceVars(updateStmtSQL, schema, table);
     }
 
-    protected static String deleteOldHistoryEntries(final String schema, final String table, long version){
+    public static String deleteOldHistoryEntries(final String schema, final String table, long maxAllowedVersion){
         /** Delete rows which have a too old version - only used if maxVersionCount is set */
 
         String deleteOldHistoryEntriesSQL =
@@ -1128,7 +1141,7 @@ public class SQLQueryBuilder {
                 "     AND jsondata->>'id' IN ( " +
                 "     SELECT jsondata->>'id' FROM ${schema}.${table} " +
                 "        WHERE 1=1    " +
-                "        AND (jsondata->'properties'->'@ns:com:here:xyz'->'version' <= '"+version+"'::jsonb " +
+                "        AND (jsondata->'properties'->'@ns:com:here:xyz'->'version' <= '"+maxAllowedVersion+"'::jsonb " +
                 "        AND jsondata->'properties'->'@ns:com:here:xyz'->'version' > '0'::jsonb)" +
                 ")" +
                 "   ORDER  BY vid" +
@@ -1139,7 +1152,7 @@ public class SQLQueryBuilder {
         return SQLQuery.replaceVars(deleteOldHistoryEntriesSQL, schema, table);
     }
 
-    protected static String flagOutdatedHistoryEntries(final String schema, final String table, long version){
+    public static String flagOutdatedHistoryEntries(final String schema, final String table, long maxAllowedVersion){
         /** Set version=0 for objects which are too old - only used if maxVersionCount is set */
 
         String flagOutdatedHistoryEntries =
@@ -1151,13 +1164,13 @@ public class SQLQueryBuilder {
                 ") " +
                 "    WHERE " +
                 "1=1" +
-                "AND jsondata->'properties'->'@ns:com:here:xyz'->'version' <= '"+version+"'::jsonb " +
+                "AND jsondata->'properties'->'@ns:com:here:xyz'->'version' <= '"+maxAllowedVersion+"'::jsonb " +
                 "AND jsondata->'properties'->'@ns:com:here:xyz'->'version' > '0'::jsonb;";
 
         return SQLQuery.replaceVars(flagOutdatedHistoryEntries, schema, table);
     }
 
-    protected static String deleteHistoryEntriesWithDeleteFlag(final String schema, final String table){
+    public static String deleteHistoryEntriesWithDeleteFlag(final String schema, final String table){
         /** Remove deleted objects with version 0 - only used if maxVersionCount is set */
         String deleteHistoryEntriesWithDeleteFlag =
                 "DELETE FROM ${schema}.${table} " +

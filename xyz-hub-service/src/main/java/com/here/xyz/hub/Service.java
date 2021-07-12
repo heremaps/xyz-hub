@@ -146,7 +146,7 @@ public class Service extends Core {
    */
   public static void main(String[] arguments) {
     boolean debug = Arrays.asList(arguments).contains("--debug");
-    initialize(debug, CONFIG_FILE, Service::onConfigLoaded);
+    initialize(null, debug, CONFIG_FILE, Service::onConfigLoaded);
   }
 
   /**
@@ -171,7 +171,6 @@ public class Service extends Core {
         .setIdleTimeout(configuration.HTTP_CLIENT_IDLE_TIMEOUT)
         .setTcpQuickAck(true)
         .setTcpFastOpen(true)
-        .setTryUseCompression(true)
         .setPipelining(Service.configuration.HTTP_CLIENT_PIPELINING)
     );
 

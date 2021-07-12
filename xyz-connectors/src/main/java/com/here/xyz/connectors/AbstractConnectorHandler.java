@@ -194,6 +194,10 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    */
   @Override
   public void handleRequest(InputStream input, OutputStream output, Context context) {
+    handleRequest(input, output, context, null);
+  }
+
+  public void handleRequest(InputStream input, OutputStream output, Context context, String streamId) {
     try {
       start = System.currentTimeMillis();
       Typed dataOut;
@@ -203,7 +207,9 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
         Event event = readEvent(input);
 
         String connectorId = null;
-        streamId = event.getStreamId();
+        if(streamId == null)
+          streamId = event.getStreamId();
+
         if (event.getConnectorParams() != null  && event.getConnectorParams().get("connectorId") != null)
           connectorId = (String) event.getConnectorParams().get("connectorId");
 
