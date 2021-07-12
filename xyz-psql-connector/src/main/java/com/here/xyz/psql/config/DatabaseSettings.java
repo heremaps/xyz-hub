@@ -20,7 +20,6 @@
 package com.here.xyz.psql.config;
 
 import com.amazonaws.services.lambda.runtime.Context;
-import com.here.xyz.connectors.SimulatedContext;
 
 public class DatabaseSettings {
 
@@ -81,17 +80,7 @@ public class DatabaseSettings {
     @Deprecated
     private Integer maxConnections;
 
-    public DatabaseSettings(Context context){
-        this.user = readFromEnvVars(PSQL_USER,context);
-        this.password = readFromEnvVars(PSQL_PASSWORD,context);
-        this.host = readFromEnvVars(PSQL_HOST,context);
-        this.replicaHost = readFromEnvVars(PSQL_REPLICA_HOST,context);
-        this.db = readFromEnvVars(PSQL_DB,context);
-        this.schema = readFromEnvVars(PSQL_SCHEMA,context);
-        this.port = readFromEnvVars(PSQL_PORT,context) != null ? Integer.parseInt(readFromEnvVars(PSQL_PORT,context)) : null;
-        this.readOnly = readFromEnvVars(PSQL_READ_ONLY,context) != null ? Boolean.parseBoolean( readFromEnvVars(PSQL_READ_ONLY,context)) : null;
-        this.maxConnections = readFromEnvVars(PSQL_MAX_CONN,context) != null ? Integer.parseInt(readFromEnvVars(PSQL_MAX_CONN,context)) : null;
-
+    public DatabaseSettings(){
         if(this.user == null)
             this.user = "postgres";
         if(this.password == null)
@@ -110,11 +99,33 @@ public class DatabaseSettings {
             this.readOnly = false;
     }
 
-    protected static String readFromEnvVars(String name, Context context) {
-        if (context instanceof SimulatedContext) {
-            return ((SimulatedContext) context).getEnv(name);
-        }
-        return System.getenv(name);
+    public DatabaseSettings(Context context){
+        this.user = PSQLConfig.readFromEnvVars(PSQL_USER,context);
+        this.password = PSQLConfig.readFromEnvVars(PSQL_PASSWORD,context);
+        this.host = PSQLConfig.readFromEnvVars(PSQL_HOST,context);
+        this.replicaHost = PSQLConfig.readFromEnvVars(PSQL_REPLICA_HOST,context);
+        this.db = PSQLConfig.readFromEnvVars(PSQL_DB,context);
+        this.schema = PSQLConfig.readFromEnvVars(PSQL_SCHEMA,context);
+        this.port = PSQLConfig.readFromEnvVars(PSQL_PORT,context) != null ? Integer.parseInt(PSQLConfig.readFromEnvVars(PSQL_PORT,context)) : null;
+        this.readOnly = PSQLConfig.readFromEnvVars(PSQL_READ_ONLY,context) != null ? Boolean.parseBoolean( PSQLConfig.readFromEnvVars(PSQL_READ_ONLY,context)) : null;
+        this.maxConnections = PSQLConfig.readFromEnvVars(PSQL_MAX_CONN,context) != null ? Integer.parseInt(PSQLConfig.readFromEnvVars(PSQL_MAX_CONN,context)) : null;
+
+        if(this.user == null)
+            this.user = "postgres";
+        if(this.password == null)
+            this.password = "password";
+        if(this.host == null)
+            this.host = "localhost";
+        if(this.replicaHost == null)
+            this.replicaHost = null;
+        if(this.db == null)
+            this.db = "postgres";
+        if(this.schema == null)
+            this.schema = "public";
+        if(this.port == null)
+            this.port = 5432;
+        if(this.readOnly == null)
+            this.readOnly = false;
     }
 
     public void setUser(String user) {
@@ -192,5 +203,9 @@ public class DatabaseSettings {
                 ", schema='" + schema + '\'' +
                 ", port=" + port +
                 '}';
+    }
+
+    public String getConfigValuesAsString() {
+        return host+replicaHost+db+user+schema+port+password;
     }
 }

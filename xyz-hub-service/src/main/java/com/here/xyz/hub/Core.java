@@ -35,10 +35,7 @@ import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.LoggerContext;
-import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.Configurator;
-import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.apache.logging.log4j.core.util.CachedClock;
 import org.apache.logging.log4j.core.util.NetUtils;
 
@@ -75,23 +72,24 @@ public class Core {
    */
   protected static final String VERTX_WORKER_POOL_SIZE = "VERTX_WORKER_POOL_SIZE";
 
-  public static void initialize(boolean debug, String configFilename, Handler<JsonObject> handler) {
+  public static void initialize(VertxOptions vertxOptions, boolean debug, String configFilename, Handler<JsonObject> handler) {
     Configurator.initialize("default", CONSOLE_LOG_CONFIG);
     final ConfigStoreOptions fileStore = new ConfigStoreOptions().setType("file").setConfig(new JsonObject().put("path", configFilename));
     final ConfigStoreOptions envConfig = new ConfigStoreOptions().setType("env");
     final ConfigStoreOptions sysConfig = new ConfigStoreOptions().setType("sys");
     final ConfigRetrieverOptions options = new ConfigRetrieverOptions().addStore(fileStore).addStore(envConfig).addStore(sysConfig);
 
-    final VertxOptions vertxOptions = new VertxOptions()
-        .setWorkerPoolSize(NumberUtils.toInt(System.getenv(Core.VERTX_WORKER_POOL_SIZE), 128))
-        .setPreferNativeTransport(true);
-
-    if (debug) {
-      vertxOptions
-          .setBlockedThreadCheckInterval(TimeUnit.MINUTES.toMillis(1))
-          .setMaxEventLoopExecuteTime(TimeUnit.MINUTES.toMillis(1))
-          .setMaxWorkerExecuteTime(TimeUnit.MINUTES.toMillis(1))
-          .setWarningExceptionTime(TimeUnit.MINUTES.toMillis(1));
+    if(vertxOptions == null) {
+      vertxOptions = new VertxOptions()
+              .setWorkerPoolSize(NumberUtils.toInt(System.getenv(Core.VERTX_WORKER_POOL_SIZE), 128))
+              .setPreferNativeTransport(true);
+      if (debug) {
+        vertxOptions
+                .setBlockedThreadCheckInterval(TimeUnit.MINUTES.toMillis(1))
+                .setMaxEventLoopExecuteTime(TimeUnit.MINUTES.toMillis(1))
+                .setMaxWorkerExecuteTime(TimeUnit.MINUTES.toMillis(1))
+                .setWarningExceptionTime(TimeUnit.MINUTES.toMillis(1));
+      }
     }
 
     vertx = Vertx.vertx(vertxOptions);

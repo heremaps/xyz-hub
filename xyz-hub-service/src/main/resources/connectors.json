@@ -4,8 +4,12 @@
     "params": {
       "autoIndexing": true,
       "propertySearch": true,
-      "mvtSupport": true,
-      "connectorId" : "psql"
+      "onDemandIdxLimit": 8,
+      "dbCheckoutTimeout": 12,
+      "dbAcquireRetryAttempts": 10,
+      "connectorId" : "psql",
+      "ecps": "$encrypt({\"PSQL_HOST\":\"postgres\",\"PSQL_PORT\":\"${PSQL_PORT}\",\"PSQL_DB\":\"${PSQL_DB}\",\"PSQL_USER\":\"${PSQL_USER}\",\"PSQL_PASSWORD\":\"${PSQL_PASSWORD}\",\"PSQL_SCHEMA\":\"public\"})",
+      "mvtSupport": true
     },
     "capabilities": {
       "propertySearch": true,
@@ -27,12 +31,7 @@
         "warmUp": 1,
         "className": "com.here.xyz.psql.PSQLXyzConnector",
         "env": {
-          "PSQL_HOST": "${PSQL_HOST}",
-          "PSQL_PORT": "${PSQL_PORT}",
-          "PSQL_DB"  : "${PSQL_DB}",
-          "PSQL_USER": "${PSQL_USER}",
-          "PSQL_PASSWORD": "${PSQL_PASSWORD}",
-          "PSQL_MAX_CONN": 32
+          "ECPS_PHRASE": "local"
         }
       }
     },
@@ -342,13 +341,14 @@
       "PSQL_MAX_CONN": 1024,
       "autoIndexing": true,
       "propertySearch": true,
-      "connectorId" : "psql-http"
+      "connectorId" : "psql-http",
+      "mvtSupport": true
     },
     "remoteFunctions": {
       "local": {
         "id": "psql-http",
         "type": "Http",
-        "url": "http://localhost:9090/psql"
+        "url": "http://xyz-http-connector:9090/psql/event"
       }
     },
     "trusted": true
@@ -367,7 +367,10 @@
       "local": {
         "id": "evaljs-trusted",
         "type": "Embedded",
-        "className": "com.here.xyz.hub.connectors.test.EvalConnector"
+        "className": "com.here.xyz.hub.connectors.test.EvalConnector",
+        "env": {
+          "ECPS_PHRASE": "local"
+        }
       }
     },
     "forwardParamsConfig": {

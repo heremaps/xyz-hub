@@ -117,7 +117,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     /**
      * The dbMaintainer for the current event.
      */
-    private DatabaseMaintainer dbMaintainer;
+    protected DatabaseMaintainer dbMaintainer;
 
     private Map<String, String> replacements = new HashMap<>();
 
@@ -582,30 +582,26 @@ public abstract class DatabaseHandler extends StorageConnector {
                 }
 
                 if (!retryAttempted) {
-                    /** Retry */
-                    if(!connection.isClosed())
-                    { connection.setAutoCommit(cStateFlag);
-                      connection.close();
+                    if(!connection.isClosed()) {
+                        connection.setAutoCommit(cStateFlag);
+                        connection.close();
                     }
-
+                    /** Retry */
                     canRetryAttempt();
-
                     return executeModifyFeatures(event);
                 }
             }
             finally
             {
-             if(!connection.isClosed())
-              connection.setAutoCommit(cStateFlag);
+                if(!connection.isClosed()) {
+                    connection.setAutoCommit(cStateFlag);
+                    connection.close();
+                }
             }
 
             if(event.isEnableGlobalVersioning() && event.getMaxVersionCount() != null) {
-                /** If maxVersionCount is set - keep only N versions on History*/
-                long v_diff = version - event.getMaxVersionCount();
-                if(v_diff >= 0) {
-                    SQLQuery q = new SQLQuery(SQLQueryBuilder.deleteOldHistoryEntries(schema, table + "_hst", v_diff));
-                    q.append(new SQLQuery(SQLQueryBuilder.flagOutdatedHistoryEntries(schema, table + "_hst", v_diff)));
-                    q.append(new SQLQuery(SQLQueryBuilder.deleteHistoryEntriesWithDeleteFlag(schema, table + "_hst")));
+                SQLQuery q = dbMaintainer.maintainHistory(traceItem, schema, table, version,  event.getMaxVersionCount());
+                if(q != null) {
                     executeUpdateWithRetry(q);
                 }
             }
