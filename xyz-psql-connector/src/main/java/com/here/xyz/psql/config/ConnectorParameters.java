@@ -32,6 +32,7 @@ public class ConnectorParameters {
      */
     public final static String CONNECTOR_ID = "connectorId";
     public final static String PROPERTY_SEARCH = "propertySearch";
+    public final static String MVT_SUPPORT = "mvtSupport";
     public final static String AUTO_INDEXING = "autoIndexing";
     public final static String ENABLE_HASHED_SPACEID = "enableHashedSpaceId";
     public final static String COMPACT_HISTORY = "compactHistory";
@@ -53,6 +54,7 @@ public class ConnectorParameters {
      */
     private String connectorId;
     private boolean propertySearch = false;
+    private boolean mvtSupport = false;
     private boolean autoIndexing = false;
     private boolean enableHashedSpaceId = false;
     private boolean compactHistory = true;
@@ -82,6 +84,7 @@ public class ConnectorParameters {
             this.connectorId = parseValue(connectorParams, String.class, connectorId, CONNECTOR_ID);
             this.autoIndexing = parseValue(connectorParams, Boolean.class, autoIndexing, AUTO_INDEXING);
             this.propertySearch = parseValue(connectorParams, Boolean.class, propertySearch, PROPERTY_SEARCH);
+            this.mvtSupport = parseValue(connectorParams, Boolean.class, mvtSupport, MVT_SUPPORT);
             this.enableHashedSpaceId = parseValue(connectorParams, Boolean.class, enableHashedSpaceId, ENABLE_HASHED_SPACEID);
             this.compactHistory = parseValue(connectorParams, Boolean.class, compactHistory, COMPACT_HISTORY);
             this.onDemandIdxLimit = parseValue(connectorParams, Integer.class, onDemandIdxLimit, ON_DEMAND_IDX_LIMIT);
@@ -133,6 +136,10 @@ public class ConnectorParameters {
 
     public boolean isPropertySearch() {
         return propertySearch;
+    }
+
+    public boolean isMvtSupport() {
+        return mvtSupport;
     }
 
     public boolean isAutoIndexing() {
@@ -201,6 +208,7 @@ public class ConnectorParameters {
     public String toString() {
         return "ConnectorParameters{" +
                 "propertySearch=" + propertySearch +
+                ", mvtSuppoert=" + mvtSupport +
                 ", autoIndexing=" + autoIndexing +
                 ", enableHashedSpaceId=" + enableHashedSpaceId +
                 ", compactHistory=" + compactHistory +

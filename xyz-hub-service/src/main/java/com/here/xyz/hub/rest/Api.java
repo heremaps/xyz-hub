@@ -488,6 +488,10 @@ public abstract class Api {
     }
 
     if (response == null || response.length == 0) {
+
+      if( APPLICATION_VND_MAPBOX_VECTOR_TILE.equals(contentType) )
+       httpResponse.putHeader(CONTENT_TYPE, contentType);
+
       httpResponse.end();
     } else if (response.length > getMaxResponseLength(task.context)) {
       sendErrorResponse(task.context, new HttpException(RESPONSE_PAYLOAD_TOO_LARGE, RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE));

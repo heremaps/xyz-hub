@@ -180,16 +180,47 @@ public class TweaksSQL
    +"select jsondata, %1$s as geo from finaldata ";
   
 
-
-
-
   public static String 
    requestedTileBoundsSql = String.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/),
-   estimateCountByBboxesSql =
-    " with indata as ( select '${schema}' as schema, '${table}' as space, unnest( array[ %1$s ] ) as tile, 'geo' as colname, exists ( select 1 from pg_stats where schemaname = replace('${schema}','\"','') and tablename = replace('${table}','\"','') and attname = 'geo' ) as bstats  ) "
-   +" select jsonb_set( '{\"type\":\"Feature\"}', '{rcount}', to_jsonb( max( case when r.bstats then ( reltuples * _postgis_selectivity(format('%%s.%%s', r.schema, r.space)::regclass, r.colname, r.tile) ) else 0.0 end )::integer ) ) as rcount, null "
-   +" from pg_class l, indata r "
-   +" where oid = format('%%s.%%s',r.schema,r.space )::regclass ";
+
+   _estimateCountByBboxesSql =  //flavour2: calc _postgis_selectivity using sum of reltupels 
+    " with indata as "
+    +" ( select '${schema}' as schema, '${table}' as space, array[ %1$s ] as tiles, 'geo' as colname ), "
+    +"   reldata as"
+    +"   ( select sum( coalesce( c2.reltuples, c1.reltuples ) )::bigint as reltuples "
+    +"     from indata i, pg_class c1 left join pg_inherits pm on ( c1.oid = pm.inhparent ) left join pg_class c2 on ( c2.oid = pm.inhrelid ) "
+    +"     where c1.oid = format('%%s.%%s',i.schema,i.space)::regclass "
+    +"   ), "
+    +"   iindata as "
+    +"   ( select i.schema, i.space, i.colname, t.tile, "
+    +"            true as bstats, "
+    +"            r.reltuples "
+    +"     from indata i, reldata r, unnest( i.tiles ) t(tile) "
+    +"   ), "
+    +"   iiidata as "
+    +"   ( select case when ii.bstats then ii.reltuples * xyz_postgis_selectivity(format('%%s.%%s', ii.schema, ii.space)::regclass, ii.colname, ii.tile) else 0.0 end estim "
+    +"     from iindata ii "
+    +"   ) "
+    +" select jsonb_set( '{\"type\":\"Feature\"}', '{rcount}', to_jsonb( max(estim)::integer ) ) as rcount, null from iiidata ",
+
+   estimateCountByBboxesSql = //flavour1: calc _postgis_selectivity with partitions and sum up
+     " with indata as "
+    +" ( select '${schema}' as schema, '${table}' as space, array[ %1$s ] as tiles, 'geo' as colname ), "
+    +" iindata as "
+    +" ( select i.schema, i.space, i.colname, "
+    +"          t.tile, t.tid, "
+    +"          true as bstats, "
+    +"          coalesce(c2.relname, c1.relname) as tblname, "
+    +"          coalesce( c2.reltuples, c1.reltuples ) reltuples "
+    +"   from indata i, unnest( i.tiles) with ordinality t(tile,tid), pg_class c1 left join pg_inherits pm on ( c1.oid = pm.inhparent ) left join pg_class c2 on ( c2.oid = pm.inhrelid ) "
+    +"   where c1.oid = format('%%s.%%s',i.schema,i.space)::regclass "
+    +" ), "
+    +" iiidata as "
+    +" ( select ii.tid, sum( case when ii.bstats then ii.reltuples * xyz_postgis_selectivity(format('%%s.%%I', ii.schema, ii.tblname)::regclass, ii.colname, ii.tile) else 0.0 end ) estim "
+    +"   from iindata ii "
+    +"   group by tid "
+    +" ) "
+    +" select jsonb_set( '{\"type\":\"Feature\"}', '{rcount}', to_jsonb( max(estim)::integer ) ) as rcount, null from iiidata ";
   
   public static String 
    mvtPropertiesSql        = "( select jsonb_object_agg(key, case when jsonb_typeof(value) in ('object', 'array') then to_jsonb(value::text) else value end) from jsonb_each(jsonb_set((jsondata)->'properties','{id}', to_jsonb(jsondata->>'id'))))", 

@@ -20,6 +20,7 @@
 package com.here.xyz.hub.task;
 
 import static com.here.xyz.hub.XYZHubRESTVerticle.STREAM_INFO_CTX_KEY;
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.BBOX;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.ID;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
@@ -31,6 +32,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.Payload;
@@ -59,6 +61,8 @@ import com.here.xyz.hub.connectors.models.Space.CacheProfile;
 import com.here.xyz.hub.connectors.models.Space.ConnectorType;
 import com.here.xyz.hub.connectors.models.Space.ResolvableListenerConnectorRef;
 import com.here.xyz.hub.rest.Api;
+import com.here.xyz.hub.rest.Api.Context;
+import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.FeatureTask.ConditionalOperation;
@@ -95,18 +99,25 @@ import io.vertx.core.Handler;
 import io.vertx.core.MultiMap;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.Cookie;
+import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.Json;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.validation.impl.RequestParametersImpl;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.LongAdder;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -144,6 +155,12 @@ public class FeatureTaskHandler {
   private static ConcurrentHashMap<String, Integer> latestSeenContentVersions = new ConcurrentHashMap<>();
 
   /**
+   * Contains the amount of all in-flight requests for each storage ID.
+   */
+  private static ConcurrentHashMap<String, LongAdder> inflightRequestMemory = new ConcurrentHashMap<>();
+  private static LongAdder globalInflightRequestMemory = new LongAdder();
+
+  /**
    * Sends the event to the connector client and write the response as the responseCollection of the task.
    *
    * @param task the FeatureTask instance
@@ -151,13 +168,6 @@ public class FeatureTaskHandler {
    * @param <T> the type of the FeatureTask
    */
   public static <T extends FeatureTask> void invoke(T task, Callback<T> callback) {
-    /**
-     * NOTE: The event may only be consumed once. Once it was consumed it should only be referenced in the request-phase. Referencing it in the
-     *     response-phase will keep the whole event-data in the memory and could cause many major GCs to because of large request-payloads.
-     *
-     * @see Task#consumeEvent()
-     */
-    Event event = task.consumeEvent();
     /*
     In case there is already, nothing has to be done here (happens if the response was set by an earlier process in the task pipeline
     e.g. when having a cache hit)
@@ -166,6 +176,13 @@ public class FeatureTaskHandler {
       callback.call(task);
       return;
     }
+    /**
+     * NOTE: The event may only be consumed once. Once it was consumed it should only be referenced in the request-phase. Referencing it in the
+     *     response-phase will keep the whole event-data in the memory and could cause many major GCs to because of large request-payloads.
+     *
+     * @see Task#consumeEvent()
+     */
+    Event event = task.consumeEvent();
 
     if (!task.storage.active) {
       if (event instanceof ModifySpaceEvent && ((ModifySpaceEvent) event).getOperation() == ModifySpaceEvent.Operation.DELETE) {
@@ -778,23 +795,26 @@ public class FeatureTaskHandler {
         callback.exception(new InvalidStorageException("Unable to load the definition for this storage."));
         return;
       }
-
       task.storage = arStorage.result();
-
-      try {
-        //Also resolve all listeners & processors
-        CompletableFuture.allOf(
-            resolveConnectors(task.getMarker(), task.space, ConnectorType.LISTENER),
-            resolveConnectors(task.getMarker(), task.space, ConnectorType.PROCESSOR)
-        ).thenRun(() -> {
-          //All listener & processor refs have been resolved now
-          callback.call(task);
-        });
-      } catch (Exception e) {
-        logger.error(task.getMarker(), "The listeners for this space cannot be initialized", e);
-        callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "The listeners for this space cannot be initialized"));
-      }
+      onStorageResolved(task, callback);
     });
+  }
+
+  private static <X extends FeatureTask> void onStorageResolved(final X task, final Callback<X> callback) {
+    try {
+      //Also resolve all listeners & processors
+      CompletableFuture.allOf(
+          resolveConnectors(task.getMarker(), task.space, ConnectorType.LISTENER),
+          resolveConnectors(task.getMarker(), task.space, ConnectorType.PROCESSOR)
+      ).thenRun(() -> {
+        //All listener & processor refs have been resolved now
+        callback.call(task);
+      });
+    }
+    catch (Exception e) {
+      logger.error(task.getMarker(), "The listeners for this space cannot be initialized", e);
+      callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "The listeners for this space cannot be initialized"));
+    }
   }
 
   private static CompletableFuture<Void> resolveConnectors(Marker marker, final Space space, final ConnectorType connectorType) {
@@ -844,6 +864,152 @@ public class FeatureTaskHandler {
         .thenRun(() -> future.complete(null));
 
     return future;
+  }
+
+  static <X extends FeatureTask> void registerRequestMemory(final X task, final Callback<X> callback) {
+    try {
+      registerRequestMemory(task.storage.id, task.requestBodySize);
+    }
+    finally {
+      callback.call(task);
+    }
+  }
+
+  private static void registerRequestMemory(String storageId, int byteSize) {
+    if (byteSize <= 0) return;
+    LongAdder usedMemory = inflightRequestMemory.get(storageId);
+    if (usedMemory == null)
+      inflightRequestMemory.put(storageId, usedMemory = new LongAdder());
+
+    byteSize *= Service.configuration.INFLIGHT_REQUEST_BODY_OVERHEAD_FACTOR;
+    usedMemory.add(byteSize);
+    globalInflightRequestMemory.add(byteSize);
+  }
+
+  public static void deregisterRequestMemory(String storageId, int byteSize) {
+    if (byteSize <= 0) return;
+
+    byteSize *= Service.configuration.INFLIGHT_REQUEST_BODY_OVERHEAD_FACTOR;
+    inflightRequestMemory.get(storageId).add(-byteSize);
+    globalInflightRequestMemory.add(-byteSize);
+  }
+
+  static <X extends FeatureTask> void throttle(final X task, final Callback<X> callback) {
+    Connector storage = task.storage;
+    final long GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE = (long) Service.configuration.GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE_MB * 1024 * 1024;
+    //Only throttle requests if the memory filled up over the specified threshold
+    if (globalInflightRequestMemory.sum() >
+        GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE * Service.configuration.GLOBAL_INFLIGHT_REQUEST_MEMORY_HIGH_UTILIZATION_THRESHOLD) {
+      LongAdder storageInflightRequestMemory = inflightRequestMemory.get(storage.id);
+      long storageInflightRequestMemorySum = 0;
+      if (storageInflightRequestMemory == null || (storageInflightRequestMemorySum = storageInflightRequestMemory.sum()) == 0) {
+        callback.call(task); //Nothing to throttle
+        return;
+      }
+
+      try {
+        RpcClient rpcClient = getRpcClient(storage);
+        if (storageInflightRequestMemorySum > rpcClient.getFunctionClient().getPriority() * GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE)
+          throw new HttpException(TOO_MANY_REQUESTS, "Too many requests for the storage.");
+      }
+      catch (HttpException e) {
+        logger.warn(task.getMarker(), e.getMessage(), e);
+        callback.exception(e);
+        return;
+      }
+    }
+    callback.call(task);
+  }
+
+  public static void prepareModifyFeatureOp(ConditionalOperation task, Callback<ConditionalOperation> callback) {
+    if (task.modifyOp != null) {
+      callback.call(task);
+      return;
+    }
+
+    try {
+      task.modifyOp = new ModifyFeatureOp(getFeatureModifications(task), task.ifNotExists, task.ifExists, task.transactional, task.conflictResolution);
+      callback.call(task);
+    } catch (HttpException e) {
+      logger.warn(task.getMarker(), e.getMessage(), e);
+      callback.exception(e);
+    } catch (Exception e) {
+      logger.warn(task.getMarker(), e.getMessage(), e);
+      callback.exception(new HttpException(BAD_REQUEST, "Unable to process the request input."));
+    }
+  }
+
+  private static List<Map<String, Object>> getFeatureModifications(ConditionalOperation task) throws Exception {
+    if (APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST.equals(task.context.parsedHeaders().contentType().rawValue())) {
+      return getObjectsAsList(task.context);
+    }
+
+    List<Map<String, Object>> features = getObjectsAsList(task.context);
+    if (task.responseType == ApiResponseType.FEATURE) { //TODO: Replace that evil hack
+      features.get(0).put("id", task.context.pathParam(ApiParam.Path.FEATURE_ID));
+    }
+
+    Map<String, Object> featureCollection = Collections.singletonMap("features", features);
+    return Collections.singletonList(Collections.singletonMap("featureData", featureCollection));
+  }
+
+  /**
+   * Parses the body of the request as a FeatureCollection, Feature or a FeatureModificationList object and returns the features as a list.
+   */
+  private static List<Map<String, Object>> getObjectsAsList(final RoutingContext context) throws HttpException {
+    final Marker logMarker = Context.getMarker(context);
+    try {
+      JsonObject json = context.getBodyAsJson();
+      return getJsonObjects(json, context);
+    }
+    catch (DecodeException e) {
+      logger.warn(logMarker, "Invalid input encoding.", e);
+      try {
+        //Some types of exceptions could be avoided by reading the entire string.
+        JsonObject json = new JsonObject(context.getBodyAsString());
+        return getJsonObjects(json, context);
+      }
+      catch (DecodeException ex) {
+        logger.info(logMarker, "Error in the provided content", ex.getCause());
+        throw new HttpException(BAD_REQUEST, "Invalid JSON input string: " + ex.getMessage());
+      }
+    }
+    catch (Exception e) {
+      logger.info(logMarker, "Error in the provided content", e);
+      throw new HttpException(BAD_REQUEST, "Cannot read input JSON string.");
+    }
+    finally {
+      context.setBody(null);
+      context.data().remove("requestParameters");
+      context.data().remove("parsedParameters");
+    }
+  }
+
+  private static List<Map<String, Object>> getJsonObjects(JsonObject json, RoutingContext context) throws HttpException {
+    try {
+      if (json == null) {
+        throw new HttpException(BAD_REQUEST, "Missing content");
+      }
+      if ("FeatureCollection".equals(json.getString("type"))) {
+        //noinspection unchecked
+        return json.getJsonArray("features", new JsonArray()).getList();
+      }
+      if ("FeatureModificationList".equals(json.getString("type"))) {
+        //noinspection unchecked
+        return json.getJsonArray("modifications", new JsonArray()).getList();
+      }
+      if ("Feature".equals(json.getString("type"))) {
+        return Collections.singletonList(json.getMap());
+      }
+      else {
+        throw new HttpException(BAD_REQUEST, "The provided content does not have a type of FeatureCollection,"
+            + " Feature or FeatureModificationList.");
+      }
+    }
+    catch (Exception e) {
+      logger.info(Context.getMarker(context), "Error in the provided content", e);
+      throw new HttpException(BAD_REQUEST, "Cannot read input JSON string.");
+    }
   }
 
   static void preprocessConditionalOp(ConditionalOperation task, Callback<ConditionalOperation> callback) throws Exception {
@@ -901,8 +1067,6 @@ public class FeatureTaskHandler {
       final Map<String, String> delete = new HashMap<>();
       List<FeatureCollection.ModificationFailure> fails = new ArrayList<>();
 
-      long now = Core.currentTimeMillis();
-
       Iterator<FeatureEntry> it = task.modifyOp.entries.iterator();
       int i=-1;
       while( it.hasNext() ){
@@ -940,50 +1104,9 @@ public class FeatureTaskHandler {
             throw new HttpException(BAD_REQUEST, e.getMessage() + ". Feature: \n" + Json.encode(entry.input));
           }
 
-          final XyzNamespace nsXyz = result.getProperties().getXyzNamespace();
-
-          // Set the space ID
-          nsXyz.setSpace(task.space.getId());
-
-          // Normalize the tags
-          final List<String> tags = nsXyz.getTags();
-          if (tags != null) {
-            XyzNamespace.normalizeTagsOfFeature(result);
-          } else {
-            nsXyz.setTags(new ArrayList<>());
-          }
-
-          nsXyz.withInputPosition((long) i);
-
-          // INSERT
-          if (entry.head == null) {
-            // Timestamps
-            nsXyz.setCreatedAt(now);
-            nsXyz.setUpdatedAt(now);
-
-            // UUID
-            if (task.space.isEnableUUID()) {
-              nsXyz.setUuid(java.util.UUID.randomUUID().toString());
-            }
-            insert.add(result);
-          }
-          // UPDATE
-          else {
-            // Timestamps
-            nsXyz.setCreatedAt(entry.head.getProperties().getXyzNamespace().getCreatedAt());
-            nsXyz.setUpdatedAt(now);
-
-            // UUID
-            if (task.space.isEnableUUID()) {
-              nsXyz.setUuid(java.util.UUID.randomUUID().toString());
-              nsXyz.setPuuid(entry.head.getProperties().getXyzNamespace().getUuid());
-              // If the user was updating an older version, set it under the merge uuid
-              if (!entry.base.equals(entry.head)) {
-                nsXyz.setMuuid(entry.base.getProperties().getXyzNamespace().getUuid());
-              }
-            }
-            update.add(result);
-          }
+          boolean isInsert = entry.head == null;
+          processNamespace(task, entry, result.getProperties().getXyzNamespace(), isInsert, i);
+          (isInsert ? insert : update).add(result);
         }
 
         // DELETE
@@ -1017,6 +1140,45 @@ public class FeatureTaskHandler {
     } catch (ModifyOpError e) {
       logger.info(task.getMarker(), "ConditionalOperationError: {}", e.getMessage(), e);
       throw new HttpException(CONFLICT, e.getMessage());
+    }
+  }
+
+  static void processNamespace(ConditionalOperation task, FeatureEntry entry, XyzNamespace nsXyz, boolean isInsert, long inputPosition) {
+    // Set the space ID
+    boolean spaceIsOptional = Service.configuration.containsFeatureNamespaceOptionalField("space");
+    nsXyz.setSpace(spaceIsOptional ? null : task.space.getId());
+
+    // Normalize the tags
+    XyzNamespace.normalizeTags(nsXyz.getTags());
+    if (nsXyz.getTags() == null) {
+      nsXyz.setTags(new ArrayList<>());
+    }
+
+    // Optionally set tags
+    boolean tagsIsOptional = Service.configuration.containsFeatureNamespaceOptionalField("tags");
+    if (tagsIsOptional && nsXyz.getTags().isEmpty()) {
+      nsXyz.setTags(null);
+    }
+
+    // current entry position
+    nsXyz.setInputPosition(inputPosition);
+
+    // Timestamp fields
+    long now = Core.currentTimeMillis();
+    nsXyz.setCreatedAt(isInsert ? now : entry.head.getProperties().getXyzNamespace().getCreatedAt());
+    nsXyz.setUpdatedAt(now);
+
+    // UUID fields
+    if (task.space.isEnableUUID()) {
+      nsXyz.setUuid(UUID.randomUUID().toString());
+
+      if (!isInsert) {
+        nsXyz.setPuuid(entry.head.getProperties().getXyzNamespace().getUuid());
+        // If the user was updating an older version, set it under the merge uuid
+        if (!entry.base.equals(entry.head)) {
+          nsXyz.setMuuid(entry.base.getProperties().getXyzNamespace().getUuid());
+        }
+      }
     }
   }
 
@@ -1348,12 +1510,12 @@ public class FeatureTaskHandler {
     }
 
     <T extends FeatureTask, R extends XyzResponse> void enrichResponse(T task, R response) {
-      if (task instanceof ConditionalOperation && response instanceof FeatureCollection && ((ConditionalOperation) task).hasNonModified) {
-        ((ConditionalOperation) task).modifyOp.entries.stream().filter(e -> !e.isModified).forEach(e -> {
-          try {
-            ((FeatureCollection) response).getFeatures().add(e.result);
-          } catch (JsonProcessingException ignored) {}
-        });
+      if (task instanceof ConditionalOperation && response instanceof FeatureCollection && ((ConditionalOperation) task).hasNonModified
+          && ((ConditionalOperation) task).unmodifiedFeatures != null) {
+        try {
+          ((FeatureCollection) response).getFeatures().addAll(((ConditionalOperation) task).unmodifiedFeatures);
+        }
+        catch (JsonProcessingException ignored) {}
       }
       if (eventType.isAssignableFrom(ModifyFeaturesEvent.class) && failedModifications != null && !failedModifications.isEmpty()) {
         //Copy over the failed modifications information to the response

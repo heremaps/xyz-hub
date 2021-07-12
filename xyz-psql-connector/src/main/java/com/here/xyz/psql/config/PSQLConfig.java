@@ -157,6 +157,7 @@ public class PSQLConfig {
             connectorParams.getOnDemandIdxLimit()+
             connectorParams.isCompactHistory()+
             connectorParams.isPropertySearch()+
+            connectorParams.isMvtSupport()+
             connectorParams.isAutoIndexing();
   }
 

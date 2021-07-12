@@ -102,7 +102,7 @@ public class BurstAndUpdateThread extends Thread {
       }
 
       Connector newConnector = connectorMap.get(oldConnector.id);
-      if (newConnector != null && !newConnector.skipAutoDisable
+      if (Service.configuration.ENABLE_CONNECTOR_HEALTH_CHECKS && newConnector != null && !newConnector.skipAutoDisable
           && !Service.configuration.DEFAULT_STORAGE_ID.equals(oldConnector.id)) {
         RemoteFunctionHealthCheck rfcHc = HealthApi.rfcHcAggregator.getRfcHealthCheck(oldConnector.id);
         if (rfcHc != null) {

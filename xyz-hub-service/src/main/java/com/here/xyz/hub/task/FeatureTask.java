@@ -55,7 +55,12 @@ import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.FeatureTaskHandler.InvalidStorageException;
 import com.here.xyz.hub.task.ModifyOp.Entry;
+import com.here.xyz.hub.task.ModifyOp.IfExists;
+import com.here.xyz.hub.task.ModifyOp.IfNotExists;
+import com.here.xyz.hub.task.TaskPipeline.C1;
+import com.here.xyz.hub.task.TaskPipeline.C2;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
+import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.XyzResponse;
@@ -65,8 +70,13 @@ import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?>> extends Task<T, X> {
+
+  private static final Logger logger = LogManager.getLogger();
 
   /**
    * The space for this operation.
@@ -89,6 +99,11 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
    */
   private String cacheKey;
 
+  /**
+   * The number of bytes the request body is / was having initially.
+   */
+  public final int requestBodySize;
+
   public static final class FeatureKey {
 
     public static final String ID = "id";
@@ -104,12 +119,17 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
   }
 
   private FeatureTask(T event, RoutingContext context, ApiResponseType responseType, boolean skipCache) {
+    this(event, context, responseType, skipCache, 0);
+  }
+
+  private FeatureTask(T event, RoutingContext context, ApiResponseType responseType, boolean skipCache, int requestBodySize) {
     super(event, context, responseType, skipCache);
     event.setStreamId(getMarker().getName());
 
     if (context.pathParam(ApiParam.Path.SPACE_ID) != null) {
       event.setSpace(context.pathParam(ApiParam.Path.SPACE_ID));
     }
+    this.requestBodySize = requestBodySize;
   }
 
   public CacheProfile getCacheProfile() {
@@ -317,6 +337,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
         getRpcClient(refConnector).execute(getMarker(), event, r -> processLoadEvent(c, event, r));
       }
       catch (Exception e) {
+        logger.warn(gq.getMarker(), "Error trying to process LoadFeaturesEvent.", e);
         c.exception(e);
       }
     }
@@ -600,7 +621,12 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
 
   public static class ConditionalOperation extends FeatureTask<ModifyFeaturesEvent, ConditionalOperation> {
 
-    public final ModifyFeatureOp modifyOp;
+    public ModifyFeatureOp modifyOp;
+    public IfNotExists ifNotExists;
+    public IfExists ifExists;
+    public boolean transactional;
+    public ConflictResolution conflictResolution;
+    public List<Feature> unmodifiedFeatures;
     private final boolean requireResourceExists;
     public List<String> addTags;
     public List<String> removeTags;
@@ -610,18 +636,30 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public boolean hasNonModified;
 
     public ConditionalOperation(ModifyFeaturesEvent event, RoutingContext context, ApiResponseType apiResponseTypeType,
-        ModifyFeatureOp modifyOp, boolean requireResourceExists) {
-      super(event, context, apiResponseTypeType, true);
+        ModifyFeatureOp modifyOp, boolean requireResourceExists, int requestBodySize) {
+      super(event, context, apiResponseTypeType, true, requestBodySize);
       this.modifyOp = modifyOp;
       this.requireResourceExists = requireResourceExists;
+    }
+
+    public ConditionalOperation(ModifyFeaturesEvent event, RoutingContext context, ApiResponseType apiResponseTypeType,
+        IfNotExists ifNotExists, IfExists ifExists, boolean transactional, ConflictResolution conflictResolution, boolean requireResourceExists, int requestBodySize) {
+      this(event, context, apiResponseTypeType, null, requireResourceExists, requestBodySize);
+      this.ifNotExists = ifNotExists;
+      this.ifExists = ifExists;
+      this.transactional = transactional;
+      this.conflictResolution = conflictResolution;
     }
 
     @Override
     public TaskPipeline<ConditionalOperation> getPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(FeatureTaskHandler::registerRequestMemory)
+          .then(FeatureTaskHandler::throttle)
           .then(FeatureTaskHandler::injectSpaceParams)
           .then(FeatureTaskHandler::checkPreconditions)
+          .then(FeatureTaskHandler::prepareModifyFeatureOp)
           .then(FeatureTaskHandler::preprocessConditionalOp)
           .then(this::loadObjects)
           .then(this::verifyResourceExists)
@@ -629,7 +667,40 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::processConditionalOp)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::enforceUsageQuotas)
+          .then(this::extractUnmodifiedFeatures)
+          .then(this::cleanup)
           .then(FeatureTaskHandler::invoke);
+    }
+
+    @Override
+    public void execute(C1<ConditionalOperation> onSuccess, final C2<ConditionalOperation, Throwable> onException) {
+      C1<ConditionalOperation> wrappedSuccessHandler = task -> {
+        requestCompleted(task);
+        onSuccess.call(task);
+      };
+      C2<ConditionalOperation, Throwable> wrappedExceptionHandler = (task, ex) -> {
+        requestCompleted(task);
+        onException.call(task, ex);
+      };
+      super.execute(wrappedSuccessHandler, wrappedExceptionHandler);
+    }
+
+    private void requestCompleted(FeatureTask task) {
+      if (task.storage != null)
+        FeatureTaskHandler.deregisterRequestMemory(task.storage.id, task.requestBodySize);
+    }
+
+    @Override
+    protected <X extends Task<?, X>> void cleanup(X task, Callback<X> callback) {
+      super.cleanup(task, callback);
+      modifyOp = null;
+      callback.call(task);
+    }
+
+    private <X extends FeatureTask<?, X>> void extractUnmodifiedFeatures(X task, Callback<X> callback) {
+      if (modifyOp != null && modifyOp.entries != null)
+        unmodifiedFeatures = modifyOp.entries.stream().filter(e -> !e.isModified).map(fe -> fe.result).collect(Collectors.toList());
+      callback.call(task);
     }
 
     private void verifyResourceExists(ConditionalOperation task, Callback<ConditionalOperation> callback) {
@@ -651,6 +722,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
         getRpcClient(s.storage).execute(getMarker(), event, r -> processLoadEvent(c, event, r));
       }
       catch (Exception e) {
+        logger.warn(s.getMarker(), "Error trying to process LoadFeaturesEvent.", e);
         c.exception(e);
       }
     }

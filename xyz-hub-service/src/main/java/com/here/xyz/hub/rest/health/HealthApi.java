@@ -64,11 +64,13 @@ public class HealthApi extends Api {
               .withEndpoint(getPublicServiceEndpoint())
       )
       .add(new RedisHealthCheck(Service.configuration.getRedisUri()))
-      .add(rfcHcAggregator)
       .add(new MemoryHealthCheck())
       .add(new ClusterHealthCheck());
 
   static {
+    if (Service.configuration.ENABLE_CONNECTOR_HEALTH_CHECKS){
+      healthCheck.add(rfcHcAggregator);
+    }
     if (Service.configuration.STORAGE_DB_URL != null) {
       healthCheck.add(
           (ExecutableCheck) new JDBCHealthCheck(getStorageDbUri(), Service.configuration.STORAGE_DB_USER,

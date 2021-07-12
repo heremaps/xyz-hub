@@ -8,7 +8,8 @@
       "dbCheckoutTimeout": 12,
       "dbAcquireRetryAttempts": 10,
       "connectorId" : "psql",
-      "ecps": "$encrypt({\"PSQL_HOST\":\"postgres\",\"PSQL_PORT\":\"${PSQL_PORT}\",\"PSQL_DB\":\"${PSQL_DB}\",\"PSQL_USER\":\"${PSQL_USER}\",\"PSQL_PASSWORD\":\"${PSQL_PASSWORD}\",\"PSQL_SCHEMA\":\"public\"})"
+      "ecps": "$encrypt({\"PSQL_HOST\":\"postgres\",\"PSQL_PORT\":\"${PSQL_PORT}\",\"PSQL_DB\":\"${PSQL_DB}\",\"PSQL_USER\":\"${PSQL_USER}\",\"PSQL_PASSWORD\":\"${PSQL_PASSWORD}\",\"PSQL_SCHEMA\":\"public\"})",
+      "mvtSupport": true
     },
     "capabilities": {
       "propertySearch": true,
@@ -340,7 +341,8 @@
       "PSQL_MAX_CONN": 1024,
       "autoIndexing": true,
       "propertySearch": true,
-      "connectorId" : "psql-http"
+      "connectorId" : "psql-http",
+      "mvtSupport": true
     },
     "remoteFunctions": {
       "local": {
