@@ -415,8 +415,7 @@ public class SQLQueryBuilder {
      int strength = 0,
          iMerge = 0;
      String tweaksGeoSql = "geo";
-     boolean bStrength = true, bTestTweaksGeoIfNull = true, bConvertGeo2Geojson = ( mvtTypeRequested(event) == 0 );
-
+     boolean bStrength = true, bTestTweaksGeoIfNull = true, bConvertGeo2Geojson = ( mvtTypeRequested(event) == 0 ), bMvtRequested = !bConvertGeo2Geojson;
 
      if( tweakParams != null )
      {
@@ -433,13 +432,16 @@ public class SQLQueryBuilder {
          default: strength  = 50; break;
        }
 
-       if (event.getClip()) // do clip before simplification -- preventing extrem large polygon for further working steps
-        tweaksGeoSql = clipProjGeom(bbox,tweaksGeoSql );
+       String tweaksAlgorithm = ((String) tweakParams.getOrDefault(TweaksSQL.SIMPLIFICATION_ALGORITHM,"default")).toLowerCase();
+
+       // do clip before simplification -- preventing extrem large polygon for further working steps (except for mvt with gridbytilelevel, redundancy)
+       if (event.getClip() && !( TweaksSQL.SIMPLIFICATION_ALGORITHM_A05.equals( tweaksAlgorithm ) && bMvtRequested ) )
+        tweaksGeoSql = clipProjGeom( bbox,tweaksGeoSql );
 
        //SIMPLIFICATION_ALGORITHM
        int hint = 0;
 
-       switch( ((String) tweakParams.getOrDefault(TweaksSQL.SIMPLIFICATION_ALGORITHM,"default")).toLowerCase() )
+       switch( tweaksAlgorithm )
        {
          case TweaksSQL.SIMPLIFICATION_ALGORITHM_A03 : hint++;
          case TweaksSQL.SIMPLIFICATION_ALGORITHM_A02 :
@@ -467,7 +469,8 @@ public class SQLQueryBuilder {
 
          case TweaksSQL.SIMPLIFICATION_ALGORITHM_A05 : // gridbytilelevel - convert to/from mvt
          {
-          tweaksGeoSql = map2MvtGeom( event, bbox, tweaksGeoSql );
+          if(!bMvtRequested)   
+           tweaksGeoSql = map2MvtGeom( event, bbox, tweaksGeoSql );
           bTestTweaksGeoIfNull = false;
          }
          break;
