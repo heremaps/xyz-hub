@@ -32,6 +32,7 @@ import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.hub.util.ARN;
 import com.here.xyz.hub.util.metrics.CloudWatchMetricPublisher;
+import com.here.xyz.hub.util.metrics.GlobalInflightRequestMemory;
 import com.here.xyz.hub.util.metrics.GlobalUsedRfcConnections;
 import com.here.xyz.hub.util.metrics.MajorGcCountMetric;
 import com.here.xyz.hub.util.metrics.MemoryMetric;
@@ -322,6 +323,8 @@ public class Service extends Core {
           "ServiceName", serviceName, StandardUnit.Count)));
       metrics.add(new GlobalUsedRfcConnections(new CloudWatchMetricPublisher(ns, "GlobalUsedRfcConnections",
           "ServiceName", serviceName, StandardUnit.Percent)));
+      metrics.add(new GlobalInflightRequestMemory(new CloudWatchMetricPublisher(ns, "GlobalInflightRequestMemory",
+          "ServiceName", serviceName, StandardUnit.Bytes)));
     }
   }
 
