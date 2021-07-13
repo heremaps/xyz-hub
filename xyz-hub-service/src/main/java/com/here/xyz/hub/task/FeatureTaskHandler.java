@@ -1486,6 +1486,10 @@ public class FeatureTaskHandler {
     return snsClient;
   }
 
+  public static long getGlobalInflightRequestMemory() {
+    return globalInflightRequestMemory.sum();
+  }
+
   public static class InvalidStorageException extends Exception {
 
     InvalidStorageException(String msg) {
