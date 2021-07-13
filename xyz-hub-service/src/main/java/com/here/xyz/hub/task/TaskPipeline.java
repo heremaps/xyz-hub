@@ -182,6 +182,17 @@ public class TaskPipeline<V> {
 
   void cancel() {
     state.isCancelled = true;
+    PipelineCancelledException e = new PipelineCancelledException();
+    try {
+      finishException.call(state.value, e);
+    }
+    catch (Throwable throwable) {
+      state.exception = e;
+    }
+  }
+
+  public static class PipelineCancelledException extends RuntimeException {
+
   }
 
   /**
