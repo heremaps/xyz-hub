@@ -909,8 +909,10 @@ public class FeatureTaskHandler {
 
       try {
         RpcClient rpcClient = getRpcClient(storage);
-        if (storageInflightRequestMemorySum > rpcClient.getFunctionClient().getPriority() * GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE)
+        if (storageInflightRequestMemorySum > rpcClient.getFunctionClient().getPriority() * GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE) {
+          addStreamInfo(task, "THR", "M"); //Reason for throttling is memory
           throw new HttpException(TOO_MANY_REQUESTS, "Too many requests for the storage.");
+        }
       }
       catch (HttpException e) {
         logger.warn(task.getMarker(), e.getMessage(), e);
