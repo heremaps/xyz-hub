@@ -89,16 +89,16 @@ public class TweaksSQL
     "select jsondata, geo "
    +"from "
    +"( "
-   +" select jsonb_set('{\"type\": \"Feature\"}'::jsonb,'{properties}', jsonb_set( jsonb_set( '{}'::jsonb, '{gid}', to_jsonb(gid) ),'{gidObjs}', to_jsonb(w) )  ) as jsondata, %1$s as geo"
+   +" select jsonb_set('{\"type\": \"Feature\"}'::jsonb,'{properties}', jsonb_set( jsonb_set( jsonb_set( '{}'::jsonb,'{ids}', ids ), '{gid}', to_jsonb( gid || ':' || gsz ) ),'{gidObjs}', to_jsonb(w) )  ) as jsondata, %1$s as geo"
    +" from "
    +" ( "
-   +"  select left( md5(gh), 12 ) as gid, case length(gh) > %2$d when true then 0 else i end as gsz, count(1) as w, (st_dump( st_union(oo.geo) )).geom as geo "
+   +"  select left( md5(gh), 12 ) as gid, case length(gh) > %2$d when true then 0 else i end as gsz, count(1) as w, jsonb_agg(id) as ids, (st_dump( st_union(oo.geo) )).geom as geo "
    +"  from "
    +"  ( "
-   +"   select ST_GeoHash(geo) as gh, i, jsondata , geo "
+   +"   select ST_GeoHash(geo) as gh, i, id , geo "
    +"   from "
    +"   ( "
-   +"    select i, jsondata, geo "  // fetch objects
+   +"    select i, jsondata->>'id' as id, geo "  // fetch objects
    +"    from ${schema}.${table} "
    +"    where 1 = 1 "
    +"      and %3$s ";  // bboxquery
