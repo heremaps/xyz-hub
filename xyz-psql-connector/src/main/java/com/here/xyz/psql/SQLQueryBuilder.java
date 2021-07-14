@@ -410,6 +410,18 @@ public class SQLQueryBuilder {
      return generateCombinedQueryTweaks(event, tweakQuery, searchQuery , tweaksGeoSql, bTestTweaksGeoIfNull, dataSource);
 	}
 
+
+    private static double cToleranceFromStrength(int strength )
+    {
+     double tolerance = 0.0001;
+     if(  strength > 0  && strength <= 25 )      tolerance = 0.0001 + ((0.001-0.0001)/25.0) * (strength -  1);
+     else if(  strength > 25 && strength <= 50 ) tolerance = 0.001  + ((0.01 -0.001) /25.0) * (strength - 26);
+     else if(  strength > 50 && strength <= 75 ) tolerance = 0.01   + ((0.1  -0.01)  /25.0) * (strength - 51);
+     else /* [76 - 100 ] */                      tolerance = 0.1    + ((1.0  -0.1)   /25.0) * (strength - 76);
+
+     return tolerance;
+    }
+
     public static SQLQuery buildSimplificationTweaksQuery(GetFeaturesByBBoxEvent event, BBox bbox, Map tweakParams, DataSource dataSource) throws SQLException
     {
      int strength = 0,
@@ -440,30 +452,16 @@ public class SQLQueryBuilder {
 
        //SIMPLIFICATION_ALGORITHM
        int hint = 0;
+       String[] pgisAlgorithm = { "ST_SnapToGrid", "ftm_SimplifyPreserveTopology", "ftm_Simplify" };
 
        switch( tweaksAlgorithm )
        {
          case TweaksSQL.SIMPLIFICATION_ALGORITHM_A03 : hint++;
-         case TweaksSQL.SIMPLIFICATION_ALGORITHM_A02 :
-         {
-          double tolerance = 0.0;
-          if(  strength > 0  && strength <= 25 )      tolerance = 0.0001 + ((0.001-0.0001)/25.0) * (strength -  1);
-          else if(  strength > 25 && strength <= 50 ) tolerance = 0.001  + ((0.01 -0.001) /25.0) * (strength - 26);
-          else if(  strength > 50 && strength <= 75 ) tolerance = 0.01   + ((0.1  -0.01)  /25.0) * (strength - 51);
-          else /* [76 - 100 ] */                      tolerance = 0.1    + ((1.0  -0.1)   /25.0) * (strength - 76);
-          tweaksGeoSql = String.format("%s(%s, %f)",( hint == 0 ? "ftm_SimplifyPreserveTopology" : "ftm_Simplify"), tweaksGeoSql, tolerance );
-         }
-         break;
-
+         case TweaksSQL.SIMPLIFICATION_ALGORITHM_A02 : hint++;
          case TweaksSQL.SIMPLIFICATION_ALGORITHM_A01 :
          {
-          double tolerance = 0.0;
-          if(!bStrength) tolerance = Math.abs( bbox.maxLon() - bbox.minLon() ) / 4096;
-          else if(  strength > 0  && strength <= 25 ) tolerance = 0.0001 + ((0.001-0.0001)/25.0) * (strength -  1);
-          else if(  strength > 25 && strength <= 50 ) tolerance = 0.001  + ((0.01 -0.001) /25.0) * (strength - 26);
-          else if(  strength > 50 && strength <= 75 ) tolerance = 0.01   + ((0.1  -0.01)  /25.0) * (strength - 51);
-          else /* [76 - 100 ] */                      tolerance = 0.1    + ((1.0  -0.1)   /25.0) * (strength - 76);
-          tweaksGeoSql = String.format("ST_SnapToGrid(%s, %f)",tweaksGeoSql, tolerance );
+          double tolerance = ( bStrength ? cToleranceFromStrength( strength ) : Math.abs( bbox.maxLon() - bbox.minLon() ) / 4096 );
+          tweaksGeoSql = String.format("%s(%s, %f)", pgisAlgorithm[hint], tweaksGeoSql, tolerance );
          }
          break;
 
