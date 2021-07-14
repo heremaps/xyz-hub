@@ -252,7 +252,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
 
     @Override
-    public TaskPipeline<GeometryQuery> getPipeline() {
+    public TaskPipeline<GeometryQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
           .then(this::resolveRefSpace)
@@ -379,7 +379,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
 
     @Override
-    public TaskPipeline<BBoxQuery> getPipeline() {
+    public TaskPipeline<BBoxQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureAuthorization::authorize)
@@ -406,7 +406,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
 
     @Override
-    public TaskPipeline<TileQuery> getPipeline() {
+    public TaskPipeline<TileQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureAuthorization::authorize)
@@ -438,7 +438,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       super(event, context, apiResponseTypeType, skipCache);
     }
 
-    public TaskPipeline<IdsQuery> getPipeline() {
+    public TaskPipeline<IdsQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureAuthorization::authorize)
@@ -455,7 +455,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       super(event, context, apiResponseTypeType, skipCache);
     }
 
-    public TaskPipeline<LoadFeaturesQuery> getPipeline() {
+    public TaskPipeline<LoadFeaturesQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
           .then(this::postResolveSpace)
@@ -479,7 +479,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
 
     @Override
-    public TaskPipeline<IterateQuery> getPipeline() {
+    public TaskPipeline<IterateQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureAuthorization::authorize)
@@ -496,7 +496,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
 
     @Override
-    public TaskPipeline<IterateHistoryQuery> getPipeline() {
+    public TaskPipeline<IterateHistoryQuery> createPipeline() {
       return TaskPipeline.create(this)
               .then(FeatureTaskHandler::resolveSpace)
               .then(FeatureAuthorization::authorize)
@@ -514,7 +514,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
 
     @Override
-    public TaskPipeline<SearchQuery> getPipeline() {
+    public TaskPipeline<SearchQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureAuthorization::authorize)
@@ -534,7 +534,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
 
     @Override
-    public TaskPipeline<CountQuery> getPipeline() {
+    public TaskPipeline<CountQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureAuthorization::authorize)
@@ -549,7 +549,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
 
     @Override
-    public TaskPipeline<GetStatistics> getPipeline() {
+    public TaskPipeline<GetStatistics> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureAuthorization::authorize)
@@ -567,7 +567,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
 
     @Override
-    public TaskPipeline<GetHistoryStatistics> getPipeline() {
+    public TaskPipeline<GetHistoryStatistics> createPipeline() {
       return TaskPipeline.create(this)
               .then(FeatureTaskHandler::resolveSpace)
               .then(FeatureAuthorization::authorize)
@@ -585,7 +585,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
 
     @Override
-    public TaskPipeline<DeleteOperation> getPipeline() {
+    public TaskPipeline<DeleteOperation> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureTaskHandler::checkPreconditions)
@@ -612,7 +612,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
 
     @Override
-    public TaskPipeline<ModifySpaceQuery> getPipeline() {
+    public TaskPipeline<ModifySpaceQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureTaskHandler::invoke);
@@ -652,7 +652,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
 
     @Override
-    public TaskPipeline<ConditionalOperation> getPipeline() {
+    public TaskPipeline<ConditionalOperation> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureTaskHandler::registerRequestMemory)
@@ -853,7 +853,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
 
     @Override
-    public TaskPipeline<ModifyFeaturesTask> getPipeline() {
+    public TaskPipeline<ModifyFeaturesTask> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureTaskHandler::checkPreconditions)
