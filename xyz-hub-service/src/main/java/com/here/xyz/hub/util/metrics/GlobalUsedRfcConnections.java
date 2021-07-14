@@ -12,6 +12,6 @@ public class GlobalUsedRfcConnections extends Metric {
 
   @Override
   Collection<Double> gatherValues() {
-    return Collections.singleton((double) RemoteFunctionClient.getGlobalUsedConnectionsPercentage());
+    return Collections.singleton((double) RemoteFunctionClient.getGlobalUsedConnectionsPercentage() * 100d);
   }
 }
