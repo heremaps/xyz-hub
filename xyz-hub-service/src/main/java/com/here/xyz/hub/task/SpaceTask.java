@@ -135,7 +135,7 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
     }
 
     @Override
-    public TaskPipeline getPipeline() {
+    public TaskPipeline createPipeline() {
       return TaskPipeline.create(this)
           .then(SpaceAuthorization::authorizeReadSpaces)
           .then(SpaceTaskHandler::readFromJWT)
@@ -181,7 +181,7 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
     }
 
     @Override
-    public TaskPipeline<ConditionalOperation> getPipeline() {
+    public TaskPipeline<ConditionalOperation> createPipeline() {
       return TaskPipeline.create(this)
           .then(SpaceTaskHandler::loadSpace)
           .then(SpaceTaskHandler::preprocess)
