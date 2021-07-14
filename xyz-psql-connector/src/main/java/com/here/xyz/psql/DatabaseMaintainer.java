@@ -77,8 +77,11 @@ public class DatabaseMaintainer {
                     if(response.getStatusLine().getStatusCode() >= 400){
                         logger.warn("{} Could not initialize Database! {}",traceItem, EntityUtils.toString(response.getEntity()));
                     }
-                } else if(response.getStatusLine().getStatusCode() >= 400)
-                    logger.warn("{} Could not maintain Database! {}",traceItem, EntityUtils.toString(response.getEntity()));
+                } else if(response.getStatusLine().getStatusCode() == 409) {
+                    logger.info("{} Maintenance already running! {}", traceItem, EntityUtils.toString(response.getEntity()));
+                } else if(response.getStatusLine().getStatusCode() >= 400) {
+                    logger.warn("{} Could not maintain Database! {}", traceItem, EntityUtils.toString(response.getEntity()));
+                }
             }catch (Exception e){
                 logger.error("{} Could not maintain Database!",traceItem);
             }

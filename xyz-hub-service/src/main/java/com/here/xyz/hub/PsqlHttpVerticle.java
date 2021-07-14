@@ -56,6 +56,9 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
   public static Integer DB_CHECKOUT_TIMEOUT;
   public static boolean DB_TEST_CONNECTION_ON_CHECKOUT;
 
+  public static int MAX_CONCURRENT_MAINTENANCE_TASKS;
+  public static int MISSING_MAINTENANCE_WARNING_IN_HR;
+
   static {
     try {
       final byte[] openapi = ByteStreams.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/openapi-http-connector.yaml"));
@@ -142,5 +145,8 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
 
     DB_CHECKOUT_TIMEOUT = Integer.parseInt((envMap.get("DB_CHECKOUT_TIMEOUT") == null ? "10" : envMap.get("DB_CHECKOUT_TIMEOUT")) )* 1000;
     DB_TEST_CONNECTION_ON_CHECKOUT = Boolean.parseBoolean((envMap.get("DB_TEST_CONNECTION_ON_CHECKOUT")));
+
+    MAX_CONCURRENT_MAINTENANCE_TASKS = Integer.parseInt((envMap.get("MAX_CONCURRENT_MAINTENANCE_TASKS") == null ? "1" : envMap.get("MAX_CONCURRENT_MAINTENANCE_TASKS")));
+    MISSING_MAINTENANCE_WARNING_IN_HR = Integer.parseInt((envMap.get("MISSING_MAINTENANCE_WARNING_IN_HR") == null ? "12" : envMap.get("MISSING_MAINTENANCE_WARNING_IN_HR")));
   }
 }
