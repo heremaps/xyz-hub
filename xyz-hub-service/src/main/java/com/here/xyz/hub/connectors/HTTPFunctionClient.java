@@ -21,6 +21,7 @@ package com.here.xyz.hub.connectors;
 
 import static com.google.common.net.HttpHeaders.ACCEPT_ENCODING;
 import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
+import static com.google.common.net.HttpHeaders.USER_AGENT;
 import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
@@ -39,8 +40,11 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
+import io.vertx.core.http.HttpClient;
+import io.vertx.core.http.HttpClientOptions;
+import io.vertx.core.http.HttpMethod;
+import io.vertx.core.http.RequestOptions;
 import io.vertx.core.net.impl.ConnectionBase;
-import io.vertx.ext.web.client.HttpResponse;
 import java.nio.charset.Charset;
 import java.util.concurrent.TimeoutException;
 import org.apache.logging.log4j.LogManager;
@@ -51,6 +55,15 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
 
   private static final Logger logger = LogManager.getLogger();
   private volatile String url;
+
+  private static HttpClient httpClient = Service.vertx.createHttpClient(new HttpClientOptions()
+      .setMaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)
+      .setHttp2MaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)
+      .setTcpKeepAlive(Service.configuration.HTTP_CLIENT_TCP_KEEPALIVE)
+      .setIdleTimeout(Service.configuration.HTTP_CLIENT_IDLE_TIMEOUT)
+      .setTcpQuickAck(true)
+      .setTcpFastOpen(true)
+      .setPipelining(Service.configuration.HTTP_CLIENT_PIPELINING));
 
   HTTPFunctionClient(Connector connectorConfig) {
     super(connectorConfig);
@@ -76,26 +89,48 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
         remoteFunction.id, url, fc.getByteSize());
 
     try {
-      Service.webClient.postAbs(url)
-          .timeout(REQUEST_TIMEOUT)
+      //The BodyHolder makes sure that our "onSuccess-lambda" below won't keep a reference to the body itself
+      BodyHolder bh = new BodyHolder(Buffer.buffer(fc.consumePayload()));
+
+      httpClient.request(new RequestOptions()
+          .setMethod(HttpMethod.POST)
+          .setTimeout(REQUEST_TIMEOUT)
           .putHeader(CONTENT_TYPE, "application/json; charset=" + Charset.defaultCharset().name())
           .putHeader(STREAM_ID, fc.marker.getName())
           .putHeader(ACCEPT_ENCODING, "gzip")
-          .sendBuffer(Buffer.buffer(fc.consumePayload()), ar -> {
-            if (fc.fireAndForget) return;
-            if (ar.failed())
-              handleFailure(fc.marker, callback, ar.cause());
-            else {
-              try {
-                validateHttpStatus(ar.result());
-                byte[] responseBytes = ar.result().body().getBytes();
-                callback.handle(Future.succeededFuture(responseBytes));
-              }
-              catch (Exception e) {
-                handleFailure(fc.marker, callback, new HttpException(BAD_GATEWAY, "Error while handling response of HTTP connector.", e));
-              }
-            }
-          });
+          .putHeader(USER_AGENT, Service.XYZ_HUB_USER_AGENT)
+          .setAbsoluteURI(url)
+      )
+          .onSuccess(req -> {
+            req.send(bh.body)
+                .onSuccess(response -> {
+                  if (fc.fireAndForget) return;
+                  try {
+                    validateHttpStatus(response.statusCode(), response.statusMessage());
+                    response.body(ar -> {
+                      if (ar.failed())
+                        handleFailure(fc.marker, callback, ar.cause());
+                      else {
+                        try {
+                          byte[] responseBytes = ar.result().getBytes();
+                          if (responseBytes == null || responseBytes.length == 0)
+                            throw new HttpException(BAD_GATEWAY, "Response body from remote HTTP connector service was empty.");
+                          callback.handle(Future.succeededFuture(responseBytes));
+                        }
+                        catch (Exception e) {
+                          handleFailure(fc.marker, callback, new HttpException(BAD_GATEWAY, "Error while handling response of HTTP connector.", e));
+                        }
+                      }
+                    });
+                  }
+                  catch (Exception e) {
+                    handleFailure(fc.marker, callback, e);
+                  }
+                })
+                .onFailure(t -> handleFailure(fc.marker, callback, t));
+            bh.body = null; //Make sure this lambda-expression is not referencing the request-body anymore
+          })
+          .onFailure(t -> handleFailure(fc.marker, callback, t));
     }
     catch (PayloadVanishedException e) {
       callback.handle(Future.failedFuture(new HttpException(TOO_MANY_REQUESTS, "Remote function is busy or cannot be invoked.")));
@@ -105,17 +140,22 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
     }
   }
 
-  private void validateHttpStatus(HttpResponse response) throws HttpException {
-    if (response.statusCode() != OK.code()) {
-      HttpResponseStatus upstreamStatus = Strings.isNullOrEmpty(response.statusMessage()) ?
-          HttpResponseStatus.valueOf(response.statusCode()) : new HttpResponseStatus(response.statusCode(), response.statusMessage());
+  private static class BodyHolder {
+    private BodyHolder(Buffer body) {
+      this.body = body;
+    }
+    private Buffer body;
+  }
+
+  private void validateHttpStatus(int statusCode, String statusMessage) throws HttpException {
+    if (statusCode != OK.code()) {
+      HttpResponseStatus upstreamStatus = Strings.isNullOrEmpty(statusMessage) ?
+          HttpResponseStatus.valueOf(statusCode) : new HttpResponseStatus(statusCode, statusMessage);
       HttpException upstreamHttpEx = new HttpException(upstreamStatus, "Remote HTTP connector service responded with: " + upstreamStatus);
       if (upstreamStatus.equals(GATEWAY_TIMEOUT))
         throw upstreamHttpEx;
       throw new HttpException(BAD_GATEWAY, "Remote HTTP connector service did not respond with 200(OK)", upstreamHttpEx);
     }
-    else if (response.body() == null)
-      throw new HttpException(BAD_GATEWAY, "Response body from remote HTTP connector service was empty.");
   }
 
   private void handleFailure(Marker marker, Handler<AsyncResult<byte[]>> callback, Throwable t) {
