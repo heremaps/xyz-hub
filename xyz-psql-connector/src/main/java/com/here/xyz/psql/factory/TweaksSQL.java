@@ -89,24 +89,28 @@ public class TweaksSQL
     "select jsondata, geo "
    +"from "
    +"( "
-   +" select jsonb_set('{\"type\": \"Feature\"}'::jsonb,'{properties}', jsonb_set( jsonb_set( '{}'::jsonb /* jsonb_set( '{}'::jsonb,'{ids}', ids ) */, '{gid}', to_jsonb( gid || ':' || gsz ) ),'{gidObjs}', to_jsonb(w) )  ) as jsondata, %1$s as geo"
+   +" select jsonb_set('{\"type\": \"Feature\"}'::jsonb,'{properties}', jsonb_set( jsonb_set( case when rflag = 1 then jsonb_set( '{}'::jsonb,'{ids}', ids ) else '{}'::jsonb end , '{gid}', to_jsonb( left(md5( gh || gsz ), 12) ) ),'{gidObjs}', to_jsonb(w) )  ) as jsondata, %1$s as geo"
    +" from "
    +" ( "
-   +"  select left( md5(gh), 12 ) as gid, case length(gh) > %2$d when true then 0 else i end as gsz, count(1) as w, /* jsonb_agg(id) as ids, */ (st_dump( st_union(oo.geo) )).geom as geo "
+   +"  select row_number() over (partition by gh, gsz ) as rflag, *	"
    +"  from "
    +"  ( "
-   +"   select ST_GeoHash(geo) as gh, i, /* id ,*/ geo "
+   +"   select gh, case length(gh) > %2$d when true then 0 else i end as gsz, count(1) as w, jsonb_agg(id) as ids, (st_dump( st_union(oo.geo) )).geom as geo "
    +"   from "
    +"   ( "
-   +"    select i, /* jsondata->>'id' as id,*/ geo "  // fetch objects
-   +"    from ${schema}.${table} "
-   +"    where 1 = 1 "
-   +"      and %3$s ";  // bboxquery
+   +"    select ST_GeoHash(geo) as gh, i, id , geo "
+   +"    from "
+   +"    ( "
+   +"     select i, jsondata->>'id' as id, geo "  // fetch objects
+   +"     from ${schema}.${table} "
+   +"     where 1 = 1 "
+   +"       and %3$s ";  // bboxquery
  
   private static String _mergeEndSql = 
-    "   ) o "
-   +"  ) oo "
-   +"  group by gsz, gh"
+    "    ) o "
+   +"   ) oo "
+   +"   group by gsz, gh"
+   +"  ) ooo "
    +" ) ooo "
    +") oooo "
    +"where 1 = 1 "
