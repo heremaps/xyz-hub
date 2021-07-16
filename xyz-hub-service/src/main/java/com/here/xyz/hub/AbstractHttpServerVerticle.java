@@ -45,6 +45,7 @@ import static io.vertx.core.http.HttpMethod.PUT;
 
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.hub.task.TaskPipeline;
 import com.here.xyz.hub.util.logging.LogUtil;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AbstractVerticle;
@@ -244,6 +245,10 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
    * Creates and sends an error response to the client.
    */
   public static void sendErrorResponse(final RoutingContext context, final Throwable exception) {
+    //If the request was cancelled, neither a response has to be sent nor the error should be logged.
+    if (exception instanceof TaskPipeline.PipelineCancelledException)
+      return;
+
     ErrorMessage error;
 
     try {

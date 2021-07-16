@@ -45,6 +45,7 @@ import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.FeatureTask;
 import com.here.xyz.hub.task.SpaceTask;
 import com.here.xyz.hub.task.Task;
+import com.here.xyz.hub.task.TaskPipeline;
 import com.here.xyz.hub.util.logging.AccessLog;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Space.Internal;
@@ -359,6 +360,8 @@ public abstract class Api {
    * @param e the exception that should be used to generate an {@link ErrorResponse}, if null an internal server error is returned.
    */
   protected void sendErrorResponse(final RoutingContext context, final Throwable e) {
+    if (e instanceof TaskPipeline.PipelineCancelledException)
+      return;
     if (e instanceof HttpException) {
       final HttpException httpException = (HttpException) e;
 
@@ -381,7 +384,7 @@ public abstract class Api {
       }
     }
 
-    // This is an exception that is not done by intention.
+    //This is an exception that is not done by intention.
     logger.error("Unintentional Error:", e);
     XYZHubRESTVerticle.sendErrorResponse(context, e);
   }
