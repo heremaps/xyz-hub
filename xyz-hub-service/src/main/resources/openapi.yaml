@@ -1342,18 +1342,16 @@ components:
       description: >-
         The unique identifier of a feature in the referenced space.
 
-        The geometry of that feature gets used for the spatial query.
-
-        Always to use in combination with refCatalogHrn and refLayerId.
+        The feature's geometry is used as reference in the spatial search.
       schema:
         type: string
     RefSpaceId:
       name: refSpaceId
       in: query
       description: >-
-        As alternative for defining center coordinates, it is possible to reference a
-        geometry in a space. Therefore it is needed to provide the space id where the
-        referenced feature is stored. Always to use in combination with refFeatureId.
+        Represents the space where the feature referenced by refFeatureId is present.
+
+        Required if refFeatureId is used.
       schema:
         type: string
     RemoveTags:
@@ -3167,4 +3165,3 @@ components:
           items:
             type: string
           type: array
-  
