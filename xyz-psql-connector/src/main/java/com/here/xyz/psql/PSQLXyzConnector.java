@@ -167,11 +167,12 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       int mvtTypeRequested = SQLQueryBuilder.mvtTypeRequested(event),
           mvtMargin = 0;
-      boolean bMvtFlattend = ( mvtTypeRequested > 1 );
+      boolean bMvtRequested = ( mvtTypeRequested > 0 ),
+              bMvtFlattend  = ( mvtTypeRequested > 1 );
 
       WebMercatorTile mvtTile = null;
 
-      if( mvtTypeRequested > 0 )
+      if( bMvtRequested )
       { 
         if( event.getConnectorParams() == null || event.getConnectorParams().get("mvtSupport") != Boolean.TRUE )
          throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "mvt format is not supported");
@@ -236,7 +237,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
           case TweaksSQL.SAMPLING: {
             if( bTweaks || !bVizSamplingOff )
             {
-              if( mvtTypeRequested == 0 )
+              if( !bMvtRequested )
               { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, dataSource));
                 if( distStrength > 0 ) collection.setPartial(true); // either ensure mode or explicit tweaks:sampling request where strenght in [1..100]
                 return collection;
@@ -252,7 +253,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
           }
 
           case TweaksSQL.SIMPLIFICATION: {
-            if( mvtTypeRequested == 0 )
+            if( !bMvtRequested )
             { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams, dataSource));
               return collection;
             }
@@ -271,7 +272,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
         switch(event.getClusteringType().toLowerCase())
         {
           case H3SQL.HEXBIN :
-           if( mvtTypeRequested == 0 )
+           if( !bMvtRequested )
             return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource));
            else
             return executeBinQueryWithRetry(
@@ -286,7 +287,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
            QuadbinSQL.checkQuadbinInput(countMode, relResolution, event, config.readTableFromEvent(event), streamId, this);
 
-            if( mvtTypeRequested == 0 )
+            if( !bMvtRequested )
               return executeQueryWithRetry(SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config, noBuffer));
             else
               return executeBinQueryWithRetry(
@@ -306,7 +307,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
         }
       }
 
-      if( mvtTypeRequested == 0 )
+      if( !bMvtRequested )
        return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource));
       else
        return executeBinQueryWithRetry( SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource), mvtTile, mvtMargin, bMvtFlattend ) );
