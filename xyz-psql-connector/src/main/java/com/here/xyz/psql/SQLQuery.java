@@ -178,12 +178,17 @@ public class SQLQuery {
             .replace(VAR_HST_TABLE, sqlQuote(table+HISTORY_TABLE_SUFFIX));
   }
 
-  protected static String replaceVars(String query, Map<String, String> replacements, String schema, String table) {
-    String replaced = replaceVars(query, schema, table);
+  protected static String replaceVars(String query, Map<String, String> replacements, String schema, String table, String partitionTable) {
+    String replaced = replaceVars(query, schema, partitionTable == null ? table : partitionTable );
     for (String key : replacements.keySet()) {
-      replaced = replaced.replaceAll(PREFIX + key + SUFFIX, sqlQuote(replacements.get(key)));
+      String iname = (partitionTable == null ? replacements.get(key) : replacements.get(key).replaceFirst( table, partitionTable ));
+      replaced = replaced.replaceAll(PREFIX + key + SUFFIX, sqlQuote(iname));
     }
     return replaced;
+  }
+
+  protected static String replaceVars(String query, Map<String, String> replacements, String schema, String table ) {
+    return replaceVars(query,replacements,schema,table,null);
   }
 
   protected static SQLQuery selectJson(List<String> selection, DataSource dataSource) throws SQLException {

@@ -216,6 +216,11 @@ public class Space {
   @JsonView({Public.class, Static.class})
   private List<List<Object>> sortableProperties;
 
+  @JsonView({Public.class, Static.class})
+  @JsonInclude(Include.NON_EMPTY)
+  private Integer partitions;
+
+
   public String getId() {
     return id;
   }
@@ -537,7 +542,20 @@ public class Space {
   }
 
   public Space withSortableProperties(final List<List<Object>> sortableProperties) {
-    this.sortableProperties = sortableProperties;
+    setSortableProperties( sortableProperties );
+    return this;
+  }
+
+  public Integer getPartitions() {
+    return partitions;
+  }
+
+  public void setPartitions(final Integer partitions) {
+    this.partitions = partitions;
+  }
+
+  public Space withPartitions(final Integer partitions) {
+    setPartitions(partitions);
     return this;
   }
 
