@@ -165,8 +165,6 @@ public class Service extends Core {
     connectorConfigClient = ConnectorConfigClient.getInstance();
 
     webClient = WebClient.create(vertx, new WebClientOptions()
-        .setMaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)
-        .setHttp2MaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)
         .setUserAgent(XYZ_HUB_USER_AGENT)
         .setTcpKeepAlive(configuration.HTTP_CLIENT_TCP_KEEPALIVE)
         .setIdleTimeout(configuration.HTTP_CLIENT_IDLE_TIMEOUT)
