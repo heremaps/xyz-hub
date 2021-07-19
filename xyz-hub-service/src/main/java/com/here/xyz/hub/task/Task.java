@@ -100,6 +100,8 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
    */
   private TaskState state = INIT;
 
+  private TaskPipeline<X> pipeline;
+
   private ConcurrentSet<Consumer<Task<T, X>>> cancellingHandlers = new ConcurrentSet<>();
 
   /**
@@ -201,11 +203,22 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
   }
 
   /**
-   * Returns the execution pipeline.
+   * Creates the execution pipeline.
    *
    * @return the execution pipeline
    */
-  public abstract TaskPipeline<X> getPipeline();
+  public abstract TaskPipeline<X> createPipeline();
+
+  /**
+   * Returns the (previously) created execution pipeline.
+   * @return
+   */
+  public TaskPipeline<X> getPipeline() {
+    if (pipeline == null)
+      pipeline = createPipeline();
+
+    return pipeline;
+  }
 
   /**
    * Returns the e-tag of the response, if there is any available.
@@ -285,7 +298,6 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
 
   public void cancel() {
     if (!state.isFinal()) {
-      state = CANCELLED;
       try {
         //Cancel all further steps in the pipeline
         getPipeline().cancel();
@@ -297,6 +309,9 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
       }
       catch (Exception e) {
         logger.error(getMarker(), "Error cancelling the task.", e);
+      }
+      finally {
+        state = CANCELLED;
       }
     }
   }

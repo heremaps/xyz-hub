@@ -44,7 +44,6 @@ public class HttpConnector extends Core {
     VertxOptions vertxOptions = new VertxOptions()
             .setWorkerPoolSize(NumberUtils.toInt(System.getenv(Core.VERTX_WORKER_POOL_SIZE), 128))
             .setPreferNativeTransport(true)
-            .setBlockedThreadCheckInterval(15)
             .setBlockedThreadCheckInterval(TimeUnit.MINUTES.toMillis(15));
     initialize(vertxOptions, false, "connector-config.json", HttpConnector::onConfigLoaded );
   }

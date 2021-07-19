@@ -21,6 +21,7 @@ package com.here.xyz.hub.task;
 
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.HttpConnector;
+import com.here.xyz.hub.PsqlHttpVerticle;
 import com.here.xyz.hub.rest.HttpException;
 
 import com.here.xyz.responses.XyzResponse;
@@ -41,8 +42,6 @@ import java.sql.SQLException;
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
 
 public class HttpConnectorTaskHandler {
-  private static final int MAX_CONCURRENT_MAINTENANCE_TASKS = 5;
-  private static final int MISSING_MAINTENANCE_WARNING_IN_HR = 12;
   private static final Logger logger = LogManager.getLogger();
 
   public static void getConnectorStatus(String connectorId, String ecps, String passphrase, Handler<AsyncResult<XyzResponse>> handler) {
@@ -85,11 +84,11 @@ public class HttpConnectorTaskHandler {
 
           if(autoIndexingStatus.getMaintenanceRunning().size() > 0 ){
             Long timeSinceLastRunInHr = (Core.currentTimeMillis() - autoIndexingStatus.getMaintainedAt()) / 1000 / 60 / 60;
-            if(timeSinceLastRunInHr > MISSING_MAINTENANCE_WARNING_IN_HR)
+            if(timeSinceLastRunInHr > PsqlHttpVerticle.MISSING_MAINTENANCE_WARNING_IN_HR)
               logger.warn("Last MaintenanceRun is older than {}h - connector: {}", timeSinceLastRunInHr, connectorId);
           }
 
-          if(autoIndexingStatus.getMaintenanceRunning().size() >= MAX_CONCURRENT_MAINTENANCE_TASKS) {
+          if(autoIndexingStatus.getMaintenanceRunning().size() >=  PsqlHttpVerticle.MAX_CONCURRENT_MAINTENANCE_TASKS) {
             handler.handle(Future.failedFuture(new HttpException(CONFLICT, "Maximal concurrent Indexing tasks are running!")));
             return;
           }
