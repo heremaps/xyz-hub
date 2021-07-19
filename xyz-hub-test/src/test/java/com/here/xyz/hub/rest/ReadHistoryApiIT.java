@@ -35,6 +35,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -398,7 +399,10 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                     get(getSpacesPath() + "/x-psql-test/history?startVersion=1&endVersion=12").
                     getBody().asString();
 
-    compc = XyzSerializable.deserialize(body);
+    Typed resp = XyzSerializable.deserialize(body);
+    if (!(resp instanceof CompactChangeset))
+      throw new RuntimeException("Expected response to be a CompactChangeset, but got:" + resp.serialize());
+    compc = (CompactChangeset) resp;
     assertEquals(4900,compc.getInserted().getFeatures().size());
     assertEquals(100,compc.getUpdated().getFeatures().size());
 
@@ -583,7 +587,10 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
                     get(getSpacesPath() + "/x-psql-test/iterate?version=15").
                     getBody().asString();
 
-    FeatureCollection fc = XyzSerializable.deserialize(body);
+    Typed resp = XyzSerializable.deserialize(body);
+    if (!(resp instanceof FeatureCollection))
+      throw new RuntimeException("Expected response to be a FeatureCollection, but got:" + resp.serialize());
+    FeatureCollection fc = (FeatureCollection) resp;
 
     assertNotNull(fc.getFeatures());
     boolean foundFeature=false;
