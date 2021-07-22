@@ -25,6 +25,7 @@ public class TweaksSQL
   public static final String SAMPLING_STRENGTH = "strength";
   public static final String SAMPLING_ALGORITHM = "algorithm";
   public static final String SAMPLING_ALGORITHM_DST = "distribution";
+  public static final String SAMPLING_ALGORITHM_DST2 = "distribution2";
   public static final String SAMPLING_ALGORITHM_SZE = "geometrysize";
   public static final String SIMPLIFICATION = "simplification";
   public static final String SIMPLIFICATION_STRENGTH = SAMPLING_STRENGTH;
@@ -71,6 +72,18 @@ public class TweaksSQL
      
    return String.format("%s < '%s'",DstFunctIndexExpr,s);
   }
+
+  public static float tableSampleRatio(int strength)
+  { 
+   float r = (  strength <=  1  ? (1 / 3f)    : 
+                strength <=  5  ? (1 / 4f)    : 
+                strength <= 10  ? (1 / 8f)    : 
+                strength <= 30  ? (1 / 32f)   :
+                strength <= 50  ? (1 / 128f)  :
+                strength <= 75  ? (1 / 1024f) : (1 / 4096f) );
+   return r;
+  }
+
 
   public static int calculateDistributionStrength(int rCount, int chunkSize) 
   { 
