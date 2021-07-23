@@ -197,7 +197,16 @@ public class Service extends Core {
     if (result.failed()) {
       logger.error("Failed to insert local connectors.", result.cause());
     } else {
-      BurstAndUpdateThread.initialize(initializeAr -> onServiceInitialized(initializeAr, config));
+      BurstAndUpdateThread.initialize(initializeAr -> onBustAndUpdateThreadStarted(initializeAr, config));
+    }
+  }
+
+  private static void onBustAndUpdateThreadStarted(AsyncResult<Void> result, JsonObject config) {
+    if (result.failed()) {
+      logger.error("Failed to start BurstAndUpdateThread.", result.cause());
+    } else {
+      // start warmup thread after connectors have been checked by BurstAndUpdateThread
+      WarmupRemoteFunctionThread.initialize(initializeAr -> onServiceInitialized(initializeAr, config));
     }
   }
 
@@ -206,9 +215,6 @@ public class Service extends Core {
       logger.error("Failed to initialize Connectors. Service can't be started.", result.cause());
       return;
     }
-
-    // start warmup thread after connectors have been checked by BurstAndUpdateThread
-    WarmupRemoteFunctionThread.initialize();
 
     if (StringUtils.isEmpty(Service.configuration.VERTICLES_CLASS_NAMES)) {
       logger.error("At least one Verticle class name should be specified on VERTICLES_CLASS_NAMES. Service can't be started");
