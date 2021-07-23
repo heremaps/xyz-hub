@@ -27,6 +27,7 @@ import com.here.xyz.hub.cache.CacheClient;
 import com.here.xyz.hub.config.ConnectorConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.BurstAndUpdateThread;
+import com.here.xyz.hub.connectors.WarmupRemoteFunctionThread;
 import com.here.xyz.hub.rest.admin.MessageBroker;
 import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
@@ -205,6 +206,9 @@ public class Service extends Core {
       logger.error("Failed to initialize Connectors. Service can't be started.", result.cause());
       return;
     }
+
+    // start warmup thread after connectors have been checked by BurstAndUpdateThread
+    WarmupRemoteFunctionThread.initialize();
 
     if (StringUtils.isEmpty(Service.configuration.VERTICLES_CLASS_NAMES)) {
       logger.error("At least one Verticle class name should be specified on VERTICLES_CLASS_NAMES. Service can't be started");

@@ -53,7 +53,7 @@ public class BurstAndUpdateThread extends Thread {
   private BurstAndUpdateThread(Handler<AsyncResult<Void>> handler) throws NullPointerException {
     super(name);
     if (instance != null) {
-      throw new IllegalStateException("Singleton warm-up thread has already been instantiated.");
+      throw new IllegalStateException("Singleton burst and update thread has already been instantiated.");
     }
     initializeHandler = handler;
     BurstAndUpdateThread.instance = this;
@@ -93,7 +93,7 @@ public class BurstAndUpdateThread extends Thread {
       }
     }
 
-    //Run the warm-up for the lambda connectors which have a warmUpCount > 0 and do some updates
+    // Do some updates
     for (final RpcClient client : RpcClient.getAllInstances()) {
       final Connector oldConnector = client.getConnector();
       if (oldConnector == null) {
@@ -136,41 +136,6 @@ public class BurstAndUpdateThread extends Thread {
         }
         catch (Exception e) {
           logger.error("Unexpected exception while trying to update connector configuration", e);
-          continue;
-        }
-      }
-      else {
-        //Use the existing connector configuration instance
-        logger.debug("The incoming connector config for \"{}\" was equal to the current one. No update.", newConnector.id);
-        newConnector = oldConnector;
-      }
-
-      if (newConnector.getRemoteFunction().warmUp > 0) {
-        final int minInstances = newConnector.getRemoteFunction().warmUp;
-        try {
-          final AtomicInteger requestCount = new AtomicInteger(minInstances);
-          logger.info("Send {} health status requests to connector '{}'", requestCount, newConnector.id);
-          synchronized (requestCount) {
-            for (int i = 0; i < minInstances; i++) {
-              HealthCheckEvent healthCheck = new HealthCheckEvent()
-                  .withMinResponseTime(200);
-              //Just generate a stream ID here as the stream actually "begins" here
-              final String healthCheckStreamId = UUID.randomUUID().toString();
-              healthCheck.setStreamId(healthCheckStreamId);
-              client.execute(new Log4jMarker(healthCheckStreamId), healthCheck, r -> {
-                if (r.failed()) {
-                  logger.warn("Warmup-healtcheck failed for connector with ID " + oldConnector.id, r.cause());
-                }
-                synchronized (requestCount) {
-                  requestCount.decrementAndGet();
-                  requestCount.notifyAll();
-                }
-              });
-            }
-          }
-        }
-        catch (Exception e) {
-          logger.error("Unexpected exception while trying to send lambda warm-up requests", e);
         }
       }
     }
