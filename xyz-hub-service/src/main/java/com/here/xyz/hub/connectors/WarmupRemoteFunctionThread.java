@@ -152,16 +152,25 @@ public class WarmupRemoteFunctionThread extends Thread {
     //Stay alive as long as the executor (our parent) is alive.
     //noinspection InfiniteLoopStatement
     while (true) {
+      logger.info("Warm-up cycle started. Interval of: " + CONNECTOR_WARMUP_INTERVAL + " seconds");
       try {
         final long start = Core.currentTimeMillis();
         if (isWarmupExpired()) {
+          logger.info("Warm-up flag is expired, running.");
           setWarmupFlag();
           executeWarmup();
+          logger.info("Warm-up execution is finished.");
         }
+        else {
+          logger.info("Warm-up flag is not expired, waiting next round.");
+        }
+
         final long end = Core.currentTimeMillis();
         final long runtime = end - start;
         if (runtime < CONNECTOR_WARMUP_INTERVAL) {
-          Thread.sleep(CONNECTOR_WARMUP_INTERVAL - runtime);
+          long nextWarmup = CONNECTOR_WARMUP_INTERVAL - runtime;
+          logger.info("Next warm-up in " + nextWarmup + " millis");
+          Thread.sleep(nextWarmup);
         }
       } catch (InterruptedException e) {
         //We expect that this may happen and ignore it.
