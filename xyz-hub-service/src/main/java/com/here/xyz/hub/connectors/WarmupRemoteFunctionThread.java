@@ -23,6 +23,9 @@ import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.cache.RedisCacheClient;
 import com.here.xyz.hub.connectors.models.Connector;
+import io.vertx.core.AsyncResult;
+import io.vertx.core.Future;
+import io.vertx.core.Handler;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -44,27 +47,30 @@ public class WarmupRemoteFunctionThread extends Thread {
   private static final String RFC_WARMUP_CACHE_KEY = "RFC_WARMUP_CACHE_KEY";
 
   // minimum amount of seconds to wait between each run, also used as mutex expiration period
-  private static final long MIN_WAIT_TIME = TimeUnit.MINUTES.toMillis(2);
+  private static final long MIN_WAIT_TIME_SECONDS = 120;
 
   // interval is a random number of seconds varying between 120 and 180.
-  private static final long CONNECTOR_WARMUP_INTERVAL = MIN_WAIT_TIME + TimeUnit.SECONDS.toMillis((long) (Math.random() * 60));
+  private static final long CONNECTOR_WARMUP_INTERVAL = TimeUnit.SECONDS.toMillis(MIN_WAIT_TIME_SECONDS) + TimeUnit.SECONDS.toMillis((long) (Math.random() * 60));
 
   private static WarmupRemoteFunctionThread instance;
+  private volatile Handler<AsyncResult<Void>> initializeHandler;
 
-  private WarmupRemoteFunctionThread() throws NullPointerException {
+
+  private WarmupRemoteFunctionThread(Handler<AsyncResult<Void>> handler) throws NullPointerException {
     super(name);
     if (instance != null) {
       throw new IllegalStateException("Singleton warmup thread has already been instantiated.");
     }
+    initializeHandler = handler;
     WarmupRemoteFunctionThread.instance = this;
     this.setDaemon(true);
     this.start();
     logger.info("Started warmup thread {}", name);
   }
 
-  public static void initialize() {
+  public static void initialize(Handler<AsyncResult<Void>> handler) {
     if (instance == null) {
-      instance = new WarmupRemoteFunctionThread();
+      instance = new WarmupRemoteFunctionThread(handler);
     }
   }
 
@@ -138,7 +144,7 @@ public class WarmupRemoteFunctionThread extends Thread {
   }
 
   private void setWarmupFlag() {
-    RedisCacheClient.getInstance().set(RFC_WARMUP_CACHE_KEY, new byte[0], MIN_WAIT_TIME);
+    RedisCacheClient.getInstance().set(RFC_WARMUP_CACHE_KEY, new byte[0], MIN_WAIT_TIME_SECONDS);
   }
 
   @Override
@@ -161,6 +167,12 @@ public class WarmupRemoteFunctionThread extends Thread {
         //We expect that this may happen and ignore it.
       } catch (Exception e) {
         logger.error("Unexpected error in WarmupRemoteFunctionThread", e);
+      }
+
+      //Call the service initialization handler in the first run
+      if (initializeHandler != null) {
+        initializeHandler.handle(Future.succeededFuture());
+        initializeHandler = null;
       }
     }
   }
