@@ -151,7 +151,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 142
+ select 143
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
@@ -2692,7 +2692,7 @@ RETURNS text[] AS
 $body$
 select array_agg( i.jpth ) from
 ( with t1 as ( select distinct unnest( plist ) jpth )
-  select l.jpth from t1 l join t1 r on ( strpos( l.jpth, r.jpth ) = 1 )
+  select l.jpth from t1 l join t1 r on ( l.jpth = r.jpth or strpos( l.jpth, r.jpth || '.' ) = 1 )
   group by 1 having count(1) = 1
 ) i
 $body$
