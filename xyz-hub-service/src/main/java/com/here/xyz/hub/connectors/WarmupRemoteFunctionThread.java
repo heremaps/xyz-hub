@@ -24,10 +24,12 @@ import com.here.xyz.hub.Core;
 import com.here.xyz.hub.cache.RedisCacheClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import io.vertx.core.AsyncResult;
+import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
-import java.util.HashMap;
-import java.util.Map;
+import io.vertx.core.Promise;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -46,25 +48,20 @@ public class WarmupRemoteFunctionThread extends Thread {
   private static final Logger logger = LogManager.getLogger();
   private static final String RFC_WARMUP_CACHE_KEY = "RFC_WARMUP_CACHE_KEY";
 
-  // minimum amount of seconds to wait between each run, also used as mutex expiration period
-  private static final long MIN_WAIT_TIME_SECONDS = 120;
-
-  // interval is a random number of seconds varying between 120 and 180.
-  private static final long CONNECTOR_WARMUP_INTERVAL = TimeUnit.SECONDS.toMillis(MIN_WAIT_TIME_SECONDS) + TimeUnit.SECONDS.toMillis((long) (Math.random() * 60));
+  // minimum amount of milliseconds to wait between each run, also used as lock expiration period
+  private static final long CONNECTOR_WARMUP_INTERVAL = 120 * 1000;
 
   private static WarmupRemoteFunctionThread instance;
-  private volatile Handler<AsyncResult<Void>> initializeHandler;
-
 
   private WarmupRemoteFunctionThread(Handler<AsyncResult<Void>> handler) throws NullPointerException {
     super(name);
     if (instance != null) {
       throw new IllegalStateException("Singleton warmup thread has already been instantiated.");
     }
-    initializeHandler = handler;
     WarmupRemoteFunctionThread.instance = this;
     this.setDaemon(true);
     this.start();
+    handler.handle(Future.succeededFuture());
     logger.info("Started warmup thread {}", name);
   }
 
@@ -75,76 +72,55 @@ public class WarmupRemoteFunctionThread extends Thread {
   }
 
   private synchronized void executeWarmup() {
-    final Map<String, Connector> remoteFunctionsMap = new HashMap<>();
+    final List<Future> futures = new ArrayList<>();
 
     // prepare the list of remote functions to be called, select max warmup value for each remote function
     for (final RpcClient client : RpcClient.getAllInstances()) {
-      if (client.getConnector().getRemoteFunction().warmUp > 0) {
-        String remoteFunctionId = client.getConnector().getRemoteFunction().id;
-        Connector connector = compareWarmup(client.getConnector(), remoteFunctionsMap.get(remoteFunctionId));
+      final Connector connector = client.getConnector();
+      final int minInstances = connector.getRemoteFunction().warmUp;
 
-        if (connector != null) {
-          remoteFunctionsMap.put(remoteFunctionId, connector);
+      if (minInstances > 0) {
+        final String remoteFunctionId = client.getConnector().getRemoteFunction().id;
+
+        try {
+          final AtomicInteger requestCount = new AtomicInteger(minInstances);
+          logger.info("Send {} health status requests to remote function '{}'", requestCount, remoteFunctionId);
+          synchronized (requestCount) {
+            for (int i = 0; i < minInstances; i++) {
+              HealthCheckEvent healthCheck = new HealthCheckEvent().withMinResponseTime(200);
+              //Just generate a stream ID here as the stream actually "begins" here
+              final String healthCheckStreamId = UUID.randomUUID().toString();
+              healthCheck.setStreamId(healthCheckStreamId);
+              Promise<Void> promise = Promise.promise();
+              futures.add(promise.future());
+              RpcClient.getInstanceFor(connector).execute(new Log4jMarker(healthCheckStreamId), healthCheck, r -> {
+                if (r.failed()) {
+                  logger.warn("Warmup-healtcheck failed for remote function with ID " + remoteFunctionId, r.cause());
+                }
+                synchronized (requestCount) {
+                  requestCount.decrementAndGet();
+                  requestCount.notifyAll();
+                }
+                promise.complete();
+              });
+            }
+          }
+        } catch (IllegalStateException e) {
+          logger.info("Exception when retrieving RpcClient for connector.", e);
+        } catch (Exception e) {
+          logger.error("Unexpected exception while trying to send warm-up requests", e);
         }
       }
     }
 
-    remoteFunctionsMap.forEach((remoteFunctionId, connector) -> {
-      final int minInstances = connector.getRemoteFunction().warmUp;
-      try {
-        final AtomicInteger requestCount = new AtomicInteger(minInstances);
-        logger.info("Send {} health status requests to remote function '{}'", requestCount, connector.getRemoteFunction().id);
-        synchronized (requestCount) {
-          for (int i = 0; i < minInstances; i++) {
-            HealthCheckEvent healthCheck = new HealthCheckEvent().withMinResponseTime(200);
-            //Just generate a stream ID here as the stream actually "begins" here
-            final String healthCheckStreamId = UUID.randomUUID().toString();
-            healthCheck.setStreamId(healthCheckStreamId);
-            RpcClient.getInstanceFor(connector).execute(new Log4jMarker(healthCheckStreamId), healthCheck, r -> {
-              if (r.failed()) {
-                logger.warn("Warmup-healtcheck failed for remote function with ID " + remoteFunctionId, r.cause());
-              }
-              synchronized (requestCount) {
-                requestCount.decrementAndGet();
-                requestCount.notifyAll();
-              }
-            });
-          }
-        }
-      }
-      catch (IllegalStateException e) {
-        logger.info("Exception when retrieving RpcClient for connector.", e);
-      }
-      catch (Exception e) {
-        logger.error("Unexpected exception while trying to send warm-up requests", e);
-      }
-    });
-  }
-
-  private Connector compareWarmup(Connector connector1, Connector connector2) {
-    if (connector1 == null && connector2 == null) return null;
-    if (connector1 == null) return connector2;
-    if (connector2 == null) return connector1;
-    return connector1.getRemoteFunction().warmUp > connector2.getRemoteFunction().warmUp ? connector1 : connector2;
-  }
-
-  private boolean isWarmupExpired() {
-    CompletableFuture<Boolean> f = new CompletableFuture<>();
-    RedisCacheClient.getInstance().get(RFC_WARMUP_CACHE_KEY).onSuccess(r -> {
-      f.complete(r == null);
-    });
-
+    CompletableFuture<Boolean> completableFuture = new CompletableFuture<>();
+    CompositeFuture.all(futures).onComplete(h->completableFuture.complete(h.succeeded()));
     try {
-      return f.get();
+      completableFuture.get();
     }
     catch (ExecutionException | InterruptedException e) {
-
-      return false;
+      // nothing to do
     }
-  }
-
-  private void setWarmupFlag() {
-    RedisCacheClient.getInstance().set(RFC_WARMUP_CACHE_KEY, new byte[0], MIN_WAIT_TIME_SECONDS);
   }
 
   @Override
@@ -155,14 +131,14 @@ public class WarmupRemoteFunctionThread extends Thread {
       logger.info("Warm-up cycle started. Interval of: " + CONNECTOR_WARMUP_INTERVAL + " millis");
       try {
         final long start = Core.currentTimeMillis();
-        if (isWarmupExpired()) {
-          logger.info("Warm-up flag is expired, running.");
-          setWarmupFlag();
+
+        if (acquireLock()) {
+          logger.info("Lock acquired, running.");
           executeWarmup();
           logger.info("Warm-up execution is finished.");
         }
         else {
-          logger.info("Warm-up flag is not expired, waiting next round.");
+          logger.info("Unable to acquire lock, waiting next round.");
         }
 
         final long end = Core.currentTimeMillis();
@@ -177,12 +153,15 @@ public class WarmupRemoteFunctionThread extends Thread {
       } catch (Exception e) {
         logger.error("Unexpected error in WarmupRemoteFunctionThread", e);
       }
-
-      //Call the service initialization handler in the first run
-      if (initializeHandler != null) {
-        initializeHandler.handle(Future.succeededFuture());
-        initializeHandler = null;
-      }
     }
+  }
+
+  private boolean acquireLock() {
+    if (RedisCacheClient.getInstance() instanceof RedisCacheClient) {
+      RedisCacheClient redisCacheClient = ((RedisCacheClient) RedisCacheClient.getInstance());
+      return redisCacheClient.acquireLock(RFC_WARMUP_CACHE_KEY, (CONNECTOR_WARMUP_INTERVAL / 1000));
+    }
+
+    return true;
   }
 }

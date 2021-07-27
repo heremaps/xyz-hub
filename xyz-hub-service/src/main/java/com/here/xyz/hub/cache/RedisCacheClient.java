@@ -26,6 +26,9 @@ import io.vertx.redis.client.Command;
 import io.vertx.redis.client.Redis;
 import io.vertx.redis.client.RedisOptions;
 import io.vertx.redis.client.Request;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -35,6 +38,7 @@ public class RedisCacheClient implements CacheClient {
   private static final Logger logger = LogManager.getLogger();
   private ThreadLocal<Redis> redis;
   private String connectionString = Service.configuration.getRedisUri();
+  private static final String RND = UUID.randomUUID().toString();
 
   private RedisCacheClient() {
     redis = ThreadLocal.withInitial(() -> {
@@ -113,4 +117,39 @@ public class RedisCacheClient implements CacheClient {
       getClient().close();
   }
 
+  /**
+   * Acquires the lock on the specified key and sets a ttl in seconds.
+   * Implementation based on https://redis.io/topics/distlock for single Redis instances
+   * @param key the key which the lock will be acquired
+   * @param ttl the expiration time in seconds for this lock be automatically released
+   * @return true in case the lock was successfully acquired. False otherwise.
+   */
+  public boolean acquireLock(String key, long ttl) {
+    Request req = Request.cmd(Command.SET).arg(key).arg(RND).arg("NX").arg("EX").arg(ttl);
+    CompletableFuture<Boolean> f = new CompletableFuture<>();
+    getClient().send(req).onComplete(ar->{
+      if (ar.failed() || ar.result() == null) f.complete(false);
+      else f.complete("OK".equals(ar.result().toString()));
+    });
+    try {
+      return f.get();
+    }
+    catch (ExecutionException | InterruptedException e) {
+      return false;
+    }
+  }
+
+  /**
+   * Releases the lock acquired by acquireLock. The key must match with the lock acquired previously.
+   * @param key the key which the lock was acquired
+   */
+  public void releaseLock(String key) {
+    final String luaScript = "if redis.call(\"get\",KEYS[1]) == ARGV[1] then return redis.call(\"del\",KEYS[1]) else return 0 end";
+    Request req = Request.cmd(Command.EVAL).arg(luaScript).arg(1).arg(key).arg(RND);
+    getClient().send(req).onComplete(ar -> {
+      if (ar.failed()) {
+        //logger.warn("Error removing cache entry for key {}.", key, ar.cause());
+      }
+    });
+  }
 }
