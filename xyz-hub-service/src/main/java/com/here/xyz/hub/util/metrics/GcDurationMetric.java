@@ -4,29 +4,27 @@ import com.sun.management.GarbageCollectionNotificationInfo;
 import com.sun.management.GcInfo;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.management.NotificationListener;
 import javax.management.openmbean.CompositeData;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class MajorGcCountMetric extends Metric {
+public class GcDurationMetric extends Metric {
 
   private static final Logger logger = LogManager.getLogger();
-  private static int majorGcCount = 0;
-  private static final int timeLimit = 200; //ms
+  private static AtomicReference<Collection<Double>> durations = new AtomicReference(new ArrayList<>());
 
-  public MajorGcCountMetric(MetricPublisher publisher) {
+  public GcDurationMetric(MetricPublisher publisher) {
     super(publisher, 30);
     registerBeanListener();
   }
 
   @Override
   Collection<Double> gatherValues() {
-    int count = majorGcCount;
-    majorGcCount -= count;
-    return Collections.singleton((double) count);
+    return durations.getAndSet(new ArrayList<>());
   }
 
   static public void registerBeanListener() {
@@ -49,8 +47,8 @@ public class MajorGcCountMetric extends Metric {
       CompositeData cd = (CompositeData) notification.getUserData();
       GarbageCollectionNotificationInfo gcNotificationInfo = GarbageCollectionNotificationInfo.from(cd);
       GcInfo gcInfo = gcNotificationInfo.getGcInfo();
-      if (gcNotificationInfo.getGcAction().equals("end of major GC") && gcInfo.getDuration() > timeLimit)
-        majorGcCount++;
+      if (gcNotificationInfo.getGcAction().equals("end of major GC"))
+        durations.get().add((double) gcInfo.getDuration());
     }
   };
 
