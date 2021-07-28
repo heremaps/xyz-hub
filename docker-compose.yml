@@ -9,7 +9,6 @@ services:
             - "postgres"
             - "redis"
             - "xyz-http-connector"
-        command: java -jar xyz-hub-service.jar
     xyz-http-connector:
         image: "xyz-hub"
         build:

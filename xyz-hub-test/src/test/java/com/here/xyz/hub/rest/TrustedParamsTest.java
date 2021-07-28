@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.Map;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class TrustedParamsTest extends TestWithSpaceCleanup {
@@ -35,6 +36,7 @@ public class TrustedParamsTest extends TestWithSpaceCleanup {
     removeSpace(cleanUpId);
   }
 
+  @Ignore("Disabled until javascript engine is working in EvalConnector for Java16")
   @Test
   public void untrustedConnector() {
     final String code = "if (event.getTrustedParams() == null) throw 'valid';";
@@ -52,6 +54,7 @@ public class TrustedParamsTest extends TestWithSpaceCleanup {
         .body("errorMessage", equalTo("valid"));
   }
 
+  @Ignore("Disabled until javascript engine is working in EvalConnector for Java16")
   @Test
   public void trustedConnector() {
     final String code = "if (event.getTrustedParams() != null && event.getTrustedParams().getCookies().get('here_access') == 'my_PRD_jwt_cookie' && !event.getTrustedParams().getCookies().containsKey('here_access_st')) throw 'valid';";

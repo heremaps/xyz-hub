@@ -8,7 +8,7 @@
       "dbCheckoutTimeout": 12,
       "dbAcquireRetryAttempts": 10,
       "connectorId" : "psql",
-      "ecps": "$encrypt({\"PSQL_HOST\":\"postgres\",\"PSQL_PORT\":\"${PSQL_PORT}\",\"PSQL_DB\":\"${PSQL_DB}\",\"PSQL_USER\":\"${PSQL_USER}\",\"PSQL_PASSWORD\":\"${PSQL_PASSWORD}\",\"PSQL_SCHEMA\":\"public\"})",
+      "ecps": "$encrypt({\"PSQL_HOST\":\"${PSQL_HOST}\",\"PSQL_PORT\":\"${PSQL_PORT}\",\"PSQL_DB\":\"${PSQL_DB}\",\"PSQL_USER\":\"${PSQL_USER}\",\"PSQL_PASSWORD\":\"${PSQL_PASSWORD}\",\"PSQL_SCHEMA\":\"public\"})",
       "mvtSupport": true
     },
     "capabilities": {
