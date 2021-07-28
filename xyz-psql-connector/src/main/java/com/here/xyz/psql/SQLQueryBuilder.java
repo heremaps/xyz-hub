@@ -370,7 +370,8 @@ public class SQLQueryBuilder {
     public static SQLQuery buildSamplingTweaksQuery(GetFeaturesByBBoxEvent event, BBox bbox, Map tweakParams, DataSource dataSource) throws SQLException
     {
      int strength = 0;
-     boolean bDistribution = true,
+     boolean bDistribution  = true,
+             bDistribution2 = false,
              bConvertGeo2Geojson = ( mvtTypeRequested(event) == 0 );
 
      if( tweakParams != null )
@@ -382,22 +383,25 @@ public class SQLQueryBuilder {
 
        switch(((String) tweakParams.getOrDefault(TweaksSQL.SAMPLING_ALGORITHM, TweaksSQL.SAMPLING_ALGORITHM_DST)).toLowerCase() )
        {
-         case TweaksSQL.SAMPLING_ALGORITHM_SZE : bDistribution = false; break;
-         case TweaksSQL.SAMPLING_ALGORITHM_DST :
-         default: bDistribution = true; break;
+         case TweaksSQL.SAMPLING_ALGORITHM_SZE  : bDistribution = false; break;
+         case TweaksSQL.SAMPLING_ALGORITHM_DST2 : bDistribution2 = true;
+         case TweaksSQL.SAMPLING_ALGORITHM_DST  :
+         default                                : bDistribution = true; break;
        }
      }
 
      boolean bEnsureMode = TweaksSQL.ENSURE.equals( event.getTweakType().toLowerCase() );
 
-     final String sCondition = ( bEnsureMode && strength == 0 ? "1 = 1" : TweaksSQL.strengthSql(strength,bDistribution)  ),
+     float tblSampleRatio = ( (strength > 0 && bDistribution2) ? TweaksSQL.tableSampleRatio(strength) : -1f);
+
+     final String sCondition = ( ((bEnsureMode && strength == 0) || (tblSampleRatio >= 0.0)) ? "1 = 1" : TweaksSQL.strengthSql(strength,bDistribution)  ),
                   twqry = String.format(String.format("ST_Intersects(geo, ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326) ) and %%s", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat(), sCondition );
 
      final SQLQuery searchQuery = generateSearchQuery(event,dataSource),
                     tweakQuery = new SQLQuery(twqry);
 
      if( !bEnsureMode || !bConvertGeo2Geojson )  
-      return generateCombinedQuery(event, tweakQuery, searchQuery , dataSource, bConvertGeo2Geojson, null );
+      return generateCombinedQuery(event, tweakQuery, searchQuery , dataSource, bConvertGeo2Geojson, null, tblSampleRatio );
 
      /* TweaksSQL.ENSURE and geojson requested (no mvt) */
      boolean bTestTweaksGeoIfNull = false;
@@ -407,7 +411,7 @@ public class SQLQueryBuilder {
      tweaksGeoSql = ( bConvertGeo2Geojson ? String.format("replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "( %s ),%d),'nan','0')",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS)
                                           : String.format( getForceMode(event.isForce2D()) + "( %s )",tweaksGeoSql ) );
 
-     return generateCombinedQueryTweaks(event, tweakQuery, searchQuery , tweaksGeoSql, bTestTweaksGeoIfNull, dataSource);
+     return generateCombinedQueryTweaks(event, tweakQuery, searchQuery , tweaksGeoSql, bTestTweaksGeoIfNull, dataSource,tblSampleRatio);
 	}
 
 
@@ -952,8 +956,10 @@ public class SQLQueryBuilder {
         return query;
     }
 
-    private static SQLQuery generateCombinedQueryTweaks(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, String tweaksgeo, boolean bTestTweaksGeoIfNull, DataSource dataSource) throws SQLException
+    private static SQLQuery generateCombinedQueryTweaks(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, String tweaksgeo, boolean bTestTweaksGeoIfNull, DataSource dataSource, float sampleRatio) throws SQLException
     {
+     String tSample = ( sampleRatio <= 0.0 ? "" : String.format("tablesample system(%.6f) repeatable(499)", 100.0 * sampleRatio) ); 
+
      final SQLQuery query = new SQLQuery();
 
      query.append("select * from ( SELECT");
@@ -962,7 +968,7 @@ public class SQLQueryBuilder {
 
      query.append(String.format(",%s as geo",tweaksgeo));
 
-     query.append("FROM ${schema}.${table} WHERE");
+     query.append( String.format("FROM ${schema}.${table} %s WHERE",tSample) );
      query.append(indexedQuery);
 
      if( secondaryQuery != null )
@@ -976,8 +982,13 @@ public class SQLQueryBuilder {
      return query;
     }
 
-    private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, DataSource dataSource, boolean bConvertGeo2Geojson, String h3Index ) throws SQLException
+    private static SQLQuery generateCombinedQueryTweaks(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, String tweaksgeo, boolean bTestTweaksGeoIfNull, DataSource dataSource) throws SQLException
+    { return generateCombinedQueryTweaks(event, indexedQuery, secondaryQuery, tweaksgeo, bTestTweaksGeoIfNull, dataSource, -1.0f );  }
+
+    private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, DataSource dataSource, boolean bConvertGeo2Geojson, String h3Index, float sampleRatio ) throws SQLException
     {
+        String tSample = ( sampleRatio <= 0.0 ? "" : String.format("tablesample system(%.6f) repeatable(499)", 100.0 * sampleRatio) );
+        
         final SQLQuery query = new SQLQuery();
 
         if(h3Index != null)
@@ -990,9 +1001,9 @@ public class SQLQueryBuilder {
         query.append(geometrySelectorForEvent( event, bConvertGeo2Geojson, indexedQuery));
 
         if(h3Index != null)
-            query.append("FROM ${schema}.${table},h  WHERE");
+            query.append(String.format("FROM ${schema}.${table} %s,h WHERE",tSample));
         else
-            query.append("FROM ${schema}.${table}  WHERE");
+            query.append(String.format("FROM ${schema}.${table} %s WHERE",tSample));
 
         query.append(indexedQuery);
 
@@ -1004,6 +1015,9 @@ public class SQLQueryBuilder {
         query.append("LIMIT ?", event.getLimit());
         return query;
     }
+
+    private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, DataSource dataSource, boolean bConvertGeo2Geojson, String h3Index ) throws SQLException
+    { return generateCombinedQuery(event,indexedQuery,secondaryQuery,dataSource,bConvertGeo2Geojson,h3Index, -1.0f); }
 
     /**
      * Returns the query, which will contains the geometry object.
