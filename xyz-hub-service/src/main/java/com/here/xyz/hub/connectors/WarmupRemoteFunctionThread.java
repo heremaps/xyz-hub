@@ -24,16 +24,9 @@ import com.here.xyz.hub.Core;
 import com.here.xyz.hub.cache.RedisCacheClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import io.vertx.core.AsyncResult;
-import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
-import io.vertx.core.Promise;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -72,8 +65,6 @@ public class WarmupRemoteFunctionThread extends Thread {
   }
 
   private synchronized void executeWarmup() {
-    final List<Future> futures = new ArrayList<>();
-
     // prepare the list of remote functions to be called, select max warmup value for each remote function
     for (final RpcClient client : RpcClient.getAllInstances()) {
       final Connector connector = client.getConnector();
@@ -91,17 +82,13 @@ public class WarmupRemoteFunctionThread extends Thread {
               //Just generate a stream ID here as the stream actually "begins" here
               final String healthCheckStreamId = UUID.randomUUID().toString();
               healthCheck.setStreamId(healthCheckStreamId);
-              Promise<Void> promise = Promise.promise();
-              futures.add(promise.future());
               RpcClient.getInstanceFor(connector).execute(new Log4jMarker(healthCheckStreamId), healthCheck, r -> {
                 if (r.failed()) {
                   logger.warn("Warmup-healtcheck failed for remote function with ID " + remoteFunctionId, r.cause());
                 }
                 synchronized (requestCount) {
                   requestCount.decrementAndGet();
-                  requestCount.notifyAll();
                 }
-                promise.complete();
               });
             }
           }
@@ -111,15 +98,6 @@ public class WarmupRemoteFunctionThread extends Thread {
           logger.error("Unexpected exception while trying to send warm-up requests", e);
         }
       }
-    }
-
-    CompletableFuture<Boolean> completableFuture = new CompletableFuture<>();
-    CompositeFuture.all(futures).onComplete(h->completableFuture.complete(h.succeeded()));
-    try {
-      completableFuture.get();
-    }
-    catch (ExecutionException | InterruptedException e) {
-      // nothing to do
     }
   }
 
@@ -159,7 +137,7 @@ public class WarmupRemoteFunctionThread extends Thread {
   private boolean acquireLock() {
     if (RedisCacheClient.getInstance() instanceof RedisCacheClient) {
       RedisCacheClient redisCacheClient = ((RedisCacheClient) RedisCacheClient.getInstance());
-      return redisCacheClient.acquireLock(RFC_WARMUP_CACHE_KEY, (CONNECTOR_WARMUP_INTERVAL / 1000));
+      return redisCacheClient.acquireLock(RFC_WARMUP_CACHE_KEY, (CONNECTOR_WARMUP_INTERVAL / 1000) - 1); // expires 1 second earlier
     }
 
     return true;
