@@ -27,7 +27,6 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.MarkerManager.Log4jMarker;
@@ -64,7 +63,7 @@ public class WarmupRemoteFunctionThread extends Thread {
     }
   }
 
-  private synchronized void executeWarmup() {
+  private void executeWarmup() {
     // prepare the list of remote functions to be called, select max warmup value for each remote function
     for (final RpcClient client : RpcClient.getAllInstances()) {
       final Connector connector = client.getConnector();
@@ -74,23 +73,17 @@ public class WarmupRemoteFunctionThread extends Thread {
         final String remoteFunctionId = client.getConnector().getRemoteFunction().id;
 
         try {
-          final AtomicInteger requestCount = new AtomicInteger(minInstances);
-          logger.info("Send {} health status requests to remote function '{}'", requestCount, remoteFunctionId);
-          synchronized (requestCount) {
-            for (int i = 0; i < minInstances; i++) {
-              HealthCheckEvent healthCheck = new HealthCheckEvent().withMinResponseTime(200);
-              //Just generate a stream ID here as the stream actually "begins" here
-              final String healthCheckStreamId = UUID.randomUUID().toString();
-              healthCheck.setStreamId(healthCheckStreamId);
-              RpcClient.getInstanceFor(connector).execute(new Log4jMarker(healthCheckStreamId), healthCheck, r -> {
-                if (r.failed()) {
-                  logger.warn("Warmup-healtcheck failed for remote function with ID " + remoteFunctionId, r.cause());
-                }
-                synchronized (requestCount) {
-                  requestCount.decrementAndGet();
-                }
-              });
-            }
+          logger.info("Send {} health status requests to remote function '{}'", minInstances, remoteFunctionId);
+          for (int i = 0; i < minInstances; i++) {
+            HealthCheckEvent healthCheck = new HealthCheckEvent().withMinResponseTime(200);
+            //Just generate a stream ID here as the stream actually "begins" here
+            final String healthCheckStreamId = UUID.randomUUID().toString();
+            healthCheck.setStreamId(healthCheckStreamId);
+            RpcClient.getInstanceFor(connector).execute(new Log4jMarker(healthCheckStreamId), healthCheck, r -> {
+              if (r.failed()) {
+                logger.warn("Warmup-healtcheck failed for remote function with ID " + remoteFunctionId, r.cause());
+              }
+            });
           }
         } catch (IllegalStateException e) {
           logger.info("Exception when retrieving RpcClient for connector.", e);
