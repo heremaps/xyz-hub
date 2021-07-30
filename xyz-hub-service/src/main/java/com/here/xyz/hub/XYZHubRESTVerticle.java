@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,9 +26,7 @@ import static io.vertx.core.http.HttpHeaders.LOCATION;
 
 import com.google.common.io.ByteStreams;
 import com.google.common.io.Files;
-import com.here.xyz.hub.auth.Authorization.AuthorizationType;
-import com.here.xyz.hub.auth.JWTURIHandler;
-import com.here.xyz.hub.auth.JwtDummyHandler;
+import com.here.xyz.hub.auth.ExtendedJWTAuthHandler;
 import com.here.xyz.hub.auth.XyzAuthProvider;
 import com.here.xyz.hub.rest.AdminApi;
 import com.here.xyz.hub.rest.ConnectorApi;
@@ -49,13 +47,12 @@ import io.vertx.ext.auth.jwt.JWTAuthOptions;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.AuthenticationHandler;
-import io.vertx.ext.web.handler.ChainAuthHandler;
-import io.vertx.ext.web.handler.JWTAuthHandler;
 import io.vertx.ext.web.handler.StaticHandler;
 import io.vertx.ext.web.openapi.RouterBuilder;
 import io.vertx.ext.web.openapi.RouterBuilderOptions;
 import java.io.File;
 import java.util.Hashtable;
+import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -71,8 +68,9 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
 
   static {
     try {
-      final byte[] openapi = ByteStreams.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/openapi.yaml"));
-      final byte[] recipes = ByteStreams.toByteArray(XYZHubRESTVerticle.class.getResourceAsStream("/openapi-recipes.yaml"));
+      final byte[] openapi = ByteStreams.toByteArray(Objects.requireNonNull(XYZHubRESTVerticle.class.getResourceAsStream("/openapi.yaml")));
+      final byte[] recipes = ByteStreams.toByteArray(
+          Objects.requireNonNull(XYZHubRESTVerticle.class.getResourceAsStream("/openapi-recipes.yaml")));
 
       FULL_API = new String(openapi);
       STABLE_API = new String(generate(openapi, recipes, "stable"));
@@ -129,20 +127,16 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
             if (path.endsWith("full.yaml")) {
               res.headers().add(CONTENT_LENGTH, String.valueOf(FULL_API.getBytes().length));
               res.write(FULL_API);
-            }
-            else if (path.endsWith("stable.yaml")) {
+            } else if (path.endsWith("stable.yaml")) {
               res.headers().add(CONTENT_LENGTH, String.valueOf(STABLE_API.getBytes().length));
               res.write(STABLE_API);
-            }
-            else if (path.endsWith("experimental.yaml")) {
+            } else if (path.endsWith("experimental.yaml")) {
               res.headers().add(CONTENT_LENGTH, String.valueOf(EXPERIMENTAL_API.getBytes().length));
               res.write(EXPERIMENTAL_API);
-            }
-            else if (path.endsWith("contract.yaml")) {
+            } else if (path.endsWith("contract.yaml")) {
               res.headers().add(CONTENT_LENGTH, String.valueOf(CONTRACT_API.getBytes().length));
               res.write(CONTRACT_API);
-            }
-            else {
+            } else {
               res.setStatusCode(HttpResponseStatus.NOT_FOUND.code());
             }
 
@@ -151,15 +145,17 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
 
           //Static resources
           router.route("/hub/static/*")
-              .handler(new DelegatingHandler<>(StaticHandler.create().setIndexPage("index.html"), context -> context.addHeadersEndHandler(v -> {
-                //This handler implements a workaround for an issue with CloudFront, which removes slashes at the end of the request-URL's path
-                MultiMap headers = context.response().headers();
-                if (headers.contains(LOCATION)) {
-                  String headerValue = headers.get(LOCATION);
-                  if (headerValue.endsWith("/"))
-                    headers.set(LOCATION, headerValue + "index.html");
-                }
-              }), null))
+              .handler(
+                  new DelegatingHandler<>(StaticHandler.create().setIndexPage("index.html"), context -> context.addHeadersEndHandler(v -> {
+                    //This handler implements a workaround for an issue with CloudFront, which removes slashes at the end of the request-URL's path
+                    MultiMap headers = context.response().headers();
+                    if (headers.contains(LOCATION)) {
+                      String headerValue = headers.get(LOCATION);
+                      if (headerValue.endsWith("/")) {
+                        headers.set(LOCATION, headerValue + "index.html");
+                      }
+                    }
+                  }), null))
               .handler(createCorsHandler());
           if (Service.configuration.FS_WEB_ROOT != null) {
             logger.debug("Serving extra web-root folder in file-system with location: {}", Service.configuration.FS_WEB_ROOT);
@@ -189,12 +185,10 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
               startPromise.complete();
             });
           });
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
           routerFailure(e);
         }
-      }
-      else {
+      } else {
         routerFailure(ar.cause());
       }
     });
@@ -212,17 +206,7 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
         new PubSecKeyOptions().setAlgorithm("RS256")
             .setBuffer(Service.configuration.getJwtPubKey()));
 
-    JWTAuth authProvider = new XyzAuthProvider(vertx, authConfig);
-
-    ChainAuthHandler authHandler = ChainAuthHandler.any()
-        .add(JWTAuthHandler.create(authProvider))
-        .add(JWTURIHandler.create(authProvider));
-
-    if (Service.configuration.XYZ_HUB_AUTH == AuthorizationType.DUMMY) {
-      authHandler.add(JwtDummyHandler.create(authProvider));
-    }
-
-    return authHandler;
+    return new ExtendedJWTAuthHandler(new XyzAuthProvider(vertx, authConfig), null);
   }
 
   private static class DelegatingHandler<E> implements Handler<E> {
@@ -240,9 +224,13 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
 
     @Override
     public void handle(E event) {
-      if (before != null) before.handle(event);
+      if (before != null) {
+        before.handle(event);
+      }
       delegate.handle(event);
-      if (after != null) after.handle(event);
+      if (after != null) {
+        after.handle(event);
+      }
     }
   }
 }
