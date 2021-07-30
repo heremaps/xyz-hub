@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,18 +55,6 @@ public class XyzAuthProvider extends JWTAuthProviderImpl {
     TokenCredentials authInfo = (TokenCredentials) credentials;
     final String jwt = authInfo.getToken();
 
-    if (!isJWT(jwt)) {
-      try {
-        byte[] bytearray = Base64.getDecoder().decode(jwt.getBytes());
-        bytearray = Compression.decompressUsingInflate(bytearray);
-        authInfo.setToken(new String(bytearray));
-      }
-      catch (DataFormatException e) {
-        resultHandler.handle(Future.failedFuture("Wrong auth credentials format."));
-        return;
-      }
-    }
-
     User cachedUser = usersCache.get(jwt);
     if (cachedUser != null) {
       resultHandler.handle(Future.succeededFuture(cachedUser));
@@ -87,7 +75,5 @@ public class XyzAuthProvider extends JWTAuthProviderImpl {
     });
   }
 
-  private boolean isJWT(final String jwt) {
-    return StringUtils.countMatches(jwt, ".") == 2;
-  }
+
 }

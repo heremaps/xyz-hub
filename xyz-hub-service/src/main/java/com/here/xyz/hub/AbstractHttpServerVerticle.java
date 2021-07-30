@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -59,7 +59,6 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.CorsHandler;
-import io.vertx.ext.web.handler.impl.HttpStatusException;
 import io.vertx.ext.web.validation.BadRequestException;
 import java.util.Arrays;
 import java.util.List;
@@ -163,9 +162,9 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
       String message = "A failure occurred during the execution.";
       if (context.failure() != null) {
         Throwable t = context.failure();
-        if (t instanceof HttpStatusException) {
+        if (t instanceof io.vertx.ext.web.handler.HttpException) {
           //Transform Vert.x HTTP exception into ours
-          HttpResponseStatus status = HttpResponseStatus.valueOf(((HttpStatusException) t).getStatusCode());
+          HttpResponseStatus status = HttpResponseStatus.valueOf(((io.vertx.ext.web.handler.HttpException) t).getStatusCode());
           if (status == UNAUTHORIZED)
             message = "Missing auth credentials.";
           t = new HttpException(status, message, t);
