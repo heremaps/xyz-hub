@@ -19,11 +19,13 @@
 
 package com.here.xyz.hub.connectors;
 
+import static com.here.xyz.hub.rest.Api.CLIENT_CLOSED_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
 import static io.netty.handler.codec.http.HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE;
 import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 
+import com.amazonaws.AbortedException;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.SdkClientException;
 import com.amazonaws.auth.AWSCredentialsProvider;
@@ -235,25 +237,30 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
     }
   }
 
-  private HttpException getHttpException(Marker marker, Throwable e) {
-    if (e instanceof HttpException) {
-      return (HttpException) e;
+  private HttpException getHttpException(Marker marker, Throwable t) {
+    if (t instanceof HttpException) {
+      return (HttpException) t;
     }
-    if (e instanceof AWSLambdaException) {
-      AWSLambdaException le = (AWSLambdaException) e;
+    if (t instanceof AWSLambdaException) {
+      AWSLambdaException le = (AWSLambdaException) t;
       if (le.getStatusCode() == 413) {
-        return new HttpException(REQUEST_ENTITY_TOO_LARGE, "The compressed request must be smaller than 6291456 bytes.", e);
+        return new HttpException(REQUEST_ENTITY_TOO_LARGE, "The compressed request must be smaller than 6291456 bytes.", t);
       }
-      else if (e instanceof ResourceNotFoundException) {
-        logger.warn(marker, "Lambda function does not exist.", e);
-        return new HttpException(BAD_GATEWAY, "Error while contacting lambda function.", e);
+      else if (t instanceof ResourceNotFoundException) {
+        logger.warn(marker, "Lambda function does not exist.", t);
+        return new HttpException(BAD_GATEWAY, "Error while contacting lambda function.", t);
       }
     }
-    if (e instanceof HttpRequestTimeoutException || e instanceof SdkClientException && e.getCause() instanceof HttpRequestTimeoutException)
-      return new HttpException(GATEWAY_TIMEOUT, "The connector did not respond in time.", e);
+    if (t instanceof HttpRequestTimeoutException || t instanceof SdkClientException && t.getCause() instanceof HttpRequestTimeoutException)
+      return new HttpException(GATEWAY_TIMEOUT, "The connector did not respond in time.", t);
+    if (t instanceof AbortedException) {
+      String msg = "Lambda function call was aborted.";
+      logger.warn(marker, "Lambda function call was aborted.", t);
+      return new HttpException(CLIENT_CLOSED_REQUEST, msg, t);
+    }
 
-    logger.error(marker, "Unexpected exception while contacting lambda function", e);
-    return new HttpException(BAD_GATEWAY, "Error while contacting lambda function.", e);
+    logger.error(marker, "Unexpected exception while contacting lambda function", t);
+    return new HttpException(BAD_GATEWAY, "Error while contacting lambda function.", t);
   }
 
   private static AWSLambdaAsync getLambdaClient(AWSLambda remoteFunction, String forConnectorId) {
