@@ -69,6 +69,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -153,6 +155,15 @@ public class PSQLXyzConnector extends DatabaseHandler {
     }
   }
 
+  static private class TupleTime 
+  { static private Map<String,String> rTuplesMap = new ConcurrentHashMap<String,String>();
+    long outTs; 
+    TupleTime() { outTs = System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(15); rTuplesMap.clear(); }
+    boolean expired() { return  System.currentTimeMillis() > outTs; }
+  }
+
+  static private TupleTime ttime = new TupleTime();
+
   @Override
   protected XyzResponse processGetFeaturesByBBoxEvent(GetFeaturesByBBoxEvent event) throws Exception {
     try{
@@ -218,7 +229,16 @@ public class PSQLXyzConnector extends DatabaseHandler {
         switch ( event.getTweakType().toLowerCase() )  {
 
           case TweaksSQL.ENSURE: {
-            int rCount = executeQueryWithRetry(SQLQueryBuilder.buildEstimateSamplingStrengthQuery(event, bbox )).getFeatures().get(0).get("rcount");
+
+            if(ttime.expired()) 
+             ttime = new TupleTime();
+
+            String rTuples = TupleTime.rTuplesMap.get(event.getSpace());
+            Feature estimateFtr = executeQueryWithRetry(SQLQueryBuilder.buildEstimateSamplingStrengthQuery(event, bbox, rTuples )).getFeatures().get(0);
+            int rCount = estimateFtr.get("rcount");
+
+            if( rTuples == null )
+             TupleTime.rTuplesMap.put(event.getSpace(), estimateFtr.get("rtuples") );
 
             boolean bDefaultSelectionHandling = (tweakParams.get(TweaksSQL.ENSURE_DEFAULT_SELECTION) == Boolean.TRUE );
 

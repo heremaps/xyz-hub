@@ -197,48 +197,70 @@ public class TweaksSQL
    +"select jsondata, %1$s as geo from finaldata ";
   
 
-  public static String 
-   requestedTileBoundsSql = String.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/),
+  private static String 
+   estWithPgClass_B = 
+     "   select sum( coalesce( c2.reltuples, c1.reltuples ) )::bigint as reltuples, "
+    +"   string_agg(  coalesce( c2.reltuples, c1.reltuples ) || '~' || coalesce(c2.relname, c1.relname),',' ) as rtup "
+    +"   from indata i, pg_class c1 left join pg_inherits pm on ( c1.oid = pm.inhparent ) left join pg_class c2 on ( c2.oid = pm.inhrelid ) "
+    +"   where c1.oid = format('%s.%s',i.schema,i.space)::regclass",
 
-   _estimateCountByBboxesSql =  //flavour2: calc _postgis_selectivity using sum of reltupels 
+   estWithoutPgClass_B = 
+     "   select sum( c0.reltuples )::bigint as reltuples, "
+    +"   '%1$s'::text as rtup "
+    +"   from indata i, ( select split_part(r1,'~',2)::name as tblname, split_part(r1,'~',1)::real as reltuples from ( select regexp_split_to_table( '%1$s',',' ) as r1 ) r2 ) c0",
+
+   estimateCountByBboxesSql_B =  //flavour2: calc _postgis_selectivity using sum of reltupels 
     " with indata as "
     +" ( select '${schema}' as schema, '${table}' as space, array[ %1$s ] as tiles, 'geo' as colname ), "
-    +"   reldata as"
-    +"   ( select sum( coalesce( c2.reltuples, c1.reltuples ) )::bigint as reltuples "
-    +"     from indata i, pg_class c1 left join pg_inherits pm on ( c1.oid = pm.inhparent ) left join pg_class c2 on ( c2.oid = pm.inhrelid ) "
-    +"     where c1.oid = format('%%s.%%s',i.schema,i.space)::regclass "
-    +"   ), "
-    +"   iindata as "
-    +"   ( select i.schema, i.space, i.colname, t.tile, "
-    +"            true as bstats, "
-    +"            r.reltuples "
-    +"     from indata i, reldata r, unnest( i.tiles ) t(tile) "
-    +"   ), "
-    +"   iiidata as "
-    +"   ( select case when ii.bstats then ii.reltuples * xyz_postgis_selectivity(format('%%s.%%s', ii.schema, ii.space)::regclass, ii.colname, ii.tile) else 0.0 end estim "
-    +"     from iindata ii "
-    +"   ) "
-    +" select jsonb_set( '{\"type\":\"Feature\"}', '{rcount}', to_jsonb( max(estim)::integer ) ) as rcount, null from iiidata ",
-
-   estimateCountByBboxesSql = //flavour1: calc _postgis_selectivity with partitions and sum up
-     " with indata as "
-    +" ( select '${schema}' as schema, '${table}' as space, array[ %1$s ] as tiles, 'geo' as colname ), "
+    +" reldata as ( %2$s ),"
     +" iindata as "
-    +" ( select i.schema, i.space, i.colname, "
+    +" ( select i.schema, i.space, i.colname, t.tile, "
+    +"          true as bstats, "
+    +"          r.reltuples, r.rtup "
+    +"   from indata i, reldata r, unnest( i.tiles ) t(tile) "
+    +" ), "
+    +" iiidata as "
+    +" ( select ii.rtup, case when ii.bstats then ii.reltuples * xyz_postgis_selectivity(format('%%s.%%s', ii.schema, ii.space)::regclass, ii.colname, ii.tile) else 0.0 end estim "
+    +"   from iindata ii "
+    +" ) "
+    +" select jsonb_set(jsonb_set( '{\"type\":\"Feature\"}', '{rcount}', to_jsonb( max(estim)::integer ) ),'{rtuples}', to_jsonb(max(rtup)) ) as rcount, null from iiidata ",
+
+   estWithPgClass_A =
+     "   select i.schema, i.space, i.colname, "
     +"          t.tile, t.tid, "
     +"          true as bstats, "
     +"          coalesce(c2.relname, c1.relname) as tblname, "
     +"          coalesce( c2.reltuples, c1.reltuples ) reltuples "
     +"   from indata i, unnest( i.tiles) with ordinality t(tile,tid), pg_class c1 left join pg_inherits pm on ( c1.oid = pm.inhparent ) left join pg_class c2 on ( c2.oid = pm.inhrelid ) "
-    +"   where c1.oid = format('%%s.%%s',i.schema,i.space)::regclass "
-    +" ), "
+    +"   where c1.oid = format('%s.%s',i.schema,i.space)::regclass",
+
+   estWithoutPgClass_A =
+     "   select i.schema, i.space, i.colname, "
+    +"          t.tile, t.tid, "
+    +"          true as bstats, "
+    +"          c0.tblname, "
+    +"          c0.reltuples "
+    +"   from indata i, unnest( i.tiles) with ordinality t(tile,tid), ( select split_part(r1,'~',2)::name as tblname, split_part(r1,'~',1)::real as reltuples from ( select regexp_split_to_table( '%1$s',',' ) as r1 ) r2 ) c0",
+
+   estimateCountByBboxesSql_A = //flavour1: calc _postgis_selectivity with partitions and sum up
+     " with indata as "
+    +" ( select '${schema}' as schema, '${table}' as space, array[ %1$s ] as tiles, 'geo' as colname ), "
+    +" iindata as ( %2$s ),"
     +" iiidata as "
-    +" ( select ii.tid, sum( case when ii.bstats then ii.reltuples * xyz_postgis_selectivity(format('%%s.%%I', ii.schema, ii.tblname)::regclass, ii.colname, ii.tile) else 0.0 end ) estim "
+    +" ( select ii.tid, string_agg(  ii.reltuples || '~' || ii.tblname,',' ) as rtup, sum( case when ii.bstats then ii.reltuples * xyz_postgis_selectivity(format('%%s.%%I', ii.schema, ii.tblname)::regclass, ii.colname, ii.tile) else 0.0 end ) estim "
     +"   from iindata ii "
     +"   group by tid "
     +" ) "
-    +" select jsonb_set( '{\"type\":\"Feature\"}', '{rcount}', to_jsonb( max(estim)::integer ) ) as rcount, null from iiidata ";
-  
+    +" select jsonb_set( jsonb_set( '{\"type\":\"Feature\"}', '{rcount}', to_jsonb( max(estim)::integer)), '{rtuples}', to_jsonb(max(rtup))) as rcount, null from iiidata ";
+
+  public static String  
+   requestedTileBoundsSql = String.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/),
+    
+   estWithPgClass = estWithPgClass_A,
+   estWithoutPgClass = estWithoutPgClass_A,
+   estimateCountByBboxesSql = estimateCountByBboxesSql_A;
+
+
   public static String 
    mvtPropertiesSql        = "( select jsonb_object_agg(key, case when jsonb_typeof(value) in ('object', 'array') then to_jsonb(value::text) else value end) from jsonb_each(jsonb_set((jsondata)->'properties','{id}', to_jsonb(jsondata->>'id'))))", 
    mvtPropertiesFlattenSql = "( select jsonb_object_agg('properties.' || jkey,jval) from prj_flatten( jsonb_set((jsondata)->'properties','{id}', to_jsonb( jsondata->>'id' )) ))",

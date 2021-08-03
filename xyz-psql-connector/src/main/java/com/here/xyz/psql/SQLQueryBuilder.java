@@ -537,7 +537,7 @@ public class SQLQueryBuilder {
 
 
 
-    public static SQLQuery buildEstimateSamplingStrengthQuery( GetFeaturesByBBoxEvent event, BBox bbox )
+    public static SQLQuery buildEstimateSamplingStrengthQuery( GetFeaturesByBBoxEvent event, BBox bbox, String relTuples )
     {
      int level, tileX, tileY, margin = 0;
 
@@ -560,7 +560,7 @@ public class SQLQueryBuilder {
 
      for( int dy = -1; dy < 2; dy++ )
       for( int dx = -1; dx < 2; dx++ )
-       if( (dy == 0) && (dx == 0) ) listOfBBoxes.add(bbox);  // centerbox, this is alredy extended by margin
+       if( (dy == 0) && (dx == 0) ) listOfBBoxes.add(bbox);  // centerbox, this is already extended by margin
        else if( ((tileY + dy) > 0) && ((tileY + dy) < nrTilesXY) )
         listOfBBoxes.add( WebMercatorTile.forWeb(level, ((nrTilesXY +(tileX + dx)) % nrTilesXY) , (tileY + dy)).getExtendedBBox(margin) );
 
@@ -569,7 +569,9 @@ public class SQLQueryBuilder {
      for (BBox b : listOfBBoxes)
       sb.append(String.format("%s%s",( flag++ > 0 ? "," : ""),String.format( TweaksSQL.requestedTileBoundsSql , b.minLon(), b.minLat(), b.maxLon(), b.maxLat() )));
 
-     return new SQLQuery( String.format( TweaksSQL.estimateCountByBboxesSql, sb.toString() ) );
+     String estimateSubSql = ( relTuples == null ? TweaksSQL.estWithPgClass : String.format( TweaksSQL.estWithoutPgClass, relTuples ) );
+
+     return new SQLQuery( String.format( TweaksSQL.estimateCountByBboxesSql, sb.toString(), estimateSubSql ) );
     }
 
     public static SQLQuery buildMvtEncapsuledQuery( String spaceId, SQLQuery dataQry, WebMercatorTile mvtTile, int mvtMargin, boolean bFlattend )
