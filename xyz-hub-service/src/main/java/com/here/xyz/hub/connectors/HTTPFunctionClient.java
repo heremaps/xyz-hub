@@ -102,6 +102,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
           .setAbsoluteURI(url)
       )
           .onSuccess(req -> {
+            req.exceptionHandler(t -> handleFailure(fc.marker, callback, t));
             req.send(bh.body)
                 .onSuccess(response -> {
                   if (fc.fireAndForget) return;

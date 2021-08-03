@@ -27,11 +27,13 @@ import com.here.xyz.hub.cache.CacheClient;
 import com.here.xyz.hub.config.ConnectorConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.BurstAndUpdateThread;
+import com.here.xyz.hub.connectors.WarmupRemoteFunctionThread;
 import com.here.xyz.hub.rest.admin.MessageBroker;
 import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.hub.util.ARN;
 import com.here.xyz.hub.util.metrics.CloudWatchMetricPublisher;
+import com.here.xyz.hub.util.metrics.GcDurationMetric;
 import com.here.xyz.hub.util.metrics.GlobalInflightRequestMemory;
 import com.here.xyz.hub.util.metrics.GlobalUsedRfcConnections;
 import com.here.xyz.hub.util.metrics.MajorGcCountMetric;
@@ -194,7 +196,16 @@ public class Service extends Core {
     if (result.failed()) {
       logger.error("Failed to insert local connectors.", result.cause());
     } else {
-      BurstAndUpdateThread.initialize(initializeAr -> onServiceInitialized(initializeAr, config));
+      BurstAndUpdateThread.initialize(initializeAr -> onBustAndUpdateThreadStarted(initializeAr, config));
+    }
+  }
+
+  private static void onBustAndUpdateThreadStarted(AsyncResult<Void> result, JsonObject config) {
+    if (result.failed()) {
+      logger.error("Failed to start BurstAndUpdateThread.", result.cause());
+    } else {
+      // start warmup thread after connectors have been checked by BurstAndUpdateThread
+      WarmupRemoteFunctionThread.initialize(initializeAr -> onServiceInitialized(initializeAr, config));
     }
   }
 
@@ -318,6 +329,8 @@ public class Service extends Core {
           "ServiceName", serviceName, StandardUnit.Percent)));
       metrics.add(new MajorGcCountMetric(new CloudWatchMetricPublisher(ns, "MajorGcCount",
           "ServiceName", serviceName, StandardUnit.Count)));
+      metrics.add(new GcDurationMetric(new CloudWatchMetricPublisher(ns, "GcDuration",
+          "ServiceName", serviceName, StandardUnit.Milliseconds)));
       metrics.add(new GlobalUsedRfcConnections(new CloudWatchMetricPublisher(ns, "GlobalUsedRfcConnections",
           "ServiceName", serviceName, StandardUnit.Percent)));
       metrics.add(new GlobalInflightRequestMemory(new CloudWatchMetricPublisher(ns, "GlobalInflightRequestMemory",

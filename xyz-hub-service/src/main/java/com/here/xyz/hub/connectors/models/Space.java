@@ -70,7 +70,7 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
   public long contentUpdatedAt = 0;
 
   @JsonInclude(Include.NON_DEFAULT)
-  @JsonView({Internal.class, Static.class})
+  @JsonView({Public.class, Static.class})
   public boolean notSendDeleteMse = false;
 
   /**

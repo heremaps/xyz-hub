@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,8 +33,8 @@ import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.GetStatisticsEvent;
-import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
+import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
@@ -45,12 +45,11 @@ import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.auth.XyzHubActionMatrix;
 import com.here.xyz.hub.auth.XyzHubAttributeMap;
 import com.here.xyz.hub.rest.ApiParam.Query;
-import com.here.xyz.hub.rest.admin.MessageBroker;
 import com.here.xyz.hub.task.FeatureTask;
 import com.here.xyz.hub.task.FeatureTask.GeometryQuery;
 import com.here.xyz.hub.task.FeatureTask.IdsQuery;
-import com.here.xyz.hub.task.FeatureTask.IterateQuery;
 import com.here.xyz.hub.task.FeatureTask.IterateHistoryQuery;
+import com.here.xyz.hub.task.FeatureTask.IterateQuery;
 import com.here.xyz.hub.task.FeatureTask.LoadFeaturesQuery;
 import com.here.xyz.hub.task.FeatureTask.SearchQuery;
 import com.here.xyz.hub.task.FeatureTask.TileQuery;
@@ -60,7 +59,6 @@ import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.handler.AuthHandler;
 import io.vertx.ext.web.handler.AuthenticationHandler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
