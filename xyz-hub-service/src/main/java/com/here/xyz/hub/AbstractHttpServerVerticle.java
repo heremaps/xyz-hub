@@ -26,6 +26,7 @@ import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_INFO;
 import static com.here.xyz.hub.rest.Api.HeaderValues.STRICT_TRANSPORT_SECURITY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
+import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE;
 import static io.netty.handler.codec.http.HttpResponseStatus.UNAUTHORIZED;
@@ -243,10 +244,12 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
   /**
    * Creates and sends an error response to the client.
    */
-  public static void sendErrorResponse(final RoutingContext context, final Throwable exception) {
+  public static void sendErrorResponse(final RoutingContext context, Throwable exception) {
     //If the request was cancelled, neither a response has to be sent nor the error should be logged.
     if (exception instanceof TaskPipeline.PipelineCancelledException)
       return;
+    if (exception instanceof IllegalStateException && exception.getMessage().startsWith("Request method must be one of"))
+      exception = new HttpException(METHOD_NOT_ALLOWED, exception.getMessage(), exception);
 
     ErrorMessage error;
 
