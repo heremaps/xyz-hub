@@ -30,6 +30,7 @@ import io.vertx.core.http.HttpHeaders;
 import io.vertx.ext.auth.User;
 import io.vertx.ext.auth.jwt.JWTAuth;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.handler.HttpException;
 import io.vertx.ext.web.handler.impl.JWTAuthHandlerImpl;
 import java.util.Base64;
 import java.util.List;
@@ -37,6 +38,8 @@ import java.util.zip.DataFormatException;
 import org.apache.commons.lang3.StringUtils;
 
 public class ExtendedJWTAuthHandler extends JWTAuthHandlerImpl {
+
+  final String RAW_TOKEN = "RAW_TOKEN";
 
   /**
    * Indicates, if compressed JWTs are allowed.
@@ -78,7 +81,10 @@ public class ExtendedJWTAuthHandler extends JWTAuthHandlerImpl {
       jwt = ANONYMOUS_JWT;
     }
 
-    // If compressed JWTs are supported≥
+    // stores the token (raw, as it was received) temporarily in the context
+    context.put(RAW_TOKEN, jwt);
+
+    // If compressed JWTs are supported
     if (ALLOW_COMPRESSED_JWT && jwt != null && !isJWT(jwt)) {
       try {
         byte[] bytearray = Base64.getDecoder().decode(jwt.getBytes());
@@ -94,7 +100,14 @@ public class ExtendedJWTAuthHandler extends JWTAuthHandlerImpl {
       context.request().headers().set(HttpHeaders.AUTHORIZATION, "Bearer " + jwt);
     }
 
-    super.authenticate(context, handler);
+    super.authenticate(context, authn -> {
+      if (authn.failed()) {
+        handler.handle(Future.failedFuture(new HttpException(401, authn.cause())));
+      } else {
+        authn.result().principal().put("jwt", context.remove(RAW_TOKEN));
+        handler.handle(authn);
+      }
+    });
   }
 
   private String getFromAuthHeader(String authHeader) {
