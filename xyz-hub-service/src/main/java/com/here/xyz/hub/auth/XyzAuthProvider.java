@@ -19,24 +19,18 @@
 
 package com.here.xyz.hub.auth;
 
-import com.here.xyz.hub.util.Compression;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
-import io.vertx.core.json.JsonObject;
 import io.vertx.ext.auth.User;
 import io.vertx.ext.auth.authentication.Credentials;
 import io.vertx.ext.auth.authentication.TokenCredentials;
 import io.vertx.ext.auth.jwt.JWTAuthOptions;
 import io.vertx.ext.auth.jwt.impl.JWTAuthProviderImpl;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.concurrent.TimeUnit;
-import java.util.zip.DataFormatException;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
-import org.apache.commons.lang3.StringUtils;
 
 public class XyzAuthProvider extends JWTAuthProviderImpl {
 
@@ -68,8 +62,6 @@ public class XyzAuthProvider extends JWTAuthProviderImpl {
       }
 
       final User user = authResult.result();
-      user.principal().put("jwt", jwt);
-
       usersCache.put(jwt, user);
       resultHandler.handle(Future.succeededFuture(user));
     });
