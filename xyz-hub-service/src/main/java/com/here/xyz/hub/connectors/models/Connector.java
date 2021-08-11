@@ -221,6 +221,11 @@ public class Connector {
      */
     public List<String> clusteringTypes;
 
+    /**
+     * Whether the storage connector provides reports about its utilization of the underlying storage engine.
+     */
+    public boolean storageUtilizationReporting;
+
     @Override
     public boolean equals(Object o) {
       if (this == o) return true;

@@ -53,6 +53,10 @@ public abstract class SpaceConfigClient implements Initializable {
   private static final Map<String, Monitor> getSpaceLocks = new ConcurrentHashMap<>();
   private SpaceSelectionCondition emptySpaceCondition = new SpaceSelectionCondition();
 
+  //Property keys for PropertyQuery
+  public static final String CONTENT_UPDATED_AT = "contentUpdatedAt";
+  public static final String UPDATED_AT = "updatedAt";
+
   public static SpaceConfigClient getInstance() {
     if (Service.configuration.SPACES_DYNAMODB_TABLE_ARN != null) {
       return new DynamoSpaceConfigClient(Service.configuration.SPACES_DYNAMODB_TABLE_ARN);

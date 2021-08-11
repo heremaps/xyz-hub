@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.StorageConnector;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
+import com.here.xyz.events.GetStorageStatisticsEvent;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
@@ -39,6 +40,7 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.config.DatabaseSettings;
 import com.here.xyz.psql.config.PSQLConfig;
+import com.here.xyz.psql.query.StorageStatisticsQueryRunner;
 import com.here.xyz.responses.BinResponse;
 import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
@@ -82,7 +84,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     private static final Pattern pattern = Pattern.compile("^BOX\\(([-\\d\\.]*)\\s([-\\d\\.]*),([-\\d\\.]*)\\s([-\\d\\.]*)\\)$");
     private static final int MAX_PRECISE_STATS_COUNT = 10_000;
     private static final String C3P0EXT_CONFIG_SCHEMA = "config.schema()";
-    protected static final String HISTORY_TABLE_SUFFIX = "_hst";
+    public static final String HISTORY_TABLE_SUFFIX = "_hst";
     /**
      * Lambda Execution Time = 25s. We are actively canceling queries after STATEMENT_TIMEOUT_SECONDS
      * So if we receive a timeout prior 25s-STATEMENT_TIMEOUT_SECONDS the cancellation comes from
@@ -426,6 +428,10 @@ public abstract class DatabaseHandler extends StorageConnector {
     protected XyzResponse executeIterateVersions(IterateFeaturesEvent event) throws SQLException {
         SQLQuery query = SQLQueryBuilder.buildLatestHistoryQuery(event);
         return executeQueryWithRetry(query, this::iterateVersionsHandler, false);
+    }
+
+    protected XyzResponse executeGetStorageStatistics(GetStorageStatisticsEvent event) throws SQLException {
+        return new StorageStatisticsQueryRunner(event, this).run();
     }
 
     /**

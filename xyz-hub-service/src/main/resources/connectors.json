@@ -17,6 +17,7 @@
       "preserializedResponseSupport": true,
       "enableAutoCache": true,
       "maxPayloadSize": 1073741824,
+      "storageUtilizationReporting": true,
       "clusteringTypes": [
         "hexbin", "quadbin"
       ]

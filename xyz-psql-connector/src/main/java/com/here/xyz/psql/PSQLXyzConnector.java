@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.GetStatisticsEvent;
+import com.here.xyz.events.GetStorageStatisticsEvent;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
@@ -516,6 +517,20 @@ public class PSQLXyzConnector extends DatabaseHandler {
       return checkSQLException(e, config.readTableFromEvent(event));
     }finally {
       logger.info("{} Finished IterateHistoryEvent", traceItem);
+    }
+  }
+
+  @Override
+  protected XyzResponse processGetStorageStatisticsEvent(GetStorageStatisticsEvent event) throws Exception {
+    try {
+      logger.info("{} Received " + event.getClass().getSimpleName(), traceItem);
+      return executeGetStorageStatistics(event);
+    }
+    catch (SQLException e) {
+      return checkSQLException(e, config.readTableFromEvent(event));
+    }
+    finally {
+      logger.info("{} Finished " + event.getClass().getSimpleName(), traceItem);
     }
   }
 

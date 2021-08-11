@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -217,6 +217,12 @@ public class StatisticsResponse extends XyzResponse<StatisticsResponse> {
 
     T value;
     Boolean estimated;
+
+    public Value() {};
+
+    public Value(T value) {
+      this.value = value;
+    }
 
     public T getValue() {
       return this.value;
