@@ -26,11 +26,12 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.google.common.primitives.Longs;
-import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import io.vertx.core.AsyncResult;
+import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.Promise;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.jackson.DatabindCodec;
 import java.util.ArrayList;
@@ -39,7 +40,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -82,6 +82,12 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
 
   @JsonIgnore
   private Map<ConnectorType, Map<String, List<ResolvableListenerConnectorRef>>> resolvedConnectorRefs;
+
+  public static Future<Connector> resolveConnector(Marker marker, String connectorId) {
+    Promise<Connector> p = Promise.promise();
+    resolveConnector(marker, connectorId, p);
+    return p.future();
+  }
 
   public static void resolveConnector(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler) {
     Service.connectorConfigClient.get(marker, connectorId, arStorage -> {

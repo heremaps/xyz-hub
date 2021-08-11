@@ -55,6 +55,7 @@ import java.util.Map;
     @JsonSubTypes.Type(value = GetFeaturesByTileEvent.class, name = "GetFeaturesByTileEvent"),
     @JsonSubTypes.Type(value = CountFeaturesEvent.class, name = "CountFeaturesEvent"),
     @JsonSubTypes.Type(value = GetStatisticsEvent.class, name = "GetStatisticsEvent"),
+    @JsonSubTypes.Type(value = GetStorageStatisticsEvent.class, name = "GetStorageStatisticsEvent"),
     @JsonSubTypes.Type(value = GetHistoryStatisticsEvent.class, name = "GetHistoryStatisticsEvent"),
     @JsonSubTypes.Type(value = HealthCheckEvent.class, name = "HealthCheckEvent"),
     @JsonSubTypes.Type(value = GetFeaturesByIdEvent.class, name = "GetFeaturesByIdEvent"),
@@ -65,7 +66,7 @@ import java.util.Map;
 
 public abstract class Event<T extends Event> extends Payload {
 
-  public static final String VERSION = "0.4.0";
+  public static final String VERSION = "0.5.0";
 
   @JsonView(ExcludeFromHash.class)
   private Map<String, Object> connectorParams;

@@ -473,7 +473,7 @@ public class FeatureTaskHandler {
     if (nc.jwt != null) {
       event.setTid(nc.jwt.tid);
       event.setAid(nc.jwt.aid);
-      event.setJwt(nc.jwt.jwt);
+      event.setJwt(nc.jwt.jwt); 
     }
 
     if (connector != null && connector.forwardParamsConfig != null) {
