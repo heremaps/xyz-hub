@@ -21,6 +21,7 @@ package com.here.xyz.hub.auth;
 
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization.AuthorizationType;
+import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.util.Compression;
 import io.vertx.core.AsyncResult;
@@ -34,10 +35,13 @@ import io.vertx.ext.web.handler.HttpException;
 import io.vertx.ext.web.handler.impl.JWTAuthHandlerImpl;
 import java.util.Base64;
 import java.util.List;
-import java.util.zip.DataFormatException;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class ExtendedJWTAuthHandler extends JWTAuthHandlerImpl {
+
+  private static final Logger logger = LogManager.getLogger();
 
   final String RAW_TOKEN = "RAW_TOKEN";
 
@@ -90,8 +94,9 @@ public class ExtendedJWTAuthHandler extends JWTAuthHandlerImpl {
         byte[] bytearray = Base64.getDecoder().decode(jwt.getBytes());
         bytearray = Compression.decompressUsingInflate(bytearray);
         jwt = new String(bytearray);
-      } catch (DataFormatException e) {
-        handler.handle(Future.failedFuture("Wrong auth credentials format."));
+      } catch (Exception e) {
+        logger.warn(Api.Context.getMarker(context), "JWT Base64 decoding or decompression failed: " + jwt, e);
+        handler.handle(Future.failedFuture(new HttpException(401, "Wrong auth credentials format.")));
         return;
       }
     }
