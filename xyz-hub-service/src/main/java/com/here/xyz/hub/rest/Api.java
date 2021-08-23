@@ -564,7 +564,7 @@ public abstract class Api {
 
     /**
      * Returns the log marker for the request.
-     *
+     * TODO move to {@link com.here.xyz.hub.util.logging.LogUtil}
      * @return the marker or null, if no marker was found.
      */
     public static Marker getMarker(RoutingContext context) {
@@ -582,7 +582,7 @@ public abstract class Api {
 
     /**
      * Returns the access log object for this request.
-     *
+     * TODO move to {@link com.here.xyz.hub.util.logging.LogUtil}
      * @param context the routing context.
      * @return the access log object
      */
