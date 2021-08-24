@@ -19,7 +19,6 @@
 
 package com.here.xyz.hub.connectors;
 
-import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
@@ -30,12 +29,9 @@ import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import java.util.HashMap;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 
 /**
  * The background thread that keeps track of the configurations and keeps the executor services in sync.
@@ -135,7 +131,7 @@ public class BurstAndUpdateThread extends Thread {
           client.setConnectorConfig(newConnector);
         }
         catch (Exception e) {
-          logger.error("Unexpected exception while trying to update connector configuration", e);
+          logger.error("Unexpected exception while trying to update connector configuration for " + newConnector.id, e);
         }
       }
     }
