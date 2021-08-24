@@ -19,6 +19,8 @@
 
 package com.here.xyz.hub.auth;
 
+import static com.here.xyz.hub.rest.ApiParam.Query.ACCESS_TOKEN;
+
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization.AuthorizationType;
 import com.here.xyz.hub.rest.Api;
@@ -51,7 +53,7 @@ public class ExtendedJWTAuthHandler extends JWTAuthHandlerImpl {
   final boolean ALLOW_COMPRESSED_JWT = true;
 
   /**
-   * Indicates, if the bearer token could be send in the request URI query component as defined in <a
+   * Indicates, if the bearer token could be sent in the request URI query component as defined in <a
    * href="https://datatracker.ietf.org/doc/html/rfc6750#section-2.3">RFC-6750 Section 2.3</a>
    */
   final boolean ALLOW_URI_QUERY_PARAMETER = true;
@@ -74,9 +76,10 @@ public class ExtendedJWTAuthHandler extends JWTAuthHandlerImpl {
 
     // Try to get the token from the query parameter
     if (ALLOW_URI_QUERY_PARAMETER && jwt == null) {
-      final List<String> accessTokenParam = Query.queryParam(Query.ACCESS_TOKEN, context);
+      final List<String> accessTokenParam = Query.queryParam(ACCESS_TOKEN, context);
       if (accessTokenParam != null && accessTokenParam.size() > 0) {
         jwt = accessTokenParam.get(0);
+        if (jwt != null) context.put(ACCESS_TOKEN, jwt);
       }
     }
 
@@ -108,7 +111,8 @@ public class ExtendedJWTAuthHandler extends JWTAuthHandlerImpl {
     super.authenticate(context, authn -> {
       if (authn.failed()) {
         handler.handle(Future.failedFuture(new HttpException(401, authn.cause())));
-      } else {
+      }
+      else {
         authn.result().principal().put("jwt", context.remove(RAW_TOKEN));
         handler.handle(authn);
       }
