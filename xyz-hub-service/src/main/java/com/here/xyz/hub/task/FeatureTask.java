@@ -627,12 +627,12 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public boolean transactional;
     public ConflictResolution conflictResolution;
     public List<Feature> unmodifiedFeatures;
-    private final boolean requireResourceExists;
+    public final boolean requireResourceExists;
     public List<String> addTags;
     public List<String> removeTags;
     public String prefixId;
-    private Map<Object, Integer> positionById;
-    private LoadFeaturesEvent loadFeaturesEvent;
+    public Map<Object, Integer> positionById;
+    public LoadFeaturesEvent loadFeaturesEvent;
     public boolean hasNonModified;
 
     public ConditionalOperation(ModifyFeaturesEvent event, RoutingContext context, ApiResponseType apiResponseTypeType,
@@ -661,13 +661,13 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::checkPreconditions)
           .then(FeatureTaskHandler::prepareModifyFeatureOp)
           .then(FeatureTaskHandler::preprocessConditionalOp)
-          .then(this::loadObjects)
-          .then(this::verifyResourceExists)
+          .then(FeatureTaskHandler::loadObjects)
+          .then(FeatureTaskHandler::verifyResourceExists)
           .then(FeatureTaskHandler::updateTags)
           .then(FeatureTaskHandler::processConditionalOp)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::enforceUsageQuotas)
-          .then(this::extractUnmodifiedFeatures)
+          .then(FeatureTaskHandler::extractUnmodifiedFeatures)
           .then(this::cleanup)
           .then(FeatureTaskHandler::invoke);
     }
@@ -695,146 +695,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       super.cleanup(task, callback);
       modifyOp = null;
       callback.call(task);
-    }
-
-    private <X extends FeatureTask<?, X>> void extractUnmodifiedFeatures(X task, Callback<X> callback) {
-      if (modifyOp != null && modifyOp.entries != null)
-        unmodifiedFeatures = modifyOp.entries.stream().filter(e -> !e.isModified).map(fe -> fe.result).collect(Collectors.toList());
-      callback.call(task);
-    }
-
-    private void verifyResourceExists(ConditionalOperation task, Callback<ConditionalOperation> callback) {
-      if (task.requireResourceExists && task.modifyOp.entries.get(0).head == null) {
-        callback.exception(new HttpException(NOT_FOUND, "The requested resource does not exist."));
-      } else {
-        callback.call(task);
-      }
-    }
-
-    private void loadObjects(final ConditionalOperation s, final Callback<ConditionalOperation> c) {
-      final LoadFeaturesEvent event = toLoadFeaturesEvent();
-      if (event == null) {
-        c.call(this);
-        return;
-      }
-      FeatureTaskHandler.setAdditionalEventProps(s, s.storage, event);
-      try {
-        getRpcClient(s.storage).execute(getMarker(), event, r -> processLoadEvent(c, event, r));
-      }
-      catch (Exception e) {
-        logger.warn(s.getMarker(), "Error trying to process LoadFeaturesEvent.", e);
-        c.exception(e);
-      }
-    }
-
-    LoadFeaturesEvent toLoadFeaturesEvent() {
-      if (loadFeaturesEvent != null) {
-        return loadFeaturesEvent;
-      }
-
-      if (modifyOp.entries.size() == 0) {
-        return null;
-      }
-
-      final HashMap<String, String> idsMap = new HashMap<>();
-      for (Entry<Feature> entry : modifyOp.entries) {
-        if (entry.input.get("id") instanceof String) {
-          idsMap.put((String) entry.input.get("id"), entry.inputUUID);
-        }
-      }
-      if (idsMap.size() == 0) {
-        return null;
-      }
-
-      final LoadFeaturesEvent event = new LoadFeaturesEvent()
-          .withStreamId(getMarker().getName())
-          .withSpace(space.getId())
-          .withParams(space.getStorage().getParams())
-          .withEnableHistory(space.isEnableHistory())
-          .withIdsMap(idsMap);
-
-      loadFeaturesEvent = event;
-      return event;
-    }
-
-    void processLoadEvent(Callback<ConditionalOperation> callback, LoadFeaturesEvent event, AsyncResult<XyzResponse> r) {
-      final Map<String, String> idsMap = event.getIdsMap();
-      if (r.failed()) {
-        if (r.cause() instanceof Exception) {
-          callback.exception((Exception) r.cause());
-        } else {
-          callback.exception(new Exception(r.cause()));
-        }
-        return;
-      }
-
-      try {
-        final XyzResponse response = r.result();
-        if (!(response instanceof FeatureCollection)) {
-          callback.exception(Api.responseToHttpException(response));
-          return;
-        }
-        final FeatureCollection collection = (FeatureCollection) response;
-        final List<Feature> features = collection.getFeatures();
-
-        // For each input feature there could be 0, 1(head state) or 2 (head state and base state) features in the response
-        if (features == null) {
-          callback.call(this);
-          return;
-        }
-
-        for (final Feature feature : features) {
-          final String id = feature.getId();
-
-          // The uuid the client has requested.
-          final String requestedUuid = idsMap.get(id);
-
-          int position = getPositionForId(feature.getId());
-          if (position == -1) { // There is no object with this ID in the input states
-            continue;
-          }
-
-          if (feature.getProperties() == null || feature.getProperties().getXyzNamespace() == null) {
-            throw new IllegalStateException("Received a feature with missing space namespace properties for object '" + id + "'");
-          }
-
-          String uuid = feature.getProperties().getXyzNamespace().getUuid();
-
-          // Set the head state( i.e. the latest version in the database )
-          if (modifyOp.entries.get(position).head == null || uuid != null && !uuid.equals(requestedUuid)) {
-            modifyOp.entries.get(position).head = feature;
-          }
-
-          // Set the base state( i.e. the original version that the user was editing )
-          // Note: The base state must not be empty. If the connector doesn't support history and doesn't return the base state, use the
-          // head state instead.
-          if (modifyOp.entries.get(position).base == null || uuid != null && uuid.equals(requestedUuid)) {
-            modifyOp.entries.get(position).base = feature;
-          }
-        }
-
-        callback.call(this);
-      } catch (Exception e) {
-        callback.exception(e);
-      }
-    }
-
-    int getPositionForId(Object id) {
-      if (id == null) {
-        return -1;
-      }
-
-      if (positionById == null) {
-        positionById = new HashMap<>();
-        for (int i = 0; i < modifyOp.entries.size(); i++) {
-          final Map<String, Object> input = modifyOp.entries.get(i).input;
-          if (input != null && input.get("id") instanceof String) {
-            positionById.put(input.get("id"), i);
-          }
-        }
-      }
-
-      return positionById.get(id) == null ? -1 : positionById.get(id);
     }
   }
 

@@ -46,6 +46,7 @@ import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
+import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.hub.Core;
@@ -104,7 +105,6 @@ import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.validation.impl.RequestParametersImpl;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -118,6 +118,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.stream.Collectors;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -232,9 +233,9 @@ public class FeatureTaskHandler {
         final long storageRequestStart = Core.currentTimeMillis();
         responseContext.rpcContext = getRpcClient(task.storage).execute(task.getMarker(), eventToExecute, storageResult -> {
           if (task.getState().isFinal()) return;
-          addStoragePerformanceInfo(task, Core.currentTimeMillis() - storageRequestStart, responseContext.rpcContext);
+          addConnectorPerformanceInfo(task, Core.currentTimeMillis() - storageRequestStart, responseContext.rpcContext, "S");
           if (storageResult.failed()) {
-            handleFailure(task.getMarker(), storageResult.cause(), callback);
+            callback.exception(storageResult.cause());
             return;
           }
           XyzResponse response = storageResult.result();
@@ -319,16 +320,14 @@ public class FeatureTaskHandler {
     }
   }
 
-  private static <T extends FeatureTask> void addStoragePerformanceInfo(T task, long storageTime, RpcContext rpcContext) {
-    addStreamInfo(task, "STime", storageTime);
+  private static <T extends FeatureTask> void addConnectorPerformanceInfo(T task, long storageTime, RpcContext rpcContext, String eventPrefix) {
+    addStreamInfo(task, eventPrefix + "Time", storageTime);
     if (rpcContext != null)
-      addStreamInfo(task, "SResSize", rpcContext.getResponseSize());
+      addStreamInfo(task, eventPrefix + "ResSize", rpcContext.getResponseSize());
   }
 
-  private static <T extends FeatureTask> void addProcessorPerformanceInfo(T task, int processorNo, long processorTime, RpcContext rpcContext) {
-    addStreamInfo(task, "P" + processorNo + "Time", processorTime);
-    if (rpcContext != null)
-      addStreamInfo(task, "P" + processorNo + "ResSize", rpcContext.getResponseSize());
+  private static <T extends FeatureTask> void addProcessorPerformanceInfo(T task, long processorTime, RpcContext rpcContext, int processorNo) {
+    addConnectorPerformanceInfo(task, processorTime, rpcContext, "P" + processorNo);
   }
 
   private static XyzResponse transform(byte[] value) throws JsonProcessingException {
@@ -447,24 +446,14 @@ public class FeatureTaskHandler {
     }
   }
 
-  private static <T extends FeatureTask> void handleFailure(Marker marker, Throwable cause, Callback<T> callback) {
-    if (cause instanceof Exception) {
-      callback.exception((Exception) cause);
-      return;
-    }
-    logger.error(marker, "Unexpected error", cause);
-    callback.exception(new Exception(cause));
-  }
-
   private static <T extends FeatureTask> void handleProcessorFailure(Marker marker, AsyncResult<XyzResponse> processingResult,
       Callback<T> callback) {
-    if (processingResult.failed()) {
-      handleFailure(marker, processingResult.cause(), callback);
-    } else if (processingResult.result() instanceof ErrorResponse) {
+    if (processingResult.failed())
+      callback.exception(processingResult.cause());
+    else if (processingResult.result() instanceof ErrorResponse)
       callback.exception(Api.responseToHttpException(processingResult.result()));
-    } else {
+    else
       callback.exception(new Exception("Unexpected exception during processor error handling."));
-    }
   }
 
   static <T extends FeatureTask> void setAdditionalEventProps(T task, Connector connector, Event event) {
@@ -721,8 +710,8 @@ public class FeatureTaskHandler {
     final RpcContextHolder rpcContextHolder = new RpcContextHolder();
     rpcContextHolder.rpcContext = client.execute(nc.marker, createNotification(nc, payload, notificationEventType, p), ar -> {
       if (p.getOrder() != null && rpcContextHolder.rpcContext != null)
-        addProcessorPerformanceInfo(nc.task, p.getOrder(), Core.currentTimeMillis() - processorRequestStart,
-            rpcContextHolder.rpcContext);
+        addProcessorPerformanceInfo(nc.task, Core.currentTimeMillis() - processorRequestStart,
+            rpcContextHolder.rpcContext, p.getOrder());
 
       if (ar.failed()) {
         f.completeExceptionally(ar.cause());
@@ -1479,6 +1468,145 @@ public class FeatureTaskHandler {
     catch (Exception e) {
       logger.error(marker,"Unable to send MSE notification of type " + eventType + " for space " + spaceId, e);
     }
+  }
+
+  static void verifyResourceExists(ConditionalOperation task, Callback<ConditionalOperation> callback) {
+    if (task.requireResourceExists && task.modifyOp.entries.get(0).head == null) {
+      callback.exception(new HttpException(NOT_FOUND, "The requested resource does not exist."));
+    }
+    else {
+      callback.call(task);
+    }
+  }
+
+  static void loadObjects(final ConditionalOperation task, final Callback<ConditionalOperation> callback) {
+    final LoadFeaturesEvent event = toLoadFeaturesEvent(task);
+    if (event == null) {
+      callback.call(task);
+      return;
+    }
+    FeatureTaskHandler.setAdditionalEventProps(task, task.storage, event);
+    try {
+      final long storageRequestStart = Core.currentTimeMillis();
+      EventResponseContext responseContext = new EventResponseContext(event);
+      responseContext.rpcContext = getRpcClient(task.storage).execute(task.getMarker(), event, r -> {
+        if (task.getState().isFinal()) return;
+        addConnectorPerformanceInfo(task, Core.currentTimeMillis() - storageRequestStart, responseContext.rpcContext, "LF");
+        processLoadEvent(task, callback, r);
+      });
+    }
+    catch (Exception e) {
+      logger.warn(task.getMarker(), "Error trying to process LoadFeaturesEvent.", e);
+      callback.exception(e);
+    }
+  }
+
+  private static LoadFeaturesEvent toLoadFeaturesEvent(final ConditionalOperation task) {
+    if (task.loadFeaturesEvent != null)
+      return task.loadFeaturesEvent;
+
+
+    if (task.modifyOp.entries.size() == 0)
+      return null;
+
+    final HashMap<String, String> idsMap = new HashMap<>();
+    for (Entry<Feature> entry : task.modifyOp.entries) {
+      if (entry.input.get("id") instanceof String) {
+        idsMap.put((String) entry.input.get("id"), entry.inputUUID);
+      }
+    }
+    if (idsMap.size() == 0) {
+      return null;
+    }
+
+    final LoadFeaturesEvent event = new LoadFeaturesEvent()
+        .withStreamId(task.getMarker().getName())
+        .withSpace(task.space.getId())
+        .withParams(task.space.getStorage().getParams())
+        .withEnableHistory(task.space.isEnableHistory())
+        .withIdsMap(idsMap);
+
+    task.loadFeaturesEvent = event;
+    return event;
+  }
+
+  private static void processLoadEvent(final ConditionalOperation task, Callback<ConditionalOperation> callback, AsyncResult<XyzResponse> r) {
+    final Map<String, String> idsMap = task.loadFeaturesEvent.getIdsMap();
+    if (r.failed()) {
+      callback.exception(r.cause());
+      return;
+    }
+
+    try {
+      final XyzResponse response = r.result();
+      if (!(response instanceof FeatureCollection)) {
+        callback.exception(Api.responseToHttpException(response));
+        return;
+      }
+      final FeatureCollection collection = (FeatureCollection) response;
+      final List<Feature> features = collection.getFeatures();
+
+      //For each input feature there could be 0, 1(head state) or 2 (head state and base state) features in the response
+      if (features == null) {
+        callback.call(task);
+        return;
+      }
+
+      for (final Feature feature : features) {
+        //The uuid the client has requested.
+        final String requestedUuid = idsMap.get(feature.getId());
+
+        int position = getPositionForId(task, feature.getId());
+        if (position == -1) { // There is no object with this ID in the input states
+          continue;
+        }
+
+        if (feature.getProperties() == null || feature.getProperties().getXyzNamespace() == null) {
+          throw new IllegalStateException("Received a feature with missing space namespace properties for object '" + feature.getId() + "'");
+        }
+
+        String uuid = feature.getProperties().getXyzNamespace().getUuid();
+
+        //Set the head state( i.e. the latest version in the database )
+        if (task.modifyOp.entries.get(position).head == null || uuid != null && !uuid.equals(requestedUuid))
+          task.modifyOp.entries.get(position).head = feature;
+
+        //Set the base state( i.e. the original version that the user was editing )
+        //Note: The base state must not be empty. If the connector doesn't support history and doesn't return the base state, use the
+        //head state instead.
+        if (task.modifyOp.entries.get(position).base == null || uuid != null && uuid.equals(requestedUuid))
+          task.modifyOp.entries.get(position).base = feature;
+      }
+
+      callback.call(task);
+    }
+    catch (Exception e) {
+      callback.exception(e);
+    }
+  }
+
+  private static int getPositionForId(final ConditionalOperation task, String id) {
+    if (id == null) {
+      return -1;
+    }
+
+    if (task.positionById == null) {
+      task.positionById = new HashMap<>();
+      for (int i = 0; i < task.modifyOp.entries.size(); i++) {
+        final Map<String, Object> input = task.modifyOp.entries.get(i).input;
+        if (input != null && input.get("id") instanceof String) {
+          task.positionById.put(input.get("id"), i);
+        }
+      }
+    }
+
+    return task.positionById.get(id) == null ? -1 : task.positionById.get(id);
+  }
+
+  static void extractUnmodifiedFeatures(final ConditionalOperation task, final Callback<ConditionalOperation> callback) {
+    if (task.modifyOp != null && task.modifyOp.entries != null)
+      task.unmodifiedFeatures = task.modifyOp.entries.stream().filter(e -> !e.isModified).map(fe -> fe.result).collect(Collectors.toList());
+    callback.call(task);
   }
 
   private static SnsAsyncClient getSnsClient() {
