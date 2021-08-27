@@ -17,24 +17,32 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.util.metrics;
+package com.here.xyz.hub.util.metrics.base;
 
-import static com.here.xyz.hub.util.metrics.base.Metric.MetricUnit.BYTES;
+public abstract class Metric<V> {
 
-import com.here.xyz.hub.task.FeatureTaskHandler;
-import com.here.xyz.hub.util.metrics.base.BareValuesMetric;
-import java.util.Collection;
-import java.util.Collections;
+  private String metricName;
+  private MetricUnit unit;
 
-public class GlobalInflightRequestMemory extends BareValuesMetric {
-
-
-  public GlobalInflightRequestMemory(String metricName) {
-    super(metricName, BYTES);
+  public Metric(String metricName, MetricUnit unit) {
+    this.metricName = metricName;
+    this.unit = unit;
   }
 
-  @Override
-  protected Collection<Double> gatherValues() {
-    return Collections.singleton((double) FeatureTaskHandler.getGlobalInflightRequestMemory());
+  public String getName() {
+    return metricName;
+  }
+
+  public MetricUnit getUnit() {
+    return unit;
+  }
+
+  protected abstract V gatherValues();
+
+  public enum MetricUnit {
+    COUNT,
+    PERCENT,
+    BYTES,
+    MILLISECONDS
   }
 }

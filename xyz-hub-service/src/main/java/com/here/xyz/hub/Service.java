@@ -32,13 +32,14 @@ import com.here.xyz.hub.rest.admin.MessageBroker;
 import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.hub.util.ARN;
-import com.here.xyz.hub.util.metrics.CloudWatchMetricPublisher;
+import com.here.xyz.hub.util.metrics.base.CWBareValueMetricPublisher;
 import com.here.xyz.hub.util.metrics.GcDurationMetric;
 import com.here.xyz.hub.util.metrics.GlobalInflightRequestMemory;
 import com.here.xyz.hub.util.metrics.GlobalUsedRfcConnections;
 import com.here.xyz.hub.util.metrics.MajorGcCountMetric;
 import com.here.xyz.hub.util.metrics.MemoryMetric;
-import com.here.xyz.hub.util.metrics.Metric;
+import com.here.xyz.hub.util.metrics.base.MetricPublisher;
+import com.here.xyz.hub.util.metrics.net.ConnectionMetrics;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.DeploymentOptions;
@@ -128,7 +129,7 @@ public class Service extends Core {
   private static String hostname;
   public static final boolean IS_USING_ZGC = isUsingZgc();
 
-  private static final List<Metric> metrics = new LinkedList<>();
+  private static final List<MetricPublisher> metricPublishers = new LinkedList<>();
 
   private static Router globalRouter;
 
@@ -292,17 +293,12 @@ public class Service extends Core {
 
   private static void startMetricPublishers() {
     if (configuration.PUBLISH_METRICS) {
-      String ns = "XYZ/Hub", serviceName = "XYZ-Hub-" + configuration.ENVIRONMENT_NAME;
-      metrics.add(new MemoryMetric(new CloudWatchMetricPublisher(ns, "JvmMemoryUtilization",
-          "ServiceName", serviceName, StandardUnit.Percent)));
-      metrics.add(new MajorGcCountMetric(new CloudWatchMetricPublisher(ns, "MajorGcCount",
-          "ServiceName", serviceName, StandardUnit.Count)));
-      metrics.add(new GcDurationMetric(new CloudWatchMetricPublisher(ns, "GcDuration",
-          "ServiceName", serviceName, StandardUnit.Milliseconds)));
-      metrics.add(new GlobalUsedRfcConnections(new CloudWatchMetricPublisher(ns, "GlobalUsedRfcConnections",
-          "ServiceName", serviceName, StandardUnit.Percent)));
-      metrics.add(new GlobalInflightRequestMemory(new CloudWatchMetricPublisher(ns, "GlobalInflightRequestMemory",
-          "ServiceName", serviceName, StandardUnit.Bytes)));
+      metricPublishers.add(new CWBareValueMetricPublisher(new MemoryMetric("JvmMemoryUtilization")));
+      metricPublishers.add(new CWBareValueMetricPublisher(new MajorGcCountMetric("MajorGcCount")));
+      metricPublishers.add(new CWBareValueMetricPublisher(new GcDurationMetric("GcDuration")));
+      metricPublishers.add(new CWBareValueMetricPublisher(new GlobalUsedRfcConnections("GlobalUsedRfcConnections")));
+      metricPublishers.add(new CWBareValueMetricPublisher(new GlobalInflightRequestMemory("GlobalInflightRequestMemory")));
+      metricPublishers.addAll(ConnectionMetrics.startConnectionMetricPublishers());
     }
   }
 
@@ -318,7 +314,7 @@ public class Service extends Core {
   }
 
   private static void stopMetricPublishers() {
-    metrics.forEach(Metric::stop);
+    metricPublishers.forEach(MetricPublisher::stop);
   }
 
   public static int getPublicPort() {

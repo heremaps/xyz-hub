@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,13 +21,24 @@ package com.here.xyz.hub;
 
 import com.here.xyz.hub.util.ConfigDecryptor;
 import com.here.xyz.hub.util.ConfigDecryptor.CryptoException;
+import com.here.xyz.hub.util.metrics.net.ConnectionMetrics.HubHttpClientMetrics;
+import com.here.xyz.hub.util.metrics.net.ConnectionMetrics.HubTCPMetrics;
 import io.vertx.config.ConfigRetriever;
 import io.vertx.config.ConfigRetrieverOptions;
 import io.vertx.config.ConfigStoreOptions;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
+import io.vertx.core.http.HttpClientOptions;
 import io.vertx.core.json.JsonObject;
+import io.vertx.core.metrics.MetricsOptions;
+import io.vertx.core.net.NetClientOptions;
+import io.vertx.core.net.SocketAddress;
+import io.vertx.core.spi.VertxMetricsFactory;
+import io.vertx.core.spi.metrics.ClientMetrics;
+import io.vertx.core.spi.metrics.HttpClientMetrics;
+import io.vertx.core.spi.metrics.TCPMetrics;
+import io.vertx.core.spi.metrics.VertxMetrics;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.ParseException;
@@ -97,7 +108,10 @@ public class Core {
     if(vertxOptions == null) {
       vertxOptions = new VertxOptions()
               .setWorkerPoolSize(NumberUtils.toInt(System.getenv(Core.VERTX_WORKER_POOL_SIZE), 128))
-              .setPreferNativeTransport(true);
+              .setPreferNativeTransport(true)
+              .setMetricsOptions(new MetricsOptions()
+                  .setEnabled(true)
+                  .setFactory(createMetricsFactory()));
       if (debug) {
         vertxOptions
                 .setBlockedThreadCheckInterval(TimeUnit.MINUTES.toMillis(1))
@@ -133,6 +147,18 @@ public class Core {
       initializeLogger(config, debug);
       handler.handle(config);
     });
+  }
+
+  private static VertxMetricsFactory createMetricsFactory() {
+    return new CoreMetricsFactory();
+  }
+
+  private static class CoreMetricsFactory implements VertxMetricsFactory {
+
+    @Override
+    public VertxMetrics metrics(VertxOptions options) {
+      return new CoreMetrics();
+    }
   }
 
   private static void initializeLogger(JsonObject config, boolean debug) {
@@ -200,5 +226,23 @@ public class Core {
     }
 
     return buildProperties.getProperty(name);
+  }
+
+  public static class CoreMetrics implements VertxMetrics {
+
+    @Override
+    public HttpClientMetrics<?, ?, ?, ?> createHttpClientMetrics(HttpClientOptions options) {
+      return new HubHttpClientMetrics();
+    }
+
+    @Override
+    public ClientMetrics<?, ?, ?, ?> createClientMetrics(SocketAddress remoteAddress, String type, String namespace) {
+      return null;
+    }
+
+    @Override
+    public TCPMetrics<?> createNetClientMetrics(NetClientOptions options) {
+      return new HubTCPMetrics();
+    }
   }
 }

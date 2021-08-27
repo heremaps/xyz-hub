@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,7 +45,10 @@ import io.vertx.core.http.HttpClientOptions;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.RequestOptions;
 import io.vertx.core.net.impl.ConnectionBase;
+import java.net.URL;
 import java.nio.charset.Charset;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -55,15 +58,20 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
 
   private static final Logger logger = LogManager.getLogger();
   private volatile String url;
+  private static Map<String, String> connectorIdByUrl = new ConcurrentHashMap<>();
+  private static Map<String, String> connectorIdByHost = new ConcurrentHashMap<>();
+  private static Map<String, Boolean> metricsActiveByConnectorId = new ConcurrentHashMap<>();
 
-  private static HttpClient httpClient = Service.vertx.createHttpClient(new HttpClientOptions()
-      .setMaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)
-      .setHttp2MaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)
-      .setTcpKeepAlive(Service.configuration.HTTP_CLIENT_TCP_KEEPALIVE)
-      .setIdleTimeout(Service.configuration.HTTP_CLIENT_IDLE_TIMEOUT)
-      .setTcpQuickAck(true)
-      .setTcpFastOpen(true)
-      .setPipelining(Service.configuration.HTTP_CLIENT_PIPELINING));
+  private static HttpClient httpClient = Service.vertx.createHttpClient(
+      new HttpClientOptions()
+        .setMaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)
+        .setHttp2MaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)
+        .setTcpKeepAlive(Service.configuration.HTTP_CLIENT_TCP_KEEPALIVE)
+        .setIdleTimeout(Service.configuration.HTTP_CLIENT_IDLE_TIMEOUT)
+        .setTcpQuickAck(true)
+        .setTcpFastOpen(true)
+        .setPipelining(Service.configuration.HTTP_CLIENT_PIPELINING))
+      /*.connectionHandler(HTTPFunctionClient::newConnectionCreated)*/;
 
   HTTPFunctionClient(Connector connectorConfig) {
     super(connectorConfig);
@@ -75,7 +83,12 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
     if (!(getConnectorConfig().getRemoteFunction() instanceof Http)) {
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of HTTP");
     }
-    url = ((Http) getConnectorConfig().getRemoteFunction()).url.toString();
+    final Http remoteFunction = (Http) getConnectorConfig().getRemoteFunction();
+    URL urlObj = remoteFunction.url;
+    url = urlObj.toString();
+    connectorIdByUrl.put(url, connectorConfig.id);
+    connectorIdByHost.put(urlObj.getHost() + ":" + (urlObj.getPort() == -1 ? urlObj.getDefaultPort() : urlObj.getPort()), connectorConfig.id);
+    metricsActiveByConnectorId.put(connectorConfig.id, remoteFunction.metricsActive);
   }
 
   @Override
@@ -169,5 +182,28 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
     if (!(t instanceof HttpException))
       t = new HttpException(BAD_GATEWAY, "Connector error.", t);
     callback.handle(Future.failedFuture(t));
+  }
+
+  /**
+   * Returns, if possible, the matching connector ID for the specified HTTP URL.
+   * @param url
+   * @return The connector ID or null
+   */
+  public static String getConnectorIdByUrl(String url) {
+    return connectorIdByUrl.get(url);
+  }
+
+  /**
+   * Returns, if possible, the matching connector ID for the specified hostname & port combination.
+   * @param hostname
+   * @param port
+   * @return The connector ID or null
+   */
+  public static String getConnectorIdByHostAndPort(String hostname, int port) {
+    return connectorIdByHost.get(hostname + ":" + port);
+  }
+
+  public static boolean isMetricsActive(String connectorId) {
+    return metricsActiveByConnectorId.getOrDefault(connectorId, false);
   }
 }

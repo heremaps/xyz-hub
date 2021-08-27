@@ -17,24 +17,27 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.util.metrics;
+package com.here.xyz.hub.util.metrics.base;
 
-import static com.here.xyz.hub.util.metrics.base.Metric.MetricUnit.BYTES;
-
-import com.here.xyz.hub.task.FeatureTaskHandler;
-import com.here.xyz.hub.util.metrics.base.BareValuesMetric;
+import com.amazonaws.services.cloudwatch.model.MetricDatum;
 import java.util.Collection;
-import java.util.Collections;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-public class GlobalInflightRequestMemory extends BareValuesMetric {
+public class CWBareValueMetricPublisher extends CloudWatchMetricPublisher<Collection<Double>> {
 
+  private static final Logger logger = LogManager.getLogger();
 
-  public GlobalInflightRequestMemory(String metricName) {
-    super(metricName, BYTES);
+  public CWBareValueMetricPublisher(Metric metric) {
+    super(metric);
   }
 
   @Override
-  protected Collection<Double> gatherValues() {
-    return Collections.singleton((double) FeatureTaskHandler.getGlobalInflightRequestMemory());
+  protected void publishValues(Collection<Double> values) {
+    if (values == null || values.isEmpty()) {
+      logger.debug("Nothing to publish for metric {}", getMetricName());
+      return;
+    }
+    publishValues(new MetricDatum().withValues(values));
   }
 }
