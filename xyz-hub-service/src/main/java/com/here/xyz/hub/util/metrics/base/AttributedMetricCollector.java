@@ -17,24 +17,16 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.util.metrics;
+package com.here.xyz.hub.util.metrics.base;
 
-import static com.here.xyz.hub.util.metrics.base.Metric.MetricUnit.BYTES;
-
-import com.here.xyz.hub.task.FeatureTaskHandler;
-import com.here.xyz.hub.util.metrics.base.BareValuesMetric;
+import com.here.xyz.hub.util.metrics.base.AttributedMetricCollection.Attribute;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.Map;
 
-public class GlobalInflightRequestMemory extends BareValuesMetric {
+public abstract class AttributedMetricCollector<V> extends Metric<Map<Collection<Attribute>, V>>{
 
-
-  public GlobalInflightRequestMemory(String metricName) {
-    super(metricName, BYTES);
+  public AttributedMetricCollector(String metricName, MetricUnit unit) {
+    super(metricName, unit);
   }
 
-  @Override
-  protected Collection<Double> gatherValues() {
-    return Collections.singleton((double) FeatureTaskHandler.getGlobalInflightRequestMemory());
-  }
 }
