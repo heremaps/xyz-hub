@@ -19,8 +19,11 @@
 
 package com.here.xyz.hub.auth;
 
+import static com.here.xyz.hub.rest.ApiParam.Query.ACCESS_TOKEN;
+
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization.AuthorizationType;
+import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.util.Compression;
 import io.vertx.core.AsyncResult;
@@ -30,13 +33,19 @@ import io.vertx.core.http.HttpHeaders;
 import io.vertx.ext.auth.User;
 import io.vertx.ext.auth.jwt.JWTAuth;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.handler.HttpException;
 import io.vertx.ext.web.handler.impl.JWTAuthHandlerImpl;
 import java.util.Base64;
 import java.util.List;
-import java.util.zip.DataFormatException;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class ExtendedJWTAuthHandler extends JWTAuthHandlerImpl {
+
+  private static final Logger logger = LogManager.getLogger();
+
+  final String RAW_TOKEN = "RAW_TOKEN";
 
   /**
    * Indicates, if compressed JWTs are allowed.
@@ -44,7 +53,7 @@ public class ExtendedJWTAuthHandler extends JWTAuthHandlerImpl {
   final boolean ALLOW_COMPRESSED_JWT = true;
 
   /**
-   * Indicates, if the bearer token could be send in the request URI query component as defined in <a
+   * Indicates, if the bearer token could be sent in the request URI query component as defined in <a
    * href="https://datatracker.ietf.org/doc/html/rfc6750#section-2.3">RFC-6750 Section 2.3</a>
    */
   final boolean ALLOW_URI_QUERY_PARAMETER = true;
@@ -67,9 +76,10 @@ public class ExtendedJWTAuthHandler extends JWTAuthHandlerImpl {
 
     // Try to get the token from the query parameter
     if (ALLOW_URI_QUERY_PARAMETER && jwt == null) {
-      final List<String> accessTokenParam = Query.queryParam(Query.ACCESS_TOKEN, context);
+      final List<String> accessTokenParam = Query.queryParam(ACCESS_TOKEN, context);
       if (accessTokenParam != null && accessTokenParam.size() > 0) {
         jwt = accessTokenParam.get(0);
+        if (jwt != null) context.put(ACCESS_TOKEN, jwt);
       }
     }
 
@@ -78,13 +88,17 @@ public class ExtendedJWTAuthHandler extends JWTAuthHandlerImpl {
       jwt = ANONYMOUS_JWT;
     }
 
-    // If compressed JWTs are supported≥
+    // stores the token (raw, as it was received) temporarily in the context
+    context.put(RAW_TOKEN, jwt);
+
+    // If compressed JWTs are supported
     if (ALLOW_COMPRESSED_JWT && jwt != null && !isJWT(jwt)) {
       try {
         byte[] bytearray = Base64.getDecoder().decode(jwt.getBytes());
         bytearray = Compression.decompressUsingInflate(bytearray);
         jwt = new String(bytearray);
-      } catch (DataFormatException e) {
+      } catch (Exception e) {
+        logger.error(Api.Context.getMarker(context), "JWT Base64 decoding or decompression failed: " + jwt, e);
         handler.handle(Future.failedFuture("Wrong auth credentials format."));
         return;
       }
@@ -94,7 +108,15 @@ public class ExtendedJWTAuthHandler extends JWTAuthHandlerImpl {
       context.request().headers().set(HttpHeaders.AUTHORIZATION, "Bearer " + jwt);
     }
 
-    super.authenticate(context, handler);
+    super.authenticate(context, authn -> {
+      if (authn.failed()) {
+        handler.handle(Future.failedFuture(new HttpException(401, authn.cause())));
+      }
+      else {
+        authn.result().principal().put("jwt", context.remove(RAW_TOKEN));
+        handler.handle(authn);
+      }
+    });
   }
 
   private String getFromAuthHeader(String authHeader) {

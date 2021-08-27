@@ -20,7 +20,12 @@ public abstract class Metric {
   public Metric(MetricPublisher publisher) {
     this.publisher = publisher;
     executor.scheduleAtFixedRate(() -> {
-      publishValues(gatherValues());
+      final Collection<Double> values = gatherValues();
+      if (values == null || values.isEmpty()) {
+        logger.debug("Nothing to publish for metric {}", publisher.getMetricName());
+        return;
+      }
+      publishValues(values);
       logger.debug("Publishing values for metric {}", publisher.getMetricName());
     }, startWaitTime, refreshPeriod, TimeUnit.SECONDS);
     logger.info("Started publishing metric {}", publisher.getMetricName());

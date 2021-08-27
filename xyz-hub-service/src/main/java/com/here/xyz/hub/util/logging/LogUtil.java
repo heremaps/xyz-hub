@@ -32,14 +32,11 @@ import static io.vertx.core.http.HttpMethod.PUT;
 
 import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.rest.Api;
+import com.here.xyz.hub.rest.ApiParam.Query;
 import io.vertx.core.MultiMap;
-import io.vertx.core.http.HttpConnection;
 import io.vertx.core.http.HttpMethod;
-import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.http.impl.Http2ServerResponse;
-import io.vertx.core.net.SocketAddress;
-import io.vertx.ext.web.Route;
 import io.vertx.ext.web.RoutingContext;
 import java.util.Collections;
 import java.util.List;
@@ -152,6 +149,11 @@ public class LogUtil {
       accessLog.clientInfo.userId = tokenPayload.aid;
       accessLog.clientInfo.appId = tokenPayload.cid;
       accessLog.classified = new String[]{tokenPayload.tid, tokenPayload.jwt};
+    }
+    else {
+      String token = context.get(Query.ACCESS_TOKEN); //Could be a token ID or an actual JWT, both has to be classified
+      if (token != null && token != "")
+        accessLog.classified = new String[]{context.get(Query.ACCESS_TOKEN)};
     }
 
     return accessLog;
