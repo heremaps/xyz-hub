@@ -1768,7 +1768,7 @@ components:
             $ref: '#/components/schemas/Statistics'
     TileResponse:
       description: >-
-        A FeatureCollection in GeoJSON or MVT response format. The default format is GeoJSON, you can also select it specifying the header "Accept: application/geo+json". To select MVT as response format, append ".mvt" at the end of tile address, or select it by specifying the header "Accept: application/vnd.mapbox-vector-tile"
+        A FeatureCollection in GeoJSON or MVT response format. The response format can be selected by using the header "Accept". Possible values for the header "Accept" are: "application/geo+json" and "application/vnd.mapbox-vector-tile". When the header "Accept" is not informed, the default response type GeoJSON is assumed. Appending ".mvt" to the end of the tile address selects automatically the MVT response type.
       content:
         application/geo+json:
           schema:
