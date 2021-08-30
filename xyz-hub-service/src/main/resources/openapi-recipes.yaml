@@ -47,7 +47,6 @@ recipes:
       - components.responses.ConnectorsResponse
       - components.responses.CountFeaturesResponse
       - components.responses.HistoryResponse
-      - components.responses.TileResponse.content.'application/vnd.mapbox-vector-tile'
       - components.requestBodies.ConnectorConfig
       - components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/vnd.here.feature-modification-list'
       - components.schemas.AWSLambda
