@@ -97,7 +97,7 @@ public class HttpConnectorTaskHandler {
         HttpConnector.maintenanceClient.maintainIndices(connectorId, ecps, passphrase, autoIndexing);
         handler.handle(Future.succeededFuture(new SuccessResponse().withStatus("Ok")));
       } else {
-        logger.error("Database not initialized for connector: {}",connectorId);
+        logger.warn("Database not initialized for connector: {}",connectorId);
         handler.handle(Future.failedFuture(new HttpException(METHOD_NOT_ALLOWED, "Database not initialized!")));
         return;
       }
