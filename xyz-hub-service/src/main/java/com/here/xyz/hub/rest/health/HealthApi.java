@@ -59,7 +59,7 @@ public class HealthApi extends Api {
           new Reporter()
               .withVersion(Service.BUILD_VERSION)
               .withName("HERE XYZ Hub")
-              .withBuildDate(Service.BUILD_TIME)
+              .withBuildDate(Core.BUILD_TIME)
               .withUpSince(Core.START_TIME)
               .withEndpoint(getPublicServiceEndpoint())
       )

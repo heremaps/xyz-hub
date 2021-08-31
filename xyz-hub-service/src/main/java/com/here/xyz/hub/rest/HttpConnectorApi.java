@@ -20,11 +20,14 @@
 package com.here.xyz.hub.rest;
 
 import com.here.xyz.connectors.AbstractConnectorHandler;
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.PsqlHttpVerticle;
 import com.here.xyz.hub.connectors.EmbeddedFunctionClient;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.HttpConnectorTaskHandler;
-import com.here.xyz.responses.SuccessResponse;
+import com.here.xyz.hub.util.health.MainHealthCheck;
+import com.here.xyz.hub.util.health.schema.Reporter;
+import com.here.xyz.hub.util.health.schema.Response;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
 import org.apache.logging.log4j.LogManager;
@@ -56,7 +59,16 @@ public class HttpConnectorApi extends Api {
   }
 
   private void getHealthCheck(final RoutingContext context) {
-    sendResponse(context, OK, new SuccessResponse().withStatus("Ok"));
+    MainHealthCheck hc = new MainHealthCheck(false)
+        .withReporter(
+                new Reporter()
+                        .withVersion(Core.BUILD_VERSION)
+                        .withName("HERE HTTP-Connector")
+                        .withBuildDate(Core.BUILD_TIME)
+                        .withUpSince(Core.START_TIME)
+        );
+    Response r = hc.getResponse();
+    sendResponse(context, OK, r);
   }
 
   private void postEvent(final RoutingContext context) {
