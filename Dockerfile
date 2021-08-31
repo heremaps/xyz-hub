@@ -12,6 +12,7 @@ ENV FS_WEB_ROOT www
 ENV STORAGE_DB_URL jdbc:postgresql://postgres/postgres
 ENV PSQL_HOST postgres
 ENV XYZ_HUB_REDIS_URI redis://redis
+ENV PSQL_HTTP_CONNECTOR_HOST xyz-http-connector
 
 COPY xyz-hub-service/target/xyz-hub-service.jar .
 ADD Dockerfile /
