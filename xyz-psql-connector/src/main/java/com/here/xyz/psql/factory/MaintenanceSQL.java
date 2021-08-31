@@ -164,7 +164,7 @@ public class MaintenanceSQL {
     /** Create XYZ_CONFIG_SCHEMA and required system tables */
     public static String configSchemaAndSystemTablesSQL =
             "CREATE SCHEMA IF NOT EXISTS \"" + XYZ_CONFIG_SCHEMA + "\";"+
-                    "CREATE TABLE IF NOT EXISTS  "+ XYZ_CONFIG_SCHEMA + "."+XYZ_CONFIG_STORAGE_TABLE+" (id VARCHAR(50) primary key, config JSONB);"+
+                    "CREATE TABLE IF NOT EXISTS  "+ XYZ_CONFIG_SCHEMA + "."+XYZ_CONFIG_STORAGE_TABLE+" (id VARCHAR(50) primary key, owner VARCHAR (50), config JSONB);"+
                     "CREATE TABLE IF NOT EXISTS  " + XYZ_CONFIG_SCHEMA + "."+XYZ_CONFIG_SPACE_TABLE+" (id VARCHAR(50) primary key, owner VARCHAR (50), cid VARCHAR (50), config JSONB);";
 
     /** Create XYZ_CONFIG_IDX_TABLE in XYZ_CONFIG_SCHEMA. */
@@ -180,6 +180,7 @@ public class MaintenanceSQL {
             "  count bigint, " +
             "  prop_stat jsonb, " +
             "  idx_manual jsonb, " +
+            "  auto_indexing boolean, "+
             "  CONSTRAINT "+XYZ_CONFIG_IDX_TABLE+"_pkey PRIMARY KEY (spaceid) " +
             "); " +
             "INSERT INTO xyz_config."+XYZ_CONFIG_IDX_TABLE+" (spaceid,count) " +
