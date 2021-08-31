@@ -337,7 +337,7 @@
     "defaultEventTypes": null,
     "id": "psql-http",
     "params": {
-      "ecps": "$encrypt({\"PSQL_HOST\":\"postgres\",\"PSQL_PORT\":\"${PSQL_PORT}\",\"PSQL_DB\":\"${PSQL_DB}\",\"PSQL_USER\":\"${PSQL_USER}\",\"PSQL_PASSWORD\":\"${PSQL_PASSWORD}\",\"PSQL_SCHEMA\":\"public\"})",
+      "ecps": "$encrypt({\"PSQL_HOST\":\"${PSQL_HOST}\",\"PSQL_PORT\":\"${PSQL_PORT}\",\"PSQL_DB\":\"${PSQL_DB}\",\"PSQL_USER\":\"${PSQL_USER}\",\"PSQL_PASSWORD\":\"${PSQL_PASSWORD}\",\"PSQL_SCHEMA\":\"public\"})",
       "PSQL_MAX_CONN": 1024,
       "autoIndexing": true,
       "propertySearch": true,
@@ -348,7 +348,7 @@
       "local": {
         "id": "psql-http",
         "type": "Http",
-        "url": "http://xyz-http-connector:9090/psql/event"
+        "url": "http://${PSQL_HTTP_CONNECTOR_HOST}:9090/psql/event"
       }
     },
     "trusted": true
