@@ -151,7 +151,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 143
+ select 144
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
@@ -1588,7 +1588,7 @@ $BODY$
 			  count bigint,
 			  prop_stat jsonb,
 			  idx_manual jsonb,
-              auto_indexing jsonb,
+              auto_indexing boolean,
 			  CONSTRAINT xyz_idxs_status_pkey PRIMARY KEY (spaceid)
 			);
 			INSERT INTO xyz_config.xyz_idxs_status (spaceid,count) VALUES ('idx_in_progress','0');

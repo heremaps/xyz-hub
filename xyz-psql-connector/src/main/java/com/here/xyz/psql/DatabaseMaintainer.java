@@ -44,7 +44,7 @@ public class DatabaseMaintainer {
     private static final Logger logger = LogManager.getLogger();
 
     /** Is used to check against xyz_ext_version() */
-    public static final int XYZ_EXT_VERSION = 143;
+    public static final int XYZ_EXT_VERSION = 144;
 
     public static final int H3_CORE_VERSION = 107;
 
@@ -64,7 +64,7 @@ public class DatabaseMaintainer {
             try (CloseableHttpClient client = HttpClients.createDefault()){
                 HttpPost request = new HttpPost(config.getMaintenanceEndpoint()
                         +"/maintain/indices?connectorId="+traceItem.getConnectorId()
-                        +"&ecps="+config.getEcps()+"&autoIndexing=true"
+                        +"&ecps="+config.getEcps()+"&autoIndexing="+autoIndexing
                 );
 
                 HttpResponse response = client.execute(request);
@@ -72,7 +72,7 @@ public class DatabaseMaintainer {
                     logger.warn("{} Database not initialized!",traceItem);
                     request = new HttpPost(config.getMaintenanceEndpoint()
                             +"/initialization?connectorId="+traceItem.getConnectorId()
-                            +"&ecps="+config.getEcps()+"&autoIndexing=true");
+                            +"&ecps="+config.getEcps()+"&autoIndexing="+autoIndexing);
                     response = client.execute(request);
                     if(response.getStatusLine().getStatusCode() >= 400){
                         logger.warn("{} Could not initialize Database! {}",traceItem, EntityUtils.toString(response.getEntity()));
