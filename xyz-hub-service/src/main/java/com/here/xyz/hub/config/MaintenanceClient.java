@@ -132,7 +132,7 @@ public class MaintenanceClient {
         for (String path : localPaths) {
             String content = DatabaseMaintainer.readResource(path);
             /** Create required Extensions */
-            logger.info("Apply Script \"{}\" ..",path);
+            logger.info("{}: Apply Script \"{}\" ..",path);
             executeQueryWithoutResults(new SQLQuery(content), source);
         }
     }
@@ -157,23 +157,23 @@ public class MaintenanceClient {
         }, source);
 
         if(hasPermissions){
-            logger.info("Create required Extensions..");
+            logger.info("{}: Create required Extensions..", connectorId);
             executeQueryWithoutResults(installExtensionsQuery, source);
             /** Create required Schemas and Tables */
 
-            logger.info("Create required Main-Schema..");
+            logger.info("{}: Create required Main-Schema..", connectorId);
             executeQueryWithoutResults(new SQLQuery("CREATE SCHEMA IF NOT EXISTS \"" + dbSettings.getSchema() + "\";"), source);
 
-            logger.info("Create required Config-Schema and System-Tables..");
+            logger.info("{}: Create required Config-Schema and System-Tables..", connectorId);
             executeQueryWithoutResults(new SQLQuery(MaintenanceSQL.configSchemaAndSystemTablesSQL), source);
 
-            logger.info("Create required IDX-Table..");
+            logger.info("{}: Create required IDX-Table..", connectorId);
             executeQueryWithoutResults(new SQLQuery(MaintenanceSQL.createIDXTable), source);
 
-            logger.info("Add initial IDX Entry");
+            logger.info("{}: Add initial IDX Entry", connectorId);
             executeQueryWithoutResults(new SQLQuery(MaintenanceSQL.createIDXInitEntry), source);
 
-            logger.info("Create required DB-Status-Table..");
+            logger.info("{}: Create required DB-Status-Table..", connectorId);
             executeQueryWithoutResults(new SQLQuery(MaintenanceSQL.createDbStatusTable), source);
 
             /** Install extensions */
@@ -182,7 +182,7 @@ public class MaintenanceClient {
             executeQueryWithoutResults(setSearchpath, source);
 
             /** Mark db initialization as finished in DBStatus table*/
-            logger.info("Mark db as initialized in db-status table..");
+            logger.info("{}: Mark db as initialized in db-status table..", connectorId);
             executeQueryWithoutResults(addInitializationEntry, source);
         }else{
             throw new NoPermissionException("");
@@ -197,16 +197,29 @@ public class MaintenanceClient {
         String maintenanceJobId = ""+Core.currentTimeMillis();
         int mode = autoIndexing == true ? 2 : 0;
 
+        Integer status = executeQuery(new SQLQuery(MaintenanceSQL.checkIDXStatus), rs -> {
+            if (rs.next()) {
+                //((progress  &  (1<<3)) == (1<<3) = idx_mode=16 (disable indexing completely)
+                return rs.getInt(1);
+            }
+            return -1;
+        }, source);
+
+        if(status == 16 ) {
+            logger.info("{}: Indexing is disabled database wide! ", connectorId);
+            return;
+        }
+
         SQLQuery updateDBStatus= new SQLQuery(MaintenanceSQL.updateConnectorStatusBeginMaintenance, maintenanceJobId ,maintenanceJobId, maintenanceJobId, dbSettings.getSchema(),  dbInstance.connectorId);
         executeUpdate(updateDBStatus, source);
         try {
             SQLQuery triggerIndexing = new SQLQuery(MaintenanceSQL.createIDX, dbSettings.getSchema(), 100, 0, mode, dbUser);
 
-            logger.info("Start Indexing..");
+            logger.info("{}: Start Indexing..", connectorId);
             executeQueryWithoutResults(triggerIndexing, source);
         }finally {
             updateDBStatus= new SQLQuery(MaintenanceSQL.updateConnectorStatusMaintenanceComplete, maintenanceJobId, maintenanceJobId, dbInstance.getDbSettings().getSchema(), dbInstance.connectorId);
-            logger.info("Mark Indexing as finished");
+            logger.info("{}: Mark Indexing as finished", connectorId);
             executeUpdate(updateDBStatus, source);
         }
     }
@@ -216,14 +229,14 @@ public class MaintenanceClient {
         DatabaseSettings dbSettings = dbInstance.getDbSettings();
 
         SQLQuery statusQuery = new SQLQuery(MaintenanceSQL.getIDXStatus,dbSettings.getSchema(), spaceId);
-        logger.info("Start maintaining space '{}'..",spaceId);
+        logger.info("{}: Start maintaining space '{}'..", connectorId, spaceId);
 
         return executeQuery(statusQuery, rs -> {
             if (rs.next()) {
                 try {
                     return XyzSerializable.deserialize(rs.getString(1), SpaceStatus.class);
                 } catch (JsonProcessingException e) {
-                    throw new RuntimeException("Cant serialize SpaceStatus");
+                    throw new RuntimeException("{}: Cant serialize SpaceStatus");
                 }
             }
             return null;
@@ -236,11 +249,11 @@ public class MaintenanceClient {
         DataSource source = dbInstance.getSource();
 
         SQLQuery updateIDXEntry = new SQLQuery(MaintenanceSQL.updateIDXEntry, dbSettings.getSchema(), spaceId);
-        logger.info("Set idx_creation_finished=NULL {}",spaceId);
+        logger.info("{}: Set idx_creation_finished=NULL {}", connectorId, spaceId);
         executeQueryWithoutResults(updateIDXEntry, source);
 
         SQLQuery maintainSpace = new SQLQuery(MaintenanceSQL.maintainIDXOfSpace,dbSettings.getSchema(), spaceId);
-        logger.info("Start maintaining space '{}'..",spaceId);
+        logger.info("{}: Start maintaining space '{}'..", connectorId, spaceId);
         executeQueryWithoutResults(maintainSpace, source);
     }
 
@@ -255,7 +268,7 @@ public class MaintenanceClient {
             SQLQuery q = new SQLQuery(SQLQueryBuilder.deleteOldHistoryEntries(dbSettings.getSchema(), historyTable , v_diff));
             q.append(new SQLQuery(SQLQueryBuilder.flagOutdatedHistoryEntries(dbSettings.getSchema(), historyTable, v_diff)));
             q.append(new SQLQuery(SQLQueryBuilder.deleteHistoryEntriesWithDeleteFlag(dbSettings.getSchema(), historyTable)));
-            logger.info("Start maintaining history '{}'..",spaceId);
+            logger.info("{}: Start maintaining history '{}'..", connectorId, spaceId);
             executeQueryWithoutResults(q, source);
         }
     }
@@ -271,13 +284,13 @@ public class MaintenanceClient {
             if(!dbInstanceMap.get(connectorId).getConfigValuesAsString().equalsIgnoreCase(maintenanceInstance.getConfigValuesAsString())) {
                 removeDbInstanceFromMap(connectorId);
             }else{
-                logger.debug("Config already loaded -> load dbInstance from Pool. DbInstanceMap size:{}", dbInstanceMap.size());
+                logger.debug("{}: Config already loaded -> load dbInstance from Pool. DbInstanceMap size:{}", connectorId, dbInstanceMap.size());
                 return dbInstanceMap.get(connectorId);
             }
         }
 
         /** Init dataSource, readDataSource ..*/
-        logger.info("{} Config is missing -> add new dbInstance to Pool. DbInstanceMap size:{}", dbInstanceMap.size());
+        logger.info("{}: {} Config is missing -> add new dbInstance to Pool. DbInstanceMap size:{}", connectorId, dbInstanceMap.size());
         final ComboPooledDataSource source = getComboPooledDataSource(dbSettings, connectorId , false);
 
         Map<String, String> m = new HashMap<>();
@@ -293,7 +306,7 @@ public class MaintenanceClient {
             try {
                 ((PooledDataSource) (dbInstanceMap.get(connectorId).getSource())).close();
             } catch (SQLException e) {
-                logger.warn("Error while closing connections: ", e);
+                logger.warn("{}: Error while closing connections: {}", connectorId, e);
             }
             dbInstanceMap.remove(connectorId);
         }
