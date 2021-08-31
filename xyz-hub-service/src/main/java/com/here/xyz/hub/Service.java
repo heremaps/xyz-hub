@@ -77,16 +77,8 @@ public class Service extends Core {
 
   private static final Logger logger = LogManager.getLogger();
 
-  /**
-   * The build version.
-   */
-  public static final String BUILD_VERSION = getBuildProperty("xyzhub.version");
-  public static final String XYZ_HUB_USER_AGENT = "XYZ-Hub/" + Service.BUILD_VERSION;
 
-  /**
-   * The build time.
-   */
-  public static final long BUILD_TIME = getBuildTime();
+  public static final String XYZ_HUB_USER_AGENT = "XYZ-Hub/" + BUILD_VERSION;
 
   /**
    * The host ID.
@@ -254,7 +246,7 @@ public class Service extends Core {
       // at this point all verticles were initiated and all routers added as subrouter of globalRouter.
       vertx.eventBus().publish(SHARED_DATA, GLOBAL_ROUTER);
 
-      logger.info("XYZ Hub " + BUILD_VERSION + " was started at " + new Date().toString());
+      logger.info("XYZ Hub " + getBuildProperty("xyzhub.version") + " was started at " + new Date().toString());
       logger.info("Native transport enabled: " + vertx.isNativeTransportEnabled());
     });
 
@@ -288,28 +280,6 @@ public class Service extends Core {
       }
     }
     return hostname;
-  }
-
-  private static String getBuildProperty(String name) {
-    InputStream input = Service.class.getResourceAsStream("/build.properties");
-
-    // load a properties file
-    Properties buildProperties = new Properties();
-    try {
-      buildProperties.load(input);
-    } catch (IOException ignored) {
-    }
-
-    return buildProperties.getProperty(name);
-  }
-
-  private static long getBuildTime() {
-    String buildTime = getBuildProperty("xyzhub.buildTime");
-    try {
-      return new SimpleDateFormat("yyyy.MM.dd-HH:mm").parse(buildTime).getTime();
-    } catch (ParseException e) {
-      return 0;
-    }
   }
 
   public static long getUsedMemoryBytes() {
@@ -504,6 +474,11 @@ public class Service extends Core {
      * The database password.
      */
     public String STORAGE_DB_PASSWORD;
+
+    /**
+     * The http connector host.
+     */
+    public String PSQL_HTTP_CONNECTOR_HOST;
 
     /**
      * The ARN of the space table in DynamoDB.
