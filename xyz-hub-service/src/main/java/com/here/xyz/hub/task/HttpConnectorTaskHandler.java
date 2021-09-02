@@ -24,6 +24,7 @@ import com.here.xyz.hub.HttpConnector;
 import com.here.xyz.hub.PsqlHttpVerticle;
 import com.here.xyz.hub.rest.HttpException;
 
+import com.here.xyz.psql.DatabaseMaintainer;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.maintenance.ConnectorStatus;
@@ -67,7 +68,7 @@ public class HttpConnectorTaskHandler {
         logger.info("Database is already initialized for connector: {}",connectorId);
       } else {
         logger.info("Start database initialization for connector: {} ",connectorId);
-        HttpConnector.maintenanceClient.initializeEmptyDatabase(connectorId, ecps, passphrase, force);
+        HttpConnector.maintenanceClient.initializeOrUpdateDatabase(connectorId, ecps, passphrase);
       }
       handler.handle(Future.succeededFuture(new SuccessResponse().withStatus("Ok")));
     }catch (Exception e) {
@@ -77,24 +78,35 @@ public class HttpConnectorTaskHandler {
 
   public static void maintainIndices(String connectorId, String ecps, String passphrase, boolean autoIndexing, Handler<AsyncResult<XyzResponse>> handler) {
     try {
+      boolean force = false;
       ConnectorStatus connectorStatus = HttpConnector.maintenanceClient.getConnectorStatus(connectorId, ecps, passphrase);
+
       if(connectorStatus != null && connectorStatus.isInitialized()) {
+        if( DatabaseMaintainer.XYZ_EXT_VERSION > connectorStatus.getScriptVersions().get("ext") || DatabaseMaintainer.H3_CORE_VERSION > connectorStatus.getScriptVersions().get("h3") ){
+          logger.info("Database needs an update: {}",connectorId);
+          HttpConnector.maintenanceClient.initializeOrUpdateDatabase(connectorId, ecps, passphrase);
+        }
+
         if(connectorStatus.getMaintenanceStatus() != null && connectorStatus.getMaintenanceStatus().get(ConnectorStatus.AUTO_INDEXING) !=  null) {
           ConnectorStatus.MaintenanceStatus autoIndexingStatus = connectorStatus.getMaintenanceStatus().get(ConnectorStatus.AUTO_INDEXING) ;
 
           if(autoIndexingStatus.getMaintenanceRunning().size() > 0 ){
             Long timeSinceLastRunInHr = (Core.currentTimeMillis() - autoIndexingStatus.getMaintainedAt()) / 1000 / 60 / 60;
-            if(timeSinceLastRunInHr > PsqlHttpVerticle.MISSING_MAINTENANCE_WARNING_IN_HR)
+            if(timeSinceLastRunInHr > PsqlHttpVerticle.MISSING_MAINTENANCE_WARNING_IN_HR) {
               logger.warn("Last MaintenanceRun is older than {}h - connector: {}", timeSinceLastRunInHr, connectorId);
-          }
-
-          if(autoIndexingStatus.getMaintenanceRunning().size() >=  PsqlHttpVerticle.MAX_CONCURRENT_MAINTENANCE_TASKS) {
-            handler.handle(Future.failedFuture(new HttpException(CONFLICT, "Maximal concurrent Indexing tasks are running!")));
-            return;
+              //clean potential orphan maintenance jobIds
+              force = true;
+            }else{
+              if(autoIndexingStatus.getMaintenanceRunning().size() >=  PsqlHttpVerticle.MAX_CONCURRENT_MAINTENANCE_TASKS) {
+                handler.handle(Future.failedFuture(new HttpException(CONFLICT, "Maximal concurrent Indexing tasks are running!")));
+                return;
+              }
+            }
           }
         }
+
         logger.info("Start maintain indices for connector: {}", connectorId);
-        HttpConnector.maintenanceClient.maintainIndices(connectorId, ecps, passphrase, autoIndexing);
+        HttpConnector.maintenanceClient.maintainIndices(connectorId, ecps, passphrase, autoIndexing, force);
         handler.handle(Future.succeededFuture(new SuccessResponse().withStatus("Ok")));
       } else {
         logger.warn("Database not initialized for connector: {}",connectorId);

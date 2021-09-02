@@ -137,7 +137,7 @@ public class MaintenanceClient {
         }
     }
 
-    public void initializeEmptyDatabase(String connectorId, String ecps, String passphrase, boolean force) throws SQLException, NoPermissionException, IOException {
+    public void initializeOrUpdateDatabase(String connectorId, String ecps, String passphrase) throws SQLException, NoPermissionException, IOException {
         MaintenanceInstance dbInstance = getClient(connectorId, ecps, passphrase);
         DatabaseSettings dbSettings = dbInstance.getDbSettings();
         DataSource source = dbInstance.getSource();
@@ -189,7 +189,7 @@ public class MaintenanceClient {
         }
     }
 
-    public void maintainIndices(String connectorId, String ecps, String passphrase, boolean autoIndexing) throws SQLException,DecodeException {
+    public void maintainIndices(String connectorId, String ecps, String passphrase, boolean autoIndexing, boolean force) throws SQLException,DecodeException {
         MaintenanceInstance dbInstance = getClient(connectorId, ecps, passphrase);
         DatabaseSettings dbSettings = dbInstance.getDbSettings();
         DataSource source = dbInstance.getSource();
@@ -210,7 +210,10 @@ public class MaintenanceClient {
             return;
         }
 
-        SQLQuery updateDBStatus= new SQLQuery(MaintenanceSQL.updateConnectorStatusBeginMaintenance, maintenanceJobId ,maintenanceJobId, maintenanceJobId, dbSettings.getSchema(),  dbInstance.connectorId);
+        SQLQuery updateDBStatus=(force == false ?
+                      new SQLQuery(MaintenanceSQL.updateConnectorStatusBeginMaintenance, maintenanceJobId ,maintenanceJobId, maintenanceJobId, dbSettings.getSchema(),  dbInstance.connectorId)
+                    : new SQLQuery(MaintenanceSQL.updateConnectorStatusBeginMaintenanceForce, maintenanceJobId, dbSettings.getSchema(),  dbInstance.connectorId));
+
         executeUpdate(updateDBStatus, source);
         try {
             SQLQuery triggerIndexing = new SQLQuery(MaintenanceSQL.createIDX, dbSettings.getSchema(), 100, 0, mode, dbUser);

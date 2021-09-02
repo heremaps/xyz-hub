@@ -202,7 +202,6 @@ public class DatabaseMaintainer {
         {
             try (final Connection connection = dataSource.getConnection();
                  final Statement stmt = connection.createStatement();) {
-                final int H3CoreVersion = 107;
                 boolean needUpdate = false;
 
                 ResultSet rs;
@@ -214,7 +213,7 @@ public class DatabaseMaintainer {
                 }
 
                 if (!needUpdate && (rs = stmt.executeQuery("select h3.h3_version()")).next()) {
-                    needUpdate = (H3CoreVersion > rs.getInt(1));
+                    needUpdate = (H3_CORE_VERSION > rs.getInt(1));
                 }
 
                 if (needUpdate) {
