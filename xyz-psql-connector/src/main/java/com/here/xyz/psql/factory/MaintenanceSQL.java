@@ -150,6 +150,11 @@ public class MaintenanceSQL {
                     " END"
                     + "		WHERE dh_schema=? AND connector_id=?";
 
+    public static String updateConnectorStatusBeginMaintenanceForce =
+            "UPDATE xyz_config.db_status SET maintenance_status=" +
+                    " jsonb_set(maintenance_status,'{AUTO_INDEXING,maintenanceRunning}', ?::jsonb ||  '[]'::jsonb) " +
+                    "		WHERE dh_schema=? AND connector_id=?";
+
     public static String updateConnectorStatusMaintenanceComplete =
             "UPDATE xyz_config.db_status SET maintenance_status =  "+
                 "jsonb_set( jsonb_set(maintenance_status,'{AUTO_INDEXING,maintainedAt}'::text[], ?::jsonb),'{AUTO_INDEXING,maintenanceRunning}'," +
