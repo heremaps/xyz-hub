@@ -457,11 +457,13 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       Space spaceDef = event.getSpaceDefinition();
 
-      if(  spaceDef != null && spaceDef.getPartitions() != null && spaceDef.getPartitions() > 1
+      if(  spaceDef != null && spaceDef.getPartitions() != null 
          && !spaceDef.isEnableHistory()
          && ModifySpaceEvent.Operation.CREATE == event.getOperation()
         )
-      { ensureSpace( spaceDef.getPartitions() ); }  
+      { 
+        ensureSpace( new PartitionDef( spaceDef.getPartitions() ) ); 
+      }  
 
       if(event.getSpaceDefinition() != null && event.getSpaceDefinition().isEnableHistory()){
         Integer maxVersionCount = event.getSpaceDefinition().getMaxVersionCount();

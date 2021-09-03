@@ -738,7 +738,62 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private static void advisoryUnlock(String tablename, Connection connection ) throws SQLException { _advisory(tablename,connection,false); }
 
-    protected void ensureSpace( int partitions ) throws SQLException {
+    static class PartitionDef
+    { 
+     int size = 0;
+     boolean isNumeric = false;
+     String jkey;
+     ArrayList<Object> listArr;
+     ArrayList<ArrayList<Object>> rangeArr;
+
+     private String jpathFromProperty(String pth)
+     { 
+      if(pth.startsWith("p.") ) 
+       pth = pth.replaceFirst("^p\\.", "properties.");
+      else if ( pth.startsWith("f.") )
+       pth = pth.replaceFirst("^f\\.", ""); 
+
+      String jpth = "jsondata";
+   
+      String[] ptharr = pth.split("\\.");
+      for( int i = 0; i < ptharr.length; i++ )
+       jpth = String.format("(%s->'%s')", jpth, ptharr[i]);
+
+      return jpth;  
+     }
+   
+     private boolean byHash()  { return ( listArr == null && rangeArr == null); }
+     private boolean byList()  { return ( listArr != null ); }
+     private boolean byRange() { return ( rangeArr != null ); }
+
+
+     PartitionDef( Map<String, Object> prtns )
+     { jkey = jpathFromProperty( prtns.getOrDefault("key", "id").toString() );
+       
+       if( prtns.containsKey("buckets") )
+       { Object o = prtns.get("buckets");
+         if( o != null && o instanceof Integer ) size = (Integer) o;
+       } 
+       else if ( prtns.containsKey("list") )
+       { Object o = prtns.get("list");
+         if( o != null && o instanceof ArrayList<?> )
+         { listArr = (ArrayList<Object>) o;
+           size = listArr.size();
+           isNumeric = !( listArr.get(0) instanceof String );
+         }
+       }
+       else if ( prtns.containsKey("range") )
+       { Object o = prtns.get("range");
+         if( o != null && o instanceof ArrayList<?> )
+         { rangeArr = (ArrayList<ArrayList<Object>>) o;
+           size = rangeArr.size();
+           isNumeric = !( rangeArr.get(0).get(0) instanceof String );
+         }
+       }
+     }
+    }
+
+    protected void ensureSpace( PartitionDef partitions ) throws SQLException {
         // Note: We can assume that when the table exists, the postgis extensions are installed.
         if (hasTable()) return;
 
@@ -776,29 +831,47 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
-    protected void ensureSpace() throws SQLException { ensureSpace(0); }
+    protected void ensureSpace() throws SQLException { ensureSpace(null); }
 
-    private void createSpaceStatement(Statement stmt, String tableName, int partitions ) throws SQLException {
+    private void createSpaceStatement(Statement stmt, String tableName, PartitionDef partitions ) throws SQLException {
 
-        partitions = Math.max( partitions, 1 );
+        boolean bUsePartitions = ( partitions != null && partitions.size > 0 );
+        
         String schema = config.getDatabaseSettings().getSchema();
 
         String query = "CREATE TABLE IF NOT EXISTS ${schema}.${table} (jsondata jsonb, geo geometry(GeometryZ,4326), i BIGSERIAL)";
 
-        if( partitions > 1 )
-         query = String.format( "%s partition by list ( (('x' || left( md5( jsondata->>'id' ), 4 ))::bit(16)::integer %% %d) )", query, partitions );
+        if( bUsePartitions ) // must be somehow over id to assure uniqeness over partitions
+        { if( partitions.byHash() )
+           query = String.format( "%s partition by list ( (('x' || left( md5((%s)::text), 4 ))::bit(16)::integer %% %d) )", query, partitions.jkey, partitions.size );
+          else if( partitions.byList() ) 
+           query = String.format( "%s partition by list ( ((%s)::text%s) )", query, partitions.jkey, partitions.isNumeric ? "::numeric" : "" );
+          else if( partitions.byRange() ) 
+           query = String.format( "%s partition by range ( ((%s)::text%s) )", query, partitions.jkey, partitions.isNumeric ? "::numeric" : "" ); 
+        }
 
         query = SQLQuery.replaceVars(query, schema, tableName);
         stmt.addBatch(query);
 
-        for( int pnr = 0; pnr < partitions; pnr++ )
+        int idxLoop = ( !bUsePartitions ? 1 : partitions.size ); 
+
+        for( int pnr = 0; pnr < idxLoop; pnr++ )
         {
-         int hint = ( partitions == 1 ? -1 : pnr );
+         int hint = ( bUsePartitions ? pnr : -1 );
          String partitionTableName = null;
 
-         if(! (hint < 0))
+         if( hint >= 0 )
          { partitionTableName = tableName + "_" + hint;
-           query = String.format( "create table ${schema}.${table} partition of ${schema}.\"%s\" for values in (%d)", tableName, hint);
+           if( partitions.byHash() )
+            query = String.format( "create table ${schema}.${table} partition of ${schema}.\"%s\" for values in (%d)", tableName, hint);
+           else if( partitions.byList() )
+            query = String.format( "create table ${schema}.${table} partition of ${schema}.\"%s\" for values in (%s)", 
+                                    tableName, (partitions.isNumeric ? partitions.listArr.get(hint).toString() : String.format("'%s'", partitions.listArr.get(hint).toString())) );
+           else if( partitions.byRange() ) 
+            query = String.format( "create table ${schema}.${table} partition of ${schema}.\"%s\" for values from (%s) to (%s)", 
+                                    tableName, (partitions.isNumeric ? partitions.rangeArr.get(hint).get(0).toString() : String.format("'%s'", partitions.rangeArr.get(hint).get(0).toString())), 
+                                               (partitions.isNumeric ? partitions.rangeArr.get(hint).get(1).toString() : String.format("'%s'", partitions.rangeArr.get(hint).get(1).toString())) );
+
            query = SQLQuery.replaceVars(query, replacements, schema, tableName, partitionTableName);
            stmt.addBatch(query);
          }
@@ -834,7 +907,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         stmt.setQueryTimeout(calculateTimeout());
     }
 
-    private void createSpaceStatement(Statement stmt, String tableName) throws SQLException { createSpaceStatement(stmt,tableName,0); }
+    private void createSpaceStatement(Statement stmt, String tableName) throws SQLException { createSpaceStatement(stmt,tableName,null); }
 
     protected void ensureHistorySpace(Integer maxVersionCount, boolean compactHistory, boolean isEnableGlobalVersioning) throws SQLException {
         final String tableName = config.readTableFromEvent(event);
