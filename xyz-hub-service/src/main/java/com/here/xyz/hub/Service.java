@@ -48,14 +48,10 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.WebClientOptions;
-import java.io.IOException;
-import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -65,7 +61,6 @@ import java.util.Hashtable;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.UUID;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Level;
@@ -649,6 +644,11 @@ public class Service extends Core {
      */
     public List<String> FEATURE_NAMESPACE_OPTIONAL_FIELDS = Collections.emptyList();
     private Map<String, Object> FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP;
+
+    /**
+     * When set, modifies the Stream-Info header name to the value specified.
+     */
+    public String CUSTOM_STREAM_INFO_HEADER_NAME;
 
     public boolean containsFeatureNamespaceOptionalField(String field) {
       if (FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP == null) {
