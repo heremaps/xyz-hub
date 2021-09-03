@@ -44,6 +44,7 @@ import static io.vertx.core.http.HttpMethod.PATCH;
 import static io.vertx.core.http.HttpMethod.POST;
 import static io.vertx.core.http.HttpMethod.PUT;
 
+import com.google.common.base.Strings;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.TaskPipeline;
@@ -215,6 +216,9 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
    * The initial request handler.
    */
   protected Handler<RoutingContext> createReceiveHandler() {
+    final long maxAge = TimeUnit.MINUTES.toSeconds(1);
+    final String streamInfoKey = getStreamInfoKey();
+
     return context -> {
       if (context.request().getHeader(STREAM_ID) == null) {
         context.request().headers().add(STREAM_ID, RandomStringUtils.randomAlphanumeric(10));
@@ -223,21 +227,29 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
       //Log the request information.
       LogUtil.addRequestInfo(context);
       context.response().putHeader(STREAM_ID, context.request().getHeader(STREAM_ID));
-      context.response().putHeader(STRICT_TRANSPORT_SECURITY, "max-age=" + TimeUnit.MINUTES.toSeconds(1));
+      context.response().putHeader(STRICT_TRANSPORT_SECURITY, "max-age=" + maxAge);
       context.response().endHandler(ar -> onResponseEnd(context));
-      context.addHeadersEndHandler(v -> headersEndHandler(context));
+      context.addHeadersEndHandler(v -> headersEndHandler(context, streamInfoKey));
       context.next();
     };
   }
 
-  protected static void headersEndHandler(RoutingContext context) {
+  private static String getStreamInfoKey() {
+    if (Service.configuration != null && !Strings.isNullOrEmpty(Service.configuration.CUSTOM_STREAM_INFO_HEADER_NAME)) {
+      return Service.configuration.CUSTOM_STREAM_INFO_HEADER_NAME;
+    }
+
+    return STREAM_INFO;
+  }
+
+  protected static void headersEndHandler(RoutingContext context, String streamInfoKey) {
     Map<String, Object> streamInfo;
     if (context != null && (streamInfo = context.get(STREAM_INFO_CTX_KEY)) != null) {
       String streamInfoValues = "";
       for (Entry<String, Object> e : streamInfo.entrySet())
         streamInfoValues += e.getKey() + "=" + e.getValue() + ";";
 
-      context.response().putHeader(STREAM_INFO, streamInfoValues);
+      context.response().putHeader(streamInfoKey, streamInfoValues);
     }
   }
 
