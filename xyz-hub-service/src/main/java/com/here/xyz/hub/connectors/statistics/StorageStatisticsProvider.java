@@ -56,7 +56,6 @@ public class StorageStatisticsProvider {
   public static Future<StorageStatistics> provideStorageStatistics(Marker marker, long includeChangesSince) {
     SpaceSelectionCondition ssc = new SpaceSelectionCondition();
     PropertyQueryList pql = new PropertyQueryList();
-    //TODO: Filter spaces by storages which have the capability storageUtilizationReporting
     pql.add(new PropertyQuery()
         .withKey(CONTENT_UPDATED_AT)
         .withOperation(GREATER_THAN)
@@ -74,14 +73,13 @@ public class StorageStatisticsProvider {
   }
 
   private static StorageStatistics mergeStats(List<StorageStatistics> stats) {
-    StorageStatistics mergedStats = new StorageStatistics();
-    mergedStats.setCreatedAt(stats.size() > 0 ? Long.MAX_VALUE : Core.currentTimeMillis());
-    mergedStats.setByteSizes(new HashMap<>());
+    StorageStatistics mergedStats = new StorageStatistics()
+        .withCreatedAt(Core.currentTimeMillis())
+        .withByteSizes(new HashMap<>());
     stats.forEach(s -> {
       if (s == null) return;
       //Use the oldest timestamp in the merged stats
-      if (s.getCreatedAt() < mergedStats.getCreatedAt())
-        mergedStats.setCreatedAt(s.getCreatedAt());
+      mergedStats.setCreatedAt(Math.min(s.getCreatedAt(), mergedStats.getCreatedAt()));
       mergedStats.getByteSizes().putAll(s.getByteSizes());
     });
     return mergedStats;
