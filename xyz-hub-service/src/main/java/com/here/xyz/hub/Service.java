@@ -48,14 +48,10 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.WebClientOptions;
-import java.io.IOException;
-import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -65,7 +61,6 @@ import java.util.Hashtable;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.UUID;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Level;
@@ -77,16 +72,8 @@ public class Service extends Core {
 
   private static final Logger logger = LogManager.getLogger();
 
-  /**
-   * The build version.
-   */
-  public static final String BUILD_VERSION = getBuildProperty("xyzhub.version");
-  public static final String XYZ_HUB_USER_AGENT = "XYZ-Hub/" + Service.BUILD_VERSION;
 
-  /**
-   * The build time.
-   */
-  public static final long BUILD_TIME = getBuildTime();
+  public static final String XYZ_HUB_USER_AGENT = "XYZ-Hub/" + BUILD_VERSION;
 
   /**
    * The host ID.
@@ -254,7 +241,7 @@ public class Service extends Core {
       // at this point all verticles were initiated and all routers added as subrouter of globalRouter.
       vertx.eventBus().publish(SHARED_DATA, GLOBAL_ROUTER);
 
-      logger.info("XYZ Hub " + BUILD_VERSION + " was started at " + new Date().toString());
+      logger.info("XYZ Hub " + getBuildProperty("xyzhub.version") + " was started at " + new Date().toString());
       logger.info("Native transport enabled: " + vertx.isNativeTransportEnabled());
     });
 
@@ -288,28 +275,6 @@ public class Service extends Core {
       }
     }
     return hostname;
-  }
-
-  private static String getBuildProperty(String name) {
-    InputStream input = Service.class.getResourceAsStream("/build.properties");
-
-    // load a properties file
-    Properties buildProperties = new Properties();
-    try {
-      buildProperties.load(input);
-    } catch (IOException ignored) {
-    }
-
-    return buildProperties.getProperty(name);
-  }
-
-  private static long getBuildTime() {
-    String buildTime = getBuildProperty("xyzhub.buildTime");
-    try {
-      return new SimpleDateFormat("yyyy.MM.dd-HH:mm").parse(buildTime).getTime();
-    } catch (ParseException e) {
-      return 0;
-    }
   }
 
   public static long getUsedMemoryBytes() {
@@ -506,6 +471,11 @@ public class Service extends Core {
     public String STORAGE_DB_PASSWORD;
 
     /**
+     * The http connector host.
+     */
+    public String PSQL_HTTP_CONNECTOR_HOST;
+
+    /**
      * The ARN of the space table in DynamoDB.
      */
     public String SPACES_DYNAMODB_TABLE_ARN;
@@ -674,6 +644,11 @@ public class Service extends Core {
      */
     public List<String> FEATURE_NAMESPACE_OPTIONAL_FIELDS = Collections.emptyList();
     private Map<String, Object> FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP;
+
+    /**
+     * When set, modifies the Stream-Info header name to the value specified.
+     */
+    public String CUSTOM_STREAM_INFO_HEADER_NAME;
 
     public boolean containsFeatureNamespaceOptionalField(String field) {
       if (FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP == null) {

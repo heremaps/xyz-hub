@@ -44,6 +44,7 @@ import static io.vertx.core.http.HttpMethod.PATCH;
 import static io.vertx.core.http.HttpMethod.POST;
 import static io.vertx.core.http.HttpMethod.PUT;
 
+import com.google.common.base.Strings;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.TaskPipeline;
@@ -101,7 +102,7 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
       AUTHORIZATION, CONTENT_TYPE, USER_AGENT, IF_MODIFIED_SINCE, IF_NONE_MATCH, CACHE_CONTROL, STREAM_ID
   );
 
-  public Future<Void> createHttpServer(int port, Router router) {
+  public Future<Void>  createHttpServer(int port, Router router) {
     Promise<Void> promise = Promise.promise();
 
     vertx.createHttpServer(SERVER_OPTIONS)
@@ -215,6 +216,9 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
    * The initial request handler.
    */
   protected Handler<RoutingContext> createReceiveHandler() {
+    final long maxAge = TimeUnit.MINUTES.toSeconds(1);
+    final String customStreamInfoKey = getCustomStreamInfoKey();
+
     return context -> {
       if (context.request().getHeader(STREAM_ID) == null) {
         context.request().headers().add(STREAM_ID, RandomStringUtils.randomAlphanumeric(10));
@@ -223,14 +227,27 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
       //Log the request information.
       LogUtil.addRequestInfo(context);
       context.response().putHeader(STREAM_ID, context.request().getHeader(STREAM_ID));
-      context.response().putHeader(STRICT_TRANSPORT_SECURITY, "max-age=" + TimeUnit.MINUTES.toSeconds(1));
+      context.response().putHeader(STRICT_TRANSPORT_SECURITY, "max-age=" + maxAge);
       context.response().endHandler(ar -> onResponseEnd(context));
-      context.addHeadersEndHandler(v -> headersEndHandler(context));
+      context.addHeadersEndHandler(v -> headersEndHandler(context, customStreamInfoKey));
       context.next();
     };
   }
 
-  protected static void headersEndHandler(RoutingContext context) {
+  /**
+   * Returns the custom Stream-Info key to be added to the headers together with the original Stream-Info header.
+   * When set, the stream info values will be duplicated in two different headers during response.
+   * @return CUSTOM_STREAM_INFO_HEADER_NAME or null when not set.
+   */
+  private static String getCustomStreamInfoKey() {
+    if (Service.configuration != null && !Strings.isNullOrEmpty(Service.configuration.CUSTOM_STREAM_INFO_HEADER_NAME)) {
+      return Service.configuration.CUSTOM_STREAM_INFO_HEADER_NAME;
+    }
+
+    return null;
+  }
+
+  protected static void headersEndHandler(RoutingContext context, String customStreamInfoKey) {
     Map<String, Object> streamInfo;
     if (context != null && (streamInfo = context.get(STREAM_INFO_CTX_KEY)) != null) {
       String streamInfoValues = "";
@@ -238,6 +255,9 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
         streamInfoValues += e.getKey() + "=" + e.getValue() + ";";
 
       context.response().putHeader(STREAM_INFO, streamInfoValues);
+      if (customStreamInfoKey != null) {
+        context.response().putHeader(customStreamInfoKey, streamInfoValues);
+      }
     }
   }
 

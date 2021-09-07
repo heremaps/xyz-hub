@@ -64,7 +64,7 @@ public class DatabaseMaintainer {
             try (CloseableHttpClient client = HttpClients.createDefault()){
                 HttpPost request = new HttpPost(config.getMaintenanceEndpoint()
                         +"/maintain/indices?connectorId="+traceItem.getConnectorId()
-                        +"&ecps="+config.getEcps()+"&autoIndexing=true"
+                        +"&ecps="+config.getEcps()+"&autoIndexing="+autoIndexing
                 );
 
                 HttpResponse response = client.execute(request);
@@ -72,7 +72,7 @@ public class DatabaseMaintainer {
                     logger.warn("{} Database not initialized!",traceItem);
                     request = new HttpPost(config.getMaintenanceEndpoint()
                             +"/initialization?connectorId="+traceItem.getConnectorId()
-                            +"&ecps="+config.getEcps()+"&autoIndexing=true");
+                            +"&ecps="+config.getEcps()+"&autoIndexing="+autoIndexing);
                     response = client.execute(request);
                     if(response.getStatusLine().getStatusCode() >= 400){
                         logger.warn("{} Could not initialize Database! {}",traceItem, EntityUtils.toString(response.getEntity()));
@@ -202,7 +202,6 @@ public class DatabaseMaintainer {
         {
             try (final Connection connection = dataSource.getConnection();
                  final Statement stmt = connection.createStatement();) {
-                final int H3CoreVersion = 107;
                 boolean needUpdate = false;
 
                 ResultSet rs;
@@ -214,7 +213,7 @@ public class DatabaseMaintainer {
                 }
 
                 if (!needUpdate && (rs = stmt.executeQuery("select h3.h3_version()")).next()) {
-                    needUpdate = (H3CoreVersion > rs.getInt(1));
+                    needUpdate = (H3_CORE_VERSION > rs.getInt(1));
                 }
 
                 if (needUpdate) {

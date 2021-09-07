@@ -28,6 +28,11 @@ import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
 import io.vertx.core.json.JsonObject;
+import java.io.IOException;
+import java.io.InputStream;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Properties;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -71,6 +76,16 @@ public class Core {
    * The Vertx worker pool size environment variable.
    */
   protected static final String VERTX_WORKER_POOL_SIZE = "VERTX_WORKER_POOL_SIZE";
+
+  /**
+   * The build time.
+   */
+  public static final long BUILD_TIME = getBuildTime();
+
+  /**
+   * The build version.
+   */
+  public static final String BUILD_VERSION = getBuildProperty("xyzhub.version");
 
   public static void initialize(VertxOptions vertxOptions, boolean debug, String configFilename, Handler<JsonObject> handler) {
     Configurator.initialize("default", CONSOLE_LOG_CONFIG);
@@ -163,5 +178,27 @@ public class Core {
     public Thread newThread(Runnable r) {
       return new Thread(group, r, namePrefix + threadNumber.getAndIncrement());
     }
+  }
+
+  private static long getBuildTime() {
+    String buildTime = getBuildProperty("xyzhub.buildTime");
+    try {
+      return new SimpleDateFormat("yyyy.MM.dd-HH:mm").parse(buildTime).getTime();
+    } catch (ParseException e) {
+      return 0;
+    }
+  }
+
+  protected static String getBuildProperty(String name) {
+    InputStream input = AbstractHttpServerVerticle.class.getResourceAsStream("/build.properties");
+
+    // load a properties file
+    Properties buildProperties = new Properties();
+    try {
+      buildProperties.load(input);
+    } catch (IOException ignored) {
+    }
+
+    return buildProperties.getProperty(name);
   }
 }

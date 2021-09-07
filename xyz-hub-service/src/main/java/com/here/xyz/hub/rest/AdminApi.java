@@ -23,6 +23,8 @@ import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.here.xyz.hub.rest.ApiParam.Query.SKIP_CACHE;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
@@ -44,6 +46,7 @@ import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.auth.XyzHubActionMatrix;
 import com.here.xyz.hub.auth.XyzHubAttributeMap;
+import com.here.xyz.hub.connectors.statistics.StorageStatisticsProvider;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.FeatureTask;
 import com.here.xyz.hub.task.FeatureTask.GeometryQuery;
@@ -53,6 +56,7 @@ import com.here.xyz.hub.task.FeatureTask.IterateQuery;
 import com.here.xyz.hub.task.FeatureTask.LoadFeaturesQuery;
 import com.here.xyz.hub.task.FeatureTask.SearchQuery;
 import com.here.xyz.hub.task.FeatureTask.TileQuery;
+import com.here.xyz.responses.ErrorResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpHeaders;
@@ -70,8 +74,12 @@ public class AdminApi extends Api {
   public static final String MAIN_ADMIN_ENDPOINT = "/hub/admin/";
   public static final String ADMIN_MESSAGES_ENDPOINT = MAIN_ADMIN_ENDPOINT + "messages";
   public static final String ADMIN_EVENTS_ENDPOINT = MAIN_ADMIN_ENDPOINT + "events";
+  public static final String ADMIN_STORAGE_STATISTICS = MAIN_ADMIN_ENDPOINT + "statistics/spaces/storage";
 
   private static final String ADMIN_CAPABILITY_MESSAGING = "messaging";
+  public static final String ADMIN_CAPABILITY_STATISTICS = "statistics";
+
+  public static final String INCLUDE_CHANGES_SINCE = "includeChangesSince";
 
   public AdminApi(Vertx vertx, Router router, AuthenticationHandler auth) {
     router.route(HttpMethod.POST, ADMIN_MESSAGES_ENDPOINT)
@@ -81,15 +89,39 @@ public class AdminApi extends Api {
     router.route(HttpMethod.POST, ADMIN_EVENTS_ENDPOINT)
         .handler(auth)
         .handler(this::onEvent);
+
+    router.route(HttpMethod.GET, ADMIN_STORAGE_STATISTICS)
+        .handler(auth)
+        .handler(this::onStorageStatistics);
   }
 
   private void onMessage(final RoutingContext context) {
     try {
-      AdminAuthorization.authorizeAdminMessaging(context);
+      AdminAuthorization.authorizeAdminCapability(context, ADMIN_CAPABILITY_MESSAGING);
       Service.messageBroker.receiveRawMessage(context.getBody().getBytes());
-      context.response().setStatusCode(NO_CONTENT.code())
+      context
+          .response()
+          .setStatusCode(NO_CONTENT.code())
           .putHeader(HttpHeaders.CONTENT_TYPE, APPLICATION_JSON)
           .end();
+    }
+    catch (Exception e) {
+      sendErrorResponse(context, e);
+    }
+  }
+
+  private void onStorageStatistics(final RoutingContext context) {
+    try {
+      Marker marker = Api.Context.getMarker(context);
+      AdminAuthorization.authorizeAdminCapability(context, ADMIN_CAPABILITY_STATISTICS);
+      StorageStatisticsProvider.provideStorageStatistics(marker, Query.getLong(context, INCLUDE_CHANGES_SINCE, 0))
+          .onFailure(t -> sendErrorResponse(context, t))
+          .onSuccess(storageStatistics -> context
+              .response()
+              .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+              .setStatusCode(OK.code())
+              .setStatusMessage(OK.reasonPhrase())
+              .end(storageStatistics.serialize()));
     }
     catch (Exception e) {
       sendErrorResponse(context, e);
@@ -155,11 +187,11 @@ public class AdminApi extends Api {
   }
 
   private static class AdminAuthorization extends Authorization {
-    public static void authorizeAdminMessaging(RoutingContext context) throws HttpException {
+    private static void authorizeAdminCapability(RoutingContext context, String capability) throws HttpException {
       JWTPayload jwt = Api.Context.getJWT(context);
       final ActionMatrix tokenRights = jwt.getXyzHubMatrix();
       final XyzHubActionMatrix requestRights = new XyzHubActionMatrix()
-          .useAdminCapabilities(XyzHubAttributeMap.forIdValues(ADMIN_CAPABILITY_MESSAGING));
+          .useAdminCapabilities(XyzHubAttributeMap.forIdValues(capability));
 
       evaluateRights(Api.Context.getMarker(context), requestRights, tokenRights);
     }

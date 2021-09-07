@@ -35,6 +35,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 public class ApiParam {
@@ -217,9 +218,41 @@ public class ApiParam {
     static Integer getInteger(RoutingContext context, String param, Integer alt) {
       try {
         return Integer.parseInt(getString(context, param, null));
-      } catch (NumberFormatException | NullPointerException e) {
+      }
+      catch (NumberFormatException | NullPointerException e) {
         return alt;
       }
+    }
+
+    /**
+     * Returns the first value for a query parameter, if such exists and can be parsed as a long, or the provided alternative value
+     * otherwise.
+     * @param context The routing context
+     * @param param The name of the query param
+     * @param alt The alternative value for the optional query parameter
+     * @return The parsed long value
+     */
+    static long getLong(RoutingContext context, String param, long alt) {
+      try {
+        return Long.parseLong(getString(context, param, null));
+      }
+      catch (NumberFormatException | NullPointerException e) {
+        return alt;
+      }
+    }
+
+    /**
+     * Returns the first value for a mandatory query parameter after parsing it as a long.
+     * @param context The routing context
+     * @param param The name of the query param
+     * @return The parsed long value
+     * @throws NumberFormatException If the query param's value could not be parsed as long
+     * @throws NullPointerException If the mandatory query param was not provided
+     */
+    static long getLong(RoutingContext context, String param) throws NumberFormatException, NullPointerException {
+      String val = getString(context, param, null);
+      Objects.requireNonNull(val);
+      return Long.parseLong(val);
     }
 
     /**

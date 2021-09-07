@@ -1883,7 +1883,7 @@ $BODY$
 			  count bigint,
 			  prop_stat jsonb,
 			  idx_manual jsonb,
-              auto_indexing jsonb,
+              auto_indexing boolean,
 			  CONSTRAINT xyz_idxs_status_pkey PRIMARY KEY (spaceid)
 			);
 			INSERT INTO xyz_config.xyz_idxs_status (spaceid,count) VALUES ('idx_in_progress','0');

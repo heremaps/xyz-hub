@@ -35,7 +35,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
+import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.URL;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -237,6 +239,14 @@ public abstract class ConnectorConfigClient implements Initializable {
     if (connector.getRemoteFunction() instanceof Embedded) {
       Map<String, String> varValues = getPsqlVars();
       replaceVarsInMap(((Embedded) connector.getRemoteFunction()).env, varName -> varValues.get(varName), "${", "}");
+    }
+    else if(connector.getRemoteFunction().id.equalsIgnoreCase("psql-http")){
+     try {
+       //Replace HOST in http-connector config
+        ((Connector.RemoteFunctionConfig.Http)connector.getRemoteFunction()).url =
+                new URL(((Connector.RemoteFunctionConfig.Http)connector.getRemoteFunction()).url.toString()
+                        .replace("${PSQL_HTTP_CONNECTOR_HOST}",Service.configuration.PSQL_HTTP_CONNECTOR_HOST));
+      } catch (MalformedURLException e) {}
     }
   }
 

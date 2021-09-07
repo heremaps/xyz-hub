@@ -89,7 +89,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
   /**
    * The etag string
    */
-  private static final String ETAG_STRING = ",\"etag\":\"_\"}";
+  private static final String ETAG_STRING = ",\"etag\":\"\\\"_\\\"\"}";
 
   /**
    * Environment variable for setting the custom event decryptor. Currently only KMS, PRIVATE_KEY, or DUMMY is supported
