@@ -32,6 +32,7 @@ public final class GetFeaturesByTileEvent extends GetFeaturesByBBoxEvent<GetFeat
   private String quadkey;
   private int margin;
   private ResponseType responseType;
+  private boolean hereTileFlag;
 
   @SuppressWarnings("unused")
   public int getLevel() {
@@ -96,6 +97,22 @@ public final class GetFeaturesByTileEvent extends GetFeaturesByBBoxEvent<GetFeat
   }
 
   @SuppressWarnings("unused")
+  public boolean getHereTileFlag() {
+    return hereTileFlag;
+  }
+
+  @SuppressWarnings("WeakerAccess")
+  public void setHereTileFlag(boolean hereTileFlag) {
+    this.hereTileFlag = hereTileFlag;
+  }
+
+  @SuppressWarnings("unused")
+  public GetFeaturesByTileEvent withHereTileFlag(boolean hereTileFlag) {
+    setHereTileFlag(hereTileFlag);
+    return this;
+  }
+
+  @SuppressWarnings("unused")
   public int getMargin() {
     return margin;
   }
@@ -110,6 +127,7 @@ public final class GetFeaturesByTileEvent extends GetFeaturesByBBoxEvent<GetFeat
     setMargin(margin);
     return this;
   }
+
 
   @SuppressWarnings("unused")
   public ResponseType getResponseType() {

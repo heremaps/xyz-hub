@@ -254,8 +254,9 @@ public class FeatureQueryApi extends SpaceBasedApi {
    */
   private void getFeaturesByTile(final RoutingContext context) {
     try {
-      String tileId = context.pathParam(Path.TILE_ID);
-      String acceptTypeSuffix = null;
+      String tileId = context.pathParam(Path.TILE_ID),
+             tileType = context.pathParam(Path.TILE_TYPE),
+             acceptTypeSuffix = null;
 
       final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
       final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
@@ -297,12 +298,11 @@ public class FeatureQueryApi extends SpaceBasedApi {
               .withForce2D(force2D)
               .withOptimizationMode(optimMode)
               .withVizSampling(Query.getString(context, Query.OPTIM_VIZSAMPLING, "med"))
-              .withBinaryType( responseType.name() );
+              .withBinaryType( responseType.name() )
+              .withHereTileFlag( "here".equals(tileType) );
       } catch (Exception e) {
         throw new HttpException(BAD_REQUEST,e.getMessage());
       }
-
-      String tileType = context.pathParam(Path.TILE_TYPE);
 
       try {
         WebMercatorTile tileAddress = null;
