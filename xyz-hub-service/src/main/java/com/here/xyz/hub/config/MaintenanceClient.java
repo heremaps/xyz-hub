@@ -176,6 +176,8 @@ public class MaintenanceClient {
             logger.info("{}: Create required DB-Status-Table..", connectorId);
             executeQueryWithoutResults(new SQLQuery(MaintenanceSQL.createDbStatusTable), source);
 
+            /** set searchPath */
+            executeQueryWithoutResults(setSearchpath, source);
             /** Install extensions */
             executeLocalScripts(source, localScripts);
             /** set searchPath */
@@ -232,7 +234,7 @@ public class MaintenanceClient {
         DatabaseSettings dbSettings = dbInstance.getDbSettings();
 
         SQLQuery statusQuery = new SQLQuery(MaintenanceSQL.getIDXStatus,dbSettings.getSchema(), spaceId);
-        logger.info("{}: Start maintaining space '{}'..", connectorId, spaceId);
+        logger.info("{}: Get maintenanceStatus of space '{}'..", connectorId, spaceId);
 
         return executeQuery(statusQuery, rs -> {
             if (rs.next()) {
