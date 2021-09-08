@@ -650,6 +650,11 @@ public class Service extends Core {
      */
     public String CUSTOM_STREAM_INFO_HEADER_NAME;
 
+    /**
+     * Whether the service should use InstanceProviderCredentialsProfile with cached credential when utilizing AWS clients.
+     */
+    public boolean USE_AWS_INSTANCE_CREDENTIALS_WITH_REFRESH;
+
     public boolean containsFeatureNamespaceOptionalField(String field) {
       if (FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP == null) {
         FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP = new HashMap<String,Object>() {{

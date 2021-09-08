@@ -19,8 +19,10 @@
 
 package com.here.xyz.hub.config;
 
+import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.auth.InstanceProfileCredentialsProvider;
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsync;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClientBuilder;
@@ -51,6 +53,7 @@ class DynamoClient {
 
   private static final Logger logger = LogManager.getLogger();
   static final WorkerExecutor dynamoWorkers = Service.vertx.createSharedWorkerExecutor(DynamoClient.class.getName(), 8);
+  static AWSCredentialsProvider customCredentialsProvider;
 
   final AmazonDynamoDBAsync client;
   final String tableName;
@@ -61,10 +64,19 @@ class DynamoClient {
     arn = new ARN(tableArn);
 
     final AmazonDynamoDBAsyncClientBuilder builder = AmazonDynamoDBAsyncClientBuilder.standard();
+
     if (isLocal()) {
       builder.setCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("dummy", "dummy")));
       final String endpoint = String.format("http://%s:%s", arn.getRegion(), Integer.parseInt(arn.getAccountId()));
       builder.setEndpointConfiguration(new EndpointConfiguration(endpoint, "US-WEST-1"));
+    }
+    else if (Service.configuration.USE_AWS_INSTANCE_CREDENTIALS_WITH_REFRESH) {
+      synchronized(DynamoClient.class) {
+        if (customCredentialsProvider == null) {
+          customCredentialsProvider = InstanceProfileCredentialsProvider.createAsyncRefreshingProvider(true);
+        }
+        builder.setCredentials(customCredentialsProvider);
+      }
     }
 
     client = builder.build();
