@@ -574,20 +574,19 @@ public class SQLQueryBuilder {
      return new SQLQuery( String.format( TweaksSQL.estimateCountByBboxesSql, sb.toString(), estimateSubSql ) );
     }
 
-    public static SQLQuery buildMvtEncapsuledQuery( String spaceId, SQLQuery dataQry, WebMercatorTile mvtTile, int mvtMargin, boolean bFlattend )
+    public static SQLQuery buildMvtEncapsuledQuery( String spaceId, SQLQuery dataQry, WebMercatorTile mvtTile, BBox eventBbox, int mvtMargin, boolean bFlattend )
     { int extend = 4096, buffer = (extend / WebMercatorTile.TileSizeInPixel) * mvtMargin;
-      BBox b = mvtTile.getBBox(false); // pg ST_AsMVTGeom expects tiles bbox without buffer.
+      BBox b = ( mvtTile != null ? mvtTile.getBBox(false) : eventBbox ); // pg ST_AsMVTGeom expects tiles bbox without buffer.
       SQLQuery r = new SQLQuery( String.format( TweaksSQL.mvtBeginSql,
                                    String.format( TweaksSQL.requestedTileBoundsSql , b.minLon(), b.minLat(), b.maxLon(), b.maxLat() ),
                                    (!bFlattend) ? TweaksSQL.mvtPropertiesSql : TweaksSQL.mvtPropertiesFlattenSql,
                                    extend,
                                    buffer )
                                );
-     r.append(dataQry);
-     r.append( String.format( TweaksSQL.mvtEndSql, spaceId ));
-     return r;
+      r.append(dataQry);
+      r.append( String.format( TweaksSQL.mvtEndSql, spaceId ));
+      return r;
     }
-
 
     /***************************************** TWEAKS END **************************************************/
 
