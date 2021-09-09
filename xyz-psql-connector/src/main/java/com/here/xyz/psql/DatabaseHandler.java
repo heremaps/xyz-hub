@@ -1365,6 +1365,10 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
+    public PSQLConfig getConfig() {
+        return config;
+    }
+
     public static class XyzConnectionCustomizer extends AbstractConnectionCustomizer { // handle initialization per db connection
         private String getSchema(String parentDataSourceIdentityToken) {
             return (String) extensionsForToken(parentDataSourceIdentityToken).get(C3P0EXT_CONFIG_SCHEMA);

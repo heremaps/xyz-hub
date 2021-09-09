@@ -67,7 +67,7 @@ public class StorageStatisticsQueryRunner extends QueryRunner<GetStorageStatisti
                             + " AND nspname = '" + getSchema() + "'"
                             + " AND relname IN (" + spaceIds
                                                       .stream()
-                                                      .map(spaceId -> "'" + spaceId + "'")
+                                                      .map(spaceId -> "'" + dbHandler.getConfig().getTableNameForSpaceId(spaceId) + "'")
                                                       .collect(Collectors.joining(",")) + ")");
   }
 

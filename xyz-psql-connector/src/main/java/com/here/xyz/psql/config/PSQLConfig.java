@@ -181,18 +181,23 @@ public class PSQLConfig {
       if (tableName instanceof String && ((String) tableName).length() > 0)
         return (String) tableName;
     }
-    if (event != null && event.getSpace() != null && event.getSpace().length() > 0) {
+    String spaceId = null;
+    if (event != null && event.getSpace() != null && event.getSpace().length() > 0)
+      spaceId = event.getSpace();
+    return getTableNameForSpaceId(spaceId);
+  }
+
+  public String getTableNameForSpaceId(String spaceId) {
+    if (spaceId != null && spaceId.length() > 0) {
       if (connectorParams.isHrnShortening()) {
-        String[] splitHrn = event.getSpace().split(":");
+        String[] splitHrn = spaceId.split(":");
         if (splitHrn.length > 0)
           return splitHrn[splitHrn.length - 1];
       }
-      else if (connectorParams.isEnableHashedSpaceId()) {
-        return Hasher.getHash(event.getSpace());
-      }
-      else {
-        return event.getSpace();
-      }
+      else if (connectorParams.isEnableHashedSpaceId())
+        return Hasher.getHash(spaceId);
+      else
+        return spaceId;
     }
 
     return null;
