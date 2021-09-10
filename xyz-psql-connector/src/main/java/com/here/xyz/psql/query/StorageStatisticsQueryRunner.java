@@ -44,6 +44,7 @@ public class StorageStatisticsQueryRunner extends QueryRunner<GetStorageStatisti
   private static final String INDEX_BYTES = "index_bytes";
 
   private final List<String> remainingSpaceIds;
+  private final Map<String, String> tableName2SpaceId = new HashMap<>();
 
   public StorageStatisticsQueryRunner(GetStorageStatisticsEvent event, DatabaseHandler dbHandler) {
     super(event, dbHandler);
@@ -53,10 +54,11 @@ public class StorageStatisticsQueryRunner extends QueryRunner<GetStorageStatisti
 
   @Override
   protected SQLQuery buildQuery(GetStorageStatisticsEvent event) {
-    List<String> spaceIds = new ArrayList<>(event.getSpaceIds().size() * 2);
+    List<String> tableNames = new ArrayList<>(event.getSpaceIds().size() * 2);
     event.getSpaceIds().forEach(spaceId -> {
-      spaceIds.add(spaceId);
-      spaceIds.add(spaceId + HISTORY_TABLE_SUFFIX);
+      String tableName = resolveTableName(spaceId);
+      tableNames.add(tableName);
+      tableNames.add(tableName + HISTORY_TABLE_SUFFIX);
     });
     return new SQLQuery( "SELECT relname                                                AS " + TABLE_NAME + ","
                             + "       pg_indexes_size(c.oid)                                 AS " + INDEX_BYTES + ","
@@ -65,10 +67,17 @@ public class StorageStatisticsQueryRunner extends QueryRunner<GetStorageStatisti
                             + "         LEFT JOIN pg_namespace n ON n.oid = c.relnamespace "
                             + " WHERE relkind = 'r'"
                             + " AND nspname = '" + getSchema() + "'"
-                            + " AND relname IN (" + spaceIds
+                            + " AND relname IN (" + tableNames
                                                       .stream()
-                                                      .map(spaceId -> "'" + dbHandler.getConfig().getTableNameForSpaceId(spaceId) + "'")
+                                                      .map(tableName -> "'" + tableName + "'")
                                                       .collect(Collectors.joining(",")) + ")");
+  }
+
+  private String resolveTableName(String spaceId) {
+    String tableName = dbHandler.getConfig().getTableNameForSpaceId(spaceId);
+    if (!spaceId.equals(tableName))
+      tableName2SpaceId.put(tableName, spaceId);
+    return tableName;
   }
 
   @Override
@@ -82,7 +91,8 @@ public class StorageStatisticsQueryRunner extends QueryRunner<GetStorageStatisti
     while (rs.next()) {
       String tableName = rs.getString(TABLE_NAME);
       boolean isHistoryTable = tableName.endsWith(HISTORY_TABLE_SUFFIX);
-      String spaceId = isHistoryTable ? tableName.substring(0, tableName.length() - HISTORY_TABLE_SUFFIX.length()) : tableName;
+      tableName = isHistoryTable ? tableName.substring(0, tableName.length() - HISTORY_TABLE_SUFFIX.length()) : tableName;
+      String spaceId = tableName2SpaceId.containsKey(tableName) ? tableName2SpaceId.get(tableName) : tableName;
 
       long tableBytes = rs.getLong(TABLE_BYTES),
            indexBytes = rs.getLong(INDEX_BYTES);
