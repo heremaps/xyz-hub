@@ -138,7 +138,9 @@ public class StorageStatisticsProvider {
 
     Promise<StorageStatistics> p = Promise.promise();
 
-    GetStorageStatisticsEvent event = new GetStorageStatisticsEvent().withSpaceIds(spaceIds);
+    GetStorageStatisticsEvent event = new GetStorageStatisticsEvent()
+        .withStreamId(marker.getName())
+        .withSpaceIds(spaceIds);
     RpcClient.getInstanceFor(storage).execute(marker, event, true, ar -> {
       if (ar.failed()) p.fail(ar.cause());
       else {

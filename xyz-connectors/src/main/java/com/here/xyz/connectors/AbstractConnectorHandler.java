@@ -224,22 +224,27 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
         }
         initialize(event);
         dataOut = processEvent(event);
-      } catch (ErrorResponseException e) {
+      }
+      catch (ErrorResponseException e) {
         dataOut = e.getErrorResponse();
-      } catch (Exception e) {
-        logger.error("{} Unexpected exception occurred: {}\n{}", traceItem, e.getMessage(), e.getStackTrace());
+      }
+      catch (Exception e) {
+        logger.error("{} Unexpected exception occurred:", traceItem, e);
         dataOut = new ErrorResponse()
             .withStreamId(streamId)
             .withError(XyzError.EXCEPTION)
             .withErrorMessage("Unexpected exception occurred.");
-      } catch (OutOfMemoryError e) {
+      }
+      catch (OutOfMemoryError e) {
        throw e;
       }
       writeDataOut(output, dataOut, ifNoneMatch);
-    } catch (Exception e) {
-      logger.error("{} Unexpected exception occurred: {}\n{}", traceItem, e.getMessage(), e.getStackTrace());
-    } catch (OutOfMemoryError e) {
-      logger.error("{} Unexpected exception occurred (heap space): {}\n{}", traceItem, e.getMessage(), e.getStackTrace());
+    }
+    catch (Exception e) {
+      logger.error("{} Unexpected exception occurred:", traceItem, e);
+    }
+    catch (OutOfMemoryError e) {
+      logger.error("{} Unexpected exception occurred (heap space):", traceItem, e);
     }
   }
 
@@ -322,7 +327,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
       output.write(bytes);
     }
     catch (Exception e) {
-      logger.error("{} Unexpected exception occurred: {}\n{}", traceItem, e.getMessage(), e.getStackTrace());
+      logger.error("{} Unexpected exception occurred:", traceItem, e);
     }
   }
 

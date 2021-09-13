@@ -44,7 +44,7 @@ public class StorageStatisticsQueryRunner extends QueryRunner<GetStorageStatisti
   private static final String INDEX_BYTES = "index_bytes";
 
   private final List<String> remainingSpaceIds;
-  private final Map<String, String> tableName2SpaceId = new HashMap<>();
+  private Map<String, String> tableName2SpaceId;
 
   public StorageStatisticsQueryRunner(GetStorageStatisticsEvent event, DatabaseHandler dbHandler) {
     super(event, dbHandler);
@@ -74,6 +74,8 @@ public class StorageStatisticsQueryRunner extends QueryRunner<GetStorageStatisti
   }
 
   private String resolveTableName(String spaceId) {
+    if (tableName2SpaceId == null)
+      tableName2SpaceId = new HashMap<>();
     String tableName = dbHandler.getConfig().getTableNameForSpaceId(spaceId);
     if (!spaceId.equals(tableName))
       tableName2SpaceId.put(tableName, spaceId);
