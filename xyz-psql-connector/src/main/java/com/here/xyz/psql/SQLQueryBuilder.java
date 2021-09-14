@@ -59,6 +59,7 @@ import javax.sql.DataSource;
 public class SQLQueryBuilder {
     private static final long GEOMETRY_DECIMAL_DIGITS = 8;
     private static final String IDX_STATUS_TABLE = "xyz_config.xyz_idxs_status";
+    private static final Integer BIG_SPACE_THRESHOLD = 10000;
 
     public static SQLQuery buildGetStatisticsQuery(Event event, PSQLConfig config, boolean historyMode) throws Exception {
         String function;
@@ -131,10 +132,10 @@ public class SQLQueryBuilder {
             query = new SQLQuery("SELECT count(*) FROM ${schema}.${table} WHERE");
             query.append(searchQuery);
         } else {
-            query = new SQLQuery("SELECT CASE WHEN reltuples < 10000");
+            query = new SQLQuery("SELECT CASE WHEN reltuples < ?");
             query.append("THEN (SELECT count(*) FROM ${schema}.${table})");
             query.append("ELSE reltuples END AS count");
-            query.append("FROM pg_class WHERE oid =?::regclass", schemaTable);
+            query.append("FROM pg_class WHERE oid =?::regclass", BIG_SPACE_THRESHOLD, schemaTable);
         }
         return query;
     }
@@ -820,12 +821,12 @@ public class SQLQueryBuilder {
         }
     }
 
-    private static String _buildSearchablePropertiesUpsertQuery(Space spaceDefinition, ModifySpaceEvent.Operation operation, String schema, String table) throws SQLException 
+    private static String _buildSearchablePropertiesUpsertQuery(Space spaceDefinition, ModifySpaceEvent.Operation operation, String schema, String table) throws SQLException
     {
         Map<String, Boolean> searchableProperties = spaceDefinition.getSearchableProperties();
         List<List<Object>> sortableProperties = spaceDefinition.getSortableProperties();
         Boolean enableAutoIndexing = spaceDefinition.isEnableAutoSearchableProperties();
-             
+
         String idx_manual_json;
 
         try{
@@ -850,7 +851,7 @@ public class SQLQueryBuilder {
     }
 
     public static SQLQuery buildSearchablePropertiesUpsertQuery(Space spaceDefinition, ModifySpaceEvent.Operation operation,
-                                                                   String schema, String table) throws SQLException 
+                                                                   String schema, String table) throws SQLException
     { return new SQLQuery( _buildSearchablePropertiesUpsertQuery(spaceDefinition, operation,schema, table)  );  }
 
 
@@ -1090,7 +1091,7 @@ public class SQLQueryBuilder {
     }
 
     protected static SQLQuery generateIDXStatusQuery(final String space){
-        return new SQLQuery("SELECT idx_available FROM "+IDX_STATUS_TABLE+" WHERE spaceid=?", space);
+        return new SQLQuery("SELECT idx_available FROM "+IDX_STATUS_TABLE+" WHERE spaceid=? AND count >=?", space, BIG_SPACE_THRESHOLD);
     }
 
     protected static String insertStmtSQL(final String schema, final String table){
