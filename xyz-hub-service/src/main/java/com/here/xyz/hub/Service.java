@@ -244,7 +244,7 @@ public class Service extends Core {
       // at this point all verticles were initiated and all routers added as subrouter of globalRouter.
       vertx.eventBus().publish(SHARED_DATA, GLOBAL_ROUTER);
 
-      logger.info("XYZ Hub " + getBuildProperty("xyzhub.version") + " was started at " + new Date().toString());
+      logger.info("XYZ Hub " + BUILD_VERSION + " was started at " + new Date().toString());
       logger.info("Native transport enabled: " + vertx.isNativeTransportEnabled());
     });
 
