@@ -2163,6 +2163,12 @@ components:
           items:
             type: string
             format: email
+        metadata:
+          type: object
+          nullable: true
+          description: >-
+            Additional metadata information for the connector, which are not passed to the event.
+          additionalProperties: true
       example:
         capabilities:
           clusteringTypes:

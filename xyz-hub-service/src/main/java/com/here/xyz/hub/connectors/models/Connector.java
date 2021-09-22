@@ -74,6 +74,11 @@ public class Connector {
   public Map<String, Object> params;
 
   /**
+   * Additional metadata information for the connector, which are not passed to the event.
+   */
+  public Map<String, Object> metadata;
+
+  /**
    * Arbitrary parameters to be provided to the remote function with the event.
    */
   public StorageCapabilities capabilities = new StorageCapabilities();
