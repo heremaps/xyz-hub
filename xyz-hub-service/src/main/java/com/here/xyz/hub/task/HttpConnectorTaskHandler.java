@@ -56,7 +56,7 @@ public class HttpConnectorTaskHandler {
       }
       handler.handle(Future.succeededFuture(connectorStatus));
     }catch (Exception e) {
-      checkException(e, handler);
+      checkException(e, handler, connectorId);
     }
   }
 
@@ -72,7 +72,7 @@ public class HttpConnectorTaskHandler {
       }
       handler.handle(Future.succeededFuture(new SuccessResponse().withStatus("Ok")));
     }catch (Exception e) {
-      checkException(e, handler);
+      checkException(e, handler, connectorId);
     }
   }
 
@@ -114,7 +114,7 @@ public class HttpConnectorTaskHandler {
         return;
       }
     }catch (Exception e) {
-      checkException(e, handler);
+      checkException(e, handler, connectorId);
     }
   }
 
@@ -140,9 +140,9 @@ public class HttpConnectorTaskHandler {
         handler.handle(Future.failedFuture(new HttpException(CONFLICT, "Database is not initialized properly!")));
         return;
       }
-      checkException(e, handler);
+      checkException(e, handler, connectorId);
     }catch (Exception e) {
-      checkException(e, handler);
+      checkException(e, handler, connectorId);
     }
   }
 
@@ -158,9 +158,9 @@ public class HttpConnectorTaskHandler {
         handler.handle(Future.failedFuture(new HttpException(CONFLICT, "History Table does not exists!")));
         return;
       }else
-        checkException(e, handler);
+        checkException(e, handler, connectorId);
     }catch (Exception e) {
-      checkException(e, handler);
+      checkException(e, handler, connectorId);
     }
   }
 
@@ -174,24 +174,38 @@ public class HttpConnectorTaskHandler {
       }
       handler.handle(Future.succeededFuture(maintenanceStatusOfSpace));
     }catch (Exception e) {
-      checkException(e, handler);
+      checkException(e, handler, connectorId);
     }
   }
 
-  private static void checkException(Exception e, Handler<AsyncResult<XyzResponse>> handler){
+  private static void checkException(Exception e, Handler<AsyncResult<XyzResponse>> handler, String connectorId){
 
-    logger.error(e);
+    logger.error("Connector[{}]: {}",connectorId,e);
 
     if(e instanceof SQLException) {
-      if(((SQLException) e).getSQLState() != null && ((SQLException) e).getSQLState().equalsIgnoreCase("57014")){
-        handler.handle(Future.failedFuture(new HttpException(GATEWAY_TIMEOUT, "Query got aborted due to timeout!")));
-        return;
+      if(((SQLException) e).getSQLState() != null){
+        switch (((SQLException) e).getSQLState()){
+          case "42501" :
+            handler.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Permission to relation denied!")));
+            break;
+          case "57014" :
+            handler.handle(Future.failedFuture(new HttpException(GATEWAY_TIMEOUT, "Query got aborted due to timeout!")));
+            break;
+          default:
+            handler.handle(Future.failedFuture(new HttpException(GATEWAY_TIMEOUT, "SQL Query error "+((SQLException) e).getSQLState()+"!")));
+        }
       }
-      else if(((SQLException) e).getSQLState() == null && e.getMessage().equalsIgnoreCase("An attempt by a client to checkout a connection has timed out.")){
-        handler.handle(Future.failedFuture(new HttpException(GATEWAY_TIMEOUT, "Could not get a connection to the database!")));
-        return;
+      else {
+        switch (e.getMessage().toLowerCase()){
+          case "an attempt by a client to checkout a connection has timed out." :
+          case "connections could not be acquired from the underlying database!" :
+            handler.handle(Future.failedFuture(new HttpException(GATEWAY_TIMEOUT, "Could not get a connection to the database!")));
+            break;
+          default:
+            handler.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "SQL Query error!")));
+            break;
+        }
       }
-      handler.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "SQL Query error!")));
     }
     else if (e instanceof NoPermissionException)
       handler.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Database user dose not have the required permissions!")));
