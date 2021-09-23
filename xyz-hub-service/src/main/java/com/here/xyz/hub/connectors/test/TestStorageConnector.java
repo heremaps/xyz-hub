@@ -117,7 +117,7 @@ public class TestStorageConnector extends StorageConnector {
     } else if (space.contains(HUGE_RESPONSE_SPACE)) {
       int size = Integer.parseInt(space.substring(space.lastIndexOf("_")+1)) * 1024 * 1024;
 
-      int numFeatures = size / sampleKBFeature.serialize().getBytes().length;
+      int numFeatures = size / sampleKBFeature.toByteArray().length;
 
       FeatureCollection fc = new FeatureCollection();
 

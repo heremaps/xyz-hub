@@ -296,6 +296,13 @@
         <version>${jackson-version}</version>
       </dependency>
 
+      <!-- FlatBuffers -->
+      <dependency>
+        <groupId>com.google.flatbuffers</groupId>
+        <artifactId>flatbuffers-java</artifactId>
+        <version>2.0.3</version>
+      </dependency>
+
       <!-- AWS SDKs -->
       <dependency>
         <artifactId>aws-java-sdk-core</artifactId>

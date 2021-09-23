@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.responses.changesets.CompactChangeset;
 import com.here.xyz.responses.maintenance.ConnectorStatus;
 import com.here.xyz.responses.maintenance.SpaceStatus;
+import com.here.xyz.util.Hasher;
 
 /**
  * All classes that represent a valid response of any remote procedure to the XYZ Hub need to extend this class.
@@ -81,5 +82,22 @@ public abstract class XyzResponse<T extends XyzResponse> extends Payload {
     setEtag(etag);
     //noinspection unchecked
     return (T) this;
+  }
+
+  public static String calculateEtagFor(byte[] bytes) {
+    return "\"" + Hasher.getHash(bytes) + "\"";
+  }
+
+  public static boolean etagMatches(String ifNoneMatch, String etag) {
+    if (ifNoneMatch == null || etag == null) return false;
+    return stripEtag(ifNoneMatch).equals(stripEtag(etag));
+  }
+
+  private static String stripEtag(String etag) {
+    if (etag.startsWith("W/")) etag = etag.substring(2);
+    //Be resilient against clients which do not follow the spec accordingly
+    if (etag.startsWith("\"")) etag = etag.substring(1);
+    if (etag.endsWith("\"")) etag = etag.substring(0, etag.length() - 1);
+    return etag;
   }
 }

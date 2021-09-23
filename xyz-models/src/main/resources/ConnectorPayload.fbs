@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,24 +17,12 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.connectors.models;
+namespace com.here.xyz.bin;
 
-import com.here.xyz.responses.XyzResponse;
-
-public class BinaryResponse extends XyzResponse {
-
-  private byte[] bytes;
-
-  public byte[] getBytes() {
-    return bytes;
-  }
-
-  public void setBytes(byte[] bytes) {
-    this.bytes = bytes;
-  }
-
-  public BinaryResponse withBytes(byte[] bytes) {
-    setBytes(bytes);
-    return this;
-  }
+table ConnectorPayload {
+  mime_type: string;
+  etag: string;
+  bytes: [ubyte];
 }
+
+root_type ConnectorPayload;

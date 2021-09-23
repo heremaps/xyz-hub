@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import com.here.xyz.Payload;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLambda;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
@@ -226,19 +227,23 @@ public class Connector {
      */
     public boolean storageUtilizationReporting;
 
+    public boolean mvtSupport;
+
     @Override
     public boolean equals(Object o) {
       if (this == o) return true;
       if (o == null || getClass() != o.getClass()) return false;
       StorageCapabilities that = (StorageCapabilities) o;
-      return preserializedResponseSupport == that.preserializedResponseSupport &&
-          relocationSupport == that.relocationSupport &&
-          maxUncompressedSize == that.maxUncompressedSize &&
-          maxPayloadSize == that.maxPayloadSize &&
-          propertySearch == that.propertySearch &&
-          searchablePropertiesConfiguration == that.searchablePropertiesConfiguration &&
-          enableAutoCache == that.enableAutoCache &&
-          Objects.equals(clusteringTypes, that.clusteringTypes);
+      return preserializedResponseSupport == that.preserializedResponseSupport
+          && relocationSupport == that.relocationSupport
+          && maxUncompressedSize == that.maxUncompressedSize
+          && maxPayloadSize == that.maxPayloadSize
+          && propertySearch == that.propertySearch
+          && searchablePropertiesConfiguration == that.searchablePropertiesConfiguration
+          && enableAutoCache == that.enableAutoCache
+          && Objects.equals(clusteringTypes, that.clusteringTypes)
+          && storageUtilizationReporting == that.storageUtilizationReporting
+          && mvtSupport == that.mvtSupport;
     }
 
   }
@@ -288,6 +293,8 @@ public class Connector {
      */
     public int warmUp;
 
+    public String protocolVersion = "0.5.0";
+
     @JsonIgnore
     public String getRegion() {
       return null;
@@ -300,7 +307,8 @@ public class Connector {
       RemoteFunctionConfig that = (RemoteFunctionConfig) o;
       return warmUp == that.warmUp &&
           Objects.equals(id, that.id) &&
-          warmUp == that.warmUp;
+          warmUp == that.warmUp &&
+          Objects.equals(protocolVersion, that.protocolVersion);
     }
 
     @JsonTypeName(value = "AWSLambda")

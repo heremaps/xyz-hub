@@ -41,7 +41,7 @@ import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.config.DatabaseSettings;
 import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.query.StorageStatisticsQueryRunner;
-import com.here.xyz.responses.BinResponse;
+import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.HealthStatus;
@@ -85,6 +85,9 @@ public abstract class DatabaseHandler extends StorageConnector {
     private static final int MAX_PRECISE_STATS_COUNT = 10_000;
     private static final String C3P0EXT_CONFIG_SCHEMA = "config.schema()";
     public static final String HISTORY_TABLE_SUFFIX = "_hst";
+
+    public static final String APPLICATION_VND_MAPBOX_VECTOR_TILE = "application/vnd.mapbox-vector-tile";
+
     /**
      * Lambda Execution Time = 25s. We are actively canceling queries after STATEMENT_TIMEOUT_SECONDS
      * So if we receive a timeout prior 25s-STATEMENT_TIMEOUT_SECONDS the cancellation comes from
@@ -290,7 +293,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         return executeQueryWithRetry(query, this::defaultFeatureResultSetHandlerSkipIfGeomIsNull, true);
     }
 
-    protected BinResponse executeBinQueryWithRetry(SQLQuery query) throws SQLException {
+    protected BinaryResponse executeBinQueryWithRetry(SQLQuery query) throws SQLException {
         return executeQueryWithRetry(query, this::defaultBinaryResultSetHandler, true);
     }
 
@@ -952,7 +955,7 @@ public abstract class DatabaseHandler extends StorageConnector {
      * @throws SQLException when any unexpected error happened.
      */
 
-    private final long MaxResultChars = 100 * 1024 *1024;
+    private final long MAX_RESULT_CHARS = 100 * 1024 *1024;
     private final int F_Iterate = 1,
                       F_IterateOrderBy  = 2;
 
@@ -965,7 +968,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         sb.append(prefix);
         int numFeatures = 0;
 
-        while (rs.next() && (MaxResultChars > sb.length())) {
+        while (rs.next() && MAX_RESULT_CHARS > sb.length()) {
             String geom = rs.getString(2);
             if( skipNullGeom && (geom == null) ) continue;
             sb.append(rs.getString(1));
@@ -991,7 +994,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         final FeatureCollection featureCollection = new FeatureCollection();
         featureCollection._setFeatures(sb.toString());
 
-        if( MaxResultChars <= sb.length() ) throw new SQLException(String.format("Maxchar limit(%d) reached",MaxResultChars));
+        if (sb.length() > MAX_RESULT_CHARS) throw new SQLException(String.format("Maxchar limit(%d) reached", MAX_RESULT_CHARS));
 
         if( hint > 0 && numFeatures > 0 && numFeatures == ((SearchForFeaturesEvent) event).getLimit() ) {
           featureCollection.setHandle(nextHandle);
@@ -1007,16 +1010,17 @@ public abstract class DatabaseHandler extends StorageConnector {
     protected FeatureCollection defaultFeatureResultSetHandlerSkipIfGeomIsNull(ResultSet rs) throws SQLException
     { return _defaultFeatureResultSetHandler(rs,true); }
 
-    protected BinResponse defaultBinaryResultSetHandler(ResultSet rs) throws SQLException
-    {
-     BinResponse br = new BinResponse();
+    protected BinaryResponse defaultBinaryResultSetHandler(ResultSet rs) throws SQLException {
+        BinaryResponse br = new BinaryResponse()
+            .withMimeType(APPLICATION_VND_MAPBOX_VECTOR_TILE);
 
-     if( rs.next() )
-     { br.setBytes( rs.getBytes(1) ); }
+        if (rs.next())
+            br.setBytes(rs.getBytes(1));
 
-     if((br.getBytes() != null) && ( MaxResultChars <= br.getBytes().length)) throw new SQLException(String.format("Maxbytes limit(%d) reached",MaxResultChars));
+        if (br.getBytes() != null && br.getBytes().length > MAX_RESULT_CHARS)
+            throw new SQLException(String.format("Maximum bytes limit (%d) reached", MAX_RESULT_CHARS));
 
-     return br;
+        return br;
     }
 
     /**
@@ -1172,7 +1176,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         sb.append(prefix);
         int numFeatures = 0;
 
-        while (rs.next() && (MaxResultChars > sb.length())) {
+        while (rs.next() && MAX_RESULT_CHARS > sb.length()) {
             String geom = rs.getString("geo");
             sb.append(rs.getString("jsondata"));
             sb.setLength(sb.length() - 1);
@@ -1193,7 +1197,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         final FeatureCollection featureCollection = new FeatureCollection();
         featureCollection._setFeatures(sb.toString());
 
-        if( MaxResultChars <= sb.length() ) throw new SQLException(String.format("Maxchar limit(%d) reached",MaxResultChars));
+        if( MAX_RESULT_CHARS <= sb.length() ) throw new SQLException(String.format("Maxchar limit(%d) reached", MAX_RESULT_CHARS));
 
         if (numFeatures > 0 && numFeatures == ((IterateFeaturesEvent) event).getLimit()) {
             featureCollection.setHandle(id);
@@ -1367,6 +1371,10 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     public PSQLConfig getConfig() {
         return config;
+    }
+
+    public String getStreamId() {
+        return streamId;
     }
 
     public static class XyzConnectionCustomizer extends AbstractConnectionCustomizer { // handle initialization per db connection

@@ -1,0 +1,8 @@
+#!/bin/bash
+
+#NOTE: flatc must be installed on the system prior to running this script.
+
+srcFolder='src/main/resources'
+schemas=$(find "$srcFolder" -name '*.fbs')
+
+flatc --java -o src/main/java $schemas

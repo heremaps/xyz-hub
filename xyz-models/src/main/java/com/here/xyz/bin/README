@@ -1,0 +1,7 @@
+Binary model classes have to be re-generated when the schemas get changed.
+Schemas can be found under src/main/resources/*.fbs
+
+The binary schema classes can be generated from their schemas using the following call:
+
+cd xyz-models
+./buildSchemas

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,11 @@
 
 package com.here.xyz.responses;
 
+/**
+ * @deprecated Not to be used in protocol versions >=0.6.0, instead {@link BinaryResponse} should be used.
+ * This class will be removed in future versions of this library.
+ */
+@Deprecated
 public class BinResponse extends XyzResponse<BinResponse> {
 
   private byte[] bytes;

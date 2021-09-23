@@ -20,7 +20,8 @@
       "storageUtilizationReporting": true,
       "clusteringTypes": [
         "hexbin", "quadbin"
-      ]
+      ],
+      "mvtSupport": true
     },
     "connectionSettings": {
       "maxConnections": 32
@@ -33,7 +34,8 @@
         "className": "com.here.xyz.psql.PSQLXyzConnector",
         "env": {
           "ECPS_PHRASE": "local"
-        }
+        },
+        "protocolVersion": "0.6.0"
       }
     },
     "trusted": true,
@@ -329,7 +331,8 @@
       "preserializedResponseSupport": true,
       "propertySearch": true,
       "relocationSupport": false,
-      "searchablePropertiesConfiguration": true
+      "searchablePropertiesConfiguration": true,
+      "mvtSupport": true
     },
     "connectionSettings": {
       "maxConnections": 1024,
@@ -349,7 +352,8 @@
       "local": {
         "id": "psql-http",
         "type": "Http",
-        "url": "http://${PSQL_HTTP_CONNECTOR_HOST}:9090/psql/event"
+        "url": "http://${PSQL_HTTP_CONNECTOR_HOST}:9090/psql/event",
+        "protocolVersion": "0.6.0"
       }
     },
     "trusted": true

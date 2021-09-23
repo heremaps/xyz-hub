@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
+import com.here.xyz.events.GetFeaturesByTileEvent.ResponseType;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.PropertiesQuery;
@@ -286,20 +287,21 @@ public class FeatureQueryApi extends SpaceBasedApi {
 
       try {
         event.withClip(Query.getBoolean(context, Query.CLIP, (responseType == ApiResponseType.MVT || responseType == ApiResponseType.MVT_FLATTENED || "viz".equals(optimMode) )))
-              .withMargin(Query.getInteger(context, Query.MARGIN, 0))
-              .withClusteringType(Query.getString(context, Query.CLUSTERING, null))
-              .withClusteringParams(Query.getAdditionalParams(context, Query.CLUSTERING))
-              .withTweakType(Query.getString(context, Query.TWEAKS, null))
-              .withTweakParams(Query.getAdditionalParams(context, Query.TWEAKS))
-              .withLimit(getLimit(context, ( "viz".equals(optimMode) ? HARD_LIMIT :  DEFAULT_FEATURE_LIMIT ) ))
-              .withTags(Query.getTags(context))
-              .withPropertiesQuery(Query.getPropertiesQuery(context))
-              .withSelection(Query.getSelection(context))
-              .withForce2D(force2D)
-              .withOptimizationMode(optimMode)
-              .withVizSampling(Query.getString(context, Query.OPTIM_VIZSAMPLING, "med"))
-              .withBinaryType( responseType.name() )
-              .withHereTileFlag( "here".equals(tileType) );
+            .withMargin(Query.getInteger(context, Query.MARGIN, 0))
+            .withClusteringType(Query.getString(context, Query.CLUSTERING, null))
+            .withClusteringParams(Query.getAdditionalParams(context, Query.CLUSTERING))
+            .withTweakType(Query.getString(context, Query.TWEAKS, null))
+            .withTweakParams(Query.getAdditionalParams(context, Query.TWEAKS))
+            .withLimit(getLimit(context, ( "viz".equals(optimMode) ? HARD_LIMIT :  DEFAULT_FEATURE_LIMIT ) ))
+            .withTags(Query.getTags(context))
+            .withPropertiesQuery(Query.getPropertiesQuery(context))
+            .withSelection(Query.getSelection(context))
+            .withForce2D(force2D)
+            .withOptimizationMode(optimMode)
+            .withVizSampling(Query.getString(context, Query.OPTIM_VIZSAMPLING, "med"))
+            .withBinaryType( responseType.name() ) //TODO: Remove this once the binaryType was fully removed from PSQL connector
+            .withResponseType(responseType == ApiResponseType.MVT ? ResponseType.MVT : responseType == ApiResponseType.MVT_FLATTENED ? ResponseType.MVT_FLATTENED : null)
+            .withHereTileFlag( "here".equals(tileType) );
       } catch (Exception e) {
         throw new HttpException(BAD_REQUEST,e.getMessage());
       }
