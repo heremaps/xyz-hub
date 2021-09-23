@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
 import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
 import static io.netty.handler.codec.http.HttpHeaderValues.TEXT_PLAIN;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
@@ -39,7 +38,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.XYZHubRESTVerticle;
 import com.here.xyz.hub.auth.JWTPayload;
-import com.here.xyz.hub.connectors.models.BinaryResponse;
 import com.here.xyz.hub.connectors.models.Space.CacheProfile;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.FeatureTask;
@@ -51,9 +49,11 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Space.Internal;
 import com.here.xyz.models.hub.Space.Public;
 import com.here.xyz.models.hub.Space.WithConnectors;
+import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.HistoryStatisticsResponse;
+import com.here.xyz.responses.NotModifiedResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
@@ -147,21 +147,17 @@ public abstract class Api {
    */
   private boolean sendNotModifiedResponseIfNoneMatch(final Task task) {
     //If the task has an ETag, set it in the HTTP header.
-    //Set the ETag header
     if (task.getEtag() != null) {
       final RoutingContext context = task.context;
       final HttpServerResponse httpResponse = context.response();
       final MultiMap httpHeaders = httpResponse.headers();
-
       httpHeaders.add(HttpHeaders.ETAG, task.getEtag());
-
-      //If the ETag didn't change, return "Not Modified"
-      if (task.etagMatches()) {
-        sendResponse(task, NOT_MODIFIED, null, null);
-        return true;
-      }
     }
-
+    //If the ETag didn't change, or we got a NotModifiedResponse from upstream, return "Not Modified"
+    if (task.etagMatches() || task instanceof FeatureTask && ((FeatureTask<?, ?>) task).getResponse() instanceof NotModifiedResponse) {
+      sendResponse(task, NOT_MODIFIED, null, null);
+      return true;
+    }
     return false;
   }
 
@@ -188,90 +184,89 @@ public abstract class Api {
       return;
     }
 
-    switch (task.responseType) {
-      case FEATURE_COLLECTION: {
-        if (response == null) {
-          sendGeoJsonResponse(task, new FeatureCollection().serialize());
-          return;
-        }
-
-        if (response instanceof FeatureCollection) {
-          // Warning: We need to use "toString()" here and NOT Json.encode, because in fact the feature collection may be an
-          // LazyParsedFeatureCollection and in that case only toString will work as intended!
-          sendGeoJsonResponse(task, response.serialize());
-          return;
-        }
-        break;
-      }
-
-      case MVT:
-      case MVT_FLATTENED:
-        if (response instanceof BinaryResponse) {
-          sendMVTResponse(task, ((BinaryResponse) response).getBytes());
-          return;
-        }
-        break;
-
-      case FEATURE:
-        if (response == null) {
-          sendNotFoundJsonResponse(task);
-          return;
-        }
-
-        if (response instanceof FeatureCollection) {
-          try {
-            final FeatureCollection collection = (FeatureCollection) response;
-
-            if (collection.getFeatures() == null || collection.getFeatures().size() == 0) {
-              sendNotFoundJsonResponse(task);
-              return;
-            }
-
-            sendGeoJsonResponse(task, Json.encode(collection.getFeatures().get(0)));
-          } catch (JsonProcessingException e) {
-            logger.error(task.getMarker(), "The service received an invalid response and is unable to serialize it.", e);
-            sendErrorResponse(task.context, INTERNAL_SERVER_ERROR, XyzError.EXCEPTION,
-                "The service received an invalid response and is unable to serialize it.");
+    if (task.responseType.binary && response instanceof BinaryResponse) {
+      sendBinaryResponse(task, ((BinaryResponse) response).getMimeType(), ((BinaryResponse) response).getBytes());
+      return;
+    }
+    else {
+      switch (task.responseType) {
+        case FEATURE_COLLECTION: {
+          if (response == null) {
+            sendGeoJsonResponse(task, new FeatureCollection().serialize());
+            return;
           }
-          return;
-        }
-        break;
 
-      case COUNT_RESPONSE:
-        if (response instanceof CountResponse) {
-          sendJsonResponse(task, Json.encode(response));
-          return;
-        }
-        break;
-
-      case CHANGESET_COLLECTION:
-        if (response instanceof ChangesetCollection) {
-          sendJsonResponse(task, Json.encode(response));
-          return;
+          if (response instanceof FeatureCollection) {
+            // Warning: We need to use "toString()" here and NOT Json.encode, because in fact the feature collection may be an
+            // LazyParsedFeatureCollection and in that case only toString will work as intended!
+            sendGeoJsonResponse(task, response.serialize());
+            return;
+          }
+          break;
         }
 
-      case COMPACT_CHANGESET:
-        if (response instanceof CompactChangeset) {
-          sendJsonResponse(task, Json.encode(response));
-          return;
-        }
+        case FEATURE:
+          if (response == null) {
+            sendNotFoundJsonResponse(task);
+            return;
+          }
 
-      case STATISTICS_RESPONSE:
-        if (response instanceof StatisticsResponse) {
-          sendJsonResponse(task, Json.encode(response));
-          return;
-        }
+          if (response instanceof FeatureCollection) {
+            try {
+              final FeatureCollection collection = (FeatureCollection) response;
 
-      case HISTORY_STATISTICS_RESPONSE:
-        if (response instanceof HistoryStatisticsResponse) {
-          sendJsonResponse(task, Json.encode(response));
-          return;
-        }
+              if (collection.getFeatures() == null || collection.getFeatures().size() == 0) {
+                sendNotFoundJsonResponse(task);
+                return;
+              }
 
-      case EMPTY:
-        sendEmptyResponse(task);
-        return;
-      default:
+              sendGeoJsonResponse(task, Json.encode(collection.getFeatures().get(0)));
+            }
+            catch (JsonProcessingException e) {
+              logger.error(task.getMarker(), "The service received an invalid response and is unable to serialize it.", e);
+              sendErrorResponse(task.context, INTERNAL_SERVER_ERROR, XyzError.EXCEPTION,
+                  "The service received an invalid response and is unable to serialize it.");
+            }
+            return;
+          }
+          break;
+
+        case COUNT_RESPONSE:
+          if (response instanceof CountResponse) {
+            sendJsonResponse(task, Json.encode(response));
+            return;
+          }
+          break;
+
+        case CHANGESET_COLLECTION:
+          if (response instanceof ChangesetCollection) {
+            sendJsonResponse(task, Json.encode(response));
+            return;
+          }
+
+        case COMPACT_CHANGESET:
+          if (response instanceof CompactChangeset) {
+            sendJsonResponse(task, Json.encode(response));
+            return;
+          }
+
+        case STATISTICS_RESPONSE:
+          if (response instanceof StatisticsResponse) {
+            sendJsonResponse(task, Json.encode(response));
+            return;
+          }
+
+        case HISTORY_STATISTICS_RESPONSE:
+          if (response instanceof HistoryStatisticsResponse) {
+            sendJsonResponse(task, Json.encode(response));
+            return;
+          }
+
+        case EMPTY:
+          sendEmptyResponse(task);
+          return;
+        default:
+      }
     }
 
     logger.warn(task.getMarker(), "Invalid response for request {}: {}, stack-trace: {}", task.responseType, response, new Exception());
@@ -468,12 +463,14 @@ public abstract class Api {
   }
 
   /**
-   * Returns a response to the client with MVT content and status 200.
+   * Returns a response to the client using the given mimeType as content-type with binary content and status 200.
    *
-   * @param task the task for which to return the MVT response.
+   * @param task
+   * @param mimeType
+   * @param bytes
    */
-  private void sendMVTResponse(final Task task, final byte[] mvt) {
-    sendResponse(task, OK, APPLICATION_VND_MAPBOX_VECTOR_TILE, mvt);
+  private void sendBinaryResponse(Task task, String mimeType, byte[] bytes) {
+    sendResponse(task, OK, mimeType, bytes);
   }
 
   protected long getMaxResponseLength(final RoutingContext context) {
@@ -491,9 +488,8 @@ public abstract class Api {
     }
 
     if (response == null || response.length == 0) {
-
-      if( APPLICATION_VND_MAPBOX_VECTOR_TILE.equals(contentType) )
-       httpResponse.putHeader(CONTENT_TYPE, contentType);
+      if (contentType != null)
+        httpResponse.putHeader(CONTENT_TYPE, contentType);
 
       httpResponse.end();
     } else if (response.length > getMaxResponseLength(task.context)) {

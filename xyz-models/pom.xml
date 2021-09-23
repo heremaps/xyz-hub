@@ -68,5 +68,9 @@
       <groupId>junit</groupId>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>com.google.flatbuffers</groupId>
+      <artifactId>flatbuffers-java</artifactId>
+    </dependency>
   </dependencies>
 </project>

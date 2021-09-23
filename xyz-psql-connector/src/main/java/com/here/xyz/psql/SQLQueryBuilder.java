@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -281,13 +281,15 @@ public class SQLQueryBuilder {
 
     /***************************************** TWEAKS **************************************************/
 
-    public static int mvtTypeRequested( GetFeaturesByBBoxEvent event )
-    { if( (event instanceof GetFeaturesByTileEvent) && ( event.getBinaryType() != null ))
-       switch ( event.getBinaryType() )
-       { case "MVT" : return 1;
-         case "MVT_FLATTENED" : return 2;
-         default : break;
-       }
+    public static int mvtTypeRequested(GetFeaturesByBBoxEvent event) {
+      if (event instanceof GetFeaturesByTileEvent && ((GetFeaturesByTileEvent) event).getResponseType() != null) {
+        switch (((GetFeaturesByTileEvent) event).getResponseType()) {
+          case MVT:
+            return 1;
+          case MVT_FLATTENED:
+            return 2;
+        }
+      }
       return 0;
     }
 

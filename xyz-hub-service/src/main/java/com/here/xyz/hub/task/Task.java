@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.task.TaskPipeline.C1;
 import com.here.xyz.hub.task.TaskPipeline.C2;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
+import com.here.xyz.responses.XyzResponse;
 import io.netty.util.internal.ConcurrentSet;
 import io.vertx.ext.web.RoutingContext;
 import java.util.Objects;
@@ -152,7 +153,7 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
   }
 
   public boolean etagMatches() {
-    return ifNoneMatch != null && ifNoneMatch.equals(getEtag());
+    return XyzResponse.etagMatches(ifNoneMatch, getEtag());
   }
 
   public void execute(C1<X> onSuccess, C2<X, Throwable> onException) {

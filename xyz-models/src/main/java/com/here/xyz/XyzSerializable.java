@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -96,6 +96,10 @@ public interface XyzSerializable {
     return DEFAULT_MAPPER.get().readerFor(type).readValue(string);
   }
 
+  static <T> T deserialize(byte[] bytes, Class<T> klass) throws JsonProcessingException {
+    return deserialize(new String(bytes), klass);
+  }
+
   static ErrorResponse fixAWSLambdaResponse(final ErrorResponse errorResponse) {
     if (errorResponse == null) {
       return null;
@@ -124,6 +128,10 @@ public interface XyzSerializable {
   @SuppressWarnings("unused")
   static <T extends XyzSerializable> T fromMap(Map<String, Object> map, Class<T> klass) {
     return DEFAULT_MAPPER.get().convertValue(map, klass);
+  }
+
+  default byte[] toByteArray() {
+    return serialize().getBytes();
   }
 
   default String serialize() {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ import com.amazonaws.services.lambda.model.InvokeRequest;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 import com.fasterxml.jackson.databind.JsonMappingException;
-import com.google.common.hash.Hashing;
 import com.here.xyz.Payload;
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
@@ -34,16 +33,18 @@ import com.here.xyz.connectors.decryptors.EventDecryptor.Decryptors;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.RelocatedEvent;
+import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.NotModifiedResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.Hasher;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
@@ -87,9 +88,9 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
   private static final int INPUT_PREVIEW_BYTE_SIZE = 4 * 1024; // 4K
 
   /**
-   * The etag string
+   * The etag string, which is used to inject the etag value into JSON strings without the need of deserializing & re-serializing them.
    */
-  private static final String ETAG_STRING = ",\"etag\":\"\\\"_\\\"\"}";
+  private static final String ETAG_STRING = ",\"etag\":\"_\"}";
 
   /**
    * Environment variable for setting the custom event decryptor. Currently only KMS, PRIVATE_KEY, or DUMMY is supported
@@ -282,9 +283,8 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    */
   @SuppressWarnings("UnstableApiUsage")
   void writeDataOut(OutputStream output, Typed dataOut, String ifNoneMatch) {
-
     try {
-      byte[] bytes = dataOut == null ? null : dataOut.serialize().getBytes();
+      byte[] bytes = dataOut == null ? null : dataOut.toByteArray();
 
       if (bytes == null) {
         return;
@@ -293,29 +293,39 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
       logger.debug("{} Writing data out for response with type: {}", traceItem, dataOut.getClass().getSimpleName());
 
       if (bytes.length > maxUncompressedResponseSize) {
+        logger.warn("{} Response payload was too large to send. ({} bytes)", traceItem, bytes.length);
         bytes = new ErrorResponse()
             .withStreamId(streamId)
             .withError(XyzError.PAYLOAD_TO_LARGE)
             .withErrorMessage("Response size is too large")
-            .serialize()
-            .getBytes(StandardCharsets.UTF_8);
+            .toByteArray();
       }
 
-      //Calculate ETag
-      String hash = Hashing.murmur3_128().newHasher().putBytes(bytes).hash().toString();
-      byte[] etagBytes = ETAG_STRING.replace("_", hash).getBytes();
-      if (hash.equals(ifNoneMatch)) {
-        bytes = new NotModifiedResponse().serialize().getBytes();
+      if (dataOut instanceof BinaryResponse) {
+        //NOTE: BinaryResponses contain an ETag automatically, nothing to calculate here
+        String etag = ((BinaryResponse) dataOut).getEtag();
+        if (XyzResponse.etagMatches(ifNoneMatch, etag))
+          bytes = new NotModifiedResponse().withEtag(etag).toByteArray();
+        else if (!embedded && bytes.length > GZIP_THRESHOLD_SIZE)
+          bytes = Payload.compress(bytes);
       }
-
-      //Transform: handle compression and etag injection
-      try (ByteArrayOutputStream os = new ByteArrayOutputStream(bytes.length + etagBytes.length - 1)) {
-        OutputStream targetOs = (!embedded && bytes.length > GZIP_THRESHOLD_SIZE ? Payload.gzip(os) : os);
-        targetOs.write(bytes, 0, bytes.length - 1);
-        targetOs.write(etagBytes);
-        os.close();
-        targetOs.close();
-        bytes = os.toByteArray();
+      else {
+        //Calculate ETag
+        String etag = XyzResponse.calculateEtagFor(bytes);
+        if (XyzResponse.etagMatches(ifNoneMatch, etag))
+          bytes = new NotModifiedResponse().withEtag(etag).toByteArray();
+        else {
+          //Handle compression and ETag injection
+          byte[] etagBytes = ETAG_STRING.replace("_", etag.replace("\"", "\\\"")).getBytes();
+          try (ByteArrayOutputStream os = new ByteArrayOutputStream(bytes.length - 1 + etagBytes.length)) {
+            OutputStream targetOs = (!embedded && bytes.length > GZIP_THRESHOLD_SIZE ? Payload.gzip(os) : os);
+            targetOs.write(bytes, 0, bytes.length - 1);
+            targetOs.write(etagBytes);
+            os.close();
+            targetOs.close();
+            bytes = os.toByteArray();
+          }
+        }
       }
 
       //Relocate
@@ -349,13 +359,13 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
     if (event.getWarmupCount() > 0 && this.context != null && this.context.getInvokedFunctionArn() != null && lambda != null) {
       int warmupCount = event.getWarmupCount();
       event.setWarmupCount(0);
-      String newEvent = XyzSerializable.serialize(event);
+      byte[] newEvent = event.toByteArray();
       logger.debug("{} Calling myself. WarmupCount: {}", traceItem, warmupCount);
       List<Thread> threads = new ArrayList<>(warmupCount);
-      for(int i = 0; i < warmupCount; i++) {
+      for (int i = 0; i < warmupCount; i++) {
         threads.add(new Thread(() -> lambda.invoke(new InvokeRequest()
                 .withFunctionName(this.context.getInvokedFunctionArn())
-                .withPayload(newEvent))));
+                .withPayload(ByteBuffer.wrap(newEvent)))));
       }
       threads.forEach(t -> t.start());
       threads.forEach(t -> {try {t.join();} catch (InterruptedException ignore){}});
@@ -366,7 +376,10 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
         Thread.sleep((event.getMinResponseTime() + start) - System.currentTimeMillis());
       }
       catch (InterruptedException e) {
-        return new ErrorResponse().withStreamId(streamId).withError(XyzError.EXCEPTION);
+        return new ErrorResponse()
+            .withErrorMessage(e.getMessage())
+            .withStreamId(streamId)
+            .withError(XyzError.EXCEPTION);
       }
     }
     return new HealthStatus();

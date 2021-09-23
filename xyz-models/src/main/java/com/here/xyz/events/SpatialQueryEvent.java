@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,8 +20,6 @@
 package com.here.xyz.events;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.here.xyz.models.geojson.coordinates.BBox;
 import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -137,16 +135,19 @@ public class SpatialQueryEvent<T extends SpatialQueryEvent> extends SearchForFea
   }
 
   @SuppressWarnings("unused")
+  @Deprecated
   public String getBinaryType() {
     return this.binaryType;
   }
 
   @SuppressWarnings("WeakerAccess")
+  @Deprecated
   public void setBinaryType(String binaryType) {
     this.binaryType = binaryType;
   }
 
   @SuppressWarnings("unused")
+  @Deprecated
   public T withBinaryType(String binaryType) {
     setBinaryType(binaryType);
     //noinspection unchecked
