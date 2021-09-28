@@ -180,19 +180,19 @@ public class HttpConnectorTaskHandler {
 
   private static void checkException(Exception e, Handler<AsyncResult<XyzResponse>> handler, String connectorId){
 
-    logger.error("Connector[{}]: {}",connectorId,e);
+    logger.error("Connector[{}]: {}", connectorId, e.getMessage() != null && e.getMessage().length() > 300 ? e.getMessage().substring(0,300)+"..." : e.getMessage());
 
     if(e instanceof SQLException) {
       if(((SQLException) e).getSQLState() != null){
         switch (((SQLException) e).getSQLState()){
           case "42501" :
-            handler.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Permission to relation denied!")));
+            handler.handle(Future.failedFuture(new HttpException(UNAUTHORIZED, "Permission denied!")));
             break;
           case "57014" :
             handler.handle(Future.failedFuture(new HttpException(GATEWAY_TIMEOUT, "Query got aborted due to timeout!")));
             break;
           default:
-            handler.handle(Future.failedFuture(new HttpException(GATEWAY_TIMEOUT, "SQL Query error "+((SQLException) e).getSQLState()+"!")));
+            handler.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "SQL Query error "+((SQLException) e).getSQLState()+"!")));
         }
       }
       else {
