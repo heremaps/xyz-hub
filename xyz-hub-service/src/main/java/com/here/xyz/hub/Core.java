@@ -92,7 +92,7 @@ public class Core {
     final ConfigStoreOptions fileStore = new ConfigStoreOptions().setType("file").setConfig(new JsonObject().put("path", configFilename));
     final ConfigStoreOptions envConfig = new ConfigStoreOptions().setType("env");
     final ConfigStoreOptions sysConfig = new ConfigStoreOptions().setType("sys");
-    final ConfigRetrieverOptions options = new ConfigRetrieverOptions().addStore(fileStore).addStore(envConfig).addStore(sysConfig);
+    final ConfigRetrieverOptions options = new ConfigRetrieverOptions().addStore(fileStore).addStore(envConfig).addStore(sysConfig).setScanPeriod(24 * 60 * 1000);
 
     if(vertxOptions == null) {
       vertxOptions = new VertxOptions()
