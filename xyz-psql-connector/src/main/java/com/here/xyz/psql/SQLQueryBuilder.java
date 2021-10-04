@@ -251,6 +251,8 @@ public class SQLQueryBuilder {
     public static SQLQuery buildQuadbinClusteringQuery(GetFeaturesByBBoxEvent event,
                                                           BBox bbox, int relResolution, int absResolution, String countMode,
                                                           PSQLConfig config, boolean noBuffer) {
+        boolean isTileRequest = (event instanceof GetFeaturesByTileEvent);
+
         final WebMercatorTile tile = getTileFromBbox(bbox);
 
         if( (absResolution - tile.level) >= 0 )  // case of valid absResolution convert it to a relative resolution and add both resolutions
@@ -273,7 +275,7 @@ public class SQLQueryBuilder {
         }
         boolean bConvertGeo2Geojson = ( mvtTypeRequested(event) == 0 );
 
-        return QuadbinSQL.generateQuadbinClusteringSQL(config.getDatabaseSettings().getSchema(), config.readTableFromEvent(event), relResolution, countMode, propQuerySQL, tile, noBuffer, bConvertGeo2Geojson);
+        return QuadbinSQL.generateQuadbinClusteringSQL(config.getDatabaseSettings().getSchema(), config.readTableFromEvent(event), relResolution, countMode, propQuerySQL, tile, bbox, isTileRequest, noBuffer, bConvertGeo2Geojson);
     }
 
     /***************************************** CLUSTERING END **************************************************/

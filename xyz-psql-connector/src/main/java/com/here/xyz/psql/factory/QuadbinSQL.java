@@ -22,6 +22,7 @@ package com.here.xyz.psql.factory;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.models.geojson.WebMercatorTile;
+import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.psql.Capabilities;
 import com.here.xyz.psql.PSQLXyzConnector;
 import com.here.xyz.psql.SQLQuery;
@@ -80,8 +81,10 @@ public class QuadbinSQL {
     /**
      * Creates the SQLQuery for Quadbin requests.
      */
-    public static SQLQuery generateQuadbinClusteringSQL(String schema, String space, int resolution, String quadMode, String propQuery, WebMercatorTile tile, boolean noBuffer, boolean convertGeo2Geojson ) {
+    public static SQLQuery generateQuadbinClusteringSQL(String schema, String space, int resolution, String quadMode, String propQuery, WebMercatorTile tile, BBox bbox, boolean isTileRequest, boolean noBuffer, boolean convertGeo2Geojson ) {
         SQLQuery query = new SQLQuery("");
+
+        int effectiveLevel = tile.level + resolution;
 
         double bufferSizeInDeg = tile.getBBox(false).widthInDegree(true) / (Math.pow(2, resolution) *  1024.0);
         String realCountCondition = "",
@@ -89,7 +92,10 @@ public class QuadbinSQL {
                pureEstimation = "",
                estCalc = "cond_est_cnt",
                qkGeo   = (!noBuffer ? String.format("ST_Buffer(qkbbox, -%f)",bufferSizeInDeg) : "qkbbox"),
-               geoPrj  = ( convertGeo2Geojson ? "ST_AsGeojson( qkgeo , 8 )::jsonb" : "qkgeo" );
+               geoPrj  = ( convertGeo2Geojson ? "ST_AsGeojson( qkgeo , 8 )::jsonb" : "qkgeo" ),
+               bboxSql = String.format( String.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() ),
+               coveringQksSql = ( !isTileRequest ? String.format("select xyz_qk_lrc2qk(rowy,colx,level) as qk from xyz_qk_envelope2lrc( %s, %d)", bboxSql, effectiveLevel)
+                                                 :" SELECT unnest(xyz_qk_child_calculation('"+(tile.asQuadkey() == null ? 0 :tile.asQuadkey())+"',"+resolution+",null)) as qk" );
 
         if(quadMode == null)
             quadMode = QuadbinSQL.COUNTMODE_MIXED;
@@ -163,9 +169,7 @@ public class QuadbinSQL {
                 "        (SELECT *,"+
                 "              ("+pureEstimation+") as cond_est_cnt "+
                 "            from("+
-                "            SELECT qk, xyz_qk_qk2bbox( qk ) as qkbbox, xyz_qk_qk2lrc(qk) as qkxyz from ("+
-                "            SELECT unnest(xyz_qk_child_calculation('"+(tile.asQuadkey() == null ? 0 :tile.asQuadkey())+"',"+resolution+",null)) as qk"+
-                "            )a"+
+                "            SELECT qk, xyz_qk_qk2bbox( qk ) as qkbbox, xyz_qk_qk2lrc(qk) as qkxyz from ("+ coveringQksSql + ") a"+
                 "        ) b"+
                 "    )c"+
                 ")x, stats ) d WHERE qkgeo IS NOT null ");
