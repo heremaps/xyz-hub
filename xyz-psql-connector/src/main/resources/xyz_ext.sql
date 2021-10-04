@@ -499,12 +499,15 @@ declare
 	topLeft geometry := st_setsrid( st_point( st_xmin(ibox), st_ymax(ibox)),4326);
 	botright geometry := st_setsrid( st_point( st_xmax(ibox), st_ymin(ibox) ),4326);
     numrowscols constant integer := 1 << lvl;
-	tl record := xyz_qk_point2lrc(topLeft,lvl);
-	br record := xyz_qk_point2lrc(botright,lvl);
-    bColX integer := br.colx;
+	tl record;
+	br record;
+    bColX integer := 0;
 	saveCounter integer := 0;
 begin
  level = lvl;
+ tl = xyz_qk_point2lrc(topLeft,lvl);
+ br = xyz_qk_point2lrc(botright,lvl);
+ bColX = br.colx;
 
  if( br.colx < tl.colx ) then
   bColX = br.colx + numrowscols;
