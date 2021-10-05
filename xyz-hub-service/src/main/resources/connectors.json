@@ -292,6 +292,24 @@
     }
   },
   {
+    "id": "inMemory",
+    "params": {},
+    "capabilities": {},
+    "connectionSettings": {
+      "maxConnections": 32
+    },
+    "remoteFunctions": {
+      "local": {
+        "type": "Embedded",
+        "id": "xyz-inMemory-local",
+        "warmUp": 0,
+        "className": "com.here.xyz.hub.connectors.test.InMemoryStorage",
+        "env": {},
+        "protocolVersion": "0.5.0"
+      }
+    }
+  },
+  {
     "id": "listener-test",
     "params": {},
     "capabilities": {},
