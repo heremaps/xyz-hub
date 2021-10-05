@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -567,21 +567,32 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
 
   @Test
   public void testMVTResponse() throws IOException {
+    testMVTResponseWithSpecificStorage("psql");
+  }
+
+  @Test
+  public void testMVTResponseFromStorageWithoutMVTSupport() throws IOException {
+    testMVTResponseWithSpecificStorage("inMemory");
+  }
+
+  public void testMVTResponseWithSpecificStorage(String storageId) throws IOException {
+    cleanUpId = createSpaceWithCustomStorage(storageId, null);
+    addFeatures(cleanUpId);
     Response r = given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get(getSpacesPath() + "/x-psql-test/tile/quadkey/120203302032.mvt");
+        .get(getSpacesPath() + "/" + cleanUpId + "/tile/quadkey/120203302032.mvt");
 
     r.then().statusCode(OK.code());
     InputStream inputStream = r.getBody().asInputStream();
 
     GeometryFactory geomFactory = new GeometryFactory();
     JtsMvt jtsMvt = MvtReader.loadMvt(
-            inputStream,
-            geomFactory,
-            new TagKeyValueMapConverter());
+        inputStream,
+        geomFactory,
+        new TagKeyValueMapConverter());
 
-    JtsLayer layer = jtsMvt.getLayer(getSpaceId());
+    JtsLayer layer = jtsMvt.getLayer(cleanUpId);
     ArrayList<Geometry> geometries = (ArrayList<Geometry>) layer.getGeometries();
     Geometry geom = geometries.get(0).getGeometryN(0);
     Object userData = geometries.get(0).getUserData();
@@ -597,8 +608,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
 
     assertEquals(1491, coordinates[0].x, 0);
     assertEquals(3775, coordinates[0].y, 0);
-    //Todo: check z after NaN fix
-//    assertEquals("NaN", coordinates[0].z);
+    assertEquals(Double.NaN, coordinates[0].z, 0);
   }
 
   @Test
