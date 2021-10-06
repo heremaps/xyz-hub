@@ -81,7 +81,7 @@ public class QuadbinSQL {
     /**
      * Creates the SQLQuery for Quadbin requests.
      */
-    public static SQLQuery generateQuadbinClusteringSQL(String schema, String space, int resolution, String quadMode, String propQuery, WebMercatorTile tile, BBox bbox, boolean isTileRequest, boolean noBuffer, boolean convertGeo2Geojson ) {
+    public static SQLQuery generateQuadbinClusteringSQL(String schema, String space, int resolution, String quadMode, String propQuery, WebMercatorTile tile, BBox bbox, boolean isTileRequest, boolean clippedOnBbox, boolean noBuffer, boolean convertGeo2Geojson ) {
         SQLQuery query = new SQLQuery("");
 
         int effectiveLevel = tile.level + resolution;
@@ -91,11 +91,14 @@ public class QuadbinSQL {
                _pureEstimation = "xyz_postgis_selectivity( '"+schema+".\""+space+"\"'::regclass, 'geo',qkbbox) ",
                pureEstimation = "",
                estCalc = "cond_est_cnt",
-               qkGeo   = (!noBuffer ? String.format("ST_Buffer(qkbbox, -%f)",bufferSizeInDeg) : "qkbbox"),
+               resultQkGeo = (!noBuffer ? String.format("ST_Buffer(qkbbox, -%f)",bufferSizeInDeg) : "qkbbox"),
                geoPrj  = ( convertGeo2Geojson ? "ST_AsGeojson( qkgeo , 8 )::jsonb" : "qkgeo" ),
                bboxSql = String.format( String.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() ),
                coveringQksSql = ( !isTileRequest ? String.format("select xyz_qk_lrc2qk(rowy,colx,level) as qk from xyz_qk_envelope2lrc( %s, %d)", bboxSql, effectiveLevel)
                                                  :" SELECT unnest(xyz_qk_child_calculation('"+(tile.asQuadkey() == null ? 0 :tile.asQuadkey())+"',"+resolution+",null)) as qk" );
+        if( clippedOnBbox )
+         resultQkGeo = String.format("ST_Intersection(%s,%s)",resultQkGeo,bboxSql);
+
 
         if(quadMode == null)
             quadMode = QuadbinSQL.COUNTMODE_MIXED;
@@ -146,7 +149,7 @@ public class QuadbinSQL {
                         "          (floor((est_cnt/POW(2,"+(tile.level+1)+")/POW(4,"+resolution+")))),'}}')::jsonb) as jsondata,"+
                         "    (CASE WHEN cnt_bbox_est != 0"+
                         "        THEN"+
-                        "            " + qkGeo +
+                        "            " + resultQkGeo +
                         "        ELSE"+
                         "            NULL::geometry"+
                         "        END "+
