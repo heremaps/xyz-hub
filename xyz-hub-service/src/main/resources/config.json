@@ -10,16 +10,23 @@
   "JWT_PUB_KEY": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0XyPlkIr5oFvTiSg9MAMgoY5gLXwX7uY2TsegfCO7x80ZixTJIjW+gfCdtGJtkCdl5a15YV8la0jnBqneprgasdjsxAldWUkKtA8MiEAylRM88OYC3menXvhZFyOE3NurV6oSQtMIKggg1nejCwVfVfAaHTtuTnP9Bez0wDlm4MO64cRE7JwspMjEI3rOwZcI7qQJ1cM0NQmm4WEXtefOSoucJ2WPuGM+Zhu32kMb3MUvJKlkicssr8fsNF/HQ8zN2NVvpitLThn+CYM3xkZAanY2+88OBK9kjwPtJQR0KQ2EKC4KYT/6prM/triwerLoy32ioLnNNWB/O9OnaeiqQIDAQAB\n-----END PUBLIC KEY-----",
   "XYZ_HUB_AUTH": "DUMMY",
 
-  "XYZ_HUB_REDIS_URI": "redis://localhost",
+  "#XYZ_HUB_REDIS_URI": "redis://localhost",
+  "#XYZ_HUB_REDIS_HOST": "",
+  "#XYZ_HUB_REDIS_PORT": "",
+  "XYZ_HUB_REDIS_HOST": "localhost",
+  "XYZ_HUB_REDIS_PORT": 6379,
 
   "OFF_HEAP_CACHE_SIZE_MB": 256,
 
   "DEFAULT_STORAGE_ID": "psql",
 
-  "STORAGE_DB_URL": "jdbc:postgresql://localhost/postgres",
-  "STORAGE_DB_USER": "postgres",
-  "STORAGE_DB_PASSWORD": "password",
-  "PSQL_HTTP_CONNECTOR_HOST" : "localhost",
+  "STORAGE_DB_URL": "jdbc:postgresql://dblocalhost:6549/here",
+  "STORAGE_DB_USER": "xyz",
+  "STORAGE_DB_PASSWORD": "xyz",
+  "PSQL_HTTP_CONNECTOR_HOST" : "localhost",  
+  "#STORAGE_DB_URL": "jdbc:postgresql://baselayers-for-datahub-cluster.cluster-czijdxwz5gip.eu-west-1.rds.amazonaws.com:5432/heredb",
+  "#STORAGE_DB_USER": "here_livemap_read",
+  "#STORAGE_DB_PASSWORD": "bafoda",
 
   "INSERT_LOCAL_CONNECTORS": true,
   "ENABLE_CONNECTOR_HEALTH_CHECKS" : false,

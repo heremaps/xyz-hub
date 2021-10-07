@@ -12,6 +12,35 @@
       }
     },
     "loggers": {
+      "logger": [
+        { "name": "com.here.xyz.connectors.AbstractConnectorHandler", "level": "warn", "additivity": "false",  "AppenderRef": { "ref": "STDOUT" }},
+        { "name": "com.here.xyz.hub.auth.Authorization", "level": "warn", "additivity": "false",  "AppenderRef": { "ref": "STDOUT" }},
+        { "name": "com.here.xyz.hub.auth.JwtDummyHandler", "level": "error", "additivity": "false", "AppenderRef": { "ref": "STDOUT" }},
+        { "name": "com.here.xyz.hub.config.ConnectorConfigClient", "level": "error", "additivity": "false",  "AppenderRef": { "ref": "STDOUT" }},
+        { "name": "com.here.xyz.hub.config.JDBCConfig", "level": "error", "additivity": "false",  "AppenderRef": { "ref": "STDOUT" }},
+        { "name": "com.here.xyz.hub.config.JDBCConfig", "level": "error", "additivity": "false",  "AppenderRef": { "ref": "STDOUT" }},
+        { "name": "com.here.xyz.hub.config.SpaceConfigClient", "level": "warn", "additivity": "false",  "AppenderRef": { "ref": "STDOUT" }},
+        { "name": "com.here.xyz.hub.connectors.BurstAndUpdateThread", "level": "fatal", "additivity": "false", "AppenderRef": { "ref": "STDOUT" }},
+        { "name": "com.here.xyz.hub.connectors.models.Space", "level": "warn", "additivity": "false",  "AppenderRef": { "ref": "STDOUT" }},
+        { "name": "com.here.xyz.hub.connectors.RpcClient", "level": "fatal", "additivity": "false",  "AppenderRef": { "ref": "STDOUT" }},
+        { "name": "com.here.xyz.hub.rest.admin.messages.brokers.RedisMessageBroker", "level": "fatal", "additivity": "false",  "AppenderRef": { "ref": "STDOUT" }},
+        { "name": "com.here.xyz.hub.Service", "level": "error", "additivity": "false",  "AppenderRef": { "ref": "STDOUT" }},
+        { "name": "com.here.xyz.hub.util.logging.LogUtil", "level": "warn", "additivity": "false",  "AppenderRef": { "ref": "STDOUT" }},
+        { "name": "com.here.xyz.hub.XYZHubRESTVerticle", "level": "warn", "additivity": "false",  "AppenderRef": { "ref": "STDOUT" }},
+        { "name": "com.here.xyz.hub.AbstractHttpServerVerticle", "level": "warn", "additivity": "false",  "AppenderRef": { "ref": "STDOUT" }},
+
+        { "name": "com.here.xyz.psql.DatabaseHandler", "level": "warn", "additivity": "false",  "AppenderRef": { "ref": "STDOUT" }},
+        { "name": "com.here.xyz.psql.PSQLXyzConnector", "level": "warn", "additivity": "false",  "AppenderRef": { "ref": "STDOUT" }},
+        { "name": "com.here.xyz.hub.connectors.EmbeddedFunctionClient", "level": "warn", "additivity": "false", "AppenderRef": { "ref": "STDOUT" }},
+
+        { "name": "com.wdtinc.mapbox_vector_tile", "level": "warn", "additivity": "false",  "AppenderRef": { "ref": "STDOUT" }},
+        
+        { "name": "com.mchange.v2.c3p0.C3P0Registry", "level": "error", "additivity": "false",  "AppenderRef": { "ref": "STDOUT" }},
+        { "name": "com.mchange.v2.c3p0.impl.AbstractPoolBackedDataSource", "level": "error", "additivity": "false",  "AppenderRef": { "ref": "STDOUT" }},
+        { "name": "com.mchange.v2.log.MLog", "level": "error", "additivity": "false",  "AppenderRef": { "ref": "STDOUT" }},
+        { "name": "com.mchange.v2.resourcepool.BasicResourcePool", "level": "error", "additivity": "false",  "AppenderRef": { "ref": "STDOUT" }},
+        { "name": "com.networknt.schema.JsonMetaSchema", "level": "error", "additivity": "false",  "AppenderRef": { "ref": "STDOUT" }}
+      ],
       "root": {
         "level": "info",
         "AppenderRef": {

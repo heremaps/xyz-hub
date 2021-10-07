@@ -34,6 +34,7 @@ public class GSContext extends SimulatedContext implements LambdaLogger {
   private static final Logger logger = LogManager.getLogger();
   private static final Level LOG_LEVEL = Level.INFO;
 
+/*  
   @SuppressWarnings("serial")
   private static final Map<String, String> vars_local = new HashMap<String, String>() {{
     put(DatabaseSettings.PSQL_HOST, "localhost");
@@ -41,6 +42,18 @@ public class GSContext extends SimulatedContext implements LambdaLogger {
     put(DatabaseSettings.PSQL_PASSWORD, "password");
     put(PSQLConfig.ECPS_PHRASE, "testing");
   }};
+*/
+
+@SuppressWarnings("serial")
+private static final Map<String, String> vars_local = new HashMap<String, String>() {{
+  put(DatabaseSettings.PSQL_HOST, "dblocalhost");
+  put(DatabaseSettings.PSQL_PORT, "6549");
+  put(DatabaseSettings.PSQL_DB, "here");
+  put(DatabaseSettings.PSQL_SCHEMA, "xyz");
+  put(DatabaseSettings.PSQL_USER, "xyz");
+  put(DatabaseSettings.PSQL_PASSWORD, "xyz");
+  put(PSQLConfig.ECPS_PHRASE, "testing");
+}};
 
   public GSContext(String functionName, Map<String, String> environmentVariables) {
     super(functionName, environmentVariables);

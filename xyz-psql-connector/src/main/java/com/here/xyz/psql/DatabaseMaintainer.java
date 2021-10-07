@@ -252,7 +252,7 @@ public class DatabaseMaintainer {
                 int mode = autoIndexing == true ? 2 : 0;
 
                 /** Maintain INDICES */
-                stmt.execute(MaintenanceSQL.generateIDXSQL(config.getDatabaseSettings().getSchema(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getPassword(), config.getDatabaseSettings().getDb(),"localhost", config.getDatabaseSettings().getPort(), mode));
+                stmt.execute(MaintenanceSQL.generateIDXSQL(config.getDatabaseSettings().getSchema(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getPassword(), config.getDatabaseSettings().getDb(),"localhost", 5432, mode));
             }
         } catch (Exception e) {
             logger.error("{} Failed run indexing on database: {} / {}@{} '{}'", traceItem, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost(), e);

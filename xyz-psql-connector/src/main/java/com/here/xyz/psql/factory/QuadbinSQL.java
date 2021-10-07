@@ -155,7 +155,7 @@ public class QuadbinSQL {
                         "        END "+
                         "    ) as qkgeo"+
                         "    FROM "+
-                        "    (SELECT cond_est_cnt,qk,qkbbox,qkxyz,"+
+                        "    (SELECT cond_est_cnt,est_cnt,qk,qkbbox,qkxyz,"+
                         "        ("+
                         "        CASE WHEN "+realCountCondition+" THEN "+
                         "            (select count(1) from "+ schema+".\""+space+"\""+
@@ -175,7 +175,7 @@ public class QuadbinSQL {
                 "            SELECT qk, xyz_qk_qk2bbox( qk ) as qkbbox, xyz_qk_qk2lrc(qk) as qkxyz from ("+ coveringQksSql + ") a"+
                 "        ) b"+
                 "    )c"+
-                ")x, stats ) d WHERE qkgeo IS NOT null ");
+                ")x ) d WHERE qkgeo IS NOT null ");
         return query;
     }
 }
