@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,22 +51,42 @@ import org.apache.commons.lang3.RandomStringUtils;
 public class TestSpaceWithFeature extends TestWithSpaceCleanup {
 
   protected static void remove() {
-    TestWithSpaceCleanup.removeSpace("x-psql-test");
+    TestWithSpaceCleanup.removeSpace(getSpaceId());
   }
 
-  protected static void createSpace() {
-    given()
+  private static ValidatableResponse createSpace(String content) {
+    return given()
         .contentType(APPLICATION_JSON)
         .accept(APPLICATION_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body(content("/xyz/hub/createSpace.json"))
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(content)
         .when()
         .post(getCreateSpacePath())
         .then()
-        .statusCode(OK.code())
+        .statusCode(OK.code());
+  }
+
+  protected static void createSpace() {
+    createSpace(content("/xyz/hub/createSpace.json"))
         .body("id", equalTo(getSpaceId()))
         .body("title", equalTo("My Demo Space"))
         .body("storage.id", equalTo("psql"));
+  }
+
+  protected static String createSpaceWithCustomStorage(String storageId, JsonObject storageParams) {
+    JsonObject storage = new JsonObject()
+        .put("id", storageId);
+    if (storageParams != null)
+      storage.put("params", storageParams);
+    JsonObject space = new JsonObject()
+        .put("title", "Demo Space with storage " + storageId)
+        .put("storage", storage);
+
+    return createSpace(space.encode())
+        .body("storage.id", equalTo(storageId))
+        .extract()
+        .body()
+        .path("id");
   }
 
   protected static String createSpace(final AuthProfile authProfile, final String title, final boolean shared) {
@@ -85,13 +105,17 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
   }
 
   protected static void addFeatures() {
+    addFeatures("x-psql-test");
+  }
+
+  protected static void addFeatures(String toSpace) {
     given()
         .contentType(APPLICATION_GEO_JSON)
         .accept(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body(content("/xyz/hub/processedData.json"))
         .when()
-        .put(getSpacesPath() + "/x-psql-test/features")
+        .put(getSpacesPath() + "/" + toSpace + "/features")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(252));

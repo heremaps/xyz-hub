@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,6 +41,8 @@ import java.util.zip.ZipException;
     @JsonSubTypes.Type(value = XyzResponse.class)
 })
 public class Payload implements Typed {
+
+  public static final String VERSION = "0.6.0";
 
   public static InputStream prepareInputStream(InputStream input) throws IOException {
     if (!input.markSupported()) {
@@ -115,6 +117,25 @@ public class Payload implements Typed {
   }
 
   /**
+   * @param versionA
+   * @param versionB
+   * @return -1 if versionA is smaller than versionB, 0 if versionA equals versionB, 1 if versionA is larger than versionB.
+   */
+  public static int compareVersions(String versionA, String versionB) {
+    String[] partsA = versionA.split(".");
+    String[] partsB = versionB.split(".");
+    if (partsA.length != partsB.length) throw new IllegalArgumentException("Incompatible version strings.");
+    for (int i = 0; i < partsA.length; i++) {
+      int versionPartA = Integer.parseInt(partsA[i]), versionPartB = Integer.parseInt(partsB[i]);
+      if (versionPartA < versionPartB)
+        return -1;
+      else if (versionPartA > versionPartB)
+        return 1;
+    }
+    return 0;
+  }
+
+  /**
    * Returns the hash of the event as a base64 string.
    */
   @JsonIgnore
@@ -135,6 +156,11 @@ public class Payload implements Typed {
         // must be annotated with a view ( e.g. @JsonView(ExcludeFromHash.class) )
         .writerWithView(Object.class)
         .writeValueAsString(this);
+  }
+
+  @Override
+  public String toString() {
+    return serialize();
   }
 
   protected static class ExcludeFromHash {

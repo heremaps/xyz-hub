@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -188,7 +188,7 @@ public abstract class RemoteFunctionClient {
       //Only if this thread was the one setting the new measurement timestamp it may be the one resetting the event counter
       if (lastMeasurementTime.compareAndSet(last, now)) {
         long evtSum = eventCount.sum();
-        //"Reset" the adder by subtracting the current evtSum (We can't use #reset() as this isn't thread safe)
+        //"Reset" the adder by subtracting the current evtSum (We can't use #sum() and #reset() as this isn't atomic)
         eventCount.add(-evtSum);
         //Calculate the new dimension value
         return (double) evtSum / ((double) (now - last) / 1000d);

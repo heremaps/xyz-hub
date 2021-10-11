@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -59,6 +59,7 @@ import javax.sql.DataSource;
 public class SQLQueryBuilder {
     private static final long GEOMETRY_DECIMAL_DIGITS = 8;
     private static final String IDX_STATUS_TABLE = "xyz_config.xyz_idxs_status";
+    private static final Integer BIG_SPACE_THRESHOLD = 10000;
 
     public static SQLQuery buildGetStatisticsQuery(Event event, PSQLConfig config, boolean historyMode) throws Exception {
         String function;
@@ -131,10 +132,10 @@ public class SQLQueryBuilder {
             query = new SQLQuery("SELECT count(*) FROM ${schema}.${table} WHERE");
             query.append(searchQuery);
         } else {
-            query = new SQLQuery("SELECT CASE WHEN reltuples < 10000");
+            query = new SQLQuery("SELECT CASE WHEN reltuples < ?");
             query.append("THEN (SELECT count(*) FROM ${schema}.${table})");
             query.append("ELSE reltuples END AS count");
-            query.append("FROM pg_class WHERE oid =?::regclass", schemaTable);
+            query.append("FROM pg_class WHERE oid =?::regclass", BIG_SPACE_THRESHOLD, schemaTable);
         }
         return query;
     }
@@ -280,13 +281,15 @@ public class SQLQueryBuilder {
 
     /***************************************** TWEAKS **************************************************/
 
-    public static int mvtTypeRequested( GetFeaturesByBBoxEvent event )
-    { if( (event instanceof GetFeaturesByTileEvent) && ( event.getBinaryType() != null ))
-       switch ( event.getBinaryType() )
-       { case "MVT" : return 1;
-         case "MVT_FLATTENED" : return 2;
-         default : break;
-       }
+    public static int mvtTypeRequested(GetFeaturesByBBoxEvent event) {
+      if (event instanceof GetFeaturesByTileEvent && ((GetFeaturesByTileEvent) event).getResponseType() != null) {
+        switch (((GetFeaturesByTileEvent) event).getResponseType()) {
+          case MVT:
+            return 1;
+          case MVT_FLATTENED:
+            return 2;
+        }
+      }
       return 0;
     }
 
@@ -574,20 +577,19 @@ public class SQLQueryBuilder {
      return new SQLQuery( String.format( TweaksSQL.estimateCountByBboxesSql, sb.toString(), estimateSubSql ) );
     }
 
-    public static SQLQuery buildMvtEncapsuledQuery( String spaceId, SQLQuery dataQry, WebMercatorTile mvtTile, int mvtMargin, boolean bFlattend )
+    public static SQLQuery buildMvtEncapsuledQuery( String spaceId, SQLQuery dataQry, WebMercatorTile mvtTile, BBox eventBbox, int mvtMargin, boolean bFlattend )
     { int extend = 4096, buffer = (extend / WebMercatorTile.TileSizeInPixel) * mvtMargin;
-      BBox b = mvtTile.getBBox(false); // pg ST_AsMVTGeom expects tiles bbox without buffer.
+      BBox b = ( mvtTile != null ? mvtTile.getBBox(false) : eventBbox ); // pg ST_AsMVTGeom expects tiles bbox without buffer.
       SQLQuery r = new SQLQuery( String.format( TweaksSQL.mvtBeginSql,
                                    String.format( TweaksSQL.requestedTileBoundsSql , b.minLon(), b.minLat(), b.maxLon(), b.maxLat() ),
                                    (!bFlattend) ? TweaksSQL.mvtPropertiesSql : TweaksSQL.mvtPropertiesFlattenSql,
                                    extend,
                                    buffer )
                                );
-     r.append(dataQry);
-     r.append( String.format( TweaksSQL.mvtEndSql, spaceId ));
-     return r;
+      r.append(dataQry);
+      r.append( String.format( TweaksSQL.mvtEndSql, spaceId ));
+      return r;
     }
-
 
     /***************************************** TWEAKS END **************************************************/
 
@@ -821,12 +823,12 @@ public class SQLQueryBuilder {
         }
     }
 
-    private static String _buildSearchablePropertiesUpsertQuery(Space spaceDefinition, ModifySpaceEvent.Operation operation, String schema, String table) throws SQLException 
+    private static String _buildSearchablePropertiesUpsertQuery(Space spaceDefinition, ModifySpaceEvent.Operation operation, String schema, String table) throws SQLException
     {
         Map<String, Boolean> searchableProperties = spaceDefinition.getSearchableProperties();
         List<List<Object>> sortableProperties = spaceDefinition.getSortableProperties();
         Boolean enableAutoIndexing = spaceDefinition.isEnableAutoSearchableProperties();
-             
+
         String idx_manual_json;
 
         try{
@@ -851,7 +853,7 @@ public class SQLQueryBuilder {
     }
 
     public static SQLQuery buildSearchablePropertiesUpsertQuery(Space spaceDefinition, ModifySpaceEvent.Operation operation,
-                                                                   String schema, String table) throws SQLException 
+                                                                   String schema, String table) throws SQLException
     { return new SQLQuery( _buildSearchablePropertiesUpsertQuery(spaceDefinition, operation,schema, table)  );  }
 
 
@@ -1091,7 +1093,7 @@ public class SQLQueryBuilder {
     }
 
     protected static SQLQuery generateIDXStatusQuery(final String space){
-        return new SQLQuery("SELECT idx_available FROM "+IDX_STATUS_TABLE+" WHERE spaceid=?", space);
+        return new SQLQuery("SELECT idx_available FROM "+IDX_STATUS_TABLE+" WHERE spaceid=? AND count >=?", space, BIG_SPACE_THRESHOLD);
     }
 
     protected static String insertStmtSQL(final String schema, final String table){

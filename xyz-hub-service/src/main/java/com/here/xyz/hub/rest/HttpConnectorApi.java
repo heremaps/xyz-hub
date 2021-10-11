@@ -36,7 +36,9 @@ import org.apache.logging.log4j.Logger;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.util.HashMap;
 
+import static com.here.xyz.hub.AbstractHttpServerVerticle.STREAM_INFO_CTX_KEY;
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
 
 public class HttpConnectorApi extends Api {
@@ -211,10 +213,17 @@ public class HttpConnectorApi extends Api {
   }
 
   private String[] parseMainParams(RoutingContext context) {
+    String connectorId = Query.getString(context, "connectorId", null);
+    addStreamInfo(context, "SID", connectorId);
+
     return new String[]{
-            Query.getString(context, "connectorId", null),
+            connectorId,
             Query.getString(context, "ecps", null),
             Query.getString(context, "passphrase", PsqlHttpVerticle.ECPS_PASSPHRASE)
     };
+  }
+
+  private static void addStreamInfo(final RoutingContext context, String key, Object value){
+    context.put(STREAM_INFO_CTX_KEY, new HashMap<String, Object>(){{put(key, value);}});
   }
 }

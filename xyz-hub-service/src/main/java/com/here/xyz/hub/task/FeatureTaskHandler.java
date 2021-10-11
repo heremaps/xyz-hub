@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,9 @@ package com.here.xyz.hub.task;
 
 import static com.here.xyz.hub.XYZHubRESTVerticle.STREAM_INFO_CTX_KEY;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
+import static com.here.xyz.hub.rest.ApiResponseType.MVT;
+import static com.here.xyz.hub.rest.ApiResponseType.MVT_FLATTENED;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.BBOX;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.ID;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
@@ -54,7 +57,6 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.RpcClient.RpcContext;
-import com.here.xyz.hub.connectors.models.BinaryResponse;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.ForwardParamsConfig;
 import com.here.xyz.hub.connectors.models.Space;
@@ -83,7 +85,7 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.FeatureCollection.ModificationFailure;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
-import com.here.xyz.responses.BinResponse;
+import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.ModifiedEventResponse;
@@ -330,7 +332,7 @@ public class FeatureTaskHandler {
     addConnectorPerformanceInfo(task, processorTime, rpcContext, "P" + processorNo);
   }
 
-  private static XyzResponse transform(byte[] value) throws JsonProcessingException {
+  private static XyzResponse transformCacheValue(byte[] value) throws JsonProcessingException {
     byte type = value[0];
     byte[] byteValue = Buffer.buffer(value).getBytes(1, value.length);
     switch (type) {
@@ -338,23 +340,15 @@ public class FeatureTaskHandler {
         return XyzSerializable.deserialize(new String(byteValue));
       }
       case BINARY_VALUE: {
-        return new BinaryResponse().withBytes(byteValue);
+        return BinaryResponse.fromByteArray(byteValue);
       }
     }
     return null;
   }
 
-  private static byte[] transform(XyzResponse value) {
-    byte[] byteValue;
-    byte[] type = new byte[1];
-    if (value instanceof BinaryResponse) {
-      byteValue = ((BinaryResponse) value).getBytes();
-      type[0] = BINARY_VALUE;
-    } else {
-      byteValue = value.serialize().getBytes();
-      type[0] = JSON_VALUE;
-    }
-    Buffer b = Buffer.buffer(type).appendBytes(byteValue);
+  private static byte[] transformCacheValue(XyzResponse value) {
+    byte[] type = {value instanceof BinaryResponse ? BINARY_VALUE : JSON_VALUE};
+    Buffer b = Buffer.buffer(type).appendBytes(value.toByteArray());
     return b.getBytes();
   }
 
@@ -373,7 +367,7 @@ public class FeatureTaskHandler {
         else {
           //Cache HIT: Set the response for the task to the result from the cache so invoke (in the task pipeline) won't have anything to do
           try {
-            task.setResponse(transform(cacheResult));
+            task.setResponse(transformCacheValue(cacheResult));
             task.setCacheHit(true);
             addStreamInfo(task, "CH", 1);
             logger.info(task.getMarker(), "Cache HIT for cache key {}", cacheKey);
@@ -408,7 +402,7 @@ public class FeatureTaskHandler {
         throw new NullPointerException(npe);
       }
       logger.debug(task.getMarker(), "Writing entry with cache key {} to cache", cacheKey);
-      Service.cacheClient.set(cacheKey, transform(response), cacheProfile.serviceTTL);
+      Service.cacheClient.set(cacheKey, transformCacheValue(response), cacheProfile.serviceTTL);
     }
   }
 
@@ -560,6 +554,11 @@ public class FeatureTaskHandler {
 
   private static <T extends FeatureTask> void notifyProcessors(T task, String eventType, Payload payload,
       Handler<AsyncResult<XyzResponse>> callback) {
+    if (payload instanceof BinaryResponse) {
+      //No post-processor support for binary responses, skipping post-processor notification
+      callback.handle(Future.succeededFuture(new ModifiedResponseResponse().withResponse(payload)));
+      return;
+    }
     notifyConnectors(new NotificationContext(task, true), ConnectorType.PROCESSOR, eventType, payload, callback);
   }
 
@@ -870,7 +869,6 @@ public class FeatureTaskHandler {
     if (usedMemory == null)
       inflightRequestMemory.put(storageId, usedMemory = new LongAdder());
 
-    byteSize *= Service.configuration.INFLIGHT_REQUEST_BODY_OVERHEAD_FACTOR;
     usedMemory.add(byteSize);
     globalInflightRequestMemory.add(byteSize);
   }
@@ -878,7 +876,6 @@ public class FeatureTaskHandler {
   public static void deregisterRequestMemory(String storageId, int byteSize) {
     if (byteSize <= 0) return;
 
-    byteSize *= Service.configuration.INFLIGHT_REQUEST_BODY_OVERHEAD_FACTOR;
     inflightRequestMemory.get(storageId).add(-byteSize);
     globalInflightRequestMemory.add(-byteSize);
   }
@@ -886,28 +883,36 @@ public class FeatureTaskHandler {
   static <X extends FeatureTask> void throttle(final X task, final Callback<X> callback) {
     Connector storage = task.storage;
     final long GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE = (long) Service.configuration.GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE_MB * 1024 * 1024;
-    //Only throttle requests if the memory filled up over the specified threshold
-    if (globalInflightRequestMemory.sum() >
-        GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE * Service.configuration.GLOBAL_INFLIGHT_REQUEST_MEMORY_HIGH_UTILIZATION_THRESHOLD) {
-      LongAdder storageInflightRequestMemory = inflightRequestMemory.get(storage.id);
-      long storageInflightRequestMemorySum = 0;
-      if (storageInflightRequestMemory == null || (storageInflightRequestMemorySum = storageInflightRequestMemory.sum()) == 0) {
-        callback.call(task); //Nothing to throttle
-        return;
+    float usedMemoryPercent = Service.getUsedMemoryPercent() / 100f;
+    try {
+      //When ZGC is in use, only throttle requests if the service memory filled up over the specified service memory threshold
+      if (Service.IS_USING_ZGC) {
+        if (usedMemoryPercent > Service.configuration.SERVICE_MEMORY_HIGH_UTILIZATION_THRESHOLD) {
+          addStreamInfo(task, "THR", "M"); //Reason for throttling is memory
+          throw new HttpException(TOO_MANY_REQUESTS, "Too many requests for the service node.");
+        }
       }
+      //For other GCs, only throttle requests if the request memory filled up over the specified request memory threshold
+      else if (globalInflightRequestMemory.sum() >
+          GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE * Service.configuration.GLOBAL_INFLIGHT_REQUEST_MEMORY_HIGH_UTILIZATION_THRESHOLD) {
+        LongAdder storageInflightRequestMemory = inflightRequestMemory.get(storage.id);
+        long storageInflightRequestMemorySum = 0;
+        if (storageInflightRequestMemory == null || (storageInflightRequestMemorySum = storageInflightRequestMemory.sum()) == 0) {
+          callback.call(task); //Nothing to throttle for that storage
+          return;
+        }
 
-      try {
         RpcClient rpcClient = getRpcClient(storage);
         if (storageInflightRequestMemorySum > rpcClient.getFunctionClient().getPriority() * GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE) {
           addStreamInfo(task, "THR", "M"); //Reason for throttling is memory
           throw new HttpException(TOO_MANY_REQUESTS, "Too many requests for the storage.");
         }
       }
-      catch (HttpException e) {
-        logger.warn(task.getMarker(), e.getMessage(), e);
-        callback.exception(e);
-        return;
-      }
+    }
+    catch (HttpException e) {
+      logger.warn(task.getMarker(), e.getMessage(), e);
+      callback.exception(e);
+      return;
     }
     callback.call(task);
   }
@@ -1300,52 +1305,39 @@ public class FeatureTaskHandler {
   }
 
   static void transformResponse(TileQuery task, Callback<TileQuery> callback) {
-
-    if(!
-       (    ( ApiResponseType.MVT == task.responseType || ApiResponseType.MVT_FLATTENED == task.responseType)
-         && ((task.getResponse() instanceof FeatureCollection) || (task.getResponse() instanceof BinResponse))
-       )
-      )
-    {
+    if (task.responseType != MVT
+        && task.responseType != MVT_FLATTENED
+        || !(task.getResponse() instanceof FeatureCollection)
+        //The mvt transformation is not executed, if the source feature collection is the same.
+        || task.etagMatches()) {
       callback.call(task);
       return;
     }
 
-    BinaryResponse binaryResponse = new BinaryResponse();
-    binaryResponse.setEtag(task.getResponse().getEtag());
     TransformationContext tc = task.transformationContext;
-
-    //The mvt transformation is not executed, if the source feature collection is the same.
-    if (!task.etagMatches()) {
-      try {
-
-        if( task.getResponse() instanceof BinResponse )
-         binaryResponse.setBytes( ((BinResponse) task.getResponse()).getBytes() ) ;
-        else
-        {
-         byte[] mvt;
-         if (ApiResponseType.MVT == task.responseType) {
-           mvt = new MapBoxVectorTileBuilder()
-               .build(WebMercatorTile.forWeb(tc.level, tc.x, tc.y), tc.margin, task.space.getId(),
-                   ((FeatureCollection) task.getResponse()).getFeatures());
-         } else {
-           mvt = new MapBoxVectorTileFlattenedBuilder()
-               .build(WebMercatorTile.forWeb(tc.level, tc.x, tc.y), tc.margin, task.space.getId(),
-                   ((FeatureCollection) task.getResponse()).getFeatures());
-        }
-        binaryResponse.setBytes(mvt);
-       }
-
-      } catch (Exception e) {
-        logger.info(task.getMarker(), "Exception while transforming the response.", e);
-        callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Error while transforming the response."));
-        return;
+    try {
+      byte[] mvt;
+      if (MVT == task.responseType) {
+        mvt = new MapBoxVectorTileBuilder()
+            .build(WebMercatorTile.forWeb(tc.level, tc.x, tc.y), tc.margin, task.space.getId(),
+                ((FeatureCollection) task.getResponse()).getFeatures());
       }
+      else {
+        mvt = new MapBoxVectorTileFlattenedBuilder()
+            .build(WebMercatorTile.forWeb(tc.level, tc.x, tc.y), tc.margin, task.space.getId(),
+                ((FeatureCollection) task.getResponse()).getFeatures());
+      }
+      task.setResponse(new BinaryResponse()
+              .withMimeType(APPLICATION_VND_MAPBOX_VECTOR_TILE)
+              .withBytes(mvt)
+              .withEtag(task.getResponse().getEtag()));
+      callback.call(task);
     }
-
-    task.setResponse(binaryResponse);
-
-    callback.call(task);
+    catch (Exception e) {
+      logger.warn(task.getMarker(), "Exception while transforming the response.", e);
+      callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Error while transforming the response."));
+      return;
+    }
   }
 
   private static <T extends FeatureTask> void addStreamInfo(T task, String streamInfoKey, Object streamInfoValue) {

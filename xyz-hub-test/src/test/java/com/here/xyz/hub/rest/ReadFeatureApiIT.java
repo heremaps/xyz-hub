@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -567,38 +567,60 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
 
   @Test
   public void testMVTResponse() throws IOException {
+    testMVTResponseWithSpecificStorage("psql", false);
+  }
+
+  @Test
+  public void testMVTFResponse() throws IOException {
+    testMVTResponseWithSpecificStorage("psql", true);
+  }
+
+  @Test
+  public void testMVTResponseFromStorageWithoutMVTSupport() throws IOException {
+    testMVTResponseWithSpecificStorage("inMemory", false);
+  }
+
+  @Test
+  public void testMVTFResponseFromStorageWithoutMVTSupport() throws IOException {
+    testMVTResponseWithSpecificStorage("inMemory", true);
+  }
+
+  public void testMVTResponseWithSpecificStorage(String storageId, boolean flattened) throws IOException {
+    cleanUpId = createSpaceWithCustomStorage(storageId, null);
+    addFeatures(cleanUpId);
+    final String FIELD_PREFIX = flattened ? "properties." : "";
+
     Response r = given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get(getSpacesPath() + "/x-psql-test/tile/quadkey/120203302032.mvt");
+        .get(getSpacesPath() + "/" + cleanUpId + "/tile/quadkey/120203302032.mvt" + (flattened ? "f" : ""));
 
     r.then().statusCode(OK.code());
     InputStream inputStream = r.getBody().asInputStream();
 
     GeometryFactory geomFactory = new GeometryFactory();
     JtsMvt jtsMvt = MvtReader.loadMvt(
-            inputStream,
-            geomFactory,
-            new TagKeyValueMapConverter());
+        inputStream,
+        geomFactory,
+        new TagKeyValueMapConverter());
 
-    JtsLayer layer = jtsMvt.getLayer(getSpaceId());
+    JtsLayer layer = jtsMvt.getLayer(cleanUpId);
     ArrayList<Geometry> geometries = (ArrayList<Geometry>) layer.getGeometries();
     Geometry geom = geometries.get(0).getGeometryN(0);
     Object userData = geometries.get(0).getUserData();
     LinkedHashMap<String, Object> t = (LinkedHashMap<String,Object>) userData;
 
-    assertEquals("Commerzbank-Arena", t.get("name"));
-    assertEquals("association football", t.get("sport"));
-    assertEquals(51500l, t.get("capacity"));
-    assertEquals("Eintracht Frankfurt", t.get("occupant"));
-    assertNotNull(t.get("@ns:com:here:xyz"));
+    assertEquals("Commerzbank-Arena", t.get(FIELD_PREFIX + "name"));
+    assertEquals("association football", t.get(FIELD_PREFIX + "sport"));
+    assertEquals(51500l, t.get(FIELD_PREFIX + "capacity"));
+    assertEquals("Eintracht Frankfurt", t.get(FIELD_PREFIX + "occupant"));
+    assertNotNull(t.get(FIELD_PREFIX + "@ns:com:here:xyz" + (flattened ? ".space" : "")));
 
     Coordinate[] coordinates = geom.getCoordinates();
 
     assertEquals(1491, coordinates[0].x, 0);
     assertEquals(3775, coordinates[0].y, 0);
-    //Todo: check z after NaN fix
-//    assertEquals("NaN", coordinates[0].z);
+    assertEquals(Double.NaN, coordinates[0].z, 0);
   }
 
   @Test

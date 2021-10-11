@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,10 @@
 
 package com.here.xyz.hub.connectors;
 
+import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
+import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
+import static io.netty.handler.codec.http.HttpHeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
@@ -38,6 +42,7 @@ import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.RelocationClient;
 import com.here.xyz.events.Event;
+import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.RelocatedEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.RemoteFunctionClient.FunctionCall;
@@ -47,6 +52,8 @@ import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.responses.BinResponse;
+import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.HistoryStatisticsResponse;
@@ -57,7 +64,6 @@ import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.JsonObject;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
 import java.util.Collections;
@@ -174,7 +180,7 @@ public class RpcClient {
       final Connector connector = getConnector();
       if (bytes.length > connector.capabilities.maxPayloadSize) { // If the payload is too large to send directly to the connector
         if (!connector.capabilities.relocationSupport) {
-          // The size is to large, the event cannot be sent to the connector.
+          //The size is too large, the event cannot be sent to the connector.
           callback.handle(Future
               .failedFuture(new HttpException(REQUEST_ENTITY_TOO_LARGE, "The request entity size is over the limit for this connector.")));
           return;
@@ -220,6 +226,19 @@ public class RpcClient {
   }
 
   /**
+   * Determines, for a given event and depending on the storage's capabilities and protocol-version, whether to expect a binary payload
+   * as response for the event.
+   * @param event
+   * @return Whether to expect a binary response from the storage connector
+   */
+  private boolean expectBinaryResponse(Event event) {
+    return event instanceof GetFeaturesByTileEvent
+        && (((GetFeaturesByTileEvent) event).getResponseType() == MVT || ((GetFeaturesByTileEvent) event).getResponseType() == MVT_FLATTENED)
+        && getConnector().capabilities.mvtSupport
+        && Payload.compareVersions(getConnector().getRemoteFunction().protocolVersion, BinaryResponse.BINARY_SUPPORT_VERSION) >= 0;
+  }
+
+  /**
    * Executes an event and returns the parsed FeatureCollection response.
    *
    * @param marker the log marker
@@ -232,6 +251,7 @@ public class RpcClient {
   public RpcContext execute(final Marker marker, final Event event, final boolean hasPriority, final Handler<AsyncResult<XyzResponse>> callback) {
     final Connector connector = getConnector();
     event.setConnectorParams(connector.params);
+    final boolean expectBinaryResponse = expectBinaryResponse(event);
     final String eventJson = event.serialize();
     final byte[] eventBytes = eventJson.getBytes();
     final RpcContext context = new RpcContext().withRequestSize(eventBytes.length);
@@ -253,7 +273,7 @@ public class RpcClient {
 
       // this is the original event size sent by the connector, it can be different from the payload size, in case of relocation.
       context.setResponseSize(bytesResult.result().length);
-      parseResponse(marker, bytesResult.result(), r -> {
+      parseResponse(marker, bytesResult.result(), expectBinaryResponse, r -> {
         if (r.failed()) {
           logger.warn(marker, "Error while handling the response from connector \"{}\".", connector.id, r.cause());
           callback.handle(Future.failedFuture(r.cause()));
@@ -297,7 +317,7 @@ public class RpcClient {
   public RpcContext send(final Marker marker, @SuppressWarnings("rawtypes") final Event event) throws NullPointerException {
     final Connector connector = getConnector();
     event.setConnectorParams(connector.params);
-    final byte[] eventBytes = event.serialize().getBytes();
+    final byte[] eventBytes = event.toByteArray();
     RpcContext context = new RpcContext().withRequestSize(eventBytes.length);
     invokeWithRelocation(marker, context, eventBytes, true, false, r -> {
       if (r.failed()) {
@@ -353,7 +373,7 @@ public class RpcClient {
   }
 
   @SuppressWarnings({"rawtypes", "UnusedAssignment"})
-  private void parseResponse(final Marker marker, byte[] bytes, final Handler<AsyncResult<XyzResponse>> callback) {
+  private void parseResponse(final Marker marker, byte[] bytes, boolean expectBinaryResponse, final Handler<AsyncResult<XyzResponse>> callback) {
     String stringResponse = null;
 
     try {
@@ -363,12 +383,20 @@ public class RpcClient {
         bytes = Payload.decompress(bytes);
       checkUncompressedResponseSize(marker, bytes);
 
+      if (expectBinaryResponse) {
+        tryDecodeBinaryResponse(marker, bytes, callback);
+        return;
+      }
+
       stringResponse = new String(bytes);
       bytes = null; //GC may collect the bytes now.
 
       Typed payload;
       try {
         payload = XyzSerializable.deserialize(stringResponse);
+        //Temporary backwards compat. for BinResponse
+        if (payload instanceof BinResponse)
+          payload = _transformBinResponseBackwardsCompat((BinResponse) payload);
       }
       catch (InvalidTypeIdException e) {
         JsonObject response = new JsonObject(stringResponse);
@@ -387,7 +415,7 @@ public class RpcClient {
             callback.handle(Future.failedFuture(ar.cause()));
             return;
           }
-          parseResponse(marker, ar.result(), callback);
+          parseResponse(marker, ar.result(), expectBinaryResponse, callback);
         });
       }
       else {
@@ -421,6 +449,38 @@ public class RpcClient {
     }
   }
 
+  /**
+   * Try to decode the binary response and fall back to JSON-decoding in case it fails.
+   * @param marker
+   * @param bytes
+   * @param callback
+   */
+  private void tryDecodeBinaryResponse(Marker marker, byte[] bytes, Handler<AsyncResult<XyzResponse>> callback) {
+    BinaryResponse binaryResponse;
+    try {
+      binaryResponse = BinaryResponse.fromByteArray(bytes);
+    }
+    catch (Exception e) {
+      /*
+      Could happen e.g. in the following cases:
+       - Error responses which were sent by the connector but not encoded as BinaryResponse
+       - Error-messages from the underlying system of the remote-function in general
+       - Relocated responses
+       - ...
+      */
+      logger.info(marker, "Expected a binary response, but did not get one. Falling back to JSON decoding.");
+      parseResponse(marker, bytes, false, callback);
+      return;
+    }
+
+    if (APPLICATION_JSON.equals(binaryResponse.getMimeType())) {
+      //In case we got a JSON string encoded within a BinaryResponse, it needs to be un-packed and continued with the JSON-decoding
+      parseResponse(marker, binaryResponse.getBytes(), false, callback);
+    }
+    else
+      callback.handle(Future.succeededFuture(binaryResponse));
+  }
+
   private void processRelocatedEventAsync(RelocatedEvent relocatedEvent, Handler<AsyncResult<byte[]>> callback) {
     Service.vertx.executeBlocking(
         future -> {
@@ -442,6 +502,19 @@ public class RpcClient {
           }
         }
     );
+  }
+
+  /**
+   * This method will be needed until {@link BinResponse} was fully removed.
+   *
+   * @param binResponse
+   * @return
+   */
+  private static BinaryResponse _transformBinResponseBackwardsCompat(BinResponse binResponse) {
+    return new BinaryResponse()
+        .withMimeType(APPLICATION_VND_MAPBOX_VECTOR_TILE) //In protocol-versions <0.6.0 all BinResponses are MVT responses
+        .withBytes(binResponse.getBytes())
+        .withEtag(binResponse.getEtag());
   }
 
   /**

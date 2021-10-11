@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ public final class GetFeaturesByTileEvent extends GetFeaturesByBBoxEvent<GetFeat
   private String quadkey;
   private int margin;
   private ResponseType responseType;
+  private boolean hereTileFlag;
 
   @SuppressWarnings("unused")
   public int getLevel() {
@@ -96,6 +97,22 @@ public final class GetFeaturesByTileEvent extends GetFeaturesByBBoxEvent<GetFeat
   }
 
   @SuppressWarnings("unused")
+  public boolean getHereTileFlag() {
+    return hereTileFlag;
+  }
+
+  @SuppressWarnings("WeakerAccess")
+  public void setHereTileFlag(boolean hereTileFlag) {
+    this.hereTileFlag = hereTileFlag;
+  }
+
+  @SuppressWarnings("unused")
+  public GetFeaturesByTileEvent withHereTileFlag(boolean hereTileFlag) {
+    setHereTileFlag(hereTileFlag);
+    return this;
+  }
+
+  @SuppressWarnings("unused")
   public int getMargin() {
     return margin;
   }
@@ -129,6 +146,6 @@ public final class GetFeaturesByTileEvent extends GetFeaturesByBBoxEvent<GetFeat
 
   @SuppressWarnings("unused")
   public enum ResponseType {
-    GEOJSON, MVT
+    GEOJSON, MVT, MVT_FLATTENED
   }
 }

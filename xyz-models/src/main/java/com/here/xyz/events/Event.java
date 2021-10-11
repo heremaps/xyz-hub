@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,19 +26,19 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * The base class of all events that are send by the XYZ Hub to a "procedure". All events extend this event. All "procedures" can be sure to
+ * The base class of all events that are sent by the XYZ Hub to a "procedure". All events extend this event. All "procedures" can be sure to
  * receive events that extend this class and need to respond with any {@link com.here.xyz.responses.XyzResponse}.
  *
- * Its not defined if that procedure is embedded into the XYZ Hub or located at a remote host nor is any assumption being made about how the
+ * It's not defined if that procedure is embedded into the XYZ Hub or located at a remote host nor is any assumption being made about how the
  * event or response are transferred. Basically the event-response model just describes what events the XYZ hub may trigger and how the
- * processing "procedures" must respond.Ø
+ * processing "procedures" must respond.
  *
  * A "procedure" is defined as
  *
- * Every event is basically encoded into a binary using an "procedure encoder". Be aware that this event is translated into some protocol
- * using a corresponding encoder. The protocol encoder  only the remote procedure client will receive this event. It's not necessary that
+ * Every event is basically encoded into a binary using a "procedure encoder". Be aware that this event is translated into some protocol
+ * using a corresponding encoder. Only the remote procedure client will receive this event. It's not necessary that
  * the remote procedure itself uses this event class to communicate. Rather the remote procedure client needs to accept the event, translate
- * it into an arbitrary binary (byte[]), which is then send to a remote service that processed the event.
+ * it into an arbitrary binary (byte[]), which is then sent to a remote service that processes the event.
  */
 @JsonSubTypes({
     @JsonSubTypes.Type(value = ModifySpaceEvent.class, name = "ModifySpaceEvent"),
@@ -65,8 +65,6 @@ import java.util.Map;
 })
 
 public abstract class Event<T extends Event> extends Payload {
-
-  public static final String VERSION = "0.5.0";
 
   @JsonView(ExcludeFromHash.class)
   private Map<String, Object> connectorParams;
@@ -112,7 +110,7 @@ public abstract class Event<T extends Event> extends Payload {
   }
 
   /**
-   * An map with arbitrary parameters configured in the XYZ Hub service for each space. Therefore, each space can have different
+   * A map with arbitrary parameters configured in the XYZ Hub service for each space. Therefore, each space can have different
    * parameters.
    *
    * @return a map with arbitrary parameters defined for the space.
@@ -339,11 +337,6 @@ public abstract class Event<T extends Event> extends Payload {
     setVersion(version);
     //noinspection unchecked
     return (T) this;
-  }
-
-  @Override
-  public String toString() {
-    return serialize();
   }
 
   public static class TrustedParams extends HashMap<String, Object> {

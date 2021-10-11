@@ -54,6 +54,7 @@ public class LogUtil {
   private static final Logger logger = LogManager.getLogger();
   private static final Level STREAM_LEVEL = Level.forName("STREAM", 50);
   private static final Marker ACCESS_LOG_MARKER = MarkerManager.getMarker("ACCESS");
+  private static final String REALM = "rlm";
 
   private static List<String> skipLoggingHeaders = Collections.singletonList(X_FORWARDED_FOR);
 
@@ -123,6 +124,7 @@ public class LogUtil {
     accessLog.clientInfo.ip = getIp(context);
     accessLog.clientInfo.remoteAddress = context.request().connection().remoteAddress().toString();
     accessLog.clientInfo.userAgent = context.request().getHeader(USER_AGENT);
+    accessLog.clientInfo.realm = context.request().getHeader(REALM);
     accessLog.reqInfo.contentType = context.request().getHeader(CONTENT_TYPE);
     accessLog.reqInfo.accept = context.request().getHeader(ACCEPT);
   }

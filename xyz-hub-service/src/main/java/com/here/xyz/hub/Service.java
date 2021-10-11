@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,6 +48,8 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.WebClientOptions;
+import java.lang.management.GarbageCollectorMXBean;
+import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -124,6 +126,7 @@ public class Service extends Core {
    * The hostname
    */
   private static String hostname;
+  public static final boolean IS_USING_ZGC = isUsingZgc();
 
   private static final List<Metric> metrics = new LinkedList<>();
 
@@ -241,7 +244,7 @@ public class Service extends Core {
       // at this point all verticles were initiated and all routers added as subrouter of globalRouter.
       vertx.eventBus().publish(SHARED_DATA, GLOBAL_ROUTER);
 
-      logger.info("XYZ Hub " + getBuildProperty("xyzhub.version") + " was started at " + new Date().toString());
+      logger.info("XYZ Hub " + BUILD_VERSION + " was started at " + new Date().toString());
       logger.info("Native transport enabled: " + vertx.isNativeTransportEnabled());
     });
 
@@ -301,6 +304,17 @@ public class Service extends Core {
       metrics.add(new GlobalInflightRequestMemory(new CloudWatchMetricPublisher(ns, "GlobalInflightRequestMemory",
           "ServiceName", serviceName, StandardUnit.Bytes)));
     }
+  }
+
+  private static boolean isUsingZgc() {
+    List<GarbageCollectorMXBean> gcMxBeans = ManagementFactory.getGarbageCollectorMXBeans();
+    for (GarbageCollectorMXBean gcMxBean : gcMxBeans) {
+      if ("ZGC".equals(gcMxBean.getName())) {
+        logger.info("Service is using ZGC.");
+        return true;
+      }
+    }
+    return false;
   }
 
   private static void stopMetricPublishers() {
@@ -534,16 +548,16 @@ public class Service extends Core {
     public float REMOTE_FUNCTION_CONNECTION_HIGH_UTILIZATION_THRESHOLD;
 
     /**
-     * A value between 0 and 1 defining a threshold as percentage of utilized memory for in-flight request after which to start
+     * A value between 0 and 1 defining a threshold as percentage of utilized service memory for in-flight request after which to start
      * prioritizing more important connectors over less important ones.
      */
     public float GLOBAL_INFLIGHT_REQUEST_MEMORY_HIGH_UTILIZATION_THRESHOLD;
 
     /**
-     * A factor by which to multiply the incoming request body size to get an estimated value for
-     * the memory the request is going to utilize.
+     * A value between 0 and 1 defining a threshold as percentage of utilized service memory which depicts a very high utilization of the
+     * the memory. The service uses that threshold to perform countermeasures to protect the service from overload.
      */
-    public float INFLIGHT_REQUEST_BODY_OVERHEAD_FACTOR;
+    public float SERVICE_MEMORY_HIGH_UTILIZATION_THRESHOLD;
 
     /**
      * The remote function pool ID to be used to select the according remote functions for this Service environment.
@@ -649,6 +663,11 @@ public class Service extends Core {
      * When set, modifies the Stream-Info header name to the value specified.
      */
     public String CUSTOM_STREAM_INFO_HEADER_NAME;
+
+    /**
+     * Whether the service should use InstanceProviderCredentialsProfile with cached credential when utilizing AWS clients.
+     */
+    public boolean USE_AWS_INSTANCE_CREDENTIALS_WITH_REFRESH;
 
     public boolean containsFeatureNamespaceOptionalField(String field) {
       if (FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP == null) {

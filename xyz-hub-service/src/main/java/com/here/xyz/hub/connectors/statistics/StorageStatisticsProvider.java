@@ -67,7 +67,7 @@ public class StorageStatisticsProvider {
         .compose(spacesByStorage -> CompositeFuture.all(spacesByStorage
             .entrySet()
             .stream()
-            .map(e -> fetchFromStorage(marker, e.getKey(), e.getValue().stream().map(space -> space.getId()).collect(Collectors.toList())))
+            .map(e -> fetchFromStorage(marker, e.getKey(), e.getValue()))
             .collect(Collectors.toList())))
         .compose(results -> Future.succeededFuture(mergeStats(results.list())));
   }
@@ -85,20 +85,30 @@ public class StorageStatisticsProvider {
     return mergedStats;
   }
 
-  private static Future<Map<String, List<Space>>> sortByStorage(List<Space> spaces) {
+  private static Future<Map<String, List<String>>> sortByStorage(List<Space> spaces) {
     //That operation could take longer, so do it asynchronously
     return Service.vertx.executeBlocking(p -> sortByStorageSync(spaces, p));
   }
 
-  private static void sortByStorageSync(List<Space> spaces, Promise<Map<String, List<Space>>> p) {
-    Map<String, List<Space>> spacesByStorage = new HashMap<>();
+  private static void sortByStorageSync(List<Space> spaces, Promise<Map<String, List<String>>> p) {
+    Map<String, List<String>> spacesByStorage = new HashMap<>();
     spaces.forEach(space -> {
       final String storageId = space.getStorage().getId();
       if (!spacesByStorage.containsKey(storageId))
         spacesByStorage.put(storageId, new LinkedList<>());
-      spacesByStorage.get(storageId).add(space);
+      spacesByStorage.get(storageId).add(resolveSpaceId(space));
     });
     p.complete(spacesByStorage);
+  }
+
+  private static String resolveSpaceId(Space space) {
+    final String TABLE_NAME = "tableName";
+    if (space.getStorage().getParams() != null) {
+      Object tableName = space.getStorage().getParams().get(TABLE_NAME);
+      if (tableName instanceof String && ((String) tableName).length() > 0)
+        return (String) tableName;
+    }
+    return space.getId();
   }
 
   private static Future<StorageStatistics> fetchFromStorage(Marker marker, String storageId, List<String> spaceIds) {
@@ -128,7 +138,9 @@ public class StorageStatisticsProvider {
 
     Promise<StorageStatistics> p = Promise.promise();
 
-    GetStorageStatisticsEvent event = new GetStorageStatisticsEvent().withSpaceIds(spaceIds);
+    GetStorageStatisticsEvent event = new GetStorageStatisticsEvent()
+        .withStreamId(marker.getName())
+        .withSpaceIds(spaceIds);
     RpcClient.getInstanceFor(storage).execute(marker, event, true, ar -> {
       if (ar.failed()) p.fail(ar.cause());
       else {
