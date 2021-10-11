@@ -88,9 +88,8 @@ public class QuadbinSQL {
 
         double bufferSizeInDeg = tile.getBBox(false).widthInDegree(true) / (Math.pow(2, resolution) *  1024.0);
         String realCountCondition = "",
-               _pureEstimation = "xyz_postgis_selectivity( '"+schema+".\""+space+"\"'::regclass, 'geo',qkbbox) ",
+               _pureEstimation = "select sum( ti.tbl_est_cnt * xyz_postgis_selectivity( ti.tbloid, 'geo',qkbbox) )::bigint from tblinfo ti",
                pureEstimation = "",
-               estCalc = "cond_est_cnt",
                resultQkGeo = (!noBuffer ? String.format("ST_Buffer(qkbbox, -%f)",bufferSizeInDeg) : "qkbbox"),
                geoPrj  = ( convertGeo2Geojson ? "ST_AsGeojson( qkgeo , 8 )::jsonb" : "qkgeo" ),
                bboxSql = String.format( String.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() ),
@@ -98,7 +97,6 @@ public class QuadbinSQL {
                                                  :" SELECT unnest(xyz_qk_child_calculation('"+(tile.asQuadkey() == null ? 0 :tile.asQuadkey())+"',"+resolution+",null)) as qk" );
         if( clippedOnBbox )
          resultQkGeo = String.format("ST_Intersection(%s,%s)",resultQkGeo,bboxSql);
-
 
         if(quadMode == null)
             quadMode = QuadbinSQL.COUNTMODE_MIXED;
@@ -111,14 +109,7 @@ public class QuadbinSQL {
             case QuadbinSQL.COUNTMODE_ESTIMATED:
             case QuadbinSQL.COUNTMODE_MIXED:
 
-                if(quadMode.equalsIgnoreCase(QuadbinSQL.COUNTMODE_MIXED)) {
-                    if (propQuery != null) {
-                        realCountCondition = "cond_est_cnt < 100 AND est_cnt < "+ LIMIT_COUNTMODE_MIXED;
-                    } else {
-                        realCountCondition = "cond_est_cnt < (1000 / (est_cnt+1)) AND est_cnt < "+ LIMIT_COUNTMODE_MIXED;
-                    }
-                }else
-                    realCountCondition = "FALSE";
+                realCountCondition = ( quadMode.equalsIgnoreCase(QuadbinSQL.COUNTMODE_MIXED) ? "cond_est_cnt < 100 AND est_cnt < "+ LIMIT_COUNTMODE_MIXED : "FALSE");
 
                 if(propQuery != null){
                     pureEstimation =
@@ -128,54 +119,57 @@ public class QuadbinSQL {
                                     " AND "+
                                     propQuery.replaceAll("'","''")+
                                     "'))";
-                    estCalc = "cond_est_cnt"; // "(CASE WHEN cond_est_cnt <= 1 THEN 0 ELSE cond_est_cnt END)";
                 }else{
                     pureEstimation = _pureEstimation;
-                    estCalc += " * est_cnt ";
                 }
                 break;
         }
 
+        if( propQuery == null )  propQuery = "(1 = 1)";
+
         query.append(
-                "WITH stats AS("+
-                        "    select sum( coalesce( c2.reltuples, c1.reltuples ) )::bigint as est_cnt "+
-                        "    from pg_class c1 left join pg_inherits pm on ( c1.oid = pm.inhparent ) left join pg_class c2 on ( c2.oid = pm.inhrelid ) "+
-                        "    where c1.oid = '"+schema+".\""+space+"\"'::regclass"+
-                        ")"+
-                        "SELECT jsondata, "+ geoPrj +" as geo from ("+
-                        "SELECT  (SELECT concat('{\"id\": \"', ('x' || left(md5(qk),15) )::bit(60)::bigint ,'\", \"type\": \"Feature\""+
-                        "       ,\"properties\": {\"count\": ',cnt_bbox_est,',\"qk\":\"',qk,'\""+
-                        "       ,\"xyz\":\"',qkxyz,'\" ,\"estimated\":',to_jsonb(NOT("+realCountCondition+")),',\"total_count\":',est_cnt::bigint,',\"equipartition_count\":',"+
-                        "          (floor((est_cnt/POW(2,"+(tile.level+1)+")/POW(4,"+resolution+")))),'}}')::jsonb) as jsondata,"+
-                        "    (CASE WHEN cnt_bbox_est != 0"+
-                        "        THEN"+
-                        "            " + resultQkGeo +
-                        "        ELSE"+
-                        "            NULL::geometry"+
-                        "        END "+
-                        "    ) as qkgeo"+
-                        "    FROM "+
-                        "    (SELECT cond_est_cnt,est_cnt,qk,qkbbox,qkxyz,"+
-                        "        ("+
-                        "        CASE WHEN "+realCountCondition+" THEN "+
-                        "            (select count(1) from "+ schema+".\""+space+"\""+
-                        "                WHERE ST_Intersects(geo, qkbbox)");
-        if(propQuery != null) {
-            query.append(" AND ");
-            query.append(propQuery);
-        }
-        query.append(")"+
-                "         ELSE "+
-                "          "+estCalc+""+
+/*cte begin*/
+                "with  "+
+                "tblinfo as "+
+                "( select  "+
+                "   coalesce(c2.oid, c1.oid) as tbloid,"+
+                "   coalesce(c2.relname, c1.relname) as tblname, "+
+                "   coalesce(c2.reltuples, c1.reltuples)::bigint as tbl_est_cnt "+
+                "   from pg_class c1 "+
+                "   left join pg_inherits pm on (c1.oid = pm.inhparent) "+
+                "   left join pg_class c2 on (c2.oid = pm.inhrelid) "+
+                "   where c1.oid = '"+schema+".\""+space+"\"'::regclass"+
+                "), "+
+                "tbl_stats as ( select sum(tbl_est_cnt) as est_cnt from tblinfo ), "+
+                "quadkeys as ( "+ coveringQksSql + " ), "+
+                "quaddata as ( select qk, xyz_qk_qk2bbox( qk ) as qkbbox, ( select array[r.level,r.colx,r.rowy] from xyz_qk_qk2lrc(qk) r ) as qkxyz from quadkeys ), "+
+                "qk_stats  as ( select ("+realCountCondition+") as real_condition, * from (select *, ("+pureEstimation+") as cond_est_cnt from tbl_stats, quaddata ) a ) "+
+/*cte end*/
+                "SELECT jsondata, "+ geoPrj +" as geo from ("+
+                "SELECT  (SELECT concat('{\"id\": \"', ('x' || left(md5(qk),15) )::bit(60)::bigint ,'\", \"type\": \"Feature\""+
+                "       ,\"properties\": {\"count\": ',cnt_bbox_est,',\"qk\":\"',qk,'\""+
+                "       ,\"xyz\":\"',row(qkxyz[3],qkxyz[2],qkxyz[1]),'\" ,\"zxy\":',to_jsonb(qkxyz),'"+
+                "       ,\"estimated\":',to_jsonb(NOT(real_condition)),',\"total_count\":',est_cnt::bigint,',\"equipartition_count\":',"+
+                "          (floor((est_cnt/POW(2,"+(tile.level+1)+")/POW(4,"+resolution+")))),'}}')::jsonb) as jsondata,"+
+                "    (CASE WHEN cnt_bbox_est != 0"+
+                "        THEN"+
+                "            " + resultQkGeo +
+                "        ELSE"+
+                "            NULL::geometry"+
+                "        END "+
+                "    ) as qkgeo"+
+                "    FROM "+
+                "    (SELECT real_condition,est_cnt,qk,qkbbox,qkxyz,"+
+                "        ("+
+                "        CASE WHEN real_condition THEN "+
+                "            (select count(1) from "+ schema+".\""+space+"\" where ST_Intersects(geo, qkbbox) and " + propQuery + ")"+
+                "        ELSE "+
+                "          cond_est_cnt "+
                 "        END)::bigint as cnt_bbox_est"+
-                "    FROM stats,"+
-                "        (SELECT *,"+
-                "              ("+pureEstimation+") as cond_est_cnt "+
-                "            from("+
-                "            SELECT qk, xyz_qk_qk2bbox( qk ) as qkbbox, xyz_qk_qk2lrc(qk) as qkxyz from ("+ coveringQksSql + ") a"+
-                "        ) b"+
-                "    )c"+
-                ")x ) d WHERE qkgeo IS NOT null ");
+                "    FROM qk_stats "+
+                "    ) c"+
+                ") x WHERE qkgeo IS NOT null ");
+
         return query;
     }
 }
