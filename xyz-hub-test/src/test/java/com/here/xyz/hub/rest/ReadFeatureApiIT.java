@@ -567,21 +567,33 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
 
   @Test
   public void testMVTResponse() throws IOException {
-    testMVTResponseWithSpecificStorage("psql");
+    testMVTResponseWithSpecificStorage("psql", false);
+  }
+
+  @Test
+  public void testMVTFResponse() throws IOException {
+    testMVTResponseWithSpecificStorage("psql", true);
   }
 
   @Test
   public void testMVTResponseFromStorageWithoutMVTSupport() throws IOException {
-    testMVTResponseWithSpecificStorage("inMemory");
+    testMVTResponseWithSpecificStorage("inMemory", false);
   }
 
-  public void testMVTResponseWithSpecificStorage(String storageId) throws IOException {
+  @Test
+  public void testMVTFResponseFromStorageWithoutMVTSupport() throws IOException {
+    testMVTResponseWithSpecificStorage("inMemory", true);
+  }
+
+  public void testMVTResponseWithSpecificStorage(String storageId, boolean flattened) throws IOException {
     cleanUpId = createSpaceWithCustomStorage(storageId, null);
     addFeatures(cleanUpId);
+    final String FIELD_PREFIX = flattened ? "properties." : "";
+
     Response r = given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get(getSpacesPath() + "/" + cleanUpId + "/tile/quadkey/120203302032.mvt");
+        .get(getSpacesPath() + "/" + cleanUpId + "/tile/quadkey/120203302032.mvt" + (flattened ? "f" : ""));
 
     r.then().statusCode(OK.code());
     InputStream inputStream = r.getBody().asInputStream();
@@ -598,11 +610,11 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
     Object userData = geometries.get(0).getUserData();
     LinkedHashMap<String, Object> t = (LinkedHashMap<String,Object>) userData;
 
-    assertEquals("Commerzbank-Arena", t.get("name"));
-    assertEquals("association football", t.get("sport"));
-    assertEquals(51500l, t.get("capacity"));
-    assertEquals("Eintracht Frankfurt", t.get("occupant"));
-    assertNotNull(t.get("@ns:com:here:xyz"));
+    assertEquals("Commerzbank-Arena", t.get(FIELD_PREFIX + "name"));
+    assertEquals("association football", t.get(FIELD_PREFIX + "sport"));
+    assertEquals(51500l, t.get(FIELD_PREFIX + "capacity"));
+    assertEquals("Eintracht Frankfurt", t.get(FIELD_PREFIX + "occupant"));
+    assertNotNull(t.get(FIELD_PREFIX + "@ns:com:here:xyz" + (flattened ? ".space" : "")));
 
     Coordinate[] coordinates = geom.getCoordinates();
 

@@ -20,6 +20,7 @@
 package com.here.xyz.hub.connectors;
 
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
+import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
 import static io.netty.handler.codec.http.HttpHeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
@@ -232,7 +233,7 @@ public class RpcClient {
    */
   private boolean expectBinaryResponse(Event event) {
     return event instanceof GetFeaturesByTileEvent
-        && ((GetFeaturesByTileEvent) event).getResponseType() == MVT
+        && (((GetFeaturesByTileEvent) event).getResponseType() == MVT || ((GetFeaturesByTileEvent) event).getResponseType() == MVT_FLATTENED)
         && getConnector().capabilities.mvtSupport
         && Payload.compareVersions(getConnector().getRemoteFunction().protocolVersion, BinaryResponse.BINARY_SUPPORT_VERSION) >= 0;
   }
