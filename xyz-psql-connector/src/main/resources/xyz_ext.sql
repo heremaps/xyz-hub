@@ -62,6 +62,7 @@
 -- DROP FUNCTION IF EXISTS xyz_qk_qk2bbox(text );
 -- DROP FUNCTION IF EXISTS xyz_qk_point2qk(geometry,integer );
 -- DROP FUNCTION IF EXISTS xyz_qk_bbox2zooml(geometry);
+-- DROP FUNCTION IF EXISTS xyz_qk_envelope2lrc(geometry, integer);
 --
 ------ SAMPLE QUERIES ----
 ------ ENV: XYZ-CIT ; SPACE: QgQCHStH ; OWNER: psql
@@ -151,7 +152,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 144
+ select 145
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
@@ -488,6 +489,47 @@ BEGIN
 END;
 $BODY$
 LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+create or replace function xyz_qk_envelope2lrc(geo geometry, lvl integer)
+    returns table(rowy integer, colx integer, level integer) as
+$body$
+declare
+    ibox geometry := st_envelope( geo );
+	topLeft geometry := st_setsrid( st_point( st_xmin(ibox), st_ymax(ibox)),4326);
+	botright geometry := st_setsrid( st_point( st_xmax(ibox), st_ymin(ibox) ),4326);
+    numrowscols constant integer := 1 << lvl;
+	tl record;
+	br record;
+    bColX integer := 0;
+	saveCounter integer := 0;
+begin
+ level = lvl;
+ tl = xyz_qk_point2lrc(topLeft,lvl);
+ br = xyz_qk_point2lrc(botright,lvl);
+ bColX = br.colx;
+
+ if( br.colx < tl.colx ) then
+  bColX = br.colx + numrowscols;
+ end if;
+ for i in tl.rowy .. br.rowy loop
+  for j in tl.colx .. bColX loop
+   rowy = i;
+   colx = (j % numrowscols);
+   saveCounter = saveCounter + 1;
+   
+   if( saveCounter < 10000 ) then
+    return next;
+   else 
+    return;
+   end if;	
+   
+  end loop; 
+ end loop;
+
+end;
+$body$ 
+language plpgsql immutable;
 ------------------------------------------------
 ------------------------------------------------
 -- Function: xyz_index_status()
