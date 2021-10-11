@@ -28,6 +28,8 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
+import com.here.xyz.util.DhString;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -129,10 +131,10 @@ public class PSQLIndexIT extends PSQLAbstractIT {
             String sqlSpaceSchema = "(select schema_name::text from information_schema.schemata where schema_name in ('xyz','public') order by 1 desc limit 1)";
 
             Statement stmt = connection.createStatement();
-            stmt.execute( String.format("select xyz_maintain_idxs_for_space( %s, 'foo');",sqlSpaceSchema));
+            stmt.execute( DhString.format("select xyz_maintain_idxs_for_space( %s, 'foo');",sqlSpaceSchema));
 
             /** Check which Indices are available */
-            ResultSet resultSet = stmt.executeQuery( String.format("select idx_name, idx_property, src from xyz_index_list_all_available(%s, 'foo');",sqlSpaceSchema));
+            ResultSet resultSet = stmt.executeQuery( DhString.format("select idx_name, idx_property, src from xyz_index_list_all_available(%s, 'foo');",sqlSpaceSchema));
             while(resultSet.next()){
                 String idxProperty = resultSet.getString("idx_property");
                 if(systemIndices.contains(idxProperty))
@@ -187,10 +189,10 @@ public class PSQLIndexIT extends PSQLAbstractIT {
             String sqlSpaceSchema = "(select schema_name::text from information_schema.schemata where schema_name in ('xyz','public') order by 1 desc limit 1)";
 
             Statement stmt = connection.createStatement();
-            stmt.execute( String.format("select xyz_maintain_idxs_for_space( %s, 'foo');",sqlSpaceSchema));
+            stmt.execute( DhString.format("select xyz_maintain_idxs_for_space( %s, 'foo');",sqlSpaceSchema));
 
             /** Check which Indices are available */
-            ResultSet resultSet = stmt.executeQuery( String.format("select idx_property, src from xyz_index_list_all_available(%s, 'foo');",sqlSpaceSchema));
+            ResultSet resultSet = stmt.executeQuery( DhString.format("select idx_property, src from xyz_index_list_all_available(%s, 'foo');",sqlSpaceSchema));
             while(resultSet.next()){
                 String idxProperty = resultSet.getString("idx_property");
                 if(systemIndices.contains(idxProperty)) {

@@ -26,6 +26,7 @@ import com.here.xyz.psql.Capabilities;
 import com.here.xyz.psql.PSQLXyzConnector;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.responses.XyzError;
+import com.here.xyz.util.DhString;
 
 public class QuadbinSQL {
 
@@ -88,7 +89,7 @@ public class QuadbinSQL {
                _pureEstimation = "xyz_postgis_selectivity( '"+schema+".\""+space+"\"'::regclass, 'geo',qkbbox) ",
                pureEstimation = "",
                estCalc = "cond_est_cnt",
-               qkGeo   = (!noBuffer ? String.format("ST_Buffer(qkbbox, -%f)",bufferSizeInDeg) : "qkbbox"),
+               qkGeo   = (!noBuffer ? DhString.format("ST_Buffer(qkbbox, -%f)",bufferSizeInDeg) : "qkbbox"),
                geoPrj  = ( convertGeo2Geojson ? "ST_AsGeojson( qkgeo , 8 )::jsonb" : "qkgeo" );
 
         if(quadMode == null)

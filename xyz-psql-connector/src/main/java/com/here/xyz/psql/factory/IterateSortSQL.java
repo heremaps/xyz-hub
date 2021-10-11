@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.util.DhString;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -36,7 +37,7 @@ public class IterateSortSQL {
     sortproperty = sortproperty.replaceAll(":(?i)(asc|desc)$", "");
 
     for (String p : sortproperty.split("\\."))
-      jpth = String.format(jformat, jpth, p);
+      jpth = DhString.format(jformat, jpth, p);
 
     return jpth;  
   }
@@ -51,12 +52,12 @@ public class IterateSortSQL {
     if (sortby != null && sortby.size() > 0)
       for (String s : sortby) 
       {
-        svalue += String.format("%s\"%s\"", (svalue.length() == 0 ? "" : ","), s);
+        svalue += DhString.format("%s\"%s\"", (svalue.length() == 0 ? "" : ","), s);
 
-        nhandle = String.format("jsonb_set(%s,'{h%d}',coalesce(%s,'\"%s\"'::jsonb))", nhandle, hDepth++, jpathFromSortProperty(s), PropertyDoesNotExistIndikator);
+        nhandle = DhString.format("jsonb_set(%s,'{h%d}',coalesce(%s,'\"%s\"'::jsonb))", nhandle, hDepth++, jpathFromSortProperty(s), PropertyDoesNotExistIndikator);
       }
 
-    return String.format("jsonb_set(%s,'{s}','[%s]')", nhandle, svalue);
+    return DhString.format("jsonb_set(%s,'{s}','[%s]')", nhandle, svalue);
   }
 
   private static String buildOrderByClause(List<String> sortby, boolean partOver_i) 
@@ -75,10 +76,10 @@ public class IterateSortSQL {
     {
      direction = (isDescending(s) ? "desc" : "");
 
-     orderByClause += String.format("%s %s %s", (orderByClause.length() == 0 ? "" : ","), jpathFromSortProperty(s), direction);
+     orderByClause += DhString.format("%s %s %s", (orderByClause.length() == 0 ? "" : ","), jpathFromSortProperty(s), direction);
     }
 
-    return String.format("order by %s, (jsondata->>'id') %s", orderByClause, direction); // id is always last sort crit with sort direction as last (most inner) index
+    return DhString.format("order by %s, (jsondata->>'id') %s", orderByClause, direction); // id is always last sort crit with sort direction as last (most inner) index
   }
 
   private static List<String> convHandle2sortbyList( String handle )
@@ -104,12 +105,12 @@ public class IterateSortSQL {
    int hdix = 1;
 
    if( h.has("i") ) // partOver_i
-   { ret.add(String.format(" and i > %d", h.getBigInteger("i")));
+   { ret.add(DhString.format(" and i > %d", h.getBigInteger("i")));
      return ret;
    }
 
    if( h.has("h") ) // start handle partitioned by id
-   { ret.add(String.format(" and (jsondata->>'id') >= '%s'",h.get("h").toString())); 
+   { ret.add(DhString.format(" and (jsondata->>'id') >= '%s'",h.get("h").toString())); 
      return ret;
    }
 
@@ -126,12 +127,12 @@ public class IterateSortSQL {
      if(s.startsWith("id"))
      { sortbyIdUseCase = true; break; } 
      else if( !bNull )
-      sqlWhereContinuation += String.format(" and %s = ('%s'::jsonb)->'%s'", jpathFromSortProperty(s), jo.toString() ,hkey );
+      sqlWhereContinuation += DhString.format(" and %s = ('%s'::jsonb)->'%s'", jpathFromSortProperty(s), jo.toString() ,hkey );
      else 
-      sqlWhereContinuation += String.format(" and %s is null", jpathFromSortProperty(s) );
+      sqlWhereContinuation += DhString.format(" and %s is null", jpathFromSortProperty(s) );
     }
 
-   sqlWhereContinuation += String.format(" and (jsondata->>'id') %s '%s'", ( descendingLast ? "<" : ">" ) ,h.get("h0").toString());
+   sqlWhereContinuation += DhString.format(" and (jsondata->>'id') %s '%s'", ( descendingLast ? "<" : ">" ) ,h.get("h0").toString());
 
    ret.add( sqlWhereContinuation );
 
@@ -158,15 +159,15 @@ public class IterateSortSQL {
        if(!bNull)
         switch( op )
         { case "=" : 
-          case "<" : sqlWhereContinuation += String.format(" and %s %s ('%s'::jsonb)->'%s'", jpathFromSortProperty(s), op ,jo.toString() ,hkey ); break;
-          case ">" : ret.add( sqlWhereContinuation + String.format(" and ( %1$s > ('%2$s'::jsonb)->'%3$s' )", jpathFromSortProperty(s), jo.toString() ,hkey ) );
-                     sqlWhereContinuation += String.format(" and ( %1$s is null )", jpathFromSortProperty(s) ); break;
+          case "<" : sqlWhereContinuation += DhString.format(" and %s %s ('%s'::jsonb)->'%s'", jpathFromSortProperty(s), op ,jo.toString() ,hkey ); break;
+          case ">" : ret.add( sqlWhereContinuation + DhString.format(" and ( %1$s > ('%2$s'::jsonb)->'%3$s' )", jpathFromSortProperty(s), jo.toString() ,hkey ) );
+                     sqlWhereContinuation += DhString.format(" and ( %1$s is null )", jpathFromSortProperty(s) ); break;
         }
        else 
         switch( op )
-        { case "=" : sqlWhereContinuation += String.format(" and %s is null", jpathFromSortProperty(s) ); break;
+        { case "=" : sqlWhereContinuation += DhString.format(" and %s is null", jpathFromSortProperty(s) ); break;
           case ">" : bNullLastEnd = true; break; // nothing greater than null. this is due to default "NULLS LAST" on ascending dbindex 
-          case "<" : sqlWhereContinuation += String.format(" and %s is not null", jpathFromSortProperty(s) ); break;
+          case "<" : sqlWhereContinuation += DhString.format(" and %s is not null", jpathFromSortProperty(s) ); break;
         }
      }
      
@@ -216,12 +217,12 @@ public class IterateSortSQL {
           partialSQL = "";
 
    if(! useHandle )
-    partialSQL = String.format( partialSortedIterate, 0, "", orderByClause, limit );
+    partialSQL = DhString.format( partialSortedIterate, 0, "", orderByClause, limit );
    else
    {
     List<String> continuationWhereClause = buildContinuationConditions( handle );
     for( int i = 0; i < continuationWhereClause.size(); i++ )
-     partialSQL += String.format(" %s %s", (partialSQL.length() > 0 ? " union all " : "") , String.format( partialSortedIterate, i, continuationWhereClause.get(i), orderByClause, limit ) );
+     partialSQL += DhString.format(" %s %s", (partialSQL.length() > 0 ? " union all " : "") , DhString.format( partialSortedIterate, i, continuationWhereClause.get(i), orderByClause, limit ) );
    } 
 
    String[] wrappedSql = partialSQL.split("##_SEARCHQRY_##");
@@ -229,7 +230,7 @@ public class IterateSortSQL {
    SQLQuery wrappedQry = new SQLQuery();
 
    if( part != null && part.length == 2 && part[1] > 1 )
-   { String partitionSql = String.format(" %s (( i %% %d ) = %d) ",searchQuery == null ? "" : "and", part[1], (part[0] - 1));
+   { String partitionSql = DhString.format(" %s (( i %% %d ) = %d) ",searchQuery == null ? "" : "and", part[1], (part[0] - 1));
      if( searchQuery == null ) searchQuery = new SQLQuery();
      searchQuery.append(partitionSql); 
    } 
@@ -246,7 +247,7 @@ public class IterateSortSQL {
     }
 
    String nextHandleJson = buildNextHandleAttribute(sortby, partOver_i ),
-          outerSQL = String.format( sortedIterate, (!useHandle ? "" : String.format("order by ord1, ord2 limit %1$d",limit) ) , nextHandleJson );
+          outerSQL = DhString.format( sortedIterate, (!useHandle ? "" : DhString.format("order by ord1, ord2 limit %1$d",limit) ) , nextHandleJson );
 
    String[] outs = outerSQL.split("##_INNER_SEARCH_QRY_##");
 
@@ -271,7 +272,7 @@ public class IterateSortSQL {
     + "select  jsonb_set('{\"type\":\"Feature\",\"properties\":{}}','{properties,handles}', jsonb_agg(jsonb_build_array(bucket, i_from, i_to ))),'{\"type\":\"Point\",\"coordinates\":[]}', null from iiiidata ";
 
   public static SQLQuery getIterateHandles(int nrHandles) 
-  { return new SQLQuery(String.format(bucketOfIdsSql, nrHandles)); }
+  { return new SQLQuery(DhString.format(bucketOfIdsSql, nrHandles)); }
     
 
 public static class IdxMaintenance // idx Maintenance
@@ -299,14 +300,14 @@ public static class IdxMaintenance // idx Maintenance
      else
      { direction = ""; idxPostFix += "1"; }
 
-     btreeClause += String.format("%s %s,", jpathFromSortProperty(s), direction);
-     idxComment += String.format("%s%s%s%s", idxComment.length()> 0 ? ",":"", pname, direction.length()>0 ? ":" : "", direction);
+     btreeClause += DhString.format("%s %s,", jpathFromSortProperty(s), direction);
+     idxComment += DhString.format("%s%s%s%s", idxComment.length()> 0 ? ",":"", pname, direction.length()>0 ? ":" : "", direction);
     }
 
     String hash = DigestUtils.md5Hex(idxComment).substring(0, 7),
-           idxName = String.format("idx_%s_%s_o%s",spaceName,hash,idxPostFix);
-    return new String[] { String.format( crtSortIdxSql, idxName, btreeClause, direction ), 
-                          String.format( crtSortIdxCommentSql, idxName, idxComment ) };
+           idxName = DhString.format("idx_%s_%s_o%s",spaceName,hash,idxPostFix);
+    return new String[] { DhString.format( crtSortIdxSql, idxName, btreeClause, direction ), 
+                          DhString.format( crtSortIdxCommentSql, idxName, idxComment ) };
    }
 */
 
@@ -327,7 +328,7 @@ public static class IdxMaintenance // idx Maintenance
       if( isDescending(s) != dFlip )
        direction = "desc"; 
  
-       normalizedSortProp += String.format("%s%s%s%s", normalizedSortProp.length()> 0 ? ",":"", pname, direction.length() > 0 ? ":" : "", direction);
+       normalizedSortProp += DhString.format("%s%s%s%s", normalizedSortProp.length()> 0 ? ",":"", pname, direction.length() > 0 ? ":" : "", direction);
      }
 
      return normalizedSortProp;
