@@ -30,6 +30,7 @@ import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.factory.MaintenanceSQL;
 import com.here.xyz.responses.maintenance.ConnectorStatus;
 import com.here.xyz.responses.maintenance.SpaceStatus;
+import com.here.xyz.util.DhString;
 import com.mchange.v2.c3p0.AbstractConnectionCustomizer;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
 import com.mchange.v2.c3p0.PooledDataSource;
@@ -321,7 +322,7 @@ public class MaintenanceClient {
         final ComboPooledDataSource cpds = new ComboPooledDataSource();
 
         cpds.setJdbcUrl(
-                String.format("jdbc:postgresql://%1$s:%2$d/%3$s?ApplicationName=%4$s&tcpKeepAlive=true",
+                DhString.format("jdbc:postgresql://%1$s:%2$d/%3$s?ApplicationName=%4$s&tcpKeepAlive=true",
                         useReplica ? dbSettings.getReplicaHost() : dbSettings.getHost(),
                         dbSettings.getPort(), dbSettings.getDb(), applicationName));
 

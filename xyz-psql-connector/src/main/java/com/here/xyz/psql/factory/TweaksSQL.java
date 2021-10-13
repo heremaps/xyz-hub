@@ -19,6 +19,8 @@
 
 package com.here.xyz.psql.factory;
 
+import com.here.xyz.util.DhString;
+
 public class TweaksSQL
 {
   public static final String SAMPLING = "sampling";
@@ -60,7 +62,7 @@ public class TweaksSQL
                      strength <= 30  ? 0.004  : 
                      strength <= 50  ? 0.008  :
                      strength <= 75  ? 0.01   : 0.05 );
-    return String.format("( ST_Perimeter(box2d(geo) ) > %f )", bxLen );              
+    return DhString.format("( ST_Perimeter(box2d(geo) ) > %f )", bxLen );              
    }
     
    String s = ( strength <=  1  ? "5"   : 
@@ -70,7 +72,7 @@ public class TweaksSQL
                 strength <= 50  ? "02"  :
                 strength <= 75  ? "004" : "001" );
      
-   return String.format("%s < '%s'",DstFunctIndexExpr,s);
+   return DhString.format("%s < '%s'",DstFunctIndexExpr,s);
   }
 
   public static float tableSampleRatio(int strength)
@@ -254,7 +256,7 @@ public class TweaksSQL
     +" select jsonb_set( jsonb_set( '{\"type\":\"Feature\"}', '{rcount}', to_jsonb( max(estim)::integer)), '{rtuples}', to_jsonb(max(rtup))) as rcount, null from iiidata ";
 
   public static String  
-   requestedTileBoundsSql = String.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/),
+   requestedTileBoundsSql = DhString.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/),
     
    estWithPgClass = estWithPgClass_A,
    estWithoutPgClass = estWithoutPgClass_A,

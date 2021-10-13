@@ -61,6 +61,8 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.DhString;
+
 import java.security.GeneralSecurityException;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -675,10 +677,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
   private String addEventValuesToHandle(SearchForFeaturesOrderByEvent event, String dbhandle)  throws JsonProcessingException
   {
    ObjectMapper om = new ObjectMapper();
-   String pQry = String.format( ",\"p\":%s", event.getPropertiesQuery() != null ? om.writeValueAsString(event.getPropertiesQuery()) : "[]" ),
-          tQry = String.format( ",\"t\":%s", event.getTags() != null ? om.writeValueAsString(event.getTags()) : "[]" ),
-          mQry = String.format( ",\"m\":%s", event.getPart() != null ? om.writeValueAsString(event.getPart()) : "[]" ),
-          hndl = String.format("%s%s%s%s}", dbhandle.substring(0, dbhandle.lastIndexOf("}")), pQry, tQry, mQry );
+   String pQry = DhString.format( ",\"p\":%s", event.getPropertiesQuery() != null ? om.writeValueAsString(event.getPropertiesQuery()) : "[]" ),
+          tQry = DhString.format( ",\"t\":%s", event.getTags() != null ? om.writeValueAsString(event.getTags()) : "[]" ),
+          mQry = DhString.format( ",\"m\":%s", event.getPart() != null ? om.writeValueAsString(event.getPart()) : "[]" ),
+          hndl = DhString.format("%s%s%s%s}", dbhandle.substring(0, dbhandle.lastIndexOf("}")), pQry, tQry, mQry );
    return hndl;
   }
 
@@ -762,7 +764,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
         event.setPropertiesQuery( pqs );
       }
-      entry.set(0, createHandle(event,String.format("{\"h\":\"%s\",\"s\":[]}",entry.get(1).toString())));
+      entry.set(0, createHandle(event,DhString.format("{\"h\":\"%s\",\"s\":[]}",entry.get(1).toString())));
     }
     return cl;
   }
@@ -861,7 +863,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       Matcher m = ERRVALUE_22P02.matcher(e.getMessage());
       return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
-                                .withErrorMessage(String.format("clustering.property: string(%s) can not be converted to numeric",( m.find() ? m.group(1) : "" )));
+                                .withErrorMessage(DhString.format("clustering.property: string(%s) can not be converted to numeric",( m.find() ? m.group(1) : "" )));
      }
 
      case "22P05" :
@@ -871,7 +873,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       Matcher m = ERRVALUE_22P05.matcher(e.getMessage());
 
       if( m.find() )
-       eMsg = String.format( eMsg + ": %s - %s",m.group(1), m.group(2));
+       eMsg = DhString.format( eMsg + ": %s - %s",m.group(1), m.group(2));
 
       return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( eMsg );
      }

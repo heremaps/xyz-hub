@@ -42,6 +42,8 @@ import com.amazonaws.services.dynamodbv2.model.UpdateTimeToLiveRequest;
 import com.amazonaws.services.s3.model.Region;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.util.ARN;
+import com.here.xyz.util.DhString;
+
 import io.vertx.core.WorkerExecutor;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -67,7 +69,7 @@ class DynamoClient {
 
     if (isLocal()) {
       builder.setCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("dummy", "dummy")));
-      final String endpoint = String.format("http://%s:%s", arn.getRegion(), Integer.parseInt(arn.getAccountId()));
+      final String endpoint = DhString.format("http://%s:%s", arn.getRegion(), Integer.parseInt(arn.getAccountId()));
       builder.setEndpointConfiguration(new EndpointConfiguration(endpoint, "US-WEST-1"));
     }
     else if (Service.configuration.USE_AWS_INSTANCE_CREDENTIALS_WITH_REFRESH) {

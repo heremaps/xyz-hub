@@ -26,6 +26,8 @@ import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.util.DhString;
+
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -80,7 +82,7 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
   @Override
   public Future<Space> getSpace(Marker marker, String spaceId) {
     Promise<Space> p = Promise.promise();
-    SQLQuery query = new SQLQuery(String.format("SELECT config FROM %s WHERE id = ?", SPACE_TABLE), spaceId);
+    SQLQuery query = new SQLQuery(DhString.format("SELECT config FROM %s WHERE id = ?", SPACE_TABLE), spaceId);
     client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
         Optional<String> config = out.result().getRows().stream().map(r -> r.getString("config")).findFirst();
@@ -101,7 +103,7 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
   protected Future<Void> storeSpace(Marker marker, Space space) {
     SQLQuery query = null;
     try {
-      query = new SQLQuery(String.format(
+      query = new SQLQuery(DhString.format(
           "INSERT INTO %s(id, owner, cid, config) VALUES (?, ?, ?, cast(? as JSONB)) ON CONFLICT (id) DO UPDATE SET owner = excluded.owner, cid = excluded.cid, config = excluded.config",
           SPACE_TABLE), space.getId(), space.getOwner(), space.getCid(),
           XyzSerializable.STATIC_MAPPER.get().writeValueAsString(space));
@@ -114,7 +116,7 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
 
   @Override
   protected Future<Space> deleteSpace(Marker marker, String spaceId) {
-    SQLQuery query = new SQLQuery(String.format("DELETE FROM %s WHERE id = ?", SPACE_TABLE), spaceId);
+    SQLQuery query = new SQLQuery(DhString.format("DELETE FROM %s WHERE id = ?", SPACE_TABLE), spaceId);
     return get(marker, spaceId).compose(space -> updateWithParams(space, query).map(space));
   }
 
@@ -123,7 +125,7 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
       SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery) {
     //BUILD THE QUERY
     List<String> whereConjunctions = new ArrayList<>();
-    String baseQuery = String.format("SELECT config FROM %s", SPACE_TABLE);
+    String baseQuery = DhString.format("SELECT config FROM %s", SPACE_TABLE);
     List<String> authorizationWhereClauses = generateWhereClausesFor(authorizedCondition);
     if (!authorizationWhereClauses.isEmpty()) {
       authorizationWhereClauses.add("config->'shared' = 'true'");

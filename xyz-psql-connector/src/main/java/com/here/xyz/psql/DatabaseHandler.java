@@ -52,6 +52,7 @@ import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.responses.changesets.CompactChangeset;
+import com.here.xyz.util.DhString;
 import com.mchange.v2.c3p0.AbstractConnectionCustomizer;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
 import com.mchange.v2.c3p0.PooledDataSource;
@@ -253,7 +254,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         final ComboPooledDataSource cpds = new ComboPooledDataSource();
 
         cpds.setJdbcUrl(
-                String.format("jdbc:postgresql://%1$s:%2$d/%3$s?ApplicationName=%4$s&tcpKeepAlive=true",
+                DhString.format("jdbc:postgresql://%1$s:%2$d/%3$s?ApplicationName=%4$s&tcpKeepAlive=true",
                         useReplica ? dbSettings.getReplicaHost() : dbSettings.getHost(), dbSettings.getPort(), dbSettings.getDb(), applicationName));
 
         cpds.setUser(dbSettings.getUser());
@@ -738,7 +739,7 @@ public abstract class DatabaseHandler extends StorageConnector {
      connection.setAutoCommit(true);
 
      try(Statement stmt = connection.createStatement())
-     { stmt.executeQuery(String.format( lock? lockSql : unlockSql,tablename)); }
+     { stmt.executeQuery(DhString.format( lock? lockSql : unlockSql,tablename)); }
 
      connection.setAutoCommit(cStateFlag);
     }
@@ -1090,7 +1091,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         final FeatureCollection featureCollection = new FeatureCollection();
         featureCollection._setFeatures(sb.toString());
 
-        if (sb.length() > MAX_RESULT_CHARS) throw new SQLException(String.format("Maxchar limit(%d) reached", MAX_RESULT_CHARS));
+        if (sb.length() > MAX_RESULT_CHARS) throw new SQLException(DhString.format("Maxchar limit(%d) reached", MAX_RESULT_CHARS));
 
         if( hint > 0 && numFeatures > 0 && numFeatures == ((SearchForFeaturesEvent) event).getLimit() ) {
           featureCollection.setHandle(nextHandle);
@@ -1114,7 +1115,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             br.setBytes(rs.getBytes(1));
 
         if (br.getBytes() != null && br.getBytes().length > MAX_RESULT_CHARS)
-            throw new SQLException(String.format("Maximum bytes limit (%d) reached", MAX_RESULT_CHARS));
+            throw new SQLException(DhString.format("Maximum bytes limit (%d) reached", MAX_RESULT_CHARS));
 
         return br;
     }
@@ -1293,7 +1294,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         final FeatureCollection featureCollection = new FeatureCollection();
         featureCollection._setFeatures(sb.toString());
 
-        if( MAX_RESULT_CHARS <= sb.length() ) throw new SQLException(String.format("Maxchar limit(%d) reached", MAX_RESULT_CHARS));
+        if( MAX_RESULT_CHARS <= sb.length() ) throw new SQLException(DhString.format("Maxchar limit(%d) reached", MAX_RESULT_CHARS));
 
         if (numFeatures > 0 && numFeatures == ((IterateFeaturesEvent) event).getLimit()) {
             featureCollection.setHandle(id);

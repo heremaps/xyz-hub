@@ -20,6 +20,8 @@
 package com.here.xyz.hub.config;
 
 import com.here.xyz.hub.Service;
+import com.here.xyz.util.DhString;
+
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -89,9 +91,9 @@ public class JDBCConfig {
           return;
         }
         List<String> batchQueries = Arrays.asList(
-            String.format("CREATE SCHEMA %s", SCHEMA),
-            String.format("CREATE table  %s (id VARCHAR(50) primary key, owner VARCHAR (50), config JSONB)", CONNECTOR_TABLE),
-            String.format("CREATE table  %s (id VARCHAR(255) primary key, owner VARCHAR (50), cid VARCHAR (255), config JSONB)", SPACE_TABLE)
+            DhString.format("CREATE SCHEMA %s", SCHEMA),
+            DhString.format("CREATE table  %s (id VARCHAR(50) primary key, owner VARCHAR (50), config JSONB)", CONNECTOR_TABLE),
+            DhString.format("CREATE table  %s (id VARCHAR(255) primary key, owner VARCHAR (50), cid VARCHAR (255), config JSONB)", SPACE_TABLE)
         );
 
         Promise<Void> onComplete = Promise.promise();
