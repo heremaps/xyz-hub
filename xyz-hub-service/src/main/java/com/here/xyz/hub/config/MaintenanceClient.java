@@ -296,8 +296,8 @@ public class MaintenanceClient {
         }
 
         /** Init dataSource, readDataSource ..*/
-        logger.info("{}: {} Config is missing -> add new dbInstance to Pool. DbInstanceMap size:{}", connectorId, dbInstanceMap.size());
-        final ComboPooledDataSource source = getComboPooledDataSource(dbSettings, connectorId , false);
+        logger.info("{}: Config is missing -> add new dbInstance to Pool. DbInstanceMap size:{}", connectorId, dbInstanceMap.size());
+        final ComboPooledDataSource source = getComboPooledDataSource(dbSettings, connectorId+"["+(ecps.length() < 10 ? ecps : ecps.substring(0,9))+"]", false);
 
         Map<String, String> m = new HashMap<>();
         m.put(C3P0EXT_CONFIG_SCHEMA, dbSettings.getSchema());
