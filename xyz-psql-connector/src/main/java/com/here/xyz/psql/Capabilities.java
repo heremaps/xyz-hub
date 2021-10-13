@@ -78,7 +78,7 @@ public class Capabilities {
         /** Check if custom Indices are available. Eg.: properties.foo1&f.foo2*/
         List<String> indices = IndexList.getIndexList(space, connector);
 
-        /** The table is small and not indexed. It's not listed in the xyz_idxs_status table */
+        /** The table has not many records - Indices are not required */
         if (indices == null) {
           return true;
         }
