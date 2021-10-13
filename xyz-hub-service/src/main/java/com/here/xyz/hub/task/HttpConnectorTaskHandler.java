@@ -179,19 +179,19 @@ public class HttpConnectorTaskHandler {
   }
 
   private static void checkException(Exception e, Handler<AsyncResult<XyzResponse>> handler, String connectorId){
-
-    logger.error("Connector[{}]: {}", connectorId, e.getMessage() != null && e.getMessage().length() > 300 ? e.getMessage().substring(0,300)+"..." : e.getMessage());
-
     if(e instanceof SQLException) {
       if(((SQLException) e).getSQLState() != null){
         switch (((SQLException) e).getSQLState()){
           case "42501" :
+            logger.warn("Connector[{}]: {}", connectorId, e.getMessage() != null && e.getMessage().length() > 300 ? e.getMessage().substring(0,300)+"..." : e.getMessage());
             handler.handle(Future.failedFuture(new HttpException(UNAUTHORIZED, "Permission denied!")));
             break;
           case "57014" :
+            logger.warn("Connector[{}]: {}", connectorId, e.getMessage() != null && e.getMessage().length() > 300 ? e.getMessage().substring(0,300)+"..." : e.getMessage());
             handler.handle(Future.failedFuture(new HttpException(GATEWAY_TIMEOUT, "Query got aborted due to timeout!")));
             break;
           default:
+            logger.error("Connector[{}]: {}", connectorId, e.getMessage() != null && e.getMessage().length() > 300 ? e.getMessage().substring(0,300)+"..." : e.getMessage());
             handler.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "SQL Query error "+((SQLException) e).getSQLState()+"!")));
         }
       }
@@ -199,21 +199,28 @@ public class HttpConnectorTaskHandler {
         switch (e.getMessage().toLowerCase()){
           case "an attempt by a client to checkout a connection has timed out." :
           case "connections could not be acquired from the underlying database!" :
+            logger.warn("Connector[{}]: {}", connectorId, e.getMessage() != null && e.getMessage().length() > 300 ? e.getMessage().substring(0,300)+"..." : e.getMessage());
             handler.handle(Future.failedFuture(new HttpException(GATEWAY_TIMEOUT, "Could not get a connection to the database!")));
             break;
           default:
+            logger.error("Connector[{}]: {}", connectorId, e.getMessage() != null && e.getMessage().length() > 300 ? e.getMessage().substring(0,300)+"..." : e.getMessage());
             handler.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "SQL Query error!")));
             break;
         }
       }
     }
-    else if (e instanceof NoPermissionException)
-      handler.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Database user dose not have the required permissions!")));
-    else if (e instanceof IOException)
+    else if (e instanceof NoPermissionException) {
+      logger.warn("Connector[{}]: {}", connectorId, e.getMessage() != null && e.getMessage().length() > 300 ? e.getMessage().substring(0,300)+"..." : e.getMessage());
+      handler.handle(Future.failedFuture(new HttpException(UNAUTHORIZED, "Database user dose not have the required permissions!")));
+    }else if (e instanceof IOException) {
+      logger.warn("Connector[{}]: {}", connectorId, e.getMessage() != null && e.getMessage().length() > 300 ? e.getMessage().substring(0,300)+"..." : e.getMessage());
       handler.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Cant execute database script!")));
-    else if (e instanceof DecodeException)
+    }else if (e instanceof DecodeException) {
+      logger.warn("Connector[{}]: {}", connectorId, e.getMessage() != null && e.getMessage().length() > 300 ? e.getMessage().substring(0,300)+"..." : e.getMessage());
       handler.handle(Future.failedFuture(new HttpException(BAD_REQUEST, "Cant decrypt ECPS - check passphrase!")));
-    else
+    }else{
+      logger.error("Connector[{}]: {}", connectorId, e.getMessage() != null && e.getMessage().length() > 300 ? e.getMessage().substring(0,300)+"..." : e.getMessage());
       handler.handle(Future.failedFuture(new HttpException(BAD_GATEWAY, "Unexpected Exception!")));
+    }
   }
 }
