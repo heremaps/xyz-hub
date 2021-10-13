@@ -23,6 +23,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.connectors.SimulatedContext;
 import com.here.xyz.connectors.StorageConnector;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
@@ -137,9 +138,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             return new ErrorResponse().withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage("ConnectorId is missing as param in the Connector-Config! ");
         }
 
-        if (event.getWarmupCount() == 0) {
-            SQLQuery query = new SQLQuery("SELECT 1");
-
+        if (event.getWarmupCount() == 0 && context instanceof SimulatedContext) {
             /** run DB-Maintenance - warmUp request is used */
             if (event.getMinResponseTime() != 0) {
                 logger.info("{} dbMaintainer start", traceItem);
@@ -147,12 +146,14 @@ public abstract class DatabaseHandler extends StorageConnector {
                 logger.info("{} dbMaintainer finished", traceItem);
                 return new HealthStatus().withStatus("OK");
             }
+        }
 
-            executeQuery(query, (rs) -> null, dataSource);
-            // establish a connection to the replica, if such is set.
-            if (dataSource != readDataSource) {
-                executeQuery(query, (rs) -> null, readDataSource);
-            }
+        SQLQuery query = new SQLQuery("SELECT 1");
+        executeQuery(query, (rs) -> null, dataSource);
+
+        // establish a connection to the replica, if such is set.
+        if (dataSource != readDataSource) {
+            executeQuery(query, (rs) -> null, readDataSource);
         }
 
         return ((HealthStatus) super.processHealthCheckEvent(event)).withStatus("OK");
