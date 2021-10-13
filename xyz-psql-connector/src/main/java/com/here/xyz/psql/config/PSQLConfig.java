@@ -28,6 +28,8 @@ import com.here.xyz.connectors.SimulatedContext;
 import com.here.xyz.events.Event;
 import com.here.xyz.psql.DatabaseMaintainer;
 import com.here.xyz.util.Hasher;
+import com.here.xyz.util.DhString;
+
 import java.io.UnsupportedEncodingException;
 import java.security.GeneralSecurityException;
 import java.util.Arrays;
@@ -171,7 +173,7 @@ public class PSQLConfig {
 
     ecpsSnippet = ecpsSnippet.length() < 10 ? ecpsSnippet : ecpsSnippet.substring(0,9);
 
-    return String.format("%s[%s]", applicationName, ecpsSnippet );
+    return DhString.format("%s[%s]", applicationName, ecpsSnippet );
   }
 
   public String readTableFromEvent(Event event) {

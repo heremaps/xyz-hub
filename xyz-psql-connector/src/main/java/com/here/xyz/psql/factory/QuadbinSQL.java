@@ -27,6 +27,7 @@ import com.here.xyz.psql.Capabilities;
 import com.here.xyz.psql.PSQLXyzConnector;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.responses.XyzError;
+import com.here.xyz.util.DhString;
 
 public class QuadbinSQL {
 
@@ -90,13 +91,13 @@ public class QuadbinSQL {
         String realCountCondition = "",
                _pureEstimation = "select sum( ti.tbl_est_cnt * xyz_postgis_selectivity( ti.tbloid, 'geo',qkbbox) )::bigint from tblinfo ti",
                pureEstimation = "",
-               resultQkGeo = (!noBuffer ? String.format("ST_Buffer(qkbbox, -%f)",bufferSizeInDeg) : "qkbbox"),
+               resultQkGeo = (!noBuffer ? DhString.format("ST_Buffer(qkbbox, -%f)",bufferSizeInDeg) : "qkbbox"),
                geoPrj  = ( convertGeo2Geojson ? "ST_AsGeojson( qkgeo , 8 )::jsonb" : "qkgeo" ),
-               bboxSql = String.format( String.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() ),
-               coveringQksSql = ( !isTileRequest ? String.format("select xyz_qk_lrc2qk(rowy,colx,level) as qk from xyz_qk_envelope2lrc( %s, %d)", bboxSql, effectiveLevel)
+               bboxSql = DhString.format( DhString.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() ),
+               coveringQksSql = ( !isTileRequest ? DhString.format("select xyz_qk_lrc2qk(rowy,colx,level) as qk from xyz_qk_envelope2lrc( %s, %d)", bboxSql, effectiveLevel)
                                                  :" SELECT unnest(xyz_qk_child_calculation('"+(tile.asQuadkey() == null ? 0 :tile.asQuadkey())+"',"+resolution+",null)) as qk" );
         if( clippedOnBbox )
-         resultQkGeo = String.format("ST_Intersection(%s,%s)",resultQkGeo,bboxSql);
+         resultQkGeo = DhString.format("ST_Intersection(%s,%s)",resultQkGeo,bboxSql);
 
         if(quadMode == null)
             quadMode = QuadbinSQL.COUNTMODE_MIXED;
