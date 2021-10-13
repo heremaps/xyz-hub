@@ -344,7 +344,7 @@ public class RpcClient {
     }
     if (payload instanceof ErrorResponse) {
       ErrorResponse errorResponse = (ErrorResponse) payload;
-      logger.warn(marker, "The connector {} responded with an error of type {}: {}", getConnector().id, errorResponse.getError(),
+      logger.warn(marker, "The connector {} [{}] responded with an error of type {}: {}", getConnector().id, (getConnector().getRemoteFunction()).getClass().getSimpleName() ,errorResponse.getError(),
           errorResponse.getErrorMessage());
 
       switch (errorResponse.getError()) {
