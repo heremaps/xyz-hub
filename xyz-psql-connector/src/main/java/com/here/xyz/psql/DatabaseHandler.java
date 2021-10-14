@@ -767,7 +767,7 @@ public abstract class DatabaseHandler extends StorageConnector {
    
       String[] ptharr = pth.split("\\.");
       for( int i = 0; i < ptharr.length; i++ )
-       jpth = String.format("(%s->'%s')", jpth, ptharr[i]);
+       jpth = DhString.format("(%s->'%s')", jpth, ptharr[i]);
 
       return jpth;  
      }
@@ -853,11 +853,11 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         if( bUsePartitions ) // must be somehow over id to assure uniqeness over partitions
         { if( partitions.byHash() )
-           query = String.format( "%s partition by list ( (('x' || left( md5((%s)::text), 4 ))::bit(16)::integer %% %d) )", query, partitions.jkey, partitions.size );
+           query = DhString.format( "%s partition by list ( (('x' || left( md5(%s->>0), 4 ))::bit(16)::integer %% %d) )", query, partitions.jkey, partitions.size );
           else if( partitions.byList() ) 
-           query = String.format( "%s partition by list ( ((%s)::text%s) )", query, partitions.jkey, partitions.isNumeric ? "::numeric" : "" );
+           query = DhString.format( "%s partition by list ( (%s%s) )", query, partitions.jkey, partitions.isNumeric ? "::numeric" : "->>0" );
           else if( partitions.byRange() ) 
-           query = String.format( "%s partition by range ( ((%s)::text%s) )", query, partitions.jkey, partitions.isNumeric ? "::numeric" : "" ); 
+           query = DhString.format( "%s partition by range ( (%s%s) )", query, partitions.jkey, partitions.isNumeric ? "::numeric" : "->>0" ); 
         }
 
         query = SQLQuery.replaceVars(query, schema, tableName);
@@ -873,14 +873,14 @@ public abstract class DatabaseHandler extends StorageConnector {
          if( hint >= 0 )
          { partitionTableName = tableName + "_" + hint;
            if( partitions.byHash() )
-            query = String.format( "create table ${schema}.${table} partition of ${schema}.\"%s\" for values in (%d)", tableName, hint);
+            query = DhString.format( "create table ${schema}.${table} partition of ${schema}.\"%s\" for values in (%d)", tableName, hint);
            else if( partitions.byList() )
-            query = String.format( "create table ${schema}.${table} partition of ${schema}.\"%s\" for values in (%s)", 
-                                    tableName, (partitions.isNumeric ? partitions.listArr.get(hint).toString() : String.format("'%s'", partitions.listArr.get(hint).toString())) );
+            query = DhString.format( "create table ${schema}.${table} partition of ${schema}.\"%s\" for values in (%s)", 
+                                    tableName, (partitions.isNumeric ? partitions.listArr.get(hint).toString() : DhString.format("'%s'", partitions.listArr.get(hint).toString())) );
            else if( partitions.byRange() ) 
-            query = String.format( "create table ${schema}.${table} partition of ${schema}.\"%s\" for values from (%s) to (%s)", 
-                                    tableName, (partitions.isNumeric ? partitions.rangeArr.get(hint).get(0).toString() : String.format("'%s'", partitions.rangeArr.get(hint).get(0).toString())), 
-                                               (partitions.isNumeric ? partitions.rangeArr.get(hint).get(1).toString() : String.format("'%s'", partitions.rangeArr.get(hint).get(1).toString())) );
+            query = DhString.format( "create table ${schema}.${table} partition of ${schema}.\"%s\" for values from (%s) to (%s)", 
+                                    tableName, (partitions.isNumeric ? partitions.rangeArr.get(hint).get(0).toString() : DhString.format("'%s'", partitions.rangeArr.get(hint).get(0).toString())), 
+                                               (partitions.isNumeric ? partitions.rangeArr.get(hint).get(1).toString() : DhString.format("'%s'", partitions.rangeArr.get(hint).get(1).toString())) );
 
            query = SQLQuery.replaceVars(query, replacements, schema, tableName, partitionTableName);
            stmt.addBatch(query);

@@ -831,7 +831,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
 
   private static final Pattern ERRVALUE_22P02 = Pattern.compile("invalid input syntax for type numeric:\\s+\"([^\"]*)\"\\s+Query:"),
-                               ERRVALUE_22P05 = Pattern.compile("ERROR:\\s+(.*)\\s+Detail:\\s+(.*)\\s+Where:");
+                               ERRVALUE_22P05 = Pattern.compile("ERROR:\\s+(.*)\\s+Detail:\\s+(.*)\\s+Where:"),
+                               ERRVALUE_23514 = Pattern.compile("ERROR:\\s+.*\\s+Detail: Partition key\\s+.*= \\((.*)\\)\\.\\s+Call getNextException");
 
   protected XyzResponse checkSQLException(SQLException e, String table) {
     logger.warn("{} SQL Error ({}) on {} : {}", traceItem, e.getSQLState(), table, e);
@@ -876,6 +877,14 @@ public class PSQLXyzConnector extends DatabaseHandler {
        eMsg = DhString.format( eMsg + ": %s - %s",m.group(1), m.group(2));
 
       return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( eMsg );
+     }
+
+     case "23514" : // specific handling using partitions
+     {
+      if( e.getMessage() == null || e.getMessage().indexOf("Detail: Partition key") == -1 ) break;
+      Matcher m = ERRVALUE_23514.matcher(e.getMessage());
+      return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
+                                .withErrorMessage(DhString.format("No partition found. Invalid value %s for partition key",( m.find() && m.groupCount() == 1 ? ("'"+ m.group(1) +"'") : "" )));
      }
 
      case "42P01" :
