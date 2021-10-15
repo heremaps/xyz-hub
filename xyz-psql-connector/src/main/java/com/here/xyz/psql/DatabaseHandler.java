@@ -961,8 +961,18 @@ public abstract class DatabaseHandler extends StorageConnector {
     private final int F_Iterate = 1,
                       F_IterateOrderBy  = 2;
 
+    private boolean columnExists(ResultSet rs, String columnName) {
+      try {
+        for (int i = 1; i <= rs.getMetaData().getColumnCount(); i++) {
+          if (columnName.equalsIgnoreCase(rs.getMetaData().getColumnName(i))) return true;
+        }
+      } catch (SQLException e) {}
+      return false;
+    }
+
     protected FeatureCollection _defaultFeatureResultSetHandler(ResultSet rs, boolean skipNullGeom) throws SQLException {
         int hint = ((event instanceof IterateFeaturesEvent) ? F_Iterate : ((event instanceof SearchForFeaturesOrderByEvent ) ? F_IterateOrderBy : 0) );
+        boolean fromHistoryExists = columnExists(rs, "fromHistory");
         String nextHandle = "";
 
         StringBuilder sb = new StringBuilder();
@@ -972,13 +982,17 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         while (rs.next() && MAX_RESULT_CHARS > sb.length()) {
             String geom = rs.getString(2);
-            if( skipNullGeom && (geom == null) ) continue;
+            if (skipNullGeom && (geom == null)) continue;
+
             sb.append(rs.getString(1));
             sb.setLength(sb.length() - 1);
             sb.append(",\"geometry\":");
             sb.append(geom == null ? "null" : geom);
+            sb.append(fromHistoryExists ? (",\"fromHistory\":" + rs.getBoolean("fromHistory")) : "");
             sb.append("}");
             sb.append(",");
+
+
 
             if ( hint > 0 ) numFeatures++;
             switch( hint )

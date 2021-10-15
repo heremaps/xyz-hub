@@ -467,7 +467,7 @@ public class FeatureTaskHandler {
     if (nc.jwt != null) {
       event.setTid(nc.jwt.tid);
       event.setAid(nc.jwt.aid);
-      event.setJwt(nc.jwt.jwt); 
+      event.setJwt(nc.jwt.jwt);
     }
 
     if (connector != null && connector.forwardParamsConfig != null) {
@@ -1561,6 +1561,10 @@ public class FeatureTaskHandler {
 
         //Set the head state( i.e. the latest version in the database )
         if (task.modifyOp.entries.get(position).head == null || uuid != null && !uuid.equals(requestedUuid))
+          task.modifyOp.entries.get(position).head = feature;
+
+        //Set the head in case the feature is not from history table
+        if (feature.get("fromHistory") == null || !((boolean) feature.get("fromHistory")))
           task.modifyOp.entries.get(position).head = feature;
 
         //Set the base state( i.e. the original version that the user was editing )

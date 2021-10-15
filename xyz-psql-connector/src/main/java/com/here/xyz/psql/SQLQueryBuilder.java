@@ -301,7 +301,7 @@ public class SQLQueryBuilder {
     private static String map2MvtGeom( GetFeaturesByBBoxEvent event, BBox bbox, String tweaksGeoSql )
     {
      boolean bExtendTweaks = // -> 2048 only if tweaks or viz been specified explicit
-      ( "viz".equals(event.getOptimizationMode()) || (event.getTweakParams() != null && event.getTweakParams().size() > 0 ) ); 
+      ( "viz".equals(event.getOptimizationMode()) || (event.getTweakParams() != null && event.getTweakParams().size() > 0 ) );
 
      int extend = ( bExtendTweaks ? 2048 : 4096 ), extendPerMargin = extend / WebMercatorTile.TileSizeInPixel, extendWithMargin = extend, level = -1, tileX = -1, tileY = -1, margin = 0;
 
@@ -408,7 +408,7 @@ public class SQLQueryBuilder {
      final SQLQuery searchQuery = generateSearchQuery(event,dataSource),
                     tweakQuery = new SQLQuery(twqry);
 
-     if( !bEnsureMode || !bConvertGeo2Geojson )  
+     if( !bEnsureMode || !bConvertGeo2Geojson )
       return generateCombinedQuery(event, tweakQuery, searchQuery , dataSource, bConvertGeo2Geojson, null, tblSampleRatio );
 
      /* TweaksSQL.ENSURE and geojson requested (no mvt) */
@@ -479,7 +479,7 @@ public class SQLQueryBuilder {
 
          case TweaksSQL.SIMPLIFICATION_ALGORITHM_A05 : // gridbytilelevel - convert to/from mvt
          {
-          if(!bMvtRequested)   
+          if(!bMvtRequested)
            tweaksGeoSql = map2MvtGeom( event, bbox, tweaksGeoSql );
           bTestTweaksGeoIfNull = false;
          }
@@ -631,7 +631,7 @@ public class SQLQueryBuilder {
         return query;
     }
 
-    public static SQLQuery buildFeaturesSortQuery(final SearchForFeaturesOrderByEvent event, DataSource dataSource) throws Exception 
+    public static SQLQuery buildFeaturesSortQuery(final SearchForFeaturesOrderByEvent event, DataSource dataSource) throws Exception
     {
         SQLQuery searchQuery = generateSearchQuery(event, dataSource);
 
@@ -646,7 +646,7 @@ public class SQLQueryBuilder {
         return query;
     }
 
-    public static SQLQuery buildGetIterateHandlesQuery( int nrHandles ) throws Exception 
+    public static SQLQuery buildGetIterateHandlesQuery( int nrHandles ) throws Exception
     { return IterateSortSQL.getIterateHandles(nrHandles);  }
 
     public static SQLQuery buildDeleteFeaturesByTagQuery(boolean includeOldStates, SQLQuery searchQuery) {
@@ -680,9 +680,9 @@ public class SQLQueryBuilder {
                     SQLQuery.createSQLArray(ids.toArray(new String[0]), "text", dataSource));
         }else{
             final SQLQuery query;
-            query = new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?) ");
+            query = new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0'),'0' as fromHistory FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?) ");
             query.append("UNION ");
-            query.append("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${hsttable} WHERE uuid = ANY(?) ");
+            query.append("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0'),'1' as fromHistory FROM ${schema}.${hsttable} WHERE uuid = ANY(?) ");
             query.addParameter( SQLQuery.createSQLArray(ids.toArray(new String[0]), "text", dataSource));
             query.addParameter( SQLQuery.createSQLArray(values.toArray(new String[0]), "text", dataSource));
             return query;
@@ -838,7 +838,7 @@ public class SQLQueryBuilder {
 
         try{
              idx_manual_json = (new ObjectMapper()).writeValueAsString( new IdxManual(searchableProperties, sortableProperties) );
-        } 
+        }
         catch (JsonProcessingException e)  { throw new SQLException("_buildSearchablePropertiesUpsertQuery", e); }
 
         idx_manual_json = ( idx_manual_json == null ? "null" : DhString.format("'%s'::jsonb", idx_manual_json ));
@@ -967,7 +967,7 @@ public class SQLQueryBuilder {
 
     private static SQLQuery generateCombinedQueryTweaks(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, String tweaksgeo, boolean bTestTweaksGeoIfNull, DataSource dataSource, float sampleRatio) throws SQLException
     {
-     String tSample = ( sampleRatio <= 0.0 ? "" : DhString.format("tablesample system(%.6f) repeatable(499)", 100.0 * sampleRatio) ); 
+     String tSample = ( sampleRatio <= 0.0 ? "" : DhString.format("tablesample system(%.6f) repeatable(499)", 100.0 * sampleRatio) );
 
      final SQLQuery query = new SQLQuery();
 
@@ -997,7 +997,7 @@ public class SQLQueryBuilder {
     private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, DataSource dataSource, boolean bConvertGeo2Geojson, String h3Index, float sampleRatio ) throws SQLException
     {
         String tSample = ( sampleRatio <= 0.0 ? "" : DhString.format("tablesample system(%.6f) repeatable(499)", 100.0 * sampleRatio) );
-        
+
         final SQLQuery query = new SQLQuery();
 
         if(h3Index != null)

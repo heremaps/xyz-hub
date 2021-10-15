@@ -315,6 +315,10 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
     }
 
     public T create() throws ModifyOpError, HttpException {
+      if (base != null) {
+        throw new ModifyOpError("The feature with id " + getId(base) + " was deleted and the provided UUID " + inputUUID + " matches an old state.");
+      }
+
       isModified = true;
       return fromMap(input);
     }
