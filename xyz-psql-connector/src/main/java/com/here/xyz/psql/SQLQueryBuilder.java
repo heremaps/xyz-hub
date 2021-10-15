@@ -254,7 +254,7 @@ public class SQLQueryBuilder {
     public static SQLQuery buildQuadbinClusteringQuery(GetFeaturesByBBoxEvent event,
                                                           BBox bbox, int relResolution, int absResolution, String countMode,
                                                           PSQLConfig config, boolean noBuffer) {
-        boolean isTileRequest = (event instanceof GetFeaturesByTileEvent),
+        boolean isTileRequest = (event instanceof GetFeaturesByTileEvent) && ((GetFeaturesByTileEvent) event).getMargin() == 0,
                 clippedOnBbox = (!isTileRequest && event.getClip());
 
         final WebMercatorTile tile = getTileFromBbox(bbox);

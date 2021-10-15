@@ -115,7 +115,7 @@ public class QuadbinSQL {
                 if(propQuery != null){
                     pureEstimation =
                                     "  SELECT xyz_count_estimation(concat(" +
-                                    "      'select 1 from "+ schema+".\""+space+"\""+
+                                    "      'select 1 from ${schema}.${table}"+
                                     "       WHERE ST_Intersects(geo, xyz_qk_qk2bbox(''',qk,''')) "+
                                     " AND "+
                                     propQuery.replaceAll("'","''")+
@@ -127,31 +127,35 @@ public class QuadbinSQL {
         }
 
         if( propQuery == null )  propQuery = "(1 = 1)";
-
+        
         query.append(
 /*cte begin*/
                 "with  "+
                 "tblinfo as "+
-                "( select  "+
+                "( select "+
                 "   coalesce(c2.oid, c1.oid) as tbloid,"+
                 "   coalesce(c2.relname, c1.relname) as tblname, "+
                 "   coalesce(c2.reltuples, c1.reltuples)::bigint as tbl_est_cnt "+
                 "   from pg_class c1 "+
                 "   left join pg_inherits pm on (c1.oid = pm.inhparent) "+
                 "   left join pg_class c2 on (c2.oid = pm.inhrelid) "+
-                "   where c1.oid = '"+schema+".\""+space+"\"'::regclass"+
+                "   where c1.oid = ('${schema}.${table}')::regclass "+
                 "), "+
                 "tbl_stats as ( select sum(tbl_est_cnt) as est_cnt from tblinfo ), "+
                 "quadkeys as ( "+ coveringQksSql + " ), "+
                 "quaddata as ( select qk, xyz_qk_qk2bbox( qk ) as qkbbox, ( select array[r.level,r.colx,r.rowy] from xyz_qk_qk2lrc(qk) r ) as qkxyz from quadkeys ), "+
-                "qk_stats  as ( select ("+realCountCondition+") as real_condition, * from (select *, ("+pureEstimation+") as cond_est_cnt from tbl_stats, quaddata ) a ) "+
+                "qk_stats  as ( select ("+realCountCondition+") as real_condition, * from (select *, ("+pureEstimation+") as cond_est_cnt, floor(est_cnt/pow(4,qkxyz[1]))::bigint as equi_cnt from tbl_stats, quaddata ) a ) "+
 /*cte end*/
                 "SELECT jsondata, "+ geoPrj +" as geo from ("+
-                "SELECT  (SELECT concat('{\"id\": \"', ('x' || left(md5(qk),15) )::bit(60)::bigint ,'\", \"type\": \"Feature\""+
-                "       ,\"properties\": {\"count\": ',cnt_bbox_est,',\"qk\":\"',qk,'\""+
-                "       ,\"xyz\":\"',row(qkxyz[3],qkxyz[2],qkxyz[1]),'\" ,\"zxy\":',to_jsonb(qkxyz),'"+
-                "       ,\"estimated\":',to_jsonb(NOT(real_condition)),',\"total_count\":',est_cnt::bigint,',\"equipartition_count\":',"+
-                "          (floor((est_cnt/POW(2,"+(tile.level+1)+")/POW(4,"+resolution+")))),'}}')::jsonb) as jsondata,"+
+                "SELECT  "+
+                "    ( select row_to_json( ftr ) from "+
+                "	  ( select 'Feature'::text as type, ('x' || left(md5(qk), 15))::bit(60)::bigint::text as id, "+
+                "	    ( select row_to_json( prop ) from "+
+                "		  ( select cnt_bbox_est as count, qk, qkxyz as zxy, row(qkxyz[3],qkxyz[2],qkxyz[1])::text as xyz, NOT(real_condition) as estimated, est_cnt::bigint as total_count, equi_cnt as equipartition_count "+
+                "		  ) prop "+
+                "		) as properties "+
+                "	  ) ftr "+
+                "    )::jsonb as jsondata,   "+      
                 "    (CASE WHEN cnt_bbox_est != 0"+
                 "        THEN"+
                 "            " + resultQkGeo +
@@ -160,10 +164,10 @@ public class QuadbinSQL {
                 "        END "+
                 "    ) as qkgeo"+
                 "    FROM "+
-                "    (SELECT real_condition,est_cnt,qk,qkbbox,qkxyz,"+
+                "    (SELECT real_condition,est_cnt,equi_cnt,qk,qkbbox,qkxyz,"+
                 "        ("+
                 "        CASE WHEN real_condition THEN "+
-                "            (select count(1) from "+ schema+".\""+space+"\" where ST_Intersects(geo, qkbbox) and " + propQuery + ")"+
+                "            (select count(1) from ${schema}.${table} where ST_Intersects(geo, qkbbox) and " + propQuery + ")"+
                 "        ELSE "+
                 "          cond_est_cnt "+
                 "        END)::bigint as cnt_bbox_est"+
