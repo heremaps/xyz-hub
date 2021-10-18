@@ -23,7 +23,9 @@ import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
 import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.factory.MaintenanceSQL;
 import org.apache.http.HttpResponse;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.conn.ConnectTimeoutException;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
@@ -35,6 +37,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.SocketTimeoutException;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -51,6 +54,12 @@ public class DatabaseMaintainer {
     private DataSource dataSource;
     private PSQLConfig config;
 
+    private final RequestConfig requestConfig = RequestConfig.custom()
+            .setConnectTimeout(1 * 1000 )
+            .setConnectionRequestTimeout(1 * 1000)
+            .setSocketTimeout(1 * 1000)
+            .build();
+
     public DatabaseMaintainer(DataSource dataSource, PSQLConfig config){
         this.dataSource = dataSource;
         this.config = config;
@@ -61,7 +70,7 @@ public class DatabaseMaintainer {
         final boolean autoIndexing = config.getConnectorParams().isAutoIndexing();
 
         if(config.getMaintenanceEndpoint() != null){
-            try (CloseableHttpClient client = HttpClients.createDefault()){
+            try (CloseableHttpClient client = HttpClients.custom().setDefaultRequestConfig(requestConfig).build()){
                 HttpPost request = new HttpPost(config.getMaintenanceEndpoint()
                         +"/maintain/indices?connectorId="+traceItem.getConnectorId()
                         +"&ecps="+config.getEcps()+"&autoIndexing="+autoIndexing
@@ -82,8 +91,10 @@ public class DatabaseMaintainer {
                 } else if(response.getStatusLine().getStatusCode() >= 400) {
                     logger.warn("{} Could not maintain Database! {}", traceItem, EntityUtils.toString(response.getEntity()));
                 }
+            }catch (SocketTimeoutException | ConnectTimeoutException e){
+                logger.info("{} Do not further wait for a response {}",traceItem,e);
             }catch (Exception e){
-                logger.error("{} Could not maintain Database!",traceItem);
+                logger.error("{} Could not maintain Database! {}",traceItem,e);
             }
         }else {
             /** Check if all required extensions, schemas, tables and functions are present  */
@@ -266,7 +277,7 @@ public class DatabaseMaintainer {
             return null;
 
         if(config.getMaintenanceEndpoint() != null){
-            try (CloseableHttpClient client = HttpClients.createDefault()){
+            try (CloseableHttpClient client = HttpClients.custom().setDefaultRequestConfig(requestConfig).build()){
 
                 HttpPost request = new HttpPost(config.getMaintenanceEndpoint()
                         +"/maintain/space/"+table+"/history?connectorId="+traceItem.getConnectorId()
@@ -276,6 +287,8 @@ public class DatabaseMaintainer {
                 HttpResponse response = client.execute(request);
                 if(response.getStatusLine().getStatusCode() >= 400)
                     logger.warn("{} Could not maintain history! {}/{} {}", traceItem, schema, table, EntityUtils.toString(response.getEntity()));
+            }catch (SocketTimeoutException | ConnectTimeoutException e){
+                logger.info("{} Do not further wait for a response {}",traceItem,e);
             }catch (Exception e){
                 logger.error("{} Could not maintain history! {}/{}", traceItem, schema, table);
             }
@@ -290,7 +303,7 @@ public class DatabaseMaintainer {
 
     public void maintainSpace(TraceItem traceItem, String schema, String table){
         if(config.getMaintenanceEndpoint() != null){
-            try (CloseableHttpClient client = HttpClients.createDefault()){
+            try (CloseableHttpClient client = HttpClients.custom().setDefaultRequestConfig(requestConfig).build()){
                 HttpPost request = new HttpPost(config.getMaintenanceEndpoint()
                         +"/maintain/space/"+table+"?connectorId="+traceItem.getConnectorId()
                         +"&ecps="+config.getEcps()+"&force=true"
@@ -299,6 +312,8 @@ public class DatabaseMaintainer {
                 HttpResponse response = client.execute(request);
                 if(response.getStatusLine().getStatusCode() >= 400)
                     logger.warn("{} Could not maintain space!{}/{} {}", traceItem, schema, table, EntityUtils.toString(response.getEntity()));
+            }catch (SocketTimeoutException | ConnectTimeoutException e){
+                logger.info("{} Do not further wait for a response {}",traceItem,e);
             }catch (Exception e){
                 logger.error("{} Could not maintain space!{}/{}", traceItem, schema, table);
             }
