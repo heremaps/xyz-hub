@@ -10,7 +10,7 @@
         "filePattern": "${env:LOG_PATH}/trace.log.%i",
         "PatternLayout": {
           "MarkerPatternSelector": {
-            "defaultPattern": "{\"time\":\"%d{ISO8601}\",\"t\":\"%p\",\"unixtime\":\"%d{UNIX_MILLIS}\",\"msg\":\"%enc{%.-4096msg%ex}{JSON} \",\"streamId\":\"%marker\",\"src\":\"%c{1}\"}%n%xEx{none}",
+            "defaultPattern": "{\"time\":\"%d{ISO8601}\",\"t\":\"%p\",\"unixtime\":\"%d{UNIX_MILLIS}\",\"msg\":\"%enc{%.-4096msg%ex}{JSON} \",\"streamId\":\"%marker\",\"src\":\"%c\"}%n%xEx{none}",
             "PatternMatch": {
               "key": "ACCESS",
               "pattern": "%m%n"
