@@ -1222,6 +1222,13 @@ $BODY$
 $BODY$
   LANGUAGE plpgsql VOLATILE;
 
+CREATE OR REPLACE FUNCTION xyz_maintain_idxs_for_space( schema text, space text)
+  RETURNS void AS
+$BODY$
+ select xyz_maintain_idxs_for_space499(schema,space)
+$BODY$
+  LANGUAGE sql VOLATILE;
+
 ------------------------------------------------
 ------------------------------------------------
 -- Function: xyz_create_idxs(text, integer, integer, integer, text[])
