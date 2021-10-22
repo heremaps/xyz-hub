@@ -850,71 +850,86 @@ public abstract class DatabaseHandler extends StorageConnector {
         
         String schema = config.getDatabaseSettings().getSchema();
 
-        String query = "CREATE TABLE IF NOT EXISTS ${schema}.${table} (jsondata jsonb, geo geometry(GeometryZ,4326), i BIGSERIAL)";
+        String crtTableSql   = "CREATE TABLE IF NOT EXISTS ${schema}.${table} (jsondata jsonb, geo geometry(GeometryZ,4326), i BIGSERIAL)",
+               crtUniqKeySql = "CREATE UNIQUE INDEX IF NOT EXISTS ${idx_id} ON ${schema}.${table} ((jsondata->>'id'))",
+               query;
 
-        if( bUsePartitions ) // must be somehow over id to assure uniqeness over partitions
-        { if( partitions.byHash() )
-           query = DhString.format( "%s partition by list ( (('x' || left( md5(%s->>0), 4 ))::bit(16)::integer %% %d) )", query, partitions.jkey, partitions.size );
-          else if( partitions.byList() ) 
-           query = DhString.format( "%s partition by list ( (%s%s) )", query, partitions.jkey, partitions.isNumeric ? "::numeric" : "->>0" );
-          else if( partitions.byRange() ) 
-           query = DhString.format( "%s partition by range ( (%s%s) )", query, partitions.jkey, partitions.isNumeric ? "::numeric" : "->>0" ); 
+        if( !bUsePartitions ) 
+        { query = SQLQuery.replaceVars(crtTableSql, schema, tableName);
+          stmt.addBatch(query);
+
+          query = SQLQuery.replaceVars(crtUniqKeySql, replacements, schema, tableName);
+          stmt.addBatch(query);
         }
-
-        query = SQLQuery.replaceVars(query, schema, tableName);
-        stmt.addBatch(query);
-
-        int idxLoop = ( !bUsePartitions ? 1 : partitions.size ); 
-
-        for( int pnr = 0; pnr < idxLoop; pnr++ )
+        else // must be somehow over id to assure uniqeness over partitions
         {
-         int hint = ( bUsePartitions ? pnr : -1 );
-         String partitionTableName = null;
+         query = crtTableSql;
+         if( partitions.byHash() )
+          query = DhString.format( "%s partition by hash ((%s->>0))", query, partitions.jkey, partitions.size );
+         else if( partitions.byList() ) 
+          query = DhString.format( "%s partition by list ( (%s%s) )", query, partitions.jkey, partitions.isNumeric ? "::numeric" : "->>0" );
+         else if( partitions.byRange() ) 
+          query = DhString.format( "%s partition by range ( (%s%s) )", query, partitions.jkey, partitions.isNumeric ? "::numeric" : "->>0" ); 
 
-         if( hint >= 0 )
-         { partitionTableName = tableName + "_" + hint;
+         query = SQLQuery.replaceVars(query, schema, tableName);
+         stmt.addBatch(query);
+
+         for(int pnr = 0; pnr < partitions.size; pnr++)
+         { String partitionTableName = tableName + "_" + pnr;
            if( partitions.byHash() )
-            query = DhString.format( "create table ${schema}.${table} partition of ${schema}.\"%s\" for values in (%d)", tableName, hint);
+            query = DhString.format( "create table ${schema}.\"%s\" partition of ${schema}.${table} for values with (modulus %d, remainder %d)", partitionTableName, partitions.size, pnr);
            else if( partitions.byList() )
-            query = DhString.format( "create table ${schema}.${table} partition of ${schema}.\"%s\" for values in (%s)", 
-                                    tableName, (partitions.isNumeric ? partitions.listArr.get(hint).toString() : DhString.format("'%s'", partitions.listArr.get(hint).toString())) );
+            query = DhString.format( "create table ${schema}.\"%s\" partition of ${schema}.${table} for values in (%s)", 
+                                     partitionTableName, (partitions.isNumeric ? partitions.listArr.get(pnr).toString() : DhString.format("'%s'", partitions.listArr.get(pnr).toString())) );
            else if( partitions.byRange() ) 
-            query = DhString.format( "create table ${schema}.${table} partition of ${schema}.\"%s\" for values from (%s) to (%s)", 
-                                    tableName, (partitions.isNumeric ? partitions.rangeArr.get(hint).get(0).toString() : DhString.format("'%s'", partitions.rangeArr.get(hint).get(0).toString())), 
-                                               (partitions.isNumeric ? partitions.rangeArr.get(hint).get(1).toString() : DhString.format("'%s'", partitions.rangeArr.get(hint).get(1).toString())) );
+            query = DhString.format( "create table ${schema}.\"%s\" partition of ${schema}.${table} for values from (%s) to (%s)", 
+                                    partitionTableName, (partitions.isNumeric ? partitions.rangeArr.get(pnr).get(0).toString() : DhString.format("'%s'", partitions.rangeArr.get(pnr).get(0).toString())), 
+                                                        (partitions.isNumeric ? partitions.rangeArr.get(pnr).get(1).toString() : DhString.format("'%s'", partitions.rangeArr.get(pnr).get(1).toString())) );
 
-           query = SQLQuery.replaceVars(query, replacements, schema, tableName, partitionTableName);
+           query = SQLQuery.replaceVars(query, replacements, schema, tableName);
+           stmt.addBatch(query);
+
+           query = SQLQuery.replaceVars(crtUniqKeySql, replacements, schema, tableName, partitionTableName);
            stmt.addBatch(query);
          }
 
-         query = "CREATE UNIQUE INDEX IF NOT EXISTS ${idx_id} ON ${schema}.${table} ((jsondata->>'id'))";
-         query = SQLQuery.replaceVars(query, replacements, schema, tableName, partitionTableName);
-         stmt.addBatch(query);
+         if(!partitions.byHash())
+         { String default_partitionTableName = tableName + "_dft";
+           query = DhString.format( "create table ${schema}.\"%s\" partition of ${schema}.${table} default", default_partitionTableName );
+           query = SQLQuery.replaceVars(query, replacements, schema, tableName); 
+           stmt.addBatch(query);
 
-         query = "CREATE INDEX IF NOT EXISTS ${idx_tags} ON ${schema}.${table} USING gin ((jsondata->'properties'->'@ns:com:here:xyz'->'tags') jsonb_ops)";
-         query = SQLQuery.replaceVars(query, replacements, schema, tableName, partitionTableName);
-         stmt.addBatch(query);
-
-         query = "CREATE INDEX IF NOT EXISTS ${idx_geo} ON ${schema}.${table} USING gist ((geo))";
-         query = SQLQuery.replaceVars(query, replacements, schema, tableName, partitionTableName);
-         stmt.addBatch(query);
-
-         query = "CREATE INDEX IF NOT EXISTS ${idx_serial} ON ${schema}.${table}  USING btree ((i))";
-         query = SQLQuery.replaceVars(query, replacements, schema, tableName, partitionTableName);
-         stmt.addBatch(query);
-
-         query = "CREATE INDEX IF NOT EXISTS ${idx_updatedAt} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt'), (jsondata->>'id'))";
-         query = SQLQuery.replaceVars(query, replacements, schema, tableName, partitionTableName);
-         stmt.addBatch(query);
-
-         query = "CREATE INDEX IF NOT EXISTS ${idx_createdAt} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'createdAt'), (jsondata->>'id'))";
-         query = SQLQuery.replaceVars(query, replacements, schema, tableName, partitionTableName);
-         stmt.addBatch(query);
-
-         query = "CREATE INDEX IF NOT EXISTS ${idx_viz} ON ${schema}.${table} USING btree (left( md5(''||i),5))";
-         query = SQLQuery.replaceVars(query, replacements, schema, tableName, partitionTableName);
-         stmt.addBatch(query);
+           query = SQLQuery.replaceVars(crtUniqKeySql, replacements, schema, tableName, default_partitionTableName);
+           stmt.addBatch(query);
+         }
         }
+
+        // non unique indices
+
+        query = "CREATE INDEX IF NOT EXISTS ${idx_tags} ON ${schema}.${table} USING gin ((jsondata->'properties'->'@ns:com:here:xyz'->'tags') jsonb_ops)";
+        query = SQLQuery.replaceVars(query, replacements, schema, tableName);
+        stmt.addBatch(query);
+
+        query = "CREATE INDEX IF NOT EXISTS ${idx_geo} ON ${schema}.${table} USING gist ((geo))";
+        query = SQLQuery.replaceVars(query, replacements, schema, tableName);
+        stmt.addBatch(query);
+
+        query = "CREATE INDEX IF NOT EXISTS ${idx_serial} ON ${schema}.${table}  USING btree ((i))";
+        query = SQLQuery.replaceVars(query, replacements, schema, tableName);
+        stmt.addBatch(query);
+
+        query = "CREATE INDEX IF NOT EXISTS ${idx_updatedAt} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt'), (jsondata->>'id'))";
+        query = SQLQuery.replaceVars(query, replacements, schema, tableName);
+        stmt.addBatch(query);
+
+        query = "CREATE INDEX IF NOT EXISTS ${idx_createdAt} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'createdAt'), (jsondata->>'id'))";
+        query = SQLQuery.replaceVars(query, replacements, schema, tableName);
+        stmt.addBatch(query);
+
+        query = "CREATE INDEX IF NOT EXISTS ${idx_viz} ON ${schema}.${table} USING btree (left( md5(''||i),5))";
+        query = SQLQuery.replaceVars(query, replacements, schema, tableName);
+        stmt.addBatch(query);
+
         stmt.setQueryTimeout(calculateTimeout());
     }
 

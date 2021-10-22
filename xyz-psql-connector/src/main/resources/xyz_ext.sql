@@ -666,12 +666,14 @@ $BODY$
 					||' FROM "'||schema||'"."'||space_id||'" '
 				) INTO bboxx;
 			RETURN bboxx;
+/*			
 		ELSE
 			EXECUTE
 				format( 'select ST_EstimatedExtent('''||schema||''','''||space_id||''', ''geo'')') INTO bboxx;
 			IF bboxx IS NOT NULL THEN
 				RETURN bboxx;
 			END IF;
+*/			
 		END IF;
 
 		/** IF we are here we cant get information via ST_EstimatedExtent so we are using a sample of the data */
@@ -979,14 +981,7 @@ create or replace function xyz_eval_o_idxs( schema text, space text )
 $body$
  with
   indata as ( select xyz_eval_o_idxs.schema as schema, xyz_eval_o_idxs.space as space ),
-  spc2tbl as
-  ( select indata.schema, indata.space, tablename::text  FROM pg_tables, indata
-    where 1 = 1
-      and schemaname = indata.schema 
-      and tablename like (indata.space || '%' )
-      and hasindexes = true -- assume partioned table is false here
-    order by tablename
-  ),
+  spc2tbl as ( select indata.schema, indata.space, indata.space as tablename FROM indata ),
   availidx as 
   ( select tablename as iexiststable, idx_name as iexists, idx_property as iproperty, src  from ( select *, (xyz_index_list_all_available( spc2tbl.schema,spc2tbl.tablename )).* from spc2tbl ) r where src = 'o' ),
   reqidx as ( select distinct on (iname) replace(iname,'#spaceid#', o.tablename ) as iname, icomment, ifields, o.tablename as itable
@@ -1043,183 +1038,6 @@ language plpgsql volatile;
 ------------------------------------------------
 -- Function: xyz_maintain_idxs_for_space(text, text)
 -- DROP FUNCTION xyz_maintain_idxs_for_space(text, text);
-CREATE OR REPLACE FUNCTION xyz_maintain_idxs_for_space(
-    schema text,
-    space text)
-  RETURNS void AS
-$BODY$
-	/**
-	* Description: This function creates all Indices for a given space. Therefore it uses the data which
-	*	is stored in the xyz_config.xyz_idxs_status maintenance table.
-	*	At first all required On-Demand Indices are getting created (if some exists). Afterwards
-	*	the properties which are determined through the Auto-Indexer are getting indexed (if some could
-	*	get found during the data-analysis.
-	*
-	* Parameters:
-	*   @schema	- schema in which the XYZ-spaces are located
-	*   @space - id of the XYZ-space (tablename)
-	*/
-    DECLARE xyz_space_exists record;
-
-	DECLARE xyz_space_stat record;
-	DECLARE xyz_manual_idx record;
-	DECLARE xyz_needless_manual_idx record;
-    DECLARE xyz_needless_auto_idx record;
-
-	DECLARE xyz_idx_proposal record;
-	DECLARE idx_false_list TEXT[];
-    DECLARE is_auto_indexing boolean;
-
-	BEGIN
-		/** Check if table is present */
-		select 1 into xyz_space_exists
-			from pg_tables WHERE tablename =space and schemaname = schema;
-		IF xyz_space_exists IS NULL THEN
-			DELETE FROM xyz_config.xyz_idxs_status
-				WHERE spaceid = space
-					AND schem = schema
-                    AND idx_manual IS NULL
-                    AND auto_indexing IS NULL;
-			RAISE NOTICE 'SPACE DOES NOT EXIST %."%" ', schema, space;
-			RETURN;
-		END IF;
-
-		/** set indication that idx creation is running */
-		UPDATE xyz_config.xyz_idxs_status
-			SET idx_creation_finished = false
-				WHERE spaceid = space
-                  AND schem = schema;
-
-		EXECUTE xyz_index_check_comments(schema, space);
-
-		/** Analyze IDX-ON DEMAND aka MANUAL MODE */
-		RAISE NOTICE 'ANALYSE MANUAL IDX on SPACE: %', space;
-
-		/** Search missing ON-DEMAND IDXs */
-		FOR xyz_manual_idx IN
-			SELECT *,
-				(SELECT xyz_index_name_for_property(space, property, 'm')) as idx_name,
-				(SELECT xyz_property_datatype(schema, space, property, 5000)) as datatype,
-				(SELECT * from xyz_index_property_available(schema, space, property)) as idx_available
-					from (
-				SELECT
-				    (jsonb_each( case when idx_manual ? 'searchableProperties' then nullif( idx_manual->'searchableProperties', 'null' ) else idx_manual end )).key as property,
-                    (jsonb_each( case when idx_manual ? 'searchableProperties' then nullif( idx_manual->'searchableProperties', 'null' ) else idx_manual end )).value::text::boolean as idx_required
-						FROM xyz_config.xyz_idxs_status
-					WHERE idx_creation_finished = false
-						AND spaceid = space
-                        AND schem = schema
-			) A
-		LOOP
-			IF xyz_manual_idx.idx_required = false THEN
-				/** Add property to blacklist */
-				idx_false_list :=  array_append(idx_false_list,xyz_manual_idx.property);
-			END IF;
-
-			IF xyz_manual_idx.idx_required = true AND xyz_manual_idx.idx_available = false THEN
-				RAISE NOTICE '-- PROPERTY: % | TYPE: % | SPACE: % |> CREATE MANUAL IDX: %!',xyz_manual_idx.property, xyz_manual_idx.datatype, space,  xyz_manual_idx.idx_name;
-				BEGIN
-					PERFORM xyz_index_creation_on_property_object(schema, space, xyz_manual_idx.property, xyz_manual_idx.idx_name, xyz_manual_idx.datatype, 'm');
-					EXCEPTION WHEN OTHERS THEN
-						RAISE NOTICE '-- PROPERTY: % | TYPE: % | SPACE: % |> ALREADY EXISTS: % - SKIP!', xyz_manual_idx.property, xyz_manual_idx.datatype, space, xyz_manual_idx.idx_name;
-				END;
-			ELSEIF xyz_manual_idx.idx_required = false AND xyz_manual_idx.idx_available = true THEN
-				RAISE NOTICE '-- PROPERTY: % | TYPE: % | SPACE: % |> DELETE IDX: %!',xyz_manual_idx.property, xyz_manual_idx.datatype, space, xyz_manual_idx.idx_name;
-				EXECUTE FORMAT ('DROP INDEX IF EXISTS %s."%s" ', schema, xyz_manual_idx.idx_name);
-				/** If an automatic one exists delete it as well */
-				EXECUTE FORMAT ('DROP INDEX IF EXISTS %s."%s" ', schema, xyz_index_name_for_property(space, xyz_manual_idx.property, 'a'));
-			ELSE
-				RAISE NOTICE '-- PROPERTY: % | TYPE: % | SPACE: % |> Nothing to do: %!',xyz_manual_idx.property, xyz_manual_idx.datatype, space, xyz_manual_idx.idx_name;
-			END IF;
-		END LOOP;
-
-		/** Search created ON-DEMAND IDXs which are no longer getting used */
-		FOR xyz_needless_manual_idx IN
-			SELECT idx_name, idx_property
-				FROM xyz_index_list_all_available(schema,space)
-					WHERE src='m'
-			EXCEPT
-			SELECT idx_name, idx_property FROM(
-				SELECT  xyz_index_get_plain_propkey((jsonb_each( case when idx_manual ? 'searchableProperties' then nullif( idx_manual->'searchableProperties', 'null' ) else idx_manual end )).key) as idx_property,
-					xyz_index_name_for_property(space, (jsonb_each( case when idx_manual ? 'searchableProperties' then nullif( idx_manual->'searchableProperties', 'null' ) else idx_manual end )).key, 'm') as idx_name,
-					(jsonb_each( case when idx_manual ? 'searchableProperties' then nullif( idx_manual->'searchableProperties', 'null' ) else idx_manual end )).value::text::boolean as idx_required
-					FROM xyz_config.xyz_idxs_status
-						where spaceid = space
-                          AND schem = schema
-			) A WHERE idx_required = true
-		LOOP
-			RAISE NOTICE '-- PROPERTY: % | SPACE: % |> DELETE UNWANTED IDX: %!',xyz_needless_manual_idx.idx_property, space, xyz_needless_manual_idx.idx_name;
-			EXECUTE FORMAT ('DROP INDEX IF EXISTS %s."%s" ', schema, xyz_needless_manual_idx.idx_name);
-		END LOOP;
-
-        /** Check if auto-indexing is turend off - if yes, delete auto-indices */
-        select auto_indexing from xyz_config.xyz_idxs_status into is_auto_indexing where spaceid = space;
-
-        IF is_auto_indexing = false THEN
-            BEGIN
-                FOR xyz_needless_auto_idx IN
-                    SELECT idx_name, idx_property
-                    FROM xyz_index_list_all_available(schema,space)
-                    WHERE src='a'
-                        LOOP
-                            RAISE NOTICE '-- PROPERTY: % | SPACE: % |> DELETE UNWANTED AUTO-IDX: %!',xyz_needless_auto_idx.idx_property, space, xyz_needless_auto_idx.idx_name;
-                    EXECUTE FORMAT ('DROP INDEX IF EXISTS %s."%s" ', schema, xyz_needless_auto_idx.idx_name);
-                END LOOP;
-            END;
-        END IF;
-
-        /** Analyze IDX-Proposals aka AUTOMATIC MODE */
-		SELECT * FROM xyz_config.xyz_idxs_status
-			INTO xyz_space_stat
-				WHERE idx_proposals IS NOT NULL
-			AND idx_creation_finished = false
-            AND (auto_indexing IS NULL OR auto_indexing = true)
-			AND count >= 0
-			AND spaceid = space
-            AND schem = schema;
-
-		IF xyz_space_stat.idx_proposals IS NOT NULL THEN
-			RAISE NOTICE 'ANALYSE AUTOMATIC IDX PROPOSALS: % on SPACE:%', xyz_space_stat.idx_proposals, space;
-		END IF;
-
-		FOR xyz_idx_proposal IN
-			SELECT value->>'property' as property, value->>'type' as type from jsonb_array_elements(xyz_space_stat.idx_proposals)
-		LOOP
-			IF idx_false_list @> ARRAY[xyz_idx_proposal.property] THEN
-				RAISE NOTICE '-- PROPERTY: % | TYPE: % | SPACE: % |> IDX MANUAL DEACTIVATED -> SKIP!',xyz_idx_proposal.property, xyz_idx_proposal.type, space;
-				CONTINUE;
-			END IF;
-
-			IF (SELECT * from xyz_index_property_available(schema, space, xyz_idx_proposal.property)) = true THEN
-				RAISE NOTICE '-- PROPERTY: % | TYPE: % | SPACE: % |> IDX ALREADY EXISTS -> SKIP!', xyz_idx_proposal.property, xyz_idx_proposal.type, space;
-				CONTINUE;
-			END IF;
-
-			BEGIN
-				RAISE NOTICE '--PROPERTY: % | TYPE: % | SPACE: % |> CREATE AUTOMATIC IDX!',xyz_idx_proposal.property, xyz_idx_proposal.type, space;
-				PERFORM xyz_index_creation_on_property(schema, space, xyz_idx_proposal.property,'a');
-
-				EXCEPTION WHEN OTHERS THEN
-					RAISE NOTICE '--PROPERTY: % | TYPE: % | SPACE: % |> IDX CREATION ERROR -> SKIP!',xyz_idx_proposal.property, xyz_idx_proposal.type, space;
-			END;
-		END LOOP;
-
-        perform xyz_maintain_o_idxs_for_space( schema, space );
-
-		/** set indication that idx creation is finished */
-		UPDATE xyz_config.xyz_idxs_status
-			SET idx_creation_finished = true,
-				idx_proposals = null,
-			    idx_available = (select jsonb_agg(FORMAT('{"property":"%s","src":"%s"}',idx_property, src)::jsonb) from (
-				select * from xyz_index_list_all_available(schema, space)
-					order by idx_property
-			)b
-		)
-		WHERE spaceid = space
-          AND schem = schema;
-	END;
-$BODY$
-  LANGUAGE plpgsql VOLATILE;
 
 CREATE OR REPLACE FUNCTION xyz_maintain_idxs_for_space499(
     schema text,
@@ -1278,14 +1096,7 @@ $BODY$
 		FOR xyz_manual_idx IN
  		 with 
 		  indata  as ( select xyz_maintain_idxs_for_space499.schema as schema, xyz_maintain_idxs_for_space499.space as space ),
-		  spc2tbl as
-		  ( select indata.schema, indata.space, tablename::text  FROM pg_tables, indata
-		    where 1 = 1
-		 	  and schemaname = indata.schema 
-			  and tablename like (indata.space || '%' )
-			  and hasindexes = true -- assume partioned table is false here
-			order by tablename
-		  ),
+		  spc2tbl as ( select indata.schema, indata.space, indata.space as tablename FROM  indata ),
 		  avail_idx_m as
 		  ( select * from ( select *, (xyz_index_list_all_available(spc2tbl.schema,spc2tbl.tablename)).* from spc2tbl ) o where src = 'm' ),
 		  prop1tbl as 
@@ -1342,14 +1153,7 @@ $BODY$
                 FOR xyz_needless_auto_idx IN
 				 with 
 				 indata  as ( select xyz_maintain_idxs_for_space499.schema as schema, xyz_maintain_idxs_for_space499.space as space ),
-				 spc2tbl as
-				 ( select indata.schema, indata.space, tablename::text  FROM pg_tables, indata
-				   where 1 = 1
-			 		 and schemaname = indata.schema 
-					 and tablename like (indata.space || '%' )
-					 and hasindexes = true -- assume partioned table is false here
-				   order by tablename
-				 ),
+				 spc2tbl as ( select indata.schema, indata.space, indata.space as tablename FROM indata ),
 				 avail_idx_a as
 				 ( select * from ( select *, (xyz_index_list_all_available(spc2tbl.schema,spc2tbl.tablename)).* from spc2tbl ) o where src = 'a' )
 				 select * from avail_idx_a
@@ -1382,14 +1186,14 @@ $BODY$
 				CONTINUE;
 			END IF;
 
-			IF (SELECT * from xyz_index_property_available499(schema, space, xyz_idx_proposal.property)) = true THEN
+			IF (SELECT * from xyz_index_property_available(schema, space, xyz_idx_proposal.property)) = true THEN
 				RAISE NOTICE '-- PROPERTY: % | TYPE: % | SPACE: % |> IDX ALREADY EXISTS -> SKIP!', xyz_idx_proposal.property, xyz_idx_proposal.type, space;
 				CONTINUE;
 			END IF;
 
 			BEGIN
 				RAISE NOTICE '--PROPERTY: % | TYPE: % | SPACE: % |> CREATE AUTOMATIC IDX!',xyz_idx_proposal.property, xyz_idx_proposal.type, space;
-				PERFORM xyz_index_creation_on_property499(schema, space, xyz_idx_proposal.property,'a');
+				PERFORM xyz_index_creation_on_property(schema, space, xyz_idx_proposal.property,'a');
 
 				EXCEPTION WHEN OTHERS THEN
 					RAISE NOTICE '--PROPERTY: % | TYPE: % | SPACE: % |> IDX CREATION ERROR -> SKIP!',xyz_idx_proposal.property, xyz_idx_proposal.type, space;
@@ -1407,14 +1211,7 @@ $BODY$
 							     (
 									with 
 									indata  as ( select xyz_maintain_idxs_for_space499.schema as schema, xyz_maintain_idxs_for_space499.space as space ),
-									spc2tbl as
-									( select indata.schema, indata.space, tablename::text FROM pg_tables, indata
-									  where 1 = 1
-										and schemaname = indata.schema 
-										and tablename like (indata.space || '%' )
-										and hasindexes = true -- assume partioned table is false here
-									  order by tablename limit 1
-									)
+									spc2tbl as ( select indata.schema, indata.space, indata.space as tablename FROM indata )
 									select idx_property, src
 									from ( select (xyz_index_list_all_available(spc2tbl.schema,spc2tbl.tablename)).* from spc2tbl ) o order by idx_property
 			                     ) b
@@ -1621,7 +1418,8 @@ $BODY$
 
 	DECLARE
 		/** used for big-spaces and get filled via pg_class */
-		estimate_cnt bigint;
+		estimate_cnt  bigint;
+		nr_partitions bigint;
 
 		/** list of indexes which are already available in the space */
 		idxlist jsonb;
@@ -1656,12 +1454,15 @@ $BODY$
 					|| '			GROUP BY propkey ORDER by propkey,count DESC '
 					|| ') C';
 		ELSE
-			SELECT reltuples into estimate_cnt FROM pg_class WHERE oid = concat('"',$1, '"."', $2, '"')::regclass;
+
+		    select sum( coalesce( c2.reltuples, c1.reltuples ) )::bigint, count(1) into estimate_cnt, nr_partitions
+            from pg_class c1 left join pg_inherits pm on ( c1.oid = pm.inhparent ) left join pg_class c2 on ( c2.oid = pm.inhrelid )
+            where c1.oid = concat('"',$1, '"."', $2, '"')::regclass;
 
 			RETURN QUERY EXECUTE
 				'SELECT DISTINCT ON(propkey) * FROM (  '
 				|| '	SELECT propkey, '
-				|| '		(SELECT TRUNC(((COUNT(*)/1000::real) * '||estimate_cnt||')::numeric, 0)::INTEGER as count '
+				|| '		(SELECT TRUNC(((COUNT(*)/('|| nr_partitions * tablesamplecnt ||')::real) * '||estimate_cnt||')::numeric, 0)::INTEGER as count '
 				|| '			FROM "'||schema||'"."'||spaceid||'" TABLESAMPLE SYSTEM_ROWS('||tablesamplecnt||') '
 				|| '			WHERE jsondata#> xyz_property_path_to_array(''properties.''||propkey)  IS NOT NULL), '
 				|| '		true as searchable, '
@@ -1672,7 +1473,7 @@ $BODY$
 				|| '	   ) B group by propkey '
 				|| '	UNION '
 				|| '	SELECT  propkey, '
-				|| '		TRUNC(((COUNT(*)/1000::real) * '||estimate_cnt||')::numeric, 0)::INTEGER as count, '
+				|| '		TRUNC(((COUNT(*)/('|| nr_partitions * tablesamplecnt ||')::real) * '||estimate_cnt||')::numeric, 0)::INTEGER as count, '
 				|| '		(SELECT '''||idxlist||''' @>  to_jsonb(propkey)) as searchable, '
 				|| '		(SELECT * from xyz_property_datatype('''||schema||''','''||spaceid||''',propkey,'||tablesamplecnt||')) as datatype '
 				|| '			FROM( '
@@ -1694,12 +1495,7 @@ create or replace function xyz_property_statistic499_v2(
 $body$
 	with idata as ( select schema as sname, spaceid as spc  ),
 	pdata as 
-	( select (xyz_property_statistic_v2(i.sname,coalesce( c2.relname, c1.relname ),tablesamplecnt)).* 
-	  from idata i, pg_class c1 
-	   left join pg_inherits pm on ( c1.oid = pm.inhparent )
-	   left join pg_class c2 on ( c2.oid = pm.inhrelid )
-	  where c1.oid = format('%I.%I',i.sname,i.spc)::regclass
-	)
+	( select (xyz_property_statistic_v2(i.sname,i.spc,tablesamplecnt)).* from idata i )
 	select key, sum(count)::bigint as count, searchable, min(datatype) as datatype 
 	from ( select key, sum(count) as count, searchable, datatype from pdata group by 1,3,4 ) ddd
 	group by 1,3
@@ -1710,7 +1506,8 @@ language sql immutable;
 ------------------------------------------------
 -- Function: xyz_statistic_newest_spaces_changes(text, text[], integer)
 -- DROP FUNCTION xyz_statistic_newest_spaces_changes(text, text[], integer);
-CREATE OR REPLACE FUNCTION xyz_statistic_newest_spaces_changes(
+
+CREATE OR REPLACE FUNCTION xyz_statistic_newest_spaces_changes499(
     IN schema text,
     IN owner_list text[],
     IN min_table_count integer)
@@ -1745,57 +1542,10 @@ $BODY$
 	BEGIN
 
 	FOR xyz_spaces IN
-		SELECT relname as spaceid, E.spaceid as stat_spaceid, reltuples as current_cnt, E.count as old_cnt,
-			(E.count-reltuples) as diff
-		FROM pg_class C
-			LEFT JOIN pg_tables D ON (D.tablename = C.relname)
-			LEFT JOIN pg_namespace N ON (N.oid = C.relnamespace)
-			LEFT JOIN xyz_config.xyz_idxs_status E ON (E.spaceid = C.relname)
-		WHERE relkind='r' AND nspname = ''||schema||'' AND array_position(owner_list, tableowner::text) > 0
-			/** More than 3000 objecs has changed OR space is new and has more than min_table_count entries */
-			AND ((ABS(COALESCE(E.count,0) - COALESCE(reltuples,0)) > 3000 AND reltuples > min_table_count )  OR ( E.count IS null AND reltuples > min_table_count ))
-			AND relname != 'spatial_ref_sys'
-			ORDER BY reltuples
-	LOOP
-		BEGIN
-			spaceid := xyz_spaces.spaceid;
-
-            --skip history tables
-            IF substring(spaceid,length(spaceid)-3) = '_hst' THEN
-                CONTINUE;
-            END IF;
-
-			EXECUTE format('SELECT tablesize, geometrytypes, properties, tags, count, bbox from xyz_statistic_space(''%s'',''%s'')',schema , xyz_spaces.spaceid)
-				INTO tablesize, geometrytypes, properties, tags, count, bbox;
-			RETURN NEXT;
-			EXCEPTION WHEN OTHERS THEN
-				RAISE NOTICE 'ERROR CREATING STATISTIC ON SPACE %',  xyz_spaces.spaceid;
-		END;
-	END LOOP;
-	END;
-$BODY$
-  LANGUAGE plpgsql VOLATILE;
-
-CREATE OR REPLACE FUNCTION xyz_statistic_newest_spaces_changes499(
-    IN schema text,
-    IN owner_list text[],
-    IN min_table_count integer)
-  RETURNS TABLE(spaceid text, tablesize jsonb, geometrytypes jsonb, properties jsonb, tags jsonb, count jsonb, bbox jsonb) AS
-$BODY$
-
-	/** List of all xyz-spaces */
-	DECLARE xyz_spaces record;
-
-	/** used to store xyz-space statistic results */
-	DECLARE xyz_space_stat record;
-
-	BEGIN
-
-	FOR xyz_spaces IN
 		select o.nspname, o.spaceid, o.reltuples, E.count
 		from
 		( select 
-		   case when relispartition then regexp_replace(relname, '_\d+$', '' ) else relname end as spaceid, 
+		   case when relispartition then regexp_replace(relname, '_((\d+)|dft)$', '' ) else relname end as spaceid, 
 		   tableowner,
 		   nspname,
 		   sum( reltuples )::bigint as reltuples  
@@ -1932,23 +1682,26 @@ $BODY$
 		END IF;
 
 		FOR xyz_spaces IN
-			SELECT spaceid
-				FROM xyz_config.xyz_idxs_status C
-					LEFT JOIN pg_class A ON (A.relname = C.spaceid)
-					LEFT JOIN pg_tables D ON (D.tablename = C.spaceid)
-				WHERE (
-						D.tablename is null
-						AND C.spaceid != 'idx_in_progress'
-						AND C.count IS NOT NULL
-					)
-				    OR (
-						(COALESCE(reltuples,0) < min_table_count OR C.count IS NULL)
-						AND (idx_manual IS NULL OR idx_manual = '{}')
-                        AND auto_indexing IS NULL
-						AND C.spaceid != 'idx_in_progress'
-                    )OR (
-                        substring(C.spaceid,length(C.spaceid)-3) = '_hst'
-                    )
+            with indata as 
+            ( select cfg.spaceid, cfg.schem, cfg.count, cfg.idx_manual, cfg.auto_indexing, sum(reltuples)::bigint as reltuples 
+              from xyz_config.xyz_idxs_status cfg
+              left join 
+              ( select i2.nspname, i1.relname, coalesce( i3.reltuples, i1.reltuples ) as reltuples
+                from 
+                pg_class i1 join pg_namespace i2 on ( i1.relnamespace = i2.oid ) 
+                left join pg_inherits pm on ( i1.oid = pm.inhparent ) left join pg_class i3 on ( i3.oid = pm.inhrelid )
+              ) tbl on ( cfg.spaceid = tbl.relname and cfg.schem = tbl.nspname )
+              where spaceid != 'idx_in_progress'
+              group by 1,2,3
+            ) 
+            select spaceid from indata
+            where 
+                ( spaceid like '%_hst' )
+             or (  reltuples is null and count is not null ) 
+             or ( (coalesce(reltuples,0) < 100 or count is null)
+              	  and (idx_manual is null or idx_manual = '{}')
+            	  and auto_indexing is null
+                )
 		LOOP
 			RAISE NOTICE 'Remove deleted space %',xyz_spaces.spaceid;
 			DELETE FROM xyz_config.xyz_idxs_status
@@ -2333,35 +2086,6 @@ $BODY$
 $BODY$
   LANGUAGE plpgsql VOLATILE;
 
-create or replace function xyz_index_creation_on_property499(
-    schema text,
-    spaceid text,
-    propkey text,
-    source character)
-  returns void as
-$body$
- declare
-  idata record;
- begin
-  for idata in
-   with 
-    indata  as ( select xyz_index_creation_on_property499.schema as schema, xyz_index_creation_on_property499.spaceid as space ),
-    spc2tbl as
-    ( select indata.schema, indata.space, tablename::text  FROM pg_tables, indata
-      where 1 = 1
-      and schemaname = indata.schema 
-      and tablename like (indata.space || '%' )
-      and hasindexes = true -- assume partioned table is false here
-      order by tablename
-    )
-    select * from spc2tbl
-  loop
-   perform xyz_index_creation_on_property( idata.schema, idata.tablename, xyz_index_creation_on_property499.propkey, xyz_index_creation_on_property499.source ); 
-  end loop;
- end; 
-$body$
- language plpgsql volatile;
-
 ------------------------------------------------
 ------------------------------------------------
 -- Function: xyz_geotype(geometry)
@@ -2566,26 +2290,6 @@ $BODY$
 	END;
 $BODY$
   LANGUAGE plpgsql VOLATILE;
-
-create or replace function xyz_index_property_available499(
-    schema text,
-    spaceid text,
-    propkey text)
-  returns boolean AS
-$body$
- with 
- indata  as ( select xyz_index_property_available499.schema as schema, xyz_index_property_available499.spaceid as space ),
- spc2tbl as
- ( select indata.schema, indata.space, tablename  FROM pg_tables, indata
-   where 1 = 1
-     and schemaname = indata.schema 
-     and tablename like (indata.space || '%' )
-     and hasindexes = true -- assume partioned table is false here
-   order by tablename
- )
- select xyz_index_property_available( spc2tbl.schema,tablename, propkey) from spc2tbl order by 1 limit 1
-$body$
-language sql volatile;
 
 ------------------------------------------------
 ------------------------------------------------
@@ -2818,7 +2522,7 @@ $BODY$
 			||'	format(''{"value": %s, "estimated" : true}'', count)::jsonb as count,  '
 			||'	format(''{"value": "%s", "estimated" : true}'', bbox)::jsonb as bbox,  '
 			||'	prop->>''searchable'' as searchable  FROM ('
-			||'	SELECT pg_total_relation_size('''||schema||'."'||spaceid||'"'') AS tablesize, '
+			||'	SELECT pg_total_relation_size499('''||schema||'."'||spaceid||'"'') AS tablesize, '
 			||'	(SELECT jsonb_agg(type) as geometryTypes from ('
 			||'		SELECT distinct xyz_geotype(geo) as type '
 			||'			FROM "'||schema||'"."'||spaceid||'" TABLESAMPLE SYSTEM_ROWS('||tablesamplecnt||') '
@@ -2848,49 +2552,13 @@ $BODY$
 			||'			select * FROM xyz_tag_statistic('''||schema||''','''||spaceid||''', '||tablesamplecnt||') '
 			||'		) as tag_stat '
 			||'	),'
-			||'	reltuples AS count, '
+			||'	sum( coalesce( c2.reltuples, c1.reltuples ) )::bigint AS count, '
 			||' (SELECT xyz_space_bbox('''||schema||''','''||spaceid||''', '||tablesamplecnt||')) AS bbox '
-			||'		FROM pg_class '
-			||'	WHERE oid='''||schema||'."'||spaceid||'"''::regclass) A';
+			||'	FROM pg_class c1 left join pg_inherits pm on ( c1.oid = pm.inhparent ) left join pg_class c2 on ( c2.oid = pm.inhrelid )'
+			||'	WHERE c1.oid='''||schema||'."'||spaceid||'"''::regclass) A';
         END;
 $BODY$
   LANGUAGE plpgsql VOLATILE;
-
-create or replace function xyz_statistic_xl_space499(
-    IN schema text,
-    IN spaceid text,
-    IN tablesamplecnt integer)
-  RETURNS TABLE(tablesize jsonb, geometrytypes jsonb, properties jsonb, tags jsonb, count jsonb, bbox jsonb, searchable text) AS
-$body$
- with idata as ( select schema as sname, spaceid as spc  ),
- pdata as 
- ( select (xyz_statistic_xl_space(i.sname,coalesce( c2.relname, c1.relname ),tablesamplecnt)).* 
-   from idata i, pg_class c1 
-    left join pg_inherits pm on ( c1.oid = pm.inhparent )
-    left join pg_class c2 on ( c2.oid = pm.inhrelid )
-   where c1.oid = format('%I.%I',i.sname,i.spc)::regclass
- ),
- tf1 as ( select jsonb_set( '{"estimated": true}'::jsonb,'{value}', to_jsonb( sum( (tablesize->>'value')::bigint ) ) ) as tablesize from pdata ),
- tf2 as ( select jsonb_set( '{"estimated": true}'::jsonb,'{value}', coalesce( jsonb_agg( distinct b.value ), '[]'::jsonb ) ) as geometrytypes from pdata, jsonb_array_elements( geometrytypes->'value' ) b ),
- tf3 as ( select jsonb_set( '{"estimated": true}'::jsonb,'{value}', coalesce( jsonb_agg( to_jsonb( ddd.* ) ), '[]'::jsonb ) ) as properties from
-          ( select key, to_jsonb(sum(cnt)) count, min(dtype::text)::jsonb as datatype, sable as searchable from
-            ( select b.value->>'key' as key, sum((b.value->>'count')::bigint ) as cnt , b.value->'datatype' as dtype, b.value->'searchable' as sable 
-              from pdata, jsonb_array_elements( properties->'value' ) b group by 1,3,4 order by 1 
-            ) o
-            group by key, sable
-          ) ddd 
-		),
- tf4 as ( select jsonb_set( '{"estimated": true}'::jsonb,'{value}', coalesce( jsonb_agg( to_jsonb( ddd.* ) ), '[]'::jsonb ) ) as tags from
-          ( select b.value->>'key' as key, sum((b.value->>'count')::bigint ) as count 
-            from pdata, jsonb_array_elements( tags->'value' ) b group by 1 order by 1 
-          ) ddd
-		),
- tf5 as ( select jsonb_set( '{"estimated": true}'::jsonb,'{value}', to_jsonb( sum( (count->>'value')::bigint ) ) ) as count from pdata ),
- tf6 as ( select jsonb_set( '{"estimated": true}'::jsonb,'{value}',  to_jsonb( st_extent( st_setsrid( (bbox->>'value')::box2d, 4326 ) ) ) ) as bbox from pdata ),
- tf7 as ( select max(searchable) as searchable from pdata ) 
- select * from tf1,tf2,tf3,tf4,tf5,tf6,tf7
-$body$
-language sql immutable;
 
 CREATE OR REPLACE FUNCTION xyz_statistic_space499(
     IN schema text,
@@ -2912,7 +2580,7 @@ $BODY$
         where c1.oid = concat('"',$1, '"."', $2, '"')::regclass;
 
 		IF estimate_cnt > big_space_threshold THEN
-			RETURN QUERY EXECUTE 'select * from xyz_statistic_xl_space499('''||schema||''', '''||spaceid||''' , '||tablesamplecnt||')';
+			RETURN QUERY EXECUTE 'select * from xyz_statistic_xl_space('''||schema||''', '''||spaceid||''' , '||tablesamplecnt||')';
 		ELSE
 			RETURN QUERY EXECUTE 'select * from xyz_statistic_xs_space('''||schema||''','''||spaceid||''')';
 		END IF;
