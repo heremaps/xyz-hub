@@ -38,7 +38,7 @@ public class TestWithSpaceCleanup extends RestAssuredTest {
         delete(getSpacesPath() + "/" + spaceId);
   }
 
-  static String getCreateSpacePath() {
+  protected static String getCreateSpacePath() {
     final String spaceName = (System.getenv().containsKey("SPACE_NAME") ? System.getenv("SPACE_NAME") : "");
     return getCreateSpacePath(spaceName);
   }
@@ -53,7 +53,7 @@ public class TestWithSpaceCleanup extends RestAssuredTest {
     return (System.getenv().containsKey("SPACES_PATH") ? System.getenv("SPACES_PATH") : "spaces");
   }
 
-  static String getSpaceId() {
+  protected static String getSpaceId() {
     return (System.getenv().containsKey("SPACE_ID") ? System.getenv("SPACE_ID") : "x-psql-test");
   }
 

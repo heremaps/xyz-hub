@@ -20,6 +20,8 @@
 package com.here.xyz.hub.auth;
 
 import com.google.common.io.ByteStreams;
+import io.vertx.core.json.JsonObject;
+
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -35,6 +37,20 @@ public class TestAuthenticator {
   protected static String content(String file) {
     try {
       return new String(ByteStreams.toByteArray(TestAuthenticator.class.getResourceAsStream(file))).trim();
+    }
+    catch (IOException e) {
+      throw new RuntimeException("Error while reading token from resource file: " + file, e);
+    }
+  }
+
+  protected static String content(String file, String storageId) {
+    try {
+      String content = new String(ByteStreams.toByteArray(TestAuthenticator.class.getResourceAsStream(file))).trim();
+      JsonObject jsonContent = new JsonObject(content);
+
+      JsonObject storage = new JsonObject().put("id", storageId);
+      jsonContent.put("storage", storage);
+      return jsonContent.encode();
     }
     catch (IOException e) {
       throw new RuntimeException("Error while reading token from resource file: " + file, e);

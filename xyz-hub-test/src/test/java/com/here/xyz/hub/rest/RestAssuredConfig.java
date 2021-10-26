@@ -22,6 +22,7 @@ package com.here.xyz.hub.rest;
 public class RestAssuredConfig {
   public String baseURI;
   public int port;
+  public String fullUri;
 
   private RestAssuredConfig() {
   }
@@ -42,6 +43,7 @@ public class RestAssuredConfig {
     String service = System.getenv().containsKey("HTTP_SERVICE") ? System.getenv("HTTP_SERVICE") : "hub";
     config.baseURI = "http://"+host+"/" + service;
     config.port = 8080;
+    config.fullUri = "http://"+host+":"+config.port+"/" + service;
     try {
       config.port = Integer.parseInt(envPort);
     }
