@@ -57,7 +57,6 @@ public class MaintenanceClient {
     private static Map<String, MaintenanceInstance> dbInstanceMap = new HashMap<>();
     private static final String C3P0EXT_CONFIG_SCHEMA = "config.schema()";
 
-    private static final int STATEMENT_TIMEOUT = Integer.parseInt(PsqlHttpVerticle.getEnvMap().get("DB_STATEMENT_TIMEOUT_IN_S"));
     private static final String[] extensionList = new String[]{"postgis","postgis_topology","tsm_system_rows","dblink"};
     private static final String[] localScripts = new String[]{"/xyz_ext.sql", "/h3Core.sql"};
 
@@ -66,7 +65,7 @@ public class MaintenanceClient {
     public <T> T executeQuery(SQLQuery query, ResultSetHandler<T> handler, DataSource dataSource) throws SQLException {
         final long start = System.currentTimeMillis();
         try {
-            final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null, STATEMENT_TIMEOUT));
+            final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null, PsqlHttpVerticle.DB_STATEMENT_TIMEOUT_IN_S));
             return run.query(query.text(), handler, query.parameters().toArray());
         } finally {
             final long end = System.currentTimeMillis();
@@ -77,7 +76,7 @@ public class MaintenanceClient {
     public int executeQueryWithoutResults(SQLQuery query, DataSource dataSource) throws SQLException {
         final long start = System.currentTimeMillis();
         try {
-            final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null, STATEMENT_TIMEOUT));
+            final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null, PsqlHttpVerticle.DB_STATEMENT_TIMEOUT_IN_S));
             return run.execute(query.text(), query.parameters().toArray());
         } finally {
             final long end = System.currentTimeMillis();
@@ -88,7 +87,7 @@ public class MaintenanceClient {
     public int executeUpdate(SQLQuery query, DataSource dataSource) throws SQLException {
         final long start = System.currentTimeMillis();
         try {
-            final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null, STATEMENT_TIMEOUT));
+            final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null, PsqlHttpVerticle.DB_STATEMENT_TIMEOUT_IN_S));
             final String queryText = query.text();
             final List<Object> queryParameters = query.parameters();
 
@@ -353,7 +352,7 @@ public class MaintenanceClient {
             QueryRunner runner = new QueryRunner();
             try {
                 runner.execute(c, "SET enable_seqscan = off;");
-                runner.execute(c, "SET statement_timeout = " + (STATEMENT_TIMEOUT * 1000) + " ;");
+                runner.execute(c, "SET statement_timeout = " + (PsqlHttpVerticle.DB_STATEMENT_TIMEOUT_IN_S * 1000) + " ;");
                 runner.execute(c, "SET search_path=" + schema + ",h3,public,topology;");
             } catch (SQLException e) {
                 logger.error("Failed to initialize connection " + c + " [" + pdsIdt + "] : {}", e);
