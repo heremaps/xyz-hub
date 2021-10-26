@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -136,7 +136,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     if (space == null || storage == null) {
       return null;
     }
-    return space.getCacheProfile(skipCache, storage.capabilities.enableAutoCache);
+    return space.getCacheProfile(skipCache, storage.capabilities.enableAutoCache, readOnlyAccess);
   }
 
   @Override

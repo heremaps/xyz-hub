@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -105,7 +105,7 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
   @JsonView(Internal.class)
   @SuppressWarnings("unused")
   public CacheProfile getAutoCacheProfile() {
-    return getCacheProfile(false, true);
+    return getCacheProfile(false, true, false);
   }
 
   @JsonView(Internal.class)
@@ -182,7 +182,7 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
   }
 
   @JsonIgnore
-  public CacheProfile getCacheProfile(boolean skipCache, boolean autoConfig) {
+  public CacheProfile getCacheProfile(boolean skipCache, boolean autoConfig, boolean readOnlyAccess) {
     // Cache is manually deactivated, either for the space or for this specific request
     if (getCacheTTL() == 0 || skipCache) {
       return CacheProfile.NO_CACHE;
@@ -206,9 +206,10 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
       return CacheProfile.NO_CACHE;
     }
 
-    // 2 min to (1 hour + volatility penalty time ) -> cache only in the service
+    // 2 min to (1 day + volatility penalty time ) -> cache only in the service
+    // If the request is authorized with credentials allowing data modification -> cache only in the service
     long volatilityPenalty = (long) (volatility * volatility * TimeUnit.DAYS.toMillis(7));
-    if (timeSinceLastUpdate < TimeUnit.HOURS.toMillis(1) + volatilityPenalty) {
+    if (!readOnlyAccess || timeSinceLastUpdate < TimeUnit.DAYS.toMillis(1) + volatilityPenalty ) {
       return new CacheProfile(0, 0, CacheProfile.MAX_SERVICE_TTL, getContentUpdatedAt());
     }
 
