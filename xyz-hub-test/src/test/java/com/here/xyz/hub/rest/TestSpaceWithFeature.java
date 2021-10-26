@@ -49,6 +49,10 @@ import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomStringUtils;
 
 public class TestSpaceWithFeature extends TestWithSpaceCleanup {
+  protected static String embeddedStorageId = "psql";
+  protected static String httpStorageId = "psql-http";
+
+  protected static String usedStorageId = embeddedStorageId;
 
   protected static void remove() {
     TestWithSpaceCleanup.removeSpace(getSpaceId());
@@ -67,10 +71,11 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
   }
 
   protected static void createSpace() {
-    createSpace(content("/xyz/hub/createSpace.json"))
+    String content = usedStorageId == embeddedStorageId ? content("/xyz/hub/createSpace.json") : content("/xyz/hub/createSpace.json", usedStorageId);
+    createSpace(content)
         .body("id", equalTo(getSpaceId()))
         .body("title", equalTo("My Demo Space"))
-        .body("storage.id", equalTo("psql"));
+        .body("storage.id", equalTo((usedStorageId)));
   }
 
   protected static String createSpaceWithCustomStorage(String storageId, JsonObject storageParams) {
