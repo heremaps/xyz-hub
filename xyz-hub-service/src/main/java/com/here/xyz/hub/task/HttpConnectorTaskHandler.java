@@ -83,7 +83,7 @@ public class HttpConnectorTaskHandler {
 
       if(connectorStatus != null && connectorStatus.isInitialized()) {
         if( DatabaseMaintainer.XYZ_EXT_VERSION > connectorStatus.getScriptVersions().get("ext") || DatabaseMaintainer.H3_CORE_VERSION > connectorStatus.getScriptVersions().get("h3") ){
-          logger.info("Database needs an update: {}",connectorId);
+          logger.warn("Database needs an update: {}",connectorId);
           HttpConnector.maintenanceClient.initializeOrUpdateDatabase(connectorId, ecps, passphrase);
         }
 
