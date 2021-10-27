@@ -48,6 +48,14 @@ public class HCMaintenanceTestIT {
         retrieveConfig();
         mc = initMaintenanceClient();
         deleteTestResources();
+
+        given()
+                .contentType(APPLICATION_JSON)
+                .accept(APPLICATION_JSON)
+                .when()
+                .post(host+"/initialization?connectorId="+defaultConnector+"&ecps="+ecps)
+                .then()
+                .statusCode(OK.code());
     }
 
     @AfterClass
