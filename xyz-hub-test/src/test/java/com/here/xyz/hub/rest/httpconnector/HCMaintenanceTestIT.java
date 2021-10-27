@@ -24,10 +24,9 @@ import com.here.xyz.hub.PsqlHttpVerticle;
 import com.here.xyz.hub.config.MaintenanceClient;
 import com.here.xyz.hub.rest.RestAssuredConfig;
 import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.psql.config.PSQLConfig;
 import io.vertx.core.json.JsonObject;
 import org.junit.*;
-
-import java.sql.SQLException;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.jayway.restassured.RestAssured.given;
@@ -52,7 +51,7 @@ public class HCMaintenanceTestIT {
     }
 
     @AfterClass
-    public static void tearDown() throws SQLException {
+    public static void tearDown() throws Exception {
         deleteTestResources();
     }
 
@@ -70,8 +69,9 @@ public class HCMaintenanceTestIT {
         return new MaintenanceClient();
     }
 
-    public static void deleteTestResources() throws SQLException {
-        MaintenanceClient.MaintenanceInstance dbInstance = mc.getClient(defaultConnector, ecps, "local");
+    public static void deleteTestResources() throws Exception {
+        String localhostECPS = PSQLConfig.encryptECPS("{}", "local");
+        MaintenanceClient.MaintenanceInstance dbInstance = mc.getClient(defaultConnector, localhostECPS, "local");
         SQLQuery query = new SQLQuery("DELETE from xyz_config.db_status where connector_id='TestConnector'");
 
         //delete connector entry
@@ -82,7 +82,7 @@ public class HCMaintenanceTestIT {
                 .contentType(APPLICATION_JSON)
                 .accept(APPLICATION_JSON)
                 .when()
-                .delete(RestAssuredConfig.config().fullUri+"/spaces/"+testSpace);
+                .delete(RestAssuredConfig.config().fullHubUri+"/spaces/"+testSpace);
     }
 
     public static void retrieveConfig() {
@@ -90,16 +90,14 @@ public class HCMaintenanceTestIT {
                 .contentType(APPLICATION_JSON)
                 .accept(APPLICATION_JSON)
                 .when()
-                .get("/hub/connectors/psql-http")
+                .get(RestAssuredConfig.config().fullHubUri+"/connectors/psql-http")
                 .getBody().asString();
 
         JsonObject connector = new JsonObject(response);
-        JsonObject remoteFunction = connector.getJsonObject("remoteFunction");
         JsonObject params = connector.getJsonObject("params");
 
         ecps = params.getString("ecps");
-        host = remoteFunction.getString("url");
-        host = host.substring(0,host.indexOf("/event"));
+        host = RestAssuredConfig.config().fullHttpConnectorUri;
     }
 
     @Test
@@ -195,7 +193,7 @@ public class HCMaintenanceTestIT {
     }
 
     @Test
-    public void initializeNewConnector() throws JsonProcessingException {
+    public void initializeNewConnector() {
 
         given()
                 .contentType(APPLICATION_JSON)
@@ -220,7 +218,7 @@ public class HCMaintenanceTestIT {
     }
 
     @Test
-    public void maintainSpace() throws JsonProcessingException {
+    public void maintainSpace() {
 
         given()
                 .contentType(APPLICATION_JSON)
@@ -235,7 +233,7 @@ public class HCMaintenanceTestIT {
                 .accept(APPLICATION_JSON)
                 .when()
                 .body("{\"id\": \""+testSpace+"\",\"title\": \"test\",\"enableHistory\" : true,\"searchableProperties\" : {\"foo\" :true}}")
-                .post(RestAssuredConfig.config().fullUri+"/spaces")
+                .post(RestAssuredConfig.config().fullHubUri +"/spaces")
                 .then()
                 .statusCode(OK.code());
 
