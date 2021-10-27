@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,23 +38,19 @@ public class RedisCacheClient implements CacheClient {
   private static final Logger logger = LogManager.getLogger();
   private ThreadLocal<Redis> redis;
   private String connectionString = Service.configuration.getRedisUri();
+  RedisOptions config = new RedisOptions()
+      .setConnectionString(connectionString)
+      .setNetClientOptions(new NetClientOptions()
+          .setTcpKeepAlive(true)
+          .setIdleTimeout(30)
+          .setConnectTimeout(2000));
   private static final String RND = UUID.randomUUID().toString();
 
   private RedisCacheClient() {
-    redis = ThreadLocal.withInitial(() -> {
-      RedisOptions config = new RedisOptions()
-          .setConnectionString(connectionString)
-          .setNetClientOptions(new NetClientOptions()
-              .setTcpKeepAlive(true)
-              .setIdleTimeout(30)
-              .setConnectTimeout(2000));
-
-      //Use redis auth token when available
-      if (Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN != null)
-        config.setPassword(Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN);
-
-      return Redis.createClient(Service.vertx, config);
-    });
+    //Use redis auth token when available
+    if (Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN != null)
+      config.setPassword(Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN);
+    redis = ThreadLocal.withInitial(() -> Redis.createClient(Service.vertx, config));
   }
 
   public static synchronized CacheClient getInstance() {
@@ -95,7 +91,7 @@ public class RedisCacheClient implements CacheClient {
     getClient().send(req).onComplete(ar -> {
       //SET command was executed. Nothing to do here.
       if (ar.failed()) {
-        //logger.warn("Error when trying to put key " + key + " to redis cache", ar.cause());
+        logger.warn("Error when trying to put key " + key + " to redis cache", ar.cause());
       }
     });
   }
@@ -106,7 +102,7 @@ public class RedisCacheClient implements CacheClient {
     getClient().send(req).onComplete(ar -> {
       //DEL command was executed. Nothing to do here.
       if (ar.failed()) {
-        //logger.warn("Error removing cache entry for key {}.", key, ar.cause());
+        logger.warn("Error removing cache entry for key {}.", key, ar.cause());
       }
     });
   }
@@ -127,9 +123,15 @@ public class RedisCacheClient implements CacheClient {
   public boolean acquireLock(String key, long ttl) {
     Request req = Request.cmd(Command.SET).arg(key).arg(RND).arg("NX").arg("EX").arg(ttl);
     CompletableFuture<Boolean> f = new CompletableFuture<>();
-    getClient().send(req).onComplete(ar->{
-      if (ar.failed() || ar.result() == null) f.complete(false);
-      else f.complete("OK".equals(ar.result().toString()));
+    getClient().send(req).onComplete(ar -> {
+      if (ar.failed()) {
+        logger.warn("Error acquiring lock for key {}.", key, ar.cause());
+        f.complete(false);
+      }
+      else if (ar.result() == null)
+        f.complete(false);
+      else
+        f.complete("OK".equals(ar.result().toString()));
     });
     try {
       return f.get();
@@ -148,7 +150,7 @@ public class RedisCacheClient implements CacheClient {
     Request req = Request.cmd(Command.EVAL).arg(luaScript).arg(1).arg(key).arg(RND);
     getClient().send(req).onComplete(ar -> {
       if (ar.failed()) {
-        //logger.warn("Error removing cache entry for key {}.", key, ar.cause());
+        logger.warn("Error releasing lock for key {}.", key, ar.cause());
       }
     });
   }
