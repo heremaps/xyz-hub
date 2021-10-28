@@ -23,6 +23,7 @@ public class MemoryHealthCheck extends ExecutableCheck {
 
   private void attachMemoryInfo(Response r) {
     try {
+      r.setAdditionalProperty("zgc", Service.IS_USING_ZGC);
       r.setAdditionalProperty("usedMemoryBytes", Service.getUsedMemoryBytes());
       r.setAdditionalProperty("usedMemoryPercent", Service.getUsedMemoryPercent());
     }

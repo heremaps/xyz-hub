@@ -47,7 +47,7 @@ public class GcDurationMetric extends Metric {
       CompositeData cd = (CompositeData) notification.getUserData();
       GarbageCollectionNotificationInfo gcNotificationInfo = GarbageCollectionNotificationInfo.from(cd);
       GcInfo gcInfo = gcNotificationInfo.getGcInfo();
-      if (gcNotificationInfo.getGcAction().equals("end of major GC"))
+      if (gcNotificationInfo.getGcAction().equals("end of major GC") || gcNotificationInfo.getGcAction().equals("end of GC cycle"))
         durations.get().add((double) gcInfo.getDuration());
     }
   };

@@ -1,4 +1,4 @@
-FROM openjdk:16-slim
+FROM openjdk:17-slim
 
 MAINTAINER Benjamin Rögner "benjamin.roegner@here.com"
 MAINTAINER Lucas Ceni "lucas.ceni@here.com"
