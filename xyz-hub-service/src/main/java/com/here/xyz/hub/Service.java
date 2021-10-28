@@ -309,7 +309,7 @@ public class Service extends Core {
   private static boolean isUsingZgc() {
     List<GarbageCollectorMXBean> gcMxBeans = ManagementFactory.getGarbageCollectorMXBeans();
     for (GarbageCollectorMXBean gcMxBean : gcMxBeans) {
-      if ("ZGC".equals(gcMxBean.getName())) {
+      if (gcMxBean.getName().startsWith("ZGC")) {
         logger.info("Service is using ZGC.");
         return true;
       }
