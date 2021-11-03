@@ -38,6 +38,7 @@ import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.SearchForFeaturesOrderByEvent;
+import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.FeatureTask;
@@ -327,7 +328,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
               throw new HttpException(BAD_REQUEST, "Invalid argument tileId.");
             }
           } else {
-            hereTileAddress = new HQuad(tileId);
+            hereTileAddress = new HQuad(tileId, Service.configuration.USE_BASE_4_H_TILES);
           }
         }
 
