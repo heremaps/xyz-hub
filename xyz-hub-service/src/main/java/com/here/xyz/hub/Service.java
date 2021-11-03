@@ -465,6 +465,11 @@ public class Service extends Core {
     public boolean ENABLE_CONNECTOR_HEALTH_CHECKS;
 
     /**
+     * If true HERE Tiles are get handled as Base 4 encoded. Default is false (Base 10).
+     */
+    public boolean USE_BASE_4_H_TILES;
+
+    /**
      * The ID of the default storage connector.
      */
     public String DEFAULT_STORAGE_ID;

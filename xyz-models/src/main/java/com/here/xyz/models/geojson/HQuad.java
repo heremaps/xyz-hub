@@ -45,8 +45,14 @@ public class HQuad {
   public String quadkey;
   private long hkey;
 
+  public HQuad(String quadkey, boolean isBase4Encoded ) {
+    if(!isBase4Encoded){
+      //Decode to Base4
+      quadkey = Long.toString(Long.parseLong(quadkey, 10), 4);
+      //Cut Leading 1
+      quadkey = quadkey.substring(1);
+    }
 
-  public HQuad(String quadkey) {
     if(quadkey == null || !quadkey.matches("[0123]{1,31}"))
       throw new IllegalArgumentException("Quadkey '"+quadkey+"' is invalid!");
 
