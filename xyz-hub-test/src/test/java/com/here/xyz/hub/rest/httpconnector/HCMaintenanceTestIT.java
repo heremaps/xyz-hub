@@ -85,7 +85,8 @@ public class HCMaintenanceTestIT {
     }
 
     public static void deleteTestResources() throws Exception {
-        String localhostECPS = PSQLConfig.encryptECPS("{}", "local");
+        String psqlHost = System.getenv().containsKey("PSQL_HOST") ? System.getenv("PSQL_HOST") : "localhost";
+        String localhostECPS = PSQLConfig.encryptECPS("{\"PSQL_HOST\":\""+psqlHost+"\"}", "local");
         MaintenanceClient.MaintenanceInstance dbInstance = mc.getClient(defaultConnector, localhostECPS, "local");
         SQLQuery query = new SQLQuery("DELETE from xyz_config.db_status where connector_id='TestConnector'");
 
