@@ -24,7 +24,7 @@ import static com.here.xyz.hub.util.metrics.base.Metric.MetricUnit.BYTES;
 import static com.here.xyz.hub.util.metrics.base.Metric.MetricUnit.MILLISECONDS;
 
 import com.here.xyz.hub.Core;
-import com.here.xyz.hub.connectors.HTTPFunctionClient;
+import com.here.xyz.hub.connectors.HTTPFunctionClient.HttpFunctionRegistry;
 import com.here.xyz.hub.util.metrics.base.AggregatingMetric;
 import com.here.xyz.hub.util.metrics.base.AggregatingMetric.AggregatedValues;
 import com.here.xyz.hub.util.metrics.base.AttributedMetricCollection;
@@ -62,17 +62,17 @@ public class ConnectionMetrics {
   public static String HTTP_REQUEST_LATENCY_METRIC_NAME = "HttpRequestLatency";
 
   private static final String getTargetByUrl(String url) {
-    String connectorId = HTTPFunctionClient.getConnectorIdByUrl(url);
+    String connectorId = HttpFunctionRegistry.getConnectorIdByUrl(url);
     if (connectorId != null)
-      return HTTPFunctionClient.isMetricsActive(connectorId) ? connectorId : null;
+      return HttpFunctionRegistry.isMetricsActive(connectorId) ? connectorId : null;
     else
       return url;
   }
 
   private static final String getTargetByHostAndPort(String hostname, int port) {
-    String connectorId = HTTPFunctionClient.getConnectorIdByHostAndPort(hostname, port);
+    String connectorId = HttpFunctionRegistry.getConnectorIdByHostAndPort(hostname, port);
     if (connectorId != null)
-      return HTTPFunctionClient.isMetricsActive(connectorId) ? connectorId : null;
+      return HttpFunctionRegistry.isMetricsActive(connectorId) ? connectorId : null;
     else
       return hostname + ":" + port;
   }
