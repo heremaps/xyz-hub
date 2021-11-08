@@ -58,9 +58,6 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
 
   private static final Logger logger = LogManager.getLogger();
   private volatile String url;
-  private static Map<String, String> connectorIdByUrl = new ConcurrentHashMap<>();
-  private static Map<String, String> connectorIdByHost = new ConcurrentHashMap<>();
-  private static Map<String, Boolean> metricsActiveByConnectorId = new ConcurrentHashMap<>();
 
   private static HttpClient httpClient = Service.vertx.createHttpClient(
       new HttpClientOptions()
@@ -80,15 +77,10 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
   @Override
   synchronized void setConnectorConfig(final Connector newConnectorConfig) throws NullPointerException, IllegalArgumentException {
     super.setConnectorConfig(newConnectorConfig);
-    if (!(getConnectorConfig().getRemoteFunction() instanceof Http)) {
+    if (!(getConnectorConfig().getRemoteFunction() instanceof Http))
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of HTTP");
-    }
-    final Http remoteFunction = (Http) getConnectorConfig().getRemoteFunction();
-    URL urlObj = remoteFunction.url;
-    url = urlObj.toString();
-    connectorIdByUrl.put(url, connectorConfig.id);
-    connectorIdByHost.put(urlObj.getHost() + ":" + (urlObj.getPort() == -1 ? urlObj.getDefaultPort() : urlObj.getPort()), connectorConfig.id);
-    metricsActiveByConnectorId.put(connectorConfig.id, remoteFunction.metricsActive);
+    url = ((Http) getConnectorConfig().getRemoteFunction()).url.toString();
+    HttpFunctionRegistry.register(getConnectorConfig());
   }
 
   @Override
@@ -184,26 +176,42 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
     callback.handle(Future.failedFuture(t));
   }
 
-  /**
-   * Returns, if possible, the matching connector ID for the specified HTTP URL.
-   * @param url
-   * @return The connector ID or null
-   */
-  public static String getConnectorIdByUrl(String url) {
-    return connectorIdByUrl.get(url);
+  public static class HttpFunctionRegistry {
+
+    private static final Map<String, String> connectorIdByUrl = new ConcurrentHashMap<>();
+    private static final Map<String, String> connectorIdByHost = new ConcurrentHashMap<>();
+    private static final Map<String, Boolean> metricsActiveByConnectorId = new ConcurrentHashMap<>();
+
+    private static void register(Connector connector) {
+      Http remoteFunction = (Http) connector.getRemoteFunction();
+      URL url = remoteFunction.url;
+      connectorIdByUrl.put(url.toString(), connector.id);
+      connectorIdByHost.put(url.getHost() + ":" + (url.getPort() == -1 ? url.getDefaultPort() : url.getPort()), connector.id);
+      metricsActiveByConnectorId.put(connector.id, remoteFunction.metricsActive);
+    }
+
+    /**
+     * Returns, if possible, the matching connector ID for the specified HTTP URL.
+     * @param url
+     * @return The connector ID or null
+     */
+    public static String getConnectorIdByUrl(String url) {
+      return connectorIdByUrl.get(url);
+    }
+
+    /**
+     * Returns, if possible, the matching connector ID for the specified hostname & port combination.
+     * @param hostname
+     * @param port
+     * @return The connector ID or null
+     */
+    public static String getConnectorIdByHostAndPort(String hostname, int port) {
+      return connectorIdByHost.get(hostname + ":" + port);
+    }
+
+    public static boolean isMetricsActive(String connectorId) {
+      return metricsActiveByConnectorId.getOrDefault(connectorId, false);
+    }
   }
 
-  /**
-   * Returns, if possible, the matching connector ID for the specified hostname & port combination.
-   * @param hostname
-   * @param port
-   * @return The connector ID or null
-   */
-  public static String getConnectorIdByHostAndPort(String hostname, int port) {
-    return connectorIdByHost.get(hostname + ":" + port);
-  }
-
-  public static boolean isMetricsActive(String connectorId) {
-    return metricsActiveByConnectorId.getOrDefault(connectorId, false);
-  }
 }
