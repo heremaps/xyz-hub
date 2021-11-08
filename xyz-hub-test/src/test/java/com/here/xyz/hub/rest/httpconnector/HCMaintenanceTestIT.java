@@ -21,12 +21,15 @@ package com.here.xyz.hub.rest.httpconnector;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.hub.PsqlHttpVerticle;
+import com.here.xyz.hub.auth.TestAuthenticator;
 import com.here.xyz.hub.config.MaintenanceClient;
 import com.here.xyz.hub.rest.RestAssuredConfig;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.config.PSQLConfig;
 import io.vertx.core.json.JsonObject;
 import org.junit.*;
+
+import java.util.HashMap;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.jayway.restassured.RestAssured.given;
@@ -39,11 +42,15 @@ public class HCMaintenanceTestIT {
     private static String host;
     private static String defaultConnector;
     private static MaintenanceClient mc;
+    private static HashMap<String, String> authHeaders;
 
     private static final String testSpace = "x-psql-test";
 
     @BeforeClass
     public static void setupClass() throws Exception {
+        authHeaders = new HashMap<>();
+        authHeaders.put("Authorization", "Bearer " + TestAuthenticator.AuthProfile.ACCESS_ALL.jwt_string);
+
         defaultConnector = "psql";
         retrieveConfig();
         mc = initMaintenanceClient();
@@ -88,6 +95,7 @@ public class HCMaintenanceTestIT {
         //delete space
         given()
                 .contentType(APPLICATION_JSON)
+                .headers(authHeaders)
                 .accept(APPLICATION_JSON)
                 .when()
                 .delete(RestAssuredConfig.config().fullHubUri+"/spaces/"+testSpace);
@@ -97,6 +105,7 @@ public class HCMaintenanceTestIT {
         final String response = given()
                 .contentType(APPLICATION_JSON)
                 .accept(APPLICATION_JSON)
+                .headers(authHeaders)
                 .when()
                 .get(RestAssuredConfig.config().fullHubUri+"/connectors/psql-http")
                 .getBody().asString();
@@ -239,6 +248,7 @@ public class HCMaintenanceTestIT {
        given()
                 .contentType(APPLICATION_JSON)
                 .accept(APPLICATION_JSON)
+                .headers(authHeaders)
                 .when()
                 .body("{\"id\": \""+testSpace+"\",\"title\": \"test\",\"enableHistory\" : true,\"searchableProperties\" : {\"foo\" :true}}")
                 .post(RestAssuredConfig.config().fullHubUri +"/spaces")
