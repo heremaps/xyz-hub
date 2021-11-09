@@ -82,7 +82,7 @@ public class ConnectionMetrics {
     if (metricCollection == null) return;
     metricsMap.computeIfAbsent(target, t -> {
       AggregatingMetric m = new AggregatingMetric(metricName, unit);
-      tcpReadBytes.addMetric(m, new Attribute(TARGET, target));
+      metricCollection.addMetric(m, new Attribute(TARGET, target));
       return m;
     }).addValue(valueToAggregate);
   }
