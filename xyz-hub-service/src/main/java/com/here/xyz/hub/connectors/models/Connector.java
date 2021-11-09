@@ -379,21 +379,23 @@ public class Connector {
        */
       public URL url;
 
-      public boolean metricsActive = false;
-
       @Override
       public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof Http)) return false;
         if (!super.equals(o)) return false;
         Http http = (Http) o;
-        return url.equals(http.url);
+        return metricsActive == http.metricsActive && url.equals(http.url);
       }
 
       @Override
       public int hashCode() {
-        return Objects.hash(url);
+        return Objects.hash(url, metricsActive);
       }
+
+      public boolean metricsActive = false;
+
+
     }
   }
 
