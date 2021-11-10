@@ -24,6 +24,7 @@ import static com.here.xyz.hub.util.metrics.base.Metric.MetricUnit.BYTES;
 import static com.here.xyz.hub.util.metrics.base.Metric.MetricUnit.MILLISECONDS;
 
 import com.here.xyz.hub.Core;
+import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.HTTPFunctionClient.HttpFunctionRegistry;
 import com.here.xyz.hub.util.metrics.base.AggregatingMetric;
 import com.here.xyz.hub.util.metrics.base.AggregatingMetric.AggregatedValues;
@@ -31,27 +32,30 @@ import com.here.xyz.hub.util.metrics.base.AttributedMetricCollection;
 import com.here.xyz.hub.util.metrics.base.AttributedMetricCollection.Attribute;
 import com.here.xyz.hub.util.metrics.base.CWAggregatedValuesPublisher;
 import com.here.xyz.hub.util.metrics.base.CWAttributedMetricCollectionPublisher;
-import com.here.xyz.hub.util.metrics.base.Metric.MetricUnit;
 import com.here.xyz.hub.util.metrics.base.MetricPublisher;
 import io.vertx.core.net.SocketAddress;
 import io.vertx.core.spi.metrics.ClientMetrics;
 import io.vertx.core.spi.metrics.HttpClientMetrics;
 import io.vertx.core.spi.metrics.TCPMetrics;
 import io.vertx.core.spi.observability.HttpRequest;
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 
 public class ConnectionMetrics {
 
   static final String TARGET = "target";
+  public static final String REMOTE_HUB = "REMOTE_HUB";
+  public static final String REDIS = "REDIS";
 
   public static AggregatingMetric httpClientQueueingTime;
   public static AttributedMetricCollection<AggregatedValues> tcpReadBytes;
@@ -61,27 +65,42 @@ public class ConnectionMetrics {
   public static AttributedMetricCollection<AggregatedValues> httpRequestLatency;
   public static String HTTP_REQUEST_LATENCY_METRIC_NAME = "HttpRequestLatency";
 
-  private static final String getTargetByUrl(String url) {
-    String connectorId = HttpFunctionRegistry.getConnectorIdByUrl(url);
-    if (connectorId != null)
-      return HttpFunctionRegistry.isMetricsActive(connectorId) ? connectorId : null;
-    else
-      return url;
+  private static String REDIS_HOST = "";
+  private static int REDIS_PORT;
+  private static List remoteHubHosts = new ArrayList();
+
+  public static void initialize() {
+    try {
+      URI redisUri = new URI(Service.configuration.getRedisUri());
+      REDIS_HOST = redisUri.getHost();
+      REDIS_PORT = redisUri.getPort();
+      if (REDIS_PORT == -1) REDIS_PORT = 6379; //Default redis port if none given
+    }
+    catch (Exception e) {
+      REDIS_PORT = 0;
+    }
+    try {
+      if (Service.configuration.getHubRemoteServiceUrls() != null) {
+        remoteHubHosts = Service.configuration.getHubRemoteServiceUrls().stream().map(url -> {
+          try {
+            return new URL(url).getHost();
+          }
+          catch (MalformedURLException e) {
+            return null;
+          }
+        }).filter(host -> host != null).collect(Collectors.toList());
+      }
+    }
+    catch (Exception e) {
+      //ignore
+    }
   }
 
-  private static final String getTargetByHostAndPort(String hostname, int port) {
-    String connectorId = HttpFunctionRegistry.getConnectorIdByHostAndPort(hostname, port);
-    if (connectorId != null)
-      return HttpFunctionRegistry.isMetricsActive(connectorId) ? connectorId : null;
-    else
-      return hostname + ":" + port;
-  }
-
-  private static void aggregate(String metricName, String target, MetricUnit unit, Map<String, AggregatingMetric> metricsMap,
+  private static void aggregate(String target, Map<String, AggregatingMetric> metricsMap,
       AttributedMetricCollection<AggregatedValues> metricCollection, double valueToAggregate) {
     if (metricCollection == null) return;
     metricsMap.computeIfAbsent(target, t -> {
-      AggregatingMetric m = new AggregatingMetric(metricName, unit);
+      AggregatingMetric m = new AggregatingMetric(metricCollection.getName(), metricCollection.getUnit());
       metricCollection.addMetric(m, new Attribute(TARGET, target));
       return m;
     }).addValue(valueToAggregate);
@@ -137,6 +156,12 @@ public class ConnectionMetrics {
     private static final Map<String, AggregatingMetric> readBytesMetrics = new ConcurrentHashMap<>();
     private static final Map<String, AggregatingMetric> writtenBytesMetrics = new ConcurrentHashMap<>();
 
+    protected String getTargetByHostAndPort(String hostname, int port) {
+      if (REDIS_HOST.equals(hostname) && port == REDIS_PORT) return REDIS;
+      if (remoteHubHosts.contains(hostname)) return REMOTE_HUB;
+      return null;
+    }
+
     private static class SocketMetric {
       SocketAddress remoteAddress;
       String remoteName;
@@ -163,6 +188,7 @@ public class ConnectionMetrics {
     public void disconnected(Object socketMetric, SocketAddress remoteAddress) {
       if (socketMetric == null) return;
       LongAdder adder = currentConnections.get(((SocketMetric) socketMetric).target);
+      //System.out.println("######### TCP-METRICS (" + ((SocketMetric) socketMetric).target + "): DisconnectedTcpConnection");
       if (adder != null)
         adder.decrement();
     }
@@ -171,14 +197,14 @@ public class ConnectionMetrics {
     public void bytesRead(Object socketMetric, SocketAddress remoteAddress, long numberOfBytes) {
       if (socketMetric == null) return;
       //System.out.println("######### TCP-METRICS (" + ((SocketMetric) socketMetric).target + "): bytesRead: " + numberOfBytes);
-      aggregate(TCP_READ_BYTES_METRIC_NAME, ((SocketMetric) socketMetric).target, BYTES, readBytesMetrics, tcpReadBytes, numberOfBytes);
+      aggregate(((SocketMetric) socketMetric).target, readBytesMetrics, tcpReadBytes, numberOfBytes);
     }
 
     @Override
     public void bytesWritten(Object socketMetric, SocketAddress remoteAddress, long numberOfBytes) {
       if (socketMetric == null) return;
       //System.out.println("######### TCP-METRICS (" + ((SocketMetric) socketMetric).target + "): bytesWritten: " + numberOfBytes);
-      aggregate(TCP_WRITTEN_BYTES_METRIC_NAME, ((SocketMetric) socketMetric).target, BYTES, writtenBytesMetrics, tcpWrittenBytes, numberOfBytes);
+      aggregate(((SocketMetric) socketMetric).target, writtenBytesMetrics, tcpWrittenBytes, numberOfBytes);
     }
 
     @Override
@@ -205,7 +231,19 @@ public class ConnectionMetrics {
       this.target = target;
     }
 
-    private static final Logger logger = LogManager.getLogger();
+    private static final String getTargetByUrl(String url) {
+      String connectorId = HttpFunctionRegistry.getConnectorIdByUrl(url);
+      if (connectorId != null)
+        return HttpFunctionRegistry.isMetricsActive(connectorId) ? connectorId : null;
+      else {
+        try {
+          return remoteHubHosts.contains(new URL(url).getHost()) ? REMOTE_HUB : null;
+        }
+        catch (MalformedURLException e) {
+          return null;
+        }
+      }
+    }
 
     static class RequestMetric {
       public HttpRequest request;
@@ -263,7 +301,8 @@ public class ConnectionMetrics {
     public void responseEnd(Object requestMetric, long bytesRead) {
       if (requestMetric == null) return;
       //System.out.println("######### METRICS(" + ((RequestMetric) requestMetric).target + "): responseEnd, bytesRead: " + bytesRead);
-      aggregate(HTTP_REQUEST_LATENCY_METRIC_NAME, ((RequestMetric) requestMetric).target, MILLISECONDS, httpRequestLatencyMetrics, httpRequestLatency, Core.currentTimeMillis() - ((RequestMetric) requestMetric).requestStart);
+      aggregate(((RequestMetric) requestMetric).target, httpRequestLatencyMetrics, httpRequestLatency,
+          Core.currentTimeMillis() - ((RequestMetric) requestMetric).requestStart);
       removeInflight((RequestMetric) requestMetric);
     }
 
@@ -275,10 +314,18 @@ public class ConnectionMetrics {
     }
   }
 
-  public static class HubHttpClientMetrics implements HttpClientMetrics {
+  public static class HubHttpClientMetrics extends HubTCPMetrics implements HttpClientMetrics {
 
-    TCPMetrics tcpDelegate = new HubTCPMetrics();
     public static final Map<String, LongAdder> endpointsConnected = new ConcurrentHashMap<>();
+
+    @Override
+    protected String getTargetByHostAndPort(String hostname, int port) {
+      String connectorId = HttpFunctionRegistry.getConnectorIdByHostAndPort(hostname, port);
+      if (connectorId != null)
+        return HttpFunctionRegistry.isMetricsActive(connectorId) ? connectorId : null;
+      else
+        return super.getTargetByHostAndPort(hostname, port);
+    }
 
     @Override
     public ClientMetrics createEndpointMetrics(SocketAddress remoteAddress, int maxPoolSize) {
@@ -301,31 +348,6 @@ public class ConnectionMetrics {
       if (adder != null)
         adder.decrement();
       //System.out.println("############ ENDPOINT DISCONNECTED (" + ((HubClientMetrics) endpointMetric).target + "): " + ((HubClientMetrics) endpointMetric).remoteAddress + ", maxPoolSize: " + ((HubClientMetrics) endpointMetric).maxPoolSize);
-    }
-
-    @Override
-    public Object connected(SocketAddress remoteAddress, String remoteName) {
-      return tcpDelegate.connected(remoteAddress, remoteName);
-    }
-
-    @Override
-    public void disconnected(Object socketMetric, SocketAddress remoteAddress) {
-      tcpDelegate.disconnected(socketMetric, remoteAddress);
-    }
-
-    @Override
-    public void bytesRead(Object socketMetric, SocketAddress remoteAddress, long numberOfBytes) {
-      tcpDelegate.bytesRead(socketMetric, remoteAddress, numberOfBytes);
-    }
-
-    @Override
-    public void bytesWritten(Object socketMetric, SocketAddress remoteAddress, long numberOfBytes) {
-      tcpDelegate.bytesWritten(socketMetric, remoteAddress, numberOfBytes);
-    }
-
-    @Override
-    public void exceptionOccurred(Object socketMetric, SocketAddress remoteAddress, Throwable t) {
-      tcpDelegate.exceptionOccurred(socketMetric, remoteAddress, t);
     }
   }
 }

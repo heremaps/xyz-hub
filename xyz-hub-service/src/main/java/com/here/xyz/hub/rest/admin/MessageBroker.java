@@ -47,10 +47,6 @@ public interface MessageBroker {
   Logger logger = LogManager.getLogger();
   ThreadLocal<ObjectMapper> mapper = ThreadLocal.withInitial(ObjectMapper::new);
 
-  int requestTimeout = (int) TimeUnit.SECONDS.toMillis(Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT);
-  List<String> hubRemoteUrls = Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS == null ?
-      null : Arrays.asList(Service.configuration.XYZ_HUB_REMOTE_SERVICE_URLS.split(";"));
-
   void sendRawMessage(String jsonMessage);
 
   default void sendMessage(AdminMessage message) {
@@ -92,13 +88,14 @@ public interface MessageBroker {
   default void sendRawMessagesToRemoteCluster(String jsonMessage, int tryCount) {
     int finalTryCount = tryCount++;
 
+    List<String> hubRemoteUrls = Service.configuration.getHubRemoteServiceUrls();
     if (hubRemoteUrls != null && !hubRemoteUrls.isEmpty()) {
       for (String remoteUrl : hubRemoteUrls) {
         if (remoteUrl.isEmpty()) continue;
         try {
           Service.webClient
               .postAbs(remoteUrl + AdminApi.ADMIN_MESSAGES_ENDPOINT)
-              .timeout(requestTimeout)
+              .timeout(29_000)
               .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
               .putHeader("Authorization", "Bearer " + Service.configuration.ADMIN_MESSAGE_JWT)
               .sendBuffer(Buffer.buffer(jsonMessage), ar -> {
