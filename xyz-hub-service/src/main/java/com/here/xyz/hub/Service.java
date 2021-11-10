@@ -293,6 +293,7 @@ public class Service extends Core {
 
   private static void startMetricPublishers() {
     if (configuration.PUBLISH_METRICS) {
+      ConnectionMetrics.initialize();
       metricPublishers.add(new CWBareValueMetricPublisher(new MemoryMetric("JvmMemoryUtilization")));
       metricPublishers.add(new CWBareValueMetricPublisher(new MajorGcCountMetric("MajorGcCount")));
       metricPublishers.add(new CWBareValueMetricPublisher(new GcDurationMetric("GcDuration")));
@@ -421,6 +422,13 @@ public class Service extends Core {
      * The urls of remote hub services, separated by semicolon ';'
      */
     public String XYZ_HUB_REMOTE_SERVICE_URLS;
+    private List<String> hubRemoteServiceUrls;
+
+    public List<String> getHubRemoteServiceUrls() {
+      if (hubRemoteServiceUrls == null)
+        hubRemoteServiceUrls = XYZ_HUB_REMOTE_SERVICE_URLS == null ? null : Arrays.asList(XYZ_HUB_REMOTE_SERVICE_URLS.split(";"));
+      return hubRemoteServiceUrls;
+    }
 
     /**
      * The authorization type.
