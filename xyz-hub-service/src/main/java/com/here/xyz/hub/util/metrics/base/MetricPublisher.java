@@ -19,13 +19,18 @@ public abstract class MetricPublisher<V> {
   public MetricPublisher(Metric<V> metric) {
     this.metric = metric;
     executor.scheduleAtFixedRate(() -> {
-      final V values = metric.gatherValues();
-      if (values == null) {
-        logger.debug("Nothing to publish for metric {}", getMetricName());
-        return;
+      try {
+        final V values = metric.gatherValues();
+        if (values == null) {
+          logger.debug("Nothing to publish for metric {}", getMetricName());
+          return;
+        }
+        publishValues(values);
+        logger.debug("Published values for metric {}", getMetricName());
       }
-      publishValues(values);
-      logger.debug("Publishing values for metric {}", getMetricName());
+      catch (Exception e) {
+        logger.error("Error gathering / publishing metric values {}:", getMetricName(), e);
+      }
     }, startWaitTime, refreshPeriod, TimeUnit.SECONDS);
     logger.info("Started publishing metric {}", getMetricName());
   }
@@ -50,5 +55,4 @@ public abstract class MetricPublisher<V> {
     executor.shutdown();
     logger.info("Stopped publishing metric {}", getMetricName());
   }
-
 }
