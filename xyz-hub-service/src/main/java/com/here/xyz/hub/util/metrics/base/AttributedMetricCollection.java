@@ -21,9 +21,9 @@ package com.here.xyz.hub.util.metrics.base;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 /**
  * A delegating metric which consists of one or more attributed sub-metrics.
@@ -55,7 +55,12 @@ public class AttributedMetricCollection<V> extends AttributedMetricCollector<V> 
     return metrics
         .entrySet()
         .stream()
-        .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue().gatherValues()));
+        .collect(HashMap::new, (m, e) -> {
+          final V metricValues = e.getValue().gatherValues();
+          //Filter out metrics which have nothing to publish
+          if (metricValues != null)
+            m.put(e.getKey(), metricValues);
+        }, HashMap::putAll);
   }
 
   public static class Attribute<K, V> {

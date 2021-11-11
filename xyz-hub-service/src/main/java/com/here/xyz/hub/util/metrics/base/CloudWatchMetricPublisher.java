@@ -43,7 +43,7 @@ public abstract class CloudWatchMetricPublisher<V> extends MetricPublisher<V> {
   protected static final String namespace = "XYZ/Hub";
   private static final String mainDimensionName = "ServiceName";
   Dimension dimension;
-  StandardUnit unit = StandardUnit.None;
+  StandardUnit unit;
 
   public CloudWatchMetricPublisher(Metric metric) {
     super(metric, 30);
@@ -80,7 +80,7 @@ public abstract class CloudWatchMetricPublisher<V> extends MetricPublisher<V> {
       getClient().putMetricData(request);
     }
     catch (Exception e) {
-      logger.error("Error publishing metric {}: {}", getMetricName(), e);
+      logger.error("Error publishing metric {}:", getMetricName(), e);
     }
   }
 
