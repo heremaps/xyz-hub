@@ -41,6 +41,8 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.config.DatabaseSettings;
 import com.here.xyz.psql.config.PSQLConfig;
+import com.here.xyz.psql.factory.PartitionedSpace;
+import com.here.xyz.psql.factory.PartitionedSpace.PartitionDef;
 import com.here.xyz.psql.query.StorageStatisticsQueryRunner;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.CountResponse;
@@ -65,6 +67,7 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -749,61 +752,6 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private static void advisoryUnlock(String tablename, Connection connection ) throws SQLException { _advisory(tablename,connection,false); }
 
-    static class PartitionDef
-    { 
-     int size = 0;
-     boolean isNumeric = false;
-     String jkey;
-     ArrayList<Object> listArr;
-     ArrayList<ArrayList<Object>> rangeArr;
-
-     private String jpathFromProperty(String pth)
-     { 
-      if(pth.startsWith("p.") ) 
-       pth = pth.replaceFirst("^p\\.", "properties.");
-      else if ( pth.startsWith("f.") )
-       pth = pth.replaceFirst("^f\\.", ""); 
-
-      String jpth = "jsondata";
-   
-      String[] ptharr = pth.split("\\.");
-      for( int i = 0; i < ptharr.length; i++ )
-       jpth = DhString.format("(%s->'%s')", jpth, ptharr[i]);
-
-      return jpth;  
-     }
-   
-     private boolean byHash()  { return ( listArr == null && rangeArr == null); }
-     private boolean byList()  { return ( listArr != null ); }
-     private boolean byRange() { return ( rangeArr != null ); }
-
-
-     PartitionDef( Map<String, Object> prtns )
-     { jkey = jpathFromProperty( prtns.getOrDefault("key", "id").toString() );
-       
-       if( prtns.containsKey("buckets") )
-       { Object o = prtns.get("buckets");
-         if( o != null && o instanceof Integer ) size = (Integer) o;
-       } 
-       else if ( prtns.containsKey("list") )
-       { Object o = prtns.get("list");
-         if( o != null && o instanceof ArrayList<?> )
-         { listArr = (ArrayList<Object>) o;
-           size = listArr.size();
-           isNumeric = !( listArr.get(0) instanceof String );
-         }
-       }
-       else if ( prtns.containsKey("range") )
-       { Object o = prtns.get("range");
-         if( o != null && o instanceof ArrayList<?> )
-         { rangeArr = (ArrayList<ArrayList<Object>>) o;
-           size = rangeArr.size();
-           isNumeric = !( rangeArr.get(0).get(0) instanceof String );
-         }
-       }
-     }
-    }
-
     protected void ensureSpace( PartitionDef partitions ) throws SQLException {
         // Note: We can assume that when the table exists, the postgis extensions are installed.
         if (hasTable()) return;
@@ -844,6 +792,8 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     protected void ensureSpace() throws SQLException { ensureSpace(null); }
 
+    static private final String crtUniqKeySql = "CREATE UNIQUE INDEX IF NOT EXISTS ${idx_id} ON ${schema}.${table} ((jsondata->>'id'))";
+
     private void createSpaceStatement(Statement stmt, String tableName, PartitionDef partitions ) throws SQLException {
 
         boolean bUsePartitions = ( partitions != null && partitions.size > 0 );
@@ -851,7 +801,6 @@ public abstract class DatabaseHandler extends StorageConnector {
         String schema = config.getDatabaseSettings().getSchema();
 
         String crtTableSql   = "CREATE TABLE IF NOT EXISTS ${schema}.${table} (jsondata jsonb, geo geometry(GeometryZ,4326), i BIGSERIAL)",
-               crtUniqKeySql = "CREATE UNIQUE INDEX IF NOT EXISTS ${idx_id} ON ${schema}.${table} ((jsondata->>'id'))",
                query;
 
         if( !bUsePartitions ) 
@@ -865,11 +814,11 @@ public abstract class DatabaseHandler extends StorageConnector {
         {
          query = crtTableSql;
          if( partitions.byHash() )
-          query = DhString.format( "%s partition by hash ((%s->>0))", query, partitions.jkey, partitions.size );
+          query = DhString.format( "%s partition by hash ((%s->>0))", query, partitions.jkey(), partitions.size );
          else if( partitions.byList() ) 
-          query = DhString.format( "%s partition by list ( (%s%s) )", query, partitions.jkey, partitions.isNumeric ? "::numeric" : "->>0" );
+          query = DhString.format( "%s partition by list ( (%s%s) )", query, partitions.jkey(), partitions.isNumeric ? "::numeric" : "->>0" );
          else if( partitions.byRange() ) 
-          query = DhString.format( "%s partition by range ( (%s%s) )", query, partitions.jkey, partitions.isNumeric ? "::numeric" : "->>0" ); 
+          query = DhString.format( "%s partition by range ( (%s%s) )", query, partitions.jkey(), partitions.isNumeric ? "::numeric" : "->>0" ); 
 
          query = SQLQuery.replaceVars(query, schema, tableName);
          stmt.addBatch(query);
@@ -935,6 +884,123 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private void createSpaceStatement(Statement stmt, String tableName) throws SQLException { createSpaceStatement(stmt,tableName,null); }
 
+    private boolean removePartitionsEvaluation( Statement stmt, PartitionDef requested, PartitionDef current ) { return false; } //not implemented
+    
+    private boolean addPartitionsEvaluation( Statement stmt, PartitionDef requested, PartitionDef current ) throws SQLException 
+    { 
+     final String tableName  = config.readTableFromEvent(event),
+                  schema = config.getDatabaseSettings().getSchema();
+
+     switch( current.Type() )
+     { 
+       case "list" :
+       { HashSet<Object> h = new HashSet<Object>();
+         
+         for (Object o : requested.listArr) 
+          if(! current.listArr.contains(o) ) 
+          { h.add(o); current.listArr.add(o); current.size = current.listArr.size(); }
+             
+         if( h.size() == 0 ) break;
+         
+         int hint = current.lastUsedTableNr() +1;
+
+         for( Object o : h )
+         { String partitionTableName = tableName + "_" + hint++, query;
+
+           query = DhString.format( "create table ${schema}.\"%s\" partition of ${schema}.${table} for values in (%s)", 
+                          partitionTableName, (current.isNumeric ? o.toString() : DhString.format("'%s'", o.toString())) );
+
+           query = SQLQuery.replaceVars(query, replacements, schema, tableName);
+           stmt.addBatch(query);
+               
+           query = SQLQuery.replaceVars(crtUniqKeySql, replacements, schema, tableName, partitionTableName);
+           stmt.addBatch(query);
+         }
+       }
+       return true;
+
+       case "range" : 
+       { HashSet<ArrayList<Object>> h = new HashSet<ArrayList<Object>>();
+         
+        for (ArrayList<Object> o : requested.rangeArr) 
+         if(! current.rangeArr.contains(o) ) 
+         { h.add(o); current.rangeArr.add(o); current.size = current.rangeArr.size(); }
+            
+        if( h.size() == 0 ) break;
+        
+        int hint = current.lastUsedTableNr() +1;
+
+        for( ArrayList<Object> o : h )
+        { String partitionTableName = tableName + "_" + hint++, query;
+
+          query = DhString.format( "create table ${schema}.\"%s\" partition of ${schema}.${table} for values from (%s) to (%s)", 
+                         partitionTableName, (current.isNumeric ? o.get(0).toString() : DhString.format("'%s'", o.get(0).toString())), 
+                                             (current.isNumeric ? o.get(1).toString() : DhString.format("'%s'", o.get(1).toString())) );
+
+          query = SQLQuery.replaceVars(query, replacements, schema, tableName);
+          stmt.addBatch(query);
+              
+          query = SQLQuery.replaceVars(crtUniqKeySql, replacements, schema, tableName, partitionTableName);
+          stmt.addBatch(query);
+        }
+      }
+      return true;
+
+
+       case "hash" : default : break;
+     }
+        
+     return false; 
+    } 
+
+    protected PartitionDef updatePartitionedSpace(PartitionDef partitionDef) throws SQLException {
+
+      final String tableName  = config.readTableFromEvent(event),
+                   schema = config.getDatabaseSettings().getSchema();
+      PartitionDef actPartitionDef = null;
+
+      try
+      {
+       if( partitionDef.byHash() )
+        throw new Exception( DhString.format( "update not allowed for partitions of type '%s'",partitionDef.Type()));
+ 
+       try (final Connection connection = dataSource.getConnection()) 
+       {
+         boolean cStateFlag = connection.getAutoCommit();  
+ 
+         try(Statement stmt = connection.createStatement())
+         { ResultSet rs = stmt.executeQuery( DhString.format(PartitionedSpace.getCurrentStateSql, schema, tableName) );
+ 
+           if(rs.next())
+           { String s = rs.getString("partitions_def");
+             Map<String, Object> pMap = XyzSerializable.deserialize( s, new TypeReference<Map<String, Object>>() {});
+             actPartitionDef = new PartitionDef(pMap);
+           }
+ 
+           if(actPartitionDef.equals(partitionDef)) return null;
+           
+           if(!actPartitionDef.isCompatible(partitionDef))
+            throw new Exception( DhString.format( "incompatible partition types '%s' != '%s'",actPartitionDef.Type(),partitionDef.Type()));
+ 
+           stmt.clearBatch();
+ 
+           if( removePartitionsEvaluation(stmt, partitionDef, actPartitionDef) || addPartitionsEvaluation(stmt, partitionDef, actPartitionDef) )
+           { connection.setAutoCommit(false);
+             stmt.setQueryTimeout(calculateTimeout());
+             try{ stmt.executeBatch(); } catch (Exception e) { connection.rollback(); throw e; }
+             connection.commit();
+             return actPartitionDef;
+           }
+
+           return null; // nothing to do
+         }
+         finally { connection.setAutoCommit(cStateFlag); }  
+       } 
+       finally { /* connection */ }
+     }
+     catch (Exception e) { throw new SQLException("Evaluation partitioning of space failed : "+tableName, e); } 
+    }
+  
     protected void ensureHistorySpace(Integer maxVersionCount, boolean compactHistory, boolean isEnableGlobalVersioning) throws SQLException {
         final String tableName = config.readTableFromEvent(event);
 

@@ -373,6 +373,26 @@ public class SpaceTaskHandler {
         });
   }
 
+  static private Map<String,Object> mergePartitionDefinitions( Map<String,Object> head, Map<String,Object> delta )
+  { 
+    if( head == null || delta == null ) return head != null ? head : delta;
+    
+    HashMap<String,Object> r = new HashMap<String,Object>();
+    r.putAll(head);
+    if( delta.containsKey("key") ) r.put("key", delta.get("key"));
+    if( delta.containsKey("buckets") ) r.put("buckets", delta.get("buckets"));
+
+    for( String k : Arrays.asList("list", "range") )
+     if( delta.containsKey( k ) ) 
+     { List<Object> a = head.containsKey(k) ? (List<Object>) head.get(k) : new ArrayList<Object>();
+       for( Object o : (List<Object>) delta.get(k) )
+        if( !a.contains(o) ) a.add(o);
+       r.put(k,a);
+     }
+
+    return r;
+  }
+
   static void sendEvents(ConditionalOperation task, Callback<ConditionalOperation> callback) {
     if (!task.isCreate() && !task.isUpdate() && !task.isDelete()) {
       callback.call(task);
@@ -389,6 +409,9 @@ public class SpaceTaskHandler {
       return;
     }
 
+    if( op == Operation.UPDATE && entry.result.getPartitions() != null )
+     space.setPartitions(mergePartitionDefinitions( entry.head.getPartitions(), entry.result.getPartitions()));
+  
     final ModifySpaceEvent event = new ModifySpaceEvent()
         .withOperation(op)
         .withSpaceDefinition(space)

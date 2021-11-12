@@ -56,6 +56,7 @@ import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.factory.H3SQL;
 import com.here.xyz.psql.factory.QuadbinSQL;
 import com.here.xyz.psql.factory.TweaksSQL;
+import com.here.xyz.psql.factory.PartitionedSpace.PartitionDef;
 import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.SuccessResponse;
@@ -468,13 +469,12 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       Space spaceDef = event.getSpaceDefinition();
 
-      if(  spaceDef != null && spaceDef.getPartitions() != null 
-         && !spaceDef.isEnableHistory()
-         && ModifySpaceEvent.Operation.CREATE == event.getOperation()
-        )
-      { 
-        ensureSpace( new PartitionDef( spaceDef.getPartitions() ) ); 
-      }  
+      if(  spaceDef != null && spaceDef.getPartitions() != null && !spaceDef.isEnableHistory() )
+       switch( event.getOperation() )
+       { case CREATE : ensureSpace( new PartitionDef( spaceDef.getPartitions() ) ); break;
+         case UPDATE : updatePartitionedSpace( new PartitionDef( spaceDef.getPartitions() ) ); break;
+         default: break;
+       }
 
       if(event.getSpaceDefinition() != null && event.getSpaceDefinition().isEnableHistory()){
         Integer maxVersionCount = event.getSpaceDefinition().getMaxVersionCount();
@@ -891,17 +891,21 @@ public class PSQLXyzConnector extends DatabaseHandler {
       return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT).withErrorMessage(e.getMessage());
 
       case "SNULL":
-        if (e.getMessage() == null) break;
+       if (e.getMessage() == null) break;
       // handle some dedicated messages
-      if( e.getMessage().indexOf("An attempt by a client to checkout a connection has timed out.") > -1 )
-       return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
-                                 .withErrorMessage("Cannot get a connection to the database.");
+       if( e.getMessage().indexOf("An attempt by a client to checkout a connection has timed out.") > -1 )
+        return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
+                                  .withErrorMessage("Cannot get a connection to the database.");
 
        if( e.getMessage().indexOf("Maxchar limit") > -1 )
         return new ErrorResponse().withStreamId(streamId).withError(XyzError.PAYLOAD_TO_LARGE)
                                                          .withErrorMessage("Database result - Maxchar limit exceed");
 
-        break; //others
+       if( e.getMessage().indexOf("Evaluation partitioning of space") > -1 )
+        return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
+                                                         .withErrorMessage( e.getCause() != null ? e.getCause().getMessage() : e.getMessage() );
+
+       break; //others
 
       default:
         break;
