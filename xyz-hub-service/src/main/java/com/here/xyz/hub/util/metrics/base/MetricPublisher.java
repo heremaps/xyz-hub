@@ -29,7 +29,7 @@ public abstract class MetricPublisher<V> {
         logger.debug("Published values for metric {}", getMetricName());
       }
       catch (Exception e) {
-        logger.error("Error gathering / publishing metric values {}:", getMetricName(), e);
+        logger.warn("Error gathering / publishing metric values {}:", getMetricName(), e);
       }
     }, startWaitTime, refreshPeriod, TimeUnit.SECONDS);
     logger.info("Started publishing metric {}", getMetricName());

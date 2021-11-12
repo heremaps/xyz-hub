@@ -37,22 +37,20 @@ public abstract class CloudWatchMetricPublisher<V> extends MetricPublisher<V> {
   private static final Logger logger = LogManager.getLogger();
   private static final int MAX_DATA_BATCH_SIZE = 20;
 
-  private static String region;
   private static AmazonCloudWatch _client;
 
   protected static final String namespace = "XYZ/Hub";
   private static final String mainDimensionName = "ServiceName";
-  Dimension dimension;
-  StandardUnit unit;
+
+  private Dimension mainDimension;
+  private StandardUnit unit;
 
   public CloudWatchMetricPublisher(Metric metric) {
     super(metric, 30);
-    dimension = new Dimension()
+    mainDimension = new Dimension()
         .withName(mainDimensionName)
         .withValue("XYZ-Hub-" + Service.configuration.ENVIRONMENT_NAME);
     this.unit = mapUnit(metric.getUnit());
-    if (region == null)
-      region = Service.configuration != null && Service.configuration.AWS_REGION != null ? Service.configuration.AWS_REGION : "none";
   }
 
   @Override
@@ -64,13 +62,13 @@ public abstract class CloudWatchMetricPublisher<V> extends MetricPublisher<V> {
 
   protected void publishValues(List<MetricDatum> data) {
     if (data.size() > MAX_DATA_BATCH_SIZE) {
-
+      //TODO: Implement once GcDurationMetric was refactored to be an AggregatingMetric
     }
 
     data.forEach(datum -> datum
         .withMetricName(getMetricName())
         .withUnit(unit)
-        .withDimensions(dimension, new Dimension().withName("region").withValue(region)));
+        .withDimensions(mainDimension));
 
     PutMetricDataRequest request = new PutMetricDataRequest()
         .withNamespace(namespace)
