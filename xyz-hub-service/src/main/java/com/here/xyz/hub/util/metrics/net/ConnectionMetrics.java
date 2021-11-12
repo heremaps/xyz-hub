@@ -33,10 +33,15 @@ import com.here.xyz.hub.util.metrics.base.AttributedMetricCollection.Attribute;
 import com.here.xyz.hub.util.metrics.base.CWAggregatedValuesPublisher;
 import com.here.xyz.hub.util.metrics.base.CWAttributedMetricCollectionPublisher;
 import com.here.xyz.hub.util.metrics.base.MetricPublisher;
+import io.vertx.core.VertxOptions;
+import io.vertx.core.http.HttpClientOptions;
+import io.vertx.core.net.NetClientOptions;
 import io.vertx.core.net.SocketAddress;
+import io.vertx.core.spi.VertxMetricsFactory;
 import io.vertx.core.spi.metrics.ClientMetrics;
 import io.vertx.core.spi.metrics.HttpClientMetrics;
 import io.vertx.core.spi.metrics.TCPMetrics;
+import io.vertx.core.spi.metrics.VertxMetrics;
 import io.vertx.core.spi.observability.HttpRequest;
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -348,6 +353,32 @@ public class ConnectionMetrics {
       if (adder != null)
         adder.decrement();
       //System.out.println("############ ENDPOINT DISCONNECTED (" + ((HubClientMetrics) endpointMetric).target + "): " + ((HubClientMetrics) endpointMetric).remoteAddress + ", maxPoolSize: " + ((HubClientMetrics) endpointMetric).maxPoolSize);
+    }
+  }
+
+  public static class HubMetrics implements VertxMetrics {
+
+    @Override
+    public HttpClientMetrics<?, ?, ?, ?> createHttpClientMetrics(HttpClientOptions options) {
+      return new HubHttpClientMetrics();
+    }
+
+    @Override
+    public ClientMetrics<?, ?, ?, ?> createClientMetrics(SocketAddress remoteAddress, String type, String namespace) {
+      return null;
+    }
+
+    @Override
+    public TCPMetrics<?> createNetClientMetrics(NetClientOptions options) {
+      return new HubTCPMetrics();
+    }
+  }
+
+  public static class HubMetricsFactory implements VertxMetricsFactory {
+
+    @Override
+    public VertxMetrics metrics(VertxOptions options) {
+      return new HubMetrics();
     }
   }
 }
