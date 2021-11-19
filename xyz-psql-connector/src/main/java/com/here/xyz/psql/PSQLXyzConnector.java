@@ -187,8 +187,12 @@ public class PSQLXyzConnector extends DatabaseHandler {
       WebMercatorTile mercatorTile = null;
       GetFeaturesByTileEvent tileEv = ( event instanceof GetFeaturesByTileEvent ? (GetFeaturesByTileEvent) event : null );
 
-      if( bClustering && tileEv != null && tileEv.getHereTileFlag() )
-       throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "clustering=[hexbin,quadbin] is not supported for 'here' tile type. Use Web Mercator projection (quadkey, web, tms).");
+      if( tileEv != null && tileEv.getHereTileFlag() ){
+        if(bClustering)
+          throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "clustering=[hexbin,quadbin] is not supported for 'here' tile type. Use Web Mercator projection (quadkey, web, tms).");
+        if(bOptViz)
+          throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "viz mode is not supported for 'here' tile type. Use Web Mercator projection (quadkey, web, tms).");
+      }
 
       if( bMvtRequested && tileEv == null )
        throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "mvt format needs tile request");
@@ -835,6 +839,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
          return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( "statistical data for this space is missing (analyze)" );
         if ( e.getMessage().indexOf("TopologyException") != -1 )
          return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( "geometry with irregular topology (self-intersection, clipping)" );
+        if ( e.getMessage().indexOf("ERROR: transform: couldn't project point") != -1 )
+         return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( "projection error" );
+        if ( e.getMessage().indexOf("ERROR: encode_geometry: 'GeometryCollection'") != -1 )
+         return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( "dataset contains invalid geometries" );
         //fall thru - timeout assuming timeout
 
      case "57014" : /* 57014 - query_canceled */
