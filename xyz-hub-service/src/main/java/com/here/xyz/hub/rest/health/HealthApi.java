@@ -62,7 +62,7 @@ public class HealthApi extends Api {
               .withName("HERE XYZ Hub")
               .withBuildDate(Core.BUILD_TIME)
               .withUpSince(Core.START_TIME)
-              .withEndpoint(getPublicServiceEndpoint())
+              .withEndpoint(URI.create(Service.configuration.XYZ_HUB_PUBLIC_ENDPOINT))
       )
       .add(new RedisHealthCheck(Service.configuration.getRedisUri()))
       .add(new MemoryHealthCheck())
@@ -98,13 +98,6 @@ public class HealthApi extends Api {
       logger.error("Wrong format of STORAGE_DB_URL: " + Service.configuration.STORAGE_DB_URL, e);
       return null;
     }
-  }
-
-  private static URI getPublicServiceEndpoint() {
-    String healthCheckEndpoint = MAIN_HEALTCHECK_ENDPOINT;
-    if (!Strings.isNullOrEmpty(Service.configuration.XYZ_HUB_PUBLIC_HEALTH_CHECK_ENDPOINT))
-      healthCheckEndpoint = Service.configuration.XYZ_HUB_PUBLIC_HEALTH_CHECK_ENDPOINT;
-    return URI.create(Service.configuration.XYZ_HUB_PUBLIC_ENDPOINT + healthCheckEndpoint);
   }
 
   private static URI getNodeHealthCheckEndpoint() {
