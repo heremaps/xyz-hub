@@ -387,6 +387,11 @@ public class Service extends Core {
     public String XYZ_HUB_PUBLIC_ENDPOINT;
 
     /**
+     * The public health-check endpoint, i.e. /hub/
+     */
+    public String XYZ_HUB_PUBLIC_HEALTH_CHECK_ENDPOINT;
+
+    /**
      * The redis host.
      */
     @Deprecated
