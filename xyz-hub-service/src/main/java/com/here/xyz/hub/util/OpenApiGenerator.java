@@ -52,6 +52,14 @@ public class OpenApiGenerator {
   private static JsonNode recipe;
 
   /**
+   * Returns the values map where dynamic values used during generation can be added.
+   * @return the values map to be filled before generating the OpenAPI specification.
+   */
+  public static Map<String, String> getValuesMap() {
+    return VALUES_MAP;
+  }
+
+  /**
    * Selects one of the recipes from a list of recipes and transforms it based on the rules specified by this recipe.
    * The main recipe contains a list of child recipes which can inherit properties and operations from each other.
    * For more information about the possibilities, please check openapi-recipes.yaml.
