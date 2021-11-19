@@ -22,6 +22,7 @@ package com.here.xyz.hub.rest.health;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
+import com.google.common.base.Strings;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.Api;
@@ -100,7 +101,10 @@ public class HealthApi extends Api {
   }
 
   private static URI getPublicServiceEndpoint() {
-    return URI.create(Service.configuration.XYZ_HUB_PUBLIC_ENDPOINT + MAIN_HEALTCHECK_ENDPOINT);
+    String healthCheckEndpoint = MAIN_HEALTCHECK_ENDPOINT;
+    if (!Strings.isNullOrEmpty(Service.configuration.XYZ_HUB_PUBLIC_HEALTH_CHECK_ENDPOINT))
+      healthCheckEndpoint = Service.configuration.XYZ_HUB_PUBLIC_HEALTH_CHECK_ENDPOINT;
+    return URI.create(Service.configuration.XYZ_HUB_PUBLIC_ENDPOINT + healthCheckEndpoint);
   }
 
   private static URI getNodeHealthCheckEndpoint() {
