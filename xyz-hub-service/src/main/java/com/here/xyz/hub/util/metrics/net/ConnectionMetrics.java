@@ -53,6 +53,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 
@@ -61,6 +63,7 @@ public class ConnectionMetrics {
   static final String TARGET = "target";
   public static final String REMOTE_HUB = "REMOTE_HUB";
   public static final String REDIS = "REDIS";
+  private static final Logger logger = LogManager.getLogger();
 
   public static AggregatingMetric httpClientQueueingTime;
   public static AttributedMetricCollection<AggregatedValues> tcpReadBytes;
@@ -153,6 +156,10 @@ public class ConnectionMetrics {
     return publishers;
   }
 
+  private static void handleMetricError(Throwable t) {
+    logger.error("ConnectionMetric Error", t);
+  }
+
   public static class HubTCPMetrics implements TCPMetrics {
 
     public static final Map<String, LongAdder> currentConnections = new ConcurrentHashMap<>();
@@ -175,47 +182,73 @@ public class ConnectionMetrics {
 
     @Override
     public Object connected(SocketAddress remoteAddress, String remoteName) {
-      String target = getTargetByHostAndPort(remoteAddress.hostName(), remoteAddress.port());
-      if (target != null) {
-        SocketMetric sm = new SocketMetric();
-        sm.remoteAddress = remoteAddress;
-        sm.remoteName = remoteName;
-        sm.target = target;
-        currentConnections.computeIfAbsent(sm.target, t -> new LongAdder()).increment();
-        newConnections.computeIfAbsent(sm.target, t -> new LongAdder()).increment();
-        //System.out.println("######### TCP-METRICS (" + sm.target + "): NewTcpConnection");
-        return sm;
+      try {
+        String target = getTargetByHostAndPort(remoteAddress.hostName(), remoteAddress.port());
+        if (target != null) {
+          SocketMetric sm = new SocketMetric();
+          sm.remoteAddress = remoteAddress;
+          sm.remoteName = remoteName;
+          sm.target = target;
+          currentConnections.computeIfAbsent(sm.target, t -> new LongAdder()).increment();
+          newConnections.computeIfAbsent(sm.target, t -> new LongAdder()).increment();
+          //System.out.println("######### TCP-METRICS (" + sm.target + "): NewTcpConnection");
+          return sm;
+        }
+        return null;
       }
-      return null;
+      catch (Throwable t) {
+        handleMetricError(t);
+        return null;
+      }
     }
 
     @Override
     public void disconnected(Object socketMetric, SocketAddress remoteAddress) {
-      if (socketMetric == null) return;
-      LongAdder adder = currentConnections.get(((SocketMetric) socketMetric).target);
-      //System.out.println("######### TCP-METRICS (" + ((SocketMetric) socketMetric).target + "): DisconnectedTcpConnection");
-      if (adder != null)
-        adder.decrement();
+      try {
+        if (socketMetric == null) return;
+        LongAdder adder = currentConnections.get(((SocketMetric) socketMetric).target);
+        //System.out.println("######### TCP-METRICS (" + ((SocketMetric) socketMetric).target + "): DisconnectedTcpConnection");
+        if (adder != null)
+          adder.decrement();
+      }
+      catch (Throwable t) {
+        handleMetricError(t);
+      }
     }
 
     @Override
     public void bytesRead(Object socketMetric, SocketAddress remoteAddress, long numberOfBytes) {
-      if (socketMetric == null) return;
-      //System.out.println("######### TCP-METRICS (" + ((SocketMetric) socketMetric).target + "): bytesRead: " + numberOfBytes);
-      aggregate(((SocketMetric) socketMetric).target, readBytesMetrics, tcpReadBytes, numberOfBytes);
+      try {
+        if (socketMetric == null) return;
+        //System.out.println("######### TCP-METRICS (" + ((SocketMetric) socketMetric).target + "): bytesRead: " + numberOfBytes);
+        aggregate(((SocketMetric) socketMetric).target, readBytesMetrics, tcpReadBytes, numberOfBytes);
+      }
+      catch (Throwable t) {
+        handleMetricError(t);
+      }
     }
 
     @Override
     public void bytesWritten(Object socketMetric, SocketAddress remoteAddress, long numberOfBytes) {
-      if (socketMetric == null) return;
-      //System.out.println("######### TCP-METRICS (" + ((SocketMetric) socketMetric).target + "): bytesWritten: " + numberOfBytes);
-      aggregate(((SocketMetric) socketMetric).target, writtenBytesMetrics, tcpWrittenBytes, numberOfBytes);
+      try {
+        if (socketMetric == null) return;
+        //System.out.println("######### TCP-METRICS (" + ((SocketMetric) socketMetric).target + "): bytesWritten: " + numberOfBytes);
+        aggregate(((SocketMetric) socketMetric).target, writtenBytesMetrics, tcpWrittenBytes, numberOfBytes);
+      }
+      catch (Throwable t) {
+        handleMetricError(t);
+      }
     }
 
     @Override
     public void exceptionOccurred(Object socketMetric, SocketAddress remoteAddress, Throwable t) {
-      if (socketMetric == null) return;
-      exceptionCount.computeIfAbsent(((SocketMetric) socketMetric).target, target -> new LongAdder()).increment();
+      try {
+        if (socketMetric == null) return;
+        exceptionCount.computeIfAbsent(((SocketMetric) socketMetric).target, target -> new LongAdder()).increment();
+      }
+      catch (Throwable thr) {
+        handleMetricError(thr);
+      }
     }
   }
 
@@ -264,36 +297,58 @@ public class ConnectionMetrics {
 
     @Override
     public Object enqueueRequest() {
-      return Core.currentTimeMillis();
+      try {
+        return Core.currentTimeMillis();
+      }
+      catch (Throwable t) {
+        handleMetricError(t);
+        return null;
+      }
     }
 
     @Override
     public void dequeueRequest(Object taskMetric) {
-      if (httpClientQueueingTime == null) return;
-      long queueingTime = Core.currentTimeMillis() - (long) taskMetric;
-      //System.out.println("############## Request handling took: " + queueingTime);
-      httpClientQueueingTime.addValue(queueingTime);
+      try {
+        if (httpClientQueueingTime == null) return;
+        long queueingTime = Core.currentTimeMillis() - (long) taskMetric;
+        //System.out.println("############## Request handling took: " + queueingTime);
+        httpClientQueueingTime.addValue(queueingTime);
+      }
+      catch (Throwable t) {
+        handleMetricError(t);
+      }
     }
 
     @Override
     public Object requestBegin(String uri, Object request) {
-      String target = getTargetByUrl(((HttpRequest) request).absoluteURI());
-      if (request instanceof HttpRequest && target != null) {
-        RequestMetric rm = new RequestMetric();
-        rm.request = (HttpRequest) request;
-        rm.target = target;
-        httpRequestsInflight.computeIfAbsent(rm.target, t -> new LongAdder()).increment();
-        httpRequests.computeIfAbsent(rm.target, t -> new LongAdder()).increment();
-        return rm;
+      try {
+        String target = getTargetByUrl(((HttpRequest) request).absoluteURI());
+        if (request instanceof HttpRequest && target != null) {
+          RequestMetric rm = new RequestMetric();
+          rm.request = (HttpRequest) request;
+          rm.target = target;
+          httpRequestsInflight.computeIfAbsent(rm.target, t -> new LongAdder()).increment();
+          httpRequests.computeIfAbsent(rm.target, t -> new LongAdder()).increment();
+          return rm;
+        }
+        return null;
       }
-      return null;
+      catch (Throwable t) {
+        handleMetricError(t);
+        return null;
+      }
     }
 
     @Override
     public void requestReset(Object requestMetric) {
-      if (requestMetric == null) return;
-      resetHttpRequests.computeIfAbsent(((RequestMetric) requestMetric).target, target -> new LongAdder()).increment();
-      removeInflight((RequestMetric) requestMetric);
+      try {
+        if (requestMetric == null) return;
+        resetHttpRequests.computeIfAbsent(((RequestMetric) requestMetric).target, target -> new LongAdder()).increment();
+        removeInflight((RequestMetric) requestMetric);
+      }
+      catch (Throwable t) {
+        handleMetricError(t);
+      }
     }
 
     @Override
@@ -304,11 +359,16 @@ public class ConnectionMetrics {
 
     @Override
     public void responseEnd(Object requestMetric, long bytesRead) {
-      if (requestMetric == null) return;
-      //System.out.println("######### METRICS(" + ((RequestMetric) requestMetric).target + "): responseEnd, bytesRead: " + bytesRead);
-      aggregate(((RequestMetric) requestMetric).target, httpRequestLatencyMetrics, httpRequestLatency,
-          Core.currentTimeMillis() - ((RequestMetric) requestMetric).requestStart);
-      removeInflight((RequestMetric) requestMetric);
+      try {
+        if (requestMetric == null) return;
+        //System.out.println("######### METRICS(" + ((RequestMetric) requestMetric).target + "): responseEnd, bytesRead: " + bytesRead);
+        aggregate(((RequestMetric) requestMetric).target, httpRequestLatencyMetrics, httpRequestLatency,
+            Core.currentTimeMillis() - ((RequestMetric) requestMetric).requestStart);
+        removeInflight((RequestMetric) requestMetric);
+      }
+      catch (Throwable t) {
+        handleMetricError(t);
+      }
     }
 
     private void removeInflight(RequestMetric requestMetric) {
@@ -334,25 +394,41 @@ public class ConnectionMetrics {
 
     @Override
     public ClientMetrics createEndpointMetrics(SocketAddress remoteAddress, int maxPoolSize) {
-      String target = getTargetByHostAndPort(remoteAddress.hostName(), remoteAddress.port());
-      if (target == null) return null;
-      return new HubClientMetrics(remoteAddress, maxPoolSize, target);
+      try {
+        String target = getTargetByHostAndPort(remoteAddress.hostName(), remoteAddress.port());
+        if (target == null) return null;
+        return new HubClientMetrics(remoteAddress, maxPoolSize, target);
+      }
+      catch (Throwable t) {
+        handleMetricError(t);
+        return null;
+      }
     }
 
     @Override
     public void endpointConnected(ClientMetrics endpointMetric) {
-      if (endpointMetric == null) return;
-      endpointsConnected.computeIfAbsent(((HubClientMetrics) endpointMetric).target, t -> new LongAdder()).increment();
-      //System.out.println("############ ENDPOINT CONNECTED (" + ((HubClientMetrics) endpointMetric).target + "): " + ((HubClientMetrics) endpointMetric).remoteAddress + ", maxPoolSize: " + ((HubClientMetrics) endpointMetric).maxPoolSize);
+      try {
+        if (endpointMetric == null) return;
+        endpointsConnected.computeIfAbsent(((HubClientMetrics) endpointMetric).target, t -> new LongAdder()).increment();
+        //System.out.println("############ ENDPOINT CONNECTED (" + ((HubClientMetrics) endpointMetric).target + "): " + ((HubClientMetrics) endpointMetric).remoteAddress + ", maxPoolSize: " + ((HubClientMetrics) endpointMetric).maxPoolSize);
+      }
+      catch (Throwable t) {
+        handleMetricError(t);
+      }
     }
 
     @Override
     public void endpointDisconnected(ClientMetrics endpointMetric) {
-      if (endpointMetric == null) return;
-      LongAdder adder = endpointsConnected.get(((HubClientMetrics) endpointMetric).target);
-      if (adder != null)
-        adder.decrement();
-      //System.out.println("############ ENDPOINT DISCONNECTED (" + ((HubClientMetrics) endpointMetric).target + "): " + ((HubClientMetrics) endpointMetric).remoteAddress + ", maxPoolSize: " + ((HubClientMetrics) endpointMetric).maxPoolSize);
+      try {
+        if (endpointMetric == null) return;
+        LongAdder adder = endpointsConnected.get(((HubClientMetrics) endpointMetric).target);
+        if (adder != null)
+          adder.decrement();
+        //System.out.println("############ ENDPOINT DISCONNECTED (" + ((HubClientMetrics) endpointMetric).target + "): " + ((HubClientMetrics) endpointMetric).remoteAddress + ", maxPoolSize: " + ((HubClientMetrics) endpointMetric).maxPoolSize);
+      }
+      catch (Throwable t) {
+        handleMetricError(t);
+      }
     }
   }
 
