@@ -545,9 +545,24 @@ public class Service extends Core {
     public int GLOBAL_MAX_QUEUE_SIZE; //MB
 
     /**
-     * The default timeout for remote functions requests.
+     * The default timeout for remote function requests in seconds.
      */
     public int REMOTE_FUNCTION_REQUEST_TIMEOUT; //seconds
+
+    /**
+     * OPTIONAL: The maximum timeout for remote function requests in seconds.
+     * If not specified, the value of {@link #REMOTE_FUNCTION_REQUEST_TIMEOUT} will be used.
+     */
+    public int REMOTE_FUNCTION_MAX_REQUEST_TIMEOUT; //seconds
+
+    /**
+     * @return the value of {@link #REMOTE_FUNCTION_MAX_REQUEST_TIMEOUT} if specified.
+     *  The value of {@link #REMOTE_FUNCTION_REQUEST_TIMEOUT} otherwise.
+     */
+    @JsonIgnore
+    public int getRemoteFunctionMaxRequestTimeout() {
+      return REMOTE_FUNCTION_MAX_REQUEST_TIMEOUT > 0 ? REMOTE_FUNCTION_MAX_REQUEST_TIMEOUT : REMOTE_FUNCTION_REQUEST_TIMEOUT;
+    }
 
     /**
      * The maximum amount of RemoteFunction connections to be opened by this node.
