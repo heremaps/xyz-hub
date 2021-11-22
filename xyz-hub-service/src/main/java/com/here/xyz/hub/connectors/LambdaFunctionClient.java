@@ -148,7 +148,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
             .withTcpKeepAlive(true)
             .withMaxConnections(Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS)
             .withConnectionTimeout(CONNECTION_ESTABLISH_TIMEOUT)
-            .withRequestTimeout(REQUEST_TIMEOUT)
+            .withRequestTimeout(remoteFunction.getTimeout())
             .withMaxErrorRetry(0)
 //            .withClientExecutionTimeout(CLIENT_REQUEST_TIMEOUT)
             .withConnectionTTL(CONNECTION_TTL))
@@ -163,7 +163,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
     //TODO: Use CompletableFuture.delayedExecutor() after switching to Java 9
     new Thread(() -> {
       try {
-        Thread.sleep(REQUEST_TIMEOUT);
+        Thread.sleep(MAX_REQUEST_TIMEOUT);
       }
       catch (InterruptedException ignored) {}
       lambdaClient.shutdown();

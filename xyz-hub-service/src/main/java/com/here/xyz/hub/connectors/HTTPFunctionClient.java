@@ -58,6 +58,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
 
   private static final Logger logger = LogManager.getLogger();
   private volatile String url;
+  private int requestTimeout;
 
   private static HttpClient httpClient = Service.vertx.createHttpClient(
       new HttpClientOptions()
@@ -79,7 +80,9 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
     super.setConnectorConfig(newConnectorConfig);
     if (!(getConnectorConfig().getRemoteFunction() instanceof Http))
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of HTTP");
-    url = ((Http) getConnectorConfig().getRemoteFunction()).url.toString();
+    final Http remoteFunction = (Http) getConnectorConfig().getRemoteFunction();
+    url = remoteFunction.url.toString();
+    requestTimeout = remoteFunction.getTimeout();
     HttpFunctionRegistry.register(getConnectorConfig());
   }
 
@@ -99,7 +102,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
 
       httpClient.request(new RequestOptions()
           .setMethod(HttpMethod.POST)
-          .setTimeout(REQUEST_TIMEOUT)
+          .setTimeout(requestTimeout)
           .putHeader(CONTENT_TYPE, "application/json; charset=" + Charset.defaultCharset().name())
           .putHeader(STREAM_ID, fc.marker.getName())
           .putHeader(ACCEPT_ENCODING, "gzip")
