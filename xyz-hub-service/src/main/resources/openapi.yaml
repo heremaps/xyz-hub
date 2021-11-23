@@ -864,7 +864,7 @@ paths:
       requestBody:
         $ref: '#/components/requestBodies/ConnectorConfig'
       responses:
-        '200':
+        '201':
           $ref: '#/components/responses/ConnectorResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse400'
