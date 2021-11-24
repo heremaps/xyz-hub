@@ -55,7 +55,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
   protected static String usedStorageId = embeddedStorageId;
 
   protected static void remove() {
-    TestWithSpaceCleanup.removeSpace(getSpaceId());
+    TestWithSpaceCleanup.removeSpace("x-psql-test");
   }
 
   private static ValidatableResponse createSpace(String content) {
@@ -78,20 +78,24 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .body("storage.id", equalTo((usedStorageId)));
   }
 
-  protected static String createSpaceWithCustomStorage(String storageId, JsonObject storageParams) {
+  protected String createSpaceWithCustomStorage(String spaceId, String storageId, JsonObject storageParams) {
     JsonObject storage = new JsonObject()
         .put("id", storageId);
     if (storageParams != null)
       storage.put("params", storageParams);
     JsonObject space = new JsonObject()
+        .put("id", spaceId)
         .put("title", "Demo Space with storage " + storageId)
         .put("storage", storage);
 
-    return createSpace(space.encode())
-        .body("storage.id", equalTo(storageId))
-        .extract()
-        .body()
-        .path("id");
+    return given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(APPLICATION_JSON)
+        .body(space.encode())
+        .when()
+        .post(getCreateSpacePath(spaceId))
+        .then()
+        .statusCode(200).extract().body().path("id");
   }
 
   protected static String createSpace(final AuthProfile authProfile, final String title, final boolean shared) {
