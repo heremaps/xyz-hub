@@ -20,13 +20,10 @@
 package com.here.xyz.hub.rest.httpconnector;
 
 import com.here.xyz.hub.rest.PropertiesSearch2IT;
-import com.here.xyz.hub.rest.RestTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.experimental.categories.Category;
 
 @SuppressWarnings("unused")
-@Category(RestTests.class)
 public class HCPropertiesSearch2IT extends PropertiesSearch2IT {
 
   @BeforeClass

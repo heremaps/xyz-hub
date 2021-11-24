@@ -19,23 +19,19 @@
 
 package com.here.xyz.hub.rest.httpconnector;
 
-import com.here.xyz.hub.rest.ReadHistoryApiIT;
-import com.here.xyz.hub.rest.RestTests;
-import com.jayway.restassured.response.ValidatableResponse;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.experimental.categories.Category;
-
-import java.util.HashMap;
-
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_HERE_CHANGESET_COLLECTION;
 import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 
-@Category(RestTests.class)
+import com.here.xyz.hub.rest.ReadHistoryApiIT;
+import com.jayway.restassured.response.ValidatableResponse;
+import java.util.HashMap;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+
 public class HCReadHistoryApiIT extends ReadHistoryApiIT {
 
   @BeforeClass

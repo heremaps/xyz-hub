@@ -20,12 +20,9 @@
 package com.here.xyz.hub.rest.httpconnector;
 
 import com.here.xyz.hub.rest.ReadFeatureApiGeomIT;
-import com.here.xyz.hub.rest.RestTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.experimental.categories.Category;
 
-@Category(RestTests.class)
 public class HCReadFeatureApiGeomIT extends ReadFeatureApiGeomIT {
 
   @BeforeClass
