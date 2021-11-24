@@ -20,14 +20,9 @@
 package com.here.xyz.hub.rest.httpconnector;
 
 import com.here.xyz.hub.rest.DeleteFeatureApiIT;
-import com.here.xyz.hub.rest.ModifySpaceApiIT;
-import com.here.xyz.hub.rest.RestTests;
 import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.experimental.categories.Category;
 
-@Category(RestTests.class)
 public class HCDeleteFeatureApiIT extends DeleteFeatureApiIT {
 
   @BeforeClass

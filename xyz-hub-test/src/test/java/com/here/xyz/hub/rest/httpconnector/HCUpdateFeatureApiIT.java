@@ -19,17 +19,13 @@
 
 package com.here.xyz.hub.rest.httpconnector;
 
-import com.here.xyz.hub.rest.RestTests;
-import com.here.xyz.hub.rest.StoreFeaturesApiIT;
 import com.here.xyz.hub.rest.UpdateFeatureApiIT;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.FixMethodOrder;
-import org.junit.experimental.categories.Category;
 import org.junit.runners.MethodSorters;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
-@Category(RestTests.class)
 public class HCUpdateFeatureApiIT extends UpdateFeatureApiIT {
 
   @BeforeClass

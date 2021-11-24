@@ -19,25 +19,13 @@
 
 package com.here.xyz.hub.rest.httpconnector;
 
-import com.here.xyz.hub.rest.RestTests;
 import com.here.xyz.hub.rest.StoreFeaturesApiIT;
-import com.here.xyz.hub.rest.TestSpaceWithFeature;
-import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import org.junit.*;
-import org.junit.experimental.categories.Category;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.FixMethodOrder;
 import org.junit.runners.MethodSorters;
 
-import java.util.Arrays;
-
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
-import static com.jayway.restassured.RestAssured.given;
-import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
-import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-import static org.hamcrest.Matchers.equalTo;
-
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
-@Category(RestTests.class)
 public class HCStoreFeaturesApiIT extends StoreFeaturesApiIT {
 
   @BeforeClass

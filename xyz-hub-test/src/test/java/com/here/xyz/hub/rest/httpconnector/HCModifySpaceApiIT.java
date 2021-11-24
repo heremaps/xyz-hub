@@ -19,18 +19,19 @@
 
 package com.here.xyz.hub.rest.httpconnector;
 
-import com.here.xyz.hub.rest.ModifySpaceApiIT;
-import com.here.xyz.hub.rest.RestTests;
-import org.junit.*;
-import org.junit.experimental.categories.Category;
-
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
-@Category(RestTests.class)
+import com.here.xyz.hub.rest.ModifySpaceApiIT;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.Test;
+
 public class HCModifySpaceApiIT extends ModifySpaceApiIT {
 
   @Before

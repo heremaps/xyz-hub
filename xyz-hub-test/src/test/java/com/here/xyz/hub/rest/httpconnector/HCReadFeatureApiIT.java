@@ -18,13 +18,11 @@
  */
 
 package com.here.xyz.hub.rest.httpconnector;
+
 import com.here.xyz.hub.rest.ReadFeatureApiIT;
-import com.here.xyz.hub.rest.RestTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.experimental.categories.Category;
 
-@Category(RestTests.class)
 public class HCReadFeatureApiIT extends ReadFeatureApiIT {
 
     @BeforeClass
