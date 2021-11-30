@@ -878,6 +878,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
      case "42P01" :
       return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT).withErrorMessage(e.getMessage());
 
+     case "40P01" : // Database -> deadlock detected e.g. "Process 9452 waits for ShareLock on transaction 2383228826; blocked by process 9342."
+      return new ErrorResponse().withStreamId(streamId).withError(XyzError.CONFLICT).withErrorMessage(e.getMessage());
+
       case "SNULL":
         if (e.getMessage() == null) break;
       // handle some dedicated messages
