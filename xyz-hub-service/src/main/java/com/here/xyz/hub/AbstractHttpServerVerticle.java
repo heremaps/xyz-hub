@@ -214,6 +214,7 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
       if (Service.configuration != null && Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE > 0) {
         if (context.getBody() != null && context.getBody().length() > Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE) {
           sendErrorResponse(context, new HttpException(REQUEST_ENTITY_TOO_LARGE, "The request payload is bigger than the maximum allowed."));
+          return;
         }
       }
 
