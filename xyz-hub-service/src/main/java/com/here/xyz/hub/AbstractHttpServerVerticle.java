@@ -130,8 +130,8 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
   protected void addDefaultHandlers(Router router) {
     //Add additional handler to the router
     router.route().failureHandler(createFailureHandler());
-    router.route().order(0)
-        .handler(createBodyHandler())
+    // starts at the 2nd route, since the first one is automatically added from openapi's RouterBuilder.createRouter
+    router.route().order(1)
         .handler(createReceiveHandler())
         .handler(createMaxRequestSizeHandler())
         .handler(createCorsHandler());
@@ -187,6 +187,15 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
     return context -> sendErrorResponse(context, new HttpException(NOT_FOUND, "The requested resource does not exist."));
   }
 
+  /**
+   * @deprecated
+   * The usage of multiple body handlers does not work as expected when multiple verticles are in place, because,
+   * only one (the first in the chain) will have the <code>BodyHandlerImpl.handle</code> method executed.
+   * See {@link io.vertx.ext.web.handler.impl.BodyHandlerImpl#handle(RoutingContext) BodyHandlerImpl#handle}
+   *
+   * In this case, the validation for max uncompressed request size must be implemented in a different handler.
+   * @return BodyHandler with bodyLimit
+   */
   protected BodyHandler createBodyHandler() {
     BodyHandler bodyHandler = BodyHandler.create();
     if (Service.configuration != null && Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE > 0) {
