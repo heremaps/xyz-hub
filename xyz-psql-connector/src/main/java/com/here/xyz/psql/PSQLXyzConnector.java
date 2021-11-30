@@ -167,6 +167,19 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   static private TupleTime ttime = new TupleTime();
 
+  static private boolean isVeryLargeSpace( String rTuples )
+  { long tresholdVeryLargeSpace = 350000000L; // 350M Objects
+
+    if( rTuples == null ) return false;
+
+    String[] a = rTuples.split("~");
+    if( a == null || a[0] == null ) return false;
+
+    try{ return tresholdVeryLargeSpace <= Long.parseLong(a[0]); } catch( NumberFormatException e ){}
+
+    return false;
+  }
+
   @Override
   protected XyzResponse processGetFeaturesByBBoxEvent(GetFeaturesByBBoxEvent event) throws Exception {
     try{
@@ -236,6 +249,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
         }
 
         int distStrength = 1;
+        boolean bSortByHashedValue = false;
 
         switch ( event.getTweakType().toLowerCase() )  {
 
@@ -249,7 +263,11 @@ public class PSQLXyzConnector extends DatabaseHandler {
             int rCount = estimateFtr.get("rcount");
 
             if( rTuples == null )
-             TupleTime.rTuplesMap.put(event.getSpace(), estimateFtr.get("rtuples") );
+            { rTuples = estimateFtr.get("rtuples");
+              TupleTime.rTuplesMap.put(event.getSpace(), rTuples );
+            }
+
+            bSortByHashedValue = isVeryLargeSpace( rTuples );
 
             boolean bDefaultSelectionHandling = (tweakParams.get(TweaksSQL.ENSURE_DEFAULT_SELECTION) == Boolean.TRUE );
 
@@ -269,13 +287,13 @@ public class PSQLXyzConnector extends DatabaseHandler {
             if( bTweaks || !bVizSamplingOff )
             {
               if( !bMvtRequested )
-              { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, dataSource));
+              { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, bSortByHashedValue, dataSource));
                 if( distStrength > 0 ) collection.setPartial(true); // either ensure mode or explicit tweaks:sampling request where strenght in [1..100]
                 return collection;
               }
               else
                return executeBinQueryWithRetry(
-                         SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, dataSource) , mercatorTile, bbox, mvtMargin, bMvtFlattend ) );
+                         SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, bSortByHashedValue, dataSource) , mercatorTile, bbox, mvtMargin, bMvtFlattend ) );
             }
             else
             { // fall thru tweaks=simplification e.g. mode=viz and vizSampling=off

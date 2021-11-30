@@ -375,7 +375,7 @@ public class SQLQueryBuilder {
 
     }
 
-    public static SQLQuery buildSamplingTweaksQuery(GetFeaturesByBBoxEvent event, BBox bbox, Map tweakParams, DataSource dataSource) throws SQLException
+    public static SQLQuery buildSamplingTweaksQuery(GetFeaturesByBBoxEvent event, BBox bbox, Map tweakParams, boolean bSortByHashedValue, DataSource dataSource) throws SQLException
     {
      int strength = 0;
      boolean bDistribution  = true,
@@ -409,7 +409,7 @@ public class SQLQueryBuilder {
                     tweakQuery = new SQLQuery(twqry);
 
      if( !bEnsureMode || !bConvertGeo2Geojson )  
-      return generateCombinedQuery(event, tweakQuery, searchQuery , dataSource, bConvertGeo2Geojson, null, tblSampleRatio );
+      return generateCombinedQuery(event, tweakQuery, searchQuery , dataSource, bConvertGeo2Geojson, null, tblSampleRatio, bSortByHashedValue );
 
      /* TweaksSQL.ENSURE and geojson requested (no mvt) */
      boolean bTestTweaksGeoIfNull = false;
@@ -419,7 +419,7 @@ public class SQLQueryBuilder {
      tweaksGeoSql = ( bConvertGeo2Geojson ? DhString.format("replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "( %s ),%d),'nan','0')",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS)
                                           : DhString.format( getForceMode(event.isForce2D()) + "( %s )",tweaksGeoSql ) );
 
-     return generateCombinedQueryTweaks(event, tweakQuery, searchQuery , tweaksGeoSql, bTestTweaksGeoIfNull, dataSource,tblSampleRatio);
+     return generateCombinedQueryTweaks(event, tweakQuery, searchQuery , tweaksGeoSql, bTestTweaksGeoIfNull, dataSource, tblSampleRatio, bSortByHashedValue );
 	}
 
 
@@ -965,7 +965,7 @@ public class SQLQueryBuilder {
         return query;
     }
 
-    private static SQLQuery generateCombinedQueryTweaks(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, String tweaksgeo, boolean bTestTweaksGeoIfNull, DataSource dataSource, float sampleRatio) throws SQLException
+    private static SQLQuery generateCombinedQueryTweaks(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, String tweaksgeo, boolean bTestTweaksGeoIfNull, DataSource dataSource, float sampleRatio, boolean bSortByHashedValue) throws SQLException
     {
      String tSample = ( sampleRatio <= 0.0 ? "" : DhString.format("tablesample system(%.6f) repeatable(499)", 100.0 * sampleRatio) ); 
 
@@ -985,6 +985,9 @@ public class SQLQueryBuilder {
        query.append(secondaryQuery);
      }
 
+     if( bSortByHashedValue )
+      query.append( DhString.format( " order by %s ", TweaksSQL.distributionFunctionIndexExpression() ) );
+
      query.append(DhString.format(" ) tw where %s ", bTestTweaksGeoIfNull ? "geo is not null" : "1 = 1" ) );
 
      query.append("LIMIT ?", event.getLimit());
@@ -992,9 +995,9 @@ public class SQLQueryBuilder {
     }
 
     private static SQLQuery generateCombinedQueryTweaks(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, String tweaksgeo, boolean bTestTweaksGeoIfNull, DataSource dataSource) throws SQLException
-    { return generateCombinedQueryTweaks(event, indexedQuery, secondaryQuery, tweaksgeo, bTestTweaksGeoIfNull, dataSource, -1.0f );  }
+    { return generateCombinedQueryTweaks(event, indexedQuery, secondaryQuery, tweaksgeo, bTestTweaksGeoIfNull, dataSource, -1.0f, false );  }
 
-    private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, DataSource dataSource, boolean bConvertGeo2Geojson, String h3Index, float sampleRatio ) throws SQLException
+    private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, DataSource dataSource, boolean bConvertGeo2Geojson, String h3Index, float sampleRatio, boolean bSortByHashedValue ) throws SQLException
     {
         String tSample = ( sampleRatio <= 0.0 ? "" : DhString.format("tablesample system(%.6f) repeatable(499)", 100.0 * sampleRatio) );
         
@@ -1021,12 +1024,15 @@ public class SQLQueryBuilder {
             query.append(secondaryQuery);
         }
 
+        if( bSortByHashedValue )
+         query.append( DhString.format( " order by %s ", TweaksSQL.distributionFunctionIndexExpression() ) );
+  
         query.append("LIMIT ?", event.getLimit());
         return query;
     }
 
     private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, DataSource dataSource, boolean bConvertGeo2Geojson, String h3Index ) throws SQLException
-    { return generateCombinedQuery(event,indexedQuery,secondaryQuery,dataSource,bConvertGeo2Geojson,h3Index, -1.0f); }
+    { return generateCombinedQuery(event,indexedQuery,secondaryQuery,dataSource,bConvertGeo2Geojson,h3Index, -1.0f, false); }
 
     /**
      * Returns the query, which will contains the geometry object.
