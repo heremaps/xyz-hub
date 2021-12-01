@@ -39,7 +39,6 @@ import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.NotModifiedResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
-import com.here.xyz.util.Hasher;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -208,14 +207,14 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
         Event event = readEvent(input);
 
         String connectorId = null;
-        if(streamId == null)
-          streamId = event.getStreamId();
+        if(this.streamId == null)
+          this.streamId = streamId != null ? streamId : event.getStreamId();
 
         if (event.getConnectorParams() != null  && event.getConnectorParams().get("connectorId") != null)
           connectorId = (String) event.getConnectorParams().get("connectorId");
 
         maxUncompressedResponseSize = getMaxUncompressedResponseSize(event);
-        traceItem = new TraceItem(streamId, connectorId);
+        traceItem = new TraceItem(this.streamId, connectorId);
 
         ifNoneMatch = event.getIfNoneMatch();
 
@@ -232,7 +231,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
       catch (Exception e) {
         logger.error("{} Unexpected exception occurred:", traceItem, e);
         dataOut = new ErrorResponse()
-            .withStreamId(streamId)
+            .withStreamId(this.streamId)
             .withError(XyzError.EXCEPTION)
             .withErrorMessage("Unexpected exception occurred.");
       }
