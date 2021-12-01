@@ -14,7 +14,7 @@ public abstract class MetricPublisher<V> {
   private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
   private long startWaitTime;
   private long refreshPeriod = DEFAULT_REFRESH_PERIOD;
-  private Metric metric;
+  private volatile Metric metric;
 
   public MetricPublisher(Metric<V> metric) {
     this.metric = metric;
