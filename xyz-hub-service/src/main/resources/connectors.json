@@ -167,7 +167,8 @@
   {
     "id": "c1",
     "params": {
-      "connectorId" : "c1"
+      "connectorId" : "c1",
+      "ecps": "$encrypt({\"PSQL_HOST\":\"${PSQL_HOST}\",\"PSQL_PORT\":\"${PSQL_PORT}\",\"PSQL_DB\":\"${PSQL_DB}\",\"PSQL_USER\":\"${PSQL_USER}\",\"PSQL_PASSWORD\":\"${PSQL_PASSWORD}\",\"PSQL_SCHEMA\":\"public\"})"
     },
     "capabilities": {
       "preserializedResponseSupport": true
@@ -182,11 +183,7 @@
         "warmUp": 0,
         "className": "com.here.xyz.psql.PSQLXyzConnector",
         "env": {
-          "PSQL_HOST": "${PSQL_HOST}",
-          "PSQL_PORT": "${PSQL_PORT}",
-          "PSQL_DB": "${PSQL_DB}",
-          "PSQL_USER": "${PSQL_USER}",
-          "PSQL_PASSWORD": "${PSQL_PASSWORD}"
+          "ECPS_PHRASE": "local"
         }
       }
     }
@@ -194,7 +191,8 @@
   {
     "id": "c2",
     "params": {
-      "connectorId" : "c2"
+      "connectorId" : "c2",
+      "ecps": "$encrypt({\"PSQL_HOST\":\"${PSQL_HOST}\",\"PSQL_PORT\":\"${PSQL_PORT}\",\"PSQL_DB\":\"${PSQL_DB}\",\"PSQL_USER\":\"${PSQL_USER}\",\"PSQL_PASSWORD\":\"${PSQL_PASSWORD}\",\"PSQL_SCHEMA\":\"public\"})"
     },
     "capabilities": {
       "preserializedResponseSupport": true
@@ -210,11 +208,7 @@
         "warmUp": 0,
         "className": "com.here.xyz.psql.PSQLXyzConnector",
         "env": {
-          "PSQL_HOST": "${PSQL_HOST}",
-          "PSQL_PORT": "${PSQL_PORT}",
-          "PSQL_DB": "${PSQL_DB}",
-          "PSQL_USER": "${PSQL_USER}",
-          "PSQL_PASSWORD": "${PSQL_PASSWORD}"
+          "ECPS_PHRASE": "local"
         }
       }
     }
@@ -222,7 +216,8 @@
   {
     "id": "c3",
     "params": {
-      "connectorId" : "c3"
+      "connectorId" : "c3",
+      "ecps": "$encrypt({\"PSQL_HOST\":\"${PSQL_HOST}\",\"PSQL_PORT\":\"${PSQL_PORT}\",\"PSQL_DB\":\"${PSQL_DB}\",\"PSQL_USER\":\"${PSQL_USER}\",\"PSQL_PASSWORD\":\"${PSQL_PASSWORD}\",\"PSQL_SCHEMA\":\"public\"})"
     },
     "capabilities": {
       "preserializedResponseSupport": true
@@ -238,11 +233,7 @@
         "warmUp": 0,
         "className": "com.here.xyz.psql.PSQLXyzConnector",
         "env": {
-          "PSQL_HOST": "${PSQL_HOST}",
-          "PSQL_PORT": "${PSQL_PORT}",
-          "PSQL_DB": "${PSQL_DB}",
-          "PSQL_USER": "${PSQL_USER}",
-          "PSQL_PASSWORD": "${PSQL_PASSWORD}"
+          "ECPS_PHRASE": "local"
         }
       }
     }
@@ -250,7 +241,8 @@
   {
     "id": "c4",
     "params": {
-      "connectorId" : "c4"
+      "connectorId" : "c4",
+      "ecps": "$encrypt({\"PSQL_HOST\":\"${PSQL_HOST}\",\"PSQL_PORT\":\"${PSQL_PORT}\",\"PSQL_DB\":\"${PSQL_DB}\",\"PSQL_USER\":\"${PSQL_USER}\",\"PSQL_PASSWORD\":\"${PSQL_PASSWORD}\",\"PSQL_SCHEMA\":\"public\"})"
     },
     "capabilities": {
       "preserializedResponseSupport": true
@@ -265,11 +257,7 @@
         "warmUp": 0,
         "className": "com.here.xyz.psql.PSQLXyzConnector",
         "env": {
-          "PSQL_HOST": "${PSQL_HOST}",
-          "PSQL_PORT": "${PSQL_PORT}",
-          "PSQL_DB": "${PSQL_DB}",
-          "PSQL_USER": "${PSQL_USER}",
-          "PSQL_PASSWORD": "${PSQL_PASSWORD}"
+          "ECPS_PHRASE": "local"
         }
       }
     }
