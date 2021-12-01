@@ -42,8 +42,8 @@ public abstract class CloudWatchMetricPublisher<V> extends MetricPublisher<V> {
   protected static final String namespace = "XYZ/Hub";
   private static final String mainDimensionName = "ServiceName";
 
-  private Dimension mainDimension;
-  private StandardUnit unit;
+  private volatile Dimension mainDimension;
+  private volatile StandardUnit unit;
 
   public CloudWatchMetricPublisher(Metric metric) {
     super(metric, 30);
