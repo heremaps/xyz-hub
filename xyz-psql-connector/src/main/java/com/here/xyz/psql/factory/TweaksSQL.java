@@ -52,7 +52,10 @@ public class TweaksSQL
    [ high   | (100) | 1/4096 | ~ md5( '' || i) < '001' ]
   */
 
-  private static final String DstFunctIndexExpr = "left(md5(''||i),5)"; 
+  private static final String DstFunctIndexExpr = "left(md5(''||i),5)";
+
+  public static String distributionFunctionIndexExpression() { return DstFunctIndexExpr; }
+
   public static String strengthSql(int strength, boolean bRandom)
   { 
    if( !bRandom ) 
@@ -249,7 +252,7 @@ public class TweaksSQL
     +" ( select '${schema}' as schema, '${table}' as space, array[ %1$s ] as tiles, 'geo' as colname ), "
     +" iindata as ( %2$s ),"
     +" iiidata as "
-    +" ( select ii.tid, string_agg(  ii.reltuples || '~' || ii.tblname,',' ) as rtup, sum( case when ii.bstats then ii.reltuples * xyz_postgis_selectivity(format('%%s.%%I', ii.schema, ii.tblname)::regclass, ii.colname, ii.tile) else 0.0 end ) estim "
+    +" ( select ii.tid, string_agg(  ii.reltuples::bigint || '~' || ii.tblname,',' ) as rtup, sum( case when ii.bstats then ii.reltuples * xyz_postgis_selectivity(format('%%s.%%I', ii.schema, ii.tblname)::regclass, ii.colname, ii.tile) else 0.0 end ) estim "
     +"   from iindata ii "
     +"   group by tid "
     +" ) "
