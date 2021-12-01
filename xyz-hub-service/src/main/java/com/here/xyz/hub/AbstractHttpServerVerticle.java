@@ -199,7 +199,13 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
 
         if (Service.configuration.UPLOAD_LIMIT_HEADER_NAME != null && context.request().headers().get(Service.configuration.UPLOAD_LIMIT_HEADER_NAME) != null) {
           /** Override limit if we are receiving an UPLOAD_LIMIT_HEADER_NAME value */
-          limit = Long.parseLong(context.request().headers().get(Service.configuration.UPLOAD_LIMIT_HEADER_NAME));
+          try {
+            limit = Long.parseLong(context.request().headers().get(Service.configuration.UPLOAD_LIMIT_HEADER_NAME));
+          }catch (NumberFormatException e){
+            sendErrorResponse(context, new HttpException(BAD_REQUEST, "Value of header: "+Service.configuration.UPLOAD_LIMIT_HEADER_NAME+" has to be a number."));
+            return;
+          }
+
           errorMessage = "You have exceeded the upload size limit established for this organization. Please add a payment method to your account to remove this limit.";
           status = PAYMENT_REQUIRED;
         }
