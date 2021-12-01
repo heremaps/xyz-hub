@@ -590,6 +590,11 @@ public class Service extends Core {
     public String FS_WEB_ROOT;
 
     /**
+     * The name of the upload limit header
+     */
+    public String UPLOAD_LIMIT_HEADER_NAME;
+
+    /**
      * The name of the health check header to instruct for additional health status information.
      */
     public String HEALTH_CHECK_HEADER_NAME;

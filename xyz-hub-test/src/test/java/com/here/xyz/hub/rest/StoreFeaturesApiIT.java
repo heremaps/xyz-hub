@@ -23,11 +23,14 @@ import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.netty.handler.codec.http.HttpResponseStatus.PAYMENT_REQUIRED;
 import static org.hamcrest.Matchers.equalTo;
 
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import java.util.Arrays;
+import java.util.HashMap;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -108,5 +111,28 @@ public class StoreFeaturesApiIT extends TestSpaceWithFeature {
         then().
         statusCode(OK.code()).
         body("failed[0].id", equalTo("T1"));
+  }
+
+  @Test
+  public void putFeaturesCheckCustomSizeLimit() {
+    given().
+            contentType(APPLICATION_GEO_JSON).
+            accept("application/x-empty").
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            headers(new HashMap<String, String>(){{put("X-Upload-Content-Length-Limit","1");}}).
+            body("{\"features\":[{\"geometry\":{\"coordinates\":[-2.960777,53.430777],\"type\":\"Point\"}}],\"type\":\"FeatureCollection\"}").
+            when().
+            put(getSpacesPath() + "/x-psql-test/features").
+            then().
+            statusCode(PAYMENT_REQUIRED.code());
+    given().
+            contentType(APPLICATION_GEO_JSON).
+            accept("application/x-empty").
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            body("{\"features\":[{\"geometry\":{\"coordinates\":[-2.960777,53.430777],\"type\":\"Point\"}}],\"type\":\"FeatureCollection\"}").
+            when().
+            put(getSpacesPath() + "/x-psql-test/features").
+            then().
+            statusCode(NO_CONTENT.code());
   }
 }
