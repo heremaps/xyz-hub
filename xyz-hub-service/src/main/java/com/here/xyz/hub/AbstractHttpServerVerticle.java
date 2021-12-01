@@ -30,6 +30,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE;
 import static io.netty.handler.codec.http.HttpResponseStatus.UNAUTHORIZED;
+import static io.netty.handler.codec.http.HttpResponseStatus.PAYMENT_REQUIRED;
 import static io.vertx.core.http.HttpHeaders.AUTHORIZATION;
 import static io.vertx.core.http.HttpHeaders.CACHE_CONTROL;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
@@ -59,7 +60,6 @@ import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.json.Json;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.CorsHandler;
 import io.vertx.ext.web.validation.BadRequestException;
 import java.util.Arrays;
@@ -188,36 +188,29 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
   }
 
   /**
-   * @deprecated
-   * The usage of multiple body handlers does not work as expected when multiple verticles are in place, because,
-   * only one (the first in the chain) will have the <code>BodyHandlerImpl.handle</code> method executed.
-   * See {@link io.vertx.ext.web.handler.impl.BodyHandlerImpl#handle(RoutingContext) BodyHandlerImpl#handle}
-   *
-   * In this case, the validation for max uncompressed request size must be implemented in a different handler.
-   * @return BodyHandler with bodyLimit
-   */
-  protected BodyHandler createBodyHandler() {
-    BodyHandler bodyHandler = BodyHandler.create();
-    if (Service.configuration != null && Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE > 0) {
-      // This check works only for multipart or url encoded content types, not for application/geo+json
-      bodyHandler = bodyHandler.setBodyLimit(Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE);
-    }
-
-    return bodyHandler;
-  }
-
-  /**
    * The max request size handler.
    */
   protected Handler<RoutingContext> createMaxRequestSizeHandler() {
     return context -> {
-      if (Service.configuration != null && Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE > 0) {
-        if (context.getBody() != null && context.getBody().length() > Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE) {
-          sendErrorResponse(context, new HttpException(REQUEST_ENTITY_TOO_LARGE, "The request payload is bigger than the maximum allowed."));
-          return;
+      if(Service.configuration != null ) {
+        long limit = Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE;
+        String errorMessage = "The request payload is bigger than the maximum allowed.";
+        HttpResponseStatus status = REQUEST_ENTITY_TOO_LARGE;
+
+        if (Service.configuration.UPLOAD_LIMIT_HEADER_NAME != null && context.request().headers().get(Service.configuration.UPLOAD_LIMIT_HEADER_NAME) != null) {
+          /** Override limit if we are receiving an UPLOAD_LIMIT_HEADER_NAME value */
+          limit = Long.parseLong(context.request().headers().get(Service.configuration.UPLOAD_LIMIT_HEADER_NAME));
+          errorMessage = "You have exceeded the upload size limit established for this organization. Please add a payment method to your account to remove this limit.";
+          status = PAYMENT_REQUIRED;
+        }
+
+        if (limit > 0) {
+          if (context.getBody() != null && context.getBody().length() > limit) {
+            sendErrorResponse(context, new HttpException(status, errorMessage));
+            return;
+          }
         }
       }
-
       context.next();
     };
   }
