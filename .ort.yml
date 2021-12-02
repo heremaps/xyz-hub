@@ -30,3 +30,7 @@ resolutions:
     reason: "SCANNER_ISSUE"
     comment: "This error can be ignored as the file does not introduce any new licenses \
       compared to what is already detected for this package."
+  - message: "ERROR: Timeout after 300 seconds while scanning file 'jts/testdata/polygon.wkb'."
+    reason: "SCANNER_ISSUE"
+    comment: "This error can be ignored as the file does not introduce any new licenses \
+      compared to what is already detected for this package."
