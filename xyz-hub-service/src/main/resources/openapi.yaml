@@ -2583,7 +2583,7 @@ components:
               type: integer
               description: >-
                 The last version which got written into the history.
-              format: int64
+              format: int32
               minimum: 0
             estimated:
               $ref: '#/components/schemas/Estimated'
