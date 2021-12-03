@@ -48,6 +48,7 @@ import static io.vertx.core.http.HttpMethod.PUT;
 import com.google.common.base.Strings;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.hub.task.FeatureTask;
 import com.here.xyz.hub.task.TaskPipeline;
 import com.here.xyz.hub.util.logging.LogUtil;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -204,12 +205,13 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
 
           /** Override limit if we are receiving an UPLOAD_LIMIT_HEADER_NAME value */
           try {
+            limit = Long.parseLong(uploadLimit);
+
             if (context.get(STREAM_INFO_CTX_KEY) == null)
               context.put(STREAM_INFO_CTX_KEY, new HashMap<String, Object>());
             /** Add limit to streamInfo response header */
-            ((Map<String, Object>) context.get(STREAM_INFO_CTX_KEY)).put("MaxReqSize", uploadLimit);
-
-            limit = Long.parseLong(uploadLimit);
+            addStreamInfo(context, "MaxReqSize", limit);
+            ((Map<String, Object>) context.get(STREAM_INFO_CTX_KEY)).put("MaxReqSize", limit);
           } catch (NumberFormatException e) {
             sendErrorResponse(context, new HttpException(BAD_REQUEST, "Value of header: " + Service.configuration.UPLOAD_LIMIT_HEADER_NAME + " has to be a number."));
             return;
@@ -328,6 +330,13 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
     allowHeaders.stream().map(String::valueOf).forEach(cors::allowedHeader);
     exposeHeaders.stream().map(String::valueOf).forEach(cors::exposedHeader);
     return cors;
+  }
+
+  public static <T extends FeatureTask> void addStreamInfo(RoutingContext context, String streamInfoKey, Object streamInfoValue) {
+    if (context.get(STREAM_INFO_CTX_KEY) == null)
+      context.put(STREAM_INFO_CTX_KEY, new HashMap<String, Object>());
+
+    ((Map<String, Object>) context.get(STREAM_INFO_CTX_KEY)).put(streamInfoKey, streamInfoValue);
   }
 
   /**
