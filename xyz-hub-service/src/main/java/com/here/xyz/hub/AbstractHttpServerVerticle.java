@@ -63,6 +63,7 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.CorsHandler;
 import io.vertx.ext.web.validation.BadRequestException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -195,14 +196,22 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
       if(Service.configuration != null ) {
         long limit = Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE;
         String errorMessage = "The request payload is bigger than the maximum allowed.";
+        String uploadLimit;
         HttpResponseStatus status = REQUEST_ENTITY_TOO_LARGE;
 
-        if (Service.configuration.UPLOAD_LIMIT_HEADER_NAME != null && context.request().headers().get(Service.configuration.UPLOAD_LIMIT_HEADER_NAME) != null) {
+        if (Service.configuration.UPLOAD_LIMIT_HEADER_NAME != null
+                && (uploadLimit = context.request().headers().get(Service.configuration.UPLOAD_LIMIT_HEADER_NAME))!= null) {
+
           /** Override limit if we are receiving an UPLOAD_LIMIT_HEADER_NAME value */
           try {
-            limit = Long.parseLong(context.request().headers().get(Service.configuration.UPLOAD_LIMIT_HEADER_NAME));
-          }catch (NumberFormatException e){
-            sendErrorResponse(context, new HttpException(BAD_REQUEST, "Value of header: "+Service.configuration.UPLOAD_LIMIT_HEADER_NAME+" has to be a number."));
+            if (context.get(STREAM_INFO_CTX_KEY) == null)
+              context.put(STREAM_INFO_CTX_KEY, new HashMap<String, Object>());
+            /** Add limit to streamInfo response header */
+            ((Map<String, Object>) context.get(STREAM_INFO_CTX_KEY)).put("UploadLimitReached", uploadLimit);
+
+            limit = Long.parseLong(uploadLimit);
+          } catch (NumberFormatException e) {
+            sendErrorResponse(context, new HttpException(BAD_REQUEST, "Value of header: " + Service.configuration.UPLOAD_LIMIT_HEADER_NAME + " has to be a number."));
             return;
           }
 
