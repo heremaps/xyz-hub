@@ -207,7 +207,7 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
             if (context.get(STREAM_INFO_CTX_KEY) == null)
               context.put(STREAM_INFO_CTX_KEY, new HashMap<String, Object>());
             /** Add limit to streamInfo response header */
-            ((Map<String, Object>) context.get(STREAM_INFO_CTX_KEY)).put("UploadLimitReached", uploadLimit);
+            ((Map<String, Object>) context.get(STREAM_INFO_CTX_KEY)).put("MaxReqSize", uploadLimit);
 
             limit = Long.parseLong(uploadLimit);
           } catch (NumberFormatException e) {
