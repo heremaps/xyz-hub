@@ -207,11 +207,8 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
           try {
             limit = Long.parseLong(uploadLimit);
 
-            if (context.get(STREAM_INFO_CTX_KEY) == null)
-              context.put(STREAM_INFO_CTX_KEY, new HashMap<String, Object>());
             /** Add limit to streamInfo response header */
             addStreamInfo(context, "MaxReqSize", limit);
-            ((Map<String, Object>) context.get(STREAM_INFO_CTX_KEY)).put("MaxReqSize", limit);
           } catch (NumberFormatException e) {
             sendErrorResponse(context, new HttpException(BAD_REQUEST, "Value of header: " + Service.configuration.UPLOAD_LIMIT_HEADER_NAME + " has to be a number."));
             return;
