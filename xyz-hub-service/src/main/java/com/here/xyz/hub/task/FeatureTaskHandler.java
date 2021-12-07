@@ -925,7 +925,7 @@ public class FeatureTaskHandler {
     }
 
     try {
-      task.modifyOp = new ModifyFeatureOp(getFeatureModifications(task), task.ifNotExists, task.ifExists, task.transactional, task.conflictResolution);
+      task.modifyOp = new ModifyFeatureOp(getFeatureModifications(task), task.ifNotExists, task.ifExists, task.transactional, task.conflictResolution, task.space.isAllowFeatureCreationWithUUID());
       callback.call(task);
     } catch (HttpException e) {
       logger.warn(task.getMarker(), e.getMessage(), e);
