@@ -270,6 +270,14 @@ public class TweaksSQL
    mvtPropertiesSql        = "( select jsonb_object_agg(key, case when jsonb_typeof(value) in ('object', 'array') then to_jsonb(value::text) else value end) from jsonb_each(jsonb_set((jsondata)->'properties','{id}', to_jsonb(jsondata->>'id'))))", 
    mvtPropertiesFlattenSql = "( select jsonb_object_agg('properties.' || jkey,jval) from prj_flatten( jsonb_set((jsondata)->'properties','{id}', to_jsonb( jsondata->>'id' )) ))",
 
+   hrtBeginSql = 
+    "with tile as ( select %1$s as bounds, %3$d::integer as extend, %4$d::integer as buffer, true as clip_geom ), "
+   +"mvtdata as "
+   +"( "
+   +" select %2$s as mproperties, ST_AsMVTGeom(st_force2d( geo ), t.bounds, t.extend, t.buffer, t.clip_geom ) as mgeo "
+   +" from "
+   +" ( ",
+
    mvtBeginSql = 
     "with tile as ( select st_transform(%1$s,3857) as bounds, %3$d::integer as extend, %4$d::integer as buffer, true as clip_geom ), "
    +"mvtdata as "
