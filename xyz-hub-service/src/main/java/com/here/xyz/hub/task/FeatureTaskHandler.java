@@ -467,7 +467,7 @@ public class FeatureTaskHandler {
     if (nc.jwt != null) {
       event.setTid(nc.jwt.tid);
       event.setAid(nc.jwt.aid);
-      event.setJwt(nc.jwt.jwt); 
+      event.setJwt(nc.jwt.jwt);
     }
 
     if (connector != null && connector.forwardParamsConfig != null) {
@@ -1052,6 +1052,39 @@ public class FeatureTaskHandler {
       callback.exception(new HttpException(BAD_REQUEST, "Unable to process the request input."));
       return;
     }
+    callback.call(task);
+  }
+
+  static void monitorFeatureRequest(ConditionalOperation task, Callback<ConditionalOperation> callback) {
+    try {
+      boolean monitorAll = Service.configuration.MONITOR_FEATURE_REQUEST_FROM_SPACES_ID.contains("*");
+      boolean monitorSpace = Service.configuration.MONITOR_FEATURE_REQUEST_FROM_SPACES_ID.contains(task.space.getId());
+
+      if (monitorAll || monitorSpace) {
+        if (task.modifyOp.isWrite() && !task.modifyOp.entries.isEmpty()) {
+          FeatureEntry entry = task.modifyOp.entries.get(0);
+
+          boolean containsInput = entry.input != null;
+          boolean containsHead = entry.head != null;
+          boolean containsBase = entry.base != null;
+
+          String spaceId = task.space.getId();
+          String featureId = containsInput ? (String) entry.input.get("id") : null;
+          String uuid = entry.inputUUID;
+
+          String ifExists = entry.ifExists.name();
+          String ifNotExists = entry.ifNotExists.name();
+
+          logger.info(task.getMarker(), "Monitoring WRITE feature on space: " + spaceId +
+              "; featureId: " + featureId + "; containsInput: " + containsInput + "; containsHead: " + containsHead + "; containsBase: " + containsBase + "; uuid: "
+              + uuid + "; ifExists: " + ifExists + "; ifNotExists: " + ifNotExists);
+        }
+      }
+    }
+    catch (Exception e) {
+      logger.warn(task.getMarker(), "Unable to monitor feature request", e);
+    }
+
     callback.call(task);
   }
 

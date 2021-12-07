@@ -66,6 +66,7 @@ import java.util.Hashtable;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Level;
@@ -718,6 +719,11 @@ public class Service extends Core {
 
       return FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP.containsKey(field);
     }
+
+    /**
+     * List of spaces id, separated by comma. Spaces on this list, will have the first feature in the feature request payload logged for statistics report.
+     */
+    public Set<String> MONITOR_FEATURE_REQUEST_FROM_SPACES_ID = Collections.emptySet();
   }
 
   /**
