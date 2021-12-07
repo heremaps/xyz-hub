@@ -467,7 +467,7 @@ public class FeatureTaskHandler {
     if (nc.jwt != null) {
       event.setTid(nc.jwt.tid);
       event.setAid(nc.jwt.aid);
-      event.setJwt(nc.jwt.jwt); 
+      event.setJwt(nc.jwt.jwt);
     }
 
     if (connector != null && connector.forwardParamsConfig != null) {
@@ -924,7 +924,7 @@ public class FeatureTaskHandler {
     }
 
     try {
-      task.modifyOp = new ModifyFeatureOp(getFeatureModifications(task), task.ifNotExists, task.ifExists, task.transactional, task.conflictResolution);
+      task.modifyOp = new ModifyFeatureOp(getFeatureModifications(task), task.ifNotExists, task.ifExists, task.transactional, task.conflictResolution, task.space.isAllowFeatureCreationWithUUID());
       callback.call(task);
     } catch (HttpException e) {
       logger.warn(task.getMarker(), e.getMessage(), e);

@@ -118,9 +118,11 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
             case RETAIN:
               entry.result = null;
               break;
-            case CREATE:
+            case CREATE: {
+              validateCreate(entry);
               entry.result = entry.create();
               break;
+            }
             case ERROR:
               throw new ModifyOpError("The record does not exist.");
           }
@@ -305,7 +307,7 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
     public T delete() throws ModifyOpError, HttpException {
       if (inputUUID != null && getUuid(head) != null && !com.google.common.base.Objects.equal(inputUUID, getUuid(head))) {
         throw new ModifyOpError(
-            "The feature with id " + getId(head) + " cannot be replaced. The provided UUID doesn't match the UUID of the head state: "
+            "The feature with id " + getId(head) + " cannot be deleted. The provided UUID doesn't match the UUID of the head state: "
                 + getUuid(head));
       }
       if (head != null) {
@@ -330,9 +332,9 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
     public abstract Map<String, Object> toMap(T record) throws ModifyOpError, HttpException;
 
     /**
-     * Checks, if the result of the operation is different than the the head state.
+     * Checks, if the result of the operation is different than the head state.
      *
-     * @return true, if the result of the operation is different than the the head state.
+     * @return true, if the result of the operation is different than the head state.
      */
     boolean isModified() throws HttpException, ModifyOpError {
       if (Objects.equals(head, result)) {
@@ -371,4 +373,13 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
     }
     return map;
   }
+
+  /**
+   * Validates whether the entry sub-type can be created based on specific checks
+   * @param entry
+   * @throws ModifyOpError in case of the validation failed
+   */
+  public void validateCreate(Entry<T> entry) throws ModifyOpError {
+    // noop
+  };
 }

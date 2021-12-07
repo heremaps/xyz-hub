@@ -48,11 +48,19 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
   private final static String ON_FEATURE_EXISTS = "onFeatureExists";
   private final static String ON_MERGE_CONFLICT = "onMergeConflict";
 
+  public boolean allowFeatureCreationWithUUID;
+
   /**
    * @param featureModifications A list of FeatureModifications of which each may have different settings for existence-handling and/or
    * conflict-handling. If these settings are not specified at the FeatureModification the according other parameters (ifNotExists,
    * ifExists, conflictResolution) of this constructor will be applied for that purpose.
    */
+  public ModifyFeatureOp(List<Map<String, Object>> featureModifications, IfNotExists ifNotExists, IfExists ifExists,
+      boolean isTransactional, ConflictResolution conflictResolution, boolean allowFeatureCreationWithUUID) {
+    this(featureModifications, ifNotExists, ifExists, isTransactional, conflictResolution);
+    this.allowFeatureCreationWithUUID = allowFeatureCreationWithUUID;
+  }
+
   public ModifyFeatureOp(List<Map<String, Object>> featureModifications, IfNotExists ifNotExists, IfExists ifExists,
       boolean isTransactional, ConflictResolution conflictResolution) {
     super((featureModifications == null) ? Collections.emptyList() : featureModifications.stream().flatMap(fm -> {
@@ -152,5 +160,21 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
                 .put(UUID, true)
                 .put(PUUID, true)
                 .put(MUUID, true))).mapTo(Map.class);
+  }
+
+  /**
+   * Validates whether the feature can be created based on the space's flag allowFeatureCreationWithUUID.
+   * Creation of features using UUID in the payload should always return an error, however at the moment, due to a bug,
+   * the creation succeeds.
+   * This behaviour will continue unless the space's flag or the Service.configuration's flag is set to false.
+   * @param entry
+   * @throws ModifyOpError
+   */
+  @Override
+  @SuppressWarnings("unchecked")
+  public void validateCreate(Entry entry) throws ModifyOpError {
+    if (!allowFeatureCreationWithUUID && entry.inputUUID != null)
+      throw new ModifyOpError(
+          "The feature with id " + entry.input.get("id") + " cannot be created. Property UUID should not be provided as input.");
   }
 }
