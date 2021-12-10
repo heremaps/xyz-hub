@@ -94,7 +94,7 @@
     <jts-version>1.14.0</jts-version>
     <jackson-version>2.10.0</jackson-version>
     <lambda-core-version>1.2.0</lambda-core-version>
-    <log4j-version>2.13.2</log4j-version>
+    <log4j-version>2.15.0</log4j-version>
   </properties>
 
   <!-- Release settings -->
