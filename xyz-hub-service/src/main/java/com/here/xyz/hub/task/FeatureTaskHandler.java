@@ -37,6 +37,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.google.common.base.Strings;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContentModifiedNotification;
@@ -1057,27 +1058,30 @@ public class FeatureTaskHandler {
 
   static void monitorFeatureRequest(ConditionalOperation task, Callback<ConditionalOperation> callback) {
     try {
-      boolean monitorAll = Service.configuration.MONITOR_FEATURE_REQUEST_FROM_SPACES_ID.contains("*");
-      boolean monitorSpace = Service.configuration.MONITOR_FEATURE_REQUEST_FROM_SPACES_ID.contains(task.space.getId());
+      if (Service.configuration.MONITOR_FEATURES_WITH_UUID
+          && task.space.isEnableHistory()
+          && task.modifyOp.isWrite()
+          && !task.modifyOp.entries.isEmpty()) {
 
-      if (monitorAll || monitorSpace) {
-        if (task.modifyOp.isWrite() && !task.modifyOp.entries.isEmpty()) {
-          FeatureEntry entry = task.modifyOp.entries.get(0);
+        FeatureEntry entry = task.modifyOp.entries.get(0);
 
+        // monitor only the inputs which the first feature contains uuid
+        if (!Strings.isNullOrEmpty(entry.inputUUID)) {
           boolean containsInput = entry.input != null;
           boolean containsHead = entry.head != null;
           boolean containsBase = entry.base != null;
 
           String spaceId = task.space.getId();
+          String owner = task.space.getOwner();
           String featureId = containsInput ? (String) entry.input.get("id") : null;
           String uuid = entry.inputUUID;
 
           String ifExists = entry.ifExists.name();
           String ifNotExists = entry.ifNotExists.name();
 
-          logger.info(task.getMarker(), "Monitoring WRITE feature on space: " + spaceId +
-              "; featureId: " + featureId + "; containsInput: " + containsInput + "; containsHead: " + containsHead + "; containsBase: " + containsBase + "; uuid: "
-              + uuid + "; ifExists: " + ifExists + "; ifNotExists: " + ifNotExists);
+          logger.warn(task.getMarker(), "Monitoring WRITE feature on space: " + spaceId + "; owner: " + owner +
+              "; featureId: " + featureId + "; containsInput: " + containsInput + "; containsHead: " + containsHead + "; containsBase: "
+              + containsBase + "; uuid: " + uuid + "; ifExists: " + ifExists + "; ifNotExists: " + ifNotExists);
         }
       }
     }

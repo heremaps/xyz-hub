@@ -66,7 +66,6 @@ import java.util.Hashtable;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Level;
@@ -721,9 +720,9 @@ public class Service extends Core {
     }
 
     /**
-     * List of spaces id, separated by comma. Spaces on this list, will have the first feature in the feature request payload logged for statistics report.
+     * Flag that indicates whether the creation of features on history spaces contains features in the request payload with uuid.
      */
-    public Set<String> MONITOR_FEATURE_REQUEST_FROM_SPACES_ID = Collections.emptySet();
+    public boolean MONITOR_FEATURES_WITH_UUID = true;
   }
 
   /**
