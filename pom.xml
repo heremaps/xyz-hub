@@ -93,7 +93,7 @@
     <geo-tools-version>19.1</geo-tools-version>
     <jts-version>1.14.0</jts-version>
     <jackson-version>2.10.0</jackson-version>
-    <lambda-core-version>1.2.0</lambda-core-version>
+    <lambda-core-version>1.2.1</lambda-core-version>
     <log4j-version>2.15.0</log4j-version>
   </properties>
 
@@ -378,7 +378,7 @@
       <dependency>
         <groupId>com.amazonaws</groupId>
         <artifactId>aws-lambda-java-log4j2</artifactId>
-        <version>1.1.0</version>
+        <version>1.3.0</version>
       </dependency>
 
       <!-- Util -->
@@ -469,7 +469,7 @@
         <artifactId>junit</artifactId>
         <groupId>junit</groupId>
         <scope>test</scope>
-        <version>4.13.1</version>
+        <version>4.13.2</version>
       </dependency>
       <dependency>
         <groupId>com.jayway.jsonpath</groupId>
