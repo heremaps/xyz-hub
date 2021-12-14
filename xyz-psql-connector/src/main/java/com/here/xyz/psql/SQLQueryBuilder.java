@@ -18,11 +18,14 @@
  */
 package com.here.xyz.psql;
 
+import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.GEO_JSON;
+
 import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
+import com.here.xyz.events.GetFeaturesByTileEvent.ResponseType;
 import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
@@ -96,9 +99,7 @@ public class SQLQueryBuilder {
         final SQLQuery geoQuery = new SQLQuery("ST_Intersects(geo, ST_MakeEnvelope(?, ?, ?, ?, 4326))",
                 bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
 
-        boolean bConvertGeo2GeoJson = ( mvtTypeRequested(event) == 0 );
-
-        return generateCombinedQuery(event, geoQuery, searchQuery,dataSource, bConvertGeo2GeoJson, null);
+        return generateCombinedQuery(event, geoQuery, searchQuery,dataSource, getResponseType(event) == GEO_JSON, null);
     }
 
     protected static SQLQuery buildCountFeaturesQuery(CountFeaturesEvent event, DataSource dataSource, String schema, String table)
@@ -172,11 +173,9 @@ public class SQLQueryBuilder {
 
         String aggField = (statisticalPropertyProvided ? "jsonb_set('{}'::jsonb, ? , agg::jsonb)::json" : "agg");
 
-        boolean bConvertGeo2Geojson = ( mvtTypeRequested(event) == 0 );
-
         final SQLQuery query = new SQLQuery(DhString.format(H3SQL.h3sqlBegin, h3res,
                 !h3cflip ? "st_centroid(geo)" : "geo",
-                DhString.format( (bConvertGeo2Geojson ? "st_asgeojson( %1$s, 7 )::json" : "(%1$s)" ), (h3cflip ? "st_centroid(geo)" : clippedGeo) ),
+                DhString.format( (getResponseType(event) == GEO_JSON ? "st_asgeojson( %1$s, 7 )::json" : "(%1$s)" ), (h3cflip ? "st_centroid(geo)" : clippedGeo) ),
                 statisticalPropertyProvided ? ", min, max, sum, avg, median" : "",
                 zLevel,
                 !h3cflip ? "centroid" : "hexagon",
@@ -255,25 +254,17 @@ public class SQLQueryBuilder {
                 }
             }
         }
-        boolean bConvertGeo2Geojson = ( mvtTypeRequested(event) == 0 );
-
-        return QuadbinSQL.generateQuadbinClusteringSQL(config.getDatabaseSettings().getSchema(), config.readTableFromEvent(event), relResolution, countMode, propQuerySQL, tile, bbox, isTileRequest, clippedOnBbox, noBuffer, bConvertGeo2Geojson);
+        return QuadbinSQL.generateQuadbinClusteringSQL(config.getDatabaseSettings().getSchema(), config.readTableFromEvent(event), relResolution, countMode, propQuerySQL, tile, bbox, isTileRequest, clippedOnBbox, noBuffer, getResponseType(event) == GEO_JSON);
     }
 
     /***************************************** CLUSTERING END **************************************************/
 
     /***************************************** TWEAKS **************************************************/
 
-    public static int mvtTypeRequested(GetFeaturesByBBoxEvent event) {
-      if (event instanceof GetFeaturesByTileEvent && ((GetFeaturesByTileEvent) event).getResponseType() != null) {
-        switch (((GetFeaturesByTileEvent) event).getResponseType()) {
-          case MVT:
-            return 1;
-          case MVT_FLATTENED:
-            return 2;
-        }
-      }
-      return 0;
+    public static ResponseType getResponseType(GetFeaturesByBBoxEvent event) {
+      if (event instanceof GetFeaturesByTileEvent)
+        return ((GetFeaturesByTileEvent) event).getResponseType();
+      return GEO_JSON;
     }
 
     private static String map2MvtGeom( GetFeaturesByBBoxEvent event, BBox bbox, String tweaksGeoSql )
@@ -370,7 +361,7 @@ public class SQLQueryBuilder {
      int strength = 0;
      boolean bDistribution  = true,
              bDistribution2 = false,
-             bConvertGeo2Geojson = ( mvtTypeRequested(event) == 0 );
+             bConvertGeo2Geojson = getResponseType(event) == GEO_JSON;
 
      if( tweakParams != null )
      {
@@ -429,7 +420,7 @@ public class SQLQueryBuilder {
      int strength = 0,
          iMerge = 0;
      String tweaksGeoSql = "geo";
-     boolean bStrength = true, bTestTweaksGeoIfNull = true, bConvertGeo2Geojson = ( mvtTypeRequested(event) == 0 ), bMvtRequested = !bConvertGeo2Geojson;
+     boolean bStrength = true, bTestTweaksGeoIfNull = true, bConvertGeo2Geojson = getResponseType(event) == GEO_JSON, bMvtRequested = !bConvertGeo2Geojson;
 
      if( tweakParams != null )
      {
