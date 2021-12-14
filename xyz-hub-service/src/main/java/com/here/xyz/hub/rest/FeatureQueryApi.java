@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,9 @@
 
 package com.here.xyz.hub.rest;
 
+import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.GEO_JSON;
+import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
+import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
 import static com.here.xyz.hub.rest.ApiParam.Query.FORCE_2D;
 import static com.here.xyz.hub.rest.ApiParam.Query.SKIP_CACHE;
@@ -303,8 +306,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
             .withForce2D(force2D)
             .withOptimizationMode(optimMode)
             .withVizSampling(Query.getString(context, Query.OPTIM_VIZSAMPLING, "med"))
-            .withBinaryType( responseType.name()) //TODO: Remove this once the binaryType was fully removed from PSQL connector
-            .withResponseType(responseType == ApiResponseType.MVT ? ResponseType.MVT : responseType == ApiResponseType.MVT_FLATTENED ? ResponseType.MVT_FLATTENED : null)
+            .withResponseType(responseType == ApiResponseType.MVT ? MVT : responseType == ApiResponseType.MVT_FLATTENED ? MVT_FLATTENED : GEO_JSON)
             .withHereTileFlag("here".equals(tileType))
             .withContext(spaceContext);
       } catch (Exception e) {

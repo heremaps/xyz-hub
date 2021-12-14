@@ -20,6 +20,8 @@
 package com.here.xyz.psql;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
+import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.here.xyz.connectors.ErrorResponseException;
@@ -29,6 +31,7 @@ import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
+import com.here.xyz.events.GetFeaturesByTileEvent.ResponseType;
 import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.GetStorageStatisticsEvent;
@@ -49,10 +52,10 @@ import com.here.xyz.psql.factory.QuadbinSQL;
 import com.here.xyz.psql.factory.TweaksSQL;
 import com.here.xyz.psql.query.GetFeaturesByBBox;
 import com.here.xyz.psql.query.GetFeaturesById;
+import com.here.xyz.psql.query.GetStorageStatistics;
 import com.here.xyz.psql.query.IterateFeatures;
 import com.here.xyz.psql.query.LoadFeatures;
 import com.here.xyz.psql.query.SearchForFeatures;
-import com.here.xyz.psql.query.GetStorageStatistics;
 import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.SuccessResponse;
@@ -199,10 +202,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
               bSelectionStar = false,
               bClustering = (event.getClusteringType() != null);
 
-      int mvtTypeRequested = SQLQueryBuilder.mvtTypeRequested(event),
-          mvtMargin = 0;
-      boolean bMvtRequested = ( mvtTypeRequested > 0 ),
-              bMvtFlattend  = ( mvtTypeRequested > 1 );
+      ResponseType responseType = SQLQueryBuilder.getResponseType(event);
+      int mvtMargin = 0;
+      boolean bMvtRequested = responseType == MVT || responseType == MVT_FLATTENED,
+              bMvtFlattend  = responseType == MVT_FLATTENED;
 
       WebMercatorTile mercatorTile = null;
       HQuad hereTile = null;

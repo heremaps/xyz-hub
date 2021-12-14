@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,7 +46,6 @@ import com.here.xyz.util.Hasher;
     @JsonSubTypes.Type(value = SuccessResponse.class, name = "SuccessResponse"),
     @JsonSubTypes.Type(value = NotModifiedResponse.class, name = "NotModifiedResponse"),
     @JsonSubTypes.Type(value = FeatureCollection.class, name = "FeatureCollection"),
-    @JsonSubTypes.Type(value = BinResponse.class, name = "BinResponse"),
     @JsonSubTypes.Type(value = Changeset.class, name = "Changeset"),
     @JsonSubTypes.Type(value = CompactChangeset.class, name = "CompactChangeset"),
     @JsonSubTypes.Type(value = ChangesetCollection.class, name = "ChangesetCollection"),

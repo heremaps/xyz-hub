@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,9 +32,6 @@ public class SpatialQueryEvent<T extends SpatialQueryEvent> extends SearchForFea
 
   private String optimizationMode;
   private String vizSampling;
-
-  private String binaryType;
-
 
   @SuppressWarnings("unused")
   public String getClusteringType() {
@@ -133,26 +130,5 @@ public class SpatialQueryEvent<T extends SpatialQueryEvent> extends SearchForFea
     //noinspection unchecked
     return (T) this;
   }
-
-  @SuppressWarnings("unused")
-  @Deprecated
-  public String getBinaryType() {
-    return this.binaryType;
-  }
-
-  @SuppressWarnings("WeakerAccess")
-  @Deprecated
-  public void setBinaryType(String binaryType) {
-    this.binaryType = binaryType;
-  }
-
-  @SuppressWarnings("unused")
-  @Deprecated
-  public T withBinaryType(String binaryType) {
-    setBinaryType(binaryType);
-    //noinspection unchecked
-    return (T) this;
-  }
-
 
 }
