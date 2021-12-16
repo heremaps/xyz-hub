@@ -11,6 +11,7 @@ recipes:
   - name: stable
     extends: base
     exclude:
+      - tags.name=Manage Connectors
       - paths.'/spaces'.get.parameters.name=includeConnectors
       - paths.'/spaces'.get.parameters.name=contentUpdatedAt
       - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*IfExists$
