@@ -221,7 +221,7 @@ public class Space {
    */
   @JsonInclude(Include.NON_DEFAULT)
   @JsonView({Internal.class, Static.class})
-  private boolean allowFeatureCreationWithUUID = true;
+  private boolean allowFeatureCreationWithUUID = false;
 
   public String getId() {
     return id;
