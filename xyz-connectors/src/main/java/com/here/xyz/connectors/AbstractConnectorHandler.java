@@ -207,8 +207,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
         Event event = readEvent(input);
 
         String connectorId = null;
-        if(this.streamId == null)
-          this.streamId = streamId != null ? streamId : event.getStreamId();
+        this.streamId = streamId != null ? streamId : event.getStreamId();
 
         if (event.getConnectorParams() != null  && event.getConnectorParams().get("connectorId") != null)
           connectorId = (String) event.getConnectorParams().get("connectorId");
