@@ -28,9 +28,9 @@ import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static io.netty.handler.codec.http.HttpResponseStatus.PAYMENT_REQUIRED;
 import static io.netty.handler.codec.http.HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE;
 import static io.netty.handler.codec.http.HttpResponseStatus.UNAUTHORIZED;
-import static io.netty.handler.codec.http.HttpResponseStatus.PAYMENT_REQUIRED;
 import static io.vertx.core.http.HttpHeaders.AUTHORIZATION;
 import static io.vertx.core.http.HttpHeaders.CACHE_CONTROL;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
@@ -56,6 +56,7 @@ import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.Promise;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.json.Json;
@@ -63,6 +64,9 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.CorsHandler;
 import io.vertx.ext.web.validation.BadRequestException;
+import io.vertx.ext.web.validation.BodyProcessorException;
+import io.vertx.ext.web.validation.ParameterProcessorException;
+import io.vertx.ext.web.validation.impl.ParameterLocation;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -173,7 +177,27 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
             message = "Missing auth credentials.";
           t = new HttpException(status, message, t);
         }
-        sendErrorResponse(context, t);
+        if (t instanceof BodyProcessorException) {
+          sendErrorResponse(context, new HttpException(BAD_REQUEST, "Failed to parse body."));
+          Buffer bodyBuffer = context.getBody();
+          if (bodyBuffer == null)
+            logger.warn("Bad request body was: null");
+          else {
+            String bodyString = bodyBuffer.toString();
+            logger.warn("Bad request body was: {}", bodyString.substring(0, Math.min(4096, bodyString.length())));
+          }
+        }
+        else if (t instanceof ParameterProcessorException) {
+          ParameterLocation location = ((ParameterProcessorException) t).getLocation();
+          String paramName = ((ParameterProcessorException) t).getParameterName();
+          sendErrorResponse(context, new HttpException(BAD_REQUEST, "Invalid request input parameter value for "
+              + location.name().toLowerCase() + "-parameter \"" + location.lowerCaseIfNeeded(paramName) + "\". Reason: "
+              + ((ParameterProcessorException) t).getErrorType()));
+        }
+        else if (t instanceof BadRequestException)
+          sendErrorResponse(context, new HttpException(BAD_REQUEST, "Invalid request."));
+        else
+          sendErrorResponse(context, t);
       }
       else {
         HttpResponseStatus status = context.statusCode() >= 400 ? HttpResponseStatus.valueOf(context.statusCode()) : INTERNAL_SERVER_ERROR;
