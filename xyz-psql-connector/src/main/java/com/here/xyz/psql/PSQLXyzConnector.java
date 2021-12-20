@@ -205,8 +205,6 @@ public class PSQLXyzConnector extends DatabaseHandler {
       if( tileEv != null && tileEv.getHereTileFlag() ){
         if(bClustering)
           throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "clustering=[hexbin,quadbin] is not supported for 'here' tile type. Use Web Mercator projection (quadkey, web, tms).");
-        if(bOptViz)
-          throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "viz mode is not supported for 'here' tile type. Use Web Mercator projection (quadkey, web, tms).");
       }
 
       if( bMvtRequested && tileEv == null )
