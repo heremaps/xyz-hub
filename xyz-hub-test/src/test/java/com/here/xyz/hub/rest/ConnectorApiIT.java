@@ -145,6 +145,24 @@ public class ConnectorApiIT extends RestAssuredTest {
   }
 
   @Test
+  public void deleteConnectorNotPresent() {
+    addTestConnector();
+
+    String connectorId = "test-connector-not-present";
+    removeConnector(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_OWN_CONNECTORS, connectorId)
+        .statusCode(NOT_FOUND.code());
+  }
+
+  @Test
+  public void deleteConnectorInsufficientRights() {
+    addTestConnector();
+
+    String connectorId = "test-connector";
+    removeConnector(AuthProfile.ACCESS_OWNER_2_WITH_MANAGE_CONNECTORS, connectorId)
+        .statusCode(FORBIDDEN.code());
+  }
+
+  @Test
   public void patchConnector() {
     addTestConnector();
 
