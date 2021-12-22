@@ -417,11 +417,13 @@ public abstract class DatabaseHandler extends StorageConnector {
     protected XyzResponse executeLoadFeatures(LoadFeaturesEvent event) throws SQLException {
         final Map<String, String> idMap = event.getIdsMap();
         final Boolean enabledHistory = event.getEnableHistory() == Boolean.TRUE;
+        final Boolean enabledGlobalVersioning = event.getEnableGlobalVersioning() == Boolean.TRUE;
+        Boolean compactHistory = enabledGlobalVersioning ? false : config.getConnectorParams().isCompactHistory();
 
         if (idMap == null || idMap.size() == 0) {
             return new FeatureCollection();
         }
-        return executeQueryWithRetry(SQLQueryBuilder.buildLoadFeaturesQuery(idMap, enabledHistory, dataSource));
+        return executeQueryWithRetry(SQLQueryBuilder.buildLoadFeaturesQuery(idMap, enabledHistory, compactHistory, dataSource));
     }
 
     protected XyzResponse executeIterateHistory(IterateHistoryEvent event) throws SQLException {
