@@ -156,7 +156,10 @@ public class DynamoConnectorConfigClient extends ConnectorConfigClient {
                 .withPrimaryKey("id", connectorId)
                 .withReturnValues(ReturnValue.ALL_OLD);
             DeleteItemOutcome response = connectors.deleteItem(deleteItemSpec);
-            future.complete(Json.decodeValue(response.getItem().toJSON(), Connector.class));
+            if (response.getItem() != null)
+              future.complete(Json.decodeValue(response.getItem().toJSON(), Connector.class));
+            else
+              future.fail(new RuntimeException("The connector config was not found for connector ID: " + connectorId));
           }
           catch (Exception e) {
             future.fail(e);

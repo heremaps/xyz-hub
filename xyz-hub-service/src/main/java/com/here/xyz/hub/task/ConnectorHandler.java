@@ -212,12 +212,18 @@ public class ConnectorHandler {
   public static void deleteConnector(RoutingContext context, String connectorId, Handler<AsyncResult<Connector>> handler) {
     Marker marker = Api.Context.getMarker(context);
 
-    Service.connectorConfigClient.delete(marker, connectorId, ar -> {
-      if (ar.failed()) {
-        logger.error(marker, "Unable to delete resource definition.'", ar.cause());
-        handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to delete the resource definition.", ar.cause())));
+    Service.connectorConfigClient.get(marker, connectorId, arGet -> {
+      if (arGet.succeeded()) {
+        Service.connectorConfigClient.delete(marker, connectorId, ar -> {
+          if (ar.failed()) {
+            logger.error(marker, "Unable to delete resource definition.'", ar.cause());
+            handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to delete the resource definition.", ar.cause())));
+          } else {
+            handler.handle(Future.succeededFuture(ar.result()));
+          }
+        });
       } else {
-        handler.handle(Future.succeededFuture(ar.result()));
+        handler.handle(Future.failedFuture(new HttpException(NOT_FOUND, "The requested resource '" + connectorId + "' does not exist.")));
       }
     });
   }
