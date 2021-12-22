@@ -418,7 +418,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         final Map<String, String> idMap = event.getIdsMap();
         final Boolean enabledHistory = event.getEnableHistory() == Boolean.TRUE;
         final Boolean enabledGlobalVersioning = event.getEnableGlobalVersioning() == Boolean.TRUE;
-        Boolean compactHistory = enabledGlobalVersioning ? false : config.getConnectorParams().isCompactHistory();
+        final Boolean compactHistory = enabledGlobalVersioning ? false : config.getConnectorParams().isCompactHistory();
 
         if (idMap == null || idMap.size() == 0) {
             return new FeatureCollection();
