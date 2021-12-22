@@ -45,6 +45,8 @@ public final class LoadFeaturesEvent extends Event<LoadFeaturesEvent> {
   @JsonInclude(Include.ALWAYS)
   private Map<String, String> idsMap;
   private Boolean enableHistory;
+  @JsonInclude(Include.NON_DEFAULT)
+  private boolean enableGlobalVersioning;
 
   /**
    * Returns the IDs map, that is a map where the key contains the unique ID of the feature to be loaded. The value is the state hash or
@@ -84,7 +86,7 @@ public final class LoadFeaturesEvent extends Event<LoadFeaturesEvent> {
 
   /**
    * Sets the enabler for uuid.
-   *
+
    * @param enableHistory if true, then set an uuid for each feature state
    */
   @SuppressWarnings("WeakerAccess")
@@ -95,6 +97,24 @@ public final class LoadFeaturesEvent extends Event<LoadFeaturesEvent> {
   @SuppressWarnings("unused")
   public LoadFeaturesEvent withEnableHistory(Boolean enableHistory) {
     setEnableHistory(enableHistory);
+    return this;
+  }
+
+  /**
+   * Returns true if globalVersioning is supported
+   *
+   * @return true if globalVersioning is supported, false otherwise.
+   */
+  public boolean getEnableGlobalVersioning() {
+    return enableGlobalVersioning;
+  }
+
+  public void setEnableGlobalVersioning(final boolean enableGlobalVersioning) {
+    this.enableGlobalVersioning = enableGlobalVersioning;
+  }
+
+  public LoadFeaturesEvent withEnableGlobalVersioning(final boolean enableGlobalVersioning) {
+    this.enableGlobalVersioning = enableGlobalVersioning;
     return this;
   }
 }
