@@ -1545,6 +1545,7 @@ public class FeatureTaskHandler {
         .withStreamId(task.getMarker().getName())
         .withSpace(task.space.getId())
         .withParams(task.space.getStorage().getParams())
+        .withEnableGlobalVersioning(task.space.isEnableGlobalVersioning())
         .withEnableHistory(task.space.isEnableHistory())
         .withIdsMap(idsMap);
 
