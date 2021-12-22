@@ -50,6 +50,7 @@ import com.here.xyz.psql.factory.IterateSortSQL;
 import com.here.xyz.psql.factory.TweaksSQL;
 import com.here.xyz.util.DhString;
 
+import java.sql.Array;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.ArrayList;
@@ -666,7 +667,7 @@ public class SQLQueryBuilder {
         return query;
     }
 
-    public static SQLQuery buildLoadFeaturesQuery(final Map<String, String> idMap, boolean enabledHistory, DataSource dataSource)
+    public static SQLQuery buildLoadFeaturesQuery(final Map<String, String> idMap, boolean enabledHistory, boolean compactHistory, DataSource dataSource)
             throws SQLException{
 
         final ArrayList<String> ids = new ArrayList<>(idMap.size());
@@ -675,16 +676,45 @@ public class SQLQueryBuilder {
         final ArrayList<String> values = new ArrayList<>(idMap.size());
         values.addAll(idMap.values());
 
-        if(!enabledHistory) {
+        if(!enabledHistory || values.size() == 0 ) {
             return new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
                     SQLQuery.createSQLArray(ids.toArray(new String[0]), "text", dataSource));
         }else{
             final SQLQuery query;
-            query = new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?) ");
-            query.append("UNION ");
-            query.append("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${hsttable} WHERE uuid = ANY(?) ");
-            query.addParameter( SQLQuery.createSQLArray(ids.toArray(new String[0]), "text", dataSource));
-            query.addParameter( SQLQuery.createSQLArray(values.toArray(new String[0]), "text", dataSource));
+            final Array idArray = SQLQuery.createSQLArray(ids.toArray(new String[0]), "text", dataSource);
+            final Array uuidArray = SQLQuery.createSQLArray(values.toArray(new String[0]), "text", dataSource);
+
+            if(compactHistory){
+                //History does not contain Inserts
+                query = new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table}");
+                query.append("WHERE jsondata->>'id' = ANY(?)");
+                query.append("UNION ");
+                query.append("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${hsttable} h ");
+                query.append("WHERE uuid = ANY(?) ");
+                query.append("AND EXISTS(select 1 from${schema}.${table} t where t.jsondata->>'id' =  h.jsondata->>'id') ");
+
+                query.addParameter(idArray);
+                query.addParameter(uuidArray);
+            }else{
+                query = new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),8),'nan','0')  ");
+                query.append("FROM(");
+                query.append("SELECT DISTINCT on(id,flag) jsondata->>'id' as id,");
+                query.append("(uuid = ANY(?)) as flag,");
+                query.append("jsondata, geo");
+                query.append("FROM  ${schema}.${hsttable} h");
+                query.append("WHERE jsondata->>'id' = ANY(?)");
+                query.append("ORDER BY id,flag, jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt' DESC");
+                query.append(")H WHERE NOT exists(");
+                query.append("SELECT jsondata->>'id' from ${schema}.${hsttable} t ");
+                query.append("where jsondata->>'id' = ANY(?) ");
+                query.append("AND jsondata->'properties'->'@ns:com:here:xyz'->'deleted' IS NOT NULL");
+                query.append("AND t.jsondata->>'id' =  h.jsondata->>'id'");
+                query.append(")");
+
+                query.addParameter(uuidArray);
+                query.addParameter(idArray);
+                query.addParameter(idArray);
+            }
             return query;
         }
     }
