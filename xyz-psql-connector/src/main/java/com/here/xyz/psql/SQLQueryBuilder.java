@@ -696,7 +696,7 @@ public class SQLQueryBuilder {
                 query.addParameter(idArray);
                 query.addParameter(uuidArray);
             }else{
-                query = new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),8),'nan','0')  ");
+                query = new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') ");
                 query.append("FROM(");
                 query.append("SELECT DISTINCT on(id,flag) jsondata->>'id' as id,");
                 query.append("(uuid = ANY(?)) as flag,");
