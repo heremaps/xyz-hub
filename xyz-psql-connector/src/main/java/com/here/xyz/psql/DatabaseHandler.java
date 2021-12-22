@@ -1306,11 +1306,13 @@ public abstract class DatabaseHandler extends StorageConnector {
             StatisticsResponse.Value<Long> tablesize = XyzSerializable.deserialize(rs.getString("tablesize"), new TypeReference<StatisticsResponse.Value<Long>>() {});
             StatisticsResponse.Value<Long> count = XyzSerializable.deserialize(rs.getString("count"), new TypeReference<StatisticsResponse.Value<Long>>() {});
             StatisticsResponse.Value<Integer> maxversion = XyzSerializable.deserialize(rs.getString("maxversion"), new TypeReference<StatisticsResponse.Value<Integer>>() {});
+            StatisticsResponse.Value<Integer> minversion = XyzSerializable.deserialize(rs.getString("minversion"), new TypeReference<StatisticsResponse.Value<Integer>>() {});
 
             return new HistoryStatisticsResponse()
                     .withByteSize(tablesize)
                     .withDataSize(tablesize)
                     .withCount(count)
+                    .withMinVersion(minversion)
                     .withMaxVersion(maxversion);
         } catch (Exception e) {
             return new ErrorResponse().withStreamId(streamId).withError(XyzError.EXCEPTION).withErrorMessage(e.getMessage());
