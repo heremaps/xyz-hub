@@ -63,7 +63,7 @@
 -- DROP FUNCTION IF EXISTS xyz_qk_point2qk(geometry,integer );
 -- DROP FUNCTION IF EXISTS xyz_qk_bbox2zooml(geometry);
 -- DROP FUNCTION IF EXISTS xyz_qk_envelope2lrc(geometry, integer);
-DROP FUNCTION xyz_statistic_history(text, text);
+DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
 --
 ------ SAMPLE QUERIES ----
 ------ ENV: XYZ-CIT ; SPACE: QgQCHStH ; OWNER: psql
