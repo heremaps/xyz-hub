@@ -196,6 +196,7 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
     return context -> {
       if(Service.configuration != null ) {
         long limit = Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE;
+
         String errorMessage = "The request payload is bigger than the maximum allowed.";
         String uploadLimit;
         HttpResponseStatus status = REQUEST_ENTITY_TOO_LARGE;
@@ -203,8 +204,8 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
         if (Service.configuration.UPLOAD_LIMIT_HEADER_NAME != null
                 && (uploadLimit = context.request().headers().get(Service.configuration.UPLOAD_LIMIT_HEADER_NAME))!= null) {
 
-          /** Override limit if we are receiving an UPLOAD_LIMIT_HEADER_NAME value */
           try {
+             /** Override limit if we are receiving an UPLOAD_LIMIT_HEADER_NAME value */
             limit = Long.parseLong(uploadLimit);
 
             /** Add limit to streamInfo response header */
@@ -214,8 +215,13 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
             return;
           }
 
-          errorMessage = "You have exceeded the upload size limit established for this organization. Please add a payment method to your account to remove this limit.";
-          status = PAYMENT_REQUIRED;
+          /** Override http response code if its configured */
+          if(Service.configuration.UPLOAD_LIMIT_REACHED_HTTP_CODE > 0)
+            status = HttpResponseStatus.valueOf(Service.configuration.UPLOAD_LIMIT_REACHED_HTTP_CODE);
+
+          /** Override error Message if its configured */
+          if(Service.configuration.UPLOAD_LIMIT_REACHED_MESSAGE != null)
+            errorMessage = Service.configuration.UPLOAD_LIMIT_REACHED_MESSAGE;
         }
 
         if (limit > 0) {
