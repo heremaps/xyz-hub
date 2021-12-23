@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ package com.here.xyz.hub.rest.admin.messages.brokers;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.admin.MessageBroker;
 import com.here.xyz.hub.rest.admin.Node;
+import com.here.xyz.hub.util.RetryUtil;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -136,13 +137,20 @@ public class RedisMessageBroker implements MessageBroker {
       throw new RuntimeException("AdminMessage is larger than the MAX_MESSAGE_SIZE. Can not send it.");
     }
     //Send using Redis client
-    Request req = Request.cmd(Command.PUBLISH).arg(CHANNEL).arg(jsonMessage);
-    client.send(req).onComplete(ar -> {
-      if (ar.succeeded())
-        logger.debug("Message has been sent with following content: {}", jsonMessage);
-      else
-        logger.error("Error sending message: {}", jsonMessage, ar.cause());
-    });
+    RetryUtil.<Void>executeWithRetry(task -> {
+      Promise<Void> p = Promise.promise();
+      Request req = Request.cmd(Command.PUBLISH).arg(CHANNEL).arg(jsonMessage);
+      client.send(req).onComplete(ar -> {
+        if (ar.succeeded())
+          p.complete();
+        else
+          p.fail(ar.cause());
+      });
+      return p.future();
+    }, t -> 50, 2, 5_000)
+        .future()
+        .onSuccess(v -> logger.debug("Message has been sent with following content: {}", jsonMessage))
+        .onFailure(t -> logger.error("Error sending message: {}", jsonMessage, t));
   }
 
   public static Future<RedisMessageBroker> getInstance() {

@@ -234,6 +234,10 @@
       <artifactId>vertx-jdbc-client</artifactId>
       <groupId>io.vertx</groupId>
     </dependency>
+    <dependency>
+      <groupId>io.vertx</groupId>
+      <artifactId>vertx-circuit-breaker</artifactId>
+    </dependency>
 
     <!-- Netty native transport -->
     <dependency>

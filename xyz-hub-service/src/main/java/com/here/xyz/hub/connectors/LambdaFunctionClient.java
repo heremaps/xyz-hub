@@ -26,6 +26,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.REQUEST_ENTITY_TOO_
 import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 
 import com.amazonaws.AbortedException;
+import com.amazonaws.AmazonClientException;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.SdkClientException;
 import com.amazonaws.auth.AWSCredentialsProvider;
@@ -33,6 +34,7 @@ import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.auth.STSAssumeRoleSessionCredentialsProvider;
 import com.amazonaws.handlers.AsyncHandler;
 import com.amazonaws.http.exception.HttpRequestTimeoutException;
+import com.amazonaws.retry.PredefinedRetryPolicies;
 import com.amazonaws.services.lambda.AWSLambdaAsync;
 import com.amazonaws.services.lambda.AWSLambdaAsyncClientBuilder;
 import com.amazonaws.services.lambda.model.AWSLambdaException;
@@ -51,10 +53,12 @@ import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.hub.util.ARN;
 import com.here.xyz.hub.util.LimitedOffHeapQueue.PayloadVanishedException;
+import com.here.xyz.hub.util.RetryUtil;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Context;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.Promise;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashMap;
@@ -66,6 +70,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -77,6 +82,9 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
   //  private static final int CLIENT_REQUEST_TIMEOUT = REQUEST_TIMEOUT + 3_000;
   private static final int CONNECTION_TTL = 60_000; //ms
   private static final int MIN_THREADS_PER_CLIENT = 5;
+  private static final int MAX_RETRIES = 2;
+  private static final int RETRY_TIMEOUT = 1000;
+  private static final Function<Throwable, Integer> RETRY_BACKOFF_HANDLER = t -> PredefinedRetryPolicies.DEFAULT_RETRY_CONDITION.shouldRetry(null, (AmazonClientException) t, 0) ? 50 : -1;
 
   private AWSLambdaAsync asyncClient;
   private static ConcurrentHashMap<String, AWSLambdaAsync> lambdaClients = new ConcurrentHashMap<>();
@@ -186,38 +194,50 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
     Context context = fc.context;
     logger.debug(marker, "Invoking remote lambda function with id '{}' Event size is: {}", remoteFunction.id, fc.getByteSize());
 
-    InvokeRequest invokeReq = null;
     try {
-      invokeReq = new InvokeRequest()
+      InvokeRequest invokeReq = new InvokeRequest()
           .withFunctionName(((AWSLambda) remoteFunction).lambdaARN)
           .withPayload(ByteBuffer.wrap(fc.consumePayload()))
           .withInvocationType(fc.fireAndForget ? InvocationType.Event : InvocationType.RequestResponse);
+
+      Future<byte[]> future = RetryUtil.<byte[]>executeWithRetry(task -> {
+        Promise<byte[]> p = Promise.promise();
+        java.util.concurrent.Future<InvokeResult> lambdaFuture = asyncClient.invokeAsync(invokeReq, new AsyncHandler<InvokeRequest, InvokeResult>() {
+
+          @Override
+          public void onError(Exception exception) {
+            p.fail(exception);
+          }
+
+          @Override
+          public void onSuccess(InvokeRequest request, InvokeResult result) {
+            byte[] responseBytes = new byte[result.getPayload().remaining()];
+            result.getPayload().get(responseBytes);
+            p.complete(responseBytes);
+          }
+        });
+        fc.setCancelHandler(() -> {
+          lambdaFuture.cancel(true);
+          task.cancelRetries();
+        });
+        return p.future();
+      }, RETRY_BACKOFF_HANDLER, MAX_RETRIES, RETRY_TIMEOUT).future();
+
+      future
+          .onSuccess(responseBytes -> context.runOnContext(v -> callback.handle(Future.succeededFuture(responseBytes))))
+          .onFailure(t -> {
+            if (callback == null) {
+              logger.error(marker, "Error sending event to remote lambda function", t);
+            }
+            else {
+              fc.context.runOnContext(v -> callback.handle(Future.failedFuture(getHttpException(marker, t))));
+            }
+          });
     }
     catch (PayloadVanishedException e) {
       callback.handle(Future.failedFuture(new HttpException(TOO_MANY_REQUESTS, "Remote function is busy or cannot be invoked.")));
       return;
     }
-
-    java.util.concurrent.Future<InvokeResult> future = asyncClient.invokeAsync(invokeReq, new AsyncHandler<InvokeRequest, InvokeResult>() {
-      @Override
-      public void onError(Exception exception) {
-        if (callback == null) {
-          logger.error(marker, "Error sending event to remote lambda function", exception);
-        }
-        else {
-          fc.context.runOnContext(v -> callback.handle(Future.failedFuture(getHttpException(marker, exception))));
-        }
-      }
-
-      @Override
-      public void onSuccess(InvokeRequest request, InvokeResult result) {
-        byte[] responseBytes = new byte[result.getPayload().remaining()];
-        result.getPayload().get(responseBytes);
-        context.runOnContext(v -> callback.handle(Future.succeededFuture(responseBytes)));
-      }
-    });
-
-    fc.setCancelHandler(() -> future.cancel(true));
   }
 
   /**

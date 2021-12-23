@@ -264,6 +264,11 @@
         <groupId>io.vertx</groupId>
         <version>${vertx-version}</version>
       </dependency>
+      <dependency>
+        <groupId>io.vertx</groupId>
+        <artifactId>vertx-circuit-breaker</artifactId>
+        <version>${vertx-version}</version>
+      </dependency>
 
       <!-- Netty native transport -->
       <dependency>
