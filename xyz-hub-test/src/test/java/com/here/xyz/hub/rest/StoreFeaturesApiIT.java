@@ -23,7 +23,7 @@ import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-import static io.netty.handler.codec.http.HttpResponseStatus.PAYMENT_REQUIRED;
+import static io.netty.handler.codec.http.HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE;
 import static org.hamcrest.Matchers.equalTo;
 
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -124,7 +124,7 @@ public class StoreFeaturesApiIT extends TestSpaceWithFeature {
             when().
             put(getSpacesPath() + "/x-psql-test/features").
             then().
-            statusCode(PAYMENT_REQUIRED.code());
+            statusCode(REQUEST_ENTITY_TOO_LARGE.code());
     given().
             contentType(APPLICATION_GEO_JSON).
             accept("application/x-empty").
