@@ -163,8 +163,6 @@ and [others](./pom.xml#L177-L479).
 Your contributions are always welcome! Please have a look at the [contribution guidelines](CONTRIBUTING.md) first.
 
 # License
+Copyright (C) 2017-2022 HERE Europe B.V.
 
-
-Copyright (C) 2017-2020 HERE Europe B.V.
-
-See the [LICENSE](./LICENSE) file in the root of this project for license details.
+This project is licensed under the Apache License, Version 2.0 - see the [LICENSE](./LICENSE) file for details.
