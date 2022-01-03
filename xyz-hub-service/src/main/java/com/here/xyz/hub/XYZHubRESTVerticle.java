@@ -40,17 +40,40 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Handler;
 import io.vertx.core.MultiMap;
 import io.vertx.core.Promise;
+import io.vertx.core.Vertx;
+import io.vertx.core.eventbus.DeliveryOptions;
+import io.vertx.core.http.HttpClient;
+import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerResponse;
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 import io.vertx.ext.auth.PubSecKeyOptions;
 import io.vertx.ext.auth.jwt.JWTAuthOptions;
+import io.vertx.ext.web.Route;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.AuthenticationHandler;
+import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.StaticHandler;
+import io.vertx.ext.web.openapi.OpenAPILoaderOptions;
+import io.vertx.ext.web.openapi.Operation;
 import io.vertx.ext.web.openapi.RouterBuilder;
 import io.vertx.ext.web.openapi.RouterBuilderOptions;
+import io.vertx.ext.web.openapi.impl.ContractEndpointHandler;
+import io.vertx.ext.web.openapi.impl.DefaultParameterProcessorGenerator;
+import io.vertx.ext.web.openapi.impl.OpenAPI3PathResolver;
+import io.vertx.ext.web.openapi.impl.OpenAPI3RouterBuilderImpl;
+import io.vertx.ext.web.openapi.impl.OpenAPI3ValidationHandlerGenerator;
+import io.vertx.ext.web.openapi.impl.OpenAPIHolderImpl;
+import io.vertx.ext.web.openapi.impl.OperationImpl;
+import io.vertx.json.schema.SchemaRouter;
+import io.vertx.json.schema.openapi3.OpenAPI3SchemaParser;
 import java.io.File;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Hashtable;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -99,24 +122,18 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
     RouterBuilder.create(vertx, CONTRACT_LOCATION).onComplete(ar -> {
       if (ar.succeeded()) {
         try {
-          //Add the handlers
-          final RouterBuilder rb = ar.result()
-              .setOptions(new RouterBuilderOptions()
-                  .setContractEndpoint(RouterBuilderOptions.STANDARD_CONTRACT_ENDPOINT)
-                  .setRequireSecurityHandlers(false));
+          final RouterBuilder openapiRouterBuilder = ar.result();
+          final XYZRouterBuilder rb = new XYZRouterBuilder(vertx, vertx.createHttpClient(), (OpenAPIHolderImpl) openapiRouterBuilder.getOpenAPI(), new OpenAPILoaderOptions());
           new FeatureApi(rb);
           new FeatureQueryApi(rb);
           new SpaceApi(rb);
           new HistoryQueryApi(rb);
           new ConnectorApi(rb);
 
-          final AuthenticationHandler jwtHandler = createJWTHandler();
-          rb.securityHandler("Bearer", jwtHandler);
-
           final Router router = rb.createRouter();
 
           new HealthApi(vertx, router);
-          new AdminApi(vertx, router, jwtHandler);
+          new AdminApi(vertx, router, rb.jwtAuthHandler);
 
           //OpenAPI resources
           router.route("/hub/static/openapi/*").handler(createCorsHandler()).handler((routingContext -> {
@@ -197,17 +214,6 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
     logger.error("An error occurred, during the creation of the router from the Open API specification file.", t);
   }
 
-  /**
-   * Add the security handlers.
-   */
-  private AuthenticationHandler createJWTHandler() {
-    JWTAuthOptions authConfig = new JWTAuthOptions().addPubSecKey(
-        new PubSecKeyOptions().setAlgorithm("RS256")
-            .setBuffer(Service.configuration.getJwtPubKey()));
-
-    return new ExtendedJWTAuthHandler(new XyzAuthProvider(vertx, authConfig), null);
-  }
-
   private static class DelegatingHandler<E> implements Handler<E> {
 
     private final Handler<E> before;
@@ -230,6 +236,134 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
       if (after != null) {
         after.handle(event);
       }
+    }
+  }
+
+  private static class XYZOperation implements Operation {
+    public Handler<RoutingContext> handler;
+    public Operation wrappedOperation;
+
+    public XYZOperation(Operation wrappedOperation) {
+      this.wrappedOperation = wrappedOperation;
+    }
+
+    @Override
+    public Operation handler(Handler<RoutingContext> handler) {
+      this.handler = handler;
+      return this.wrappedOperation.handler(handler);
+    }
+
+    @Override
+    public Operation failureHandler(Handler<RoutingContext> handler) {
+      return this.wrappedOperation.failureHandler(handler);
+    }
+
+    @Override
+    public Operation routeToEventBus(String address) {
+      return this.wrappedOperation.routeToEventBus(address);
+    }
+
+    @Override
+    public Operation routeToEventBus(String address, DeliveryOptions options) {
+      return this.wrappedOperation.routeToEventBus(address, options);
+    }
+
+    @Override
+    public String getOperationId() {
+      return this.wrappedOperation.getOperationId();
+    }
+
+    @Override
+    public JsonObject getOperationModel() {
+      return this.wrappedOperation.getOperationModel();
+    }
+
+    @Override
+    public HttpMethod getHttpMethod() {
+      return this.wrappedOperation.getHttpMethod();
+    }
+
+    @Override
+    public String getOpenAPIPath() {
+      return this.wrappedOperation.getOpenAPIPath();
+    }
+  }
+
+  private static class XYZRouterBuilder extends OpenAPI3RouterBuilderImpl {
+    private final Vertx vertx;
+    private final OpenAPI3ValidationHandlerGenerator validationHandlerGenerator;
+
+    public AuthenticationHandler jwtAuthHandler;
+    public Map<String, XYZOperation> wrappedOperations = new HashMap<>();
+
+    public XYZRouterBuilder(Vertx vertx, HttpClient client,
+        OpenAPIHolderImpl spec, OpenAPILoaderOptions options) {
+      super(vertx, client, spec, options);
+      this.vertx = vertx;
+
+      SchemaRouter schemaRouter = SchemaRouter.create(client, vertx.fileSystem(), options.toSchemaRouterOptions());
+      spec.getAbsolutePaths().forEach(schemaRouter::addJson);
+      OpenAPI3SchemaParser schemaParser = OpenAPI3SchemaParser.create(schemaRouter);
+      // Noop binary format validator to fix bad multipart form
+      schemaParser.withStringFormatValidator("binary", v -> true);
+      this.validationHandlerGenerator = new OpenAPI3ValidationHandlerGenerator(spec, schemaParser);
+      this.validationHandlerGenerator.addParameterProcessorGenerator(new DefaultParameterProcessorGenerator());
+
+      // initialization of wrappedOperations
+      operations().forEach(o -> {
+        wrappedOperations.put(o.getOperationId(), new XYZOperation(o));
+      });
+    }
+
+    private AuthenticationHandler createJWTHandler() {
+      JWTAuthOptions authConfig = new JWTAuthOptions().addPubSecKey(
+          new PubSecKeyOptions().setAlgorithm("RS256")
+              .setBuffer(Service.configuration.getJwtPubKey()));
+
+      return new ExtendedJWTAuthHandler(new XyzAuthProvider(vertx, authConfig), null);
+    }
+
+    @Override
+    public XYZOperation operation(String operationId) {
+      return wrappedOperations.get(operationId);
+    }
+
+    @Override
+    public Router createRouter() {
+      Router router = Router.router(vertx);
+      Route globalRoute = router.route();
+      globalRoute.handler(BodyHandler.create());
+
+      for (XYZOperation op : wrappedOperations.values()) {
+        OperationImpl operation = (OperationImpl) op.wrappedOperation;
+        List<Handler<RoutingContext>> handlersToLoad = new ArrayList<>();
+
+        this.jwtAuthHandler = createJWTHandler();
+        handlersToLoad.add(this.jwtAuthHandler);
+        handlersToLoad.add(validationHandlerGenerator.create(operation));
+
+        JsonArray operationParameters = operation.getOperationModel().getJsonArray("parameters", new JsonArray());
+        List<JsonObject> parameters = new ArrayList<>();
+
+        for (int i=0; i<operationParameters.size(); i++) {
+          parameters.add(getOpenAPI().solveIfNeeded(operationParameters.getJsonObject(i)));
+        }
+
+        OpenAPI3PathResolver pathResolver = new OpenAPI3PathResolver(operation.getOpenAPIPath(), parameters, getOpenAPI());
+        Route route = pathResolver
+            .solve() // If this optional is empty, this route doesn't need regex
+            .map(solvedRegex -> router.routeWithRegex(operation.getHttpMethod(), solvedRegex.toString()))
+            .orElseGet(() -> router.route(operation.getHttpMethod(), operation.getOpenAPIPath()))
+            .setName(this.getOptions().getRouteNamingStrategy().apply(operation));
+
+        route.setRegexGroupsNames(new ArrayList<>(pathResolver.getMappedGroups().values()));
+        handlersToLoad.add(op.handler);
+        handlersToLoad.forEach(route::handler);
+      }
+
+      router.get(RouterBuilderOptions.STANDARD_CONTRACT_ENDPOINT).handler(ContractEndpointHandler.create(this.getOpenAPI()));
+
+      return router;
     }
   }
 }
