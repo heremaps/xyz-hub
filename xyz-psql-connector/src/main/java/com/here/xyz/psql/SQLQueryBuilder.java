@@ -692,29 +692,21 @@ public class SQLQueryBuilder {
                 query.append("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${hsttable} h ");
                 query.append("WHERE uuid = ANY(?) ");
                 query.append("AND EXISTS(select 1 from${schema}.${table} t where t.jsondata->>'id' =  h.jsondata->>'id') ");
-
-                query.addParameter(idArray);
-                query.addParameter(uuidArray);
             }else{
-                query = new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') ");
-                query.append("FROM(");
-                query.append("SELECT DISTINCT on(id,flag) jsondata->>'id' as id,");
-                query.append("(uuid = ANY(?)) as flag,");
-                query.append("jsondata, geo");
-                query.append("FROM  ${schema}.${hsttable} h");
+                //History does contain Inserts
+                query = new SQLQuery("SELECT DISTINCT ON(jsondata->'properties'->'@ns:com:here:xyz'->'uuid') * FROM(");
+                query.append("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table}");
                 query.append("WHERE jsondata->>'id' = ANY(?)");
-                query.append("ORDER BY id,flag, jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt' DESC");
-                query.append(")H WHERE NOT exists(");
-                query.append("SELECT jsondata->>'id' from ${schema}.${hsttable} t ");
-                query.append("where jsondata->>'id' = ANY(?) ");
-                query.append("AND jsondata->'properties'->'@ns:com:here:xyz'->'deleted' IS NOT NULL");
-                query.append("AND t.jsondata->>'id' =  h.jsondata->>'id'");
-                query.append(")");
-
-                query.addParameter(uuidArray);
-                query.addParameter(idArray);
-                query.addParameter(idArray);
+                query.append("UNION ");
+                query.append("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${hsttable} h ");
+                query.append("WHERE uuid = ANY(?) ");
+                query.append("AND EXISTS(select 1 from${schema}.${table} t where t.jsondata->>'id' =  h.jsondata->>'id') ");
+                query.append(")A");
             }
+
+            query.addParameter(idArray);
+            query.addParameter(uuidArray);
+
             return query;
         }
     }
