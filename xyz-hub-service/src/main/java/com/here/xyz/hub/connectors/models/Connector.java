@@ -98,7 +98,7 @@ public class Connector {
 
   /**
    * Returns the remote function pool ID to be used for this Service environment.
-   * @return
+   * @return the function pool id
    */
   public static String getRemoteFunctionPoolId() {
     if (Service.configuration != null && Service.configuration.REMOTE_FUNCTION_POOL_ID != null) {
@@ -107,7 +107,15 @@ public class Connector {
     return Service.getEnvironmentIdentifier();
   }
 
-  private void setRemoteFunction(RemoteFunctionConfig remoteFunction) {
+  /**
+   * Returns the first {@link RemoteFunctionConfig} found in the map of {@link Connector#remoteFunctions} flagged as {@link RemoteFunctionConfig#defaultConfig}
+   * @return the default remote function config or null
+   */
+  public RemoteFunctionConfig getDefaultRemoteFunctionConfig() {
+    return remoteFunctions.values().stream().filter(RemoteFunctionConfig::isDefaultConfig).findFirst().orElse(null);
+  }
+
+  public void setRemoteFunction(RemoteFunctionConfig remoteFunction) {
     _remoteFunction = remoteFunction;
   }
 
@@ -125,10 +133,13 @@ public class Connector {
     }
 
     String rfPoolId = getRemoteFunctionPoolId();
-    if (!remoteFunctions.containsKey(rfPoolId)) throw new RuntimeException("No matching remote function is defined for connector with ID "
-        + id + " and remote-function pool ID " + rfPoolId);
+    if (remoteFunctions.containsKey(rfPoolId)) return remoteFunctions.get(rfPoolId);
 
-    return remoteFunctions.get(rfPoolId);
+    RemoteFunctionConfig defaultConfig = getDefaultRemoteFunctionConfig();
+    if (defaultConfig == null) throw new RuntimeException("No matching remote function is defined for connector with ID "
+        + id + " and remote-function pool ID " + rfPoolId + " and none of the remote functions is flagged as defaultConfig.");
+
+    return defaultConfig;
   }
 
   /**
@@ -315,6 +326,14 @@ public class Connector {
     public int timeoutMs;
 
     /**
+     * The flag that indicates the Remote Function Configuration should be used as default in case the instance's connector pool id
+     * is not found in the  {@link com.here.xyz.hub.connectors.models.Connector#remoteFunctions} map.
+     *
+     * @see Connector#getRemoteFunctionPoolId()
+     */
+    public boolean defaultConfig;
+
+    /**
      * Returns the maximum amount of milliseconds a connector request may take.
      * If a request from a {@link com.here.xyz.hub.connectors.RemoteFunctionClient} exceeds the timeout,
      * the request to the connector will be cancelled and the user will receive an HTTP 504 response.
@@ -340,6 +359,9 @@ public class Connector {
       return null;
     }
 
+    @JsonIgnore
+    public boolean isDefaultConfig() { return this.defaultConfig; }
+
     @Override
     public boolean equals(Object o) {
       if (this == o) return true;
@@ -347,8 +369,8 @@ public class Connector {
       RemoteFunctionConfig that = (RemoteFunctionConfig) o;
       return warmUp == that.warmUp &&
           Objects.equals(id, that.id) &&
-          warmUp == that.warmUp &&
           timeoutMs == that.timeoutMs &&
+          defaultConfig == that.defaultConfig &&
           Objects.equals(protocolVersion, that.protocolVersion);
     }
 
