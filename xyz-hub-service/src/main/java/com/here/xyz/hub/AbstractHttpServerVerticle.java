@@ -28,7 +28,6 @@ import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
-import static io.netty.handler.codec.http.HttpResponseStatus.PAYMENT_REQUIRED;
 import static io.netty.handler.codec.http.HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE;
 import static io.netty.handler.codec.http.HttpResponseStatus.UNAUTHORIZED;
 import static io.vertx.core.http.HttpHeaders.AUTHORIZATION;
@@ -180,12 +179,13 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
         if (t instanceof BodyProcessorException) {
           sendErrorResponse(context, new HttpException(BAD_REQUEST, "Failed to parse body."));
           Buffer bodyBuffer = context.getBody();
-          if (bodyBuffer == null)
-            logger.warn("Bad request body was: null");
-          else {
+          String body = null;
+          if (bodyBuffer != null) {
             String bodyString = bodyBuffer.toString();
-            logger.warn("Bad request body was: {}", bodyString.substring(0, Math.min(4096, bodyString.length())));
+            body = bodyString.substring(0, Math.min(4096, bodyString.length()));
           }
+
+          logger.warn("Exception processing body: {}. Body was: {}", t.getMessage(), body);
         }
         else if (t instanceof ParameterProcessorException) {
           ParameterLocation location = ((ParameterProcessorException) t).getLocation();
