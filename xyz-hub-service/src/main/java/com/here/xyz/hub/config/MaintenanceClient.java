@@ -128,13 +128,15 @@ public class MaintenanceClient {
         return dbStatus;
     }
 
-    public void executeLocalScripts(DataSource source, String[] localPaths) throws IOException, SQLException {
+    public void executeLocalScripts(ComboPooledDataSource source, String[] localPaths) throws IOException, SQLException {
         for (String path : localPaths) {
             String content = DatabaseMaintainer.readResource(path);
             /** Create required Extensions */
             logger.info("{}: Apply Script \"{}\" ..",path);
             executeQueryWithoutResults(new SQLQuery(content), source);
         }
+        //Clear open Connections to reset searchpath
+        source.resetPoolManager();
     }
 
     public void initializeOrUpdateDatabase(String connectorId, String ecps, String passphrase) throws SQLException, NoPermissionException, IOException {
@@ -179,9 +181,7 @@ public class MaintenanceClient {
             /** set searchPath */
             executeQueryWithoutResults(setSearchpath, source);
             /** Install extensions */
-            executeLocalScripts(source, localScripts);
-            /** set searchPath */
-            executeQueryWithoutResults(setSearchpath, source);
+            executeLocalScripts((ComboPooledDataSource)source, localScripts);
 
             /** Mark db initialization as finished in DBStatus table*/
             logger.info("{}: Mark db as initialized in db-status table..", connectorId);
