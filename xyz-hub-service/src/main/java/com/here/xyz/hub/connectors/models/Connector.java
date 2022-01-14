@@ -111,6 +111,7 @@ public class Connector {
    * Returns the first {@link RemoteFunctionConfig} found in the map of {@link Connector#remoteFunctions} flagged as {@link RemoteFunctionConfig#defaultConfig}
    * @return the default remote function config or null
    */
+  @JsonIgnore
   public RemoteFunctionConfig getDefaultRemoteFunctionConfig() {
     return remoteFunctions.values().stream().filter(RemoteFunctionConfig::isDefaultConfig).findFirst().orElse(null);
   }
