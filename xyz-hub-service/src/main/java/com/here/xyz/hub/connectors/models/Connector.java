@@ -360,7 +360,7 @@ public class Connector {
       return null;
     }
 
-    @JsonIgnore
+    @JsonInclude(Include.NON_DEFAULT)
     public boolean isDefaultConfig() { return this.defaultConfig; }
 
     @Override
