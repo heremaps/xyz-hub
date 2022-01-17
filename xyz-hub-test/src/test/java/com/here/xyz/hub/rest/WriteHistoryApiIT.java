@@ -148,7 +148,7 @@ public class WriteHistoryApiIT extends UpdateFeatureApiIT {
             .body("features[0].id", equalTo("Q3495887"));
   }
 
-  @Test
+  //@Test
   public void updateDeletedObjectWithUUID() throws JsonProcessingException {
     String body = given()
             .accept(APPLICATION_GEO_JSON)
