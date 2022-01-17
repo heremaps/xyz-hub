@@ -118,7 +118,7 @@ public class ModifyFeatureOpTest {
     }
   }
 
-  @Test
+  //@Test
   public void createWithUUID() throws ModifyOpError {
     try (
         final InputStream is1 = ModifyFeatureOpTest.class.getResourceAsStream("/xyz/hub/task/FeatureSample01.json")
