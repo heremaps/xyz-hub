@@ -138,7 +138,7 @@ public class StoreFeaturesApiIT extends TestSpaceWithFeature {
             statusCode(NO_CONTENT.code());
   }
 
-  //@Test
+  @Test
   public void putFeatureWithAllowFeatureCreationWithUUID() {
     given().
         contentType(APPLICATION_GEO_JSON).
