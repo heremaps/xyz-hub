@@ -172,9 +172,8 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
   @Override
   @SuppressWarnings("unchecked")
   public void validateCreate(Entry entry) throws ModifyOpError {
-    // TODO Disable validation until the spaces are maked with "allowFeatureCreationWithUUID"
-    /*if (!allowFeatureCreationWithUUID && entry.inputUUID != null)
+    if (!allowFeatureCreationWithUUID && entry.inputUUID != null)
       throw new ModifyOpError(
-          "The feature with id " + entry.input.get("id") + " cannot be created. Property UUID should not be provided as input.");*/
+          "The feature with id " + entry.input.get("id") + " cannot be created. Property UUID should not be provided as input.");
   }
 }
