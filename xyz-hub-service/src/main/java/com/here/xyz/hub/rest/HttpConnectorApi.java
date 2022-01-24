@@ -48,6 +48,7 @@ public class HttpConnectorApi extends Api {
 
   public HttpConnectorApi(RouterBuilder rb, AbstractConnectorHandler connector) {
     this.connector = connector;
+    this.connector.setEmbedded(true);
     rb.operation("postEvent").handler(this::postEvent);
     rb.operation("getHealthCheck").handler(this::getHealthCheck);
 

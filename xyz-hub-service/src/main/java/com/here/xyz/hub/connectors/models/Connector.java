@@ -39,12 +39,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * The connector configuration.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Connector {
+
+  private static final Logger logger = LogManager.getLogger();
 
   /**
    * The unique identifier of this connector configuration.
@@ -94,7 +98,7 @@ public class Connector {
 
   /**
    * Returns the remote function pool ID to be used for this Service environment.
-   * @return
+   * @return the function pool id
    */
   public static String getRemoteFunctionPoolId() {
     if (Service.configuration != null && Service.configuration.REMOTE_FUNCTION_POOL_ID != null) {
@@ -103,7 +107,16 @@ public class Connector {
     return Service.getEnvironmentIdentifier();
   }
 
-  private void setRemoteFunction(RemoteFunctionConfig remoteFunction) {
+  /**
+   * Returns the first {@link RemoteFunctionConfig} found in the map of {@link Connector#remoteFunctions} flagged as {@link RemoteFunctionConfig#defaultConfig}
+   * @return the default remote function config or null
+   */
+  @JsonIgnore
+  public RemoteFunctionConfig getDefaultRemoteFunctionConfig() {
+    return remoteFunctions.values().stream().filter(RemoteFunctionConfig::isDefaultConfig).findFirst().orElse(null);
+  }
+
+  public void setRemoteFunction(RemoteFunctionConfig remoteFunction) {
     _remoteFunction = remoteFunction;
   }
 
@@ -121,10 +134,13 @@ public class Connector {
     }
 
     String rfPoolId = getRemoteFunctionPoolId();
-    if (!remoteFunctions.containsKey(rfPoolId)) throw new RuntimeException("No matching remote function is defined for connector with ID "
-        + id + " and remote-function pool ID " + rfPoolId);
+    if (remoteFunctions.containsKey(rfPoolId)) return remoteFunctions.get(rfPoolId);
 
-    return remoteFunctions.get(rfPoolId);
+    RemoteFunctionConfig defaultConfig = getDefaultRemoteFunctionConfig();
+    if (defaultConfig == null) throw new RuntimeException("No matching remote function is defined for connector with ID "
+        + id + " and remote-function pool ID " + rfPoolId + " and none of the remote functions is flagged as defaultConfig.");
+
+    return defaultConfig;
   }
 
   /**
@@ -293,12 +309,59 @@ public class Connector {
      */
     public int warmUp;
 
+    /**
+     * The XYZ connector protocol version being served by the remote function.
+     * @see Payload#VERSION
+     */
     public String protocolVersion = "0.5.0";
+
+    /**
+     * The maximum amount of milliseconds a connector request may take.
+     * If a request from a {@link com.here.xyz.hub.connectors.RemoteFunctionClient} exceeds the timeout,
+     * the request to the connector will be cancelled and the user will receive an HTTP 504 response.
+     * If not specified, the default value for this property
+     * is {@link com.here.xyz.hub.Service.Config#REMOTE_FUNCTION_REQUEST_TIMEOUT} * 1000.
+     *
+     * NOTE: This value may never be higher than {@link com.here.xyz.hub.Service.Config#REMOTE_FUNCTION_MAX_REQUEST_TIMEOUT} * 1000.
+     */
+    public int timeoutMs;
+
+    /**
+     * The flag that indicates the Remote Function Configuration should be used as default in case the instance's connector pool id
+     * is not found in the  {@link com.here.xyz.hub.connectors.models.Connector#remoteFunctions} map.
+     *
+     * @see Connector#getRemoteFunctionPoolId()
+     */
+    public boolean defaultConfig;
+
+    /**
+     * Returns the maximum amount of milliseconds a connector request may take.
+     * If a request from a {@link com.here.xyz.hub.connectors.RemoteFunctionClient} exceeds the timeout,
+     * the request to the connector will be cancelled and the user will receive an HTTP 504 response.
+     *
+     * @return The request timeout in milliseconds
+     */
+    @JsonIgnore
+    public int getTimeout() {
+      if (timeoutMs > 0) {
+        final int maxTimeout = Service.configuration.getRemoteFunctionMaxRequestTimeout() * 1000;
+        if (timeoutMs > maxTimeout) {
+          logger.warn("Specified timeout (" + timeoutMs + "ms) of connector with ID " + id + " is larger than the maximum allowed value"
+              + " (" + maxTimeout + "ms). Using the maximum allowed value instead.");
+          return maxTimeout;
+        }
+        return timeoutMs;
+      }
+      return Service.configuration.REMOTE_FUNCTION_REQUEST_TIMEOUT * 1000;
+    }
 
     @JsonIgnore
     public String getRegion() {
       return null;
     }
+
+    @JsonInclude(Include.NON_DEFAULT)
+    public boolean isDefaultConfig() { return this.defaultConfig; }
 
     @Override
     public boolean equals(Object o) {
@@ -307,7 +370,8 @@ public class Connector {
       RemoteFunctionConfig that = (RemoteFunctionConfig) o;
       return warmUp == that.warmUp &&
           Objects.equals(id, that.id) &&
-          warmUp == that.warmUp &&
+          timeoutMs == that.timeoutMs &&
+          defaultConfig == that.defaultConfig &&
           Objects.equals(protocolVersion, that.protocolVersion);
     }
 
@@ -385,13 +449,17 @@ public class Connector {
         if (!(o instanceof Http)) return false;
         if (!super.equals(o)) return false;
         Http http = (Http) o;
-        return url.equals(http.url);
+        return metricsActive == http.metricsActive && url.equals(http.url);
       }
 
       @Override
       public int hashCode() {
-        return Objects.hash(url);
+        return Objects.hash(url, metricsActive);
       }
+
+      public boolean metricsActive = false;
+
+
     }
   }
 

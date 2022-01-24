@@ -19,7 +19,6 @@
 
 package com.here.xyz.hub;
 
-import com.amazonaws.services.cloudwatch.model.StandardUnit;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.here.xyz.hub.auth.Authorization;
@@ -32,19 +31,23 @@ import com.here.xyz.hub.rest.admin.MessageBroker;
 import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.hub.util.ARN;
-import com.here.xyz.hub.util.metrics.CloudWatchMetricPublisher;
 import com.here.xyz.hub.util.metrics.GcDurationMetric;
 import com.here.xyz.hub.util.metrics.GlobalInflightRequestMemory;
 import com.here.xyz.hub.util.metrics.GlobalUsedRfcConnections;
 import com.here.xyz.hub.util.metrics.MajorGcCountMetric;
 import com.here.xyz.hub.util.metrics.MemoryMetric;
-import com.here.xyz.hub.util.metrics.Metric;
+import com.here.xyz.hub.util.metrics.base.CWBareValueMetricPublisher;
+import com.here.xyz.hub.util.metrics.base.MetricPublisher;
+import com.here.xyz.hub.util.metrics.net.ConnectionMetrics;
+import com.here.xyz.hub.util.metrics.net.ConnectionMetrics.HubMetricsFactory;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
+import io.vertx.core.VertxOptions;
 import io.vertx.core.json.JsonObject;
+import io.vertx.core.metrics.MetricsOptions;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.WebClientOptions;
@@ -128,7 +131,7 @@ public class Service extends Core {
   private static String hostname;
   public static final boolean IS_USING_ZGC = isUsingZgc();
 
-  private static final List<Metric> metrics = new LinkedList<>();
+  private static final List<MetricPublisher> metricPublishers = new LinkedList<>();
 
   private static Router globalRouter;
 
@@ -139,7 +142,11 @@ public class Service extends Core {
    */
   public static void main(String[] arguments) {
     boolean debug = Arrays.asList(arguments).contains("--debug");
-    initialize(null, debug, CONFIG_FILE, Service::onConfigLoaded);
+    VertxOptions vertxOptions = new VertxOptions()
+        .setMetricsOptions(new MetricsOptions()
+          .setEnabled(true)
+          .setFactory(new HubMetricsFactory()));
+    initialize(vertxOptions, debug, CONFIG_FILE, Service::onConfigLoaded);
   }
 
   /**
@@ -292,24 +299,20 @@ public class Service extends Core {
 
   private static void startMetricPublishers() {
     if (configuration.PUBLISH_METRICS) {
-      String ns = "XYZ/Hub", serviceName = "XYZ-Hub-" + configuration.ENVIRONMENT_NAME;
-      metrics.add(new MemoryMetric(new CloudWatchMetricPublisher(ns, "JvmMemoryUtilization",
-          "ServiceName", serviceName, StandardUnit.Percent)));
-      metrics.add(new MajorGcCountMetric(new CloudWatchMetricPublisher(ns, "MajorGcCount",
-          "ServiceName", serviceName, StandardUnit.Count)));
-      metrics.add(new GcDurationMetric(new CloudWatchMetricPublisher(ns, "GcDuration",
-          "ServiceName", serviceName, StandardUnit.Milliseconds)));
-      metrics.add(new GlobalUsedRfcConnections(new CloudWatchMetricPublisher(ns, "GlobalUsedRfcConnections",
-          "ServiceName", serviceName, StandardUnit.Percent)));
-      metrics.add(new GlobalInflightRequestMemory(new CloudWatchMetricPublisher(ns, "GlobalInflightRequestMemory",
-          "ServiceName", serviceName, StandardUnit.Bytes)));
+      ConnectionMetrics.initialize();
+      metricPublishers.add(new CWBareValueMetricPublisher(new MemoryMetric("JvmMemoryUtilization")));
+      metricPublishers.add(new CWBareValueMetricPublisher(new MajorGcCountMetric("MajorGcCount")));
+      metricPublishers.add(new CWBareValueMetricPublisher(new GcDurationMetric("GcDuration")));
+      metricPublishers.add(new CWBareValueMetricPublisher(new GlobalUsedRfcConnections("GlobalUsedRfcConnections")));
+      metricPublishers.add(new CWBareValueMetricPublisher(new GlobalInflightRequestMemory("GlobalInflightRequestMemory")));
+      metricPublishers.addAll(ConnectionMetrics.startConnectionMetricPublishers());
     }
   }
 
   private static boolean isUsingZgc() {
     List<GarbageCollectorMXBean> gcMxBeans = ManagementFactory.getGarbageCollectorMXBeans();
     for (GarbageCollectorMXBean gcMxBean : gcMxBeans) {
-      if ("ZGC".equals(gcMxBean.getName())) {
+      if (gcMxBean.getName().startsWith("ZGC")) {
         logger.info("Service is using ZGC.");
         return true;
       }
@@ -318,7 +321,7 @@ public class Service extends Core {
   }
 
   private static void stopMetricPublishers() {
-    metrics.forEach(Metric::stop);
+    metricPublishers.forEach(MetricPublisher::stop);
   }
 
   public static int getPublicPort() {
@@ -384,6 +387,11 @@ public class Service extends Core {
     public String XYZ_HUB_PUBLIC_ENDPOINT;
 
     /**
+     * The public health-check endpoint, i.e. /hub/
+     */
+    public String XYZ_HUB_PUBLIC_HEALTH_ENDPOINT = "/hub/";
+
+    /**
      * The redis host.
      */
     @Deprecated
@@ -425,6 +433,13 @@ public class Service extends Core {
      * The urls of remote hub services, separated by semicolon ';'
      */
     public String XYZ_HUB_REMOTE_SERVICE_URLS;
+    private List<String> hubRemoteServiceUrls;
+
+    public List<String> getHubRemoteServiceUrls() {
+      if (hubRemoteServiceUrls == null)
+        hubRemoteServiceUrls = XYZ_HUB_REMOTE_SERVICE_URLS == null ? null : Arrays.asList(XYZ_HUB_REMOTE_SERVICE_URLS.split(";"));
+      return hubRemoteServiceUrls;
+    }
 
     /**
      * The authorization type.
@@ -463,6 +478,11 @@ public class Service extends Core {
      * automatically if the connector config does not include skipAutoDisable.
      */
     public boolean ENABLE_CONNECTOR_HEALTH_CHECKS;
+
+    /**
+     * If true HERE Tiles are get handled as Base 4 encoded. Default is false (Base 10).
+     */
+    public boolean USE_BASE_4_H_TILES;
 
     /**
      * The ID of the default storage connector.
@@ -525,9 +545,24 @@ public class Service extends Core {
     public int GLOBAL_MAX_QUEUE_SIZE; //MB
 
     /**
-     * The default timeout for remote functions requests.
+     * The default timeout for remote function requests in seconds.
      */
     public int REMOTE_FUNCTION_REQUEST_TIMEOUT; //seconds
+
+    /**
+     * OPTIONAL: The maximum timeout for remote function requests in seconds.
+     * If not specified, the value of {@link #REMOTE_FUNCTION_REQUEST_TIMEOUT} will be used.
+     */
+    public int REMOTE_FUNCTION_MAX_REQUEST_TIMEOUT; //seconds
+
+    /**
+     * @return the value of {@link #REMOTE_FUNCTION_MAX_REQUEST_TIMEOUT} if specified.
+     *  The value of {@link #REMOTE_FUNCTION_REQUEST_TIMEOUT} otherwise.
+     */
+    @JsonIgnore
+    public int getRemoteFunctionMaxRequestTimeout() {
+      return REMOTE_FUNCTION_MAX_REQUEST_TIMEOUT > 0 ? REMOTE_FUNCTION_MAX_REQUEST_TIMEOUT : REMOTE_FUNCTION_REQUEST_TIMEOUT;
+    }
 
     /**
      * The maximum amount of RemoteFunction connections to be opened by this node.
@@ -568,6 +603,21 @@ public class Service extends Core {
      * The web root for serving static resources from the file system.
      */
     public String FS_WEB_ROOT;
+
+    /**
+     * The name of the upload limit header
+     */
+    public String UPLOAD_LIMIT_HEADER_NAME;
+
+    /**
+     * The code which gets returned if UPLOAD_LIMIT is reached
+     */
+    public int UPLOAD_LIMIT_REACHED_HTTP_CODE;
+
+    /**
+     * The message which gets returned if UPLOAD_LIMIT is reached
+     */
+    public String UPLOAD_LIMIT_REACHED_MESSAGE;
 
     /**
      * The name of the health check header to instruct for additional health status information.
@@ -678,6 +728,11 @@ public class Service extends Core {
 
       return FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP.containsKey(field);
     }
+
+    /**
+     * Flag that indicates whether the creation of features on history spaces contains features in the request payload with uuid.
+     */
+    public boolean MONITOR_FEATURES_WITH_UUID = true;
   }
 
   /**

@@ -25,7 +25,7 @@
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
     <relativePath>../pom.xml</relativePath>
-    <version>1.20.3-SNAPSHOT</version>
+    <version>1.24.1-SNAPSHOT</version>
   </parent>
 
   <licenses>
@@ -281,18 +281,42 @@
     <dependency>
       <artifactId>gt-api</artifactId>
       <groupId>org.geotools</groupId>
+      <exclusions>
+        <exclusion>
+          <groupId>javax.media</groupId>
+          <artifactId>jai_core</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <artifactId>gt-referencing</artifactId>
       <groupId>org.geotools</groupId>
+      <exclusions>
+        <exclusion>
+          <groupId>javax.media</groupId>
+          <artifactId>jai_core</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <artifactId>gt-epsg-hsql</artifactId>
       <groupId>org.geotools</groupId>
+      <exclusions>
+        <exclusion>
+          <groupId>javax.media</groupId>
+          <artifactId>jai_core</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <artifactId>gt-epsg-extension</artifactId>
       <groupId>org.geotools</groupId>
+      <exclusions>
+        <exclusion>
+          <groupId>javax.media</groupId>
+          <artifactId>jai_core</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
 
     <!-- Cache -->

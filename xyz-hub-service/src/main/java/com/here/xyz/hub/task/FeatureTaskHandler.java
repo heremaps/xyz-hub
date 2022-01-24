@@ -19,7 +19,6 @@
 
 package com.here.xyz.hub.task;
 
-import static com.here.xyz.hub.XYZHubRESTVerticle.STREAM_INFO_CTX_KEY;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
 import static com.here.xyz.hub.rest.ApiResponseType.MVT;
@@ -38,6 +37,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.google.common.base.Strings;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContentModifiedNotification;
@@ -52,6 +52,7 @@ import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.hub.AbstractHttpServerVerticle;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.JWTPayload;
@@ -267,7 +268,7 @@ public class FeatureTaskHandler {
             }
           });
         });
-        addStreamInfo(task, "SReqSize", responseContext.rpcContext.getRequestSize());
+        AbstractHttpServerVerticle.addStreamInfo(task.context, "SReqSize", responseContext.rpcContext.getRequestSize());
         task.addCancellingHandler(unused -> responseContext.rpcContext.cancelRequest());
       }
       catch (IllegalStateException e) {
@@ -323,9 +324,9 @@ public class FeatureTaskHandler {
   }
 
   private static <T extends FeatureTask> void addConnectorPerformanceInfo(T task, long storageTime, RpcContext rpcContext, String eventPrefix) {
-    addStreamInfo(task, eventPrefix + "Time", storageTime);
+    AbstractHttpServerVerticle.addStreamInfo(task.context, eventPrefix + "Time", storageTime);
     if (rpcContext != null)
-      addStreamInfo(task, eventPrefix + "ResSize", rpcContext.getResponseSize());
+      AbstractHttpServerVerticle.addStreamInfo(task.context, eventPrefix + "ResSize", rpcContext.getResponseSize());
   }
 
   private static <T extends FeatureTask> void addProcessorPerformanceInfo(T task, long processorTime, RpcContext rpcContext, int processorNo) {
@@ -361,7 +362,7 @@ public class FeatureTaskHandler {
       Service.cacheClient.get(cacheKey).onSuccess(cacheResult -> {
         if (cacheResult == null) {
           //Cache MISS: Just go on in the task pipeline
-          addStreamInfo(task, "CH",0);
+          AbstractHttpServerVerticle.addStreamInfo(task.context, "CH",0);
           logger.info(task.getMarker(), "Cache MISS for cache key {}", cacheKey);
         }
         else {
@@ -369,7 +370,7 @@ public class FeatureTaskHandler {
           try {
             task.setResponse(transformCacheValue(cacheResult));
             task.setCacheHit(true);
-            addStreamInfo(task, "CH", 1);
+            AbstractHttpServerVerticle.addStreamInfo(task.context, "CH", 1);
             logger.info(task.getMarker(), "Cache HIT for cache key {}", cacheKey);
           }
           catch (JsonProcessingException e) {
@@ -378,7 +379,7 @@ public class FeatureTaskHandler {
             logger.info(task.getMarker(), "Cache MISS (as of JSON parse exception) for cache key {} {}", cacheKey, e);
           }
         }
-        addStreamInfo(task, "CTime", Core.currentTimeMillis() - cacheRequestStart);
+        AbstractHttpServerVerticle.addStreamInfo(task.context, "CTime", Core.currentTimeMillis() - cacheRequestStart);
         callback.call(task);
       });
     }
@@ -467,7 +468,7 @@ public class FeatureTaskHandler {
     if (nc.jwt != null) {
       event.setTid(nc.jwt.tid);
       event.setAid(nc.jwt.aid);
-      event.setJwt(nc.jwt.jwt); 
+      event.setJwt(nc.jwt.jwt);
     }
 
     if (connector != null && connector.forwardParamsConfig != null) {
@@ -777,7 +778,7 @@ public class FeatureTaskHandler {
     logger.debug(task.getMarker(), "Given space configuration is: {}", Json.encode(task.space));
 
     final String storageId = task.space.getStorage().getId();
-    addStreamInfo(task, "SID", storageId);
+    AbstractHttpServerVerticle.addStreamInfo(task.context, "SID", storageId);
     Space.resolveConnector(task.getMarker(), storageId, (arStorage) -> {
       if (arStorage.failed()) {
         callback.exception(new InvalidStorageException("Unable to load the definition for this storage."));
@@ -888,7 +889,7 @@ public class FeatureTaskHandler {
       //When ZGC is in use, only throttle requests if the service memory filled up over the specified service memory threshold
       if (Service.IS_USING_ZGC) {
         if (usedMemoryPercent > Service.configuration.SERVICE_MEMORY_HIGH_UTILIZATION_THRESHOLD) {
-          addStreamInfo(task, "THR", "M"); //Reason for throttling is memory
+          AbstractHttpServerVerticle.addStreamInfo(task.context, "THR", "M"); //Reason for throttling is memory
           throw new HttpException(TOO_MANY_REQUESTS, "Too many requests for the service node.");
         }
       }
@@ -904,7 +905,7 @@ public class FeatureTaskHandler {
 
         RpcClient rpcClient = getRpcClient(storage);
         if (storageInflightRequestMemorySum > rpcClient.getFunctionClient().getPriority() * GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE) {
-          addStreamInfo(task, "THR", "M"); //Reason for throttling is memory
+          AbstractHttpServerVerticle.addStreamInfo(task.context, "THR", "M"); //Reason for throttling is memory
           throw new HttpException(TOO_MANY_REQUESTS, "Too many requests for the storage.");
         }
       }
@@ -924,7 +925,7 @@ public class FeatureTaskHandler {
     }
 
     try {
-      task.modifyOp = new ModifyFeatureOp(getFeatureModifications(task), task.ifNotExists, task.ifExists, task.transactional, task.conflictResolution);
+      task.modifyOp = new ModifyFeatureOp(getFeatureModifications(task), task.ifNotExists, task.ifExists, task.transactional, task.conflictResolution, task.space.isAllowFeatureCreationWithUUID());
       callback.call(task);
     } catch (HttpException e) {
       logger.warn(task.getMarker(), e.getMessage(), e);
@@ -1052,6 +1053,42 @@ public class FeatureTaskHandler {
       callback.exception(new HttpException(BAD_REQUEST, "Unable to process the request input."));
       return;
     }
+    callback.call(task);
+  }
+
+  static void monitorFeatureRequest(ConditionalOperation task, Callback<ConditionalOperation> callback) {
+    try {
+      if (Service.configuration.MONITOR_FEATURES_WITH_UUID
+          && task.space.isEnableHistory()
+          && task.modifyOp.isWrite()
+          && !task.modifyOp.entries.isEmpty()) {
+
+        FeatureEntry entry = task.modifyOp.entries.get(0);
+
+        // monitor only the inputs which the first feature contains uuid
+        if (!Strings.isNullOrEmpty(entry.inputUUID)) {
+          boolean containsInput = entry.input != null;
+          boolean containsHead = entry.head != null;
+          boolean containsBase = entry.base != null;
+
+          String spaceId = task.space.getId();
+          String owner = task.space.getOwner();
+          String featureId = containsInput ? (String) entry.input.get("id") : null;
+          String uuid = entry.inputUUID;
+
+          String ifExists = entry.ifExists.name();
+          String ifNotExists = entry.ifNotExists.name();
+
+          logger.warn(task.getMarker(), "Monitoring WRITE feature on space: " + spaceId + "; owner: " + owner +
+              "; featureId: " + featureId + "; containsInput: " + containsInput + "; containsHead: " + containsHead + "; containsBase: "
+              + containsBase + "; uuid: " + uuid + "; ifExists: " + ifExists + "; ifNotExists: " + ifNotExists);
+        }
+      }
+    }
+    catch (Exception e) {
+      logger.warn(task.getMarker(), "Unable to monitor feature request", e);
+    }
+
     callback.call(task);
   }
 
@@ -1340,13 +1377,6 @@ public class FeatureTaskHandler {
     }
   }
 
-  private static <T extends FeatureTask> void addStreamInfo(T task, String streamInfoKey, Object streamInfoValue) {
-    if (task.context.get(STREAM_INFO_CTX_KEY) == null)
-      task.context.put(STREAM_INFO_CTX_KEY, new HashMap<String, Object>());
-
-    ((Map<String, Object>) task.context.get(STREAM_INFO_CTX_KEY)).put(streamInfoKey, streamInfoValue);
-  }
-
   public static <X extends FeatureTask<?, X>> void validate(X task, Callback<X> callback) {
     if (task instanceof ReadQuery && ((ReadQuery) task).hasPropertyQuery()
         && !task.storage.capabilities.propertySearch) {
@@ -1515,6 +1545,7 @@ public class FeatureTaskHandler {
         .withStreamId(task.getMarker().getName())
         .withSpace(task.space.getId())
         .withParams(task.space.getStorage().getParams())
+        .withEnableGlobalVersioning(task.space.isEnableGlobalVersioning())
         .withEnableHistory(task.space.isEnableHistory())
         .withIdsMap(idsMap);
 

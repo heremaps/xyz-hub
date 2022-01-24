@@ -113,8 +113,8 @@ public class StorageStatisticsProvider {
 
   private static Future<StorageStatistics> fetchFromStorage(Marker marker, String storageId, List<String> spaceIds) {
     return Space.resolveConnector(marker, storageId)
-        .compose(storage -> storage.capabilities.storageUtilizationReporting ?
-            fetchFromStorage(marker, storage, spaceIds) : Future.succeededFuture(null));
+        .compose(storage -> storage.capabilities.storageUtilizationReporting ?            //Ignore if the connector can not be resolved
+              fetchFromStorage(marker, storage, spaceIds) : Future.succeededFuture(null), t -> Future.succeededFuture(null));
   }
 
   private static Future<StorageStatistics> fetchFromStorage(Marker marker, Connector storage, List<String> spaceIds) {

@@ -32,7 +32,7 @@ public class RestAssuredTest extends TestAuthenticator {
     @BeforeClass
     public static void configureRestAssured() {
         RestAssured.baseURI = RestAssuredConfig.config().baseURI;
-        RestAssured.port = RestAssuredConfig.config().port;
+        RestAssured.port = RestAssuredConfig.config().hubPort;
         RestAssured.enableLoggingOfRequestAndResponseIfValidationFails();
         RestAssured.config = RestAssured.config().httpClient(RestAssured.config().getHttpClientConfig().reuseHttpClientInstance());
         RestAssured.config = RestAssured.config().encoderConfig(encoderConfig().defaultContentCharset("UTF-8"));

@@ -47,6 +47,7 @@ import static io.vertx.core.http.HttpMethod.PUT;
 import com.google.common.base.Strings;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.hub.task.FeatureTask;
 import com.here.xyz.hub.task.TaskPipeline;
 import com.here.xyz.hub.util.logging.LogUtil;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -54,15 +55,19 @@ import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.Promise;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.json.Json;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.CorsHandler;
 import io.vertx.ext.web.validation.BadRequestException;
+import io.vertx.ext.web.validation.BodyProcessorException;
+import io.vertx.ext.web.validation.ParameterProcessorException;
+import io.vertx.ext.web.validation.impl.ParameterLocation;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -130,8 +135,8 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
   protected void addDefaultHandlers(Router router) {
     //Add additional handler to the router
     router.route().failureHandler(createFailureHandler());
-    router.route().order(0)
-        .handler(createBodyHandler())
+    // starts at the 2nd route, since the first one is automatically added from openapi's RouterBuilder.createRouter
+    router.route().order(1)
         .handler(createReceiveHandler())
         .handler(createMaxRequestSizeHandler())
         .handler(createCorsHandler());
@@ -171,7 +176,28 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
             message = "Missing auth credentials.";
           t = new HttpException(status, message, t);
         }
-        sendErrorResponse(context, t);
+        if (t instanceof BodyProcessorException) {
+          sendErrorResponse(context, new HttpException(BAD_REQUEST, "Failed to parse body."));
+          Buffer bodyBuffer = context.getBody();
+          String body = null;
+          if (bodyBuffer != null) {
+            String bodyString = bodyBuffer.toString();
+            body = bodyString.substring(0, Math.min(4096, bodyString.length()));
+          }
+
+          logger.warn("Exception processing body: {}. Body was: {}", t.getMessage(), body);
+        }
+        else if (t instanceof ParameterProcessorException) {
+          ParameterLocation location = ((ParameterProcessorException) t).getLocation();
+          String paramName = ((ParameterProcessorException) t).getParameterName();
+          sendErrorResponse(context, new HttpException(BAD_REQUEST, "Invalid request input parameter value for "
+              + location.name().toLowerCase() + "-parameter \"" + location.lowerCaseIfNeeded(paramName) + "\". Reason: "
+              + ((ParameterProcessorException) t).getErrorType()));
+        }
+        else if (t instanceof BadRequestException)
+          sendErrorResponse(context, new HttpException(BAD_REQUEST, "Invalid request."));
+        else
+          sendErrorResponse(context, t);
       }
       else {
         HttpResponseStatus status = context.statusCode() >= 400 ? HttpResponseStatus.valueOf(context.statusCode()) : INTERNAL_SERVER_ERROR;
@@ -187,27 +213,48 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
     return context -> sendErrorResponse(context, new HttpException(NOT_FOUND, "The requested resource does not exist."));
   }
 
-  protected BodyHandler createBodyHandler() {
-    BodyHandler bodyHandler = BodyHandler.create();
-    if (Service.configuration != null && Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE > 0) {
-      // This check works only for multipart or url encoded content types, not for application/geo+json
-      bodyHandler = bodyHandler.setBodyLimit(Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE);
-    }
-
-    return bodyHandler;
-  }
-
   /**
    * The max request size handler.
    */
   protected Handler<RoutingContext> createMaxRequestSizeHandler() {
     return context -> {
-      if (Service.configuration != null && Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE > 0) {
-        if (context.getBody() != null && context.getBody().length() > Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE) {
-          sendErrorResponse(context, new HttpException(REQUEST_ENTITY_TOO_LARGE, "The request payload is bigger than the maximum allowed."));
+      if(Service.configuration != null ) {
+        long limit = Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE;
+
+        String errorMessage = "The request payload is bigger than the maximum allowed.";
+        String uploadLimit;
+        HttpResponseStatus status = REQUEST_ENTITY_TOO_LARGE;
+
+        if (Service.configuration.UPLOAD_LIMIT_HEADER_NAME != null
+                && (uploadLimit = context.request().headers().get(Service.configuration.UPLOAD_LIMIT_HEADER_NAME))!= null) {
+
+          try {
+             /** Override limit if we are receiving an UPLOAD_LIMIT_HEADER_NAME value */
+            limit = Long.parseLong(uploadLimit);
+
+            /** Add limit to streamInfo response header */
+            addStreamInfo(context, "MaxReqSize", limit);
+          } catch (NumberFormatException e) {
+            sendErrorResponse(context, new HttpException(BAD_REQUEST, "Value of header: " + Service.configuration.UPLOAD_LIMIT_HEADER_NAME + " has to be a number."));
+            return;
+          }
+
+          /** Override http response code if its configured */
+          if(Service.configuration.UPLOAD_LIMIT_REACHED_HTTP_CODE > 0)
+            status = HttpResponseStatus.valueOf(Service.configuration.UPLOAD_LIMIT_REACHED_HTTP_CODE);
+
+          /** Override error Message if its configured */
+          if(Service.configuration.UPLOAD_LIMIT_REACHED_MESSAGE != null)
+            errorMessage = Service.configuration.UPLOAD_LIMIT_REACHED_MESSAGE;
+        }
+
+        if (limit > 0) {
+          if (context.getBody() != null && context.getBody().length() > limit) {
+            sendErrorResponse(context, new HttpException(status, errorMessage));
+            return;
+          }
         }
       }
-
       context.next();
     };
   }
@@ -310,6 +357,13 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
     allowHeaders.stream().map(String::valueOf).forEach(cors::allowedHeader);
     exposeHeaders.stream().map(String::valueOf).forEach(cors::exposedHeader);
     return cors;
+  }
+
+  public static <T extends FeatureTask> void addStreamInfo(RoutingContext context, String streamInfoKey, Object streamInfoValue) {
+    if (context.get(STREAM_INFO_CTX_KEY) == null)
+      context.put(STREAM_INFO_CTX_KEY, new HashMap<String, Object>());
+
+    ((Map<String, Object>) context.get(STREAM_INFO_CTX_KEY)).put(streamInfoKey, streamInfoValue);
   }
 
   /**

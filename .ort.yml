@@ -4,15 +4,10 @@ curations:
       reason: "DATA_OF"
       comment: "The file contains all possible license identifiers for the content of a space."
       concluded_license: "Apache-2.0"
-    - path: "xyz-hub-service/src/main/resources/openapi/**"
+    - path: "xyz-hub-service/src/main/resources/openapi.*"
       reason: "DATA_OF"
       comment: "The files found in this directory are part of the OpenAPI specification which contains various license keywords, see e.g. \
-        https://github.com/heremaps/xyz-hub/blob/master/xyz-hub-service/src/main/resources/webroot/openapi/stable.yaml#L1172-L1205."
-      concluded_license: "Apache-2.0"
-    - path: "xyz-hub-service/src/main/resources/webroot/openapi/**"
-      reason: "DATA_OF"
-      comment: "The files found in this directory are part of the OpenAPI specification which contains various license keywords, see e.g. \
-        https://github.com/heremaps/xyz-hub/blob/master/xyz-hub-service/src/main/resources/webroot/openapi/experimental.yaml#L1364-L1397"
+        https://github.com/heremaps/xyz-hub/blob/master/xyz-hub-service/src/main/resources/webroot/openapi.yaml#L1172-L1205."
       concluded_license: "Apache-2.0"
 excludes:
   paths:
@@ -29,3 +24,13 @@ excludes:
   - pattern: "test"
     reason: "TEST_DEPENDENCY_OF"
     comment: "Scope with dependencies only used for testing. Not included in released artifacts."
+resolutions:
+  issues:
+  - message: "ERROR: Timeout after 300 seconds while scanning file 'csv/samples/f_5500_2010_first9999.csv'."
+    reason: "SCANNER_ISSUE"
+    comment: "This error can be ignored as the file does not introduce any new licenses \
+      compared to what is already detected for this package."
+  - message: "ERROR: Timeout after 300 seconds while scanning file 'jts/testdata/polygon.wkb'."
+    reason: "SCANNER_ISSUE"
+    comment: "This error can be ignored as the file does not introduce any new licenses \
+      compared to what is already detected for this package."

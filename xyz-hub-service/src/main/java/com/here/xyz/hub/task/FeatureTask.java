@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,7 +54,6 @@ import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.FeatureTaskHandler.InvalidStorageException;
-import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.task.ModifyOp.IfNotExists;
 import com.here.xyz.hub.task.TaskPipeline.C1;
@@ -70,7 +69,6 @@ import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -136,7 +134,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     if (space == null || storage == null) {
       return null;
     }
-    return space.getCacheProfile(skipCache, storage.capabilities.enableAutoCache);
+    return space.getCacheProfile(skipCache, storage.capabilities.enableAutoCache, readOnlyAccess);
   }
 
   @Override
@@ -664,6 +662,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::loadObjects)
           .then(FeatureTaskHandler::verifyResourceExists)
           .then(FeatureTaskHandler::updateTags)
+          .then(FeatureTaskHandler::monitorFeatureRequest)
           .then(FeatureTaskHandler::processConditionalOp)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::enforceUsageQuotas)

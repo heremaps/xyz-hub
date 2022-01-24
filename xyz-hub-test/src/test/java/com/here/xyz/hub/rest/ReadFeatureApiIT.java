@@ -53,6 +53,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -62,6 +63,7 @@ import org.junit.experimental.categories.Category;
 public class ReadFeatureApiIT extends TestSpaceWithFeature {
 
   public static final String HUGE_RESPONSE_SPACE = "huge_response_test_";
+  public static final String CUSTOM_SPACE = "custom_";
 
   @BeforeClass
   public static void setup() {
@@ -586,7 +588,8 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
   }
 
   public void testMVTResponseWithSpecificStorage(String storageId, boolean flattened) throws IOException {
-    cleanUpId = createSpaceWithCustomStorage(storageId, null);
+    cleanUpId = CUSTOM_SPACE + RandomStringUtils.randomAlphabetic(3);
+    final String layerId = createSpaceWithCustomStorage(cleanUpId, storageId, null);
     addFeatures(cleanUpId);
     final String FIELD_PREFIX = flattened ? "properties." : "";
 
@@ -603,8 +606,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         inputStream,
         geomFactory,
         new TagKeyValueMapConverter());
-
-    JtsLayer layer = jtsMvt.getLayer(cleanUpId);
+    JtsLayer layer = jtsMvt.getLayer(layerId);
     ArrayList<Geometry> geometries = (ArrayList<Geometry>) layer.getGeometries();
     Geometry geom = geometries.get(0).getGeometryN(0);
     Object userData = geometries.get(0).getUserData();

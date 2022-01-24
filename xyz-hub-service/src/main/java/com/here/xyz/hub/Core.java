@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -94,17 +94,16 @@ public class Core {
     final ConfigStoreOptions sysConfig = new ConfigStoreOptions().setType("sys");
     final ConfigRetrieverOptions options = new ConfigRetrieverOptions().addStore(fileStore).addStore(envConfig).addStore(sysConfig).setScanPeriod(24 * 60 * 1000);
 
-    if(vertxOptions == null) {
-      vertxOptions = new VertxOptions()
-              .setWorkerPoolSize(NumberUtils.toInt(System.getenv(Core.VERTX_WORKER_POOL_SIZE), 128))
-              .setPreferNativeTransport(true);
-      if (debug) {
-        vertxOptions
-                .setBlockedThreadCheckInterval(TimeUnit.MINUTES.toMillis(1))
-                .setMaxEventLoopExecuteTime(TimeUnit.MINUTES.toMillis(1))
-                .setMaxWorkerExecuteTime(TimeUnit.MINUTES.toMillis(1))
-                .setWarningExceptionTime(TimeUnit.MINUTES.toMillis(1));
-      }
+    vertxOptions = (vertxOptions != null ? vertxOptions : new VertxOptions())
+            .setWorkerPoolSize(NumberUtils.toInt(System.getenv(Core.VERTX_WORKER_POOL_SIZE), 128))
+            .setPreferNativeTransport(true);
+
+    if (debug) {
+      vertxOptions
+              .setBlockedThreadCheckInterval(TimeUnit.MINUTES.toMillis(1))
+              .setMaxEventLoopExecuteTime(TimeUnit.MINUTES.toMillis(1))
+              .setMaxWorkerExecuteTime(TimeUnit.MINUTES.toMillis(1))
+              .setWarningExceptionTime(TimeUnit.MINUTES.toMillis(1));
     }
 
     vertx = Vertx.vertx(vertxOptions);

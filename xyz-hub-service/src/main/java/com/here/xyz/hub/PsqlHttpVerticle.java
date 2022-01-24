@@ -56,6 +56,8 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
   public static Integer DB_CHECKOUT_TIMEOUT;
   public static boolean DB_TEST_CONNECTION_ON_CHECKOUT;
 
+  public static int DB_STATEMENT_TIMEOUT_IN_S;
+
   public static int MAX_CONCURRENT_MAINTENANCE_TASKS;
   public static int MISSING_MAINTENANCE_WARNING_IN_HR;
 
@@ -124,7 +126,7 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
     return envMap;
   }
 
-  private static synchronized void populateEnvMap() throws Exception{
+  public static synchronized void populateEnvMap() throws Exception{
     envMap = new HashMap<>();
     HttpConnector.configuration.fieldNames().forEach(fieldName -> {
       Object value = HttpConnector.configuration.getValue(fieldName);
@@ -145,6 +147,8 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
 
     DB_CHECKOUT_TIMEOUT = Integer.parseInt((envMap.get("DB_CHECKOUT_TIMEOUT") == null ? "10" : envMap.get("DB_CHECKOUT_TIMEOUT")) );
     DB_TEST_CONNECTION_ON_CHECKOUT = Boolean.parseBoolean((envMap.get("DB_TEST_CONNECTION_ON_CHECKOUT")));
+
+    DB_STATEMENT_TIMEOUT_IN_S = Integer.parseInt(envMap.get("DB_STATEMENT_TIMEOUT_IN_S") == null ? "10" : envMap.get("DB_STATEMENT_TIMEOUT_IN_S"));
 
     MAX_CONCURRENT_MAINTENANCE_TASKS = Integer.parseInt((envMap.get("MAX_CONCURRENT_MAINTENANCE_TASKS") == null ? "1" : envMap.get("MAX_CONCURRENT_MAINTENANCE_TASKS")));
     MISSING_MAINTENANCE_WARNING_IN_HR = Integer.parseInt((envMap.get("MISSING_MAINTENANCE_WARNING_IN_HR") == null ? "12" : envMap.get("MISSING_MAINTENANCE_WARNING_IN_HR")));

@@ -76,13 +76,13 @@ public class DynamoConnectorConfigClient extends ConnectorConfigClient {
         ar -> {
           if (ar.failed()) {
             logger.error(marker, "Error getting connector with ID {}", connectorId, ar.cause());
-            handler.handle(Future.failedFuture("Error getting connector with ID " + connectorId));
+            handler.handle(Future.failedFuture(new RuntimeException("Error getting connector with ID " + connectorId, ar.cause())));
           }
           else {
             Item item = (Item) ar.result();
             if (item == null) {
               logger.debug(marker, "connector ID [{}]: This configuration does not exist", connectorId);
-              handler.handle(Future.failedFuture("The connector config was not found for connector ID: " + connectorId));
+              handler.handle(Future.failedFuture(new RuntimeException("The connector config was not found for connector ID: " + connectorId)));
               return;
             }
 
@@ -156,7 +156,10 @@ public class DynamoConnectorConfigClient extends ConnectorConfigClient {
                 .withPrimaryKey("id", connectorId)
                 .withReturnValues(ReturnValue.ALL_OLD);
             DeleteItemOutcome response = connectors.deleteItem(deleteItemSpec);
-            future.complete(Json.decodeValue(response.getItem().toJSON(), Connector.class));
+            if (response.getItem() != null)
+              future.complete(Json.decodeValue(response.getItem().toJSON(), Connector.class));
+            else
+              future.fail(new RuntimeException("The connector config was not found for connector ID: " + connectorId));
           }
           catch (Exception e) {
             future.fail(e);

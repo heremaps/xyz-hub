@@ -52,7 +52,10 @@ public class TweaksSQL
    [ high   | (100) | 1/4096 | ~ md5( '' || i) < '001' ]
   */
 
-  private static final String DstFunctIndexExpr = "left(md5(''||i),5)"; 
+  private static final String DstFunctIndexExpr = "left(md5(''||i),5)";
+
+  public static String distributionFunctionIndexExpression() { return DstFunctIndexExpr; }
+
   public static String strengthSql(int strength, boolean bRandom)
   { 
    if( !bRandom ) 
@@ -249,7 +252,7 @@ public class TweaksSQL
     +" ( select '${schema}' as schema, '${table}' as space, array[ %1$s ] as tiles, 'geo' as colname ), "
     +" iindata as ( %2$s ),"
     +" iiidata as "
-    +" ( select ii.tid, string_agg(  ii.reltuples || '~' || ii.tblname,',' ) as rtup, sum( case when ii.bstats then ii.reltuples * xyz_postgis_selectivity(format('%%s.%%I', ii.schema, ii.tblname)::regclass, ii.colname, ii.tile) else 0.0 end ) estim "
+    +" ( select ii.tid, string_agg(  ii.reltuples::bigint || '~' || ii.tblname,',' ) as rtup, sum( case when ii.bstats then ii.reltuples * xyz_postgis_selectivity(format('%%s.%%I', ii.schema, ii.tblname)::regclass, ii.colname, ii.tile) else 0.0 end ) estim "
     +"   from iindata ii "
     +"   group by tid "
     +" ) "
@@ -266,6 +269,14 @@ public class TweaksSQL
   public static String 
    mvtPropertiesSql        = "( select jsonb_object_agg(key, case when jsonb_typeof(value) in ('object', 'array') then to_jsonb(value::text) else value end) from jsonb_each(jsonb_set((jsondata)->'properties','{id}', to_jsonb(jsondata->>'id'))))", 
    mvtPropertiesFlattenSql = "( select jsonb_object_agg('properties.' || jkey,jval) from prj_flatten( jsonb_set((jsondata)->'properties','{id}', to_jsonb( jsondata->>'id' )) ))",
+
+   hrtBeginSql = 
+    "with tile as ( select %1$s as bounds, %3$d::integer as extend, %4$d::integer as buffer, true as clip_geom ), "
+   +"mvtdata as "
+   +"( "
+   +" select %2$s as mproperties, ST_AsMVTGeom(st_force2d( geo ), t.bounds, t.extend, t.buffer, t.clip_geom ) as mgeo "
+   +" from "
+   +" ( ",
 
    mvtBeginSql = 
     "with tile as ( select st_transform(%1$s,3857) as bounds, %3$d::integer as extend, %4$d::integer as buffer, true as clip_geom ), "

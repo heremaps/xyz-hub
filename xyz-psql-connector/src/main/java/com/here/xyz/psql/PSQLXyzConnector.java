@@ -47,6 +47,7 @@ import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.SearchForFeaturesOrderByEvent;
 import com.here.xyz.events.TagsQuery;
 import com.here.xyz.events.PropertyQuery.QueryOperation;
+import com.here.xyz.models.geojson.HQuad;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -169,6 +170,19 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   static private TupleTime ttime = new TupleTime();
 
+  static private boolean isVeryLargeSpace( String rTuples )
+  { long tresholdVeryLargeSpace = 350000000L; // 350M Objects
+
+    if( rTuples == null ) return false;
+
+    String[] a = rTuples.split("~");
+    if( a == null || a[0] == null ) return false;
+
+    try{ return tresholdVeryLargeSpace <= Long.parseLong(a[0]); } catch( NumberFormatException e ){}
+
+    return false;
+  }
+
   @Override
   protected XyzResponse processGetFeaturesByBBoxEvent(GetFeaturesByBBoxEvent event) throws Exception {
     try{
@@ -187,10 +201,13 @@ public class PSQLXyzConnector extends DatabaseHandler {
               bMvtFlattend  = ( mvtTypeRequested > 1 );
 
       WebMercatorTile mercatorTile = null;
+      HQuad hereTile = null;
       GetFeaturesByTileEvent tileEv = ( event instanceof GetFeaturesByTileEvent ? (GetFeaturesByTileEvent) event : null );
 
-      if( bClustering && tileEv != null && tileEv.getHereTileFlag() )
-       throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "clustering=[hexbin,quadbin] is not supported for 'here' tile type. Use Web Mercator projection (quadkey, web, tms).");
+      if( tileEv != null && tileEv.getHereTileFlag() ){
+        if(bClustering)
+          throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "clustering=[hexbin,quadbin] is not supported for 'here' tile type. Use Web Mercator projection (quadkey, web, tms).");
+      }
 
       if( bMvtRequested && tileEv == null )
        throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "mvt format needs tile request");
@@ -202,6 +219,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
         
         if(!tileEv.getHereTileFlag())
          mercatorTile = WebMercatorTile.forWeb(tileEv.getLevel(), tileEv.getX(), tileEv.getY());
+        else
+         hereTile = new HQuad(tileEv.getX(), tileEv.getY(),tileEv.getLevel());
 
         mvtMargin = tileEv.getMargin();
       }
@@ -238,6 +257,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
         }
 
         int distStrength = 1;
+        boolean bSortByHashedValue = false;
 
         switch ( event.getTweakType().toLowerCase() )  {
 
@@ -251,7 +271,11 @@ public class PSQLXyzConnector extends DatabaseHandler {
             int rCount = estimateFtr.get("rcount");
 
             if( rTuples == null )
-             TupleTime.rTuplesMap.put(event.getSpace(), estimateFtr.get("rtuples") );
+            { rTuples = estimateFtr.get("rtuples");
+              TupleTime.rTuplesMap.put(event.getSpace(), rTuples );
+            }
+
+            bSortByHashedValue = isVeryLargeSpace( rTuples );
 
             boolean bDefaultSelectionHandling = (tweakParams.get(TweaksSQL.ENSURE_DEFAULT_SELECTION) == Boolean.TRUE );
 
@@ -271,13 +295,13 @@ public class PSQLXyzConnector extends DatabaseHandler {
             if( bTweaks || !bVizSamplingOff )
             {
               if( !bMvtRequested )
-              { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, dataSource));
+              { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, bSortByHashedValue, dataSource));
                 if( distStrength > 0 ) collection.setPartial(true); // either ensure mode or explicit tweaks:sampling request where strenght in [1..100]
                 return collection;
               }
               else
                return executeBinQueryWithRetry(
-                         SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, dataSource) , mercatorTile, bbox, mvtMargin, bMvtFlattend ) );
+                         SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, bSortByHashedValue, dataSource) , mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
             }
             else
             { // fall thru tweaks=simplification e.g. mode=viz and vizSampling=off
@@ -292,7 +316,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
             }
             else
              return executeBinQueryWithRetry(
-               SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams, dataSource) , mercatorTile, bbox, mvtMargin, bMvtFlattend ) );
+               SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams, dataSource) , mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
           }
 
           default: break; // fall back to non-tweaks usage.
@@ -309,7 +333,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
             return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource));
            else
             return executeBinQueryWithRetry(
-             SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource), mercatorTile, bbox, mvtMargin, bMvtFlattend ) );
+             SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource), mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
 
           case QuadbinSQL.QUAD :
            final int relResolution = ( clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) != null ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) :
@@ -324,7 +348,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
               return executeQueryWithRetry(SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config, noBuffer));
             else
               return executeBinQueryWithRetry(
-                      SQLQueryBuilder.buildMvtEncapsuledQuery(config.readTableFromEvent(event), SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config, noBuffer), mercatorTile, bbox, mvtMargin, bMvtFlattend ) );
+                      SQLQueryBuilder.buildMvtEncapsuledQuery(config.readTableFromEvent(event), SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config, noBuffer), mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
 
           default: break; // fall back to non-tweaks usage.
        }
@@ -343,7 +367,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       if( !bMvtRequested )
        return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource));
       else
-       return executeBinQueryWithRetry( SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource), mercatorTile, bbox, mvtMargin, bMvtFlattend ) );
+       return executeBinQueryWithRetry( SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource), mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
 
     }catch (SQLException e){
       return checkSQLException(e, config.readTableFromEvent(event));
@@ -847,6 +871,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
          return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( "statistical data for this space is missing (analyze)" );
         if ( e.getMessage().indexOf("TopologyException") != -1 )
          return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( "geometry with irregular topology (self-intersection, clipping)" );
+        if ( e.getMessage().indexOf("ERROR: transform: couldn't project point") != -1 )
+         return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( "projection error" );
+        if ( e.getMessage().indexOf("ERROR: encode_geometry: 'GeometryCollection'") != -1 )
+         return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( "dataset contains invalid geometries" );
         //fall thru - timeout assuming timeout
 
      case "57014" : /* 57014 - query_canceled */
@@ -889,6 +917,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
      case "42P01" :
       return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT).withErrorMessage(e.getMessage());
+
+     case "40P01" : // Database -> deadlock detected e.g. "Process 9452 waits for ShareLock on transaction 2383228826; blocked by process 9342."
+      return new ErrorResponse().withStreamId(streamId).withError(XyzError.CONFLICT).withErrorMessage(e.getMessage());
 
       case "SNULL":
        if (e.getMessage() == null) break;

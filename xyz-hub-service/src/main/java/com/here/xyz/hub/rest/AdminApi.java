@@ -21,6 +21,7 @@ package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.here.xyz.hub.rest.ApiParam.Query.SKIP_CACHE;
+import static io.netty.handler.codec.http.HttpHeaderValues.TEXT_PLAIN;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
@@ -46,6 +47,7 @@ import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.auth.XyzHubActionMatrix;
 import com.here.xyz.hub.auth.XyzHubAttributeMap;
+import com.here.xyz.hub.connectors.RemoteFunctionClient;
 import com.here.xyz.hub.connectors.statistics.StorageStatisticsProvider;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.FeatureTask;
@@ -56,7 +58,6 @@ import com.here.xyz.hub.task.FeatureTask.IterateQuery;
 import com.here.xyz.hub.task.FeatureTask.LoadFeaturesQuery;
 import com.here.xyz.hub.task.FeatureTask.SearchQuery;
 import com.here.xyz.hub.task.FeatureTask.TileQuery;
-import com.here.xyz.responses.ErrorResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpHeaders;
@@ -75,6 +76,7 @@ public class AdminApi extends Api {
   public static final String ADMIN_MESSAGES_ENDPOINT = MAIN_ADMIN_ENDPOINT + "messages";
   public static final String ADMIN_EVENTS_ENDPOINT = MAIN_ADMIN_ENDPOINT + "events";
   public static final String ADMIN_STORAGE_STATISTICS = MAIN_ADMIN_ENDPOINT + "statistics/spaces/storage";
+  public static final String ADMIN_METRICS_ENDPOINT = MAIN_ADMIN_ENDPOINT + "metrics";
 
   private static final String ADMIN_CAPABILITY_MESSAGING = "messaging";
   public static final String ADMIN_CAPABILITY_STATISTICS = "statistics";
@@ -93,6 +95,10 @@ public class AdminApi extends Api {
     router.route(HttpMethod.GET, ADMIN_STORAGE_STATISTICS)
         .handler(auth)
         .handler(this::onStorageStatistics);
+
+    router.route(HttpMethod.GET, ADMIN_METRICS_ENDPOINT)
+        .handler(auth)
+        .handler(this::onGetMetrics);
   }
 
   private void onMessage(final RoutingContext context) {
@@ -126,6 +132,40 @@ public class AdminApi extends Api {
     catch (Exception e) {
       sendErrorResponse(context, e);
     }
+  }
+
+  private void onGetMetrics(final RoutingContext context) {
+    try {
+      context
+          .response()
+          .putHeader(CONTENT_TYPE, TEXT_PLAIN)
+          .setStatusCode(OK.code())
+          .setStatusMessage(OK.reasonPhrase())
+          .end(_buildPrometheusResponse());
+    }
+    catch (Exception e) {
+      logger.error("Error creating Prometheus metric response", e);
+      sendErrorResponse(context, e);
+    }
+  }
+
+  private String _buildPrometheusResponse() {
+    StringBuilder sb = new StringBuilder();
+
+    //JVM memory metric
+    float usedMemoryPercent = Service.getUsedMemoryPercent() / 100;
+    sb.append(_buildPrometheusResponsePart("node_memory_usage_ratio",
+        "The used memory percentage by the Java virtual machine", usedMemoryPercent));
+
+    float globalUsedRfcConnections = RemoteFunctionClient.getGlobalUsedConnectionsPercentage();
+    sb.append(_buildPrometheusResponsePart("GlobalUsedRfcConnections",
+        "The utilized portion of RemoteFunctionClient connections pool", globalUsedRfcConnections));
+
+    return sb.toString();
+  }
+
+  private String _buildPrometheusResponsePart(String name, String description, double value) {
+     return "# HELP " + name + " " + description + "\n# TYPE " + name + " gauge\n" + name + "{hpa=\"true\"} " + value + "\n";
   }
 
   /**

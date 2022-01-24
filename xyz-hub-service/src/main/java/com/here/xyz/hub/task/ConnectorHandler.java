@@ -212,12 +212,18 @@ public class ConnectorHandler {
   public static void deleteConnector(RoutingContext context, String connectorId, Handler<AsyncResult<Connector>> handler) {
     Marker marker = Api.Context.getMarker(context);
 
-    Service.connectorConfigClient.delete(marker, connectorId, ar -> {
-      if (ar.failed()) {
-        logger.error(marker, "Unable to delete resource definition.'", ar.cause());
-        handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to delete the resource definition.", ar.cause())));
+    Service.connectorConfigClient.get(marker, connectorId, arGet -> {
+      if (arGet.succeeded()) {
+        Service.connectorConfigClient.delete(marker, connectorId, ar -> {
+          if (ar.failed()) {
+            logger.error(marker, "Unable to delete resource definition.'", ar.cause());
+            handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to delete the resource definition.", ar.cause())));
+          } else {
+            handler.handle(Future.succeededFuture(ar.result()));
+          }
+        });
       } else {
-        handler.handle(Future.succeededFuture(ar.result()));
+        handler.handle(Future.failedFuture(new HttpException(NOT_FOUND, "The requested resource '" + connectorId + "' does not exist.")));
       }
     });
   }
@@ -288,7 +294,7 @@ public class ConnectorHandler {
       throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.lambdaARN' must be a valid Lambda function ARN.");
 
     if (rf.roleARN != null)
-      if (!rf.roleARN.matches("arn:aws:iam::  \\d{12}:role/[a-zA-Z0-9_+=,.@-]+"))
+      if (!rf.roleARN.matches("arn:aws:iam::\\d{12}:role/[a-zA-Z0-9_+=,.@-]+"))
         throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.roleARN' must be a valid IAM role ARN");
 
     if (rf.warmUp < 0 || rf.warmUp > 32)

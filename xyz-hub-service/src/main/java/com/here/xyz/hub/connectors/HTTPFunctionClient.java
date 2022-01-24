@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,7 +45,10 @@ import io.vertx.core.http.HttpClientOptions;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.RequestOptions;
 import io.vertx.core.net.impl.ConnectionBase;
+import java.net.URL;
 import java.nio.charset.Charset;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -55,15 +58,18 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
 
   private static final Logger logger = LogManager.getLogger();
   private volatile String url;
+  private int requestTimeout;
 
-  private static HttpClient httpClient = Service.vertx.createHttpClient(new HttpClientOptions()
-      .setMaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)
-      .setHttp2MaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)
-      .setTcpKeepAlive(Service.configuration.HTTP_CLIENT_TCP_KEEPALIVE)
-      .setIdleTimeout(Service.configuration.HTTP_CLIENT_IDLE_TIMEOUT)
-      .setTcpQuickAck(true)
-      .setTcpFastOpen(true)
-      .setPipelining(Service.configuration.HTTP_CLIENT_PIPELINING));
+  private static HttpClient httpClient = Service.vertx.createHttpClient(
+      new HttpClientOptions()
+        .setMaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)
+        .setHttp2MaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)
+        .setTcpKeepAlive(Service.configuration.HTTP_CLIENT_TCP_KEEPALIVE)
+        .setIdleTimeout(Service.configuration.HTTP_CLIENT_IDLE_TIMEOUT)
+        .setTcpQuickAck(true)
+        .setTcpFastOpen(true)
+        .setPipelining(Service.configuration.HTTP_CLIENT_PIPELINING))
+      /*.connectionHandler(HTTPFunctionClient::newConnectionCreated)*/;
 
   HTTPFunctionClient(Connector connectorConfig) {
     super(connectorConfig);
@@ -72,10 +78,12 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
   @Override
   synchronized void setConnectorConfig(final Connector newConnectorConfig) throws NullPointerException, IllegalArgumentException {
     super.setConnectorConfig(newConnectorConfig);
-    if (!(getConnectorConfig().getRemoteFunction() instanceof Http)) {
+    if (!(getConnectorConfig().getRemoteFunction() instanceof Http))
       throw new IllegalArgumentException("Invalid remoteFunctionConfig argument, must be an instance of HTTP");
-    }
-    url = ((Http) getConnectorConfig().getRemoteFunction()).url.toString();
+    final Http remoteFunction = (Http) getConnectorConfig().getRemoteFunction();
+    url = remoteFunction.url.toString();
+    requestTimeout = remoteFunction.getTimeout();
+    HttpFunctionRegistry.register(getConnectorConfig());
   }
 
   @Override
@@ -94,7 +102,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
 
       httpClient.request(new RequestOptions()
           .setMethod(HttpMethod.POST)
-          .setTimeout(REQUEST_TIMEOUT)
+          .setTimeout(requestTimeout)
           .putHeader(CONTENT_TYPE, "application/json; charset=" + Charset.defaultCharset().name())
           .putHeader(STREAM_ID, fc.marker.getName())
           .putHeader(ACCEPT_ENCODING, "gzip")
@@ -170,4 +178,43 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
       t = new HttpException(BAD_GATEWAY, "Connector error.", t);
     callback.handle(Future.failedFuture(t));
   }
+
+  public static class HttpFunctionRegistry {
+
+    private static final Map<String, String> connectorIdByUrl = new ConcurrentHashMap<>();
+    private static final Map<String, String> connectorIdByHost = new ConcurrentHashMap<>();
+    private static final Map<String, Boolean> metricsActiveByConnectorId = new ConcurrentHashMap<>();
+
+    private static void register(Connector connector) {
+      Http remoteFunction = (Http) connector.getRemoteFunction();
+      URL url = remoteFunction.url;
+      connectorIdByUrl.put(url.toString(), connector.id);
+      connectorIdByHost.put(url.getHost() + ":" + (url.getPort() == -1 ? url.getDefaultPort() : url.getPort()), connector.id);
+      metricsActiveByConnectorId.put(connector.id, remoteFunction.metricsActive);
+    }
+
+    /**
+     * Returns, if possible, the matching connector ID for the specified HTTP URL.
+     * @param url
+     * @return The connector ID or null
+     */
+    public static String getConnectorIdByUrl(String url) {
+      return connectorIdByUrl.get(url);
+    }
+
+    /**
+     * Returns, if possible, the matching connector ID for the specified hostname & port combination.
+     * @param hostname
+     * @param port
+     * @return The connector ID or null
+     */
+    public static String getConnectorIdByHostAndPort(String hostname, int port) {
+      return connectorIdByHost.get(hostname + ":" + port);
+    }
+
+    public static boolean isMetricsActive(String connectorId) {
+      return metricsActiveByConnectorId.getOrDefault(connectorId, false);
+    }
+  }
+
 }

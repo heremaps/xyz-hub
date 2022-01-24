@@ -197,9 +197,9 @@ paths:
         - Read Features
       summary: Get features by ID
       description: >-
-        Returns all of the features found for the provided list of ids. The
-        response is always a FeatureCollection, even if there are no features
-        with the provided ids.
+        Returns all of the features found for the provided list of IDs.
+        The response is always a FeatureCollection,
+        even if there are no features with the provided IDs.
       operationId: getFeatures
       parameters:
         - $ref: '#/components/parameters/SpaceId'
@@ -388,7 +388,9 @@ paths:
       tags:
         - Write Features
       summary: Delete multiple features
-      description: Delete multiple features from the space.
+      description: >-
+        Feature IDs can be used to delete features individually,
+        or the wildcard sign '*' can be used to delete all features in the space.
       operationId: deleteFeatures
       parameters:
         - $ref: '#/components/parameters/SpaceId'
@@ -686,7 +688,7 @@ paths:
       summary: Search for features
       description: >-
         Searches for features in the space. The results are unordered and the
-        request does not allow to continue the search, which is the main
+        request does not allow continuation of the search, which is the main
         difference when compared to the _iterate_ request.
       operationId: searchForFeatures
       parameters:
@@ -718,8 +720,8 @@ paths:
       description: >-
         Iterates all of the features in the space. The features in the response
         are ordered so that no feature is returned twice. If there are more
-        features, which could be loaded, the response FeatureCollection will
-        contain the root attribute _handle_. The value of this attribute can
+        features which could be loaded, the response FeatureCollection contains
+        the root attribute _handle_. The value of this attribute can
         be passed as a query parameter for the following request in order to
         continue the iteration from the marked position.
       operationId: iterateFeatures
@@ -816,8 +818,8 @@ paths:
         - Read Features
       summary: Get history statistics
       description: |
-        Returns statistical information about this history.
-        The Space must have "enableGolbalVersioning=true" setting.
+        Returns statistical information about the history.
+        The Space must have "enableGlobalVersioning=true" setting.
       operationId: getHistoryStatistics
       parameters:
         - $ref: '#/components/parameters/SpaceId'
@@ -864,7 +866,7 @@ paths:
       requestBody:
         $ref: '#/components/requestBodies/ConnectorConfig'
       responses:
-        '200':
+        '201':
           $ref: '#/components/responses/ConnectorResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse400'
@@ -970,11 +972,11 @@ components:
       in: query
       description: >-
         The clustering algorithm to apply to the data within the result.
-        Providing this query parameter the data will be returned in a clustered way.
-        This means the data won't necessarily be returned in its original shape or with its
+        Providing this query parameter, the data is returned in a clustered way.
+        This means the data is not necessarily returned in its original shape or with its
         original properties.
 
-        Depending on the chosen clustering algorithm there could be different mandatory and/or
+        Depending on the chosen clustering algorithm, there could be different mandatory and/or
         optional parameters to specify the behavior of the algorithm.
 
         Possible values are:
@@ -983,11 +985,11 @@ components:
 
             The hexbin algorithm divides the world in hexagonal "bins" on a specified resolution.
             Each hexagon has an address being described by the H3 addressing scheme.
-            For more information on that topic see: https://eng.uber.com/h3/
+            For more information on this topic see: https://eng.uber.com/h3/
 
           * "quadbin"
 
-            The quadbin algorithm takes the geometry input from the request (e.g. quadkey / bbox..)
+            The quadbin algorithm takes the geometry input from the request (for example, quadkey / bbox..)
             and count the features in it. This clustering mode works also for very large spaces and
             can be used for getting an overview where data is present in a given space. Furthermore,
             a property filter on one property is applicable.
@@ -1004,17 +1006,17 @@ components:
       description: |
         Some parameters for the chosen clustering algorithm.
 
-        Depending on the chosen clustering algorithm there could be different mandatory and/or
+        Depending on the chosen clustering algorithm, there could be different mandatory and/or
         optional parameters to specify the behavior of the algorithm.
 
         ### Clustering-Parameter reference
 
-        NOTE: The actual query parameters in the URL are looking like: `?clustering.aParameterName=aValue`
+        NOTE: The actual query parameters in the URL look like: `?clustering.aParameterName=aValue`
 
         **Clustering-type: "hexbin":**
 
         There are several parameters needed by the H3 based hexbin algorithm.
-        For more information on that topic see: https://eng.uber.com/h3/
+        For more information on this topic see: https://eng.uber.com/h3/
 
         | Parameter   | Type    | Mandatory | Meaning                                                               |
         |-------------|---------|-----------|-----------------------------------------------------------------------|
@@ -1108,7 +1110,7 @@ components:
       name: force2D
       in: query
       description: >-
-        If set to _true_ the features in the response will have only X's and Y's as coordinates.
+        If set to _true_ the features in the response have only X's and Y's as coordinates.
       schema:
         type: boolean
     Handle:
@@ -1225,7 +1227,7 @@ components:
     PageToken:
       name: pageToken
       in: query
-      description: The page token where the iteration will continue.
+      description: The page token where the iteration continues.
       schema:
         type: string
     Part:
@@ -1252,7 +1254,7 @@ components:
       name: params
       in: query
       description: >
-        Additional feature filters which compares the feature's property's value with the one
+        Additional feature filters which compare the feature's property value with the one
         specified in the query, resulting in a subset of features.
 
 
@@ -1273,7 +1275,7 @@ components:
           * ?p.property_name_1=property_value_1&f.special_property_name_1=special_property_value_1
 
 
-        For example, the above query, the Features will be filtered by
+        For example, the above query, the Features are filtered by
         'property' AND 'special property' equals to their respective values.
 
 
@@ -1281,12 +1283,12 @@ components:
           * ?p.property_name_1=value_1,value_2
 
 
-        The resulting Features list will contain all elements having value_1 OR value_2.
+        The resulting Features list contains all elements having value_1 OR value_2.
 
 
-        Additionally to the operators used in the examples above, the query can be written,
+        Additionally, to the operators used in the examples above, the query can be written,
         with the same semantic, by using the long operators: "=gte=", "=lte=", "=gt=", "=lt=" and "=cs=".
-        The below queries yield the same result:
+        The following queries yield the same result:
           * ?p.property_name_1>=10
           * ?p.property_name_1=gte=10
 
@@ -1333,7 +1335,7 @@ components:
       name: radius
       in: query
       description: >-
-        Radius in meter which defines the diameter of the search request.
+        Radius in meters which defines the diameter of the search request.
       schema:
         type: integer
     RefFeatureId:
@@ -1342,14 +1344,14 @@ components:
       description: >-
         The unique identifier of a feature in the referenced space.
 
-        The feature's geometry is used as reference in the spatial search.
+        The feature's geometry is used as a reference in the spatial search.
       schema:
         type: string
     RefSpaceId:
       name: refSpaceId
       in: query
       description: >-
-        Represents the space where the feature referenced by refFeatureId is present.
+        The space where the feature, referenced by refFeatureId, is stored.
 
         Required if refFeatureId is used.
       schema:
@@ -1649,6 +1651,11 @@ components:
         text/plain:
           schema:
             $ref: '#/components/schemas/Error'
+          example:
+            type: "ErrorResponse"
+            error: "Exception"
+            errorMessage: "Request entity too large."
+            streamId: "7480e28a-e273-11e8-9af8-7508bbe361d9"
     ErrorResponse513:
       description: Response payload too large.
       content:
@@ -1862,17 +1869,17 @@ components:
           type: string
         inserted:
           type: array
-          description: FeatureColletion of inserted features.
+          description: FeatureCollection of inserted features.
           items:
             $ref: '#/components/schemas/FeatureCollection'
         updated:
           type: array
-          description: FeatureColletion of updated features.
+          description: FeatureCollection of updated features.
           items:
             $ref: '#/components/schemas/FeatureCollection'
         deleted:
           type: array
-          description: FeatureColletion of deleted features.
+          description: FeatureCollection of deleted features.
           items:
             $ref: '#/components/schemas/FeatureCollection'
       example:
@@ -2111,12 +2118,16 @@ components:
           $ref: '#/components/schemas/StorageCapabilities'
         remoteFunctions:
           description: >-
-            A map with AWS-Regions as keys (eu-west-1 & us-east-1) and a 'RemoteFunctionConfig' as value.
+            A map with Cluster-IDs as keys (cluster-id-1 & cluster-id-1) and a 'RemoteFunctionConfig' as value.
           type: object
           additionalProperties:
-            type: object
+            $ref: '#/components/schemas/RemoteFunctionConfig'
         remoteFunction:
-          $ref: '#/components/schemas/RemoteFunctionConfig'
+          allOf:
+            - $ref: '#/components/schemas/RemoteFunctionConfig'
+            - deprecated: true
+              description: "This property has been deprecated, please use remoteFunctions instead."
+          deprecated: true
         connectionSettings:
           description: >-
             The connection and throttling settings.
@@ -2129,7 +2140,10 @@ components:
               default: 64
         defaultEventTypes:
           description: >-
-            The default event types to register the connector for. Can be overridden in the space definition by the space creator.
+            The default event types to register the connector for. Can be overridden in the space definition by the owner.
+            The value of one individual array element is a composition of the event type
+            and the phase, separated by a dot. For example \"ModifySpaceEvent\" as the event
+            type plus "." plus "response" as phase.
           type: array
           items:
             type: string
@@ -2182,11 +2196,12 @@ components:
           autoIndexing: true
           propertySearch: true
           mvtSupport: true
-        remoteFunction:
-          id: test1
-          lambdaARN: arn:aws:lambda:eu-west-1:<myAwsAccountId>:function:test1
-          roleARN:
-          type: AWSLambda
+        remoteFunctions:
+          eu-west-1:
+            id: test1
+            lambdaARN: arn:aws:lambda:eu-west-1:<myAwsAccountId>:function:test1
+            roleARN:
+            type: AWSLambda
     Copyright:
       type: object
       description: Provides some information about a copyright
@@ -2509,7 +2524,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/GeoJSON'
         - type: object
-          description: A Geometry object represents points, curves, and surfaces in coordinate layer.
+          description: A Geometry object represents points, curves, and surfaces in coordinate space.
           discriminator:
             propertyName: type
             mapping:
@@ -2570,7 +2585,7 @@ components:
               type: integer
               description: >-
                 The last version which got written into the history.
-              format: int64
+              format: int32
               minimum: 0
             estimated:
               $ref: '#/components/schemas/Estimated'
@@ -2754,7 +2769,12 @@ components:
         - type
       properties:
         type:
-          type: string
+          description: "The remote function's type."
+          type: "string"
+          enum:
+            - "Embedded"
+            - "AWSLambda"
+            - "Http"
         id:
           description: >-
             The ID of this config.
@@ -2762,7 +2782,8 @@ components:
           type: string
         warmUp:
           description: >-
-            The number of containers to keep warmed up.
+            The number of containers to keep warmed up by sending health check requests in parallel to the remote function.
+            This function can be disabled by setting warmUp to zero.
           type: integer
           format: int64
     Space:

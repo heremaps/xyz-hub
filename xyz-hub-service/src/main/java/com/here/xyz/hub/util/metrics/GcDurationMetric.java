@@ -1,5 +1,27 @@
+/*
+ * Copyright (C) 2017-2021 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 package com.here.xyz.hub.util.metrics;
 
+import static com.here.xyz.hub.util.metrics.base.Metric.MetricUnit.MILLISECONDS;
+
+import com.here.xyz.hub.util.metrics.base.BareValuesMetric;
 import com.sun.management.GarbageCollectionNotificationInfo;
 import com.sun.management.GcInfo;
 import java.lang.management.GarbageCollectorMXBean;
@@ -12,18 +34,19 @@ import javax.management.openmbean.CompositeData;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class GcDurationMetric extends Metric {
+//TODO: Refactor this metric into an AggregatingMetric!
+public class GcDurationMetric extends BareValuesMetric {
 
   private static final Logger logger = LogManager.getLogger();
   private static AtomicReference<Collection<Double>> durations = new AtomicReference(new ArrayList<>());
 
-  public GcDurationMetric(MetricPublisher publisher) {
-    super(publisher, 30);
+  public GcDurationMetric(String metricName) {
+    super(metricName, MILLISECONDS);
     registerBeanListener();
   }
 
   @Override
-  Collection<Double> gatherValues() {
+  protected Collection<Double> gatherValues() {
     return durations.getAndSet(new ArrayList<>());
   }
 
@@ -47,7 +70,7 @@ public class GcDurationMetric extends Metric {
       CompositeData cd = (CompositeData) notification.getUserData();
       GarbageCollectionNotificationInfo gcNotificationInfo = GarbageCollectionNotificationInfo.from(cd);
       GcInfo gcInfo = gcNotificationInfo.getGcInfo();
-      if (gcNotificationInfo.getGcAction().equals("end of major GC"))
+      if (gcNotificationInfo.getGcAction().equals("end of major GC") || gcNotificationInfo.getGcAction().equals("end of GC cycle"))
         durations.get().add((double) gcInfo.getDuration());
     }
   };
