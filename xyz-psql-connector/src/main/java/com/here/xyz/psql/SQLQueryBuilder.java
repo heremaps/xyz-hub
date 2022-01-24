@@ -38,6 +38,7 @@ import com.here.xyz.events.SearchForFeaturesOrderByEvent;
 import com.here.xyz.events.TagList;
 import com.here.xyz.events.TagsQuery;
 import com.here.xyz.events.PropertyQuery;
+import com.here.xyz.models.geojson.HQuad;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
@@ -305,6 +306,7 @@ public class SQLQueryBuilder {
       ( "viz".equals(event.getOptimizationMode()) || (event.getTweakParams() != null && event.getTweakParams().size() > 0 ) ); 
 
      int extend = ( bExtendTweaks ? 2048 : 4096 ), extendPerMargin = extend / WebMercatorTile.TileSizeInPixel, extendWithMargin = extend, level = -1, tileX = -1, tileY = -1, margin = 0;
+     boolean hereTile = false;
 
      if( event instanceof GetFeaturesByTileEvent )
      { GetFeaturesByTileEvent tevnt = (GetFeaturesByTileEvent) event;
@@ -313,6 +315,7 @@ public class SQLQueryBuilder {
        tileY = tevnt.getY();
        margin = tevnt.getMargin();
        extendWithMargin = extend + (margin * extendPerMargin);
+       hereTile = tevnt.getHereTileFlag();
      }
      else
      { final WebMercatorTile tile = getTileFromBbox(bbox);
@@ -321,25 +324,35 @@ public class SQLQueryBuilder {
        tileY = tile.y;
      }
 
-     double wgs3857width = 20037508.342789244d,
-            xwidth = 2 * wgs3857width,
-            ywidth = 2 * wgs3857width,
+     double wgs3857width = 20037508.342789244d, wgs4326width = 180d,
+            wgsWidth = 2 * ( !hereTile ? wgs3857width : wgs4326width ),
+            xwidth = wgsWidth,
+            ywidth = wgsWidth,
             gridsize = (1L << level),
-            stretchFactor = 1.0 + ( margin / ((double) WebMercatorTile.TileSizeInPixel)); // xyz-hub uses margin for tilesize of 256 pixel.
+            stretchFactor = 1.0 + ( margin / ((double) WebMercatorTile.TileSizeInPixel)), // xyz-hub uses margin for tilesize of 256 pixel.
+            xProjShift = (!hereTile ? (tileX - gridsize/2 + 0.5) * (xwidth / gridsize)      : -180d + (tileX + 0.5) * (xwidth / gridsize) ) , 
+            yProjShift = (!hereTile ? (tileY - gridsize/2 + 0.5) * (ywidth / gridsize) * -1 :  -90d + (tileY + 0.5) * (ywidth / gridsize) ) ; 
 
      String
       box2d   = DhString.format( DhString.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() ),
         // 1. build mvt
-      mvtgeom = DhString.format("st_asmvtgeom(st_force2d(st_transform(%1$s,3857)), st_transform(%2$s,3857),%3$d,0,true)", tweaksGeoSql, box2d, extendWithMargin);
+      mvtgeom = DhString.format( (!hereTile ? "st_asmvtgeom(st_force2d(st_transform(%1$s,3857)), st_transform(%2$s,3857),%3$d,0,true)"
+                                            : "st_asmvtgeom(st_force2d(%1$s), %2$s,%3$d,0,true)")
+                                 , tweaksGeoSql, box2d, extendWithMargin);
         // 2. project the mvt to tile
-      mvtgeom = DhString.format("st_setsrid(st_translate(st_scale(st_translate(%1$s, %2$d , %2$d, 0.0), st_makepoint(%3$f,%4$f,1.0) ), %5$f , %6$f, 0.0 ), 3857)",
-                               mvtgeom,
-                               -extendWithMargin/2, // => shift to stretch from tilecenter
-                               stretchFactor*(xwidth / (gridsize*extend)), stretchFactor * (ywidth / (gridsize*extend)) * -1, // stretch tile to proj. size
-                               (tileX - gridsize/2 + 0.5) * (xwidth / gridsize), (tileY - gridsize/2 + 0.5) * (ywidth / gridsize) * -1 // shift to proj. position
-                             );
+      mvtgeom = DhString.format( (!hereTile ? "st_setsrid(st_translate(st_scale(st_translate(%1$s, %2$d , %2$d, 0.0), st_makepoint(%3$f,%4$f,1.0) ), %5$f , %6$f, 0.0 ), 3857)" 
+                                            : "st_setsrid(st_translate(st_scale(st_translate(%1$s, %2$d , %2$d, 0.0), st_makepoint(%3$f,%4$f,1.0) ), %5$f , %6$f, 0.0 ), 4326)")
+                                 ,mvtgeom
+                                 ,-extendWithMargin/2 // => shift to stretch from tilecenter
+                                 ,stretchFactor*(xwidth / (gridsize*extend)), stretchFactor * (ywidth / (gridsize*extend)) * -1 // stretch tile to proj. size
+                                 ,xProjShift, yProjShift // shift to proj. position
+                               );
         // 3 project tile to wgs84 and map invalid geom to null
-      mvtgeom = DhString.format("(select case st_isvalid(g) when true then g else null end from st_transform(%1$s,4326) g)", mvtgeom );
+
+      mvtgeom = DhString.format( (!hereTile ? "(select case st_isvalid(g) when true then g else null end from st_transform(%1$s,4326) g)"
+                                            : "(select case st_isvalid(g) when true then g else null end from %1$s g)")
+                                 , mvtgeom );
+
         // 4. assure intersect with origin bbox in case of mapping errors
       mvtgeom  = DhString.format("ST_Intersection(%1$s,st_setsrid(%2$s,4326))", mvtgeom, box2d);
         // 5. map non-null but empty polygons to null - e.g. avoid -> "geometry": { "type": "Polygon", "coordinates": [] }
@@ -583,10 +596,12 @@ public class SQLQueryBuilder {
      return new SQLQuery( DhString.format( TweaksSQL.estimateCountByBboxesSql, sb.toString(), estimateSubSql ) );
     }
 
-    public static SQLQuery buildMvtEncapsuledQuery( String spaceId, SQLQuery dataQry, WebMercatorTile mvtTile, BBox eventBbox, int mvtMargin, boolean bFlattend )
-    { int extend = 4096, buffer = (extend / WebMercatorTile.TileSizeInPixel) * mvtMargin;
-      BBox b = ( mvtTile != null ? mvtTile.getBBox(false) : eventBbox ); // pg ST_AsMVTGeom expects tiles bbox without buffer.
-      SQLQuery r = new SQLQuery( DhString.format( TweaksSQL.mvtBeginSql,
+    public static SQLQuery buildMvtEncapsuledQuery( String spaceId, SQLQuery dataQry, WebMercatorTile mvtTile, HQuad hereTile, BBox eventBbox, int mvtMargin, boolean bFlattend )
+    { 
+      int extend = 4096, buffer = (extend / WebMercatorTile.TileSizeInPixel) * mvtMargin;
+      BBox b = ( mvtTile != null ? mvtTile.getBBox(false) : ( hereTile != null ? hereTile.getBoundingBox() : eventBbox) ); // pg ST_AsMVTGeom expects tiles bbox without buffer.
+
+      SQLQuery r = new SQLQuery( DhString.format( hereTile == null ? TweaksSQL.mvtBeginSql : TweaksSQL.hrtBeginSql ,
                                    DhString.format( TweaksSQL.requestedTileBoundsSql , b.minLon(), b.minLat(), b.maxLon(), b.maxLat() ),
                                    (!bFlattend) ? TweaksSQL.mvtPropertiesSql : TweaksSQL.mvtPropertiesFlattenSql,
                                    extend,
