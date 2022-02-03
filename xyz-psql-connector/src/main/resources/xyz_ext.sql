@@ -2715,25 +2715,39 @@ $body$
 language plpgsql immutable;
 ------------------------------------------------
 ------------------------------------------------
+CREATE OR REPLACE FUNCTION _prj_flatten(jdoc jsonb, depth integer )
+RETURNS TABLE(level integer, jkey text, jval jsonb) AS
+$body$
+with 
+ indata1  as ( select jdoc as jdata ),
+ indata2  as ( select coalesce( depth, 100 )::integer as depth ), -- if unset, restrict leveldepth to 100, safetyreason
+ outdata as
+ ( with recursive searchobj( level, jkey, jval ) as
+  (
+    select 0::integer as level, key as jkey, value as jval 
+    from jsonb_each( jsonb_set('{}','{s}', (select jdata from indata1) ))
+   union all
+    select i.level + 1 as level, i.jkey || '.' || coalesce(key, ((row_number() over ( partition by i.jkey ) ) - 1)::text ), i.value as jval
+    from
+    (  select level, jkey, (_prj_jsonb_each( jval )).*
+       from searchobj, indata2 i2
+       where 1 = 1
+       and jsonb_typeof( jval ) in ( 'object', 'array' )
+       and level < i2.depth
+    ) i
+  )
+  select level, nullif( regexp_replace(jkey,'^s\.?','' ),'') as jkey, jval from searchobj, indata2 i2
+  where 1 = 1
+    and ( ( level = i2.depth ) or ( jsonb_typeof( jval ) in ( 'string', 'number', 'boolean', 'null' ) and level < i2.depth ) )
+ )
+ select level, jkey, jval from outdata
+$body$
+LANGUAGE sql IMMUTABLE;
+
 CREATE OR REPLACE FUNCTION prj_flatten(jdoc jsonb)
 RETURNS TABLE(level integer, jkey text, jval jsonb) AS
 $body$
-with recursive searchobj( level, jkey, jval ) as
-(
-  select 0::integer as level, key as jkey, value as jval from jsonb_each( jsonb_set('{}','{s}',jdoc) )
- union all
-  select i.level + 1 as level, i.jkey || '.' || coalesce(key, ((row_number() over ( partition by i.jkey ) ) - 1)::text ), i.value as jval
-  from
-  (  select level, jkey, (_prj_jsonb_each( jval )).*
-     from searchobj
-     where 1 = 1
-      and jsonb_typeof( jval ) in ( 'object', 'array' )
-      and level < 100
-   ) i
-)
-select level, nullif( regexp_replace(jkey,'^s\.?','' ),''), jval from searchobj
-where 1 = 1
-  and jsonb_typeof( jval ) in ( 'string', 'number', 'boolean', 'null' )
+ select * from _prj_flatten( jdoc, 100 )
 $body$
 LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
