@@ -2720,7 +2720,7 @@ RETURNS TABLE(level integer, jkey text, jval jsonb) AS
 $body$
 with recursive searchobj( level, jkey, jval ) as
 (
-  select 0::integer as level, key as jkey, value as jval from jsonb_each( jdoc )
+  select 0::integer as level, key as jkey, value as jval from jsonb_each( jsonb_set('{}','{s}',jdoc) )
  union all
   select i.level + 1 as level, i.jkey || '.' || coalesce(key, ((row_number() over ( partition by i.jkey ) ) - 1)::text ), i.value as jval
   from
@@ -2731,7 +2731,7 @@ with recursive searchobj( level, jkey, jval ) as
       and level < 100
    ) i
 )
-select level, jkey, jval from searchobj
+select level, nullif( regexp_replace(jkey,'^s\.?','' ),''), jval from searchobj
 where 1 = 1
   and jsonb_typeof( jval ) in ( 'string', 'number', 'boolean', 'null' )
 $body$
