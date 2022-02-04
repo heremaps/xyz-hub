@@ -2780,14 +2780,18 @@ with
 		  ) nxt   
 	 where 1 = 1
 	   and jsonb_typeof( i.jval_l ) in ( 'object', 'array' )
-	   and jsonb_typeof( i.jval_r ) in ( 'object', 'array' )
+	   and jsonb_typeof( i.jval_l ) = jsonb_typeof( i.jval_r )
    )
    select * from diffobj
    where 1 = 1
-     and (    jsonb_typeof( jval_l ) in ( 'string', 'number', 'boolean', 'null' ) 
-		   or jsonb_typeof( jval_r ) in ( 'string', 'number', 'boolean', 'null' ) 
-		   or (jval_l isnull)
+     and ( 	  (jval_l isnull)
 		   or (jval_r isnull)
+		   or jsonb_typeof( jval_l ) in ( 'string', 'number', 'boolean', 'null' )
+		   or jsonb_typeof( jval_r ) in ( 'string', 'number', 'boolean', 'null' )
+		   or (    jsonb_typeof( jval_l ) != jsonb_typeof( jval_r )
+			   and jsonb_typeof( jval_l ) in ( 'object', 'array' )
+			   and jsonb_typeof( jval_r ) in ( 'object', 'array' )
+			  )
 		 )
  )
 select * from outdiff order by jkey
