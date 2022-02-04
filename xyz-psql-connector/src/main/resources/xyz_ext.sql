@@ -2727,7 +2727,7 @@ with
     select 0::integer as level, key as jkey, value as jval 
     from jsonb_each( jsonb_set('{}','{s}', (select jdata from indata1) ))
    union all
-    select i.level + 1 as level, i.jkey || '.' || coalesce(key, ((row_number() over ( partition by i.jkey ) ) - 1)::text ), i.value as jval
+    select i.level + 1 as level, i.jkey || coalesce( '.' || key, '[' || ((row_number() over ( partition by i.jkey ) ) - 1)::text || ']' ), i.value as jval
     from
     (  select level, jkey, (_prj_jsonb_each( jval )).*
        from searchobj, indata2 i2
@@ -2738,7 +2738,8 @@ with
   )
   select level, nullif( regexp_replace(jkey,'^s\.?','' ),'') as jkey, jval from searchobj, indata2 i2
   where 1 = 1
-    and ( ( level = i2.depth ) or ( jsonb_typeof( jval ) in ( 'string', 'number', 'boolean', 'null' ) and level < i2.depth ) )
+    and 
+    ( ( level = i2.depth ) or ( jsonb_typeof( jval ) in ( 'string', 'number', 'boolean', 'null' ) and level < i2.depth ) )
  )
  select level, jkey, jval from outdata
 $body$
@@ -2748,6 +2749,55 @@ CREATE OR REPLACE FUNCTION prj_flatten(jdoc jsonb)
 RETURNS TABLE(level integer, jkey text, jval jsonb) AS
 $body$
  select * from _prj_flatten( jdoc, 100 )
+$body$
+LANGUAGE sql IMMUTABLE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION _prj_diff( left_jdoc jsonb, right_jdoc jsonb )
+RETURNS TABLE(level integer, jkey text, jval_l jsonb, jval_r jsonb ) AS
+$body$
+with
+ inleft  as ( select level, jkey, jval from _prj_flatten( left_jdoc , 1 ) ),
+ inright as ( select level, jkey, jval from _prj_flatten( right_jdoc, 1 ) ),
+ outdiff as 
+ ( with recursive diffobj( level, jkey, jval_l, jval_r ) as
+   (
+     select coalesce( r.level, l.level ) as level, coalesce( l.jkey, r.jkey ) as jkey, l.jval as jval_l, r.jval as jval_r
+     from inleft l full outer join inright r on ( r.jkey = l.jkey  )
+     where (l.jkey isnull) or (r.jkey isnull) or ( l.jval != r.jval )
+	union all
+	 select ( i.level + nxt.level ) as level , 
+		    case nxt.jkey ~ '^\[\d+\]$' 
+	         when false then  i.jkey || '.' || nxt.jkey 
+			 else i.jkey || nxt.jkey 
+		    end as jkey,  /*i.jval_l, i.jval_r,*/ 
+		   nxt.jval_l, nxt.jval_r
+	 from diffobj i, 
+		  lateral
+		  ( select coalesce( r.level, l.level ) as level, coalesce( l.jkey, r.jkey ) as jkey, l.jval as jval_l, r.jval as jval_r
+		    from _prj_flatten( i.jval_l,1) l full outer join _prj_flatten(i.jval_r,1) r on ( r.jkey = l.jkey  )
+		    where (l.jkey isnull) or (r.jkey isnull) or ( l.jval != r.jval )
+		  ) nxt   
+	 where 1 = 1
+	   and jsonb_typeof( i.jval_l ) in ( 'object', 'array' )
+	   and jsonb_typeof( i.jval_r ) in ( 'object', 'array' )
+   )
+   select * from diffobj
+   where 1 = 1
+     and (    jsonb_typeof( jval_l ) in ( 'string', 'number', 'boolean', 'null' ) 
+		   or jsonb_typeof( jval_r ) in ( 'string', 'number', 'boolean', 'null' ) 
+		   or (jval_l isnull)
+		   or (jval_r isnull)
+		 )
+ )
+select * from outdiff order by jkey
+$body$
+LANGUAGE sql IMMUTABLE;
+
+CREATE OR REPLACE FUNCTION prj_diff( left_jdoc jsonb, right_jdoc jsonb )
+RETURNS jsonb AS
+$body$
+ select jsonb_agg( jsonb_build_array( jkey, jval_l, jval_r ) ) from _prj_diff( left_jdoc, right_jdoc ) d
 $body$
 LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
