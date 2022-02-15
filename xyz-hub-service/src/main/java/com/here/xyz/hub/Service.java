@@ -610,6 +610,16 @@ public class Service extends Core {
     public String UPLOAD_LIMIT_HEADER_NAME;
 
     /**
+     * The code which gets returned if UPLOAD_LIMIT is reached
+     */
+    public int UPLOAD_LIMIT_REACHED_HTTP_CODE;
+
+    /**
+     * The message which gets returned if UPLOAD_LIMIT is reached
+     */
+    public String UPLOAD_LIMIT_REACHED_MESSAGE;
+
+    /**
      * The name of the health check header to instruct for additional health status information.
      */
     public String HEALTH_CHECK_HEADER_NAME;

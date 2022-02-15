@@ -417,11 +417,13 @@ public abstract class DatabaseHandler extends StorageConnector {
     protected XyzResponse executeLoadFeatures(LoadFeaturesEvent event) throws SQLException {
         final Map<String, String> idMap = event.getIdsMap();
         final Boolean enabledHistory = event.getEnableHistory() == Boolean.TRUE;
+        final Boolean enabledGlobalVersioning = event.getEnableGlobalVersioning() == Boolean.TRUE;
+        final Boolean compactHistory = enabledGlobalVersioning ? false : config.getConnectorParams().isCompactHistory();
 
         if (idMap == null || idMap.size() == 0) {
             return new FeatureCollection();
         }
-        return executeQueryWithRetry(SQLQueryBuilder.buildLoadFeaturesQuery(idMap, enabledHistory, dataSource));
+        return executeQueryWithRetry(SQLQueryBuilder.buildLoadFeaturesQuery(idMap, enabledHistory, compactHistory, dataSource));
     }
 
     protected XyzResponse executeIterateHistory(IterateHistoryEvent event) throws SQLException {
@@ -1306,11 +1308,13 @@ public abstract class DatabaseHandler extends StorageConnector {
             StatisticsResponse.Value<Long> tablesize = XyzSerializable.deserialize(rs.getString("tablesize"), new TypeReference<StatisticsResponse.Value<Long>>() {});
             StatisticsResponse.Value<Long> count = XyzSerializable.deserialize(rs.getString("count"), new TypeReference<StatisticsResponse.Value<Long>>() {});
             StatisticsResponse.Value<Integer> maxversion = XyzSerializable.deserialize(rs.getString("maxversion"), new TypeReference<StatisticsResponse.Value<Integer>>() {});
+            StatisticsResponse.Value<Integer> minversion = XyzSerializable.deserialize(rs.getString("minversion"), new TypeReference<StatisticsResponse.Value<Integer>>() {});
 
             return new HistoryStatisticsResponse()
                     .withByteSize(tablesize)
                     .withDataSize(tablesize)
                     .withCount(count)
+                    .withMinVersion(minversion)
                     .withMaxVersion(maxversion);
         } catch (Exception e) {
             return new ErrorResponse().withStreamId(streamId).withError(XyzError.EXCEPTION).withErrorMessage(e.getMessage());

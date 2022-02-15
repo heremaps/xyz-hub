@@ -21,6 +21,7 @@ package com.here.xyz.hub.task;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 import com.here.xyz.XyzSerializable;
@@ -113,6 +114,36 @@ public class ModifyFeatureOpTest {
       assertEquals(res.getProperties().get("name"), "changed");
     }
     catch (IOException | ModifyOpError | HttpException e) {
+      e.printStackTrace();
+    }
+  }
+
+  @Test
+  public void createWithUUID() throws ModifyOpError {
+    try (
+        final InputStream is1 = ModifyFeatureOpTest.class.getResourceAsStream("/xyz/hub/task/FeatureSample01.json")
+    ) {
+      final Feature base = XyzSerializable.deserialize(is1);
+      final Feature input = base.copy();
+      input.getProperties().put("name", "changed");
+
+      List<Map<String, Object>> features = Collections.singletonList(JsonObject.mapFrom(input).getMap());
+      Map<String, Object> featureCollection = Collections.singletonMap("features", features);
+
+      ModifyFeatureOp op = new ModifyFeatureOp(Collections.singletonList(Collections.singletonMap("featureData", featureCollection)),
+          IfNotExists.CREATE, IfExists.MERGE, true, ConflictResolution.ERROR, false);
+      final Entry<Feature> entry = op.entries.get(0);
+      entry.head = null;
+      entry.base = null;
+
+      assertThrows(ModifyOpError.class, op::process);
+
+      op.allowFeatureCreationWithUUID = true;
+      op.process();
+      Feature res = entry.result;
+      assertEquals(res.getProperties().get("name"), "changed");
+    }
+    catch (IOException | HttpException e) {
       e.printStackTrace();
     }
   }

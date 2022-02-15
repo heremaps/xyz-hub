@@ -216,6 +216,13 @@ public class Space {
   @JsonView({Public.class, Static.class})
   private List<List<Object>> sortableProperties;
 
+  /**
+   * Controls whether during feature creation, the operation succeeds when the payload contains UUID or fails with 409. Default is true.
+   */
+  @JsonInclude(Include.NON_DEFAULT)
+  @JsonView({Internal.class, Static.class})
+  private boolean allowFeatureCreationWithUUID = false;
+
   public String getId() {
     return id;
   }
@@ -538,6 +545,19 @@ public class Space {
 
   public Space withSortableProperties(final List<List<Object>> sortableProperties) {
     this.sortableProperties = sortableProperties;
+    return this;
+  }
+
+  public boolean isAllowFeatureCreationWithUUID() {
+    return allowFeatureCreationWithUUID;
+  }
+
+  public void setAllowFeatureCreationWithUUID(final boolean allowFeatureCreationWithUUID) {
+    this.allowFeatureCreationWithUUID = allowFeatureCreationWithUUID;
+  }
+
+  public Space withAllowFeatureCreationWithUUID(final boolean allowFeatureCreationWithUUID) {
+    this.allowFeatureCreationWithUUID = allowFeatureCreationWithUUID;
     return this;
   }
 

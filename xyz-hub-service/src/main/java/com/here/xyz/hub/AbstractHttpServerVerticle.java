@@ -30,7 +30,6 @@ import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE;
 import static io.netty.handler.codec.http.HttpResponseStatus.UNAUTHORIZED;
-import static io.netty.handler.codec.http.HttpResponseStatus.PAYMENT_REQUIRED;
 import static io.vertx.core.http.HttpHeaders.AUTHORIZATION;
 import static io.vertx.core.http.HttpHeaders.CACHE_CONTROL;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
@@ -56,6 +55,7 @@ import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.Promise;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.json.Json;
@@ -63,6 +63,9 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.CorsHandler;
 import io.vertx.ext.web.validation.BadRequestException;
+import io.vertx.ext.web.validation.BodyProcessorException;
+import io.vertx.ext.web.validation.ParameterProcessorException;
+import io.vertx.ext.web.validation.impl.ParameterLocation;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -173,7 +176,28 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
             message = "Missing auth credentials.";
           t = new HttpException(status, message, t);
         }
-        sendErrorResponse(context, t);
+        if (t instanceof BodyProcessorException) {
+          sendErrorResponse(context, new HttpException(BAD_REQUEST, "Failed to parse body."));
+          Buffer bodyBuffer = context.getBody();
+          String body = null;
+          if (bodyBuffer != null) {
+            String bodyString = bodyBuffer.toString();
+            body = bodyString.substring(0, Math.min(4096, bodyString.length()));
+          }
+
+          logger.warn("Exception processing body: {}. Body was: {}", t.getMessage(), body);
+        }
+        else if (t instanceof ParameterProcessorException) {
+          ParameterLocation location = ((ParameterProcessorException) t).getLocation();
+          String paramName = ((ParameterProcessorException) t).getParameterName();
+          sendErrorResponse(context, new HttpException(BAD_REQUEST, "Invalid request input parameter value for "
+              + location.name().toLowerCase() + "-parameter \"" + location.lowerCaseIfNeeded(paramName) + "\". Reason: "
+              + ((ParameterProcessorException) t).getErrorType()));
+        }
+        else if (t instanceof BadRequestException)
+          sendErrorResponse(context, new HttpException(BAD_REQUEST, "Invalid request."));
+        else
+          sendErrorResponse(context, t);
       }
       else {
         HttpResponseStatus status = context.statusCode() >= 400 ? HttpResponseStatus.valueOf(context.statusCode()) : INTERNAL_SERVER_ERROR;
@@ -196,6 +220,7 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
     return context -> {
       if(Service.configuration != null ) {
         long limit = Service.configuration.MAX_UNCOMPRESSED_REQUEST_SIZE;
+
         String errorMessage = "The request payload is bigger than the maximum allowed.";
         String uploadLimit;
         HttpResponseStatus status = REQUEST_ENTITY_TOO_LARGE;
@@ -203,8 +228,8 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
         if (Service.configuration.UPLOAD_LIMIT_HEADER_NAME != null
                 && (uploadLimit = context.request().headers().get(Service.configuration.UPLOAD_LIMIT_HEADER_NAME))!= null) {
 
-          /** Override limit if we are receiving an UPLOAD_LIMIT_HEADER_NAME value */
           try {
+             /** Override limit if we are receiving an UPLOAD_LIMIT_HEADER_NAME value */
             limit = Long.parseLong(uploadLimit);
 
             /** Add limit to streamInfo response header */
@@ -214,8 +239,13 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
             return;
           }
 
-          errorMessage = "You have exceeded the upload size limit established for this organization. Please add a payment method to your account to remove this limit.";
-          status = PAYMENT_REQUIRED;
+          /** Override http response code if its configured */
+          if(Service.configuration.UPLOAD_LIMIT_REACHED_HTTP_CODE > 0)
+            status = HttpResponseStatus.valueOf(Service.configuration.UPLOAD_LIMIT_REACHED_HTTP_CODE);
+
+          /** Override error Message if its configured */
+          if(Service.configuration.UPLOAD_LIMIT_REACHED_MESSAGE != null)
+            errorMessage = Service.configuration.UPLOAD_LIMIT_REACHED_MESSAGE;
         }
 
         if (limit > 0) {

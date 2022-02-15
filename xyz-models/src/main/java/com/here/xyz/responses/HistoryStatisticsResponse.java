@@ -34,6 +34,7 @@ public class HistoryStatisticsResponse extends XyzResponse<HistoryStatisticsResp
   @Deprecated
   private StatisticsResponse.Value<Long>  byteSize;
   private StatisticsResponse.Value<Long>  dataSize;
+  private StatisticsResponse.Value<Integer>  minVersion;
   private StatisticsResponse.Value<Integer>  maxVersion;
 
   /**
@@ -126,6 +127,19 @@ public class HistoryStatisticsResponse extends XyzResponse<HistoryStatisticsResp
   @SuppressWarnings({"unused"})
   public HistoryStatisticsResponse withDataSize(StatisticsResponse.Value<Long>  dataSize) {
     setDataSize(dataSize);
+    return this;
+  }
+
+  public StatisticsResponse.Value<Integer>  getMinVersion() {
+    return minVersion;
+  }
+
+  public void setMinVersion(StatisticsResponse.Value<Integer>  minVersion) {
+    this.minVersion = minVersion;
+  }
+
+  public HistoryStatisticsResponse withMinVersion(StatisticsResponse.Value<Integer> minVersion) {
+    setMinVersion(minVersion);
     return this;
   }
 

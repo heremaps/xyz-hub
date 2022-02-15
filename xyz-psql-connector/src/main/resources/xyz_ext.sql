@@ -63,6 +63,7 @@
 -- DROP FUNCTION IF EXISTS xyz_qk_point2qk(geometry,integer );
 -- DROP FUNCTION IF EXISTS xyz_qk_bbox2zooml(geometry);
 -- DROP FUNCTION IF EXISTS xyz_qk_envelope2lrc(geometry, integer);
+DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
 --
 ------ SAMPLE QUERIES ----
 ------ ENV: XYZ-CIT ; SPACE: QgQCHStH ; OWNER: psql
@@ -152,7 +153,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 145
+ select 146
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
@@ -204,7 +205,7 @@ $BODY$
 CREATE OR REPLACE FUNCTION xyz_statistic_history(
     IN schema text,
     IN spaceid text)
-  RETURNS TABLE(tablesize jsonb, count jsonb, maxversion jsonb) AS
+  RETURNS TABLE(tablesize jsonb, count jsonb, maxversion jsonb, minversion jsonb) AS
 $BODY$
 	/**
 	* Description: Returns completet statisic about a big xyz-space. Therefor the results are including estimated values to reduce
@@ -225,41 +226,49 @@ $BODY$
 	/** used for big-spaces and get filled via pg_class */
 	DECLARE estimate_cnt bigint;
 
-	BEGIN
-		IF substring(spaceid,length(spaceid)-3) != '_hst' THEN
-			RETURN;
-		END IF;
+    BEGIN
+        IF substring(spaceid,length(spaceid)-3) != '_hst' THEN
+            RETURN;
+        END IF;
 
-		SELECT reltuples into estimate_cnt FROM pg_class WHERE oid = concat('"',$1, '"."', $2, '"')::regclass;
+        SELECT reltuples into estimate_cnt FROM pg_class WHERE oid = concat('"',$1, '"."', $2, '"')::regclass;
 
-		IF estimate_cnt > big_space_threshold THEN
-			RETURN QUERY EXECUTE
-			'SELECT	format(''{"value": %s, "estimated" : true}'', tablesize)::jsonb as tablesize,  '
-			||'	format(''{"value": %s, "estimated" : true}'', count)::jsonb as count,  '
-			||'	format(''{"value": %s, "estimated" : false}'', COALESCE(maxversion,0))::jsonb as maxversion  '
-			||'	FROM ('
-			||'		SELECT pg_total_relation_size('''||schema||'."'||spaceid||'"'') AS tablesize, '
-			||'			(SELECT jsondata->''properties''->''@ns:com:here:xyz''->''version'' FROM "'||schema||'"."'||spaceid||'"'
-			||'				order by jsondata->''properties''->''@ns:com:here:xyz''->''version'' DESC limit 1 )::TEXT::INTEGER as maxversion,'
-			||'		       reltuples AS count '
-			||'		FROM pg_class '
-			||'	WHERE oid='''||schema||'."'||spaceid||'"''::regclass) A';
-		ELSE
-			RETURN QUERY EXECUTE
-			'SELECT	format(''{"value": %s, "estimated" : true}'', tablesize)::jsonb as tablesize,  '
-			||'	format(''{"value": %s, "estimated" : false}'', count)::jsonb as count,  '
-			||'	format(''{"value": %s, "estimated" : false}'', COALESCE(maxversion,0))::jsonb as maxversion  '
-			||'	FROM ('
-			||'		SELECT pg_total_relation_size('''||schema||'."'||spaceid||'"'') AS tablesize, '
-			||'			(SELECT jsondata->''properties''->''@ns:com:here:xyz''->''version'' FROM "'||schema||'"."'||spaceid||'"'
-			||'				order by jsondata->''properties''->''@ns:com:here:xyz''->''version'' DESC limit 1 )::TEXT::INTEGER as maxversion,'
-			||'		       (SELECT count(*) FROM "'||schema||'"."'||spaceid||'") AS count '
-			||'		FROM pg_class '
-			||'	WHERE oid='''||schema||'."'||spaceid||'"''::regclass) A';
-		END IF;
-        END;
+        IF estimate_cnt > big_space_threshold THEN
+                    RETURN QUERY EXECUTE
+                    'SELECT	format(''{"value": %s, "estimated" : true}'', tablesize)::jsonb as tablesize,  '
+                    ||'	format(''{"value": %s, "estimated" : true}'', count)::jsonb as count,  '
+                    ||'	format(''{"value": %s, "estimated" : false}'', COALESCE(maxversion,0))::jsonb as maxversion, '
+                    ||'	format(''{"value": %s, "estimated" : false}'', COALESCE(minversion,0))::jsonb as minversion  '
+                    ||'	FROM ('
+                    ||'		SELECT pg_total_relation_size('''||schema||'."'||spaceid||'"'') AS tablesize, '
+                    ||'			(SELECT jsondata->''properties''->''@ns:com:here:xyz''->''version'' FROM "'||schema||'"."'||spaceid||'"'
+                    ||'				order by jsondata->''properties''->''@ns:com:here:xyz''->''version'' DESC limit 1 )::TEXT::INTEGER as maxversion,'
+                    ||'			(SELECT jsondata->''properties''->''@ns:com:here:xyz''->''version'' FROM "'||schema||'"."'||spaceid||'"'
+                    ||'			    WHERE jsondata->''properties''->''@ns:com:here:xyz''->''version'' > to_jsonb(0::numeric) '
+                    ||'			order by jsondata->''properties''->''@ns:com:here:xyz''->''version'' ASC limit 1 )::TEXT::INTEGER as minversion,'
+                    ||'		    reltuples AS count '
+                    ||'		FROM pg_class '
+                    ||'	WHERE oid='''||schema||'."'||spaceid||'"''::regclass) A';
+        ELSE
+                    RETURN QUERY EXECUTE
+                    'SELECT	format(''{"value": %s, "estimated" : true}'', tablesize)::jsonb as tablesize,  '
+                    ||'	format(''{"value": %s, "estimated" : false}'', count)::jsonb as count,  '
+                    ||'	format(''{"value": %s, "estimated" : false}'', COALESCE(maxversion,0))::jsonb as maxversion, '
+                    ||'	format(''{"value": %s, "estimated" : false}'', COALESCE(minversion,0))::jsonb as minversion  '
+                    ||'	FROM ('
+                    ||'		SELECT pg_total_relation_size('''||schema||'."'||spaceid||'"'') AS tablesize, '
+                    ||'			(SELECT jsondata->''properties''->''@ns:com:here:xyz''->''version'' FROM "'||schema||'"."'||spaceid||'"'
+                    ||'				order by jsondata->''properties''->''@ns:com:here:xyz''->''version'' DESC limit 1 )::TEXT::INTEGER as maxversion,'
+                    ||'			(SELECT jsondata->''properties''->''@ns:com:here:xyz''->''version'' FROM "'||schema||'"."'||spaceid||'"'
+                    ||'			    WHERE jsondata->''properties''->''@ns:com:here:xyz''->''version'' > to_jsonb(0::numeric) '
+                    ||'			order by jsondata->''properties''->''@ns:com:here:xyz''->''version'' ASC limit 1 )::TEXT::INTEGER as minversion,'
+                    ||'		    (SELECT count(*) FROM "'||schema||'"."'||spaceid||'") AS count '
+                    ||'		FROM pg_class '
+                    ||'	WHERE oid='''||schema||'."'||spaceid||'"''::regclass) A';
+        END IF;
+    END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 -- Function: xyz_index_get_plain_propkey(text)
@@ -520,15 +529,15 @@ begin
    
    if( saveCounter < 10000 ) then
     return next;
-   else 
+   else
     return;
-   end if;	
-   
-  end loop; 
+   end if;
+
+  end loop;
  end loop;
 
 end;
-$body$ 
+$body$
 language plpgsql immutable;
 ------------------------------------------------
 ------------------------------------------------
@@ -2706,25 +2715,93 @@ $body$
 language plpgsql immutable;
 ------------------------------------------------
 ------------------------------------------------
+CREATE OR REPLACE FUNCTION _prj_flatten(jdoc jsonb, depth integer )
+RETURNS TABLE(level integer, jkey text, jval jsonb) AS
+$body$
+with 
+ indata1  as ( select jdoc as jdata ),
+ indata2  as ( select coalesce( depth, 100 )::integer as depth ), -- if unset, restrict leveldepth to 100, safetyreason
+ outdata as
+ ( with recursive searchobj( level, jkey, jval ) as
+  (
+    select 0::integer as level, key as jkey, value as jval 
+    from jsonb_each( jsonb_set('{}','{s}', (select jdata from indata1) ))
+   union all
+    select i.level + 1 as level, i.jkey || coalesce( '.' || key, '[' || ((row_number() over ( partition by i.jkey ) ) - 1)::text || ']' ), i.value as jval
+    from
+    (  select level, jkey, (_prj_jsonb_each( jval )).*
+       from searchobj, indata2 i2
+       where 1 = 1
+       and jsonb_typeof( jval ) in ( 'object', 'array' )
+       and level < i2.depth
+    ) i
+  )
+  select level, nullif( regexp_replace(jkey,'^s\.?','' ),'') as jkey, jval from searchobj, indata2 i2
+  where 1 = 1
+    and 
+    ( ( level = i2.depth ) or ( jsonb_typeof( jval ) in ( 'string', 'number', 'boolean', 'null' ) and level < i2.depth ) )
+ )
+ select level, jkey, jval from outdata
+$body$
+LANGUAGE sql IMMUTABLE;
+
 CREATE OR REPLACE FUNCTION prj_flatten(jdoc jsonb)
 RETURNS TABLE(level integer, jkey text, jval jsonb) AS
 $body$
-with recursive searchobj( level, jkey, jval ) as
-(
-  select 0::integer as level, key as jkey, value as jval from jsonb_each( jdoc )
- union all
-  select i.level + 1 as level, i.jkey || '.' || coalesce(key, ((row_number() over ( partition by i.jkey ) ) - 1)::text ), i.value as jval
-  from
-  (  select level, jkey, (_prj_jsonb_each( jval )).*
-     from searchobj
-     where 1 = 1
-      and jsonb_typeof( jval ) in ( 'object', 'array' )
-      and level < 100
-   ) i
-)
-select level, jkey, jval from searchobj
-where 1 = 1
-  and jsonb_typeof( jval ) in ( 'string', 'number', 'boolean', 'null' )
+ select * from _prj_flatten( jdoc, 100 )
+$body$
+LANGUAGE sql IMMUTABLE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION _prj_diff( left_jdoc jsonb, right_jdoc jsonb )
+RETURNS TABLE(level integer, jkey text, jval_l jsonb, jval_r jsonb ) AS
+$body$
+with
+ inleft  as ( select level, jkey, jval from _prj_flatten( left_jdoc , 1 ) ),
+ inright as ( select level, jkey, jval from _prj_flatten( right_jdoc, 1 ) ),
+ outdiff as 
+ ( with recursive diffobj( level, jkey, jval_l, jval_r ) as
+   (
+     select coalesce( r.level, l.level ) as level, coalesce( l.jkey, r.jkey ) as jkey, l.jval as jval_l, r.jval as jval_r
+     from inleft l full outer join inright r on ( r.jkey = l.jkey  )
+     where (l.jkey isnull) or (r.jkey isnull) or ( l.jval != r.jval )
+	union all
+	 select ( i.level + nxt.level ) as level , 
+		    case nxt.jkey ~ '^\[\d+\]$' 
+	         when false then  i.jkey || '.' || nxt.jkey 
+			 else i.jkey || nxt.jkey 
+		    end as jkey,  /*i.jval_l, i.jval_r,*/ 
+		   nxt.jval_l, nxt.jval_r
+	 from diffobj i, 
+		  lateral
+		  ( select coalesce( r.level, l.level ) as level, coalesce( l.jkey, r.jkey ) as jkey, l.jval as jval_l, r.jval as jval_r
+		    from _prj_flatten( i.jval_l,1) l full outer join _prj_flatten(i.jval_r,1) r on ( r.jkey = l.jkey  )
+		    where (l.jkey isnull) or (r.jkey isnull) or ( l.jval != r.jval )
+		  ) nxt   
+	 where 1 = 1
+	   and jsonb_typeof( i.jval_l ) in ( 'object', 'array' )
+	   and jsonb_typeof( i.jval_l ) = jsonb_typeof( i.jval_r )
+   )
+   select * from diffobj
+   where 1 = 1
+     and ( 	  (jval_l isnull)
+		   or (jval_r isnull)
+		   or jsonb_typeof( jval_l ) in ( 'string', 'number', 'boolean', 'null' )
+		   or jsonb_typeof( jval_r ) in ( 'string', 'number', 'boolean', 'null' )
+		   or (    jsonb_typeof( jval_l ) != jsonb_typeof( jval_r )
+			   and jsonb_typeof( jval_l ) in ( 'object', 'array' )
+			   and jsonb_typeof( jval_r ) in ( 'object', 'array' )
+			  )
+		 )
+ )
+select * from outdiff order by jkey
+$body$
+LANGUAGE sql IMMUTABLE;
+
+CREATE OR REPLACE FUNCTION prj_diff( left_jdoc jsonb, right_jdoc jsonb )
+RETURNS jsonb AS
+$body$
+ select jsonb_agg( jsonb_build_array( jkey, jval_l, jval_r ) ) from _prj_diff( left_jdoc, right_jdoc ) d
 $body$
 LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
