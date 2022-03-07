@@ -3177,7 +3177,7 @@ begin
   with indata as 
   ( select ts, regexp_split_to_array( regexp_replace( entry->>0,'\[(\d+)\]','.\1','g'), '\.') as jpath , entry->1 as jdata 
     from 
-    ( select (e->0)::double precision as ts, jsonb_array_elements( e->1 ) as entry
+    ( select (e->>0)::double precision as ts, jsonb_array_elements( e->1 ) as entry
       from ( select jsonb_array_elements(indata->'@rv') as e ) i
     ) ii 
   )
@@ -3210,8 +3210,8 @@ returns geometry as
 $body$
  select ST_GeomFromTWKB( decode(e->>1,'base64') ) 
  from ( select jsonb_array_elements( indata->'@grv' ) as e ) i
- where (e->0)::double precision >= intime
- order by (e->0)::double precision
+ where (e->>0)::double precision >= intime
+ order by (e->>0)::double precision
  limit 1	
 $body$
 language sql immutable;
@@ -3242,9 +3242,9 @@ returns table(id text, ts double precision, jsondata jsonb, geo geometry) AS
 $body$
  select 
   coalesce( indata->>'id', indata_hst#>>'{@del,0,1,id}') as id,
-  case (e->0)::numeric when 0 then 4000000000::double precision else (e->0)::double precision end as ts,
-  case when ((e->0)::numeric = 0) and (indata isnull) then indata else (e->1) - 'geometry' end as jsondata, 
-  case (e->0)::numeric when 0 then ingeo else ST_GeomFromTWKB( decode(e#>>'{1,geometry}','base64') ) end as geo 
+  case (e->>0)::numeric when 0 then 4000000000::double precision else (e->>0)::double precision end as ts,
+  case when ((e->>0)::numeric = 0) and (indata isnull) then indata else (e->1) - 'geometry' end as jsondata, 
+  case (e->>0)::numeric when 0 then ingeo else ST_GeomFromTWKB( decode(e#>>'{1,geometry}','base64') ) end as geo 
  from 
  ( select indata, indata_hst, ingeo, ingeo_hst, jsonb_array_elements( coalesce( indata_hst->'@del', '[]'::jsonb) || jsonb_build_array(jsonb_build_array( 0, ( coalesce( indata_hst - '@del', '{}'::jsonb) || ( coalesce(indata, '{}'::jsonb )))))) as e ) o
 $body$
