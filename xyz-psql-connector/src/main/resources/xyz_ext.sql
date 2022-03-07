@@ -3055,3 +3055,327 @@ end;
 $body$;
 ------------------------------------------------
 ------------------------------------------------
+
+---------
+--Begin:  store small history concept -  function and tools
+---------
+
+create or replace function rev_handler()  -- save diff within json object
+ returns trigger as
+$body$
+ declare rv jsonb;
+         cnt integer;
+begin
+
+ if (tg_op = 'UPDATE') then
+ 
+   select 
+     jsonb_insert( coalesce( old.jsondata->'@rv','[]'::jsonb) ,'{-1}', jsonb_build_array( (extract (epoch from now() at time zone 'UTC')) , jsonb_agg( jsonb_build_array( jkey, jval_l ) )), true ),
+	 count(1) 
+     into rv,cnt
+   from _prj_diff( old.jsondata, new.jsondata ) d
+   where (jkey !~ '^@rv') and (jkey !~ '^@grv');
+ 
+   if( cnt > 0 ) then
+    new.jsondata = jsonb_set( new.jsondata,'{@rv}', rv );
+   elseif( old.jsondata ? '@rv' ) then
+    new.jsondata = jsonb_set( new.jsondata,'{@rv}', old.jsondata->'@rv' );
+   end if;
+   
+   if( not ( new.geo = old.geo ) ) then
+    new.jsondata = jsonb_set( new.jsondata,'{@grv}', jsonb_insert( coalesce( old.jsondata->'@grv','[]'::jsonb) ,'{-1}', jsonb_build_array( (extract (epoch from now() at time zone 'UTC')) , encode(ST_AsTWKB(old.geo),'base64') ) , true ));
+   elseif( old.jsondata ? '@grv' ) then
+    new.jsondata = jsonb_set( new.jsondata,'{@grv}', old.jsondata->'@grv' );
+   end if;
+
+  return new;
+ end if;
+end; 
+$body$
+language plpgsql;
+
+create or replace function rev_handler2() -- save diff in separat _hst table 
+ returns trigger as
+$body$
+ declare rv jsonb := '{}'::jsonb;
+         cnt integer;
+		 upd_jsondata_sql text := 'h.jsondata';
+		 upd_geo_sql text := '';
+begin
+
+ if (tg_op = 'DELETE') then
+
+   EXECUTE format('insert into %I.%I as h (id,jsondata,geo) '
+               || ' values( $1.jsondata->>''id'', jsonb_insert(''{ "@del":[] }''::jsonb, ''{@del,-1}'', jsonb_build_array( (extract (epoch from now() at time zone ''UTC'')) , case when $1.geo notnull then jsonb_set($1.jsondata,''{geometry}'', to_jsonb(encode(ST_AsTWKB($1.geo),''base64'') )) else $1.jsondata end),true), Box3D( $1.geo ) ) '
+ 			         || 'on conflict (id) do update '
+               || ' set (jsondata,geo) = ( '
+               || '  jsonb_set(''{}''::jsonb,''{@del}'','
+               || '   jsonb_insert( coalesce( h.jsondata->''@del'', ''[]''::jsonb ), ''{-1}'','
+               || '    jsonb_build_array( (extract (epoch from now() at time zone ''UTC'')) , case when $1.geo notnull then jsonb_set( ((h.jsondata - ''@del'') || $1.jsondata),''{geometry}'', to_jsonb(encode(ST_AsTWKB($1.geo),''base64'') )) else ((h.jsondata - ''@del'') || $1.jsondata) end),'
+               || '    true ))'
+			         || '  ,Box3D(ST_Collect(h.geo, $1.geo))) '
+                , TG_TABLE_SCHEMA, TG_TABLE_NAME || '_hst' )
+			using old;
+
+  return old;
+ 
+ elseif (tg_op = 'UPDATE') then
+   
+   select 
+     jsonb_insert( '{"@rv":[]}'::jsonb || rv, '{@rv,0}', jsonb_build_array( (extract (epoch from now() at time zone 'UTC')) , jsonb_agg( jsonb_build_array( jkey, jval_l ) ))),
+     count(1) 
+     into rv,cnt
+   from _prj_diff( old.jsondata, new.jsondata ) d;
+   
+   if( cnt = 0 ) then
+    rv = ( rv - '@rv' );
+   else
+    upd_jsondata_sql := 'jsonb_insert( ''{"@rv":[]}''::jsonb || ' || upd_jsondata_sql || ', ''{@rv,-1}'', $2#>''{@rv,0}'' ,true )';
+   end if;
+   
+   if( new.geo = old.geo ) then
+    if( cnt = 0 ) then
+	 return new;  -- nothing has changed
+	end if;
+	
+   else
+    rv = jsonb_insert( '{"@grv":[]}'::jsonb || rv,'{@grv,0}', jsonb_build_array( (extract (epoch from now() at time zone 'UTC')) , encode(ST_AsTWKB(old.geo),'base64') ),true);
+	upd_jsondata_sql := 'jsonb_insert( ''{"@grv":[]}''::jsonb || ' || upd_jsondata_sql || ', ''{@grv,-1}'', $2#>''{@grv,0}'' ,true )';
+	upd_geo_sql := 'geo = Box3D(ST_Collect(h.geo, excluded.geo))';
+   end if;
+   
+   if( upd_jsondata_sql = 'h.jsondata' ) then
+    upd_jsondata_sql = '';
+   else	
+    upd_jsondata_sql = 'jsondata = ' || upd_jsondata_sql;
+	if( upd_geo_sql != '' ) then
+	 upd_jsondata_sql := upd_jsondata_sql || ','; 
+	end if;
+   end if;	
+   
+   EXECUTE format('insert into %I.%I as h (id,jsondata,geo) '
+               || ' values( $1.jsondata->>''id'', $2, $1.geo ) '
+			   || 'on conflict (id) do update '
+               || ' set ' || upd_jsondata_sql || upd_geo_sql
+                , TG_TABLE_SCHEMA, TG_TABLE_NAME || '_hst' )
+			using old, rv;
+
+  return new;
+ end if;
+end; 
+$body$
+language plpgsql;
+
+create or replace function replay_until( indata jsonb, intime double precision )
+returns jsonb as
+$body$
+ declare 
+  rv jsonb := (indata - '@rv' - '@grv');
+  estep record;
+begin
+ for estep in
+  with indata as 
+  ( select ts, regexp_split_to_array( regexp_replace( entry->>0,'\[(\d+)\]','.\1','g'), '\.') as jpath , entry->1 as jdata 
+    from 
+    ( select (e->0)::double precision as ts, jsonb_array_elements( e->1 ) as entry
+      from ( select jsonb_array_elements(indata->'@rv') as e ) i
+    ) ii 
+  )
+  select ts, jpath, jdata from indata where ts >= intime 
+  order by ts desc, (select string_agg( case when u ~ '^\d+$' then lpad( u,5,'0') else u end, '.' ) from unnest( jpath ) u) desc
+   -- sort arrays index decreasing and by numeric value
+ loop 
+  if( estep.jdata = 'null'::jsonb ) then
+   rv = ( rv #- estep.jpath );
+  else
+   rv = jsonb_set( rv, estep.jpath, estep.jdata );
+  end if;
+ end loop;
+ 
+ return rv;
+ 
+end;
+$body$
+language plpgsql immutable;
+
+create or replace function replay_until( indata jsonb, intime timestamp without time zone )
+returns jsonb as
+$body$
+ select replay_until( indata, (extract (epoch from intime at time zone 'UTC')) )
+$body$
+LANGUAGE sql IMMUTABLE;
+
+create or replace function replay_geo_until( indata jsonb, intime double precision )
+returns geometry as
+$body$
+ select ST_GeomFromTWKB( decode(e->>1,'base64') ) 
+ from ( select jsonb_array_elements( indata->'@grv' ) as e ) i
+ where (e->0)::double precision >= intime
+ order by (e->0)::double precision
+ limit 1	
+$body$
+language sql immutable;
+
+create or replace function replay_geo_until( indata jsonb, intime timestamp without time zone )
+returns geometry as
+$body$
+ select replay_geo_until( indata, (extract (epoch from intime at time zone 'UTC')) )
+$body$
+language sql immutable;
+
+create or replace function replay_until( jsondata jsonb, geo geometry, intime double precision )	
+returns table(jsondata jsonb, geo geometry) as
+$body$
+ select replay_until(jsondata, intime ), coalesce( replay_geo_until( jsondata, intime ), geo )
+$body$
+language sql immutable;
+	
+create or replace function replay_until( jsondata jsonb, geo geometry, intime timestamp without time zone )
+returns table(jsondata jsonb, geo geometry) as
+$body$
+ select jsondata, geo from replay_until(jsondata, geo, (extract (epoch from intime at time zone 'UTC')))
+$body$
+language sql immutable;
+
+create or replace function get_history_aslist( indata jsonb, indata_hst jsonb, ingeo geometry, ingeo_hst geometry )
+returns table(id text, ts double precision, jsondata jsonb, geo geometry) AS
+$body$
+ select 
+  coalesce( indata->>'id', indata_hst#>>'{@del,0,1,id}') as id,
+  case (e->0)::numeric when 0 then 4000000000::double precision else (e->0)::double precision end as ts,
+  case when ((e->0)::numeric = 0) and (indata isnull) then indata else (e->1) - 'geometry' end as jsondata, 
+  case (e->0)::numeric when 0 then ingeo else ST_GeomFromTWKB( decode(e#>>'{1,geometry}','base64') ) end as geo 
+ from 
+ ( select indata, indata_hst, ingeo, ingeo_hst, jsonb_array_elements( coalesce( indata_hst->'@del', '[]'::jsonb) || jsonb_build_array(jsonb_build_array( 0, ( coalesce( indata_hst - '@del', '{}'::jsonb) || ( coalesce(indata, '{}'::jsonb )))))) as e ) o
+$body$
+language sql immutable;
+
+create or replace function replay_history_until( indata jsonb, indata_hst jsonb, ingeo geometry, ingeo_hst geometry, intime double precision )
+returns table(id text, jsondata jsonb, geo geometry) AS
+$body$
+ select e.id, replay_until(e.jsondata, intime ), coalesce( replay_geo_until( e.jsondata, intime ), e.geo ) 
+ from get_history_aslist( indata, indata_hst, ingeo, ingeo_hst ) e
+ where e.ts > least( intime, (extract (epoch from now() )))
+ order by e.ts
+ limit 1
+$body$
+language sql immutable;
+
+create or replace function replay_history_until( indata jsonb, indata_hst jsonb, ingeo geometry, ingeo_hst geometry, intime timestamp without time zone )
+returns table(id text, jsondata jsonb, geo geometry) AS
+$body$
+ select id, jsondata, geo from replay_history_until( indata, indata_hst, ingeo, ingeo_hst, (extract (epoch from intime at time zone 'UTC')))
+$body$
+language sql immutable;
+
+/*
+
+Sample:
+
+1a) create table and trigger -- save diff within objekt
+
+CREATE TABLE IF NOT EXISTS revtest
+(
+ jsondata jsonb,
+ geo geometry(GeometryZ,4326),
+ i bigserial
+)
+
+create trigger revision_handler before update on revtest
+ for each row execute procedure rev_handler()
+
+1b) 1a) create table, table_hst and trigger -- save diff in separat _hst table
+
+CREATE TABLE IF NOT EXISTS revtest
+(
+ jsondata jsonb,
+ geo geometry(GeometryZ,4326),
+ i bigserial
+)
+
+CREATE TABLE IF NOT EXISTS revtest_hst
+(
+    id text NOT NULL PRIMARY KEY,
+    jsondata jsonb,
+    geo geometry(GeometryZ,4326)
+)
+
+create trigger revision_handler before update on revtest
+ for each row execute procedure rev_handler2()
+
+
+2) add test data
+
+insert into revtest (jsondata,geo)  Values( '{ "foo": { "a" : 0 } }'::jsonb, st_geomfromtext( 'POINT Z (-100.38576 20.61073 0)' ) )
+
+update revtest
+   set jsondata = jsonb_set( jsondata, '{foo,arr}', '["1",2,"drei"]'::jsonb ),
+       geo = st_geomfromtext( 'POINT Z (-100.38578 20.61075 0)' )
+where i = 1
+
+update revtest
+ set jsondata = jsonb_set( jsondata, '{foo,pre_del}', to_jsonb('delete-this'::text) )
+where i = 1
+
+update revtest
+  set jsondata = ( jsondata#-'{foo,pre_del}' ),
+      geo = st_geomfromtext( 'POINT Z (-100.38579 20.61077 0)' )
+where i = 1
+
+3a) display changes on object
+
+select to_timestamp( (e->0)::numeric )::timestamp without time zone as ts, jsonb_array_elements( e->1 ) as entry
+from 
+( 
+ select jsonb_array_elements(jsondata->'@rv') as e from revtest where i = 1 
+) i
+
+3b) display changes on objects geometry
+
+select to_timestamp( (e->0)::numeric )::timestamp without time zone as ts, e->>1 as entry, st_astext( ST_GeomFromTWKB( decode(e->>1,'base64') ) )
+from 
+( 
+ select jsonb_array_elements(jsondata->'@grv') as e from revtest where i = 1 
+) i
+
+
+4a) show jsondata as of timestamp 'a-timestap'
+
+select 
+ (jsondata - '@rv') as current,
+ replay_until( jsondata, '2022-02-08 17:38:09.956019'::timestamp without time zone ) as replay
+from revtest where i = 1
+
+4b) show jsondata, geo as of timestamp 'a-timestap'
+
+select ( replay_until( jsondata, geo, '2022-02-08 17:38:09.956019'::timestamp without time zone ) ).*
+from revtest where i = 1
+
+4c) in case of using diff in separate _hst table. replay_until can be used like 
+
+select ( replay_until( l.jsondata || coalesce( r.jsondata , '{}'::jsonb ) , l.geo, '2022-02-08 17:38:09.956019'::timestamp without time zone ) ).*
+from revtest l left join revtest_hst r on ( l.jsondata->>'id' = r.id )
+where l.i = 1
+
+5a) using _hst table, list objects including deletions
+
+select  e.id, to_timestamp( e.ts )::timestamp without time zone as tm, e.jsondata, st_astext(e.geo)
+from revtest l left join revtest_hst r on ( l.jsondata->>'id' = r.id ), lateral get_history_aslist( l.jsondata, r.jsondata, l.geo, r.geo ) e
+order by id, ts desc
+
+5b) using _hst table, get objects at specific time "1645796690.347824"
+
+select e.*
+from xyz.testdata2 l left join xyz.testdata2_hst r on ( l.jsondata->>'id' = r.id ), lateral replay_history_until( l.jsondata, r.jsondata, l.geo, r.geo, 1645796690.347823 ) e
+
+select  e.*
+from xyz.testdata2 l left join xyz.testdata2_hst r on ( l.jsondata->>'id' = r.id ), lateral replay_history_until( l.jsondata, r.jsondata, l.geo, r.geo, '2022-02-25 13:44:50.347823'::::timestamp without time zone ) e
+
+
+*/
+
+---------
+--End:  store small history concept -  function and tools
+---------
+
+
