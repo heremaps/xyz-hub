@@ -16,7 +16,7 @@
       "searchablePropertiesConfiguration": true,
       "preserializedResponseSupport": true,
       "enableAutoCache": true,
-      "maxPayloadSize": 1073741824,
+      "maxPayloadSize": 52428800,
       "storageUtilizationReporting": true,
       "clusteringTypes": [
         "hexbin", "quadbin"
@@ -30,7 +30,7 @@
       "local": {
         "type": "Embedded",
         "id": "xyz-psql-local",
-        "warmUp": 1,
+        "warmUp": 0,
         "className": "com.here.xyz.psql.PSQLXyzConnector",
         "env": {
           "ECPS_PHRASE": "local"
@@ -43,7 +43,11 @@
       "cookies": ["here_access", "here_access_st"],
       "headers": ["AuthorizatioN", "realm"],
       "queryParams": ["apiKey"]
-    }
+    },
+    "defaultEventTypes": [],
+    "contactEmails": [
+      "example@example.com"
+    ]
   },
   {
     "id": "failing1",
@@ -61,12 +65,15 @@
       "local": {
         "type": "Embedded",
         "id": "xyz-failing-local1",
-        "warmUp": 1,
+        "warmUp": 0,
         "className": "com.here.xyz.hub.connectors.test.FailingPreProcessor",
         "env": {
         }
       }
-    }
+    },
+    "contactEmails": [
+      "example@example.com"
+    ]
   },
   {
     "id": "failing2",
@@ -84,12 +91,15 @@
       "local": {
         "type": "Embedded",
         "id": "xyz-failing-local2",
-        "warmUp": 1,
+        "warmUp": 0,
         "className": "com.here.xyz.hub.connectors.test.FailingPreProcessor",
         "env": {
         }
       }
-    }
+    },
+    "contactEmails": [
+      "example@example.com"
+    ]
   },
   {
     "id": "error",
@@ -107,12 +117,15 @@
       "local": {
         "type": "Embedded",
         "id": "xyz-error-local",
-        "warmUp": 1,
+        "warmUp": 0,
         "className": "com.here.xyz.hub.connectors.test.ErrorPreProcessor",
         "env": {
         }
       }
-    }
+    },
+    "contactEmails": [
+      "example@example.com"
+    ]
   },
   {
     "id": "exception",
@@ -130,12 +143,15 @@
       "local": {
         "type": "Embedded",
         "id": "xyz-exception-local",
-        "warmUp": 1,
+        "warmUp": 0,
         "className": "com.here.xyz.hub.connectors.test.ExceptionPreProcessor",
         "env": {
         }
       }
-    }
+    },
+    "contactEmails": [
+      "example@example.com"
+    ]
   },
   {
     "id": "rule-tagger",
@@ -162,7 +178,10 @@
     "connectionSettings": {
       "maxConnections": 64,
       "minConnections": 16
-    }
+    },
+    "contactEmails": [
+      "example@example.com"
+    ]
   },
   {
     "id": "c1",
@@ -186,7 +205,11 @@
           "ECPS_PHRASE": "local"
         }
       }
-    }
+    },
+    "defaultEventTypes": [],
+    "contactEmails": [
+      "example@example.com"
+    ]
   },
   {
     "id": "c2",
@@ -211,7 +234,11 @@
           "ECPS_PHRASE": "local"
         }
       }
-    }
+    },
+    "defaultEventTypes": [],
+    "contactEmails": [
+      "example@example.com"
+    ]
   },
   {
     "id": "c3",
@@ -236,7 +263,11 @@
           "ECPS_PHRASE": "local"
         }
       }
-    }
+    },
+    "defaultEventTypes": [],
+    "contactEmails": [
+      "example@example.com"
+    ]
   },
   {
     "id": "c4",
@@ -260,7 +291,11 @@
           "ECPS_PHRASE": "local"
         }
       }
-    }
+    },
+    "defaultEventTypes": [],
+    "contactEmails": [
+      "example@example.com"
+    ]
   },
   {
     "id": "test",
@@ -277,7 +312,11 @@
         "className": "com.here.xyz.hub.connectors.test.TestStorageConnector",
         "env": {}
       }
-    }
+    },
+    "defaultEventTypes": [],
+    "contactEmails": [
+      "example@example.com"
+    ]
   },
   {
     "id": "inMemory",
@@ -295,7 +334,11 @@
         "env": {},
         "protocolVersion": "0.5.0"
       }
-    }
+    },
+    "defaultEventTypes": [],
+    "contactEmails": [
+      "example@example.com"
+    ]
   },
   {
     "id": "listener-test",
@@ -309,7 +352,11 @@
         "className": "com.here.xyz.hub.connectors.test.DummyListener",
         "env": {}
       }
-    }
+    },
+    "defaultEventTypes": [],
+    "contactEmails": [
+      "example@example.com"
+    ]
   },
   {
     "id": "another-listener",
@@ -323,7 +370,11 @@
         "className": "com.here.xyz.hub.connectors.test.DummyListener",
         "env": {}
       }
-    }
+    },
+    "defaultEventTypes": [],
+    "contactEmails": [
+      "example@example.com"
+    ]
   },
   {
     "capabilities": {
@@ -332,7 +383,7 @@
         "quadbin"
       ],
       "enableAutoCache": true,
-      "maxPayloadSize": 2147483647,
+      "maxPayloadSize": 52428800,
       "maxUncompressedSize": 1,
       "preserializedResponseSupport": true,
       "propertySearch": true,
@@ -344,7 +395,7 @@
       "maxConnections": 1024,
       "minConnections": 0
     },
-    "defaultEventTypes": null,
+    "defaultEventTypes": [],
     "id": "psql-http",
     "params": {
       "ecps": "$encrypt({\"PSQL_HOST\":\"${PSQL_HOST}\",\"PSQL_PORT\":\"${PSQL_PORT}\",\"PSQL_DB\":\"${PSQL_DB}\",\"PSQL_USER\":\"${PSQL_USER}\",\"PSQL_PASSWORD\":\"${PSQL_PASSWORD}\",\"PSQL_SCHEMA\":\"public\"})",
@@ -363,14 +414,17 @@
         "metricsActive": true
       }
     },
-    "trusted": true
+    "trusted": true,
+    "contactEmails": [
+      "example@example.com"
+    ]
   },
   {
     "connectionSettings": {
       "maxConnections": 1024,
       "minConnections": 0
     },
-    "defaultEventTypes": null,
+    "defaultEventTypes": [],
     "id": "evaljs-trusted",
     "params": {
       "connectorId" : "evaljs-trusted"
@@ -390,14 +444,17 @@
       "headers": ["authn", "X-request-id", "custom_header"],
       "queryParams": ["apiKey"]
     },
-    "trusted": true
+    "trusted": true,
+    "contactEmails": [
+      "example@example.com"
+    ]
   },
   {
     "connectionSettings": {
       "maxConnections": 1024,
       "minConnections": 0
     },
-    "defaultEventTypes": null,
+    "defaultEventTypes": [],
     "id": "evaljs-untrusted",
     "params": {
       "connectorId" : "evaljs-untrusted"
@@ -408,6 +465,9 @@
         "type": "Embedded",
         "className": "com.here.xyz.hub.connectors.test.EvalConnector"
       }
-    }
+    },
+    "contactEmails": [
+      "example@example.com"
+    ]
   }
 ]
