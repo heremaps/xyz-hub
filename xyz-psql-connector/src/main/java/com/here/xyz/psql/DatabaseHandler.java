@@ -69,10 +69,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.annotation.Nonnull;
 import javax.sql.DataSource;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
@@ -130,6 +132,8 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private boolean retryAttempted;
 
+    private static AtomicBoolean simulatedContextInitialized = new AtomicBoolean();
+
     protected XyzResponse processHealthCheckEventImpl(HealthCheckEvent event) throws SQLException {
         String connectorId = traceItem.getConnectorId();
 
@@ -138,9 +142,9 @@ public abstract class DatabaseHandler extends StorageConnector {
             return new ErrorResponse().withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage("ConnectorId is missing as param in the Connector-Config! ");
         }
 
-        if (event.getWarmupCount() == 0 && context instanceof SimulatedContext) {
-            /** run DB-Maintenance - warmUp request is used */
-            if (event.getMinResponseTime() != 0) {
+        if (context instanceof SimulatedContext) {
+            /** run DB-Maintenance - run ones for simulated context */
+            if (simulatedContextInitialized.compareAndSet(false, true)) {
                 logger.info("{} dbMaintainer start", traceItem);
                 dbMaintainer.run(traceItem);
                 logger.info("{} dbMaintainer finished", traceItem);
@@ -168,7 +172,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     @Override
-    protected synchronized void initialize(Event event) {
+    protected synchronized void initialize(@Nonnull Event<?> event) {
         this.event = event;
         this.config= new PSQLConfig(event, context, traceItem);
         String connectorId = traceItem.getConnectorId();
