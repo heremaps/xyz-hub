@@ -31,7 +31,7 @@ public class RestAssuredTest extends TestAuthenticator {
 
     @BeforeClass
     public static void configureRestAssured() {
-        RestAssured.baseURI = RestAssuredConfig.config().baseURI;
+        RestAssured.baseURI = RestAssuredConfig.config().fullHubUri;
         RestAssured.port = RestAssuredConfig.config().hubPort;
         RestAssured.enableLoggingOfRequestAndResponseIfValidationFails();
         RestAssured.config = RestAssured.config().httpClient(RestAssured.config().getHttpClientConfig().reuseHttpClientInstance());

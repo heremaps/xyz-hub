@@ -19,11 +19,9 @@
 
 package com.here.xyz.hub.rest.httpconnector;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.hub.PsqlHttpVerticle;
 import com.here.xyz.hub.auth.TestAuthenticator;
 import com.here.xyz.hub.config.MaintenanceClient;
-import com.here.xyz.hub.rest.RestAssuredConfig;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.config.PSQLConfig;
 import io.vertx.core.json.JsonObject;
@@ -32,6 +30,7 @@ import org.junit.*;
 import java.util.HashMap;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.hub.rest.RestAssuredConfig.config;
 import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
 import static org.hamcrest.Matchers.*;
@@ -40,7 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class HCMaintenanceTestIT {
 
   private static String ecps;
-  private static String host;
+  private final static String connectorUri = config().fullHttpConnectorUri;
   private static String defaultConnector;
   private static MaintenanceClient mc;
   private static HashMap<String, String> authHeaders;
@@ -61,7 +60,7 @@ public class HCMaintenanceTestIT {
         .contentType(APPLICATION_JSON)
         .accept(APPLICATION_JSON)
         .when()
-        .post(host + "/initialization?connectorId=" + defaultConnector + "&ecps=" + ecps)
+        .post(connectorUri + "/initialization?connectorId=" + defaultConnector + "&ecps=" + ecps)
         .then()
         .statusCode(OK.code());
   }
@@ -71,7 +70,7 @@ public class HCMaintenanceTestIT {
     deleteTestResources();
   }
 
-  public static MaintenanceClient initMaintenanceClient() throws Exception {
+  public static MaintenanceClient initMaintenanceClient() {
     PsqlHttpVerticle.DB_INITIAL_POOL_SIZE = 1;
     PsqlHttpVerticle.DB_MIN_POOL_SIZE = 1;
     PsqlHttpVerticle.DB_MAX_POOL_SIZE = 1;
@@ -86,9 +85,11 @@ public class HCMaintenanceTestIT {
   }
 
   public static void deleteTestResources() throws Exception {
-    String psqlHost = System.getenv().containsKey("PSQL_HOST") ? System.getenv("PSQL_HOST") : "localhost";
-    String localhostECPS = PSQLConfig.encryptECPS("{\"PSQL_HOST\":\"" + psqlHost + "\"}", "local");
-    MaintenanceClient.MaintenanceInstance dbInstance = mc.getClient(defaultConnector, localhostECPS, "local");
+    final String ecpsPhrase = config().ecpsPhrase;
+    final String ecpsJson = config().ecpsJson;
+    final String ecpsEncrypted = PSQLConfig.encryptECPS(ecpsJson, ecpsPhrase);
+    MaintenanceClient.MaintenanceInstance dbInstance = mc.getClient(
+        defaultConnector, ecpsEncrypted, ecpsPhrase);
     SQLQuery query = new SQLQuery("DELETE from xyz_config.db_status where connector_id='TestConnector'");
 
     //delete connector entry
@@ -100,7 +101,7 @@ public class HCMaintenanceTestIT {
         .headers(authHeaders)
         .accept(APPLICATION_JSON)
         .when()
-        .delete(RestAssuredConfig.config().fullHubUri + "/spaces/" + testSpace);
+        .delete(config().fullHubUri + "/spaces/" + testSpace);
   }
 
   public static void retrieveConfig() {
@@ -109,14 +110,12 @@ public class HCMaintenanceTestIT {
         .accept(APPLICATION_JSON)
         .headers(authHeaders)
         .when()
-        .get(RestAssuredConfig.config().fullHubUri + "/connectors/psql-http")
+        .get(config().fullHubUri + "/connectors/psql-http")
         .getBody().asString();
 
     JsonObject connector = new JsonObject(response);
     JsonObject params = connector.getJsonObject("params");
-
     ecps = params.getString("ecps");
-    host = RestAssuredConfig.config().fullHttpConnectorUri;
   }
 
   @Test
@@ -125,7 +124,7 @@ public class HCMaintenanceTestIT {
         .contentType(APPLICATION_JSON)
         .accept(APPLICATION_JSON)
         .when()
-        .get(host + "/health")
+        .get(connectorUri + "/health")
         .then()
         .statusCode(OK.code())
         .body("status.result", equalTo("OK"))
@@ -137,12 +136,12 @@ public class HCMaintenanceTestIT {
   }
 
   @Test
-  public void testPSQLStatusWithExistingConnector() throws JsonProcessingException {
+  public void testPSQLStatusWithExistingConnector() {
     given()
         .contentType(APPLICATION_JSON)
         .accept(APPLICATION_JSON)
         .when()
-        .get(host + "/status?connectorId=" + defaultConnector + "&ecps=" + ecps)
+        .get(connectorUri + "/status?connectorId=" + defaultConnector + "&ecps=" + ecps)
         .then()
         .statusCode(OK.code())
         .body("initialized", equalTo(true))
@@ -153,38 +152,38 @@ public class HCMaintenanceTestIT {
   }
 
   @Test
-  public void testPSQLStatusWithWrongECPSConnector() throws JsonProcessingException {
+  public void testPSQLStatusWithWrongECPSConnector() {
     given()
         .contentType(APPLICATION_JSON)
         .accept(APPLICATION_JSON)
         .when()
-        .get(host + "/status?connectorId=" + defaultConnector + "p&ecps=NA")
+        .get(connectorUri + "/status?connectorId=" + defaultConnector + "p&ecps=NA")
         .then()
         .statusCode(BAD_REQUEST.code())
         .body("errorMessage", notNullValue());
   }
 
   @Test
-  public void testPSQLStatusWithNotExistingConnector() throws JsonProcessingException {
+  public void testPSQLStatusWithNotExistingConnector() {
     given()
         .contentType(APPLICATION_JSON)
         .accept(APPLICATION_JSON)
         .when()
-        .get(host + "/status?connectorId=NA&ecps=" + ecps)
+        .get(connectorUri + "/status?connectorId=NA&ecps=" + ecps)
         .then()
         .statusCode(NOT_FOUND.code())
         .body("errorMessage", notNullValue());
   }
 
   @Test
-  public void maintainExistingConnector() throws JsonProcessingException {
+  public void maintainExistingConnector() {
     long curTime = System.currentTimeMillis();
 
     given()
         .contentType(APPLICATION_JSON)
         .accept(APPLICATION_JSON)
         .when()
-        .post(host + "/maintain/indices?connectorId=" + defaultConnector + "&ecps=" + ecps + "&autoIndexing=true")
+        .post(connectorUri + "/maintain/indices?connectorId=" + defaultConnector + "&ecps=" + ecps + "&autoIndexing=true")
         .then()
         .statusCode(OK.code());
 
@@ -192,7 +191,7 @@ public class HCMaintenanceTestIT {
         .contentType(APPLICATION_JSON)
         .accept(APPLICATION_JSON)
         .when()
-        .get(host + "/status?connectorId=" + defaultConnector + "&ecps=" + ecps)
+        .get(connectorUri + "/status?connectorId=" + defaultConnector + "&ecps=" + ecps)
         .then()
         .statusCode(OK.code())
         .body("maintenanceStatus.AUTO_INDEXING.maintainedAt", greaterThan(curTime))
@@ -200,12 +199,12 @@ public class HCMaintenanceTestIT {
   }
 
   @Test
-  public void maintainNotExistingConnector() throws JsonProcessingException {
+  public void maintainNotExistingConnector() {
     given()
         .contentType(APPLICATION_JSON)
         .accept(APPLICATION_JSON)
         .when()
-        .post(host + "/maintain/indices?connectorId=NA&ecps=" + ecps + "&autoIndexing=true")
+        .post(connectorUri + "/maintain/indices?connectorId=NA&ecps=" + ecps + "&autoIndexing=true")
         .then()
         .statusCode(METHOD_NOT_ALLOWED.code())
         .body("errorMessage", equalTo("Database not initialized!"));
@@ -218,7 +217,7 @@ public class HCMaintenanceTestIT {
         .contentType(APPLICATION_JSON)
         .accept(APPLICATION_JSON)
         .when()
-        .post(host + "/initialization?connectorId=TestConnector&ecps=" + ecps)
+        .post(connectorUri + "/initialization?connectorId=TestConnector&ecps=" + ecps)
         .then()
         .statusCode(OK.code());
 
@@ -226,7 +225,7 @@ public class HCMaintenanceTestIT {
         .contentType(APPLICATION_JSON)
         .accept(APPLICATION_JSON)
         .when()
-        .get(host + "/status?connectorId=TestConnector&ecps=" + ecps)
+        .get(connectorUri + "/status?connectorId=TestConnector&ecps=" + ecps)
         .then()
         .statusCode(OK.code())
         .body("initialized", equalTo(true))
@@ -243,7 +242,7 @@ public class HCMaintenanceTestIT {
         .contentType(APPLICATION_JSON)
         .accept(APPLICATION_JSON)
         .when()
-        .get(host + "/maintain/space/" + testSpace + "?connectorId=" + defaultConnector + "&ecps=" + ecps)
+        .get(connectorUri + "/maintain/space/" + testSpace + "?connectorId=" + defaultConnector + "&ecps=" + ecps)
         .then()
         .statusCode(NOT_FOUND.code());
 
@@ -253,7 +252,7 @@ public class HCMaintenanceTestIT {
         .headers(authHeaders)
         .when()
         .body("{\"id\": \"" + testSpace + "\",\"title\": \"test\",\"enableHistory\" : true,\"searchableProperties\" : {\"foo\" :true}}")
-        .post(RestAssuredConfig.config().fullHubUri + "/spaces")
+        .post(config().fullHubUri + "/spaces")
         .then()
         .statusCode(OK.code());
 
@@ -261,7 +260,7 @@ public class HCMaintenanceTestIT {
         .contentType(APPLICATION_JSON)
         .accept(APPLICATION_JSON)
         .when()
-        .post(host + "/maintain/space/" + testSpace + "?connectorId=" + defaultConnector + "&ecps=" + ecps)
+        .post(connectorUri + "/maintain/space/" + testSpace + "?connectorId=" + defaultConnector + "&ecps=" + ecps)
         .then()
         .statusCode(CONFLICT.code());
 
@@ -269,7 +268,7 @@ public class HCMaintenanceTestIT {
         .contentType(APPLICATION_JSON)
         .accept(APPLICATION_JSON)
         .when()
-        .post(host + "/maintain/space/" + testSpace + "?connectorId=" + defaultConnector + "&ecps=" + ecps + "&force=true")
+        .post(connectorUri + "/maintain/space/" + testSpace + "?connectorId=" + defaultConnector + "&ecps=" + ecps + "&force=true")
         .then()
         .statusCode(OK.code());
 
@@ -277,7 +276,7 @@ public class HCMaintenanceTestIT {
         .contentType(APPLICATION_JSON)
         .accept(APPLICATION_JSON)
         .when()
-        .get(host + "/maintain/space/" + testSpace + "?connectorId=" + defaultConnector + "&ecps=" + ecps)
+        .get(connectorUri + "/maintain/space/" + testSpace + "?connectorId=" + defaultConnector + "&ecps=" + ecps)
         .then()
         .statusCode(OK.code())
         .body("idxCreationFinished", equalTo(true))

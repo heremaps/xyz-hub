@@ -2,7 +2,7 @@
   "LOG_CONFIG": "log4j2-console-plain.json",
 
   "INSTANCE_COUNT": 1,
-  "HOST_NAME": "127.0.0.1",
+  "HOST_NAME": "localhost",
   "HTTP_PORT": 8080,
   "ADMIN_MESSAGE_PORT": 8080,
   "MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS": 1024,
@@ -11,6 +11,7 @@
   "XYZ_HUB_AUTH": "DUMMY",
 
   "XYZ_HUB_REDIS_URI": "redis://localhost",
+  "DEFAULT_MESSAGE_BROKER": "Redis",
 
   "OFF_HEAP_CACHE_SIZE_MB": 256,
 
@@ -19,7 +20,8 @@
   "STORAGE_DB_URL": "jdbc:postgresql://localhost/postgres",
   "STORAGE_DB_USER": "postgres",
   "STORAGE_DB_PASSWORD": "password",
-  "PSQL_HTTP_CONNECTOR_HOST" : "localhost",
+  "PSQL_HTTP_CONNECTOR_HOST": "localhost",
+  "PSQL_HTTP_CONNECTOR_PORT": 9090,
 
   "INSERT_LOCAL_CONNECTORS": true,
   "ENABLE_CONNECTOR_HEALTH_CHECKS" : false,
