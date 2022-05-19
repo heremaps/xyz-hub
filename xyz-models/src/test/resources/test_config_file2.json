@@ -1,0 +1,6 @@
+{
+  "theInt": -100,
+  "theBool": true,
+  "theString": "Hello World!",
+  "env": "default"
+}
