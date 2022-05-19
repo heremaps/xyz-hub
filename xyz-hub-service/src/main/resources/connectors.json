@@ -358,7 +358,7 @@
       "local": {
         "id": "psql-http",
         "type": "Http",
-        "url": "http://${PSQL_HTTP_CONNECTOR_HOST}:9090/psql/event",
+        "url": "http://${PSQL_HTTP_CONNECTOR_HOST_AND_PORT}/psql/event",
         "protocolVersion": "0.6.0",
         "metricsActive": true
       }

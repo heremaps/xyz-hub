@@ -172,7 +172,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     @Override
-    protected synchronized void initialize(@Nonnull Event<?> event) {
+    protected synchronized void initialize(@Nonnull Event event) {
         this.event = event;
         this.config= new PSQLConfig(event, context, traceItem);
         String connectorId = traceItem.getConnectorId();

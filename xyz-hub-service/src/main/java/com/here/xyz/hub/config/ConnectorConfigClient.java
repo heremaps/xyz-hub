@@ -23,6 +23,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
+import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.psql.tools.ECPSTool;
 import io.vertx.core.AsyncResult;
@@ -242,10 +243,11 @@ public abstract class ConnectorConfigClient implements Initializable {
     }
     else if(connector.getRemoteFunction().id.equalsIgnoreCase("psql-http")){
      try {
-       //Replace HOST in http-connector config
-        ((Connector.RemoteFunctionConfig.Http)connector.getRemoteFunction()).url =
-                new URL(((Connector.RemoteFunctionConfig.Http)connector.getRemoteFunction()).url.toString()
-                        .replace("${PSQL_HTTP_CONNECTOR_HOST}",Service.configuration.PSQL_HTTP_CONNECTOR_HOST));
+       // Replace HOST and PORT in psql-http connector from connector-config.json
+       final Http remoteFunction = (Http) connector.getRemoteFunction();
+       final String realHostAndPort = Service.configuration.PSQL_HTTP_CONNECTOR_HOST+":"+Service.configuration.PSQL_HTTP_CONNECTOR_PORT;
+       final String url = remoteFunction.url.toString().replace("${PSQL_HTTP_CONNECTOR_HOST_AND_PORT}",realHostAndPort);
+       remoteFunction.url = new URL(url);
       } catch (MalformedURLException e) {}
     }
   }
@@ -254,7 +256,7 @@ public abstract class ConnectorConfigClient implements Initializable {
     Map<String, String> psqlVars = new HashMap<>();
 
     if (Service.configuration.STORAGE_DB_URL != null) {
-      URI uri = URI.create(Service.configuration.STORAGE_DB_URL.substring(5));
+      URI uri = URI.create(Service.configuration.STORAGE_DB_URL.substring("psql:".length()));
       psqlVars.put("PSQL_HOST", uri.getHost());
       psqlVars.put("PSQL_PORT", String.valueOf(uri.getPort() == -1 ? 5432 : uri.getPort()));
       psqlVars.put("PSQL_USER", Service.configuration.STORAGE_DB_USER);
@@ -262,6 +264,8 @@ public abstract class ConnectorConfigClient implements Initializable {
       String[] pathComponent = uri.getPath() == null ? null : uri.getPath().split("/");
       if (pathComponent != null && pathComponent.length > 1)
         psqlVars.put("PSQL_DB", pathComponent[1]);
+      psqlVars.put("PSQL_HTTP_CONNECTOR_HOST", Service.configuration.PSQL_HTTP_CONNECTOR_HOST);
+      psqlVars.put("PSQL_HTTP_CONNECTOR_PORT", Integer.toString(Service.configuration.PSQL_HTTP_CONNECTOR_PORT));
     }
 
     return psqlVars;

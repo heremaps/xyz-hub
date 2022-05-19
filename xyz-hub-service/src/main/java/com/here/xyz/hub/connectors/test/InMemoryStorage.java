@@ -49,6 +49,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
 
 public class InMemoryStorage extends StorageConnector {
 
@@ -140,5 +141,5 @@ public class InMemoryStorage extends StorageConnector {
   }
 
   @Override
-  protected void initialize(Event event) throws Exception {}
+  protected void initialize(@Nonnull Event event) throws Exception {}
 }
