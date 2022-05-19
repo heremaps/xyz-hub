@@ -142,10 +142,8 @@ public class Service extends Core {
    */
   public static void main(String[] arguments) {
     boolean debug = Arrays.asList(arguments).contains("--debug");
-    VertxOptions vertxOptions = new VertxOptions()
-        .setMetricsOptions(new MetricsOptions()
-          .setEnabled(true)
-          .setFactory(new HubMetricsFactory()));
+    VertxOptions vertxOptions = new VertxOptions().setMetricsOptions(
+        new MetricsOptions().setEnabled(true).setFactory(new HubMetricsFactory()));
     initialize(vertxOptions, debug, CONFIG_FILE, Service::onConfigLoaded);
   }
 
@@ -163,14 +161,10 @@ public class Service extends Core {
     spaceConfigClient = SpaceConfigClient.getInstance();
     connectorConfigClient = ConnectorConfigClient.getInstance();
 
-    webClient = WebClient.create(vertx, new WebClientOptions()
-        .setUserAgent(XYZ_HUB_USER_AGENT)
-        .setTcpKeepAlive(configuration.HTTP_CLIENT_TCP_KEEPALIVE)
-        .setIdleTimeout(configuration.HTTP_CLIENT_IDLE_TIMEOUT)
-        .setTcpQuickAck(true)
-        .setTcpFastOpen(true)
-        .setPipelining(Service.configuration.HTTP_CLIENT_PIPELINING)
-    );
+    webClient = WebClient.create(vertx,
+        new WebClientOptions().setUserAgent(XYZ_HUB_USER_AGENT).setTcpKeepAlive(configuration.HTTP_CLIENT_TCP_KEEPALIVE)
+            .setIdleTimeout(configuration.HTTP_CLIENT_IDLE_TIMEOUT).setTcpQuickAck(true).setTcpFastOpen(true)
+            .setPipelining(Service.configuration.HTTP_CLIENT_PIPELINING));
 
     globalRouter = Router.router(vertx);
 
@@ -219,10 +213,7 @@ public class Service extends Core {
 
     final List<String> verticlesClassNames = Arrays.asList(Service.configuration.VERTICLES_CLASS_NAMES.split(","));
     int numInstances = Runtime.getRuntime().availableProcessors() * 2 / verticlesClassNames.size();
-    final DeploymentOptions options = new DeploymentOptions()
-        .setConfig(config)
-        .setWorker(false)
-        .setInstances(numInstances);
+    final DeploymentOptions options = new DeploymentOptions().setConfig(config).setWorker(false).setInstances(numInstances);
 
     final Promise<Void> sharedDataPromise = Promise.promise();
     final Future<Void> sharedDataFuture = sharedDataPromise.future();
@@ -256,8 +247,7 @@ public class Service extends Core {
     });
 
     //Shared data initialization
-    vertx.sharedData()
-        .getAsyncMap(SHARED_DATA, asyncMapResult -> asyncMapResult.result().put(SHARED_DATA, sharedData, sharedDataPromise));
+    vertx.sharedData().getAsyncMap(SHARED_DATA, asyncMapResult -> asyncMapResult.result().put(SHARED_DATA, sharedData, sharedDataPromise));
 
     Thread.setDefaultUncaughtExceptionHandler((thread, t) -> logger.error("Uncaught exception: ", t));
 
@@ -325,13 +315,14 @@ public class Service extends Core {
   }
 
   public static int getPublicPort() {
-    if (configuration.XYZ_HUB_PUBLIC_ENDPOINT == null) return configuration.HTTP_PORT;
+    if (configuration.XYZ_HUB_PUBLIC_ENDPOINT == null) {
+      return configuration.HTTP_PORT;
+    }
     try {
       URI endpoint = new URI(configuration.XYZ_HUB_PUBLIC_ENDPOINT);
       int port = endpoint.getPort();
       return port > 0 ? port : 80;
-    }
-    catch (URISyntaxException e) {
+    } catch (URISyntaxException e) {
       return configuration.HTTP_PORT;
     }
   }
@@ -340,8 +331,12 @@ public class Service extends Core {
    * @return The "environment ID" of this service deployment.
    */
   public static String getEnvironmentIdentifier() {
-    if (configuration.ENVIRONMENT_NAME == null) return "default";
-    if (configuration.AWS_REGION != null) return configuration.ENVIRONMENT_NAME + "_" + configuration.AWS_REGION;
+    if (configuration.ENVIRONMENT_NAME == null) {
+      return "default";
+    }
+    if (configuration.AWS_REGION != null) {
+      return configuration.ENVIRONMENT_NAME + "_" + configuration.AWS_REGION;
+    }
     return configuration.ENVIRONMENT_NAME;
   }
 
@@ -415,6 +410,7 @@ public class Service extends Core {
 
     /**
      * Adds backward-compatibility for the deprecated environment variables XYZ_HUB_REDIS_HOST & XYZ_HUB_REDIS_PORT.
+     *
      * @return
      */
     //TODO: Remove this workaround after the deprecation period
@@ -424,9 +420,9 @@ public class Service extends Core {
         String protocol = XYZ_HUB_REDIS_AUTH_TOKEN != null ? "rediss" : "redis";
         int port = XYZ_HUB_REDIS_PORT != 0 ? XYZ_HUB_REDIS_PORT : 6379;
         return protocol + "://" + XYZ_HUB_REDIS_HOST + ":" + port;
-      }
-      else
+      } else {
         return XYZ_HUB_REDIS_URI;
+      }
     }
 
     /**
@@ -436,8 +432,9 @@ public class Service extends Core {
     private List<String> hubRemoteServiceUrls;
 
     public List<String> getHubRemoteServiceUrls() {
-      if (hubRemoteServiceUrls == null)
+      if (hubRemoteServiceUrls == null) {
         hubRemoteServiceUrls = XYZ_HUB_REMOTE_SERVICE_URLS == null ? null : Arrays.asList(XYZ_HUB_REMOTE_SERVICE_URLS.split(";"));
+      }
       return hubRemoteServiceUrls;
     }
 
@@ -453,6 +450,7 @@ public class Service extends Core {
 
     /**
      * Adds backward-compatibility for public keys without header & footer.
+     *
      * @return
      */
     //TODO: Remove this workaround after the deprecation period
@@ -460,10 +458,12 @@ public class Service extends Core {
     public String getJwtPubKey() {
       String jwtPubKey = JWT_PUB_KEY;
       if (jwtPubKey != null) {
-        if (!jwtPubKey.startsWith("-----"))
+        if (!jwtPubKey.startsWith("-----")) {
           jwtPubKey = "-----BEGIN PUBLIC KEY-----\n" + jwtPubKey;
-        if (!jwtPubKey.endsWith("-----"))
+        }
+        if (!jwtPubKey.endsWith("-----")) {
           jwtPubKey = jwtPubKey + "\n-----END PUBLIC KEY-----";
+        }
       }
       return jwtPubKey;
     }
@@ -474,8 +474,8 @@ public class Service extends Core {
     public boolean INSERT_LOCAL_CONNECTORS;
 
     /**
-     * If set to true, the connectors will receive health checks. Further an unhealthy connector gets deactivated
-     * automatically if the connector config does not include skipAutoDisable.
+     * If set to true, the connectors will receive health checks. Further an unhealthy connector gets deactivated automatically if the
+     * connector config does not include skipAutoDisable.
      */
     public boolean ENABLE_CONNECTOR_HEALTH_CHECKS;
 
@@ -550,14 +550,14 @@ public class Service extends Core {
     public int REMOTE_FUNCTION_REQUEST_TIMEOUT; //seconds
 
     /**
-     * OPTIONAL: The maximum timeout for remote function requests in seconds.
-     * If not specified, the value of {@link #REMOTE_FUNCTION_REQUEST_TIMEOUT} will be used.
+     * OPTIONAL: The maximum timeout for remote function requests in seconds. If not specified, the value of
+     * {@link #REMOTE_FUNCTION_REQUEST_TIMEOUT} will be used.
      */
     public int REMOTE_FUNCTION_MAX_REQUEST_TIMEOUT; //seconds
 
     /**
-     * @return the value of {@link #REMOTE_FUNCTION_MAX_REQUEST_TIMEOUT} if specified.
-     *  The value of {@link #REMOTE_FUNCTION_REQUEST_TIMEOUT} otherwise.
+     * @return the value of {@link #REMOTE_FUNCTION_MAX_REQUEST_TIMEOUT} if specified. The value of {@link #REMOTE_FUNCTION_REQUEST_TIMEOUT}
+     * otherwise.
      */
     @JsonIgnore
     public int getRemoteFunctionMaxRequestTimeout() {
@@ -660,29 +660,30 @@ public class Service extends Core {
     public String MSE_NOTIFICATION_TOPIC;
 
     /**
-     * The maximum size of an event transiting between connector -> service -> client.
-     * Validation is only applied when MAX_SERVICE_RESPONSE_SIZE is bigger than zero.
+     * The maximum size of an event transiting between connector -> service -> client. Validation is only applied when
+     * MAX_SERVICE_RESPONSE_SIZE is bigger than zero.
+     *
      * @deprecated Use instead MAX_UNCOMPRESSED_RESPONSE_SIZE
      */
     public int MAX_SERVICE_RESPONSE_SIZE;
 
     /**
-     * The maximum uncompressed request size in bytes supported on API calls.
-     * If uncompressed request size is bigger than MAX_UNCOMPRESSED_REQUEST_SIZE, an error with status code 413 will be sent.
+     * The maximum uncompressed request size in bytes supported on API calls. If uncompressed request size is bigger than
+     * MAX_UNCOMPRESSED_REQUEST_SIZE, an error with status code 413 will be sent.
      */
     public long MAX_UNCOMPRESSED_REQUEST_SIZE;
 
     /**
-     * The maximum uncompressed response size in bytes supported on API calls.
-     * If uncompressed response size is bigger than MAX_UNCOMPRESSED_RESPONSE_SIZE, an error with status code 513 will be sent.
+     * The maximum uncompressed response size in bytes supported on API calls. If uncompressed response size is bigger than
+     * MAX_UNCOMPRESSED_RESPONSE_SIZE, an error with status code 513 will be sent.
      */
     public long MAX_UNCOMPRESSED_RESPONSE_SIZE;
 
 
     /**
-     * The maximum http response size in bytes supported on API calls.
-     * If response size is bigger than MAX_HTTP_RESPONSE_SIZE, an error with status code 513 will be sent.
-     * Validation is only applied when MAX_HTTP_RESPONSE_SIZE is bigger than zero.
+     * The maximum http response size in bytes supported on API calls. If response size is bigger than MAX_HTTP_RESPONSE_SIZE, an error with
+     * status code 513 will be sent. Validation is only applied when MAX_HTTP_RESPONSE_SIZE is bigger than zero.
+     *
      * @deprecated Use instead MAX_UNCOMPRESSED_RESPONSE_SIZE
      */
     public int MAX_HTTP_RESPONSE_SIZE;
@@ -698,8 +699,8 @@ public class Service extends Core {
     public boolean HTTP_CLIENT_TCP_KEEPALIVE = true;
 
     /**
-     * The idle connection timeout in seconds for the HTTP client of the service.
-     * Setting it to 0 will make the connections not timing out at all.
+     * The idle connection timeout in seconds for the HTTP client of the service. Setting it to 0 will make the connections not timing out
+     * at all.
      */
     public int HTTP_CLIENT_IDLE_TIMEOUT = 120;
 
@@ -721,7 +722,7 @@ public class Service extends Core {
 
     public boolean containsFeatureNamespaceOptionalField(String field) {
       if (FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP == null) {
-        FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP = new HashMap<String,Object>() {{
+        FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP = new HashMap<String, Object>() {{
           FEATURE_NAMESPACE_OPTIONAL_FIELDS.forEach(k -> put(k, null));
         }};
       }
@@ -739,7 +740,7 @@ public class Service extends Core {
    * That message can be used to change the log-level of one or more service-nodes. The specified level must be a valid log-level. As this
    * is a {@link RelayedMessage} it can be sent to a specific service-node or to all service-nodes regardless of the first service node by
    * which it was received.
-   *
+   * <p>
    * Specifying the property {@link RelayedMessage#relay} to true will relay the message to the specified destination. If no destination is
    * specified the message will be relayed to all service-nodes (broadcast).
    */
