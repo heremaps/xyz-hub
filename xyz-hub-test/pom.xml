@@ -24,7 +24,6 @@
   <parent>
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
-    <relativePath>../</relativePath>
     <version>1.24.1-SNAPSHOT</version>
   </parent>
 
@@ -46,16 +45,124 @@
     <skipTests>true</skipTests>
   </properties>
 
+  <profiles>
+    <profile>
+      <id>jdk8</id>
+      <activation>
+        <jdk>(,1.9)</jdk>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <artifactId>maven-compiler-plugin</artifactId>
+            <configuration>
+              <useIncrementalCompilation>false</useIncrementalCompilation>
+            </configuration>
+          </plugin>
+          <plugin>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <groupId>org.apache.maven.plugins</groupId>
+            <configuration>
+              <includes>
+                <include>**/*.class</include>
+              </includes>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
+      <id>jdk9plus</id>
+      <activation>
+        <jdk>[1.9,)</jdk>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <artifactId>maven-compiler-plugin</artifactId>
+            <configuration>
+              <useIncrementalCompilation>false</useIncrementalCompilation>
+              <!-- This will be needed, when the target is JDK9
+              <compilerArgs>
+                <arg>- -add-exports java.base/java.lang=ALL-UNNAMED</arg>
+                <arg>- -add-exports java.base/java.util=ALL-UNNAMED</arg>
+                <arg>- -add-exports java.base/java.util.regex=ALL-UNNAMED</arg>
+                <arg>- -add-exports java.base/java.io=ALL-UNNAMED</arg>
+                <arg>- -add-exports java.base/java.nio.charset=ALL-UNNAMED</arg>
+                <arg>- -add-exports java.base/java.math=ALL-UNNAMED</arg>
+                <arg>- -add-exports java.base/java.net=ALL-UNNAMED</arg>
+                <arg>- -add-exports java.base/sun.net.spi=ALL-UNNAMED</arg>
+                <arg>- -add-exports java.base/sun.nio.cs=ALL-UNNAMED</arg>
+                <arg>- -add-exports java.base/jdk.internal.misc=ALL-UNNAMED</arg>
+              </compilerArgs>
+              -->
+            </configuration>
+          </plugin>
+          <plugin>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <groupId>org.apache.maven.plugins</groupId>
+            <configuration>
+              <includes>
+                <include>**/*.class</include>
+              </includes>
+              <argLine>
+                --add-opens java.base/java.lang=ALL-UNNAMED
+                --add-opens java.base/java.util=ALL-UNNAMED
+                --add-opens java.base/java.util.regex=ALL-UNNAMED
+                --add-opens java.base/java.io=ALL-UNNAMED
+                --add-opens java.base/java.nio.charset=ALL-UNNAMED
+                --add-opens java.base/java.math=ALL-UNNAMED
+                --add-opens java.base/java.net=ALL-UNNAMED
+                --add-opens java.base/sun.net.spi=ALL-UNNAMED
+                --add-opens java.base/sun.nio.cs=ALL-UNNAMED
+                --add-opens java.base/jdk.internal.misc=ALL-UNNAMED
+              </argLine>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+      <dependencies>
+        <!-- JDK 11+ do no longer have the deprecated JAX-API -->
+        <dependency>
+          <artifactId>jaxb-api</artifactId>
+          <groupId>javax.xml.bind</groupId>
+          <version>2.3.1</version>
+          <scope>test</scope>
+        </dependency>
+        <dependency>
+          <groupId>com.sun.xml.bind</groupId>
+          <artifactId>jaxb-impl</artifactId>
+          <version>3.0.2</version>
+          <scope>test</scope>
+        </dependency>
+      </dependencies>
+    </profile>
+  </profiles>
+
   <build>
     <plugins>
+      <!-- The Help Plugin has 7 goals:
+        help:active-profiles lists the profiles which are currently active for the build.
+        help:all-profiles lists the available profiles under the current project.
+        help:describe describes the attributes of a Plugin and/or a Mojo (Maven plain Old Java Object).
+        help:effective-pom displays the effective POM as an XML for the current build, with the active profiles factored in. If verbose, a comment is added to each XML element describing the origin of the line.
+        help:effective-settings displays the calculated settings as an XML for the project, given any profile enhancement and the inheritance of the global settings into the user-level settings.
+        help:evaluate evaluates Maven expressions given by the user in an interactive mode.
+        help:system displays a list of the platform details like system properties and environment variables.
+      -->
       <plugin>
-        <artifactId>maven-surefire-plugin</artifactId>
         <groupId>org.apache.maven.plugins</groupId>
-        <configuration>
-          <includes>
-            <include>**/*.class</include>
-          </includes>
-        </configuration>
+        <artifactId>maven-help-plugin</artifactId>
+        <version>3.2.0</version>
+        <executions>
+          <execution>
+            <id>show-profiles</id>
+            <phase>compile</phase>
+            <goals>
+              <goal>active-profiles</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
       <plugin>
         <artifactId>maven-failsafe-plugin</artifactId>
