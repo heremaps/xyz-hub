@@ -38,250 +38,251 @@ import static org.hamcrest.Matchers.*;
 import static org.hamcrest.Matchers.equalTo;
 
 public class HCMaintenanceTestIT {
-    private static String ecps;
-    private static String host;
-    private static String defaultConnector;
-    private static MaintenanceClient mc;
-    private static HashMap<String, String> authHeaders;
 
-    private static final String testSpace = "x-psql-test";
+  private static String ecps;
+  private static String host;
+  private static String defaultConnector;
+  private static MaintenanceClient mc;
+  private static HashMap<String, String> authHeaders;
 
-    @BeforeClass
-    public static void setupClass() throws Exception {
-        authHeaders = new HashMap<>();
-        authHeaders.put("Authorization", "Bearer " + TestAuthenticator.AuthProfile.ACCESS_ALL.jwt_string);
+  private static final String testSpace = "x-psql-test";
 
-        defaultConnector = "psql";
-        retrieveConfig();
-        mc = initMaintenanceClient();
-        deleteTestResources();
+  @BeforeClass
+  public static void setupClass() throws Exception {
+    authHeaders = new HashMap<>();
+    authHeaders.put("Authorization", "Bearer " + TestAuthenticator.AuthProfile.ACCESS_ALL.jwt_string);
 
-        given()
-                .contentType(APPLICATION_JSON)
-                .accept(APPLICATION_JSON)
-                .when()
-                .post(host+"/initialization?connectorId="+defaultConnector+"&ecps="+ecps)
-                .then()
-                .statusCode(OK.code());
-    }
+    defaultConnector = "psql";
+    retrieveConfig();
+    mc = initMaintenanceClient();
+    deleteTestResources();
 
-    @AfterClass
-    public static void tearDown() throws Exception {
-        deleteTestResources();
-    }
+    given()
+        .contentType(APPLICATION_JSON)
+        .accept(APPLICATION_JSON)
+        .when()
+        .post(host + "/initialization?connectorId=" + defaultConnector + "&ecps=" + ecps)
+        .then()
+        .statusCode(OK.code());
+  }
 
-    public static MaintenanceClient initMaintenanceClient() throws Exception {
-        PsqlHttpVerticle.DB_INITIAL_POOL_SIZE = 1;
-        PsqlHttpVerticle.DB_MIN_POOL_SIZE = 1;
-        PsqlHttpVerticle.DB_MAX_POOL_SIZE = 1;
+  @AfterClass
+  public static void tearDown() throws Exception {
+    deleteTestResources();
+  }
 
-        PsqlHttpVerticle.DB_ACQUIRE_RETRY_ATTEMPTS = 1;
-        PsqlHttpVerticle.DB_ACQUIRE_INCREMENT = 1;
+  public static MaintenanceClient initMaintenanceClient() throws Exception {
+    PsqlHttpVerticle.DB_INITIAL_POOL_SIZE = 1;
+    PsqlHttpVerticle.DB_MIN_POOL_SIZE = 1;
+    PsqlHttpVerticle.DB_MAX_POOL_SIZE = 1;
 
-        PsqlHttpVerticle.DB_CHECKOUT_TIMEOUT = 10;
-        PsqlHttpVerticle.DB_TEST_CONNECTION_ON_CHECKOUT = true;
+    PsqlHttpVerticle.DB_ACQUIRE_RETRY_ATTEMPTS = 1;
+    PsqlHttpVerticle.DB_ACQUIRE_INCREMENT = 1;
 
-        return new MaintenanceClient();
-    }
+    PsqlHttpVerticle.DB_CHECKOUT_TIMEOUT = 10;
+    PsqlHttpVerticle.DB_TEST_CONNECTION_ON_CHECKOUT = true;
 
-    public static void deleteTestResources() throws Exception {
-        String psqlHost = System.getenv().containsKey("PSQL_HOST") ? System.getenv("PSQL_HOST") : "localhost";
-        String localhostECPS = PSQLConfig.encryptECPS("{\"PSQL_HOST\":\""+psqlHost+"\"}", "local");
-        MaintenanceClient.MaintenanceInstance dbInstance = mc.getClient(defaultConnector, localhostECPS, "local");
-        SQLQuery query = new SQLQuery("DELETE from xyz_config.db_status where connector_id='TestConnector'");
+    return new MaintenanceClient();
+  }
 
-        //delete connector entry
-        mc.executeQueryWithoutResults(query, dbInstance.getSource());
+  public static void deleteTestResources() throws Exception {
+    String psqlHost = System.getenv().containsKey("PSQL_HOST") ? System.getenv("PSQL_HOST") : "localhost";
+    String localhostECPS = PSQLConfig.encryptECPS("{\"PSQL_HOST\":\"" + psqlHost + "\"}", "local");
+    MaintenanceClient.MaintenanceInstance dbInstance = mc.getClient(defaultConnector, localhostECPS, "local");
+    SQLQuery query = new SQLQuery("DELETE from xyz_config.db_status where connector_id='TestConnector'");
 
-        //delete space
-        given()
-                .contentType(APPLICATION_JSON)
-                .headers(authHeaders)
-                .accept(APPLICATION_JSON)
-                .when()
-                .delete(RestAssuredConfig.config().fullHubUri+"/spaces/"+testSpace);
-    }
+    //delete connector entry
+    mc.executeQueryWithoutResults(query, dbInstance.getSource());
 
-    public static void retrieveConfig() {
-        final String response = given()
-                .contentType(APPLICATION_JSON)
-                .accept(APPLICATION_JSON)
-                .headers(authHeaders)
-                .when()
-                .get(RestAssuredConfig.config().fullHubUri+"/connectors/psql-http")
-                .getBody().asString();
+    //delete space
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(authHeaders)
+        .accept(APPLICATION_JSON)
+        .when()
+        .delete(RestAssuredConfig.config().fullHubUri + "/spaces/" + testSpace);
+  }
 
-        JsonObject connector = new JsonObject(response);
-        JsonObject params = connector.getJsonObject("params");
+  public static void retrieveConfig() {
+    final String response = given()
+        .contentType(APPLICATION_JSON)
+        .accept(APPLICATION_JSON)
+        .headers(authHeaders)
+        .when()
+        .get(RestAssuredConfig.config().fullHubUri + "/connectors/psql-http")
+        .getBody().asString();
 
-        ecps = params.getString("ecps");
-        host = RestAssuredConfig.config().fullHttpConnectorUri;
-    }
+    JsonObject connector = new JsonObject(response);
+    JsonObject params = connector.getJsonObject("params");
 
-    @Test
-    public void testHealthCheck() {
-        given()
-                .contentType(APPLICATION_JSON)
-                .accept(APPLICATION_JSON)
-                .when()
-                .get(host+"/health")
-                .then()
-                .statusCode(OK.code())
-                .body("status.result", equalTo("OK"))
-                .body("status.timestamp", notNullValue())
-                .body("reporter.name", equalTo("HERE HTTP-Connector"))
-                .body("reporter.version", notNullValue())
-                .body("reporter.upSince", notNullValue())
-                .body("reporter.buildDate", notNullValue());
-    }
+    ecps = params.getString("ecps");
+    host = RestAssuredConfig.config().fullHttpConnectorUri;
+  }
 
-    @Test
-    public void testPSQLStatusWithExistingConnector() throws JsonProcessingException {
-        given()
-                .contentType(APPLICATION_JSON)
-                .accept(APPLICATION_JSON)
-                .when()
-                .get(host+"/status?connectorId="+defaultConnector+"&ecps="+ecps)
-                .then()
-                .statusCode(OK.code())
-                .body("initialized", equalTo(true))
-                .body("extensions.size", greaterThan(1))
-                .body("extensions", hasItem("postgis"))
-                .body("scriptVersions.h3", greaterThan(1))
-                .body("scriptVersions.ext", greaterThan(1));
-    }
+  @Test
+  public void testHealthCheck() {
+    given()
+        .contentType(APPLICATION_JSON)
+        .accept(APPLICATION_JSON)
+        .when()
+        .get(host + "/health")
+        .then()
+        .statusCode(OK.code())
+        .body("status.result", equalTo("OK"))
+        .body("status.timestamp", notNullValue())
+        .body("reporter.name", equalTo("HERE HTTP-Connector"))
+        .body("reporter.version", notNullValue())
+        .body("reporter.upSince", notNullValue())
+        .body("reporter.buildDate", notNullValue());
+  }
 
-    @Test
-    public void testPSQLStatusWithWrongECPSConnector() throws JsonProcessingException {
-        given()
-                .contentType(APPLICATION_JSON)
-                .accept(APPLICATION_JSON)
-                .when()
-                .get(host+"/status?connectorId="+defaultConnector+"p&ecps=NA")
-                .then()
-                .statusCode(BAD_REQUEST.code())
-                .body("errorMessage", notNullValue());
-    }
+  @Test
+  public void testPSQLStatusWithExistingConnector() throws JsonProcessingException {
+    given()
+        .contentType(APPLICATION_JSON)
+        .accept(APPLICATION_JSON)
+        .when()
+        .get(host + "/status?connectorId=" + defaultConnector + "&ecps=" + ecps)
+        .then()
+        .statusCode(OK.code())
+        .body("initialized", equalTo(true))
+        .body("extensions.size", greaterThan(1))
+        .body("extensions", hasItem("postgis"))
+        .body("scriptVersions.h3", greaterThan(1))
+        .body("scriptVersions.ext", greaterThan(1));
+  }
 
-    @Test
-    public void testPSQLStatusWithNotExistingConnector() throws JsonProcessingException {
-        given()
-                .contentType(APPLICATION_JSON)
-                .accept(APPLICATION_JSON)
-                .when()
-                .get(host+"/status?connectorId=NA&ecps="+ecps)
-                .then()
-                .statusCode(NOT_FOUND.code())
-                .body("errorMessage", notNullValue());
-    }
+  @Test
+  public void testPSQLStatusWithWrongECPSConnector() throws JsonProcessingException {
+    given()
+        .contentType(APPLICATION_JSON)
+        .accept(APPLICATION_JSON)
+        .when()
+        .get(host + "/status?connectorId=" + defaultConnector + "p&ecps=NA")
+        .then()
+        .statusCode(BAD_REQUEST.code())
+        .body("errorMessage", notNullValue());
+  }
 
-    @Test
-    public void maintainExistingConnector() throws JsonProcessingException {
-        long curTime = System.currentTimeMillis();
+  @Test
+  public void testPSQLStatusWithNotExistingConnector() throws JsonProcessingException {
+    given()
+        .contentType(APPLICATION_JSON)
+        .accept(APPLICATION_JSON)
+        .when()
+        .get(host + "/status?connectorId=NA&ecps=" + ecps)
+        .then()
+        .statusCode(NOT_FOUND.code())
+        .body("errorMessage", notNullValue());
+  }
 
-        given()
-                .contentType(APPLICATION_JSON)
-                .accept(APPLICATION_JSON)
-                .when()
-                .post(host+"/maintain/indices?connectorId="+defaultConnector+"&ecps="+ecps+"&autoIndexing=true")
-                .then()
-                .statusCode(OK.code());
+  @Test
+  public void maintainExistingConnector() throws JsonProcessingException {
+    long curTime = System.currentTimeMillis();
 
-        given()
-                .contentType(APPLICATION_JSON)
-                .accept(APPLICATION_JSON)
-                .when()
-                .get(host+"/status?connectorId="+defaultConnector+"&ecps="+ecps)
-                .then()
-                .statusCode(OK.code())
-                .body("maintenanceStatus.AUTO_INDEXING.maintainedAt", greaterThan(curTime))
-                .body("maintenanceStatus.AUTO_INDEXING.maintenanceRunning.size", equalTo(0));
-    }
+    given()
+        .contentType(APPLICATION_JSON)
+        .accept(APPLICATION_JSON)
+        .when()
+        .post(host + "/maintain/indices?connectorId=" + defaultConnector + "&ecps=" + ecps + "&autoIndexing=true")
+        .then()
+        .statusCode(OK.code());
 
-    @Test
-    public void maintainNotExistingConnector() throws JsonProcessingException {
-        given()
-                .contentType(APPLICATION_JSON)
-                .accept(APPLICATION_JSON)
-                .when()
-                .post(host+"/maintain/indices?connectorId=NA&ecps="+ecps+"&autoIndexing=true")
-                .then()
-                .statusCode(METHOD_NOT_ALLOWED.code())
-                .body("errorMessage", equalTo("Database not initialized!"));
-    }
+    given()
+        .contentType(APPLICATION_JSON)
+        .accept(APPLICATION_JSON)
+        .when()
+        .get(host + "/status?connectorId=" + defaultConnector + "&ecps=" + ecps)
+        .then()
+        .statusCode(OK.code())
+        .body("maintenanceStatus.AUTO_INDEXING.maintainedAt", greaterThan(curTime))
+        .body("maintenanceStatus.AUTO_INDEXING.maintenanceRunning.size", equalTo(0));
+  }
 
-    @Test
-    public void initializeNewConnector() {
+  @Test
+  public void maintainNotExistingConnector() throws JsonProcessingException {
+    given()
+        .contentType(APPLICATION_JSON)
+        .accept(APPLICATION_JSON)
+        .when()
+        .post(host + "/maintain/indices?connectorId=NA&ecps=" + ecps + "&autoIndexing=true")
+        .then()
+        .statusCode(METHOD_NOT_ALLOWED.code())
+        .body("errorMessage", equalTo("Database not initialized!"));
+  }
 
-        given()
-                .contentType(APPLICATION_JSON)
-                .accept(APPLICATION_JSON)
-                .when()
-                .post(host+"/initialization?connectorId=TestConnector&ecps="+ecps)
-                .then()
-                .statusCode(OK.code());
+  @Test
+  public void initializeNewConnector() {
 
-        given()
-                .contentType(APPLICATION_JSON)
-                .accept(APPLICATION_JSON)
-                .when()
-                .get(host+"/status?connectorId=TestConnector&ecps="+ecps)
-                .then()
-                .statusCode(OK.code())
-                .body("initialized", equalTo(true))
-                .body("extensions.size", greaterThan(1))
-                .body("extensions", hasItem("postgis"))
-                .body("scriptVersions.h3", greaterThan(1))
-                .body("scriptVersions.ext", greaterThan(1));
-    }
+    given()
+        .contentType(APPLICATION_JSON)
+        .accept(APPLICATION_JSON)
+        .when()
+        .post(host + "/initialization?connectorId=TestConnector&ecps=" + ecps)
+        .then()
+        .statusCode(OK.code());
 
-    @Test
-    public void maintainSpace() {
+    given()
+        .contentType(APPLICATION_JSON)
+        .accept(APPLICATION_JSON)
+        .when()
+        .get(host + "/status?connectorId=TestConnector&ecps=" + ecps)
+        .then()
+        .statusCode(OK.code())
+        .body("initialized", equalTo(true))
+        .body("extensions.size", greaterThan(1))
+        .body("extensions", hasItem("postgis"))
+        .body("scriptVersions.h3", greaterThan(1))
+        .body("scriptVersions.ext", greaterThan(1));
+  }
 
-        given()
-                .contentType(APPLICATION_JSON)
-                .accept(APPLICATION_JSON)
-                .when()
-                .get(host+"/maintain/space/"+testSpace+"?connectorId="+defaultConnector+"&ecps="+ecps)
-                .then()
-                .statusCode(NOT_FOUND.code());
+  @Test
+  public void maintainSpace() {
 
-       given()
-                .contentType(APPLICATION_JSON)
-                .accept(APPLICATION_JSON)
-                .headers(authHeaders)
-                .when()
-                .body("{\"id\": \""+testSpace+"\",\"title\": \"test\",\"enableHistory\" : true,\"searchableProperties\" : {\"foo\" :true}}")
-                .post(RestAssuredConfig.config().fullHubUri +"/spaces")
-                .then()
-                .statusCode(OK.code());
+    given()
+        .contentType(APPLICATION_JSON)
+        .accept(APPLICATION_JSON)
+        .when()
+        .get(host + "/maintain/space/" + testSpace + "?connectorId=" + defaultConnector + "&ecps=" + ecps)
+        .then()
+        .statusCode(NOT_FOUND.code());
 
-        given()
-                .contentType(APPLICATION_JSON)
-                .accept(APPLICATION_JSON)
-                .when()
-                .post(host+"/maintain/space/"+testSpace+"?connectorId="+defaultConnector+"&ecps="+ecps)
-                .then()
-                .statusCode(CONFLICT.code());
+    given()
+        .contentType(APPLICATION_JSON)
+        .accept(APPLICATION_JSON)
+        .headers(authHeaders)
+        .when()
+        .body("{\"id\": \"" + testSpace + "\",\"title\": \"test\",\"enableHistory\" : true,\"searchableProperties\" : {\"foo\" :true}}")
+        .post(RestAssuredConfig.config().fullHubUri + "/spaces")
+        .then()
+        .statusCode(OK.code());
 
-        given()
-                .contentType(APPLICATION_JSON)
-                .accept(APPLICATION_JSON)
-                .when()
-                .post(host+"/maintain/space/"+testSpace+"?connectorId="+defaultConnector+"&ecps="+ecps+"&force=true")
-                .then()
-                .statusCode(OK.code());
+    given()
+        .contentType(APPLICATION_JSON)
+        .accept(APPLICATION_JSON)
+        .when()
+        .post(host + "/maintain/space/" + testSpace + "?connectorId=" + defaultConnector + "&ecps=" + ecps)
+        .then()
+        .statusCode(CONFLICT.code());
 
-        given()
-                .contentType(APPLICATION_JSON)
-                .accept(APPLICATION_JSON)
-                .when()
-                .get(host+"/maintain/space/"+testSpace+"?connectorId="+defaultConnector+"&ecps="+ecps)
-                .then()
-                .statusCode(OK.code())
-                .body("idxCreationFinished", equalTo(true))
-                .body("idxAvailable.size", equalTo(8))
-                .body("idxManual.searchableProperties.foo", equalTo(true))
-                .body("idxManual.sortableProperties", nullValue());
-    }
+    given()
+        .contentType(APPLICATION_JSON)
+        .accept(APPLICATION_JSON)
+        .when()
+        .post(host + "/maintain/space/" + testSpace + "?connectorId=" + defaultConnector + "&ecps=" + ecps + "&force=true")
+        .then()
+        .statusCode(OK.code());
+
+    given()
+        .contentType(APPLICATION_JSON)
+        .accept(APPLICATION_JSON)
+        .when()
+        .get(host + "/maintain/space/" + testSpace + "?connectorId=" + defaultConnector + "&ecps=" + ecps)
+        .then()
+        .statusCode(OK.code())
+        .body("idxCreationFinished", equalTo(true))
+        .body("idxAvailable.size", equalTo(8))
+        .body("idxManual.searchableProperties.foo", equalTo(true))
+        .body("idxManual.sortableProperties", nullValue());
+  }
 }
