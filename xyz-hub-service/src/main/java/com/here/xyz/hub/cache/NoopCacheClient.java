@@ -21,7 +21,7 @@ package com.here.xyz.hub.cache;
 
 import io.vertx.core.Future;
 
-public class NoopCacheClient implements CacheClient {
+class NoopCacheClient implements CacheClient {
 
 	@Override
 	public Future<byte[]> get(String key) {

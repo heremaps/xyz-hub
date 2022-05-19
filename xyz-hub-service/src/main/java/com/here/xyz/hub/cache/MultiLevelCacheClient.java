@@ -23,11 +23,11 @@ import io.vertx.core.Future;
 import java.util.Arrays;
 import java.util.List;
 
-public class MultiLevelCacheClient implements CacheClient {
+class MultiLevelCacheClient implements CacheClient {
 
   final List<CacheClient> clients;
 
-  public MultiLevelCacheClient(CacheClient... clients) {
+  MultiLevelCacheClient(CacheClient... clients) {
     this.clients = Arrays.asList(clients);
   }
 
@@ -66,6 +66,6 @@ public class MultiLevelCacheClient implements CacheClient {
 
   @Override
   public void shutdown() {
-    clients.forEach(c -> c.shutdown());
+    clients.forEach(CacheClient::shutdown);
   }
 }

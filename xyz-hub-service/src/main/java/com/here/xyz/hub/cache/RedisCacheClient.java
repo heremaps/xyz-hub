@@ -29,10 +29,12 @@ import io.vertx.redis.client.Request;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class RedisCacheClient implements CacheClient {
+class RedisCacheClient implements CacheClient {
 
   private static CacheClient instance;
   private static final Logger logger = LogManager.getLogger();
@@ -53,6 +55,7 @@ public class RedisCacheClient implements CacheClient {
     redis = ThreadLocal.withInitial(() -> Redis.createClient(Service.vertx, config));
   }
 
+  @Nonnull
   public static synchronized CacheClient getInstance() {
     if (instance != null)
       return instance;
@@ -117,11 +120,18 @@ public class RedisCacheClient implements CacheClient {
    * Acquires the lock on the specified key and sets a ttl in seconds.
    * Implementation based on https://redis.io/topics/distlock for single Redis instances
    * @param key the key which the lock will be acquired
-   * @param ttl the expiration time in seconds for this lock be automatically released
+   * @param ttl the expiration time
+   * @param ttlUnit the time-unit in which the ttl was provided.
    * @return true in case the lock was successfully acquired. False otherwise.
    */
-  public boolean acquireLock(String key, long ttl) {
-    Request req = Request.cmd(Command.SET).arg(key).arg(RND).arg("NX").arg("EX").arg(ttl);
+  @Override
+  public boolean acquireLock(@Nonnull String key, long ttl, @Nonnull TimeUnit ttlUnit) {
+    Request req = Request.cmd(Command.SET)
+        .arg(key)
+        .arg(RND)
+        .arg("NX")
+        .arg("EX")
+        .arg(ttlUnit.toSeconds(ttl));
     CompletableFuture<Boolean> f = new CompletableFuture<>();
     getClient().send(req).onComplete(ar -> {
       if (ar.failed()) {
@@ -145,7 +155,8 @@ public class RedisCacheClient implements CacheClient {
    * Releases the lock acquired by acquireLock. The key must match with the lock acquired previously.
    * @param key the key which the lock was acquired
    */
-  public void releaseLock(String key) {
+  @Override
+  public void releaseLock(@Nonnull String key) {
     final String luaScript = "if redis.call(\"get\",KEYS[1]) == ARGV[1] then return redis.call(\"del\",KEYS[1]) else return 0 end";
     Request req = Request.cmd(Command.EVAL).arg(luaScript).arg(1).arg(key).arg(RND);
     getClient().send(req).onComplete(ar -> {

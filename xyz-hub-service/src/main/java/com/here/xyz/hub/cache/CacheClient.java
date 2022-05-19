@@ -20,6 +20,8 @@
 package com.here.xyz.hub.cache;
 
 import io.vertx.core.Future;
+import java.util.concurrent.TimeUnit;
+import javax.annotation.Nonnull;
 
 public interface CacheClient {
 
@@ -35,9 +37,30 @@ public interface CacheClient {
 
 	void remove(String key);
 
+	@Nonnull
 	static CacheClient getInstance() {
 		return new MultiLevelCacheClient(OHCacheClient.getInstance(), RedisCacheClient.getInstance());
 	}
+
+	/**
+	 * Acquire a distributed lock for the given, which should automatically be released after the
+	 * given TTL.
+	 *
+	 * @param key the key
+	 * @param ttl the time-to-live.
+	 * @param ttlUnit the unit in which the TTL was provided.
+	 * @return true if the lock was acquired; false otherwise.
+	 */
+	default boolean acquireLock(@Nonnull String key, long ttl, @Nonnull TimeUnit ttlUnit) {
+		return false;
+	}
+
+	/**
+	 * Releases the lock acquired by {@link #acquireLock(String, long, TimeUnit)}. The key must match
+	 * with the lock acquired previously.
+	 * @param key the key which the lock was acquired
+	 */
+	default void releaseLock(@Nonnull String key) {}
 
 	void shutdown();
 

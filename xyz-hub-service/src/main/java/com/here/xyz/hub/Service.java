@@ -19,6 +19,8 @@
 
 package com.here.xyz.hub;
 
+import static com.here.xyz.util.JsonConfigFile.nullable;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.here.xyz.hub.auth.Authorization;
@@ -30,6 +32,8 @@ import com.here.xyz.hub.connectors.WarmupRemoteFunctionThread;
 import com.here.xyz.hub.rest.admin.MessageBroker;
 import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
+import com.here.xyz.hub.rest.admin.messages.brokers.Broker;
+import com.here.xyz.hub.rest.admin.messages.brokers.NoopBroker;
 import com.here.xyz.hub.util.ARN;
 import com.here.xyz.hub.util.metrics.GcDurationMetric;
 import com.here.xyz.hub.util.metrics.GlobalInflightRequestMemory;
@@ -40,6 +44,7 @@ import com.here.xyz.hub.util.metrics.base.CWBareValueMetricPublisher;
 import com.here.xyz.hub.util.metrics.base.MetricPublisher;
 import com.here.xyz.hub.util.metrics.net.ConnectionMetrics;
 import com.here.xyz.hub.util.metrics.net.ConnectionMetrics.HubMetricsFactory;
+import com.here.xyz.util.JsonConfigFile;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.DeploymentOptions;
@@ -57,6 +62,7 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -67,6 +73,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -76,7 +84,6 @@ import org.apache.logging.log4j.core.config.Configurator;
 public class Service extends Core {
 
   private static final Logger logger = LogManager.getLogger();
-
 
   public static final String XYZ_HUB_USER_AGENT = "XYZ-Hub/" + BUILD_VERSION;
 
@@ -141,7 +148,7 @@ public class Service extends Core {
    * The service entry point.
    */
   public static void main(String[] arguments) {
-    boolean debug = Arrays.asList(arguments).contains("--debug");
+    final boolean debug = Arrays.asList(arguments).contains("--debug");
     VertxOptions vertxOptions = new VertxOptions().setMetricsOptions(
         new MetricsOptions().setEnabled(true).setFactory(new HubMetricsFactory()));
     initialize(vertxOptions, debug, CONFIG_FILE, Service::onConfigLoaded);
@@ -154,8 +161,12 @@ public class Service extends Core {
     configuration = jsonConfig.mapTo(Config.class);
 
     cacheClient = CacheClient.getInstance();
-    MessageBroker.getInstance().onSuccess(mb -> {
+    configuration.getDefaultMessageBroker().instance.get().onSuccess(mb -> {
       messageBroker = mb;
+      Node.initialize();
+    }).onFailure((throwable) -> {
+      logger.error("Failed to create message broker", throwable);
+      messageBroker = new NoopBroker();
       Node.initialize();
     });
     spaceConfigClient = SpaceConfigClient.getInstance();
@@ -168,8 +179,8 @@ public class Service extends Core {
 
     globalRouter = Router.router(vertx);
 
-    spaceConfigClient.init(spaceConfigReady -> {
-      if (spaceConfigReady.succeeded()) {
+    spaceConfigClient.init(ar -> {
+      if (ar.succeeded()) {
         connectorConfigClient.init(connectorConfigReady -> {
           if (connectorConfigReady.succeeded()) {
             if (Service.configuration.INSERT_LOCAL_CONNECTORS) {
@@ -177,15 +188,19 @@ public class Service extends Core {
             } else {
               onLocalConnectorsInserted(Future.succeededFuture(), jsonConfig);
             }
+          } else {
+            die(1, "Connector config client failed", ar.cause());
           }
         });
+      } else {
+        die(1, "Space config client failed", ar.cause());
       }
     });
   }
 
   private static void onLocalConnectorsInserted(AsyncResult<Void> result, JsonObject config) {
     if (result.failed()) {
-      logger.error("Failed to insert local connectors.", result.cause());
+      die(1, "Failed to insert local connectors.", result.cause());
     } else {
       BurstAndUpdateThread.initialize(initializeAr -> onBustAndUpdateThreadStarted(initializeAr, config));
     }
@@ -193,7 +208,7 @@ public class Service extends Core {
 
   private static void onBustAndUpdateThreadStarted(AsyncResult<Void> result, JsonObject config) {
     if (result.failed()) {
-      logger.error("Failed to start BurstAndUpdateThread.", result.cause());
+      die(1, "Failed to start BurstAndUpdateThread.", result.cause());
     } else {
       // start warmup thread after connectors have been checked by BurstAndUpdateThread
       WarmupRemoteFunctionThread.initialize(initializeAr -> onServiceInitialized(initializeAr, config));
@@ -202,12 +217,12 @@ public class Service extends Core {
 
   private static void onServiceInitialized(AsyncResult<Void> result, JsonObject config) {
     if (result.failed()) {
-      logger.error("Failed to initialize Connectors. Service can't be started.", result.cause());
+      die(1, "Failed to initialize Connectors. Service can't be started.", result.cause());
       return;
     }
 
     if (StringUtils.isEmpty(Service.configuration.VERTICLES_CLASS_NAMES)) {
-      logger.error("At least one Verticle class name should be specified on VERTICLES_CLASS_NAMES. Service can't be started");
+      die(1, "At least one Verticle class name should be specified on VERTICLES_CLASS_NAMES. Service can't be started");
       return;
     }
 
@@ -362,7 +377,7 @@ public class Service extends Core {
     public int HTTP_PORT;
 
     /**
-     * The hostname, which under instances can use to contact the this service node.
+     * The hostname, which under instances can use to contact the service node.
      */
     public String HOST_NAME;
 
@@ -411,9 +426,10 @@ public class Service extends Core {
     /**
      * Adds backward-compatibility for the deprecated environment variables XYZ_HUB_REDIS_HOST & XYZ_HUB_REDIS_PORT.
      *
-     * @return
+     * @return the URI of Redis.
      */
     //TODO: Remove this workaround after the deprecation period
+    @Nullable
     @JsonIgnore
     public String getRedisUri() {
       if (XYZ_HUB_REDIS_HOST != null) {
@@ -421,7 +437,7 @@ public class Service extends Core {
         int port = XYZ_HUB_REDIS_PORT != 0 ? XYZ_HUB_REDIS_PORT : 6379;
         return protocol + "://" + XYZ_HUB_REDIS_HOST + ":" + port;
       } else {
-        return XYZ_HUB_REDIS_URI;
+        return nullable(XYZ_HUB_REDIS_URI);
       }
     }
 
@@ -451,9 +467,10 @@ public class Service extends Core {
     /**
      * Adds backward-compatibility for public keys without header & footer.
      *
-     * @return
+     * @return The JWT public key; if any.
      */
     //TODO: Remove this workaround after the deprecation period
+    @Nullable
     @JsonIgnore
     public String getJwtPubKey() {
       String jwtPubKey = JWT_PUB_KEY;
@@ -510,6 +527,11 @@ public class Service extends Core {
     public String PSQL_HTTP_CONNECTOR_HOST;
 
     /**
+     * The http connector port.
+     */
+    public int PSQL_HTTP_CONNECTOR_PORT;
+
+    /**
      * The ARN of the space table in DynamoDB.
      */
     public String SPACES_DYNAMODB_TABLE_ARN;
@@ -523,6 +545,30 @@ public class Service extends Core {
      * The ARN of the packages table in DynamoDB.
      */
     public String PACKAGES_DYNAMODB_TABLE_ARN;
+
+    /**
+     * The default {@link Broker} to use. If not given, Redis is used.
+     */
+    public String DEFAULT_MESSAGE_BROKER;
+
+    /**
+     * Returns the broker to be used.
+     *
+     * @return the broker to be used.
+     */
+    @Nonnull
+    public Broker getDefaultMessageBroker() {
+      final String brokerName = nullable(DEFAULT_MESSAGE_BROKER);
+      Broker broker = null;
+      if (brokerName != null) {
+        try {
+          broker = Broker.valueOf(brokerName);
+        } catch (Exception e) {
+          logger.error("Illegal value for DEFAULT_MESSAGE_BROKER: " + brokerName, e);
+        }
+      }
+      return broker == null ? Broker.Redis : broker;
+    }
 
     /**
      * The ARN of the admin message topic.

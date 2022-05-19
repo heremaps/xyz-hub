@@ -23,7 +23,7 @@ import static com.here.xyz.hub.util.health.schema.Status.Result.ERROR;
 import static com.here.xyz.hub.util.health.schema.Status.Result.OK;
 
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.cache.RedisCacheClient;
+import com.here.xyz.hub.cache.CacheClient;
 import com.here.xyz.hub.connectors.RemoteFunctionClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.rest.admin.Node;
@@ -45,7 +45,7 @@ import java.util.stream.Collectors;
 public class RemoteFunctionHealthAggregator extends GroupedHealthCheck {
 
   private static final String RFC_HC_CACHE_KEY = "RFC_HC_RESPONSE";
-  private Map<String, RemoteFunctionHealthCheck> checksByConnectorId = new HashMap<>();
+  private final Map<String, RemoteFunctionHealthCheck> checksByConnectorId = new HashMap<>();
 
   public RemoteFunctionHealthAggregator() {
     setName("Connectors");
@@ -126,7 +126,7 @@ public class RemoteFunctionHealthAggregator extends GroupedHealthCheck {
         s.setResult(ERROR);
       }
       //Write the new health-check response to the cache
-      RedisCacheClient.getInstance().set(RFC_HC_CACHE_KEY, res.toInternalResponseString().getBytes(),
+      CacheClient.getInstance().set(RFC_HC_CACHE_KEY, res.toInternalResponseString().getBytes(),
           TimeUnit.MILLISECONDS.toSeconds(checkInterval));
     }
 
@@ -152,7 +152,7 @@ public class RemoteFunctionHealthAggregator extends GroupedHealthCheck {
 
   private Response fetchResponseFromCache() {
     CompletableFuture<Response> f = new CompletableFuture<>();
-    RedisCacheClient.getInstance().get(RFC_HC_CACHE_KEY).onSuccess(r -> {
+    CacheClient.getInstance().get(RFC_HC_CACHE_KEY).onSuccess(r -> {
       Response response = null;
 
       try {

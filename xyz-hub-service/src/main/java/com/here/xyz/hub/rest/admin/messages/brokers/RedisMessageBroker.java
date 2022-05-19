@@ -24,7 +24,6 @@ import com.here.xyz.hub.rest.admin.MessageBroker;
 import com.here.xyz.hub.rest.admin.Node;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
-import io.vertx.core.Handler;
 import io.vertx.core.Promise;
 import io.vertx.core.net.NetClientOptions;
 import io.vertx.redis.client.Command;
@@ -32,10 +31,11 @@ import io.vertx.redis.client.Redis;
 import io.vertx.redis.client.RedisConnection;
 import io.vertx.redis.client.RedisOptions;
 import io.vertx.redis.client.Request;
+import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class RedisMessageBroker implements MessageBroker {
+class RedisMessageBroker implements MessageBroker {
 
   private static final Logger logger = LogManager.getLogger();
 
@@ -43,11 +43,11 @@ public class RedisMessageBroker implements MessageBroker {
   private Redis messageReceiverClient;
   private RedisConnection messageReceiverConnection;
   public static final String CHANNEL = "XYZ_HUB_ADMIN_MESSAGES";
-  private static int MAX_MESSAGE_SIZE = 1024 * 1024;
+  private static final int MAX_MESSAGE_SIZE = 1024 * 1024;
   private static volatile RedisMessageBroker instance;
-  private static int CONNECTION_KEEP_ALIVE = 60; //s
+  private static final int CONNECTION_KEEP_ALIVE = 60; //s
 
-  public RedisMessageBroker() {
+  RedisMessageBroker() {
     try {
       client = Redis.createClient(Service.vertx, getClientConfig(true));
       messageReceiverClient = Redis.createClient(Service.vertx, getClientConfig(false));
@@ -73,7 +73,7 @@ public class RedisMessageBroker implements MessageBroker {
   }
 
   private synchronized Future<Void> connect() {
-    Promise p = Promise.promise();
+    final Promise<Void> p = Promise.promise();
     if (messageReceiverConnection != null) {
       p.complete();
       return p.future();
@@ -86,22 +86,27 @@ public class RedisMessageBroker implements MessageBroker {
     return p.future();
   }
 
-  public void fetchSubscriberCount(Handler<AsyncResult<Integer>> handler) {
-    Request req = Request.cmd(Command.PUBSUB).arg("NUMSUB").arg(CHANNEL);
+  @Override
+  @Nonnull
+  public Future<Integer> fetchSubscriberCount() {
+    final Promise<Integer> promise = Promise.promise();
     if (client == null) {
-      handler.handle(Future.failedFuture("No redis connection was established."));
-      return;
+      promise.fail("No redis connection was established.");
+      return promise.future();
     }
+    final Request req = Request.cmd(Command.PUBSUB).arg("NUMSUB").arg(CHANNEL);
     client.send(req).onComplete(ar -> {
-      if (ar.succeeded())
+      if (ar.succeeded()) {
         //The 2nd array element contains the channel-subscriber count
-        handler.handle(Future.succeededFuture(ar.result().get(1).toInteger()));
-      else
-        handler.handle(Future.failedFuture(ar.cause()));
+        promise.complete(ar.result().get(1).toInteger());
+      } else {
+        promise.fail(ar.cause());
+      }
     });
+    return promise.future();
   }
 
-  private void subscribeOwnNode(AsyncResult ar) {
+  private void subscribeOwnNode(AsyncResult<RedisConnection> ar) {
     logger.info("Subscribing the NODE=" + Node.OWN_INSTANCE.getUrl());
 
     String errMsg = "The Node could not be subscribed as AdminMessage listener. No AdminMessages will be received by this node.";
@@ -145,7 +150,7 @@ public class RedisMessageBroker implements MessageBroker {
     });
   }
 
-  public static Future<RedisMessageBroker> getInstance() {
+  static Future<RedisMessageBroker> getInstance() {
     Promise<RedisMessageBroker> p = Promise.promise();
     if (instance != null) {
       p.complete(instance);
@@ -156,6 +161,10 @@ public class RedisMessageBroker implements MessageBroker {
       if (ar.succeeded()) {
         logger.info("Subscribing node in Redis pub/sub channel {} succeeded.", CHANNEL);
         p.complete(instance);
+      } else {
+        final Throwable cause = ar.cause();
+        logger.error("Subscribing node in Redis pub/sub channel "+CHANNEL+" failed.", cause);
+        p.fail(cause);
       }
     });
     return p.future();

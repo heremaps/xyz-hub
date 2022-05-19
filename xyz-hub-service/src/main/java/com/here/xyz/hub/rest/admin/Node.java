@@ -23,7 +23,6 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.rest.admin.messages.brokers.RedisMessageBroker;
 import com.here.xyz.hub.rest.health.HealthApi;
 import com.here.xyz.hub.util.health.Config;
 import com.here.xyz.hub.util.health.schema.Response;
@@ -40,6 +39,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.TimeUnit;
+import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -60,7 +60,6 @@ public class Node {
   public static final Node OWN_INSTANCE = new Node(Service.HOST_ID, Service.getHostname(),
       Service.configuration != null ? Service.getPublicPort() : -1);
   private static final Set<Node> otherClusterNodes = new CopyOnWriteArraySet<>();
-  private static final int DEFAULT_PORT = 80;
   private static final String UNKNOWN_ID = "UNKNOWN";
   public String id;
   public String ip;
@@ -88,15 +87,23 @@ public class Node {
 
   private static void initNodeCountFetcher() {
     if (Core.vertx != null) {
-      Core.vertx.setPeriodic(NODE_COUNT_FETCH_PERIOD, timerId -> RedisMessageBroker.getInstance().onComplete(ar -> ar.result().fetchSubscriberCount(r -> {
-        if (r.succeeded()) {
-          nodeCount = r.result();
-          logger.debug("Service node-count: " + nodeCount);
-        }
-        else
-          logger.warn("Checking service node-count failed.", r.cause());
-      })));
+      Core.vertx.setPeriodic(NODE_COUNT_FETCH_PERIOD, Node::periodicFetchCountHandler);
     }
+  }
+
+  private static void periodicFetchCountHandler(@Nonnull Long timerId) {
+    final Future<Integer> f = Service.messageBroker.fetchSubscriberCount();
+    f.onSuccess(Node::updateSubscriberCount);
+    f.onFailure(Node::failedSubscriberCount);
+  }
+
+  private static void failedSubscriberCount(@Nonnull Throwable cause) {
+    logger.warn("Checking service node-count failed.", cause);
+  }
+
+  private static void updateSubscriberCount(@Nonnull Integer count) {
+    nodeCount = count;
+    logger.debug("Service node-count: " + nodeCount);
   }
 
   private static void initNodeChecker() {
@@ -150,12 +157,14 @@ public class Node {
             }
           });
     }
-    catch (RuntimeException e) {
+    catch (final RuntimeException e) {
       if (e == ConnectionBase.CLOSED_EXCEPTION) {
-        e = new RuntimeException("Connection was already closed.", e);
-        logger.warn("Error calling health-check of other service node.", e);
+        final RuntimeException re = new RuntimeException("Connection was already closed.", e);
+        logger.warn("Error calling health-check of other service node.", re);
+        callback.handle(Future.failedFuture(re));
+      } else {
+        callback.handle(Future.failedFuture(e));
       }
-      callback.handle(Future.failedFuture(e));
     }
   }
 
@@ -179,7 +188,7 @@ public class Node {
       return false;
     }
     Node node = (Node) o;
-    return UNKNOWN_ID.equals(node.id) ? false : id.equals(node.id);
+    return !UNKNOWN_ID.equals(node.id) && id.equals(node.id);
   }
 
   @Override

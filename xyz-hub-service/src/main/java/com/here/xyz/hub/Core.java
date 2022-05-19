@@ -19,8 +19,10 @@
 
 package com.here.xyz.hub;
 
+import com.here.xyz.hub.Service.Config;
 import com.here.xyz.hub.util.ConfigDecryptor;
 import com.here.xyz.hub.util.ConfigDecryptor.CryptoException;
+import com.here.xyz.util.JsonConfigFile;
 import io.vertx.config.ConfigRetriever;
 import io.vertx.config.ConfigRetrieverOptions;
 import io.vertx.config.ConfigStoreOptions;
@@ -30,12 +32,15 @@ import io.vertx.core.VertxOptions;
 import io.vertx.core.json.JsonObject;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Paths;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Properties;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -87,7 +92,18 @@ public class Core {
    */
   public static final String BUILD_VERSION = getBuildProperty("xyzhub.version");
 
-  public static void initialize(VertxOptions vertxOptions, boolean debug, String configFilename, Handler<JsonObject> handler) {
+  public static void initialize(
+      @Nonnull VertxOptions vertxOptions,
+      boolean debug,
+      @Nonnull String configFilename,
+      @Nonnull Handler<JsonObject> handler
+  ) {
+    final String pathEnvName = JsonConfigFile.configPathEnvName(Config.class);
+    final String path = JsonConfigFile.nullable(System.getenv(pathEnvName));
+    if (path != null) {
+      configFilename = Paths.get(path, configFilename).toAbsolutePath().toString();
+    }
+
     Configurator.initialize("default", CONSOLE_LOG_CONFIG);
     final ConfigStoreOptions fileStore = new ConfigStoreOptions().setType("file").setConfig(new JsonObject().put("path", configFilename));
     final ConfigStoreOptions envConfig = new ConfigStoreOptions().setType("env");
@@ -121,10 +137,8 @@ public class Core {
           } else {
             try {
               config.put(entry.getKey(), decryptSecret((String) entry.getValue()));
-            } catch (CryptoException e) {
-              System.err.println("Unable to decrypt value for key " + entry.getKey());
-              e.printStackTrace();
-              System.exit(1);
+            } catch (final CryptoException e) {
+              die(1, "Unable to decrypt value for key " + entry.getKey(), e);
             }
           }
         }
@@ -199,5 +213,26 @@ public class Core {
     }
 
     return buildProperties.getProperty(name);
+  }
+
+  public static void die(final int exitCode, final @Nonnull String reason) {
+    die(exitCode, reason, new RuntimeException());
+  }
+
+  public static void die(
+      final int exitCode,
+      final @Nonnull String reason,
+      @Nullable Throwable exception
+  ) {
+    // Let's always generate a stack-trace.
+    if (exception == null) {
+      exception = new RuntimeException();
+    }
+    logger.error(reason, exception);
+    System.out.flush();
+    System.err.println(reason);
+    exception.printStackTrace(System.err);
+    System.err.flush();
+    System.exit(exitCode);
   }
 }

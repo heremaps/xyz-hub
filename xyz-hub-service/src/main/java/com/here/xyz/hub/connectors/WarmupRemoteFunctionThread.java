@@ -21,12 +21,13 @@ package com.here.xyz.hub.connectors;
 
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.hub.Core;
-import com.here.xyz.hub.cache.RedisCacheClient;
+import com.here.xyz.hub.cache.CacheClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.MarkerManager.Log4jMarker;
@@ -128,11 +129,10 @@ public class WarmupRemoteFunctionThread extends Thread {
   }
 
   private boolean acquireLock() {
-    if (RedisCacheClient.getInstance() instanceof RedisCacheClient) {
-      RedisCacheClient redisCacheClient = ((RedisCacheClient) RedisCacheClient.getInstance());
-      return redisCacheClient.acquireLock(RFC_WARMUP_CACHE_KEY, (CONNECTOR_WARMUP_INTERVAL / 1000) - 1); // expires 1 second earlier
-    }
-
-    return true;
+    return CacheClient.getInstance()
+        .acquireLock(
+            RFC_WARMUP_CACHE_KEY,
+            CONNECTOR_WARMUP_INTERVAL - TimeUnit.SECONDS.toMillis(1),
+            TimeUnit.MILLISECONDS);
   }
 }

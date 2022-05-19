@@ -26,6 +26,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
+import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.caffinitas.ohc.CacheSerializer;
@@ -42,7 +43,7 @@ public class OHCacheClient implements CacheClient {
   private final ScheduledExecutorService executors;
   private OHCache<byte[], byte[]> cache;
 
-  public static synchronized OHCacheClient getInstance() {
+  static synchronized OHCacheClient getInstance() {
     if (client == null) client = new OHCacheClient();
     return client;
   }
@@ -86,7 +87,7 @@ public class OHCacheClient implements CacheClient {
   public static OHCache<byte[], byte[]> createCache(int size, ScheduledExecutorService executors, boolean withTimeouts) {
     CacheSerializer<byte[]> serializer = new Serializer();
     OHCacheBuilder<byte[], byte[]> builder = OHCacheBuilder.newBuilder();
-    return builder.capacity(size * 1024 * 1024)
+    return builder.capacity(size * 1024L * 1024L)
         .eviction(Eviction.W_TINY_LFU)
         .keySerializer(serializer)
         .valueSerializer(serializer)

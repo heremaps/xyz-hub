@@ -23,7 +23,7 @@ import static com.here.xyz.hub.util.health.schema.Status.Result.ERROR;
 import static com.here.xyz.hub.util.health.schema.Status.Result.OK;
 import static com.here.xyz.hub.util.health.schema.Status.Result.UNKNOWN;
 
-import com.here.xyz.hub.cache.RedisCacheClient;
+import com.here.xyz.hub.cache.CacheClient;
 import com.here.xyz.hub.util.health.schema.Response;
 import com.here.xyz.hub.util.health.schema.Status;
 import java.util.Arrays;
@@ -34,7 +34,7 @@ public class RedisHealthCheck extends ExecutableCheck {
 	private static final String HC_CACHE_KEY = "__SAMPLE_HEALTH_CHECK_KEY";
 	private static final byte[] HC_CACHE_VALUE = "someValue".getBytes();
 	private final String uri;
-	private RedisCacheClient client;
+	private CacheClient client;
 	private volatile byte[] lastReceivedValue;
 
 	public RedisHealthCheck(String uri) {
@@ -56,7 +56,7 @@ public class RedisHealthCheck extends ExecutableCheck {
 
 		try {
 			if (client == null) {
-				client = (RedisCacheClient) RedisCacheClient.getInstance();
+				client = CacheClient.getInstance();
 			}
 		}
 		catch (Throwable t) {

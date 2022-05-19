@@ -24,23 +24,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.AdminApi;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
-import com.here.xyz.hub.rest.admin.messages.brokers.RedisMessageBroker;
+import io.vertx.core.AsyncResult;
+import io.vertx.core.Future;
+import io.vertx.core.Handler;
 import java.io.IOException;
 import java.nio.charset.Charset;
-import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
-import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.net.impl.ConnectionBase;
+import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
  * The MessageBroker provides the infrastructural implementation of how to send & receive {@link AdminMessage}s.
- *
- * NOTE: The {@link MessageBroker#getInstance()} method decides which implementation to return as the default implementation.
  */
 public interface MessageBroker {
 
@@ -161,9 +159,10 @@ public interface MessageBroker {
     }
   }
 
-  static Future<? extends MessageBroker> getInstance() {
-    //Return an instance of the default implementation
-    return RedisMessageBroker.getInstance();
-  }
-
+  /**
+   * Asynchronously detect the amount of subscribers to admin messages. This is the node number.
+   * @return the future of the result.
+   */
+  @Nonnull
+  Future<Integer> fetchSubscriberCount();
 }

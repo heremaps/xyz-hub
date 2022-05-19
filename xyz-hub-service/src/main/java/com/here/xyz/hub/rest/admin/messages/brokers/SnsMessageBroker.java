@@ -34,7 +34,6 @@ import com.amazonaws.services.sns.model.SubscribeResult;
 import com.amazonaws.services.sns.model.Subscription;
 import com.amazonaws.services.sns.model.UnsubscribeRequest;
 import com.amazonaws.services.sns.model.UnsubscribeResult;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.AdminApi;
 import com.here.xyz.hub.rest.ApiParam.Query;
@@ -44,6 +43,7 @@ import com.here.xyz.hub.rest.admin.Node;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.Promise;
 import java.io.ByteArrayInputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -53,6 +53,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -60,12 +61,11 @@ import org.apache.logging.log4j.Logger;
  * The MessageBroker provides the infrastructural implementation of how to send & receive {@link AdminMessage}s. Currently it's an
  * implementation relying purely on AWS SNS as a broadcasting mechanism.
  */
-public class SnsMessageBroker extends DefaultSnsMessageHandler implements MessageBroker {
+class SnsMessageBroker extends DefaultSnsMessageHandler implements MessageBroker {
 
   private static final Logger logger = LogManager.getLogger();
 
   private static SnsMessageBroker instance;
-  private static final ThreadLocal<ObjectMapper> mapper = ThreadLocal.withInitial(ObjectMapper::new);
   private static final long MAX_MESSAGE_SIZE = 256 * 1024;
   private static final String OWN_NODE_MESSAGING_URL;
   private static final String SNS_HTTP_PROTOCOL = "http";
@@ -95,7 +95,7 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
   private ScheduledExecutorService threadPool = new ScheduledThreadPoolExecutor(1);
   private List<Subscription> oldSubscriptions;
 
-  private SnsMessageBroker() {
+  SnsMessageBroker() {
     logger.info("Initializing SnsMessageBroker");
 
     final String initWarnMsg = "Environment variable \"ADMIN_MESSAGE_TOPIC_ARN\" not defined. The node could not be subscribed as"
@@ -103,7 +103,6 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
     String topicArn = null;
     SnsMessageManager messageManager = null;
     AmazonSNSAsync snsClient = null;
-
     if (Service.configuration.ADMIN_MESSAGE_TOPIC_ARN != null) {
       try {
         topicArn = Service.configuration.ADMIN_MESSAGE_TOPIC_ARN.toString();
@@ -117,7 +116,6 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
         logger.warn(initWarnMsg, e);
         topicArn = null;
         messageManager = null;
-        snsClient = null;
       }
     }
     else {
@@ -129,7 +127,7 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
     SNS_CLIENT = snsClient;
 
     logger.debug("TOPIC_ARN resolved as: " + TOPIC_ARN);
-    if (TOPIC_ARN == null || MESSAGE_MANAGER == null || SNS_CLIENT == null)
+    if (TOPIC_ARN == null || SNS_CLIENT == null)
       return;
 
     try {
@@ -145,15 +143,22 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
   }
 
   public static void preventSubscriptionCleanup() {
-    SnsMessageBroker mb = getInstance();
-    if (mb != null)
-      mb.shutdownCleanup();
+    if (instance != null) {
+      instance.shutdownCleanup();
+    }
   }
 
-  static SnsMessageBroker getInstance() {
-    if (instance != null)
-      return instance;
-    return instance = new SnsMessageBroker();
+  static synchronized Future<SnsMessageBroker> getInstance() {
+    final Promise<SnsMessageBroker> promise = Promise.promise();
+    if (instance != null) {
+      promise.complete(instance);
+      return promise.future();
+    }
+    (new Thread(() -> {
+      instance = new SnsMessageBroker();
+      promise.complete(instance);
+    })).start();
+    return promise.future();
   }
 
   @Override
@@ -355,6 +360,15 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
     }
   }
 
+  @Nonnull
+  @Override
+  public Future<Integer> fetchSubscriberCount() {
+    final Promise<Integer> promise = Promise.promise();
+    // TODO: Implement me!
+    promise.complete(1);
+    return promise.future();
+  }
+
   void receiveMessage(String jsonMessage) {
     receiveMessage(deserializeMessage(jsonMessage));
   }
@@ -370,4 +384,5 @@ public class SnsMessageBroker extends DefaultSnsMessageHandler implements Messag
       preventSubscriptionCleanup();
     }
   }
+
 }

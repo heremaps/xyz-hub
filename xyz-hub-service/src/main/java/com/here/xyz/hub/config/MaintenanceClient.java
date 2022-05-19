@@ -54,7 +54,7 @@ import static com.here.xyz.psql.config.DatabaseSettings.*;
 
 public class MaintenanceClient {
 
-    private static Map<String, MaintenanceInstance> dbInstanceMap = new HashMap<>();
+    private static final Map<String, MaintenanceInstance> dbInstanceMap = new HashMap<>();
     private static final String C3P0EXT_CONFIG_SCHEMA = "config.schema()";
 
     private static final String[] extensionList = new String[]{"postgis","postgis_topology","tsm_system_rows","dblink"};
@@ -375,7 +375,7 @@ public class MaintenanceClient {
 
         for (String key : decodedEcps.keySet()) {
             switch (key) {
-                case DatabaseSettings.PSQL_DB:
+                case PSQL_DB:
                     databaseSettings.setDb((String) decodedEcps.get(PSQL_DB));
                     break;
                 case PSQL_HOST:
