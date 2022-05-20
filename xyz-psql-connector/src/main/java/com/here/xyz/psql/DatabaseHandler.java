@@ -100,12 +100,12 @@ public abstract class DatabaseHandler extends StorageConnector {
     private static final int MIN_REMAINING_TIME_FOR_RETRY_SECONDS = 3;
     protected static final int STATEMENT_TIMEOUT_SECONDS = 23;
 
-    private static String INCLUDE_OLD_STATES = "includeOldStates"; // read from event params
+    private static final String INCLUDE_OLD_STATES = "includeOldStates"; // read from event params
 
     /**
      * The data source connections factory.
      */
-    private static Map<String, PSQLConfig> dbInstanceMap = new HashMap<>();
+    private static final Map<String, PSQLConfig> dbInstanceMap = new HashMap<>();
 
     /**
      * Current event.
@@ -128,11 +128,11 @@ public abstract class DatabaseHandler extends StorageConnector {
      */
     protected DatabaseMaintainer dbMaintainer;
 
-    private Map<String, String> replacements = new HashMap<>();
+    private final Map<String, String> replacements = new HashMap<>();
 
     private boolean retryAttempted;
 
-    private static AtomicBoolean simulatedContextInitialized = new AtomicBoolean();
+    private static final AtomicBoolean simulatedContextInitialized = new AtomicBoolean();
 
     protected XyzResponse processHealthCheckEventImpl(HealthCheckEvent event) throws SQLException {
         String connectorId = traceItem.getConnectorId();
@@ -143,8 +143,10 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
 
         if (context instanceof SimulatedContext) {
-            /** run DB-Maintenance - run ones for simulated context */
-            if (simulatedContextInitialized.compareAndSet(false, true)) {
+            /** run DB-Maintenance - run on warmUp and one time for the first simulated request. */
+            if ((event.getWarmupCount()==0 && event.getMinResponseTime() != 0)
+              || simulatedContextInitialized.compareAndSet(false, true))
+            {
                 logger.info("{} dbMaintainer start", traceItem);
                 dbMaintainer.run(traceItem);
                 logger.info("{} dbMaintainer finished", traceItem);
