@@ -68,6 +68,28 @@
               </includes>
             </configuration>
           </plugin>
+          <plugin>
+            <artifactId>maven-failsafe-plugin</artifactId>
+            <executions>
+              <execution>
+                <configuration>
+                  <encoding>UTF-8</encoding>
+                  <skip>${skipTests}</skip>
+                </configuration>
+                <goals>
+                  <goal>integration-test</goal>
+                </goals>
+                <id>integration-test</id>
+              </execution>
+              <execution>
+                <goals>
+                  <goal>verify</goal>
+                </goals>
+                <id>verify</id>
+              </execution>
+            </executions>
+            <groupId>org.apache.maven.plugins</groupId>
+          </plugin>
         </plugins>
       </build>
     </profile>
@@ -119,6 +141,40 @@
               </argLine>
             </configuration>
           </plugin>
+          <plugin>
+            <artifactId>maven-failsafe-plugin</artifactId>
+            <executions>
+              <execution>
+                <configuration>
+                  <encoding>UTF-8</encoding>
+                  <skip>${skipTests}</skip>
+                  <argLine>
+                    --add-opens java.base/java.lang=ALL-UNNAMED
+                    --add-opens java.base/java.util=ALL-UNNAMED
+                    --add-opens java.base/java.util.regex=ALL-UNNAMED
+                    --add-opens java.base/java.io=ALL-UNNAMED
+                    --add-opens java.base/java.nio.charset=ALL-UNNAMED
+                    --add-opens java.base/java.math=ALL-UNNAMED
+                    --add-opens java.base/java.net=ALL-UNNAMED
+                    --add-opens java.base/sun.net.spi=ALL-UNNAMED
+                    --add-opens java.base/sun.nio.cs=ALL-UNNAMED
+                    --add-opens java.base/jdk.internal.misc=ALL-UNNAMED
+                  </argLine>
+                </configuration>
+                <goals>
+                  <goal>integration-test</goal>
+                </goals>
+                <id>integration-test</id>
+              </execution>
+              <execution>
+                <goals>
+                  <goal>verify</goal>
+                </goals>
+                <id>verify</id>
+              </execution>
+            </executions>
+            <groupId>org.apache.maven.plugins</groupId>
+          </plugin>
         </plugins>
       </build>
       <dependencies>
@@ -163,28 +219,6 @@
             </goals>
           </execution>
         </executions>
-      </plugin>
-      <plugin>
-        <artifactId>maven-failsafe-plugin</artifactId>
-        <executions>
-          <execution>
-            <configuration>
-              <encoding>UTF-8</encoding>
-              <skip>${skipTests}</skip>
-            </configuration>
-            <goals>
-              <goal>integration-test</goal>
-            </goals>
-            <id>integration-test</id>
-          </execution>
-          <execution>
-            <goals>
-              <goal>verify</goal>
-            </goals>
-            <id>verify</id>
-          </execution>
-        </executions>
-        <groupId>org.apache.maven.plugins</groupId>
       </plugin>
     </plugins>
   </build>
