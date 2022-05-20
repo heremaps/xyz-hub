@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.jar.JarFile;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -135,7 +136,7 @@ public abstract class JsonConfigFile<SELF extends JsonConfigFile<SELF>> {
           filePath = url != null ? url.getPath() : null;
         }
       } catch (final Throwable t) {
-        error("Failed to load config file: " + configFile, t);
+        error("Failed to find config file: " + configFile, t);
         filePath = null;
       }
 
@@ -150,16 +151,16 @@ public abstract class JsonConfigFile<SELF extends JsonConfigFile<SELF>> {
               filePath = filePath.substring(1);
             }
             info("Load configuration file from JAR, jar-path: " + jarPath + ", file-path: " + filePath);
-            try (final JarFile jarFile = new JarFile(jarPath)) {
-              final ZipEntry entry = jarFile.getEntry(filePath);
-              if (entry != null && entry.isDirectory()) {
-                throw new IOException("Config file is directory");
-              }
-              if (entry == null) {
-                throw new FileNotFoundException(filePath);
-              }
-              in = jarFile.getInputStream(entry);
+            //noinspection resource
+            final JarFile jarFile = new JarFile(new File(jarPath), false, ZipFile.OPEN_READ);
+            final ZipEntry entry = jarFile.getEntry(filePath);
+            if (entry != null && entry.isDirectory()) {
+              throw new IOException("Config file is directory");
             }
+            if (entry == null) {
+              throw new FileNotFoundException(filePath);
+            }
+            in = jarFile.getInputStream(entry);
           } else {
             info("Load configuration file from disk: " + filePath);
             in = Files.newInputStream(new File(filePath).toPath());
