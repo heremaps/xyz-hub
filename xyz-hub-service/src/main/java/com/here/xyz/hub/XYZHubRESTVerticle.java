@@ -161,7 +161,11 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
             //noinspection ResultOfMethodCallIgnored
             new File(Service.configuration.FS_WEB_ROOT).mkdirs();
             router.route("/hub/static/*")
-                .handler(StaticHandler.create(Service.configuration.FS_WEB_ROOT).setIndexPage("index.html"));
+                .handler(StaticHandler.create()
+                    .setAllowRootFileSystemAccess(true)
+                    .setWebRoot(Service.configuration.FS_WEB_ROOT)
+                    .setIndexPage("index.html")
+                );
           }
 
           //Add default handlers

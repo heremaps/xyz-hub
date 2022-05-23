@@ -29,18 +29,20 @@ Git has the `-s` flag that can sign a commit for you, see example below:
 
 # Before making a pull-request
 
-Eventually, before making a pull request, start the XYZ-Hub and the HTTP-connector and then execute 
-the tests:
+Eventually, before making a pull request, start the XYZ-Hub, the HTTP-connector and then execute the 
+integration tests. Within Linux, you can open a shell in the project root and do:
 
 ```bash
 mvn clean install
-java -jar xyz-hub-service/target/xyz-hub-service.jar >xyz-hub.txt 2>&1 &
-java -cp xyz-hub-service/target/xyz-hub-service.jar com.here.xyz.hub.HttpConnector >xyz-http-connector.txt 2>&1 &
+export FS_WEB_ROOT=$(pwd)/static
+mkdir $FS_WEB_ROOT 2>/dev/null
+java -jar xyz-hub-service/target/xyz-hub-service.jar >static/xyz-hub.out.txt 2>&1 &
+java -cp xyz-hub-service/target/xyz-hub-service.jar com.here.xyz.hub.HttpConnector >static/xyz-http-connector.out.txt 2>&1 &
 mvn verify -DskipTests=false
-kill $(ps a | grep xyz-hub-service.jar | grep -E "[/]xyz-hub-service.jar" | grep -Eo "[0-9]+ pts" | grep -Eo "[0-9]+" | xargs) 2>/dev/null
+kill -9 $(ps a | grep xyz-hub-service.jar | grep -E "[/]xyz-hub-service.jar" | grep -Eo "[0-9]+ pts" | grep -Eo "[0-9]+" | xargs) 2>/dev/null
 ```
 
-**Note**: You need to have Redis installed locally.
+**Note**: You need to have [Redis installed locally](https://redis.io/docs/getting-started/).
 
 # Run and test in IntelliJ IDEA
 
@@ -54,7 +56,7 @@ cp xyz-hub-service/src/main/resources/connector-config.json .vertx/
 
 Adjust the settings to your needs.
 
-Create run profiles for the [XYZ-Hub Service](xyz-hub-service/src/main/java/com/here/xyz/hub/Core.java) and the [HTTP PSQL-Connector](xyz-hub-service/src/main/java/com/here/xyz/hub/HttpConnector.java), setting the environment variable `XYZ_CONFIG_PATH=$PROJECT_DIR$/.vertx/`. When running the tests in the IDE, ensure that the service and connector are running and that you provide the same environment variable to the tests.
+Create run profiles for the [XYZ-Hub Service](xyz-hub-service/src/main/java/com/here/xyz/hub/Core.java) and the [HTTP PSQL-Connector](xyz-hub-service/src/main/java/com/here/xyz/hub/HttpConnector.java), setting the environment variables `XYZ_CONFIG_PATH=$PROJECT_DIR$/.vertx/;FS_WEB_ROOT=$PROJECT_DIR$/static/`. When running the tests in the IDE, ensure that the service and connector are running and that you provide the same environment variable to the tests.
 
 If you do not run Redis, change the settings in the `config.json`:
 
