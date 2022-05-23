@@ -19,6 +19,14 @@ public class JsonConfigFileTest {
   @EnvName("TEST_CONFIG_PATH")
   private static class TestConfig extends JsonConfigFile<TestConfig> {
 
+    TestConfig() {
+      super(test_config_file);
+    }
+
+    TestConfig(String filename) {
+      super(filename);
+    }
+
     protected void info(String message) {
       System.out.println(message);
     }
@@ -28,12 +36,6 @@ public class JsonConfigFileTest {
       if (t != null) {
         t.printStackTrace(System.err);
       }
-    }
-
-    @Nullable
-    @Override
-    protected String defaultFile() {
-      return test_config_file;
     }
 
     @Nullable
@@ -50,12 +52,9 @@ public class JsonConfigFileTest {
 
   public static class TestConfig2 extends TestConfig {
 
-    @Nullable
-    @Override
-    protected String defaultFile() {
-      return test_config_file2;
+    TestConfig2() {
+      super(test_config_file2);
     }
-
   }
 
   public static class TestConfigWithAnnotation extends TestConfig {

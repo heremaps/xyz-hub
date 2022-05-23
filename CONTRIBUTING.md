@@ -42,7 +42,7 @@ mvn verify -DskipTests=false
 kill -9 $(ps a | grep xyz-hub-service.jar | grep -E "[/]xyz-hub-service.jar" | grep -Eo "[0-9]+ pts" | grep -Eo "[0-9]+" | xargs) 2>/dev/null
 ```
 
-**Note**: You need to have [Redis installed locally](https://redis.io/docs/getting-started/).
+**Note**: You need to have [Redis installed](https://redis.io/docs/getting-started/).
 
 # Run and test in IntelliJ IDEA
 

@@ -83,6 +83,7 @@ public class RestAssuredConfig extends JsonConfigFile<RestAssuredConfig> {
   public String fullHttpConnectorUri;
 
   private RestAssuredConfig() {
+    super("config.json");
     try {
       load();
     } catch (IOException e) {
@@ -122,12 +123,6 @@ public class RestAssuredConfig extends JsonConfigFile<RestAssuredConfig> {
       config = new RestAssuredConfig();
     }
     return config;
-  }
-
-  @Nullable
-  @Override
-  protected String defaultFile() {
-    return "config.json";
   }
 
   protected void info(String message) {

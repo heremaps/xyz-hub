@@ -4,20 +4,11 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
-import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.jar.JarFile;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -29,7 +20,11 @@ import javax.annotation.Nullable;
  * @param <SELF> this type.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public abstract class JsonConfigFile<SELF extends JsonConfigFile<SELF>> {
+public abstract class JsonConfigFile<SELF extends JsonConfigFile<SELF>> extends FileOrResource<SELF> {
+
+  protected JsonConfigFile(@Nonnull String filename) {
+    super(filename);
+  }
 
   /**
    * Returns the name of the environment variable that should be used to define the search path for the configuration files.
@@ -66,14 +61,6 @@ public abstract class JsonConfigFile<SELF extends JsonConfigFile<SELF>> {
   protected String envPrefix() {
     return null;
   }
-
-  /**
-   * Return the default file name.
-   *
-   * @return the default file name; null if no such default exists.
-   */
-  @Nullable
-  abstract protected String defaultFile();
 
   /**
    * A helper method to detect pseudo null values in environment variables. Without this, you can never undefine (unset) a pre-defined value
@@ -117,63 +104,13 @@ public abstract class JsonConfigFile<SELF extends JsonConfigFile<SELF>> {
    */
   public final SELF load(final @Nonnull Function<String, String> getEnv) throws IOException {
     Map<String, Object> configValues = null;
-
-    final String configPath = nullable(getEnv.apply(configPathEnvName(getClass())));
-    final String configFile = nullable(defaultFile());
-    if (configFile != null) {
-      String filePath;
-      try {
-        final Path path = (configPath != null ? Paths.get(configPath, configFile) : Paths.get(configFile)).toAbsolutePath();
-        final File file = path.toFile();
-        if (file.exists() && file.isFile()) {
-          filePath = path.toString();
-        } else {
-          // Try to load from resources (JAR).
-          URL url = getClass().getResource(configFile);
-          if (url == null && !configFile.startsWith("/")) {
-            url = getClass().getResource("/" + configFile);
-          }
-          filePath = url != null ? url.getPath() : null;
-        }
-      } catch (final Throwable t) {
-        error("Failed to find config file: " + configFile, t);
-        filePath = null;
+    try {
+      final String searchPath = nullable(getEnv.apply(configPathEnvName(getClass())));
+      try (final InputStream in = open(searchPath)) {
+        configValues = new ObjectMapper().readValue(in, MAP_TYPE);
       }
-
-      if (filePath != null) {
-        try {
-          final InputStream in;
-          final int jarEnd = filePath.indexOf(".jar!");
-          if (filePath.startsWith("file:") && jarEnd > 0) {
-            final String jarPath = filePath.substring("file:".length(), jarEnd + ".jar".length());
-            filePath = filePath.substring(jarEnd + ".jar!".length());
-            if (filePath.startsWith("/")) {
-              filePath = filePath.substring(1);
-            }
-            info("Load configuration file from JAR, jar-path: " + jarPath + ", file-path: " + filePath);
-            //noinspection resource
-            final JarFile jarFile = new JarFile(new File(jarPath), false, ZipFile.OPEN_READ);
-            final ZipEntry entry = jarFile.getEntry(filePath);
-            if (entry != null && entry.isDirectory()) {
-              throw new IOException("Config file is directory");
-            }
-            if (entry == null) {
-              throw new FileNotFoundException(filePath);
-            }
-            in = jarFile.getInputStream(entry);
-          } else {
-            info("Load configuration file from disk: " + filePath);
-            in = Files.newInputStream(new File(filePath).toPath());
-          }
-          try {
-            configValues = new ObjectMapper().readValue(in, MAP_TYPE);
-          } finally {
-            in.close();
-          }
-        } catch (Throwable t) {
-          error("Failed to load configuration file: " + configFile, t);
-        }
-      }
+    } catch (Throwable t) {
+      error("Failed to load configuration file: " + filename, t);
     }
     return load(configValues, getEnv);
   }
@@ -317,22 +254,5 @@ public abstract class JsonConfigFile<SELF extends JsonConfigFile<SELF>> {
       }
     } catch (NullPointerException | NumberFormatException | IllegalAccessException ignore) {
     }
-  }
-
-  /**
-   * A method that can be overridden to send information to a logger.
-   *
-   * @param message the message to log as information.
-   */
-  protected void info(String message) {
-  }
-
-  /**
-   * A method that can be overridden to send errors to a logger.
-   *
-   * @param message the message to log.
-   * @param cause   the cause.
-   */
-  protected void error(String message, Throwable cause) {
   }
 }
