@@ -2550,20 +2550,6 @@ components:
               minimum: 0
             estimated:
               $ref: '#/components/schemas/Estimated'
-        byteSize:
-          deprecated: true
-          type: object
-          readOnly: true
-          properties:
-            value:
-              type: integer
-              description: >-
-                The amount of bytes that are allocated in the storage for
-                this history.
-              format: int64
-              minimum: 0
-            estimated:
-              $ref: '#/components/schemas/Estimated'
         dataSize:
           type: object
           readOnly: true
@@ -2593,9 +2579,6 @@ components:
         type: HistoryStatisticsResponse
         count:
           value: 29208
-          estimated: true
-        byteSize:
-          value: 108364
           estimated: true
         dataSize:
           value: 108364
@@ -3017,21 +3000,13 @@ components:
               type: integer
             estimated:
               $ref: '#/components/schemas/Estimated'
-        byteSize:
-          deprecated: true
-          type: object
-          description: The amount of bytes that are allocated in the storage for this space.
-          properties:
-            value:
-              type: integer
-            estimated:
-              $ref: '#/components/schemas/Estimated'
         dataSize:
           type: object
           description: The amount of bytes that are allocated in the storage for this space.
           properties:
             value:
               type: integer
+              format: int64
             estimated:
               $ref: '#/components/schemas/Estimated'
         bbox:
@@ -3108,9 +3083,6 @@ components:
         type: StatisticsResponse
         count:
           value: 29208
-          estimated: true
-        byteSize:
-          value: 108364
           estimated: true
         dataSize:
           value: 108364
