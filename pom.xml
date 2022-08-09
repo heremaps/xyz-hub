@@ -92,7 +92,7 @@
     <vertx-version>4.1.7</vertx-version>
     <geo-tools-version>19.1</geo-tools-version>
     <jts-version>1.14.0</jts-version>
-    <jackson-version>2.13.0</jackson-version>
+    <jackson-version>2.13.2.1</jackson-version>
     <lambda-core-version>1.2.1</lambda-core-version>
     <log4j-version>2.17.1</log4j-version>
     <aws-log4j-version>1.5.1</aws-log4j-version>
