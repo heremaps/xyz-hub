@@ -1702,7 +1702,7 @@ components:
                       - stadium
                   amenity: Football Stadium
                   capacity: 54074
-                  description: Home of Liverpool Football Club
+                  description: Home of the Liverpool Football Club.
     FeatureCollectionResponse:
       description: An array of features response.
       content:
@@ -2296,7 +2296,7 @@ components:
                   - stadium
               amenity: Football Stadium
               capacity: 54074
-              description: Home of Liverpool Football Club
+              description: Home of the Liverpool Football Club.
     FeatureCollection:
       allOf:
         - $ref: '#/components/schemas/GeoJSON'
@@ -2335,7 +2335,7 @@ components:
                       - stadium
                   amenity: Football Stadium
                   capacity: 54074
-                  description: Home of Liverpool Football Club
+                  description: Home of the Liverpool Football Club.
     FeatureCollectionIterable:
       allOf:
         - $ref: '#/components/schemas/FeatureCollection'
@@ -2369,7 +2369,7 @@ components:
                       - stadium
                   amenity: Football Stadium
                   capacity: 54074
-                  description: Home of Liverpool Football Club
+                  description: Home of the Liverpool Football Club.
     FeatureCollectionModification:
       allOf:
         - $ref: '#/components/schemas/FeatureCollection'
@@ -2416,7 +2416,7 @@ components:
                       - stadium
                   amenity: Football Stadium
                   capacity: 54074
-                  description: Home of Liverpool Football Club
+                  description: Home of the Liverpool Football Club.
     FeatureModification:
       type: object
       description: |
@@ -2461,13 +2461,13 @@ components:
                     - stadium
                 amenity: Football Stadium
                 capacity: 54074
-                description: Home of Liverpool Football Club
+                description: Home of the Liverpool Football Club.
     FeatureModificationList:
       type: object
       description: |
-        An object describing modifications of features. It contains feature data being provided as
+        An object describing modifications of features. Contains feature data being provided as
         GeoJSON FeatureCollections (see [RFC-7946](https://tools.ietf.org/html/rfc7946))
-        or (in case if deletions) a list of feature IDs.
+        or (in case of deletions) a list of feature IDs.
       externalDocs:
         url: 'https://tools.ietf.org/html/rfc7946'
       required:
@@ -2502,7 +2502,7 @@ components:
                         - stadium
                     amenity: Football Stadium
                     capacity: 54074
-                    description: Home of Liverpool Football Club
+                    description: Home of the Liverpool Football Club.
     GeoJSON:
       type: object
       description: The base type for all possible GeoJSON objects.
