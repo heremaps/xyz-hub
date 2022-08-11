@@ -55,7 +55,6 @@ recipes:
       - components.responses.CountFeaturesResponse
       - components.responses.HistoryResponse
       - components.requestBodies.ConnectorConfig
-      - components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/vnd.here.feature-modification-list'
       - components.schemas.AWSLambda
       - components.schemas.CacheProfile
       - components.schemas.ConnectorConfig
@@ -81,11 +80,6 @@ recipes:
       - components.schemas.Changeset
       - components.schemas.ChangesetCollection
       - components.schemas.CompactChangeset
-      - components.schemas.FeatureModificationList
-      - components.schemas.FeatureModification
-      - components.schemas.OnFeatureNotExists
-      - components.schemas.OnFeatureExists
-      - components.schemas.OnMergeConflict
       - components.schemas.Connector
     replace:
       - type: value
