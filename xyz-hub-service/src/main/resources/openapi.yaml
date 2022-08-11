@@ -1066,6 +1066,7 @@ components:
         To overwrite the value of the head state select _replace_.
         To abort the entry update select _error_.
       required: false
+      deprecated: true
       schema:
         type: string
         enum:
@@ -1138,6 +1139,7 @@ components:
         The action to execute, when a feature with the provided ID exists.
         Default is _patch_.
       required: false
+      deprecated: true
       schema:
         type: string
         enum:
@@ -1155,6 +1157,7 @@ components:
         The action to execute, when a feature with the provided ID does not
         exist or the feature contains no ID. Default is _create_.
       required: false
+      deprecated: true
       schema:
         type: string
         enum:

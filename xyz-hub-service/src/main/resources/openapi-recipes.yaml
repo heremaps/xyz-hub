@@ -8,15 +8,24 @@ recipes:
       - type: value
         path: info.version
         replace: ${VERSION}
+  - name: no-e-ne-cr-params
+    exclude:
+      - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*IfExists$
+      - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*IfNotExists$
+      - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*ConflictResolution$
+      - components.parameters.IfExists
+      - components.parameters.IfNotExists
+      - components.parameters.ConflictResolution
+    replace:
+      - type: value
+        path: paths.'/spaces/{spaceId}/features'.post.description
+        replace: ${patch-features-description}
   - name: stable
-    extends: base
+    extends: base,no-e-ne-cr-params
     exclude:
       - tags.name=Manage Connectors
       - paths.'/spaces'.get.parameters.name=includeConnectors
       - paths.'/spaces'.get.parameters.name=contentUpdatedAt
-      - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*IfExists$
-      - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*IfNotExists$
-      - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*ConflictResolution$
       - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*Transactional$
       - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*PrefixId$
       - paths.'/spaces/{spaceId}/features'.delete.parameters.$ref~=^.*TagList$
@@ -32,10 +41,7 @@ recipes:
       - paths.'/spaces/{spaceId}/iterate'.get.parameters.$ref~=^.*Part$
       - paths.'/connectors'
       - paths.'/connectors/{connectorId}'
-      - components.parameters.IfExists
       - components.parameters.ConnectorId
-      - components.parameters.IfNotExists
-      - components.parameters.ConflictResolution
       - components.parameters.PageToken
       - components.parameters.Version
       - components.parameters.StartVersion
@@ -83,13 +89,10 @@ recipes:
       - components.schemas.Connector
     replace:
       - type: value
-        path: paths.'/spaces/{spaceId}/features'.post.description
-        replace: ${patch-features-description}
-      - type: value
         path: paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.description
         replace: ${get-tile-description}
   - name: experimental
-    extends: base
+    extends: base,no-e-ne-cr-params
     exclude:
       - paths.'/spaces/{spaceId}/features'.delete.parameters.$ref~=^.*TagList$
       - paths.'/spaces/{spaceId}/count'
