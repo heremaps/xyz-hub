@@ -511,7 +511,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                         return rs.getInt(1);
                     }
                     return -1;
-                }, false);
+                }, false);   // false -> not use readreplica due to sequence 'update' statement: SELECT nextval("...._hst_seq"')
               collection.setVersion(version);
           }
         } catch (Exception e) {
