@@ -511,7 +511,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                         return rs.getInt(1);
                     }
                     return -1;
-                }, true);
+                }, false);
               collection.setVersion(version);
           }
         } catch (Exception e) {
