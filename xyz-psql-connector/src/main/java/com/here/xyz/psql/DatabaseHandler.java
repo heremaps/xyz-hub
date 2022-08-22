@@ -310,12 +310,12 @@ public abstract class DatabaseHandler extends StorageConnector {
             try {
                 if (retryCausedOnServerlessDB(e) || canRetryAttempt()) {
                     logger.info("{} Retry Query permitted.", traceItem);
-                    return executeQuery(query, handler);
+                    return executeQuery(query, handler, useReadReplica ? readDataSource : dataSource);
                 }
             } catch (Exception e1) {
                 if(retryCausedOnServerlessDB(e1)) {
                     logger.info("{} Retry Query permitted.", traceItem);
-                    return executeQuery(query, handler);
+                    return executeQuery(query, handler, useReadReplica ? readDataSource : dataSource);
                 }
                 throw e;
             }
