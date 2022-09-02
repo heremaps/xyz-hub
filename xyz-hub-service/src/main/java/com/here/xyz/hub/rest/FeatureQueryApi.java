@@ -28,6 +28,7 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
@@ -225,6 +226,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
       final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
       final boolean clip = Query.getBoolean(context, Query.CLIP, false);
       final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
+      final SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()));
 
       GetFeaturesByBBoxEvent event = new GetFeaturesByBBoxEvent<>()
           .withForce2D(force2D)
@@ -233,13 +235,14 @@ public class FeatureQueryApi extends SpaceBasedApi {
 
       try {
         event.withClusteringType(Query.getString(context, Query.CLUSTERING, null))
-                .withClusteringParams(Query.getAdditionalParams(context,Query.CLUSTERING))
-                .withTweakType(Query.getString(context, Query.TWEAKS, null))
-                .withTweakParams(Query.getAdditionalParams(context, Query.TWEAKS))
-                .withLimit(getLimit(context))
-                .withTags(Query.getTags(context))
-                .withPropertiesQuery(Query.getPropertiesQuery(context))
-                .withSelection(Query.getSelection(context));
+            .withClusteringParams(Query.getAdditionalParams(context,Query.CLUSTERING))
+            .withTweakType(Query.getString(context, Query.TWEAKS, null))
+            .withTweakParams(Query.getAdditionalParams(context, Query.TWEAKS))
+            .withLimit(getLimit(context))
+            .withTags(Query.getTags(context))
+            .withPropertiesQuery(Query.getPropertiesQuery(context))
+            .withSelection(Query.getSelection(context))
+            .withContext(spaceContext);
       } catch (Exception e) {
         throw new HttpException(BAD_REQUEST,e.getMessage());
       }
@@ -262,6 +265,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
 
       final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
       final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
+      final SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()));
 
       final int indexOfPoint = tileId.indexOf('.');
       if (indexOfPoint >= 0) {
@@ -275,9 +279,9 @@ public class FeatureQueryApi extends SpaceBasedApi {
        responseType = ApiResponseType.MVT;
       else if( acceptTypeSuffix != null )
        switch( acceptTypeSuffix.toLowerCase() )
-       { case "mvt2"  : 
+       { case "mvt2"  :
          case "mvt"   : responseType = ApiResponseType.MVT; break;
-         case "mvtf2" : 
+         case "mvtf2" :
          case "mvtf"  : responseType = ApiResponseType.MVT_FLATTENED; break;
          default : break;
        }
@@ -293,16 +297,17 @@ public class FeatureQueryApi extends SpaceBasedApi {
             .withClusteringParams(Query.getAdditionalParams(context, Query.CLUSTERING))
             .withTweakType(Query.getString(context, Query.TWEAKS, null))
             .withTweakParams(Query.getAdditionalParams(context, Query.TWEAKS))
-            .withLimit(getLimit(context, ( "viz".equals(optimMode) ? HARD_LIMIT :  DEFAULT_FEATURE_LIMIT ) ))
+            .withLimit(getLimit(context, ("viz".equals(optimMode) ? HARD_LIMIT : DEFAULT_FEATURE_LIMIT)))
             .withTags(Query.getTags(context))
             .withPropertiesQuery(Query.getPropertiesQuery(context))
             .withSelection(Query.getSelection(context))
             .withForce2D(force2D)
             .withOptimizationMode(optimMode)
             .withVizSampling(Query.getString(context, Query.OPTIM_VIZSAMPLING, "med"))
-            .withBinaryType( responseType.name() ) //TODO: Remove this once the binaryType was fully removed from PSQL connector
+            .withBinaryType( responseType.name()) //TODO: Remove this once the binaryType was fully removed from PSQL connector
             .withResponseType(responseType == ApiResponseType.MVT ? ResponseType.MVT : responseType == ApiResponseType.MVT_FLATTENED ? ResponseType.MVT_FLATTENED : null)
-            .withHereTileFlag( "here".equals(tileType) );
+            .withHereTileFlag("here".equals(tileType))
+            .withContext(spaceContext);
       } catch (Exception e) {
         throw new HttpException(BAD_REQUEST,e.getMessage());
       }

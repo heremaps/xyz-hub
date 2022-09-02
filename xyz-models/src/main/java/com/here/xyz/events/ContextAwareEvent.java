@@ -10,7 +10,18 @@ public abstract class ContextAwareEvent<T extends Event> extends Event<T> {
 
   public enum SpaceContext {
     EXTENSION,
-    DEFAULT
+    DEFAULT;
+
+    public static SpaceContext of(String value) {
+      if (value == null) {
+        return null;
+      }
+      try {
+        return valueOf(value.toUpperCase());
+      } catch (IllegalArgumentException e) {
+        return null;
+      }
+    }
   }
 
   /**

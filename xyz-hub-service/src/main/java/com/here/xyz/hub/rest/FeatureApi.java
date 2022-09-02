@@ -25,6 +25,7 @@ import static com.here.xyz.hub.rest.ApiParam.Query.FORCE_2D;
 import static com.here.xyz.hub.rest.ApiParam.Query.SKIP_CACHE;
 import static io.vertx.core.http.HttpHeaders.ACCEPT;
 
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
@@ -85,11 +86,13 @@ public class FeatureApi extends SpaceBasedApi {
   private void getFeature(final RoutingContext context) {
     final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
     final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
+    final SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()));
 
     final GetFeaturesByIdEvent event = new GetFeaturesByIdEvent()
         .withIds(Collections.singletonList(context.pathParam(Path.FEATURE_ID)))
         .withSelection(Query.getSelection(context))
-        .withForce2D(force2D);
+        .withForce2D(force2D)
+        .withContext(spaceContext);
 
     new IdsQuery(event, context, ApiResponseType.FEATURE, skipCache)
         .execute(this::sendResponse, this::sendErrorResponse);
@@ -101,11 +104,13 @@ public class FeatureApi extends SpaceBasedApi {
   private void getFeatures(final RoutingContext context) {
     final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
     final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
+    final SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()));
 
     final GetFeaturesByIdEvent event = new GetFeaturesByIdEvent()
         .withIds(Query.queryParam(Query.FEATURE_ID, context))
         .withSelection(Query.getSelection(context))
-        .withForce2D(force2D);
+        .withForce2D(force2D)
+        .withContext(spaceContext);
 
     new IdsQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache)
         .execute(this::sendResponse, this::sendErrorResponse);
@@ -153,8 +158,9 @@ public class FeatureApi extends SpaceBasedApi {
   private void deleteFeature(final RoutingContext context) {
     Map<String, Object> featureModification = Collections.singletonMap("featureIds",
         Collections.singletonList(context.pathParam(Path.FEATURE_ID)));
+    final SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()));
     executeConditionalOperationChain(true, context, ApiResponseType.EMPTY, IfExists.DELETE, IfNotExists.RETAIN, true, ConflictResolution.ERROR,
-        Collections.singletonList(featureModification));
+        Collections.singletonList(featureModification), spaceContext);
   }
 
   /**
@@ -166,13 +172,14 @@ public class FeatureApi extends SpaceBasedApi {
     final String accept = context.request().getHeader(ACCEPT);
     final ApiResponseType responseType = APPLICATION_GEO_JSON.equals(accept) || APPLICATION_JSON.equals(accept)
         ? ApiResponseType.FEATURE_COLLECTION : ApiResponseType.EMPTY;
+    final SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()));
 
     //Delete features by IDs
     if (featureIds != null && !featureIds.isEmpty()) {
       Map<String, Object> featureModification = Collections.singletonMap("featureIds", new ArrayList<>(featureIds));
 
       executeConditionalOperationChain(false, context, responseType, IfExists.DELETE, IfNotExists.RETAIN, true,
-          ConflictResolution.ERROR, Collections.singletonList(featureModification));
+          ConflictResolution.ERROR, Collections.singletonList(featureModification), spaceContext);
     }
 
     //Delete features by tags
@@ -194,13 +201,13 @@ public class FeatureApi extends SpaceBasedApi {
    */
   private void executeConditionalOperationChain(boolean requireResourceExists, final RoutingContext context,
       ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional, ConflictResolution cr) {
-    executeConditionalOperationChain(requireResourceExists, context, apiResponseTypeType, ifExists, ifNotExists, transactional, cr, null);
+    executeConditionalOperationChain(requireResourceExists, context, apiResponseTypeType, ifExists, ifNotExists, transactional, cr, null, null);
   }
 
   private void executeConditionalOperationChain(boolean requireResourceExists, final RoutingContext context,
       ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional, ConflictResolution cr,
-      List<Map<String, Object>> featureModifications) {
-    ModifyFeaturesEvent event = new ModifyFeaturesEvent().withTransaction(transactional);
+      List<Map<String, Object>> featureModifications, SpaceContext spaceContext) {
+    ModifyFeaturesEvent event = new ModifyFeaturesEvent().withTransaction(transactional).withContext(spaceContext);
     int bodySize = context.getBody() != null ? context.getBody().length() : 0;
     ConditionalOperation task = buildConditionalOperation(event, context, apiResponseTypeType, featureModifications, ifNotExists, ifExists, transactional, cr, requireResourceExists, bodySize);
     final List<String> addTags = Query.queryParam(Query.ADD_TAGS, context);
