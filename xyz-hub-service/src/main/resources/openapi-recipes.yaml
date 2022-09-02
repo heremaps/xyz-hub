@@ -20,8 +20,19 @@ recipes:
       - type: value
         path: paths.'/spaces/{spaceId}/features'.post.description
         replace: ${patch-features-description}
+  - name: no-extension
+    exclude:
+      - paths.'/spaces/{spaceId}/features'.get.parameters.$ref~=^.*Context$
+      - paths.'/spaces/{spaceId}/features'.delete.parameters.$ref~=^.*Context$
+      - paths.'/spaces/{spaceId}/features/{featureId}'.get.parameters.$ref~=^.*Context$
+      - paths.'/spaces/{spaceId}/features/{featureId}'.delete.parameters.$ref~=^.*Context$
+      - paths.'/spaces/{spaceId}/bbox'.get.parameters.$ref~=^.*Context$
+      - paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.parameters.$ref~=^.*Context$
+      - components.parameters.Context
+      - components.schemas.Extension
+      - components.schemas.Space.extends
   - name: stable
-    extends: base,no-e-ne-cr-params
+    extends: base,no-e-ne-cr-params,no-extension
     exclude:
       - tags.name=Manage Connectors
       - paths.'/spaces'.get.parameters.name=includeConnectors
@@ -86,7 +97,7 @@ recipes:
         path: paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.description
         replace: ${get-tile-description}
   - name: experimental
-    extends: base,no-e-ne-cr-params
+    extends: base,no-e-ne-cr-params,no-extension
     exclude:
       - paths.'/spaces/{spaceId}/features'.delete.parameters.$ref~=^.*TagList$
       - paths.'/spaces/{spaceId}/count'
