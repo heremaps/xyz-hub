@@ -53,6 +53,7 @@ import com.here.xyz.hub.task.SpaceTask.View;
 import com.here.xyz.hub.task.TaskPipeline.C1;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
 import com.here.xyz.hub.util.diff.Difference;
+import com.here.xyz.hub.util.diff.Difference.DiffMap;
 import com.here.xyz.hub.util.diff.Patcher;
 import com.here.xyz.models.hub.Space.ConnectorRef;
 import io.vertx.core.json.Json;
@@ -174,7 +175,7 @@ public class SpaceTaskHandler {
     if (task.isUpdate()) {
       /**
        * Validate immutable settings which are only can get set during the space creation:
-       * enableUUID, enableHistory, enableGlobalVersioning, maxVersionCount
+       * enableUUID, enableHistory, enableGlobalVersioning, maxVersionCount, extension
        * */
       Space spaceHead = task.modifyOp.entries.get(0).head;
 
@@ -201,6 +202,13 @@ public class SpaceTaskHandler {
         task.modifyOp.entries.get(0).input.put("maxVersionCount" , spaceHead.getMaxVersionCount());
       else if(spaceHead != null && spaceHead.isEnableGlobalVersioning() && task.modifyOp.entries.get(0).input.get("maxVersionCount") != null )
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'maxVersionCount' can only get set, in combination of enableGlobalVersioning, on space creation!");
+
+      /** extends is immutable and it is only allowed to set it during the space creation */
+      if(spaceHead != null && spaceHead.getExtension() != null && task.modifyOp.entries.get(0).input.get("extension") != null
+          && ((DiffMap) Patcher.getDifference(spaceHead.asMap().get("extension"), task.modifyOp.entries.get(0).input.get("extension"))).isEmpty())
+        task.modifyOp.entries.get(0).input.put("extension" , spaceHead.getExtension());
+      else if(spaceHead != null && task.modifyOp.entries.get(0).input.get("extension") != null)
+        throw new HttpException(BAD_REQUEST, "Validation failed. The property 'extension' can only get set on space creation!");
     }
 
     if (task.isCreate()) {
@@ -235,6 +243,11 @@ public class SpaceTaskHandler {
       throw new HttpException(
           BAD_REQUEST, "The property client is over the allowed limit of " + CLIENT_VALUE_MAX_SIZE + " bytes.");
     }
+    if (space.getExtension() != null && space.getSearchableProperties() != null) {
+      throw new HttpException(
+          BAD_REQUEST, "Validation failed. The properties 'searchableProperties' and 'extends' cannot be set together.");
+    }
+
     if (space.getSearchableProperties() != null && !space.getSearchableProperties().isEmpty()) {
       Space.resolveConnector(task.getMarker(), space.getStorage().getId(), arConnector -> {
         if (arConnector.failed()) {
@@ -371,6 +384,43 @@ public class SpaceTaskHandler {
           else
             callback.call(task);
         });
+  }
+
+  static void resolveExtensions(ConditionalOperation task, Callback<ConditionalOperation> callback) {
+    if (!task.isCreate()) {
+      callback.call(task);
+      return;
+    }
+
+    Space space = task.modifyOp.entries.get(0).result;
+
+    if (space.getStorage().getParams() == null && space.getExtension() == null) {
+      callback.call(task);
+      return;
+    }
+
+    if (space.getExtension() != null) {
+      Service.spaceConfigClient.get(task.getMarker(), space.getExtension().getSpaceId())
+          .onFailure(t -> {
+            logger.error(task.getMarker(), "Unable to load space definitions while resolving extensions.'", t);
+            callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definitions while resolving extensions.", t));
+          })
+          .onSuccess(extensionSpace -> {
+            Map<String, Object> params = space.getStorage().getParams();
+            if (params == null) {
+              params = new HashMap<>();
+            }
+
+            final Map<String, Object> extendsMap = (Map<String, Object>) space.asMap().get("extends");
+            if (extensionSpace.getExtension() != null) {
+              extendsMap.put("extends", extensionSpace.asMap().get("extends"));
+            }
+
+            params.put("extends", extendsMap);
+            space.getStorage().setParams(params);
+            callback.call(task);
+          });
+    }
   }
 
   static void sendEvents(ConditionalOperation task, Callback<ConditionalOperation> callback) {
