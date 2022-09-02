@@ -21,7 +21,7 @@ package com.here.xyz.events;
 
 import java.util.List;
 
-public abstract class QueryEvent<T extends QueryEvent> extends Event<T> {
+public abstract class QueryEvent<T extends QueryEvent> extends ContextAwareEvent<T> {
 
   private TagsQuery tags;
   private PropertiesQuery propertiesQuery;

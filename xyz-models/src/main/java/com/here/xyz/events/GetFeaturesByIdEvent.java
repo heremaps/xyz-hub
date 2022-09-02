@@ -26,7 +26,7 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "GetFeaturesByIdEvent")
 @SuppressWarnings({"WeakerAccess", "unused"})
-public final class GetFeaturesByIdEvent extends Event<GetFeaturesByIdEvent> {
+public final class GetFeaturesByIdEvent extends ContextAwareEvent<GetFeaturesByIdEvent> {
 
   private List<String> ids;
   private List<String> selection;
