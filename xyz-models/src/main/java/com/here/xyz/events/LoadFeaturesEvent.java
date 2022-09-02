@@ -36,7 +36,7 @@ import java.util.Map;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "LoadFeaturesEvent")
-public final class LoadFeaturesEvent extends Event<LoadFeaturesEvent> {
+public final class LoadFeaturesEvent extends ContextAwareEvent<LoadFeaturesEvent> {
 
   public LoadFeaturesEvent() {
     setPreferPrimaryDataSource(true);

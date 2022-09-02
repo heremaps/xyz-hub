@@ -45,7 +45,7 @@ import java.util.Map;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "ModifyFeaturesEvent")
-public final class ModifyFeaturesEvent extends Event<ModifyFeaturesEvent> {
+public final class ModifyFeaturesEvent extends ContextAwareEvent<ModifyFeaturesEvent> {
 
   private List<Feature> insertFeatures;
   private List<Feature> updateFeatures;
