@@ -25,20 +25,10 @@ import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.here.xyz.hub.connectors.models.Connector;
-import com.here.xyz.models.hub.Space.Static;
 import com.jayway.restassured.response.ValidatableResponse;
-import io.vertx.core.json.jackson.DatabindCodec;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Set;
-import org.apache.commons.lang3.StringUtils;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -48,25 +38,19 @@ import org.junit.Test;
 public class CreateSpaceWithExtensionApiIT extends TestSpaceWithFeature {
 
   private Set<String> cleanUpIds = new HashSet<>();
-  private String cleanUpConnectorId;
 
   @BeforeClass
   public void setupClass() {
+    createConnector(content("/xyz/hub/connectors/embeddedConnectorWithExtensionSupport.json"));
+    createSpaceWithCustomStorage("x-psql-test-extensible", "x-psql-extension-support", null);
     createSpace();
   }
 
   @AfterClass
   public void tearDownClass() {
     removeSpace("x-psql-test");
-
-    if (StringUtils.isNotEmpty(cleanUpConnectorId)) {
-      given()
-          .accept(APPLICATION_JSON)
-          .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-          .when()
-          .delete("/connectors/" + cleanUpConnectorId)
-          .then();
-    }
+    removeSpace("x-psql-test-extensible");
+    removeConnector("x-psq-extension-support");
   }
 
   @Before
@@ -91,8 +75,6 @@ public class CreateSpaceWithExtensionApiIT extends TestSpaceWithFeature {
         .statusCode(OK.code());
 
     cleanUpIds.add(response.extract().path("id"));
-
-    response.statusCode(OK.code());
   }
 
   @Test // should pass
@@ -104,12 +86,10 @@ public class CreateSpaceWithExtensionApiIT extends TestSpaceWithFeature {
         .when()
         .post("/spaces")
         .then()
-        .statusCode(OK.code());
+        .statusCode(OK.code())
+        .body("extends.spaceId", equalTo("x-psql-test-extensible"));
 
     cleanUpIds.add(response.extract().path("id"));
-
-    response.statusCode(OK.code())
-        .body("extends.spaceId", equalTo("x-psql-test"));
   }
 
   @Test // should pass
@@ -255,12 +235,10 @@ public class CreateSpaceWithExtensionApiIT extends TestSpaceWithFeature {
 
   @Test // should fail
   public void createSpaceWithExtensionNotSupported() {
-    createConnector();
-
     final ValidatableResponse response = given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"id\": \"x-psql-no-extension\", \"title\": \"x-psql-no-extension\", \"storage\":{\"id\": \"test-connector\"}}")
+        .body("{\"id\": \"x-psql-no-extension\", \"title\": \"x-psql-no-extension\"}")
         .when()
         .post("/spaces")
         .then()
@@ -278,17 +256,24 @@ public class CreateSpaceWithExtensionApiIT extends TestSpaceWithFeature {
         .statusCode(BAD_REQUEST.code());
   }
 
-  private void createConnector() {
-    final ValidatableResponse response = given()
+  private void createConnector(String content) {
+    given()
         .contentType(APPLICATION_JSON)
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(content("/xyz/hub/connectors/embeddedConnectorExtensibleFalse.json"))
+        .body(content)
         .when()
         .post("/connectors")
         .then()
         .statusCode(CREATED.code());
+  }
 
-    cleanUpConnectorId = response.extract().path("id");
+  private void removeConnector(String connectorId) {
+    given()
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .delete("/connectors/" + connectorId)
+        .then();
   }
 }
