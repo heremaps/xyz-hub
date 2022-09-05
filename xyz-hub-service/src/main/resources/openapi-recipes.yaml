@@ -35,6 +35,7 @@ recipes:
     extends: base,no-e-ne-cr-params,no-extension
     exclude:
       - tags.name=Manage Connectors
+      - tags.name=Manage Subscriptions
       - paths.'/spaces'.get.parameters.name=includeConnectors
       - paths.'/spaces'.get.parameters.name=contentUpdatedAt
       - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*Transactional$
@@ -52,6 +53,8 @@ recipes:
       - paths.'/spaces/{spaceId}/iterate'.get.parameters.$ref~=^.*Part$
       - paths.'/connectors'
       - paths.'/connectors/{connectorId}'
+      - paths.'/subscriptions'
+      - paths.'/subscriptions/{subscriptionId}'
       - components.parameters.ConnectorId
       - components.parameters.PageToken
       - components.parameters.Version
@@ -61,11 +64,16 @@ recipes:
       - components.parameters.TweaksParams
       - components.parameters.PrefixId
       - components.parameters.Transactional
+      - components.parameters.SubscriptionId
+      - components.parameters.SubscriptionSource
       - components.responses.ConnectorResponse
       - components.responses.ConnectorsResponse
       - components.responses.CountFeaturesResponse
       - components.responses.HistoryResponse
+      - components.responses.SubscriptionResponse
+      - components.responses.SubscriptionsResponse
       - components.requestBodies.ConnectorConfig
+      - components.requestBodies.SubscriptionRequest
       - components.schemas.AWSLambda
       - components.schemas.CacheProfile
       - components.schemas.ConnectorConfig
@@ -92,6 +100,8 @@ recipes:
       - components.schemas.ChangesetCollection
       - components.schemas.CompactChangeset
       - components.schemas.Connector
+      - components.schemas.Subscription
+      - components.schemas.SubscriptionConfig
     replace:
       - type: value
         path: paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.description
@@ -155,6 +165,12 @@ recipes:
       - type: key
         path: paths.'/connectors/{connectorId}'
         replace: paths.'/hub/connectors/{connectorId}'
+      - type: key
+        path: paths.'/subscriptions'
+        replace: paths.'/hub/subscriptions'
+      - type: key
+        path: paths.'/subscriptions/{subscriptionId}'
+        replace: paths.'/hub/subscriptions/{subscriptionId}'
       - type: key
         path: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/geo+json'.schema
         replace: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/geo+json'.x-schema

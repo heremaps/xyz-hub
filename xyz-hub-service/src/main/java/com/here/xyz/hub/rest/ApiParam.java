@@ -104,6 +104,7 @@ public class ApiParam {
     public static final String FEATURE_ID = "featureId";
     public static final String TILE_ID = "tileId";
     public static final String TILE_TYPE = "type";
+    public static final String SUBSCRIPTION_ID = "subscriptionId";
   }
 
   public static class Query {
@@ -169,6 +170,8 @@ public class ApiParam {
     static final String START_VERSION = "startVersion";
     static final String END_VERSION = "endVersion";
     static final String PAGE_TOKEN = "pageToken";
+
+    static final String SUBSCRIPTION_SOURCE = "source";
 
     private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{
       put("!=", QueryOperation.NOT_EQUALS);
