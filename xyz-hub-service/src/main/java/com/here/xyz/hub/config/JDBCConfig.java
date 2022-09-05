@@ -41,6 +41,7 @@ public class JDBCConfig {
   private static final String SCHEMA = "xyz_config";
   static final String CONNECTOR_TABLE = SCHEMA + ".xyz_storage";
   static final String SPACE_TABLE = SCHEMA + ".xyz_space";
+  static final String SUBSCRIPTION_TABLE = SCHEMA + ".xyz_subscription";
   private static SQLClient client;
   private static boolean initialized = false;
 
@@ -93,7 +94,8 @@ public class JDBCConfig {
         List<String> batchQueries = Arrays.asList(
             DhString.format("CREATE SCHEMA %s", SCHEMA),
             DhString.format("CREATE table  %s (id VARCHAR(50) primary key, owner VARCHAR (50), config JSONB)", CONNECTOR_TABLE),
-            DhString.format("CREATE table  %s (id VARCHAR(255) primary key, owner VARCHAR (50), cid VARCHAR (255), config JSONB)", SPACE_TABLE)
+            DhString.format("CREATE table  %s (id VARCHAR(255) primary key, owner VARCHAR (50), cid VARCHAR (255), config JSONB)", SPACE_TABLE),
+            DhString.format("CREATE table  %s (id VARCHAR(255) primary key, source VARCHAR (255), config JSONB)", SUBSCRIPTION_TABLE)
         );
 
         Promise<Void> onComplete = Promise.promise();
