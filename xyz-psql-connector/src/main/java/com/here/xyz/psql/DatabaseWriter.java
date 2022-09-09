@@ -76,29 +76,35 @@ public class DatabaseWriter {
         return jsonbObject;
     }
 
+    protected static boolean getDeletedFlagFromFeature(Feature f) {
+        return f.getProperties() == null ? false :
+            f.getProperties().getXyzNamespace() == null ? false :
+            f.getProperties().getXyzNamespace().isDeleted();
+    }
+
     protected static PreparedStatement createStatement(Connection connection, String statement) throws SQLException {
         final PreparedStatement preparedStatement = connection.prepareStatement(statement);
         return preparedStatement;
     }
 
-    protected static PreparedStatement createInsertStatement(Connection connection, String schema, String table)
+    protected static PreparedStatement createInsertStatement(Connection connection, String schema, String table, boolean withDeletedColumn)
             throws SQLException {
-        return createStatement(connection, SQLQueryBuilder.insertStmtSQL(schema,table));
+        return createStatement(connection, SQLQueryBuilder.insertStmtSQL(schema, table, withDeletedColumn));
     }
 
-    protected static PreparedStatement createInsertWithoutGeometryStatement(Connection connection, String schema, String table)
+    protected static PreparedStatement createInsertWithoutGeometryStatement(Connection connection, String schema, String table, boolean withDeletedColumn)
             throws SQLException {
-        return createStatement(connection, SQLQueryBuilder.insertWithoutGeometryStmtSQL(schema,table));
+        return createStatement(connection, SQLQueryBuilder.insertWithoutGeometryStmtSQL(schema, table, withDeletedColumn));
     }
 
-    protected static PreparedStatement createUpdateStatement(Connection connection, String schema, String table, boolean handleUUID)
+    protected static PreparedStatement createUpdateStatement(Connection connection, String schema, String table, boolean handleUUID, boolean withDeletedColumn)
             throws SQLException {
-        return createStatement(connection, SQLQueryBuilder.updateStmtSQL(schema,table,handleUUID));
+        return createStatement(connection, SQLQueryBuilder.updateStmtSQL(schema, table, handleUUID, withDeletedColumn));
     }
 
-    protected static PreparedStatement createUpdateWithoutGeometryStatement(Connection connection, String schema, String table, boolean handleUUID)
+    protected static PreparedStatement createUpdateWithoutGeometryStatement(Connection connection, String schema, String table, boolean handleUUID, boolean withDeletedColumn)
             throws SQLException {
-        return createStatement(connection, SQLQueryBuilder.updateWithoutGeometryStmtSQL(schema,table,handleUUID));
+        return createStatement(connection, SQLQueryBuilder.updateWithoutGeometryStmtSQL(schema, table, handleUUID, withDeletedColumn));
     }
 
     protected static PreparedStatement deleteStmtSQLStatement(Connection connection, String schema, String table, boolean handleUUID)
@@ -118,27 +124,27 @@ public class DatabaseWriter {
     protected static FeatureCollection insertFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem, FeatureCollection collection,
                                                       List<FeatureCollection.ModificationFailure> fails,
                                                       List<Feature> inserts, Connection connection,
-                                                      boolean transactional, Integer version)
+                                                      boolean transactional, Integer version, boolean forExtendedSpace)
             throws SQLException, JsonProcessingException {
         if(transactional) {
             setAutocommit(connection,false);
-            return DatabaseTransactionalWriter.insertFeatures(dbh, schema, table, traceItem, collection, fails, inserts, connection, version);
+            return DatabaseTransactionalWriter.insertFeatures(dbh, schema, table, traceItem, collection, fails, inserts, connection, version, forExtendedSpace);
         }
         setAutocommit(connection,true);
-        return DatabaseStreamWriter.insertFeatures(dbh, schema, table, traceItem, collection, fails, inserts, connection);
+        return DatabaseStreamWriter.insertFeatures(dbh, schema, table, traceItem, collection, fails, inserts, connection, forExtendedSpace);
     }
 
     protected static FeatureCollection updateFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem, FeatureCollection collection,
                                                       List<FeatureCollection.ModificationFailure> fails,
                                                       List<Feature> updates, Connection connection,
-                                                      boolean transactional, boolean handleUUID, Integer version)
+                                                      boolean transactional, boolean handleUUID, Integer version, boolean forExtendedSpace)
             throws SQLException, JsonProcessingException {
         if(transactional) {
             setAutocommit(connection,false);
-            return DatabaseTransactionalWriter.updateFeatures(dbh, schema, table, traceItem, collection, fails, updates, connection,handleUUID, version);
+            return DatabaseTransactionalWriter.updateFeatures(dbh, schema, table, traceItem, collection, fails, updates, connection,handleUUID, version, forExtendedSpace);
         }
         setAutocommit(connection,true);
-        return DatabaseStreamWriter.updateFeatures(dbh, schema, table, traceItem, collection, fails, updates, connection, handleUUID);
+        return DatabaseStreamWriter.updateFeatures(dbh, schema, table, traceItem, collection, fails, updates, connection, handleUUID, forExtendedSpace);
     }
 
     protected static void deleteFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem,

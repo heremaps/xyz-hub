@@ -19,6 +19,8 @@
 
 package com.here.xyz.events;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Payload;
@@ -86,6 +88,7 @@ public abstract class Event<T extends Event> extends Payload {
   @JsonView(ExcludeFromHash.class)
   private String aid;
   @JsonView(ExcludeFromHash.class)
+  @JsonInclude(Include.ALWAYS)
   private String version = VERSION;
 
   /**

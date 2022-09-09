@@ -46,11 +46,11 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
 
     public static FeatureCollection insertFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem,
                 FeatureCollection collection, List<FeatureCollection.ModificationFailure> fails,
-                List<Feature> inserts, Connection connection, Integer version)
+                List<Feature> inserts, Connection connection, Integer version, boolean forExtendedSpace)
             throws SQLException, JsonProcessingException {
 
-        final PreparedStatement insertStmt = createInsertStatement(connection,schema,table);
-        final PreparedStatement insertWithoutGeometryStmt = createInsertWithoutGeometryStatement(connection,schema,table);
+        final PreparedStatement insertStmt = createInsertStatement(connection, schema, table, forExtendedSpace);
+        final PreparedStatement insertWithoutGeometryStmt = createInsertWithoutGeometryStatement(connection, schema, table, forExtendedSpace);
 
         List<String> insertIdList = new ArrayList<>();
         List<String> insertWithoutGeometryIdList = new ArrayList<>();
@@ -62,6 +62,8 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
 
             if (feature.getGeometry() == null) {
                 insertWithoutGeometryStmt.setObject(1, jsonbObject);
+                if (forExtendedSpace)
+                    insertWithoutGeometryStmt.setBoolean(2, getDeletedFlagFromFeature(feature));
                 insertWithoutGeometryStmt.addBatch();
                 insertWithoutGeometryIdList.add(feature.getId());
             } else {
@@ -72,6 +74,8 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
                 //Avoid NAN values
                 assure3d(jtsGeometry.getCoordinates());
                 insertStmt.setBytes(2, wkbWriter.write(jtsGeometry));
+                if (forExtendedSpace)
+                    insertStmt.setBoolean(3, getDeletedFlagFromFeature(feature));
 
                 insertStmt.addBatch();
                 insertIdList.add(feature.getId());
@@ -87,11 +91,11 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
 
     public static FeatureCollection updateFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem, FeatureCollection collection,
                                                    List<FeatureCollection.ModificationFailure> fails, List<Feature> updates,
-                                                   Connection connection, boolean handleUUID, Integer version)
+                                                   Connection connection, boolean handleUUID, Integer version, boolean forExtendedSpace)
             throws SQLException, JsonProcessingException {
 
-        final PreparedStatement updateStmt = createUpdateStatement(connection, schema, table, handleUUID);
-        final PreparedStatement updateWithoutGeometryStmt = createUpdateWithoutGeometryStatement(connection,schema,table,handleUUID);
+        final PreparedStatement updateStmt = createUpdateStatement(connection, schema, table, handleUUID, forExtendedSpace);
+        final PreparedStatement updateWithoutGeometryStmt = createUpdateWithoutGeometryStatement(connection,schema,table,handleUUID, forExtendedSpace);
 
         List<String> updateIdList = new ArrayList<>();
         List<String> updateWithoutGeometryIdList = new ArrayList<>();
@@ -106,27 +110,29 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
 
             final PGobject jsonbObject= featureToPGobject(feature, version);
 
+            int paramIdx = 0;
             if (feature.getGeometry() == null) {
-                updateWithoutGeometryStmt.setObject(1, jsonbObject);
-                updateWithoutGeometryStmt.setString(2, feature.getId());
-                if(handleUUID)
-                    updateWithoutGeometryStmt.setString(3, puuid);
+                updateWithoutGeometryStmt.setObject(++paramIdx, jsonbObject);
+                if (forExtendedSpace)
+                    updateWithoutGeometryStmt.setBoolean(++paramIdx, getDeletedFlagFromFeature(feature));
+                updateWithoutGeometryStmt.setString(++paramIdx, feature.getId());
+                if (handleUUID)
+                    updateWithoutGeometryStmt.setString(++paramIdx, puuid);
                 updateWithoutGeometryStmt.addBatch();
 
                 updateWithoutGeometryIdList.add(feature.getId());
             } else {
-                updateStmt.setObject(1, jsonbObject);
-
+                updateStmt.setObject(++paramIdx, jsonbObject);
                 final WKBWriter wkbWriter = new WKBWriter(3);
                 Geometry jtsGeometry = feature.getGeometry().getJTSGeometry();
                 //Avoid NAN values
                 assure3d(jtsGeometry.getCoordinates());
-                updateStmt.setBytes(2, wkbWriter.write(jtsGeometry));
-                updateStmt.setString(3, feature.getId());
-
-                if(handleUUID) {
-                    updateStmt.setString(4, puuid);
-                }
+                updateStmt.setBytes(++paramIdx, wkbWriter.write(jtsGeometry));
+                if (forExtendedSpace)
+                    updateStmt.setBoolean(++paramIdx, getDeletedFlagFromFeature(feature));
+                updateStmt.setString(++paramIdx, feature.getId());
+                if (handleUUID)
+                    updateStmt.setString(++paramIdx, puuid);
                 updateStmt.addBatch();
 
                 updateIdList.add(feature.getId());

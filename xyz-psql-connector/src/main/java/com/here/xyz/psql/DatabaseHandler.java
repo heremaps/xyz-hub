@@ -19,6 +19,8 @@
 
 package com.here.xyz.psql;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,9 +40,12 @@ import com.here.xyz.events.SearchForFeaturesOrderByEvent;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.config.DatabaseSettings;
 import com.here.xyz.psql.config.PSQLConfig;
+import com.here.xyz.psql.query.LoadFeaturesQueryRunner;
 import com.here.xyz.psql.query.StorageStatisticsQueryRunner;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.CountResponse;
@@ -64,6 +69,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -222,6 +228,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         String table = config.readTableFromEvent(event);
         String hstTable = config.readTableFromEvent(event)+HISTORY_TABLE_SUFFIX;
 
+        replacements.put("idx_deleted", "idx_" + table + "_deleted");
         replacements.put("idx_serial", "idx_" + table + "_serial");
         replacements.put("idx_id", "idx_" + table + "_id");
         replacements.put("idx_tags", "idx_" + table + "_tags");
@@ -415,15 +422,10 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     protected XyzResponse executeLoadFeatures(LoadFeaturesEvent event) throws SQLException {
-        final Map<String, String> idMap = event.getIdsMap();
-        final Boolean enabledHistory = event.getEnableHistory() == Boolean.TRUE;
-        final Boolean enabledGlobalVersioning = event.getEnableGlobalVersioning() == Boolean.TRUE;
-        final Boolean compactHistory = enabledGlobalVersioning ? false : config.getConnectorParams().isCompactHistory();
-
-        if (idMap == null || idMap.size() == 0) {
+        if (event.getIdsMap() == null || event.getIdsMap().size() == 0)
             return new FeatureCollection();
-        }
-        return executeQueryWithRetry(SQLQueryBuilder.buildLoadFeaturesQuery(idMap, enabledHistory, compactHistory, dataSource));
+
+        return new LoadFeaturesQueryRunner(event, this).run();
     }
 
     protected XyzResponse executeIterateHistory(IterateHistoryEvent event) throws SQLException {
@@ -485,6 +487,26 @@ public abstract class DatabaseHandler extends StorageConnector {
         List<Feature> upserts = Optional.ofNullable(event.getUpsertFeatures()).orElse(new ArrayList<>());
         Map<String, String> deletes = Optional.ofNullable(event.getDeleteFeatures()).orElse(new HashMap<>());
         List<FeatureCollection.ModificationFailure> fails = Optional.ofNullable(event.getFailed()).orElse(new ArrayList<>());
+        boolean forExtendedSpace = isForExtendedSpace(event);
+
+        //Handle deletes / updates on extended spaces
+        if (forExtendedSpace && event.getContext() == DEFAULT) {
+            if (deletes.size() > 0) {
+                //Transform the incoming deletes into upserts with deleted flag
+                for (String featureId : deletes.keySet()) {
+                    upserts.add(new Feature()
+                        .withId(featureId)
+                        .withProperties(new Properties().withXyzNamespace(new XyzNamespace().withDeleted(true))));
+
+                }
+                deletes = Collections.emptyMap();
+            }
+            if (updates.size() > 0) {
+                //Transform the incoming updates into upserts, because we don't know whether the object is existing in the extension already
+                upserts.addAll(updates);
+                updates.clear();
+            }
+        }
 
         try {
           /** Include Old states */
@@ -523,21 +545,18 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         try (final Connection connection = dataSource.getConnection()) {
 
-            boolean cStateFlag = connection.getAutoCommit();
-            if (transactional)
-                connection.setAutoCommit(false);
-            else
-                connection.setAutoCommit(true);
+            boolean previousAutoCommitState = connection.getAutoCommit();
+            connection.setAutoCommit(!transactional);
 
             try {
                 if (deletes.size() > 0) {
                     DatabaseWriter.deleteFeatures(this, schema, table, traceItem, fails, deletes, connection, transactional, handleUUID, version);
                 }
                 if (inserts.size() > 0) {
-                    DatabaseWriter.insertFeatures(this, schema, table, traceItem, collection, fails, inserts, connection, transactional, version);
+                    DatabaseWriter.insertFeatures(this, schema, table, traceItem, collection, fails, inserts, connection, transactional, version, forExtendedSpace);
                 }
                 if (updates.size() > 0) {
-                    DatabaseWriter.updateFeatures(this, schema, table, traceItem, collection, fails, updates, connection, transactional, handleUUID, version);
+                    DatabaseWriter.updateFeatures(this, schema, table, traceItem, collection, fails, updates, connection, transactional, handleUUID, version, forExtendedSpace);
                 }
 
                 if (transactional) {
@@ -558,7 +577,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                     retryAttempted = true;
 
                     if(!connection.isClosed())
-                    { connection.setAutoCommit(cStateFlag);
+                    { connection.setAutoCommit(previousAutoCommitState);
                       connection.close();
                     }
 
@@ -596,7 +615,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
                 if (!retryAttempted) {
                     if(!connection.isClosed()) {
-                        connection.setAutoCommit(cStateFlag);
+                        connection.setAutoCommit(previousAutoCommitState);
                         connection.close();
                     }
                     /** Retry */
@@ -607,7 +626,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             finally
             {
                 if(!connection.isClosed()) {
-                    connection.setAutoCommit(cStateFlag);
+                    connection.setAutoCommit(previousAutoCommitState);
                     connection.close();
                 }
             }
@@ -751,6 +770,10 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private static void advisoryUnlock(String tablename, Connection connection ) throws SQLException { _advisory(tablename,connection,false); }
 
+    private static boolean isForExtendedSpace(Event event) {
+        return event.getParams() != null && event.getParams().containsKey("extends");
+    }
+
     protected void ensureSpace() throws SQLException {
         // Note: We can assume that when the table exists, the postgis extensions are installed.
         if (hasTable()) return;
@@ -766,7 +789,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                   connection.setAutoCommit(false);
 
                 try (Statement stmt = connection.createStatement()) {
-                    createSpaceStatement(stmt,tableName);
+                    createSpaceStatement(stmt, tableName, isForExtendedSpace(event));
 
                     stmt.setQueryTimeout(calculateTimeout());
                     stmt.executeBatch();
@@ -790,10 +813,21 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     private void createSpaceStatement(Statement stmt, String tableName) throws SQLException {
-        String query = "CREATE TABLE IF NOT EXISTS ${schema}.${table} (jsondata jsonb, geo geometry(GeometryZ,4326), i BIGSERIAL)";
+        createSpaceStatement(stmt, tableName, false);
+    }
+
+    private void createSpaceStatement(Statement stmt, String tableName, boolean withDeletedColumn) throws SQLException {
+        String query = "CREATE TABLE IF NOT EXISTS ${schema}.${table} (jsondata jsonb, geo geometry(GeometryZ,4326), i BIGSERIAL"
+            + (withDeletedColumn ? ", deleted BOOLEAN DEFAULT FALSE" : "") + ")";
 
         query = SQLQuery.replaceVars(query, config.getDatabaseSettings().getSchema(), tableName);
         stmt.addBatch(query);
+
+        if (withDeletedColumn) {
+            query = "CREATE INDEX IF NOT EXISTS ${idx_deleted} ON ${schema}.${table} USING btree (deleted ASC NULLS LAST) WHERE deleted = TRUE";
+            query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
+            stmt.addBatch(query);
+        }
 
         query = "CREATE UNIQUE INDEX IF NOT EXISTS ${idx_id} ON ${schema}.${table} ((jsondata->>'id'))";
         query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
@@ -911,7 +945,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
-    protected void updateTrigger(Integer maxVersionCount, boolean compactHistory, boolean isEnableGlobalVersioning) throws SQLException {
+    protected void updateHistoryTrigger(Integer maxVersionCount, boolean compactHistory, boolean isEnableGlobalVersioning) throws SQLException {
         final String tableName = config.readTableFromEvent(event);
 
         try (final Connection connection = dataSource.getConnection()) {
@@ -1008,7 +1042,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         return featureCollection;
     }
 
-    protected FeatureCollection defaultFeatureResultSetHandler(ResultSet rs) throws SQLException
+    public FeatureCollection defaultFeatureResultSetHandler(ResultSet rs) throws SQLException
     { return _defaultFeatureResultSetHandler(rs,false); }
 
     protected FeatureCollection defaultFeatureResultSetHandlerSkipIfGeomIsNull(ResultSet rs) throws SQLException
@@ -1377,6 +1411,10 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     public PSQLConfig getConfig() {
         return config;
+    }
+
+    public DataSource getDataSource() {
+        return dataSource;
     }
 
     public String getStreamId() {
