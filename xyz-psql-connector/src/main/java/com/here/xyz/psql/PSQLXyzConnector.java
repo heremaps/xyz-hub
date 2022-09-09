@@ -56,6 +56,8 @@ import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.factory.H3SQL;
 import com.here.xyz.psql.factory.QuadbinSQL;
 import com.here.xyz.psql.factory.TweaksSQL;
+import com.here.xyz.psql.query.GetFeaturesByBBoxQueryRunner;
+import com.here.xyz.psql.query.GetFeaturesByIdQueryRunner;
 import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.SuccessResponse;
@@ -135,14 +137,15 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processGetFeaturesByIdEvent(GetFeaturesByIdEvent event) throws Exception {
     try {
       logger.info("{} Received GetFeaturesByIdEvent", traceItem);
-      final List<String> ids = event.getIds();
-      if (ids == null || ids.size() == 0) {
+      if (event.getIds() == null || event.getIds().size() == 0)
         return new FeatureCollection();
-      }
-      return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByIdQuery(event, config, dataSource));
-    }catch (SQLException e){
+
+      return new GetFeaturesByIdQueryRunner(event, this).run();
+    }
+    catch (SQLException e) {
       return checkSQLException(e, config.readTableFromEvent(event));
-    }finally {
+    }
+    finally {
       logger.info("{} Finished GetFeaturesByIdEvent", traceItem);
     }
   }
@@ -159,9 +162,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
     }
   }
 
-  static private class TupleTime 
+  static private class TupleTime
   { static private Map<String,String> rTuplesMap = new ConcurrentHashMap<String,String>();
-    long outTs; 
+    long outTs;
     TupleTime() { outTs = System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(15); rTuplesMap.clear(); }
     boolean expired() { return  System.currentTimeMillis() > outTs; }
   }
@@ -211,10 +214,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
        throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "mvt format needs tile request");
 
       if( bMvtRequested )
-      { 
+      {
         if( event.getConnectorParams() == null || event.getConnectorParams().get("mvtSupport") != Boolean.TRUE )
          throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "mvt format is not supported");
-        
+
         if(!tileEv.getHereTileFlag())
          mercatorTile = WebMercatorTile.forWeb(tileEv.getLevel(), tileEv.getX(), tileEv.getY());
         else
@@ -261,7 +264,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
           case TweaksSQL.ENSURE: {
 
-            if(ttime.expired()) 
+            if(ttime.expired())
              ttime = new TupleTime();
 
             String rTuples = TupleTime.rTuplesMap.get(event.getSpace());
@@ -362,6 +365,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
         }
       }
 
+      if (event.getParams() != null && event.getParams().containsKey("extends"))
+        return new GetFeaturesByBBoxQueryRunner<>(event, this).run();
+
       if( !bMvtRequested )
        return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource));
       else
@@ -454,7 +460,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
                 .withErrorMessage("ModifyFeaturesEvent is not supported by this storage connector.");
       }
 
-      final boolean addUUID = event.getEnableUUID() == Boolean.TRUE && event.getVersion().compareTo("0.2.0") < 0;
+      final boolean addUUID = event.getEnableUUID() && event.getVersion().compareTo("0.2.0") < 0;
       // Update the features to insert
       final List<Feature> inserts = Optional.ofNullable(event.getInsertFeatures()).orElse(Collections.emptyList());
       final List<Feature> updates = Optional.ofNullable(event.getUpdateFeatures()).orElse(Collections.emptyList());
@@ -491,14 +497,14 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       if(event.getSpaceDefinition() != null && event.getSpaceDefinition().isEnableHistory()){
         Integer maxVersionCount = event.getSpaceDefinition().getMaxVersionCount();
-        Boolean isEnableGlobalVersioning = event.getSpaceDefinition().isEnableGlobalVersioning();
-        Boolean compactHistory = config.getConnectorParams().isCompactHistory();
+        boolean isEnableGlobalVersioning = event.getSpaceDefinition().isEnableGlobalVersioning();
+        boolean compactHistory = config.getConnectorParams().isCompactHistory();
 
         if(ModifySpaceEvent.Operation.CREATE == event.getOperation()){
           ensureHistorySpace(maxVersionCount, compactHistory, isEnableGlobalVersioning);
         }else if(ModifySpaceEvent.Operation.UPDATE == event.getOperation()){
           //update Trigger to apply maxVersionCount.
-          updateTrigger(maxVersionCount, compactHistory, isEnableGlobalVersioning);
+          updateHistoryTrigger(maxVersionCount, compactHistory, isEnableGlobalVersioning);
         }
       }
 
