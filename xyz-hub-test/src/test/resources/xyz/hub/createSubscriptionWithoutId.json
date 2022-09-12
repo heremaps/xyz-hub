@@ -1,0 +1,8 @@
+{
+  "source": "space-1",
+  "destination": "some-destination",
+  "destinationType": "stream",
+  "config": {
+    "type": "PER_FEATURE"
+  }
+}

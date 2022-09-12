@@ -87,7 +87,7 @@ public class SubscriptionHandler {
             }
             else {
                 logger.info(marker, "Resource with the given ID already exists.");
-                handler.handle(Future.failedFuture(new HttpException(BAD_REQUEST, "Resource with the given ID already exists.")));
+                handler.handle(Future.failedFuture(new HttpException(CONFLICT, "Resource with the given ID already exists.")));
             }
         });
     }

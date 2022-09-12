@@ -39,8 +39,7 @@ import org.apache.logging.log4j.Logger;
 import java.util.List;
 
 import static com.here.xyz.hub.auth.XyzHubAttributeMap.SPACE;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
-import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.netty.handler.codec.http.HttpResponseStatus.*;
 
 public class SubscriptionApi extends Api {
   private static final Logger logger = LogManager.getLogger();
@@ -128,7 +127,7 @@ public class SubscriptionApi extends Api {
             if(ar.failed()) {
               sendErrorResponse(context, ar.cause());
             } else {
-              sendResponse(context, OK, ar.result());
+              sendResponse(context, CREATED, ar.result());
             }
           });
         }
