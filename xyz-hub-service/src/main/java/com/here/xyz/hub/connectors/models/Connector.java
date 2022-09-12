@@ -454,7 +454,7 @@ public class Connector {
         if (!(o instanceof Http)) return false;
         if (!super.equals(o)) return false;
         Http http = (Http) o;
-        return metricsActive == http.metricsActive && url.equals(http.url);
+        return metricsActive == http.metricsActive && url.toString().equals(http.url.toString());
       }
 
       @Override
