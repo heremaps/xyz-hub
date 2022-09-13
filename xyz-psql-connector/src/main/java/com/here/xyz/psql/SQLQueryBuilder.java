@@ -86,8 +86,7 @@ public class SQLQueryBuilder {
 
         SQLQuery query = new SQLQuery("SELECT");
         query.append(SQLQuery.selectJson(event.getSelection(),dataSource));
-        query.append(", replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
-                SQLQuery.createSQLArray(event.getIds().toArray(new String[0]), "text",dataSource));
+        query.append(", replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)", (Object) event.getIds().toArray(new String[0]));
        return query;
     }
 
@@ -211,7 +210,7 @@ public class SQLQueryBuilder {
         if (statisticalPropertyProvided) {
             ArrayList<String> jpath = new ArrayList<>();
             jpath.add(statisticalProperty);
-            query.addParameter(SQLQuery.createSQLArray(jpath.toArray(new String[]{}), "text", dataSource));
+            query.addParameter( jpath.toArray(new String[]{}) );
         }
 
         int pxSize = H3SQL.adjPixelSize( h3res, defaultResForLevel );
@@ -229,7 +228,7 @@ public class SQLQueryBuilder {
             jpath.addAll(Arrays.asList(statisticalProperty.split("\\.")));
 
             query.append(new SQLQuery(DhString.format(h3sqlMid, h3res, "(jsondata#>> ?)::numeric", zLevel, pxSize,expBboxSql,samplingCondition)));
-            query.addParameter(SQLQuery.createSQLArray(jpath.toArray(new String[]{}), "text", dataSource));
+            query.addParameter( jpath.toArray(new String[]{}) );
         }
 
         if (searchQuery != null) {
@@ -692,12 +691,11 @@ public class SQLQueryBuilder {
         values.addAll(idMap.values());
 
         if(!enabledHistory || values.size() == 0 ) {
-            return new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
-                    SQLQuery.createSQLArray(ids.toArray(new String[0]), "text", dataSource));
+            return new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)", (Object) ids.toArray(new String[0]));
         }else{
             final SQLQuery query;
-            final Array idArray = SQLQuery.createSQLArray(ids.toArray(new String[0]), "text", dataSource);
-            final Array uuidArray = SQLQuery.createSQLArray(values.toArray(new String[0]), "text", dataSource);
+            final String[] idArray = ids.toArray(new String[0]);
+            final String[] uuidArray = values.toArray(new String[0]);
 
             if(compactHistory){
                 //History does not contain Inserts
@@ -991,11 +989,11 @@ public class SQLQueryBuilder {
             for (int i = 0; i < tags.size(); i++) {
                 orList[i] = tags.get(i).get(0);
             }
-            query = new SQLQuery(" (jsondata->'properties'->'@ns:com:here:xyz'->'tags' ??| ?)", SQLQuery.createSQLArray(orList, "text",dataSource));
+            query = new SQLQuery(" (jsondata->'properties'->'@ns:com:here:xyz'->'tags' ??| ?)", (Object) orList );
         } else {
             query = new SQLQuery("(" + andQuery + ")");
             for (TagList tag : tags) {
-                query.addParameter(SQLQuery.createSQLArray(tag.toArray(new String[0]), "text",dataSource));
+                query.addParameter(tag.toArray(new String[0]));
             }
         }
 
@@ -1130,14 +1128,12 @@ public class SQLQueryBuilder {
 
     protected static SQLQuery generateLoadOldFeaturesQuery(final String[] idsToFetch, final DataSource dataSource)
             throws SQLException {
-        return new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
-            SQLQuery.createSQLArray(idsToFetch, "text", dataSource));
+        return new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)", (Object) idsToFetch );
     }
 
     protected static SQLQuery generateLoadExistingIdsQuery(final String[] idsToFetch, final DataSource dataSource)
         throws SQLException {
-      return new SQLQuery("SELECT jsondata->>'id' id FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)",
-          SQLQuery.createSQLArray(idsToFetch, "text", dataSource));
+      return new SQLQuery("SELECT jsondata->>'id' id FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)", (Object) idsToFetch );
     }
 
     protected static SQLQuery generateIDXStatusQuery(final String space){
