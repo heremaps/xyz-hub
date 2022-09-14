@@ -240,7 +240,7 @@ public class Service extends Core {
         logger.info("Deploying verticle: " + className);
         vertx.deployVerticle(className, options, deployVerticleHandler -> {
           if (deployVerticleHandler.failed()) {
-            logger.warn("Unable to load verticle class:" + className);
+            logger.warn("Unable to load verticle class:" + className, deployVerticleHandler.cause());
           }
           deployVerticlePromise.complete();
         });
