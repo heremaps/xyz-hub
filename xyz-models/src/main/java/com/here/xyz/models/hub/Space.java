@@ -87,7 +87,7 @@ public class Space {
   /**
    * The space extension configuration which allows the space's content to override another space's content.
    */
-  @JsonView({Internal.class, Static.class})
+  @JsonView({Public.class, Static.class})
   @JsonProperty("extends")
   private Extension extension;
 
