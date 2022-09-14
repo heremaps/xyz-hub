@@ -264,7 +264,7 @@ public class SpaceTaskHandler {
               + " on space with storage connector " + space.getStorage().getId()));
         } else if (space.getExtension() != null && !connector.capabilities.extensionSupport) {
           callback.exception(new HttpException(BAD_REQUEST, "The space " + space.getStorage().getId() + " cannot extend the space "
-              + space.getExtension().getSpaceId() + " because its connector does not support the capability 'extendsSupport'"));
+              + space.getExtension().getSpaceId() + " because its connector does not support the capability 'extensionSupport'"));
         } else {
           callback.call(task);
         }
