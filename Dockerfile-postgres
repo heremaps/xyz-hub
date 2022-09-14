@@ -1,10 +1,6 @@
-FROM postgres:10
-
-MAINTAINER Benjamin Rögner "benjamin.roegner@here.com"
-MAINTAINER Lucas Ceni "lucas.ceni@here.com"
-MAINTAINER Dimitar Goshev "dimitar.goshev@here.com"
+FROM postgres:14
 
 ENV POSTGRES_PASSWORD password
 
 RUN apt-get update && \
-    apt-get -y install postgresql-10-postgis-2.5
+    apt-get -y install postgresql-14-postgis-3
