@@ -192,7 +192,7 @@ public class FeatureApi extends SpaceBasedApi {
           .execute(this::sendResponse, this::sendErrorResponse);
     } else {
       context.fail(
-          new HttpException(HttpResponseStatus.BAD_GATEWAY, "At least one tag or identifier should be provided as a query parameter."));
+          new HttpException(HttpResponseStatus.BAD_REQUEST, "At least one identifier should be provided as a query parameter."));
     }
   }
 
