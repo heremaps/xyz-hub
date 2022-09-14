@@ -17,7 +17,7 @@ public abstract class ContextAwareEvent<T extends Event> extends Event<T> {
         return null;
       }
       try {
-        return valueOf(value.toUpperCase());
+        return valueOf(value);
       } catch (IllegalArgumentException e) {
         return null;
       }
