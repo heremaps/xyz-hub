@@ -86,7 +86,7 @@ public class FeatureApi extends SpaceBasedApi {
   private void getFeature(final RoutingContext context) {
     final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
     final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
-    final SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()));
+    final SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()).toUpperCase());
 
     final GetFeaturesByIdEvent event = new GetFeaturesByIdEvent()
         .withIds(Collections.singletonList(context.pathParam(Path.FEATURE_ID)))
@@ -104,7 +104,7 @@ public class FeatureApi extends SpaceBasedApi {
   private void getFeatures(final RoutingContext context) {
     final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
     final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
-    final SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()));
+    final SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()).toUpperCase());
 
     final GetFeaturesByIdEvent event = new GetFeaturesByIdEvent()
         .withIds(Query.queryParam(Query.FEATURE_ID, context))
@@ -158,7 +158,7 @@ public class FeatureApi extends SpaceBasedApi {
   private void deleteFeature(final RoutingContext context) {
     Map<String, Object> featureModification = Collections.singletonMap("featureIds",
         Collections.singletonList(context.pathParam(Path.FEATURE_ID)));
-    final SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()));
+    final SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()).toUpperCase());
     executeConditionalOperationChain(true, context, ApiResponseType.EMPTY, IfExists.DELETE, IfNotExists.RETAIN, true, ConflictResolution.ERROR,
         Collections.singletonList(featureModification), spaceContext);
   }
@@ -172,7 +172,7 @@ public class FeatureApi extends SpaceBasedApi {
     final String accept = context.request().getHeader(ACCEPT);
     final ApiResponseType responseType = APPLICATION_GEO_JSON.equals(accept) || APPLICATION_JSON.equals(accept)
         ? ApiResponseType.FEATURE_COLLECTION : ApiResponseType.EMPTY;
-    final SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()));
+    final SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()).toUpperCase());
 
     //Delete features by IDs
     if (featureIds != null && !featureIds.isEmpty()) {

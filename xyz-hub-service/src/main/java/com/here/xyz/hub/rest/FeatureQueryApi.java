@@ -226,7 +226,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
       final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
       final boolean clip = Query.getBoolean(context, Query.CLIP, false);
       final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
-      final SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()));
+      final SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()).toUpperCase());
 
       GetFeaturesByBBoxEvent event = new GetFeaturesByBBoxEvent<>()
           .withForce2D(force2D)
@@ -265,7 +265,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
 
       final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
       final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
-      final SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()));
+      final SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()).toUpperCase());
 
       final int indexOfPoint = tileId.indexOf('.');
       if (indexOfPoint >= 0) {
