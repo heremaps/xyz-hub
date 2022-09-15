@@ -34,6 +34,8 @@ public abstract class ContextAwareEvent<T extends Event> extends Event<T> {
   }
 
   public void setContext(SpaceContext context) {
+    if (context == null)
+      throw new NullPointerException("Context can not be null.");
     this.context = context;
   }
 
