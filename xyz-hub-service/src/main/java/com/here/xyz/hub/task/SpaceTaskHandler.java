@@ -251,8 +251,8 @@ public class SpaceTaskHandler {
       throw new HttpException(BAD_REQUEST, "Validation failed. The properties 'searchableProperties' and 'extends' cannot be set together.");
     }
 
-    if (task.modifyOp.entries.get(0).result.getExtension() != null && task.modifyOp.entries.get(0).input.get("storage") != null)
-      throw new HttpException(BAD_REQUEST, "Validation failed. The properties 'storage' and 'extends' cannot be set together.");
+    //if (task.modifyOp.entries.get(0).result.getExtension() != null && task.modifyOp.entries.get(0).input.get("storage") != null)
+      //throw new HttpException(BAD_REQUEST, "Validation failed. The properties 'storage' and 'extends' cannot be set together.");
 
     if ((space.getSearchableProperties() != null && !space.getSearchableProperties().isEmpty()) || space.getExtension() != null) {
       Space.resolveConnector(task.getMarker(), space.getStorage().getId(), arConnector -> {
@@ -265,8 +265,8 @@ public class SpaceTaskHandler {
             callback.exception(new HttpException(BAD_REQUEST, "It's not supported to define the searchableProperties"
                 + " on space with storage connector " + space.getStorage().getId()));
           } else if (space.getExtension() != null && !connector.capabilities.extensionSupport) {
-            callback.exception(new HttpException(BAD_REQUEST, "The space " + space.getStorage().getId() + " cannot extend the space "
-                + space.getExtension().getSpaceId() + " because its connector does not support the capability 'extensionSupport'"));
+            callback.exception(new HttpException(BAD_REQUEST, "The space " + space.getId() + " cannot extend the space "
+                + space.getExtension().getSpaceId() + " because its storage does not have the capability 'extensionSupport'."));
           } else {
             callback.call(task);
           }
@@ -412,28 +412,25 @@ public class SpaceTaskHandler {
     if (space.getExtension() != null) {
       Service.spaceConfigClient.get(task.getMarker(), space.getExtension().getSpaceId())
         .onFailure(t -> {
-          logger.error(task.getMarker(), "Unable to load space definitions while resolving extensions.'", t);
+          logger.error(task.getMarker(), "Unable to load the space definitions while resolving extensions.'", t);
           callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definitions while resolving extensions.", t));
         })
-        .onSuccess(extensionSpace -> {
-          // storage params are taken from the input and then resolved based on the extensions
+        .onSuccess(extendedSpace -> {
+          //Override the storage config by copying it from the extended space
+          ConnectorRef extendedConnector = extendedSpace.getStorage();
+          space.setStorage(new ConnectorRef()
+              .withId(extendedConnector.getId())
+              .withParams(extendedConnector.getParams() != null ? extendedConnector.getParams() : new HashMap<>()));
+
+          //Storage params are taken from the input and then resolved based on the extensions
           Map<String, Object> params = space.getStorage().getParams();
-          if (params == null) {
-            params = new HashMap<>();
-          }
-
           final Map<String, Object> extendsMap = (Map<String, Object>) space.asMap().get("extends");
-          if (extensionSpace.getExtension() != null) {
-            extendsMap.put("extends", extensionSpace.asMap().get("extends"));
-          }
-
+          //Check if the extended space itself is extending some other space (2-level extension)
+          if (extendedSpace.getExtension() != null)
+            //Get the extension definition from the extended space and add it to this one additionally
+            extendsMap.put("extends", extendedSpace.asMap().get("extends"));
           params.put("extends", extendsMap);
 
-          // storage config is copied from the extended space
-          space.setStorage(extensionSpace.getStorage());
-
-          // resolved params are copied back to the storage config
-          space.getStorage().setParams(params);
           callback.call(task);
         });
     } else {
