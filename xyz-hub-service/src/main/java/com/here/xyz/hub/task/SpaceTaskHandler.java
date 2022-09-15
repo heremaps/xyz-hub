@@ -254,22 +254,27 @@ public class SpaceTaskHandler {
     if (task.modifyOp.entries.get(0).result.getExtension() != null && task.modifyOp.entries.get(0).input.get("storage") != null)
       throw new HttpException(BAD_REQUEST, "Validation failed. The properties 'storage' and 'extends' cannot be set together.");
 
-    Space.resolveConnector(task.getMarker(), space.getStorage().getId(), arConnector -> {
-      if (arConnector.failed()) {
-        callback.exception(new Exception(arConnector.cause()));
-      } else {
-        final Connector connector = arConnector.result();
-        if (space.getSearchableProperties() != null && !space.getSearchableProperties().isEmpty() && !connector.capabilities.searchablePropertiesConfiguration) {
-          callback.exception(new HttpException(BAD_REQUEST, "It's not supported to define the searchableProperties"
-              + " on space with storage connector " + space.getStorage().getId()));
-        } else if (space.getExtension() != null && !connector.capabilities.extensionSupport) {
-          callback.exception(new HttpException(BAD_REQUEST, "The space " + space.getStorage().getId() + " cannot extend the space "
-              + space.getExtension().getSpaceId() + " because its connector does not support the capability 'extensionSupport'"));
+    if ((space.getSearchableProperties() != null && !space.getSearchableProperties().isEmpty()) || space.getExtension() != null) {
+      Space.resolveConnector(task.getMarker(), space.getStorage().getId(), arConnector -> {
+        if (arConnector.failed()) {
+          callback.exception(new Exception(arConnector.cause()));
         } else {
-          callback.call(task);
+          final Connector connector = arConnector.result();
+          if (space.getSearchableProperties() != null && !space.getSearchableProperties().isEmpty()
+              && !connector.capabilities.searchablePropertiesConfiguration) {
+            callback.exception(new HttpException(BAD_REQUEST, "It's not supported to define the searchableProperties"
+                + " on space with storage connector " + space.getStorage().getId()));
+          } else if (space.getExtension() != null && !connector.capabilities.extensionSupport) {
+            callback.exception(new HttpException(BAD_REQUEST, "The space " + space.getStorage().getId() + " cannot extend the space "
+                + space.getExtension().getSpaceId() + " because its connector does not support the capability 'extensionSupport'"));
+          } else {
+            callback.call(task);
+          }
         }
-      }
-    });
+      });
+    } else {
+      callback.call(task);
+    }
   }
 
   /**
