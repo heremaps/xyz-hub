@@ -54,13 +54,6 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
   }
 
   private XyzResponse _processEvent(Event event) throws Exception {
-    if (event == null) {
-      return new ErrorResponse()
-          .withStreamId(streamId)
-          .withError(XyzError.NOT_IMPLEMENTED)
-          .withErrorMessage("Unknown event type");
-    }
-
     if (event instanceof ModifySpaceEvent) {
       return processModifySpaceEvent((ModifySpaceEvent) event);
     }

@@ -807,7 +807,7 @@ public class Space {
   }
 
   public static class Extension {
-    @JsonValue
+
     private String spaceId;
 
     public String getSpaceId() {

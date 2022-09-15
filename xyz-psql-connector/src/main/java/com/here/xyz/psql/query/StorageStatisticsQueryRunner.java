@@ -46,7 +46,7 @@ public class StorageStatisticsQueryRunner extends QueryRunner<GetStorageStatisti
   private final List<String> remainingSpaceIds;
   private Map<String, String> tableName2SpaceId;
 
-  public StorageStatisticsQueryRunner(GetStorageStatisticsEvent event, DatabaseHandler dbHandler) {
+  public StorageStatisticsQueryRunner(GetStorageStatisticsEvent event, DatabaseHandler dbHandler) throws SQLException {
     super(event, dbHandler);
     setUseReadReplica(true);
     remainingSpaceIds = new LinkedList<>(event.getSpaceIds());
