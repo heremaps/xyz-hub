@@ -431,6 +431,8 @@ public class SpaceTaskHandler {
           space.getStorage().setParams(params);
           callback.call(task);
         });
+    } else {
+      callback.call(task);
     }
   }
 
