@@ -30,7 +30,7 @@ recipes:
       - paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.parameters.$ref~=^.*Context$
       - components.parameters.Context
       - components.schemas.Extension
-      - components.schemas.Space.extends
+      - components.schemas.Space.properties.extends
   - name: stable
     extends: base,no-e-ne-cr-params,no-extension
     exclude:
