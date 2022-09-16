@@ -85,7 +85,7 @@ public class SQLQueryBuilder {
         throws SQLException {
 
         SQLQuery query = new SQLQuery("SELECT");
-        query.append(SQLQuery.selectJson(event.getSelection(),dataSource));
+        query.append(SQLQuery.selectJson(event.getSelection()));
         query.append(", replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)", (Object) event.getIds().toArray(new String[0]));
        return query;
     }
@@ -546,7 +546,7 @@ public class SQLQueryBuilder {
         query.append( TweaksSQL.mergeEndSql(bConvertGeo2Geojson) );
        else
        { query.append( DhString.format( TweaksSQL.linemergeEndSql1, minGeoHashLenForLineMerge ) );
-         query.append(SQLQuery.selectJson(event.getSelection(),dataSource));
+         query.append(SQLQuery.selectJson(event.getSelection()));
          query.append( DhString.format( TweaksSQL.linemergeEndSql2, tweaksGeoSql ) );
        }
 
@@ -618,7 +618,7 @@ public class SQLQueryBuilder {
             throws Exception {
 
         final SQLQuery query = new SQLQuery("SELECT");
-        query.append(SQLQuery.selectJson(event.getSelection(), dataSource));
+        query.append(SQLQuery.selectJson(event.getSelection()));
         query.append(", replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0'), i FROM ${schema}.${table}");
         final SQLQuery searchQuery = generateSearchQuery(event, dataSource);
 
@@ -653,7 +653,7 @@ public class SQLQueryBuilder {
         SQLQuery innerQry = IterateSortSQL.innerSortedQry(searchQuery, event.getSort(), event.getPart(), event.getHandle(), event.getLimit());
 
         final SQLQuery query = new SQLQuery( DhString.format("%s select",IterateSortSQL.pg_hint_plan));
-        query.append(SQLQuery.selectJson(event.getSelection(), dataSource));
+        query.append(SQLQuery.selectJson(event.getSelection()));
         query.append(", replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "(geo)," + GEOMETRY_DECIMAL_DIGITS + "),'nan','0'), nxthandle from ( ");
         query.append(innerQry);
         query.append(" ) o");
@@ -967,7 +967,7 @@ public class SQLQueryBuilder {
         return SQLQuery.join(disjunctionQueries, "OR", false);
     }
 
-    private static SQLQuery generateTagsQuery(TagsQuery tags, DataSource dataSource)
+    private static SQLQuery generateTagsQuery(TagsQuery tags)
             throws SQLException {
         if (tags == null || tags.size() == 0) {
             return null;
@@ -1008,7 +1008,7 @@ public class SQLQueryBuilder {
 
      query.append("select * from ( SELECT");
 
-     query.append(SQLQuery.selectJson(event.getSelection(),dataSource));
+     query.append(SQLQuery.selectJson(event.getSelection()));
 
      query.append(DhString.format(",%s as geo",tweaksgeo));
 
@@ -1043,7 +1043,7 @@ public class SQLQueryBuilder {
 
         query.append("SELECT ");
 
-        query.append(SQLQuery.selectJson(event.getSelection(),dataSource));
+        query.append(SQLQuery.selectJson(event.getSelection()));
         query.append(",");
         query.append(geometrySelectorForEvent( event, bConvertGeo2Geojson, indexedQuery));
 
@@ -1121,7 +1121,7 @@ public class SQLQueryBuilder {
     protected static SQLQuery generateSearchQuery(final QueryEvent event, final DataSource dataSource)
             throws SQLException {
         final SQLQuery propertiesQuery = generatePropertiesQuery(event.getPropertiesQuery());
-        final SQLQuery tagsQuery = generateTagsQuery(event.getTags(),dataSource);
+        final SQLQuery tagsQuery = generateTagsQuery(event.getTags());
 
         return SQLQuery.join("AND", propertiesQuery, tagsQuery);
     }

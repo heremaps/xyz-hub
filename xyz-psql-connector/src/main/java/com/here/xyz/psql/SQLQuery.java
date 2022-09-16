@@ -186,7 +186,7 @@ public class SQLQuery {
     return replaced;
   }
 
-  protected static SQLQuery selectJson(List<String> selection, DataSource dataSource) throws SQLException {
+  protected static SQLQuery selectJson(List<String> selection) throws SQLException {
     if (selection == null) {
       return new SQLQuery("jsondata");
     }
