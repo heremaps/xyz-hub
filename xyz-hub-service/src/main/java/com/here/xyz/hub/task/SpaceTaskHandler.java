@@ -435,6 +435,7 @@ public class SpaceTaskHandler {
           space.setStorage(new ConnectorRef()
               .withId(extendedConnector.getId())
               .withParams(extendedConnector.getParams() != null ? extendedConnector.getParams() : new HashMap<>()));
+          //TODO: Keep configuration in sync if extendedSpace configuration is changing at this point.
           space.setSearchableProperties(extendedSpace.getSearchableProperties());
           space.setSortableProperties(extendedSpace.getSortableProperties());
 
