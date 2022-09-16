@@ -435,6 +435,8 @@ public class SpaceTaskHandler {
           space.setStorage(new ConnectorRef()
               .withId(extendedConnector.getId())
               .withParams(extendedConnector.getParams() != null ? extendedConnector.getParams() : new HashMap<>()));
+          space.setSearchableProperties(extendedSpace.getSearchableProperties());
+          space.setSortableProperties(extendedSpace.getSortableProperties());
 
           //Storage params are taken from the input and then resolved based on the extensions
           Map<String, Object> params = space.getStorage().getParams();
