@@ -204,10 +204,10 @@ public class SpaceTaskHandler {
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'maxVersionCount' can only get set, in combination of enableGlobalVersioning, on space creation!");
 
       /** extends is immutable and it is only allowed to set it during the space creation */
-      if(spaceHead != null && spaceHead.getExtension() != null && task.modifyOp.entries.get(0).input.get("extension") != null
-          && ((DiffMap) Patcher.getDifference(spaceHead.asMap().get("extension"), task.modifyOp.entries.get(0).input.get("extension"))).isEmpty())
+      if(spaceHead != null && spaceHead.getExtension() != null && task.modifyOp.entries.get(0).input.get("extends") != null
+          && ((DiffMap) Patcher.getDifference(spaceHead.asMap().get("extends"), task.modifyOp.entries.get(0).input.get("extends"))).isEmpty())
         task.modifyOp.entries.get(0).input.put("extension" , spaceHead.getExtension());
-      else if(spaceHead != null && task.modifyOp.entries.get(0).input.get("extension") != null)
+      else if(spaceHead != null && task.modifyOp.entries.get(0).input.get("extends") != null)
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'extension' can only be set on space creation!");
     }
 
@@ -416,6 +416,20 @@ public class SpaceTaskHandler {
           callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definitions while resolving extensions.", t));
         })
         .onSuccess(extendedSpace -> {
+          // check for existing space to be extended
+          if (extendedSpace == null) {
+            callback.exception(new HttpException(BAD_REQUEST, "The space " + space.getId() + " cannot extend a the space "
+                + space.getExtension().getSpaceId() + " because it does not exist."));
+            return;
+          }
+
+          // check for extensions with more than 2 levels
+          if (extendedSpace.getExtension() != null && ((Map<String,Map<String, Object>>) extendedSpace.getStorage().getParams().get("extends")).containsKey("extends")) {
+            callback.exception(new HttpException(BAD_REQUEST, "The space " + space.getId() + " cannot extend the space "
+                + space.getExtension().getSpaceId() + " because the maximum extension level is 2."));
+            return;
+          }
+
           //Override the storage config by copying it from the extended space
           ConnectorRef extendedConnector = extendedSpace.getStorage();
           space.setStorage(new ConnectorRef()
