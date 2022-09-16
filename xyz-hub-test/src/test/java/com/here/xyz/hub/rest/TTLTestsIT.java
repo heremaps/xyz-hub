@@ -105,6 +105,12 @@ public class TTLTestsIT extends TestWithSpaceCleanup {
         .get("/spaces/" + RANDOM_FEATURE_SPACE + "/tile/web/0_0_0.mvt")
         .body().asByteArray();
 
+    try {
+      //Wait 1s to give the asynchronous cache-write some time.
+      Thread.sleep(1_000);
+    }
+    catch (InterruptedException e) {}
+
     byte[] body_cached = given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(APPLICATION_JSON)

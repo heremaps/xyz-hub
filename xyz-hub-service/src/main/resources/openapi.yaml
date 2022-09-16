@@ -206,6 +206,7 @@ paths:
         - $ref: '#/components/parameters/RequiredIds'
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/Force2D'
+        - $ref: '#/components/parameters/Context'
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionResponse'
@@ -396,6 +397,7 @@ paths:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/Ids'
         - $ref: '#/components/parameters/TagList'
+        - $ref: '#/components/parameters/Context'
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionModificationResponse'
@@ -419,6 +421,7 @@ paths:
         - $ref: '#/components/parameters/FeatureId'
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/Force2D'
+        - $ref: '#/components/parameters/Context'
       responses:
         '200':
           $ref: '#/components/responses/FeatureResponse'
@@ -497,6 +500,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/FeatureId'
+        - $ref: '#/components/parameters/Context'
       responses:
         '204':
           $ref: '#/components/responses/EmptyResponse'
@@ -551,6 +555,7 @@ paths:
         - $ref: '#/components/parameters/Tweaks'
         - $ref: '#/components/parameters/TweaksParams'
         - $ref: '#/components/parameters/Force2D'
+        - $ref: '#/components/parameters/Context'
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionResponse'
@@ -596,6 +601,7 @@ paths:
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Mode'
         - $ref: '#/components/parameters/VizSampling'
+        - $ref: '#/components/parameters/Context'
       responses:
         '200':
           $ref: '#/components/responses/TileResponse'
@@ -1081,6 +1087,23 @@ components:
       required: true
       schema:
         type: string
+    Context:
+      name: context
+      in: query
+      description: |
+        The context where the operation will be performed when the space extends
+        another space. If not specified, the operation occurs based on the extension
+        rules. For additional information, see Space.extends.
+
+        Available context are:
+        |Context|Description|
+        |-------|-----------|
+        |extension|The operation will be executed only in the space which extends another and no operation will be performed in the extended space.
+      schema:
+        type: string
+        enum:
+          - extension
+
     East:
       name: east
       in: query
@@ -1237,10 +1260,10 @@ components:
       name: part
       in: query
       description: |
-         Requests disjunct parts of iteration results (used with sort). List of two integers "part,total".
-         part=1,4 read as first part out of 4, ... until part=4,4 .
+        Requests disjunct parts of iteration results (used with sort). List of two integers "part,total".
+        part=1,4 read as first part out of 4, ... until part=4,4 .
 
-         Example: ?part=7,9
+        Example: ?part=7,9
       explode: false
       schema:
         type: array
@@ -2297,6 +2320,17 @@ components:
               amenity: Football Stadium
               capacity: 54074
               description: Home of the Liverpool Football Club.
+    Extension:
+      type: object
+      description: >-
+        The extension definition which allows the space's content to be based on an existing space.
+        The entities in the extension space override the features with the same id in the extended space.
+      required:
+        - spaceId
+      properties:
+        spaceId:
+          type: string
+          description: The space id in which this space is extending
     FeatureCollection:
       allOf:
         - $ref: '#/components/schemas/GeoJSON'
@@ -2845,6 +2879,8 @@ components:
           type: string
         storage:
           $ref: '#/components/schemas/SpaceStorage'
+        extends:
+          $ref: '#/components/schemas/Extension'
         client:
           $ref: '#/components/schemas/SpaceClient'
         enableUUID:

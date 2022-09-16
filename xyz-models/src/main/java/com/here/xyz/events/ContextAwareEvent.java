@@ -3,6 +3,7 @@ package com.here.xyz.events;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
+@JsonInclude(Include.NON_DEFAULT)
 public abstract class ContextAwareEvent<T extends Event> extends Event<T> {
 
   @JsonInclude(Include.NON_DEFAULT)
@@ -10,7 +11,18 @@ public abstract class ContextAwareEvent<T extends Event> extends Event<T> {
 
   public enum SpaceContext {
     EXTENSION,
-    DEFAULT
+    DEFAULT;
+
+    public static SpaceContext of(String value) {
+      if (value == null) {
+        return null;
+      }
+      try {
+        return valueOf(value);
+      } catch (IllegalArgumentException e) {
+        return null;
+      }
+    }
   }
 
   /**
@@ -23,6 +35,8 @@ public abstract class ContextAwareEvent<T extends Event> extends Event<T> {
   }
 
   public void setContext(SpaceContext context) {
+    if (context == null)
+      throw new NullPointerException("Context can not be null.");
     this.context = context;
   }
 

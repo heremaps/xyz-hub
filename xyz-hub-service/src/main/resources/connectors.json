@@ -21,7 +21,8 @@
       "clusteringTypes": [
         "hexbin", "quadbin"
       ],
-      "mvtSupport": true
+      "mvtSupport": true,
+      "extensionSupport": true
     },
     "connectionSettings": {
       "maxConnections": 32

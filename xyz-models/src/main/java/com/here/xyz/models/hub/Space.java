@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.annotation.JsonView;
@@ -82,6 +83,13 @@ public class Space {
   @JsonInclude(Include.NON_EMPTY)
   @JsonView({Public.class, Static.class})
   private License license;
+
+  /**
+   * The space extension configuration which allows the space's content to override another space's content.
+   */
+  @JsonView({Public.class, Static.class})
+  @JsonProperty("extends")
+  private Extension extension;
 
   /**
    * The storage connector configuration.
@@ -298,6 +306,19 @@ public class Space {
 
   public Space withLicense(final License license) {
     this.license = license;
+    return this;
+  }
+
+  public Extension getExtension() {
+    return extension;
+  }
+
+  public void setExtension(final Extension extension) {
+    this.extension = extension;
+  }
+
+  public Space withExtension(final Extension extension) {
+    this.extension = extension;
     return this;
   }
 
@@ -782,6 +803,24 @@ public class Space {
       }
       l.keyword = keyword;
       return l;
+    }
+  }
+
+  public static class Extension {
+
+    private String spaceId;
+
+    public String getSpaceId() {
+      return spaceId;
+    }
+
+    public void setSpaceId(final String spaceId) {
+      this.spaceId = spaceId;
+    }
+
+    public Extension withSpaceId(final String spaceId) {
+      this.spaceId = spaceId;
+      return this;
     }
   }
 }

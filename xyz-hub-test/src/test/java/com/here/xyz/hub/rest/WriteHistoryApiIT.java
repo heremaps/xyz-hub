@@ -64,7 +64,7 @@ public class WriteHistoryApiIT extends UpdateFeatureApiIT {
             .contentType(APPLICATION_GEO_JSON)
             .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
             .when()
-            .get("/spaces/x-psql-test/search?f.id=Q3495887&force2d=true")
+            .get(getSpacesPath() + "/x-psql-test/search?f.id=Q3495887&force2d=true")
             .getBody().asString();
 
     FeatureCollection fc = XyzSerializable.deserialize(body);
@@ -79,7 +79,7 @@ public class WriteHistoryApiIT extends UpdateFeatureApiIT {
             .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
             .body(mfc.serialize())
             .when()
-            .post("/spaces/x-psql-test/features")
+            .post(getSpacesPath() + "/x-psql-test/features")
             .getBody().asString();
 
     fc = XyzSerializable.deserialize(body);
@@ -98,7 +98,7 @@ public class WriteHistoryApiIT extends UpdateFeatureApiIT {
             .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
             .body(mfc.serialize())
             .when()
-            .post("/spaces/x-psql-test/features")
+            .post(getSpacesPath() + "/x-psql-test/features")
             .then().statusCode(OK.code())
             .body("features[0].properties.@ns:com:here:xyz.uuid", notNullValue())
             .body("features[0].properties.@ns:com:here:xyz.muuid", nullValue())
@@ -113,7 +113,7 @@ public class WriteHistoryApiIT extends UpdateFeatureApiIT {
             .contentType(APPLICATION_GEO_JSON)
             .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
             .when()
-            .get("/spaces/x-psql-test/search?f.id=Q3495887&force2d=true")
+            .get(getSpacesPath() + "/x-psql-test/search?f.id=Q3495887&force2d=true")
             .getBody().asString();
 
     Feature f1 = readFeatureFromFC(XyzSerializable.deserialize(body), true);
@@ -126,7 +126,7 @@ public class WriteHistoryApiIT extends UpdateFeatureApiIT {
             .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
             .body(mfc.serialize())
             .when()
-            .post("/spaces/x-psql-test/features")
+            .post(getSpacesPath() + "/x-psql-test/features")
             .then().statusCode(OK.code())
             .body("features[0].properties.@ns:com:here:xyz.uuid", notNullValue())
             .body("features[0].properties.@ns:com:here:xyz.muuid", nullValue())
@@ -140,7 +140,7 @@ public class WriteHistoryApiIT extends UpdateFeatureApiIT {
             .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
             .body(mfc.serialize())
             .when()
-            .post("/spaces/x-psql-test/features")
+            .post(getSpacesPath() + "/x-psql-test/features")
             .then().statusCode(OK.code())
             .body("features[0].properties.@ns:com:here:xyz.uuid", notNullValue())
             .body("features[0].properties.@ns:com:here:xyz.muuid", notNullValue())
@@ -155,7 +155,7 @@ public class WriteHistoryApiIT extends UpdateFeatureApiIT {
             .contentType(APPLICATION_GEO_JSON)
             .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
             .when()
-            .get("/spaces/x-psql-test/search?f.id=Q3495887&force2d=true")
+            .get(getSpacesPath() + "/x-psql-test/search?f.id=Q3495887&force2d=true")
             .getBody().asString();
 
     Feature f1 = readFeatureFromFC(XyzSerializable.deserialize(body), true);
@@ -167,7 +167,7 @@ public class WriteHistoryApiIT extends UpdateFeatureApiIT {
             .contentType(APPLICATION_GEO_JSON)
             .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
             .when()
-            .delete("/spaces/x-psql-test/features?id=Q3495887")
+            .delete(getSpacesPath() + "/x-psql-test/features?id=Q3495887")
             .then().statusCode(OK.code());
 
     /** UPDATE FEATURE with INSERT UUID*/
@@ -177,7 +177,7 @@ public class WriteHistoryApiIT extends UpdateFeatureApiIT {
             .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
             .body(mfc.serialize())
             .when()
-            .post("/spaces/x-psql-test/features")
+            .post(getSpacesPath() + "/x-psql-test/features")
             .then().statusCode(CONFLICT.code());
   }
 

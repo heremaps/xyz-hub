@@ -35,20 +35,26 @@ import org.apache.commons.dbutils.ResultSetHandler;
  */
 public abstract class QueryRunner<E extends Event, R extends XyzResponse> implements ResultSetHandler<R> {
 
+  protected static final String SCHEMA = "schema";
+  protected static final String TABLE = "table";
+
   private final SQLQuery query;
   private boolean useReadReplica;
   protected DatabaseHandler dbHandler;
 
-  public QueryRunner(E event, DatabaseHandler dbHandler) {
+  public QueryRunner(E event, DatabaseHandler dbHandler) throws SQLException {
     this.dbHandler = dbHandler;
     query = buildQuery(event);
   }
 
   public R run() throws SQLException {
+    query.replaceFragments();
+    query.replaceVars();
+    query.replaceNamedParameters();
     return dbHandler.executeQueryWithRetry(query, this, useReadReplica);
   }
 
-  protected abstract SQLQuery buildQuery(E event);
+  protected abstract SQLQuery buildQuery(E event) throws SQLException;
 
   @Override
   public abstract R handle(ResultSet rs) throws SQLException;

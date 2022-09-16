@@ -39,9 +39,13 @@ import static com.here.xyz.psql.DatabaseHandler.HISTORY_TABLE_SUFFIX;
 public class SQLQuery {
   private StringBuilder statement;
   private List<Object> parameters;
-
+  private Map<String, Object> namedParameters;
+  private Map<String, String> variables;
+  private Map<String, String> queryFragments;
   private static final String PREFIX = "\\$\\{";
   private static final String SUFFIX = "\\}";
+  private static final String FRAGMENT_PREFIX = "${{";
+  private static final String FRAGMENT_SUFFIX = "}}";
   private static final String VAR_SCHEMA = "${schema}";
   private static final String VAR_TABLE = "${table}";
   private static final String VAR_HST_TABLE = "${hsttable}";
@@ -59,6 +63,12 @@ public class SQLQuery {
   public SQLQuery(String text, Object... parameters) {
     this();
     append(text, parameters);
+  }
+
+  public SQLQuery(String text, Map<String, Object> namedParameters) {
+    this();
+    append(text);
+    setNamedParameters(namedParameters);
   }
 
   public static SQLQuery join(List<SQLQuery> queries, String delimiter, boolean encloseInBrackets ) {
@@ -91,7 +101,7 @@ public class SQLQuery {
     return join(Arrays.asList(queries), delimiter, false);
   }
 
-  public static SQLQuery replaceNamedParameters( String query, Map<String, Object> namedParameters )
+  private static SQLQuery replaceNamedParameters( String query, Map<String, Object> namedParameters )
   {  // replace #{namedVar} in query with ? and appends corresponding parameter from map namedParameters
    Pattern p = Pattern.compile("#\\{\\s*([^\\s\\}]+)\\s*\\}");
    SQLQuery qry = new SQLQuery();
@@ -107,6 +117,17 @@ public class SQLQuery {
    qry.append( m.replaceAll("?") );
 
    return qry;
+  }
+
+  public void replaceNamedParameters() {
+    if (namedParameters == null || namedParameters.size() == 0)
+      return;
+    if (parameters() != null && parameters().size() != 0 || text().contains("?"))
+      throw new RuntimeException("No named parameters can be used inside queries which use un-named parameters. "
+          + "Use only named parameters instead!");
+    SQLQuery q = replaceNamedParameters(text(), namedParameters);
+    setText(q.text());
+    addParameters(q.parameters.toArray());
   }
 
   public void append(String text, Object... parameters) {
@@ -179,14 +200,31 @@ public class SQLQuery {
   }
 
   protected static String replaceVars(String query, Map<String, String> replacements, String schema, String table) {
-    String replaced = replaceVars(query, schema, table);
-    for (String key : replacements.keySet()) {
-      replaced = replaced.replaceAll(PREFIX + key + SUFFIX, sqlQuote(replacements.get(key)));
-    }
-    return replaced;
+    return replaceVars(replaceVars(query, schema, table), replacements);
   }
 
-  protected static SQLQuery selectJson(List<String> selection) throws SQLException {
+  protected static String replaceVars(String query, Map<String, String> replacements) {
+    for (String key : replacements.keySet())
+      query = query.replaceAll(PREFIX + key + SUFFIX, sqlQuote(replacements.get(key)));
+    return query;
+  }
+
+  public void replaceVars() {
+    if (variables == null)
+      return;
+    setText(replaceVars(text(), variables));
+  }
+
+  public void replaceFragments() {
+    if (queryFragments == null)
+      return;
+    String text = text();
+    for (String key : queryFragments.keySet())
+      text = text.replace(FRAGMENT_PREFIX + key + FRAGMENT_SUFFIX, queryFragments.get(key));
+    setText(text);
+  }
+
+  public static SQLQuery selectJson(List<String> selection) throws SQLException {
     if (selection == null) {
       return new SQLQuery("jsondata");
     }
@@ -194,7 +232,7 @@ public class SQLQuery {
       selection.add("type");
     }
 
-    return new SQLQuery("( select case when prj_build ?? 'properties' then prj_build else jsonb_set(prj_build,'{properties}','{}'::jsonb) end from prj_build(?,jsondata) ) as jsondata",  (Object) selection.toArray(new String[0]) );
+    return new SQLQuery("( select case when prj_build ?? 'properties' then prj_build else jsonb_set(prj_build,'{properties}','{}'::jsonb) end from prj_build(?,jsondata) ) as jsondata",  (Object) selection.toArray(new String[0]));
   }
 
   public static String getOperation(PropertyQuery.QueryOperation op) {
@@ -263,5 +301,120 @@ public class SQLQuery {
       return "to_jsonb(?::boolean)";
     }
     return "";
+  }
+
+  public Map<String, Object> getNamedParameters() {
+    if (namedParameters == null)
+      return Collections.emptyMap();
+    return new HashMap<>(namedParameters);
+  }
+
+  public void initNamedParameters() {
+    if (parameters() != null && parameters().size() > 0)
+      throw new RuntimeException("No named parameters can be used inside queries which use parameters. Use only named parameters instead!");
+    if (namedParameters == null)
+      namedParameters = new HashMap<>();
+  }
+
+  public void setNamedParameters(Map<String, Object> namedParameters) {
+    if (namedParameters == null)
+      return;
+    initNamedParameters();
+    this.namedParameters.putAll(namedParameters);
+  }
+
+  public void setNamedParameter(String key, Object value) {
+    initNamedParameters();
+    namedParameters.put(key, value);
+  }
+
+  public Map<String, String> getVariables() {
+    if (variables == null)
+      return Collections.emptyMap();
+    return new HashMap<>(variables);
+  }
+
+  private void initVariables() {
+    if (variables == null)
+      variables = new HashMap<>();
+  }
+
+  public void setVariables(Map<String, String> variables) {
+    if (variables == null)
+      return;
+    initVariables();
+    this.variables.putAll(variables);
+  }
+
+  public String getVariable(String key) {
+    if (variables == null)
+      return null;
+    return variables.get(key);
+  }
+
+  public void setVariable(String key, String value) {
+    initVariables();
+    variables.put(key, value);
+  }
+
+  public Map<String, String> getQueryFragments() {
+    if (queryFragments == null)
+      return Collections.emptyMap();
+    return new HashMap<>(queryFragments);
+  }
+
+  private void initQueryFragments() {
+    if (parameters() != null && parameters().size() > 0)
+      throw new RuntimeException("No query fragments can be used inside queries which use parameters. Use named parameters instead!");
+    if (queryFragments == null)
+      queryFragments = new HashMap<>();
+  }
+
+  public void setQueryFragments(Map<String, String> queryFragments) {
+    if (queryFragments == null)
+      return;
+    initQueryFragments();
+    this.queryFragments.putAll(queryFragments);
+  }
+
+  public String getQueryFragment(String key) {
+    if (queryFragments == null)
+      return null;
+    return queryFragments.get(key);
+  }
+
+  public void setQueryFragment(String key, String fragmentText) {
+    initQueryFragments();
+    queryFragments.put(key, fragmentText);
+  }
+
+  public void setQueryFragment(String key, SQLQuery fragment) {
+    //The fragment itself could also have sub-fragments. These must be replaced first.
+    fragment.replaceFragments();
+    setQueryFragment(key, fragment.text());
+
+    if (isClashing(queryFragments, fragment.queryFragments))
+      throw new RuntimeException("Can not add sub-fragments of fragment ${{" + key + "}} to this query. "
+          + "This query contains at least one fragment which clashes with these sub-fragments.");
+    setQueryFragments(fragment.queryFragments);
+
+    if (isClashing(variables, fragment.variables))
+      throw new RuntimeException("Can not add variables of fragment ${{" + key + "}} to this query. "
+          + "This query contains at least one variable which clashes with these variables.");
+    setVariables(fragment.variables);
+
+    if (isClashing(namedParameters, fragment.namedParameters))
+      throw new RuntimeException("Can not add named parameters of fragment ${{" + key + "}} to this query. "
+          + "This query contains at least one named parameter which clashes with these named parameters.");
+    setNamedParameters(fragment.namedParameters);
+  }
+
+  private static boolean isClashing(Map<String, ?> map1, Map<String, ?> map2) {
+    if (map1 == null || map2 == null)
+      return false;
+    for (String key : map1.keySet())
+      if (map2.containsKey(key) && !Objects.equals(map1.get(key), map2.get(key)))
+        return true;
+    return false;
   }
 }
