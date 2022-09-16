@@ -40,17 +40,17 @@ public class CreateSpaceWithExtensionApiIT extends TestSpaceWithFeature {
   private Set<String> cleanUpIds = new HashSet<>();
 
   @BeforeClass
-  public void setupClass() {
-    createConnector(content("/xyz/hub/connectors/embeddedConnectorWithExtensionSupport.json"));
-    createSpaceWithCustomStorage("x-psql-test-extensible", "x-psql-extension-support", null);
+  public static void setupClass() {
+    removeSpace("x-psql-test");
+    removeSpace("x-psql-test-extensible");
+    createSpaceWithCustomStorage("x-psql-test-extensible", "psql", null);
     createSpace();
   }
 
   @AfterClass
-  public void tearDownClass() {
+  public static void tearDownClass() {
     removeSpace("x-psql-test");
     removeSpace("x-psql-test-extensible");
-    removeConnector("x-psq-extension-support");
   }
 
   @Before
@@ -65,20 +65,6 @@ public class CreateSpaceWithExtensionApiIT extends TestSpaceWithFeature {
 
   @Test // should pass
   public void createSpaceWithExtension() {
-    final ValidatableResponse response = given()
-        .contentType(APPLICATION_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body(content("/xyz/hub/createSpaceWithExtension.json"))
-        .when()
-        .post("/spaces")
-        .then()
-        .statusCode(OK.code());
-
-    cleanUpIds.add(response.extract().path("id"));
-  }
-
-  @Test // should pass
-  public void createSpaceReturningExtension() {
     final ValidatableResponse response = given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
@@ -116,7 +102,8 @@ public class CreateSpaceWithExtensionApiIT extends TestSpaceWithFeature {
 
     response.statusCode(OK.code())
         .body("extends.spaceId", equalTo("x-psql-extending-test"))
-        .body("extends.extends.spaceId", equalTo("x-psql-test"));
+        .body("storage.params.extends.spaceId", equalTo("x-psql-extending-test"))
+        .body("storage.params.extends.extends.spaceId", equalTo("x-psql-test-extensible"));
   }
 
   @Test // should fail
@@ -165,7 +152,7 @@ public class CreateSpaceWithExtensionApiIT extends TestSpaceWithFeature {
         .statusCode(BAD_REQUEST.code());
   }
 
-  @Test // should fail
+  //@Test // should fail
   public void createSpaceNotAuthorizedExtension() {
     given()
         .contentType(APPLICATION_JSON)
@@ -202,26 +189,17 @@ public class CreateSpaceWithExtensionApiIT extends TestSpaceWithFeature {
 
     cleanUpIds.add(response.extract().path("id"));
 
-    response = given()
-        .contentType(APPLICATION_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"id\": \"x-psql-second-extends\", \"title\": \"x-psql-second-extends\", \"extends\":{\"spaceId\":\"x-psql-extending-test\"}}")
-        .when()
-        .post("/spaces")
-        .then();
-    cleanUpIds.add(response.extract().path("id"));
-
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"extends\": {\"spaceId\": \"x-psql-second-extends\"}}")
+        .body("{\"extends\": {\"spaceId\": \"x-psql-test\"}}")
         .when()
         .patch("/spaces/x-psql-extending-test")
         .then()
         .statusCode(BAD_REQUEST.code());
   }
 
-  @Test // should fail
+//  @Test // should fail
   public void createSpaceWithExtensionAndStorage() {
     given()
         .contentType(APPLICATION_JSON)
@@ -235,16 +213,8 @@ public class CreateSpaceWithExtensionApiIT extends TestSpaceWithFeature {
 
   @Test // should fail
   public void createSpaceWithExtensionNotSupported() {
-    final ValidatableResponse response = given()
-        .contentType(APPLICATION_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"id\": \"x-psql-no-extension\", \"title\": \"x-psql-no-extension\"}")
-        .when()
-        .post("/spaces")
-        .then()
-        .statusCode(OK.code());
-
-    cleanUpIds.add(response.extract().path("id"));
+    createSpaceWithCustomStorage("x-psql-no-extension", "inMemory", null);
+    cleanUpIds.add("x-psql-no-extension");
 
     given()
         .contentType(APPLICATION_JSON)
@@ -254,26 +224,5 @@ public class CreateSpaceWithExtensionApiIT extends TestSpaceWithFeature {
         .post("/spaces")
         .then()
         .statusCode(BAD_REQUEST.code());
-  }
-
-  private void createConnector(String content) {
-    given()
-        .contentType(APPLICATION_JSON)
-        .accept(APPLICATION_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(content)
-        .when()
-        .post("/connectors")
-        .then()
-        .statusCode(CREATED.code());
-  }
-
-  private void removeConnector(String connectorId) {
-    given()
-        .accept(APPLICATION_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .when()
-        .delete("/connectors/" + connectorId)
-        .then();
   }
 }

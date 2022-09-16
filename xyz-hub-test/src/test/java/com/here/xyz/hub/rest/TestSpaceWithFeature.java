@@ -83,7 +83,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
             .body("storage.id", equalTo((usedStorageId)));
   }
 
-  protected String createSpaceWithCustomStorage(String spaceId, String storageId, JsonObject storageParams) {
+  protected static String createSpaceWithCustomStorage(String spaceId, String storageId, JsonObject storageParams) {
     JsonObject storage = new JsonObject()
         .put("id", storageId);
     if (storageParams != null)
