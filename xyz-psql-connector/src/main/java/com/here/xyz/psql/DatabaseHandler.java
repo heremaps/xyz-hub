@@ -428,13 +428,13 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     protected XyzResponse executeIterateHistory(IterateHistoryEvent event) throws SQLException {
         if(event.isCompact())
-            return executeQueryWithRetry(SQLQueryBuilder.buildSquashHistoryQuery(event), this::compactHistoryResultSetHandler, false);
-        return executeQueryWithRetry(SQLQueryBuilder.buildHistoryQuery(event), this::historyResultSetHandler, false);
+            return executeQueryWithRetry(SQLQueryBuilder.buildSquashHistoryQuery(event), this::compactHistoryResultSetHandler, true);
+        return executeQueryWithRetry(SQLQueryBuilder.buildHistoryQuery(event), this::historyResultSetHandler, true);
     }
 
     protected XyzResponse executeIterateVersions(IterateFeaturesEvent event) throws SQLException {
         SQLQuery query = SQLQueryBuilder.buildLatestHistoryQuery(event);
-        return executeQueryWithRetry(query, this::iterateVersionsHandler, false);
+        return executeQueryWithRetry(query, this::iterateVersionsHandler, true);
     }
 
     protected XyzResponse executeGetStorageStatistics(GetStorageStatisticsEvent event) throws SQLException {
