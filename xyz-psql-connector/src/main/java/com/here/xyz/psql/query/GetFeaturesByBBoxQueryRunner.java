@@ -4,13 +4,11 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.models.geojson.coordinates.BBox;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 
-public class GetFeaturesByBBoxQueryRunner<E extends GetFeaturesByBBoxEvent> extends ExtendedSpaceQueryRunner<E, FeatureCollection> {
+public class GetFeaturesByBBoxQueryRunner<E extends GetFeaturesByBBoxEvent> extends ExtendedSpaceQueryRunner<E> {
 
   public GetFeaturesByBBoxQueryRunner(E event, DatabaseHandler dbHandler) throws SQLException {
     super(event, dbHandler);
@@ -31,10 +29,5 @@ public class GetFeaturesByBBoxQueryRunner<E extends GetFeaturesByBBoxEvent> exte
       return query;
     }
     return null;
-  }
-
-  @Override
-  public FeatureCollection handle(ResultSet rs) throws SQLException {
-    return dbHandler.defaultFeatureResultSetHandler(rs);
   }
 }

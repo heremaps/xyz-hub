@@ -26,7 +26,9 @@ import com.here.xyz.events.*;
 import com.here.xyz.models.geojson.coordinates.*;
 import com.here.xyz.models.geojson.implementation.*;
 import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.responses.XyzResponse;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -109,7 +111,10 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
         queryResponse = invokeLambda(getFeaturesByBBoxEvent.serialize());
         assertNotNull(queryResponse);
-        featureCollection = XyzSerializable.deserialize(queryResponse);
+        XyzResponse response = XyzSerializable.deserialize(queryResponse);
+        if (response instanceof ErrorResponse)
+            failWithError((ErrorResponse) response);
+        featureCollection = (FeatureCollection) response;
         assertNotNull(featureCollection);
         features = featureCollection.getFeatures();
         assertNotNull(features);
@@ -365,6 +370,9 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 .withSelection(new ArrayList<>(Collections.singletonList("properties.foo2")));
 
         queryResponse = invokeLambda(geometryEvent.serialize());
+        XyzResponse response = XyzSerializable.deserialize(queryResponse);
+        if (response instanceof ErrorResponse)
+            failWithError((ErrorResponse) response);
         featureCollection = XyzSerializable.deserialize(queryResponse);
         assertNotNull(featureCollection);
         assertEquals(213, featureCollection.getFeatures().size());
@@ -417,6 +425,13 @@ public class PSQLReadIT extends PSQLAbstractIT {
         assertNotNull(featureCollection);
         assertEquals(1, featureCollection.getFeatures().size());
         logger.info("H3Index Query (small) with property query tested successfully");
+    }
+
+    private void failWithError(ErrorResponse error) {
+        if (error instanceof ErrorResponse)
+            fail("Received error response: [" + error.getError() + "] " + error.getErrorMessage());
+        else
+            fail("Failing without a valid ErrorResponse was provided.");
     }
 
     @Test

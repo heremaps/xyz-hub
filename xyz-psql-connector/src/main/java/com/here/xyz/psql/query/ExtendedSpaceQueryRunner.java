@@ -1,25 +1,19 @@
 package com.here.xyz.psql.query;
 
 import com.here.xyz.events.Event;
-import com.here.xyz.events.GetFeaturesByIdEvent;
-import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.psql.DatabaseHandler;
-import com.here.xyz.psql.QueryRunner;
 import com.here.xyz.psql.SQLQuery;
-import com.here.xyz.psql.SQLQueryBuilder;
 import com.here.xyz.psql.config.PSQLConfig;
-import com.here.xyz.responses.XyzResponse;
 import java.sql.SQLException;
 import java.util.Map;
 
-public abstract class ExtendedSpaceQueryRunner<E extends Event, R extends XyzResponse> extends QueryRunner<E, R> {
+public abstract class ExtendedSpaceQueryRunner<E extends Event> extends GetFeatures<E> {
 
   protected static final String EXTENDS = "extends";
   protected static final String SPACE_ID = "spaceId";
 
   public ExtendedSpaceQueryRunner(E event, DatabaseHandler dbHandler) throws SQLException {
     super(event, dbHandler);
-    setUseReadReplica(true);
   }
 
   protected boolean isExtendedSpace(E event) {
@@ -86,13 +80,4 @@ public abstract class ExtendedSpaceQueryRunner<E extends Event, R extends XyzRes
     return query;
   }
 
-  private String buildGeoFragment(E event) {
-    boolean isForce2D = false;
-    if (event instanceof GetFeaturesByIdEvent)
-      isForce2D = ((GetFeaturesByIdEvent) event).isForce2D();
-    else if (event instanceof SearchForFeaturesEvent)
-      isForce2D = ((SearchForFeaturesEvent<?>) event).isForce2D();
-
-    return "replace(ST_AsGeojson(" + (isForce2D ? "ST_Force2D" : "ST_Force3D") + "(geo), " + SQLQueryBuilder.GEOMETRY_DECIMAL_DIGITS + "), 'nan', '0')";
-  }
 }
