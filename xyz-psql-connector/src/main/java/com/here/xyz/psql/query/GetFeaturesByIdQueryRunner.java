@@ -25,7 +25,7 @@ public class GetFeaturesByIdQueryRunner extends ExtendedSpaceQueryRunner<GetFeat
       query = buildExtensionQuery(event, "jsondata->>'id' = ANY(#{ids})");
     else {
       query = new SQLQuery("SELECT");
-      query.append(SQLQuery.selectJson(event.getSelection(), dbHandler.getDataSource()));
+      query.append(SQLQuery.selectJson(event.getSelection()));
       query.append(
           ", replace(ST_AsGeojson(" + SQLQueryBuilder.getForceMode(event.isForce2D()) + "(geo)," + SQLQueryBuilder.GEOMETRY_DECIMAL_DIGITS
               + "),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(#{ids})");

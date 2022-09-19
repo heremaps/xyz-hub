@@ -224,7 +224,7 @@ public class SQLQuery {
     setText(text);
   }
 
-  public static SQLQuery selectJson(List<String> selection, DataSource dataSource) throws SQLException {
+  public static SQLQuery selectJson(List<String> selection) throws SQLException {
     if (selection == null) {
       return new SQLQuery("jsondata");
     }
