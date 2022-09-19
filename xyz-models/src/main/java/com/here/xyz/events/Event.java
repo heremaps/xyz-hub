@@ -19,6 +19,7 @@
 
 package com.here.xyz.events;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
@@ -65,7 +66,7 @@ import java.util.Map;
     @JsonSubTypes.Type(value = IterateHistoryEvent.class, name = "IterateHistoryEvent"),
     @JsonSubTypes.Type(value = ContentModifiedNotification.class, name = "ContentModifiedNotification")
 })
-
+@JsonIgnoreProperties(ignoreUnknown = true)
 public abstract class Event<T extends Event> extends Payload {
 
   @JsonView(ExcludeFromHash.class)

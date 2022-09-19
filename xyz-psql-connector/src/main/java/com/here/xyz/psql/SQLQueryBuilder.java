@@ -534,7 +534,7 @@ public class SQLQueryBuilder {
         query.append( TweaksSQL.mergeEndSql(bConvertGeo2Geojson) );
        else
        { query.append( DhString.format( TweaksSQL.linemergeEndSql1, minGeoHashLenForLineMerge ) );
-         query.append(SQLQuery.selectJson(event.getSelection()));
+         query.append(SQLQuery.selectJson(event));
          query.append( DhString.format( TweaksSQL.linemergeEndSql2, tweaksGeoSql ) );
        }
 
@@ -606,7 +606,7 @@ public class SQLQueryBuilder {
             throws Exception {
 
         final SQLQuery query = new SQLQuery("SELECT");
-        query.append(SQLQuery.selectJson(event.getSelection()));
+        query.append(SQLQuery.selectJson(event));
         query.append(", replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0'), i FROM ${schema}.${table}");
         final SQLQuery searchQuery = generateSearchQuery(event, dataSource);
 
@@ -641,7 +641,7 @@ public class SQLQueryBuilder {
         SQLQuery innerQry = IterateSortSQL.innerSortedQry(searchQuery, event.getSort(), event.getPart(), event.getHandle(), event.getLimit());
 
         final SQLQuery query = new SQLQuery( DhString.format("%s select",IterateSortSQL.pg_hint_plan));
-        query.append(SQLQuery.selectJson(event.getSelection()));
+        query.append(SQLQuery.selectJson(event));
         query.append(", replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "(geo)," + GEOMETRY_DECIMAL_DIGITS + "),'nan','0'), nxthandle from ( ");
         query.append(innerQry);
         query.append(" ) o");
@@ -953,7 +953,7 @@ public class SQLQueryBuilder {
 
      query.append("select * from ( SELECT");
 
-     query.append(SQLQuery.selectJson(event.getSelection()));
+     query.append(SQLQuery.selectJson(event));
 
      query.append(DhString.format(",%s as geo",tweaksgeo));
 
@@ -988,7 +988,7 @@ public class SQLQueryBuilder {
 
         query.append("SELECT ");
 
-        query.append(SQLQuery.selectJson(event.getSelection()));
+        query.append(SQLQuery.selectJson(event));
         query.append(",");
         query.append(geometrySelectorForEvent( event, bConvertGeo2Geojson, indexedQuery));
 

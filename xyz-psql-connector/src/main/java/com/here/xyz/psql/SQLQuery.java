@@ -19,19 +19,22 @@
 
 package com.here.xyz.psql;
 
-import com.here.xyz.events.PropertyQuery;
-import org.apache.commons.lang3.ArrayUtils;
+import static com.here.xyz.psql.DatabaseHandler.HISTORY_TABLE_SUFFIX;
 
-import javax.sql.DataSource;
-import java.sql.Array;
-import java.sql.Connection;
+import com.here.xyz.events.PropertyQuery;
+import com.here.xyz.events.QueryEvent;
+import com.here.xyz.psql.query.GetFeatures;
 import java.sql.SQLException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
-import static com.here.xyz.psql.DatabaseHandler.HISTORY_TABLE_SUFFIX;
 
 /**
  * A struct like object that contains the string for a prepared statement and the respective parameters for replacement.
@@ -122,7 +125,7 @@ public class SQLQuery {
   public void replaceNamedParameters() {
     if (namedParameters == null || namedParameters.size() == 0)
       return;
-    if (parameters() != null && parameters().size() != 0 || text().contains("?"))
+    if (parameters() != null && parameters().size() != 0)
       throw new RuntimeException("No named parameters can be used inside queries which use un-named parameters. "
           + "Use only named parameters instead!");
     SQLQuery q = replaceNamedParameters(text(), namedParameters);
@@ -139,7 +142,11 @@ public class SQLQuery {
 
   public void append(SQLQuery other) {
     addText(other.statement);
-    parameters.addAll(other.parameters);
+    if (other.parameters != null) {
+      if (parameters == null)
+        parameters = new ArrayList<>();
+      parameters.addAll(other.parameters);
+    }
   }
 
   private void addText(CharSequence text) {
@@ -224,15 +231,8 @@ public class SQLQuery {
     setText(text);
   }
 
-  public static SQLQuery selectJson(List<String> selection) throws SQLException {
-    if (selection == null) {
-      return new SQLQuery("jsondata");
-    }
-    if (!selection.contains("type")) {
-      selection.add("type");
-    }
-
-    return new SQLQuery("( select case when prj_build ?? 'properties' then prj_build else jsonb_set(prj_build,'{properties}','{}'::jsonb) end from prj_build(?,jsondata) ) as jsondata",  (Object) selection.toArray(new String[0]));
+  public static SQLQuery selectJson(QueryEvent event) throws SQLException {
+    return GetFeatures.buildSelectionFragmentBWC(event);
   }
 
   public static String getOperation(PropertyQuery.QueryOperation op) {
