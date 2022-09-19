@@ -19,6 +19,8 @@
 
 package com.here.xyz.psql;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+
 import com.amazonaws.services.lambda.runtime.Context;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
@@ -365,7 +367,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
         }
       }
 
-      if (event.getParams() != null && event.getParams().containsKey("extends"))
+      if (event.getParams() != null && event.getParams().containsKey("extends") && event.getContext() == DEFAULT)
         return new GetFeaturesByBBoxQueryRunner<>(event, this).run();
 
       if( !bMvtRequested )
