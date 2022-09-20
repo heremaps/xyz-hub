@@ -7,9 +7,9 @@ import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import java.sql.SQLException;
 
-public class GetFeaturesByIdQueryRunner extends ExtendedSpaceQueryRunner<GetFeaturesByIdEvent> {
+public class GetFeaturesById extends ExtendedSpace<GetFeaturesByIdEvent> {
 
-  public GetFeaturesByIdQueryRunner(GetFeaturesByIdEvent event, DatabaseHandler dbHandler) throws SQLException {
+  public GetFeaturesById(GetFeaturesByIdEvent event, DatabaseHandler dbHandler) throws SQLException {
     super(event, dbHandler);
   }
 

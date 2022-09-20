@@ -8,9 +8,9 @@ import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import java.sql.SQLException;
 
-public class GetFeaturesByBBoxQueryRunner<E extends GetFeaturesByBBoxEvent> extends ExtendedSpaceQueryRunner<E> {
+public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent> extends ExtendedSpace<E> {
 
-  public GetFeaturesByBBoxQueryRunner(E event, DatabaseHandler dbHandler) throws SQLException {
+  public GetFeaturesByBBox(E event, DatabaseHandler dbHandler) throws SQLException {
     super(event, dbHandler);
   }
 

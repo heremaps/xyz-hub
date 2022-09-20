@@ -10,9 +10,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class LoadFeaturesQueryRunner extends ExtendedSpaceQueryRunner<LoadFeaturesEvent> {
+public class LoadFeatures extends ExtendedSpace<LoadFeaturesEvent> {
 
-  public LoadFeaturesQueryRunner(LoadFeaturesEvent event, DatabaseHandler dbHandler) throws SQLException {
+  public LoadFeatures(LoadFeaturesEvent event, DatabaseHandler dbHandler) throws SQLException {
     super(event, dbHandler);
   }
 

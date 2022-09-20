@@ -7,12 +7,12 @@ import com.here.xyz.psql.config.PSQLConfig;
 import java.sql.SQLException;
 import java.util.Map;
 
-public abstract class ExtendedSpaceQueryRunner<E extends Event> extends GetFeatures<E> {
+public abstract class ExtendedSpace<E extends Event> extends GetFeatures<E> {
 
   protected static final String EXTENDS = "extends";
   protected static final String SPACE_ID = "spaceId";
 
-  public ExtendedSpaceQueryRunner(E event, DatabaseHandler dbHandler) throws SQLException {
+  public ExtendedSpace(E event, DatabaseHandler dbHandler) throws SQLException {
     super(event, dbHandler);
   }
 

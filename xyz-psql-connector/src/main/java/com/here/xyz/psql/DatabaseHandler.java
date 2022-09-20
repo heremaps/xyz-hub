@@ -45,7 +45,7 @@ import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.config.DatabaseSettings;
 import com.here.xyz.psql.config.PSQLConfig;
-import com.here.xyz.psql.query.LoadFeaturesQueryRunner;
+import com.here.xyz.psql.query.LoadFeatures;
 import com.here.xyz.psql.query.StorageStatisticsQueryRunner;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.CountResponse;
@@ -425,7 +425,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         if (event.getIdsMap() == null || event.getIdsMap().size() == 0)
             return new FeatureCollection();
 
-        return new LoadFeaturesQueryRunner(event, this).run();
+        return new LoadFeatures(event, this).run();
     }
 
     protected XyzResponse executeIterateHistory(IterateHistoryEvent event) throws SQLException {
