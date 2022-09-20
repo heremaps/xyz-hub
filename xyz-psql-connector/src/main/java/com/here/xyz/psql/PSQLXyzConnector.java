@@ -58,8 +58,8 @@ import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.factory.H3SQL;
 import com.here.xyz.psql.factory.QuadbinSQL;
 import com.here.xyz.psql.factory.TweaksSQL;
-import com.here.xyz.psql.query.GetFeaturesByBBoxQueryRunner;
-import com.here.xyz.psql.query.GetFeaturesByIdQueryRunner;
+import com.here.xyz.psql.query.GetFeaturesByBBox;
+import com.here.xyz.psql.query.GetFeaturesById;
 import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.SuccessResponse;
@@ -142,7 +142,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       if (event.getIds() == null || event.getIds().size() == 0)
         return new FeatureCollection();
 
-      return new GetFeaturesByIdQueryRunner(event, this).run();
+      return new GetFeaturesById(event, this).run();
     }
     catch (SQLException e) {
       return checkSQLException(e, config.readTableFromEvent(event));
@@ -368,7 +368,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       }
 
       if (event.getParams() != null && event.getParams().containsKey("extends") && event.getContext() == DEFAULT)
-        return new GetFeaturesByBBoxQueryRunner<>(event, this).run();
+        return new GetFeaturesByBBox<>(event, this).run();
 
       if( !bMvtRequested )
        return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource));
