@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -60,6 +60,8 @@ import com.here.xyz.psql.factory.QuadbinSQL;
 import com.here.xyz.psql.factory.TweaksSQL;
 import com.here.xyz.psql.query.GetFeaturesByBBox;
 import com.here.xyz.psql.query.GetFeaturesById;
+import com.here.xyz.psql.query.IterateFeatures;
+import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.SuccessResponse;
@@ -389,15 +391,15 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected XyzResponse processIterateFeaturesEvent(IterateFeaturesEvent event) throws Exception {
-    if(event.getV() != null)
+    if (event.getV() != null)
       return iterateVersions(event);
-    return findFeatures(event, event.getHandle(), true);
+    return findFeatures(event);
   }
 
   @Override
   protected XyzResponse processSearchForFeaturesEvent(SearchForFeaturesEvent event) throws Exception {
     if(! (event instanceof SearchForFeaturesOrderByEvent) )
-     return findFeatures(event, null, false);
+     return findFeatures(event);
     else
      return findFeaturesSort( (SearchForFeaturesOrderByEvent) event );
   }
@@ -641,40 +643,28 @@ public class PSQLXyzConnector extends DatabaseHandler {
     }
   }
 
-  protected XyzResponse findFeatures(SearchForFeaturesEvent event, final String handle, final boolean isIterate)
-          throws Exception{
-    try{
+  protected XyzResponse findFeatures(SearchForFeaturesEvent event) {
+    try {
       logger.info("{} Received "+event.getClass().getSimpleName(), traceItem);
 
-      final SQLQuery searchQuery = SQLQueryBuilder.generateSearchQuery(event,dataSource);
-      final boolean hasSearch = searchQuery != null;
-      final boolean hasHandle = handle != null;
-      final long start = hasHandle ? Long.parseLong(handle) : 0L;
-
       // For testing purposes.
-      if (event.getSpace().contains("illegal_argument")) {
+      if (event.getSpace().contains("illegal_argument")) //TODO: Remove testing code from the actual connector implementation
         return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
                 .withErrorMessage("Invalid request parameters.");
-      }
 
-      if (!Capabilities.canSearchFor(config.readTableFromEvent(event), event.getPropertiesQuery(), this)) {
+      if (!Capabilities.canSearchFor(config.readTableFromEvent(event), event.getPropertiesQuery(), this))
         return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
                 .withErrorMessage("Invalid request parameters. Search for the provided properties is not supported for this space.");
-      }
 
-      SQLQuery query = SQLQueryBuilder.buildFeaturesQuery(event, isIterate, hasHandle, hasSearch, start, dataSource) ;
-
-      FeatureCollection collection = executeQueryWithRetry(query);
-      if (isIterate && hasSearch && collection.getHandle() != null) {
-        collection.setHandle("" + (start + event.getLimit()));
-        collection.setNextPageToken("" + (start + event.getLimit()));
-      }
-
-      return collection;
-    }catch (SQLException e){
+      return event instanceof IterateFeaturesEvent
+          ? new IterateFeatures((IterateFeaturesEvent) event, this).run()
+          : new SearchForFeatures<>(event, this).run();
+    }
+    catch (SQLException e) {
       return checkSQLException(e, config.readTableFromEvent(event));
-    }finally {
-      logger.info("{} Finished "+event.getClass().getSimpleName(), traceItem);
+    }
+    finally {
+      logger.info("{} Finished " + event.getClass().getSimpleName(), traceItem);
     }
   }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,12 +31,9 @@ import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.QueryEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.SearchForFeaturesOrderByEvent;
-import com.here.xyz.events.TagList;
-import com.here.xyz.events.TagsQuery;
 import com.here.xyz.models.geojson.HQuad;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
@@ -48,6 +45,7 @@ import com.here.xyz.psql.factory.H3SQL;
 import com.here.xyz.psql.factory.IterateSortSQL;
 import com.here.xyz.psql.factory.QuadbinSQL;
 import com.here.xyz.psql.factory.TweaksSQL;
+import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.util.DhString;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -83,7 +81,7 @@ public class SQLQueryBuilder {
         final int radius = event.getRadius();
         final Geometry geometry = event.getGeometry();
 
-        final SQLQuery searchQuery = generateSearchQuery(event, dataSource);
+        final SQLQuery searchQuery = generateSearchQuery(event);
         final SQLQuery geoQuery;
 
         if(event.getH3Index() != null){
@@ -103,7 +101,7 @@ public class SQLQueryBuilder {
         throws SQLException{
         final BBox bbox = event.getBbox();
 
-        final SQLQuery searchQuery = generateSearchQuery(event, dataSource);
+        final SQLQuery searchQuery = generateSearchQuery(event);
         final SQLQuery geoQuery = new SQLQuery("ST_Intersects(geo, ST_MakeEnvelope(?, ?, ?, ?, 4326))",
                 bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
 
@@ -115,7 +113,7 @@ public class SQLQueryBuilder {
     protected static SQLQuery buildCountFeaturesQuery(CountFeaturesEvent event, DataSource dataSource, String schema, String table)
         throws SQLException{
 
-        final SQLQuery searchQuery = generateSearchQuery(event, dataSource);
+        final SQLQuery searchQuery = generateSearchQuery(event);
         final String schemaTable = SQLQuery.sqlQuote(schema) + "." + SQLQuery.sqlQuote(table);
         final SQLQuery query;
 
@@ -153,7 +151,7 @@ public class SQLQueryBuilder {
 
     public static SQLQuery buildHexbinClusteringQuery(
             GetFeaturesByBBoxEvent event, BBox bbox,
-            Map<String, Object> clusteringParams, DataSource dataSource) throws Exception {
+            Map<String, Object> clusteringParams, DataSource dataSource) {
 
         int zLevel = (event instanceof GetFeaturesByTileEvent ? ((GetFeaturesByTileEvent) event).getLevel() : H3SQL.bbox2zoom(bbox)),
             defaultResForLevel = H3SQL.zoom2resolution(zLevel),
@@ -179,7 +177,7 @@ public class SQLQueryBuilder {
                 fid = (!event.getClip() ? "h3" : DhString.format("h3 || %f || %f", bbox.minLon(), bbox.minLat())),
                 filterEmptyGeo = (!event.getClip() ? "" : DhString.format(" and not st_isempty( %s ) ", clippedGeo));
 
-        final SQLQuery searchQuery = generateSearchQuery(event, dataSource);
+        final SQLQuery searchQuery = generateSearchQuery(event);
 
         String aggField = (statisticalPropertyProvided ? "jsonb_set('{}'::jsonb, ? , agg::jsonb)::json" : "agg");
 
@@ -406,7 +404,7 @@ public class SQLQueryBuilder {
      final String sCondition = ( ((bEnsureMode && strength == 0) || (tblSampleRatio >= 0.0)) ? "1 = 1" : TweaksSQL.strengthSql(strength,bDistribution)  ),
                   twqry = DhString.format(DhString.format("ST_Intersects(geo, ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326) ) and %%s", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat(), sCondition );
 
-     final SQLQuery searchQuery = generateSearchQuery(event,dataSource),
+     final SQLQuery searchQuery = generateSearchQuery(event),
                     tweakQuery = new SQLQuery(twqry);
 
      if( !bEnsureMode || !bConvertGeo2Geojson )
@@ -499,7 +497,7 @@ public class SQLQueryBuilder {
 
        final String bboxqry = DhString.format( DhString.format("ST_Intersects(geo, ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326) )", 14 /*GEOMETRY_DECIMAL_DIGITS*/), bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat() );
 
-       final SQLQuery searchQuery = generateSearchQuery(event,dataSource);
+       final SQLQuery searchQuery = generateSearchQuery(event);
 
        if( iMerge == 0 )
         return generateCombinedQueryTweaks(event, new SQLQuery(bboxqry), searchQuery , tweaksGeoSql, bTestTweaksGeoIfNull, dataSource);
@@ -601,42 +599,8 @@ public class SQLQueryBuilder {
 
     /***************************************** TWEAKS END **************************************************/
 
-    public static SQLQuery buildFeaturesQuery(final SearchForFeaturesEvent event, final boolean isIterate, final boolean hasHandle,
-                                                 final boolean hasSearch, final long start, DataSource dataSource)
-            throws Exception {
-
-        final SQLQuery query = new SQLQuery("SELECT");
-        query.append(SQLQuery.selectJson(event));
-        query.append(", replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0'), i FROM ${schema}.${table}");
-        final SQLQuery searchQuery = generateSearchQuery(event, dataSource);
-
-        if (hasSearch || hasHandle) {
-            query.append("WHERE");
-        }
-
-        if (hasSearch) {
-            query.append(searchQuery);
-        }
-
-        if (hasHandle) {
-            if (hasSearch) {
-                query.append("OFFSET ?", start);
-            } else {
-                query.append("i > ?", start);
-            }
-        }
-
-        if (isIterate && !hasSearch) {
-            query.append("ORDER BY i");
-        }
-
-        query.append("LIMIT ?", event.getLimit());
-        return query;
-    }
-
-    public static SQLQuery buildFeaturesSortQuery(final SearchForFeaturesOrderByEvent event, DataSource dataSource) throws Exception
-    {
-        SQLQuery searchQuery = generateSearchQuery(event, dataSource);
+  public static SQLQuery buildFeaturesSortQuery(final SearchForFeaturesOrderByEvent event, DataSource dataSource) throws SQLException {
+        SQLQuery searchQuery = generateSearchQuery(event);
 
         SQLQuery innerQry = IterateSortSQL.innerSortedQry(searchQuery, event.getSort(), event.getPart(), event.getHandle(), event.getLimit());
 
@@ -861,88 +825,9 @@ public class SQLQueryBuilder {
         return query;
     }
 /** ###################################################################################### */
+
     private static SQLQuery generatePropertiesQuery(PropertiesQuery properties) {
-        if (properties == null || properties.size() == 0) {
-            return null;
-        }
-        // TODO: This is only a hot-fix for the connector. The issue is caused in the service and the code below will be removed after the next XYZ Hub deployment
-        if (properties.get(0).size() == 0 || properties.get(0).size() == 1 && properties.get(0).get(0) == null) {
-            return null;
-        }
-        // List with the outer OR combined statements
-        List<SQLQuery> disjunctionQueries = new ArrayList<>();
-        properties.forEach(conjunctions -> {
-
-            // List with the AND combined statements
-            final List<SQLQuery> conjunctionQueries = new ArrayList<>();
-            conjunctions.forEach(propertyQuery -> {
-
-                // List with OR combined statements for one property key
-                final List<SQLQuery> keyDisjunctionQueries = new ArrayList<>();
-                propertyQuery.getValues().forEach(v -> {
-                    final String psqlOperation;
-                    PropertyQuery.QueryOperation op = propertyQuery.getOperation();
-
-                    String  key = propertyQuery.getKey(),
-                            value = SQLQuery.getValue(v, op, key);
-                    SQLQuery q = SQLQuery.createKey(key);
-
-                    if(v == null){
-                        //Overrides all operations e.g: p.foo=lte=.null => p.foo=.null
-                        //>> [not] (jsondata->?->? is not null and jsondata->?->? != 'null'::jsonb )
-                        SQLQuery q1 = new SQLQuery( op.equals(PropertyQuery.QueryOperation.NOT_EQUALS) ? "((" : "not ((" );
-                        q1.append(q);
-                        q1.append("is not null");
-
-                        if(! ("id".equals(key) || "geometry.type".equals(key)) )
-                        { q1.append("and"); q1.append(q); q1.append("!= 'null'::jsonb" ); }
-
-                        q1.append("))");
-                        q = q1;
-                    }else{
-                        psqlOperation = SQLQuery.getOperation(op);
-                        q.append(new SQLQuery(psqlOperation + (value == null ? "" : value), v));
-                    }
-                    keyDisjunctionQueries.add(q);
-                });
-                conjunctionQueries.add(SQLQuery.join(keyDisjunctionQueries, "OR", true));
-            });
-            disjunctionQueries.add(SQLQuery.join(conjunctionQueries, "AND", false));
-        });
-        return SQLQuery.join(disjunctionQueries, "OR", false);
-    }
-
-    private static SQLQuery generateTagsQuery(TagsQuery tags)
-            throws SQLException {
-        if (tags == null || tags.size() == 0) {
-            return null;
-        }
-
-        SQLQuery query;
-        StringBuilder andQuery = new StringBuilder("jsondata->'properties'->'@ns:com:here:xyz'->'tags' ??& ?");
-        boolean hasAnd = tags.get(0).size() > 1;
-
-        for (int i = 1; i < tags.size(); i++) {
-            if (tags.get(i).size() > 1) {
-                hasAnd = true;
-            }
-            andQuery.append(" OR jsondata->'properties'->'@ns:com:here:xyz'->'tags' ??& ?");
-        }
-
-        if (!hasAnd) {
-            String[] orList = new String[tags.size()];
-            for (int i = 0; i < tags.size(); i++) {
-                orList[i] = tags.get(i).get(0);
-            }
-            query = new SQLQuery(" (jsondata->'properties'->'@ns:com:here:xyz'->'tags' ??| ?)", (Object) orList);
-        } else {
-            query = new SQLQuery("(" + andQuery + ")");
-            for (TagList tag : tags) {
-                query.addParameter(tag.toArray(new String[0]));
-            }
-        }
-
-        return query;
+      return SearchForFeatures.generatePropertiesQueryBWC(properties);
     }
 
     private static SQLQuery generateCombinedQueryTweaks(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, String tweaksgeo, boolean bTestTweaksGeoIfNull, DataSource dataSource, float sampleRatio, boolean bSortByHashedValue) throws SQLException
@@ -1063,13 +948,9 @@ public class SQLQueryBuilder {
         return new SQLQuery("ST_AsGeojson(geo) as geo");
     }
 
-    protected static SQLQuery generateSearchQuery(final QueryEvent event, final DataSource dataSource)
-            throws SQLException {
-        final SQLQuery propertiesQuery = generatePropertiesQuery(event.getPropertiesQuery());
-        final SQLQuery tagsQuery = generateTagsQuery(event.getTags());
-
-        return SQLQuery.join("AND", propertiesQuery, tagsQuery);
-    }
+  protected static SQLQuery generateSearchQuery(final QueryEvent event) {
+      return SearchForFeatures.generateSearchQueryBWC(event);
+  }
 
     protected static SQLQuery generateLoadOldFeaturesQuery(final String[] idsToFetch, final DataSource dataSource)
             throws SQLException {

@@ -549,7 +549,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties1 = new HashMap<>();
         properties1.put("key", "properties.name");
         properties1.put("operation", "EQUALS");
-        properties1.put("values", Stream.of("Toyota").collect(Collectors.toList()));
+        properties1.put("values", Collections.singletonList("Toyota"));
         addPropertiesQueryToSearchObject(test1, properties1);
         addTagsToSearchObject(test1, "yellow");
         invokeAndAssert(test1, 1, "Toyota");
@@ -559,7 +559,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties2 = new HashMap<>();
         properties2.put("key", "properties.size");
         properties2.put("operation", "LESS_THAN_OR_EQUALS");
-        properties2.put("values", Stream.of(1).collect(Collectors.toList()));
+        properties2.put("values", Collections.singletonList(1));
         addPropertiesQueryToSearchObject(test2, properties2);
         invokeAndAssert(test2, 2, "Ducati", "BikeX");
 
@@ -568,7 +568,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties3 = new HashMap<>();
         properties3.put("key", "properties.car");
         properties3.put("operation", "EQUALS");
-        properties3.put("values", Stream.of(true).collect(Collectors.toList()));
+        properties3.put("values", Collections.singletonList(true));
         addPropertiesQueryToSearchObject(test3, properties3);
         invokeAndAssert(test3, 1, "Toyota");
 
@@ -577,7 +577,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties4 = new HashMap<>();
         properties4.put("key", "properties.car");
         properties4.put("operation", "EQUALS");
-        properties4.put("values", Stream.of(false).collect(Collectors.toList()));
+        properties4.put("values", Collections.singletonList(false));
         addPropertiesQueryToSearchObject(test4, properties4);
         invokeAndAssert(test4, 1, "Ducati");
 
@@ -586,7 +586,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties5 = new HashMap<>();
         properties5.put("key", "properties.size");
         properties5.put("operation", "GREATER_THAN");
-        properties5.put("values", Stream.of(5).collect(Collectors.toList()));
+        properties5.put("values", Collections.singletonList(5));
         addPropertiesQueryToSearchObject(test5, properties5);
         addTagsToSearchObject(test5, "red");
         invokeAndAssert(test5, 1, "Toyota");
@@ -596,7 +596,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties6 = new HashMap<>();
         properties6.put("key", "properties.size");
         properties6.put("operation", "LESS_THAN");
-        properties6.put("values", Stream.of(5).collect(Collectors.toList()));
+        properties6.put("values", Collections.singletonList(5));
         addPropertiesQueryToSearchObject(test6, properties6);
         addTagsToSearchObject(test6, "red");
         invokeAndAssert(test6, 1, "Ducati");
@@ -606,7 +606,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties7 = new HashMap<>();
         properties7.put("key", "properties.name");
         properties7.put("operation", "EQUALS");
-        properties7.put("values", Stream.of("Toyota", "Tesla").collect(Collectors.toList()));
+        properties7.put("values", Arrays.asList("Toyota", "Tesla"));
         addPropertiesQueryToSearchObject(test7, properties7);
         invokeAndAssert(test7, 2, "Toyota", "Tesla");
 
@@ -619,7 +619,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties9 = new HashMap<>();
         properties9.put("key", "properties.name");
         properties9.put("operation", "EQUALS");
-        properties9.put("values", Stream.of("Test").collect(Collectors.toList()));
+        properties9.put("values", Collections.singletonList("Test"));
         addPropertiesQueryToSearchObject(test9, properties9);
         invokeAndAssert(test9, 0);
 
@@ -628,7 +628,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties10 = new HashMap<>();
         properties10.put("key", "properties.name");
         properties10.put("operation", "EQUALS");
-        properties10.put("values", Stream.of("Toyota").collect(Collectors.toList()));
+        properties10.put("values", Collections.singletonList("Toyota"));
         addPropertiesQueryToSearchObject(test10, properties10);
         addTagsToSearchObject(test10, "cyan");
         invokeAndAssert(test10, 0);
@@ -638,11 +638,11 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties11_1 = new HashMap<>();
         properties11_1.put("key", "properties.name");
         properties11_1.put("operation", "EQUALS");
-        properties11_1.put("values", Stream.of("Toyota", "Ducati", "BikeX").collect(Collectors.toList()));
+        properties11_1.put("values", Arrays.asList("Toyota", "Ducati", "BikeX"));
         Map<String, Object> properties11_2 = new HashMap<>();
         properties11_2.put("key", "properties.size");
         properties11_2.put("operation", "EQUALS");
-        properties11_2.put("values", Stream.of(1D, 0.3D).collect(Collectors.toList()));
+        properties11_2.put("values", Arrays.asList(1D, 0.3D));
         addPropertiesQueryToSearchObject(test11, properties11_1, properties11_2);
         invokeAndAssert(test11, 2, "Ducati", "BikeX");
 
@@ -651,11 +651,11 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties12_1 = new HashMap<>();
         properties12_1.put("key", "properties.name");
         properties12_1.put("operation", "EQUALS");
-        properties12_1.put("values", Stream.of("Toyota", "Ducati").collect(Collectors.toList()));
+        properties12_1.put("values", Arrays.asList("Toyota", "Ducati"));
         Map<String, Object> properties12_2 = new HashMap<>();
         properties12_2.put("key", "properties.name");
         properties12_2.put("operation", "EQUALS");
-        properties12_2.put("values", Stream.of("Toyota").collect(Collectors.toList()));
+        properties12_2.put("values", Collections.singletonList("Toyota"));
         addPropertiesQueryToSearchObject(test12, properties12_1);
         addPropertiesQueryToSearchObject(test12, true, properties12_2);
         invokeAndAssert(test12, 2, "Toyota", "Ducati");
@@ -665,11 +665,11 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties13_1 = new HashMap<>();
         properties13_1.put("key", "properties.name");
         properties13_1.put("operation", "EQUALS");
-        properties13_1.put("values", Stream.of("Toyota").collect(Collectors.toList()));
+        properties13_1.put("values", Collections.singletonList("Toyota"));
         Map<String, Object> properties13_2 = new HashMap<>();
         properties13_2.put("key", "properties.name");
         properties13_2.put("operation", "EQUALS");
-        properties13_2.put("values", Stream.of("Ducati").collect(Collectors.toList()));
+        properties13_2.put("values", Collections.singletonList("Ducati"));
         addPropertiesQueryToSearchObject(test13, properties13_1);
         addPropertiesQueryToSearchObject(test13, true, properties13_2);
         invokeAndAssert(test13, 2, "Toyota", "Ducati");
@@ -679,7 +679,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties14_1 = new HashMap<>();
         properties14_1.put("key", "id");
         properties14_1.put("operation", "GREATER_THAN");
-        properties14_1.put("values", Stream.of(0).collect(Collectors.toList()));
+        properties14_1.put("values", Collections.singletonList(0));
         addPropertiesQueryToSearchObject(test14, properties14_1);
 
         String response = invokeLambda(mapper.writeValueAsString(test14));
@@ -692,7 +692,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties15_1 = new HashMap<>();
         properties15_1.put("key", "id");
         properties15_1.put("operation", "EQUALS");
-        properties15_1.put("values", Stream.of(id).collect(Collectors.toList()));
+        properties15_1.put("values", Collections.singletonList(id));
         addPropertiesQueryToSearchObject(test15, properties15_1);
 
         response = invokeLambda(mapper.writeValueAsString(test15));

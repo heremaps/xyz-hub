@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,7 +34,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * A struct like object that contains the string for a prepared statement and the respective parameters for replacement.
@@ -135,9 +134,12 @@ public class SQLQuery {
 
   public void append(String text, Object... parameters) {
     addText(text);
-    if (parameters != null) {
-      Collections.addAll(this.parameters, parameters);
-    }
+    addParameters(parameters);
+  }
+
+  public void append(String text, Map<String, Object> namedParameters) {
+    addText(text);
+    setNamedParameters(namedParameters);
   }
 
   public void append(SQLQuery other) {
@@ -257,49 +259,6 @@ public class SQLQuery {
         return "@>";
     }
 
-    return "";
-  }
-
-  protected static SQLQuery createKey(String key) {
-    String[] results = key.split("\\.");
-
-    /** ID is indexed as text */
-    if(results.length == 1 && results[0].equalsIgnoreCase("id")) {
-      return new SQLQuery( "jsondata->>'id'");
-    }
-
-    /** special handling on geometry column */
-    if(results.length == 2 && results[0].equalsIgnoreCase("geometry") && results[1].equalsIgnoreCase("type")) {
-        return new SQLQuery("GeometryType(geo) ");
-    }
-
-    return new SQLQuery(
-            "jsondata->" + Collections.nCopies(results.length, "?").stream().collect(Collectors.joining("->")), results);
-  }
-
-  protected static String getValue(Object value, PropertyQuery.QueryOperation op, String key) {
-    if(key.equalsIgnoreCase("geometry.type")){
-        return "upper(?::text)";
-    }
-
-    if(value == null)
-      return null;
-
-    /** The ID is indexed as text */
-    if(key.equalsIgnoreCase("id"))
-      return "?::text";
-
-    if (value instanceof String) {
-      if(op.equals(PropertyQuery.QueryOperation.CONTAINS) && ((String) value).startsWith("{") && ((String) value).endsWith("}"))
-        return "(?::jsonb || '[]'::jsonb)";
-      return "to_jsonb(?::text)";
-    }
-    if (value instanceof Number) {
-      return "to_jsonb(?::numeric)";
-    }
-    if (value instanceof Boolean) {
-      return "to_jsonb(?::boolean)";
-    }
     return "";
   }
 

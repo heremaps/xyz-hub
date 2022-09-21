@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -160,12 +160,14 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
    * Processes a CountFeatures event.
    */
   @SuppressWarnings("WeakerAccess")
+  @Deprecated
   protected abstract XyzResponse processCountFeaturesEvent(CountFeaturesEvent event) throws Exception;
 
   /**
    * Processes a DeleteFeaturesEvent event.
    */
   @SuppressWarnings("WeakerAccess")
+  @Deprecated
   protected abstract XyzResponse processDeleteFeaturesByTagEvent(DeleteFeaturesByTagEvent event) throws Exception;
 
   /**
