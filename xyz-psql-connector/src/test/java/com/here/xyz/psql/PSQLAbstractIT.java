@@ -479,15 +479,15 @@ public abstract class PSQLAbstractIT {
 
     @SuppressWarnings({"unchecked", "rawtypes"}) final List<List<Map<String, Object>>> list = (List) json.get("propertiesQuery");
     if (or) {
-      list.add(new ArrayList<>(Stream.of(objects).collect(Collectors.toList())));
+      list.add(Arrays.asList(objects));
       return;
     }
 
     if (list.size() == 0) {
-      list.add(new ArrayList<>(Stream.of(objects).collect(Collectors.toList())));
+      list.add(Arrays.asList(objects));
       return;
     }
 
-    list.get(0).addAll(Stream.of(objects).collect(Collectors.toList()));
+    list.get(0).addAll(Arrays.asList(objects));
   }
 }

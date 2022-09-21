@@ -1,3 +1,22 @@
+/*
+ * Copyright (C) 2017-2022 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 package com.here.xyz.psql.query;
 
 import com.here.xyz.events.Event;
@@ -24,9 +43,9 @@ public abstract class GetFeatures<E extends Event> extends QueryRunner<E, Featur
 
   protected SQLQuery buildQuery(E event, String filterWhereClause) throws SQLException {
     SQLQuery query = new SQLQuery(
-        "SELECT ${{selection}}, ${{geo}}"
+        "SELECT ${{selection}}, ${{geo}}${{iColumn}}"
             + "    FROM ${schema}.${table}"
-            + "    WHERE ${{filterWhereClause}}");
+            + "    WHERE ${{filterWhereClause}} ${{orderBy}} ${{limit}} ${{offset}}");
 
     if (event instanceof QueryEvent)
       query.setQueryFragment("selection", buildSelectionFragment((QueryEvent) event));
@@ -34,7 +53,11 @@ public abstract class GetFeatures<E extends Event> extends QueryRunner<E, Featur
       query.setQueryFragment("selection", "jsondata");
 
     query.setQueryFragment("geo", buildGeoFragment(event));
+    query.setQueryFragment("iColumn", ""); //NOTE: This can be overridden by implementing subclasses
     query.setQueryFragment("filterWhereClause", filterWhereClause);
+    query.setQueryFragment("orderBy", ""); //NOTE: This can be overridden by implementing subclasses
+    query.setQueryFragment("limit", ""); //NOTE: This can be overridden by implementing subclasses
+    query.setQueryFragment("offset", ""); //NOTE: This can be overridden by implementing subclasses
     query.setVariable(SCHEMA, getSchema());
     query.setVariable(TABLE, dbHandler.getConfig().readTableFromEvent(event));
 
@@ -66,8 +89,6 @@ public abstract class GetFeatures<E extends Event> extends QueryRunner<E, Featur
 
   /**
    * This method is kept for backwards compatibility until refactoring is complete.
-   * @param event
-   * @return
    */
   public static SQLQuery buildSelectionFragmentBWC(QueryEvent event) {
     SQLQuery selectionFragment = buildSelectionFragment(event);

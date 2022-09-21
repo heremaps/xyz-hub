@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -680,11 +680,12 @@ public abstract class DatabaseHandler extends StorageConnector {
       return ids;
     }
 
-    protected XyzResponse executeDeleteFeaturesByTag(DeleteFeaturesByTagEvent event) throws Exception {
+    @Deprecated
+    protected XyzResponse executeDeleteFeaturesByTag(DeleteFeaturesByTagEvent event) throws SQLException {
         boolean includeOldStates = event.getParams() != null
                 && event.getParams().get(INCLUDE_OLD_STATES) == Boolean.TRUE;
 
-        final SQLQuery searchQuery = SQLQueryBuilder.generateSearchQuery(event, dataSource);
+        final SQLQuery searchQuery = SQLQueryBuilder.generateSearchQuery(event);
         final SQLQuery query = SQLQueryBuilder.buildDeleteFeaturesByTagQuery(includeOldStates, searchQuery);
 
         //TODO: check in detail what we want to return

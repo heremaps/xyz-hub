@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -67,7 +67,7 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
             then().
             body("features.size()", equalTo(2));
 
-    boolean bFlag = RestAssured.urlEncodingEnabled;
+    boolean originalUrlEncodingValue = RestAssured.urlEncodingEnabled;
     RestAssured.urlEncodingEnabled = false;
     given().
             accept(APPLICATION_GEO_JSON).
@@ -76,7 +76,7 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
             get(getSpacesPath() + "/x-psql-test/search?p.stringArray=cs=foo1,NA").
             then().
             body("features.size()", equalTo(1));
-    RestAssured.urlEncodingEnabled = bFlag;
+    RestAssured.urlEncodingEnabled = originalUrlEncodingValue;
 
     given().
             accept(APPLICATION_GEO_JSON).
