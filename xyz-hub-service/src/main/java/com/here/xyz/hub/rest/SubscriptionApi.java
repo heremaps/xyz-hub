@@ -152,7 +152,7 @@ public class SubscriptionApi extends Api {
               sendErrorResponse(context, arAuth.cause());
             } else {
               // Delete subscription
-              SubscriptionHandler.deleteSubscription(context, subscriptionId, ar -> {
+              SubscriptionHandler.deleteSubscription(context, subscription, ar -> {
                 if(ar.failed()) {
                   sendErrorResponse(context, ar.cause());
                 } else {
@@ -178,6 +178,8 @@ public class SubscriptionApi extends Api {
       throw new HttpException(BAD_REQUEST, "Validation failed. The property 'destination' cannot be empty.");
     if(subscription.getDestinationType() == null)
       throw new HttpException(BAD_REQUEST, "Validation failed. The property 'destinationType' cannot be empty.");
+    if(subscription.getConfig() == null || subscription.getConfig().getType() == null)
+      throw new HttpException(BAD_REQUEST, "Validation failed. The property config 'type' cannot be empty.");
   }
 
   public static class SubscriptionAuthorization extends Authorization {

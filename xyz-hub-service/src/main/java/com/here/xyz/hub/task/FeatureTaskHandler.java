@@ -41,12 +41,12 @@ import com.google.common.base.Strings;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContentModifiedNotification;
+import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.Event.TrustedParams;
 import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetHistoryStatisticsEvent;
-import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
@@ -86,8 +86,8 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.FeatureCollection.ModificationFailure;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
-import com.here.xyz.models.hub.Space.Extension;
 import com.here.xyz.responses.BinaryResponse;
+import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.ModifiedEventResponse;
 import com.here.xyz.responses.ModifiedPayloadResponse;
@@ -98,11 +98,9 @@ import com.here.xyz.responses.StatisticsResponse.PropertiesStatistics.Searchable
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzResponse;
 import io.vertx.core.AsyncResult;
-import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.MultiMap;
-import io.vertx.core.Promise;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.Cookie;
 import io.vertx.core.json.DecodeException;
@@ -749,87 +747,50 @@ public class FeatureTaskHandler {
    */
   static <X extends FeatureTask> void resolveSpace(final X task, final Callback<X> callback) {
     try {
-      resolveSpace(task)
-          .compose(space -> CompositeFuture.all(
-              resolveStorageConnector(task),
-              resolveListenersAndProcessors(task),
-              resolveExtendedSpaces(task, space)
-          ))
-          .onFailure(t -> callback.exception(t))
-          .onSuccess(connector -> callback.call(task));
+      //FIXME: Can be removed once the Space events are handled by the SpaceTaskHandler (refactoring pending ...)
+      if (task.space != null) { //If the space is already given we don't need to retrieve it
+        onSpaceResolved(task, callback);
+        return;
+      }
+
+      //Load the space definition.
+      Service.spaceConfigClient.get(task.getMarker(), task.getEvent().getSpace())
+          .onFailure(t -> {
+            logger.warn(task.getMarker(), "Unable to load the space definition for space '{}' {}", task.getEvent().getSpace(), t);
+            callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition", t));
+          })
+          .onSuccess(space -> {
+            task.space = space;
+            if (task.space != null)
+              task.getEvent().setParams(task.space.getStorage().getParams());
+            onSpaceResolved(task, callback);
+          });
     }
     catch (Exception e) {
       callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition.", e));
     }
   }
 
-  private static <X extends FeatureTask> Future<Space> resolveSpace(final X task) {
-    try {
-      //FIXME: Can be removed once the Space events are handled by the SpaceTaskHandler (refactoring pending ...)
-      if (task.space != null) //If the space is already given we don't need to retrieve it
-        return Future.succeededFuture(task.space);
-
-      //Load the space definition.
-      return Space.resolveSpace(task.getMarker(), task.getEvent().getSpace())
-          .compose(
-              space -> {
-                task.space = space;
-                if (space != null)
-                  task.getEvent().setParams(space.getStorage().getParams());
-                return Future.succeededFuture(space);
-              },
-              t -> {
-                logger.warn(task.getMarker(), "Unable to load the space definition for space '{}' {}", task.getEvent().getSpace(), t);
-                return Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition", t));
-              }
-          );
+  private static <X extends FeatureTask> void onSpaceResolved(final X task, final Callback<X> callback) {
+    if (task.space == null) {
+      callback.exception(new HttpException(NOT_FOUND, "The resource with ID '" + task.getEvent().getSpace() + "' does not exist."));
+      return;
     }
-    catch (Exception e) {
-      return Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition.", e));
-    }
-  }
-
-  private static <X extends FeatureTask> Future<Space> resolveExtendedSpaces(X task, Space extendingSpace) {
-    if (extendingSpace == null)
-      return Future.succeededFuture();
-    return resolveExtendedSpace(task, extendingSpace.getExtension());
-  }
-
-  private static <X extends FeatureTask> Future<Space> resolveExtendedSpace(X task, Extension spaceExtension) {
-    if (spaceExtension == null)
-      return Future.succeededFuture();
-    return Space.resolveSpace(task.getMarker(), spaceExtension.getSpaceId())
-        .compose(
-            extendedSpace -> {
-              if (task.extendedSpaces == null)
-                task.extendedSpaces = new ArrayList();
-              task.extendedSpaces.add(extendedSpace);
-              return resolveExtendedSpace(task, extendedSpace.getExtension()); //Go to next extension level
-            },
-            t -> Future.failedFuture(t)
-        );
-  }
-
-  private static <X extends FeatureTask> Future<Connector> resolveStorageConnector(final X task) {
-    if (task.space == null)
-      return Future.failedFuture(new HttpException(NOT_FOUND, "The resource with this ID does not exist."));
-
-    logger.debug(task.getMarker(), "Given space configuration is: {}", task.space);
+    logger.debug(task.getMarker(), "Given space configuration is: {}", Json.encode(task.space));
 
     final String storageId = task.space.getStorage().getId();
     AbstractHttpServerVerticle.addStreamInfo(task.context, "SID", storageId);
-    return Space.resolveConnector(task.getMarker(), storageId)
-        .compose(
-            connector -> {
-              task.storage = connector;
-              return Future.succeededFuture(connector);
-            },
-            t -> Future.failedFuture(new InvalidStorageException("Unable to load the definition for this storage."))
-        );
+    Space.resolveConnector(task.getMarker(), storageId, (arStorage) -> {
+      if (arStorage.failed()) {
+        callback.exception(new InvalidStorageException("Unable to load the definition for this storage."));
+        return;
+      }
+      task.storage = arStorage.result();
+      onStorageResolved(task, callback);
+    });
   }
 
-  private static <X extends FeatureTask> Future<Void> resolveListenersAndProcessors(final X task) {
-    Promise<Void> p = Promise.promise();
+  private static <X extends FeatureTask> void onStorageResolved(final X task, final Callback<X> callback) {
     try {
       //Also resolve all listeners & processors
       CompletableFuture.allOf(
@@ -837,14 +798,13 @@ public class FeatureTaskHandler {
           resolveConnectors(task.getMarker(), task.space, ConnectorType.PROCESSOR)
       ).thenRun(() -> {
         //All listener & processor refs have been resolved now
-        p.complete();
+        callback.call(task);
       });
     }
     catch (Exception e) {
       logger.error(task.getMarker(), "The listeners for this space cannot be initialized", e);
-      p.fail(new HttpException(INTERNAL_SERVER_ERROR, "The listeners for this space cannot be initialized"));
+      callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "The listeners for this space cannot be initialized"));
     }
-    return p.future();
   }
 
   private static CompletableFuture<Void> resolveConnectors(Marker marker, final Space space, final ConnectorType connectorType) {
@@ -1353,7 +1313,7 @@ public class FeatureTaskHandler {
   }
 
   private static <X extends FeatureTask<?, X>>void getCountForSpace(X task, Handler<AsyncResult<Long>> handler) {
-    final GetStatisticsEvent countEvent = new GetStatisticsEvent();
+    final CountFeaturesEvent countEvent = new CountFeaturesEvent();
     countEvent.setSpace(task.getEvent().getSpace());
     countEvent.setParams(task.getEvent().getParams());
 
@@ -1366,9 +1326,11 @@ public class FeatureTaskHandler {
             }
             Long count;
             final XyzResponse response = eventHandler.result();
-            if (response instanceof StatisticsResponse)
-              count = ((StatisticsResponse) response).getCount().getValue();
-            else {
+            if (response instanceof CountResponse) {
+              count = ((CountResponse) response).getCount();
+            } else if (response instanceof FeatureCollection) {
+              count = ((FeatureCollection) response).getCount();
+            } else {
               handler.handle(Future.failedFuture(Api.responseToHttpException(response)));
               return;
             }

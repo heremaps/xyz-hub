@@ -35,6 +35,7 @@ import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.hub.Core;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
@@ -75,6 +76,12 @@ public class TestStorageConnector extends StorageConnector {
     if (XyzError.forValue(event.getSpace()) != null) {
       return new SuccessResponse();
     }
+    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
+  }
+
+  @Override
+  protected XyzResponse processModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception {
+    // Needs further implementation
     throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
   }
 

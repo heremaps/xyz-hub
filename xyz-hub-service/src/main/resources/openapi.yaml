@@ -1964,6 +1964,13 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Subscription'
+          example:
+            id: my-subscription-id
+            source: source-space
+            destination: string
+            destinationType: string
+            config:
+              type: PER_FEATURE
   schemas:
     # TODO add Typed and Iterable schemas
     AWSLambda:
@@ -3328,13 +3335,21 @@ components:
           description: >-
             The type of destination for the subscribed notification.
           type: string
+        config:
+          $ref: '#/components/schemas/SubscriptionConfig'
         status:
           description: >-
             The status of the subscription.
-          type: string
-          example: ACTIVE
-        config:
-          $ref: '#/components/schemas/SubscriptionConfig'
+          type: object
+          properties:
+            state:
+              description: The state of the subscription.
+              type: string
+              example: ACTIVE
+            reason:
+              description: "The reason for the current state."
+              type: string
+              example: ""
     SubscriptionConfig:
       type: object
       description: The subscription configuration.
@@ -3343,4 +3358,6 @@ components:
           description: >- 
             The type of subscribed notification.
           type: string
-          enum: [PER_FEATURE, PER_TRANSACTION]
+          enum:
+            - PER_FEATURE
+            - PER_TRANSACTION
