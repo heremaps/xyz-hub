@@ -29,6 +29,7 @@ public class MaintenanceSQL {
      * Tables for database wide configurations, which belong to XYZ_CONFIG_SCHEMA
      */
     private static String XYZ_CONFIG_DB_STATUS = "db_status";
+    private static String XYZ_CONFIG_SPACE_META_TABLE = "space_meta";
     public static String XYZ_CONFIG_IDX_TABLE = "xyz_idxs_status";
     private static String XYZ_CONFIG_STORAGE_TABLE = "xyz_storage";
     private static String XYZ_CONFIG_SPACE_TABLE = "xyz_space";
@@ -55,7 +56,8 @@ public class MaintenanceSQL {
         return "SELECT array_agg(nspname) @> ARRAY['" + schema + "'] as main_schema, "
                 + " array_agg(nspname) @> ARRAY['xyz_config'] as config_schema, "
                 + "(SELECT (to_regclass('" + XYZ_CONFIG_SCHEMA + "."+XYZ_CONFIG_IDX_TABLE+"') IS NOT NULL) as idx_table), "
-                + "(SELECT (to_regclass('" + XYZ_CONFIG_SCHEMA + "."+XYZ_CONFIG_DB_STATUS+"') IS NOT NULL) as db_status_table) "
+                + "(SELECT (to_regclass('" + XYZ_CONFIG_SCHEMA + "."+XYZ_CONFIG_DB_STATUS+"') IS NOT NULL) as db_status_table), "
+                + "(SELECT (to_regclass('" + XYZ_CONFIG_SCHEMA + "."+XYZ_CONFIG_SPACE_META_TABLE+"') IS NOT NULL) as space_meta_table) "
                 + "FROM( "
                 + "	SELECT nspname::text FROM pg_catalog.pg_namespace "
                 + "		WHERE nspowner <> 1 "
@@ -132,7 +134,7 @@ public class MaintenanceSQL {
     public static String generateInitializationEntry =
             "INSERT INTO xyz_config.db_status as a (dh_schema, connector_id, initialized, extensions, script_versions, maintenance_status) " +
                     "VALUES (?,?,?,?,?::jsonb,?::jsonb)"
-                 + "ON CONFLICT (dh_schema,connector_id) DO "
+                    + "ON CONFLICT (dh_schema,connector_id) DO "
                     + "UPDATE SET extensions=?,"
                     + "    		  script_versions=?::jsonb,"
                     + "    		  initialized=?"
@@ -223,6 +225,16 @@ public class MaintenanceSQL {
                     "  script_versions jsonb," +
                     "  maintenance_status jsonb," +
                     "  CONSTRAINT xyz_db_status_pkey PRIMARY KEY (dh_schema,connector_id)"+
+                    "); ";
+
+    public static String createSpaceMetaTable =
+            "CREATE TABLE IF NOT EXISTS " + XYZ_CONFIG_SCHEMA + "."+XYZ_CONFIG_SPACE_META_TABLE+
+                    "( " +
+                    "  id text NOT NULL," +
+                    "  schem text NOT NULL," +
+                    "  h_id text," +
+                    "  meta jsonb," +
+                    "  CONSTRAINT xyz_space_meta_pkey PRIMARY KEY (id,schem)"+
                     "); ";
 
     public static String getIDXStatus =

@@ -5,23 +5,49 @@ import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.config.PSQLConfig;
 import java.sql.SQLException;
+import java.util.HashMap;
 import java.util.Map;
 
 public abstract class ExtendedSpace<E extends Event> extends GetFeatures<E> {
 
   protected static final String EXTENDS = "extends";
   protected static final String SPACE_ID = "spaceId";
+  protected static final String INTERMEDIATE_TABLE = "intermediateTable";
+  protected static final String EXTENDED_TABLE = "extendedTable";
 
-  public ExtendedSpace(E event, DatabaseHandler dbHandler) throws SQLException {
+  public ExtendedSpace(E event, DatabaseHandler dbHandler, boolean isWrite) throws SQLException {
     super(event, dbHandler);
+    if(!isWrite)
+      setUseReadReplica(true);
   }
 
   protected boolean isExtendedSpace(E event) {
     return event.getParams() != null && event.getParams().containsKey(EXTENDS);
   }
 
+  protected Map<String,String> getExtendedTableNames(PSQLConfig config){
+    Map<String, Object> extSpec = event.getParams() != null ? (Map<String, Object>) event.getParams().get(EXTENDS) : null;
+    Map<String,String> extendedTables = new HashMap<>();
+
+    if(extSpec == null)
+      return null;
+
+    if (!extSpec.containsKey(EXTENDS)) {
+      //1-level extension
+      extendedTables.put(EXTENDED_TABLE,config.getTableNameForSpaceId((String) extSpec.get(SPACE_ID)));
+    }
+    else {
+      //2-level extension
+      Map<String, Object> baseExtSpec = (Map<String, Object>) extSpec.get(EXTENDS);
+      extendedTables.put(INTERMEDIATE_TABLE,config.getTableNameForSpaceId((String) extSpec.get(SPACE_ID)));
+      extendedTables.put(EXTENDED_TABLE,config.getTableNameForSpaceId((String) baseExtSpec.get(SPACE_ID)));
+    }
+    return extendedTables;
+  }
+
   protected SQLQuery buildExtensionQuery(E event, String filterWhereClause) {
     PSQLConfig config = dbHandler.getConfig();
+    Map<String,String> extendedTables = getExtendedTableNames(config);
 
     SQLQuery extensionQuery = new SQLQuery(
         "SELECT jsondata, ${{geo}}"
@@ -38,19 +64,14 @@ public abstract class ExtendedSpace<E extends Event> extends GetFeatures<E> {
     extensionQuery.setVariable(SCHEMA, getSchema());
     extensionQuery.setVariable("extensionTable", config.readTableFromEvent(event));
 
-    Map<String, Object> extSpec = (Map<String, Object>) event.getParams().get(EXTENDS);
     SQLQuery baseQuery;
-    if (!extSpec.containsKey(EXTENDS)) {
+    if (extendedTables.get(INTERMEDIATE_TABLE) == null) {
       //1-level extension
-      String extendedTable = config.getTableNameForSpaceId((String) extSpec.get(SPACE_ID));
-      baseQuery = build1LevelBaseQuery(extendedTable);
+      baseQuery = build1LevelBaseQuery(extendedTables.get(EXTENDED_TABLE));
     }
     else {
       //2-level extension
-      Map<String, Object> baseExtSpec = (Map<String, Object>) extSpec.get(EXTENDS);
-      String intermediateTable = config.getTableNameForSpaceId((String) extSpec.get(SPACE_ID));
-      String extendedTable = config.getTableNameForSpaceId((String) baseExtSpec.get(SPACE_ID));
-      baseQuery = build2LevelBaseQuery(intermediateTable, extendedTable);
+      baseQuery = build2LevelBaseQuery(extendedTables.get(INTERMEDIATE_TABLE), extendedTables.get(EXTENDED_TABLE));
     }
     baseQuery.setQueryFragment("filterWhereClause", filterWhereClause);
     extensionQuery.setQueryFragment("baseQuery", baseQuery);
