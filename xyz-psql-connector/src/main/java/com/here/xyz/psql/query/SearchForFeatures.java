@@ -43,7 +43,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends Extende
   protected boolean hasSearch;
 
   public SearchForFeatures(E event, DatabaseHandler dbHandler) throws SQLException {
-    super(event, dbHandler);
+    super(event, dbHandler,false);
   }
 
   @Override
