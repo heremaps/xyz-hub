@@ -2,6 +2,7 @@ package com.here.xyz.hub.rest;
 
 import com.jayway.restassured.response.ValidatableResponse;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -11,15 +12,24 @@ import static io.netty.handler.codec.http.HttpResponseStatus.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class SubscriptionApiIT extends RestAssuredTest {
+public class SubscriptionApiIT extends TestSpaceWithFeature {
+
+    private String cleanUpId;
 
     @BeforeClass
-    public static void setup() {
+    public static void setupClass() {
         removeAll();
+    }
+    
+    @Before
+    public void setup() {
+        cleanUpId = "space-1";
+        createSpaceWithCustomStorage(cleanUpId, "psql", null);
     }
 
     @After
     public void teardown() {
+        removeSpace(cleanUpId);
         removeAll();
     }
 
