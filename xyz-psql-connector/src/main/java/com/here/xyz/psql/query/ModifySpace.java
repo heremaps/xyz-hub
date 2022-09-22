@@ -3,18 +3,16 @@ package com.here.xyz.psql.query;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.psql.*;
 import com.here.xyz.psql.config.PSQLConfig;
-import com.here.xyz.responses.XyzResponse;
 
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Map;
 
-public class ModifySpaceQueryRunner extends ExtendedSpaceQueryRunner<ModifySpaceEvent, XyzResponse> {
+public class ModifySpace extends ExtendedSpace<ModifySpaceEvent> {
     private String schema;
     private String table;
     private String spaceId;
 
-    public ModifySpaceQueryRunner(ModifySpaceEvent event, DatabaseHandler dbHandler) throws SQLException {
+    public ModifySpace(ModifySpaceEvent event, DatabaseHandler dbHandler) throws SQLException {
         super(event, dbHandler, true);
     }
 
@@ -55,8 +53,4 @@ public class ModifySpaceQueryRunner extends ExtendedSpaceQueryRunner<ModifySpace
         if(((ModifySpaceEvent)event).getOperation() != ModifySpaceEvent.Operation.DELETE)
             this.dbHandler.dbMaintainer.maintainSpace(this.dbHandler.traceItem, schema, table);
     }
-
-    //Not used
-    @Override
-    public XyzResponse handle(ResultSet rs) throws SQLException { return null; }
 }

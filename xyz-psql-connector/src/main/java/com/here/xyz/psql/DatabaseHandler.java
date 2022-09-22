@@ -46,8 +46,7 @@ import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.config.DatabaseSettings;
 import com.here.xyz.psql.config.PSQLConfig;
-import com.here.xyz.psql.query.LoadFeaturesQueryRunner;
-import com.here.xyz.psql.query.ModifySpaceQueryRunner;
+import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.LoadFeatures;
 import com.here.xyz.psql.query.StorageStatisticsQueryRunner;
 import com.here.xyz.responses.BinaryResponse;
@@ -449,7 +448,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             }
         }
 
-        ModifySpaceQueryRunner modifySpaceQueryRunner = new ModifySpaceQueryRunner(event, this);
+        ModifySpace modifySpaceQueryRunner = new ModifySpace(event, this);
 
         modifySpaceQueryRunner.write();
         modifySpaceQueryRunner.maintainSpace();
