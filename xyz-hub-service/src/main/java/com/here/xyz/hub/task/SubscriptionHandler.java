@@ -19,9 +19,13 @@
 
 package com.here.xyz.hub.task;
 
+import com.here.xyz.events.ModifySubscriptionEvent;
+import com.here.xyz.events.ModifySubscriptionEvent.Operation;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.Api;
+import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.hub.task.FeatureTask.ModifySubscriptionQuery;
 import com.here.xyz.models.hub.Subscription;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -80,23 +84,30 @@ public class SubscriptionHandler {
 
     public static void createSubscription(RoutingContext context, Subscription subscription, Handler<AsyncResult<Subscription>> handler) {
         Marker marker = Api.Context.getMarker(context);
-
+        subscription.setStatus(new Subscription.SubscriptionStatus().withState(Subscription.SubscriptionStatus.State.ACTIVE));
         Service.subscriptionConfigClient.get(marker, subscription.getId(), ar -> {
             if (ar.failed()) {
-                storeSubscription(context, subscription, handler, marker);
-            }
-            else {
-                logger.info(marker, "Resource with the given ID already exists.");
+                // Send ModifySubscriptionEvent to the connector
+                sendEvent(context, Operation.CREATE, subscription, false, marker, eventAr -> {
+                    if(eventAr.failed()) {
+                        handler.handle(Future.failedFuture(eventAr.cause()));
+                    } else {
+                        storeSubscription(context, subscription, handler, marker);
+                    }
+                });
+            } else {
+                logger.warn(marker, "Resource with the given ID already exists.");
                 handler.handle(Future.failedFuture(new HttpException(CONFLICT, "Resource with the given ID already exists.")));
             }
         });
+
     }
 
     protected static void storeSubscription(RoutingContext context, Subscription subscription, Handler<AsyncResult<Subscription>> handler, Marker marker) {
 
         Service.subscriptionConfigClient.store(marker, subscription, ar -> {
             if (ar.failed()) {
-                logger.error(marker, "Unable to store resource definition.'", ar.cause());
+                logger.error(marker, "Unable to store resource definition.", ar.cause());
                 handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to store the resource definition.", ar.cause())));
             } else {
                 handler.handle(Future.succeededFuture(ar.result()));
@@ -104,17 +115,70 @@ public class SubscriptionHandler {
         });
     }
 
-    public static void deleteSubscription(RoutingContext context, String subscriptionId, Handler<AsyncResult<Subscription>> handler) {
+    public static void deleteSubscription(RoutingContext context, Subscription subscription, Handler<AsyncResult<Subscription>> handler) {
         Marker marker = Api.Context.getMarker(context);
 
-        Service.subscriptionConfigClient.delete(marker, subscriptionId, ar -> {
+        getSubscriptions(context, subscription.getSource(), ar -> {
+            if(ar.failed()) {
+                handler.handle(Future.failedFuture(ar.cause()));
+            } else {
+                // Check if source space has other ACTIVE subscriptions
+                boolean hasActiveSubscriptions = ar.result().stream()
+                        .anyMatch(s -> !s.getId().equals(subscription.getId()) &&
+                                s.getStatus() != null &&
+                                s.getStatus().getState() == Subscription.SubscriptionStatus.State.ACTIVE);
+
+                sendEvent(context, Operation.DELETE, subscription, !hasActiveSubscriptions, marker, eventAr -> {
+                    if(eventAr.failed()) {
+                        if(eventAr.cause() instanceof HttpException && ((HttpException) eventAr.cause()).status.equals(NOT_FOUND)) {
+                            // Source space not found, delete the subscription directly
+                            removeSubscription(context, subscription, handler);
+                        } else {
+                            handler.handle(Future.failedFuture(eventAr.cause()));
+                        }
+                    } else {
+                        removeSubscription(context, subscription, handler);
+                    }
+                });
+
+            }
+        });
+    }
+
+    protected static void removeSubscription(RoutingContext context, Subscription subscription, Handler<AsyncResult<Subscription>> handler) {
+        Marker marker = Api.Context.getMarker(context);
+
+        Service.subscriptionConfigClient.delete(marker, subscription.getId(), ar -> {
             if (ar.failed()) {
-                logger.error(marker, "Unable to delete resource definition.'", ar.cause());
+                logger.error(marker, "Unable to delete resource definition.", ar.cause());
                 handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to delete the resource definition.", ar.cause())));
             } else {
                 handler.handle(Future.succeededFuture(ar.result()));
             }
         });
+    }
+
+    private static void sendEvent(RoutingContext context, Operation op, Subscription subscription, boolean hardDelete,Marker marker, Handler<AsyncResult<Subscription>> handler) {
+
+        ModifySubscriptionEvent event = new ModifySubscriptionEvent()
+                .withOperation(op)
+                .withSubscription(subscription)
+                .withStreamId(marker.getName())
+                .withIfNoneMatch(context.request().headers().get("If-None-Match"))
+                .withSpace(subscription.getSource())
+                .withHardDelete(hardDelete);
+
+        ModifySubscriptionQuery query = new ModifySubscriptionQuery(event, context, ApiResponseType.EMPTY);
+
+        TaskPipeline.C1<ModifySubscriptionQuery> wrappedSuccessHandler = (t) -> {
+            handler.handle(Future.succeededFuture());
+        };
+
+        TaskPipeline.C2<ModifySubscriptionQuery, Throwable> wrappedExceptionHandler = (t, e) -> {
+            handler.handle((Future.failedFuture(e)));
+        };
+
+        query.execute(wrappedSuccessHandler, wrappedExceptionHandler);
     }
 
 }

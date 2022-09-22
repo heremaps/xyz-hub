@@ -46,6 +46,8 @@ public class Subscription {
      */
     private SubscriptionConfig config;
 
+    private SubscriptionStatus status;
+
     public String getId() {
         return id;
     }
@@ -111,24 +113,81 @@ public class Subscription {
         return this;
     }
 
+    public SubscriptionStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(SubscriptionStatus status) {
+        this.status = status;
+    }
+
+    public Subscription withStatus(SubscriptionStatus status) {
+        this.status = status;
+        return this;
+    }
+
     public static class SubscriptionConfig {
 
         /**
          * The type of the subscription
          */
-        private String type;
+        private SubscriptionType type;
 
-        public String getType() {
+        public SubscriptionType getType() {
             return type;
         }
 
-        public void setType(String type) {
+        public void setType(SubscriptionType type) {
             this.type = type;
         }
 
-        public SubscriptionConfig withType(String type) {
+        public SubscriptionConfig withType(SubscriptionType type) {
             this.type = type;
             return this;
+        }
+
+        public enum SubscriptionType {
+            PER_FEATURE, PER_TRANSACTION
+        }
+    }
+
+    public static class SubscriptionStatus {
+
+        /**
+         * The type of the subscription
+         */
+        private State state;
+
+        private String reason;
+
+        public State getState() {
+            return state;
+        }
+
+        public void setState(State state) {
+            this.state = state;
+        }
+
+        public SubscriptionStatus withState(State state) {
+            this.state = state;
+            return this;
+        }
+
+        public String getReason() {
+            return reason;
+        }
+
+        public void setReason(String reason) {
+            this.reason = reason;
+        }
+
+        public SubscriptionStatus withReason(String reason) {
+            this.reason = reason;
+            return this;
+        }
+
+        public enum State {
+            ACTIVE, INACTIVE, SUSPENDED, PENDING, AUTH_FAILED
         }
     }
 }

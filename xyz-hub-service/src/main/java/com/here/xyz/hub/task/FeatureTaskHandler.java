@@ -773,7 +773,7 @@ public class FeatureTaskHandler {
 
   private static <X extends FeatureTask> void onSpaceResolved(final X task, final Callback<X> callback) {
     if (task.space == null) {
-      callback.exception(new HttpException(NOT_FOUND, "The resource with this ID does not exist."));
+      callback.exception(new HttpException(NOT_FOUND, "The resource with ID '" + task.getEvent().getSpace() + "' does not exist."));
       return;
     }
     logger.debug(task.getMarker(), "Given space configuration is: {}", Json.encode(task.space));

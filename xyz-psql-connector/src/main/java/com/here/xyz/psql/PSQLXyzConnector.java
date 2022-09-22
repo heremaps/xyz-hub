@@ -40,6 +40,7 @@ import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQueryList;
@@ -540,6 +541,12 @@ public class PSQLXyzConnector extends DatabaseHandler {
     }finally {
       logger.info("{} Finished ModifySpaceEvent", traceItem);
     }
+  }
+
+  @Override
+  protected XyzResponse processModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception {
+    // Needs further implementation
+    return new SuccessResponse();
   }
 
   @Override

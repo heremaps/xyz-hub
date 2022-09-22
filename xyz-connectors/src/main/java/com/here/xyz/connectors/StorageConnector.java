@@ -34,6 +34,7 @@ import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.responses.ErrorResponse;
@@ -63,6 +64,9 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
 
     if (event instanceof ModifySpaceEvent) {
       return processModifySpaceEvent((ModifySpaceEvent) event);
+    }
+    if (event instanceof ModifySubscriptionEvent) {
+      return processModifySubscriptionEvent((ModifySubscriptionEvent) event);
     }
     if (event instanceof ModifyFeaturesEvent) {
       return processModifyFeaturesEvent((ModifyFeaturesEvent) event);
@@ -192,6 +196,12 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
    */
   @SuppressWarnings("WeakerAccess")
   protected abstract XyzResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception;
+
+  /**
+   * Processes a ModifySubscriptionEvent event.
+   */
+  @SuppressWarnings("WeakerAccess")
+  protected abstract XyzResponse processModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception;
 
   /**
    * Processes a IterateFeatures event.
