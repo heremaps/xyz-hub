@@ -38,11 +38,13 @@ public abstract class QueryRunner<E extends Event, R extends XyzResponse> implem
   protected static final String SCHEMA = "schema";
   protected static final String TABLE = "table";
 
+  protected Event event;
   private final SQLQuery query;
   private boolean useReadReplica;
   protected DatabaseHandler dbHandler;
 
   public QueryRunner(E event, DatabaseHandler dbHandler) throws SQLException {
+    this.event = event;
     this.dbHandler = dbHandler;
     query = buildQuery(event);
   }
@@ -52,6 +54,13 @@ public abstract class QueryRunner<E extends Event, R extends XyzResponse> implem
     query.replaceVars();
     query.replaceNamedParameters();
     return dbHandler.executeQueryWithRetry(query, this, useReadReplica);
+  }
+
+  public int write() throws SQLException {
+    query.replaceFragments();
+    query.replaceVars();
+    query.replaceNamedParameters();
+    return dbHandler.executeUpdateWithRetry(query);
   }
 
   protected abstract SQLQuery buildQuery(E event) throws SQLException;

@@ -51,6 +51,8 @@ public class SQLQuery {
   private static final String VAR_SCHEMA = "${schema}";
   private static final String VAR_TABLE = "${table}";
   private static final String VAR_HST_TABLE = "${hsttable}";
+  private static final String VAR_TABLE_SEQ = "${table_seq}";
+  private static final String VAR_HST_TABLE_SEQ = "${hsttable_seq}";
 
   public SQLQuery() {
     this.statement = new StringBuilder();
@@ -149,6 +151,8 @@ public class SQLQuery {
         parameters = new ArrayList<>();
       parameters.addAll(other.parameters);
     }
+    setNamedParameters(other.namedParameters);
+    setQueryFragments(other.queryFragments);
   }
 
   private void addText(CharSequence text) {
@@ -205,7 +209,9 @@ public class SQLQuery {
     return query
             .replace(VAR_SCHEMA, sqlQuote(schema))
             .replace(VAR_TABLE, sqlQuote(table))
-            .replace(VAR_HST_TABLE, sqlQuote(table+HISTORY_TABLE_SUFFIX));
+            .replace(VAR_HST_TABLE, sqlQuote(table+HISTORY_TABLE_SUFFIX))
+            .replace(VAR_TABLE_SEQ, sqlQuote(table != null ? table.replaceAll("-", "_")+"_i_seq\";" : ""))
+            .replace(VAR_HST_TABLE_SEQ, sqlQuote(table != null ? (table+HISTORY_TABLE_SUFFIX+"_seq").replaceAll("-", "_") :" "));
   }
 
   protected static String replaceVars(String query, Map<String, String> replacements, String schema, String table) {

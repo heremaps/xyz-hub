@@ -35,6 +35,7 @@ import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
+import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.SearchForFeaturesOrderByEvent;
 import com.here.xyz.models.geojson.coordinates.BBox;
@@ -45,6 +46,8 @@ import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.config.DatabaseSettings;
 import com.here.xyz.psql.config.PSQLConfig;
+import com.here.xyz.psql.query.LoadFeaturesQueryRunner;
+import com.here.xyz.psql.query.ModifySpaceQueryRunner;
 import com.here.xyz.psql.query.LoadFeatures;
 import com.here.xyz.psql.query.StorageStatisticsQueryRunner;
 import com.here.xyz.responses.BinaryResponse;
@@ -53,6 +56,7 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.HistoryStatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.changesets.Changeset;
@@ -130,7 +134,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     /**
      * The dbMaintainer for the current event.
      */
-    protected DatabaseMaintainer dbMaintainer;
+    public DatabaseMaintainer dbMaintainer;
 
     private Map<String, String> replacements = new HashMap<>();
 
@@ -226,7 +230,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
 
         String table = config.readTableFromEvent(event);
-        String hstTable = config.readTableFromEvent(event)+HISTORY_TABLE_SUFFIX;
+        String hstTable = table+HISTORY_TABLE_SUFFIX;
 
         replacements.put("idx_deleted", "idx_" + table + "_deleted");
         replacements.put("idx_serial", "idx_" + table + "_serial");
@@ -426,6 +430,32 @@ public abstract class DatabaseHandler extends StorageConnector {
             return new FeatureCollection();
 
         return new LoadFeatures(event, this).run();
+    }
+
+    protected XyzResponse executeModifySpace(ModifySpaceEvent event) throws SQLException{
+
+        if(event.getSpaceDefinition() != null && event.getSpaceDefinition().isEnableHistory()){
+            Integer maxVersionCount = event.getSpaceDefinition().getMaxVersionCount();
+            boolean isEnableGlobalVersioning = event.getSpaceDefinition().isEnableGlobalVersioning();
+            boolean compactHistory = config.getConnectorParams().isCompactHistory();
+
+            if(ModifySpaceEvent.Operation.CREATE == event.getOperation()){
+                /** Create History Table **/
+                ensureHistorySpace(maxVersionCount, compactHistory, isEnableGlobalVersioning);
+            }else if(ModifySpaceEvent.Operation.UPDATE == event.getOperation()){
+                //update Trigger to apply maxVersionCount.
+                /** Update HistoryTrigger */
+                updateHistoryTrigger(maxVersionCount, compactHistory, isEnableGlobalVersioning);
+            }
+        }
+
+        ModifySpaceQueryRunner modifySpaceQueryRunner = new ModifySpaceQueryRunner(event, this);
+
+        modifySpaceQueryRunner.write();
+        modifySpaceQueryRunner.maintainSpace();
+
+        //If we reach this point we are okay!
+        return new SuccessResponse().withStatus("OK");
     }
 
     protected XyzResponse executeIterateHistory(IterateHistoryEvent event) throws SQLException {
@@ -714,7 +744,7 @@ public abstract class DatabaseHandler extends StorageConnector {
      * @return true if the table for the space exists; false otherwise.
      * @throws SQLException if the test fails due to any SQL error.
      */
-    protected boolean hasTable() throws SQLException {
+    public boolean hasTable() throws SQLException {
         if (event instanceof HealthCheckEvent) {
             return true;
         }

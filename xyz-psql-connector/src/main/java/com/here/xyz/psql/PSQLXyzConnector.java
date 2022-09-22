@@ -493,58 +493,12 @@ public class PSQLXyzConnector extends DatabaseHandler {
     try{
       logger.info("{} Received ModifySpaceEvent", traceItem);
 
-
       if (config.getConnectorParams().isIgnoreCreateMse())
         return new SuccessResponse().withStatus("OK");
 
-      validateModifySpaceEvent(event);
+      this.validateModifySpaceEvent(event);
 
-      if(event.getSpaceDefinition() != null && event.getSpaceDefinition().isEnableHistory()){
-        Integer maxVersionCount = event.getSpaceDefinition().getMaxVersionCount();
-        boolean isEnableGlobalVersioning = event.getSpaceDefinition().isEnableGlobalVersioning();
-        boolean compactHistory = config.getConnectorParams().isCompactHistory();
-
-        if(ModifySpaceEvent.Operation.CREATE == event.getOperation()){
-          ensureHistorySpace(maxVersionCount, compactHistory, isEnableGlobalVersioning);
-        }else if(ModifySpaceEvent.Operation.UPDATE == event.getOperation()){
-          //update Trigger to apply maxVersionCount.
-          updateHistoryTrigger(maxVersionCount, compactHistory, isEnableGlobalVersioning);
-        }
-      }
-
-      if ((ModifySpaceEvent.Operation.CREATE == event.getOperation()
-              || ModifySpaceEvent.Operation.UPDATE == event.getOperation())
-              && config.getConnectorParams().isPropertySearch()) {
-
-          executeUpdateWithRetry(  SQLQueryBuilder.buildSearchablePropertiesUpsertQuery(
-                  event.getSpaceDefinition(),
-                  event.getOperation(),
-                  config.getDatabaseSettings().getSchema(),
-                  config.readTableFromEvent(event))
-          );
-
-          dbMaintainer.maintainSpace(traceItem, config.getDatabaseSettings().getSchema(), config.readTableFromEvent(event));
-      }
-
-      if (ModifySpaceEvent.Operation.DELETE == event.getOperation()) {
-        boolean hasTable = hasTable();
-
-        if (hasTable) {
-          SQLQuery q = new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};");
-          q.append("DROP TABLE IF EXISTS ${schema}.${hsttable};");
-          q.append("DROP SEQUENCE IF EXISTS "+ config.getDatabaseSettings().getSchema()+".\""+config.readTableFromEvent(event).replaceAll("-","_")+"_serial\";");
-          q.append("DROP SEQUENCE IF EXISTS " +config.getDatabaseSettings().getSchema() + ".\"" +config.readTableFromEvent(event).replaceAll("-", "_") + "_hst_seq\";");
-
-          executeUpdateWithRetry(q);
-          logger.debug("{} Successfully deleted table '{}' for space id '{}'", traceItem, config.readTableFromEvent(event), event.getSpace());
-        } else
-          logger.debug("{} Table '{}' not found for space id '{}'", traceItem, config.readTableFromEvent(event), event.getSpace());
-
-        if (event.getConnectorParams() != null && event.getConnectorParams().get("propertySearch") == Boolean.TRUE) {
-          executeUpdateWithRetry(SQLQueryBuilder.buildDeleteIDXConfigEntryQuery(config.getDatabaseSettings().getSchema(),config.readTableFromEvent(event)));
-        }
-      }
-      return new SuccessResponse().withStatus("OK");
+      return executeModifySpace(event);
     }catch (SQLException e){
       return checkSQLException(e, config.readTableFromEvent(event));
     }finally {

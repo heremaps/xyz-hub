@@ -29,7 +29,6 @@ import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
-import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.QueryEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
@@ -47,6 +46,7 @@ import com.here.xyz.psql.factory.QuadbinSQL;
 import com.here.xyz.psql.factory.TweaksSQL;
 import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.util.DhString;
+import org.json.JSONObject;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -58,6 +58,7 @@ import javax.sql.DataSource;
 public class SQLQueryBuilder {
     public static final long GEOMETRY_DECIMAL_DIGITS = 8;
     private static final String IDX_STATUS_TABLE = "xyz_config.xyz_idxs_status";
+    private static final String SPACE_META_TABLE = "xyz_config.space_meta";
     private static final Integer BIG_SPACE_THRESHOLD = 10000;
 
     public static SQLQuery buildGetStatisticsQuery(Event event, PSQLConfig config, boolean historyMode) throws Exception {
@@ -772,58 +773,108 @@ public class SQLQueryBuilder {
         }
     }
 
-    private static String _buildSearchablePropertiesUpsertQuery(Space spaceDefinition, ModifySpaceEvent.Operation operation, String schema, String table) throws SQLException
+    public static SQLQuery buildSpaceMetaUpsertQuery(String spaceId, String schema, String table, Map extendedTables) throws SQLException
     {
-        Map<String, Boolean> searchableProperties = spaceDefinition.getSearchableProperties();
-        List<List<Object>> sortableProperties = spaceDefinition.getSortableProperties();
-        Boolean enableAutoIndexing = spaceDefinition.isEnableAutoSearchableProperties();
+        JSONObject extend = new JSONObject();
+        extend.put("extends", extendedTables);
 
-        String idx_manual_json;
+        SQLQuery q = new SQLQuery("INSERT INTO "+SPACE_META_TABLE+" as s_m VALUES (#{spaceid},#{schema},#{table},(#{extend})::json)" +
+                "  ON CONFLICT (id,schem)" +
+                "  DO " +
+                "  UPDATE" +
+                "     SET meta = COALESCE(s_m.meta,'{}'::jsonb) || (#{extend})::jsonb" +
+                "  WHERE 1=1" +
+                "     AND s_m.id = #{spaceid}" +
+                "     AND s_m.schem = #{schema};");
 
-        try{
-             idx_manual_json = (new ObjectMapper()).writeValueAsString( new IdxManual(searchableProperties, sortableProperties) );
+        q.setNamedParameter("spaceid", spaceId);
+        q.setNamedParameter("schema", schema);
+        q.setNamedParameter("extend", extend.toString());
+        q.setNamedParameter("table", table);
+
+        return q;
+    }
+
+    public static SQLQuery buildSearchablePropertiesUpsertQuery(Space spaceDefinition, String schema, String table,  Map extendedTables) throws SQLException
+    {
+        String idx_manual_json = "";
+        JSONObject jo = new JSONObject();
+        Boolean enableAutoIndexing = false;
+        SQLQuery idx_q;
+
+        if(extendedTables == null) {
+            Map<String, Boolean> searchableProperties = spaceDefinition.getSearchableProperties();
+            List<List<Object>> sortableProperties = spaceDefinition.getSortableProperties();
+            enableAutoIndexing = spaceDefinition.isEnableAutoSearchableProperties();
+
+            try {
+                idx_manual_json = (new ObjectMapper()).writeValueAsString(new IdxManual(searchableProperties, sortableProperties));
+                idx_q = new SQLQuery("select (#{idx_manual})::jsonb");
+                idx_q.setNamedParameter("idx_manual", idx_manual_json);
+            } catch (JsonProcessingException e) {
+                throw new SQLException("buildSearchablePropertiesUpsertQuery", e);
+            }
+        }else{
+            String extendedTableId = (String)extendedTables.get("extendedTable");
+
+            idx_q = new SQLQuery("select idx_manual " +
+                    "FROM " +
+                    "   xyz_config.xyz_idxs_status " +
+                    "WHERE 1=1" +
+                    "   AND spaceid=#{extended_table} ");
+            idx_q.setNamedParameter("extended_table", extendedTableId);
         }
-        catch (JsonProcessingException e)  { throw new SQLException("_buildSearchablePropertiesUpsertQuery", e); }
 
-        idx_manual_json = ( idx_manual_json == null ? "null" : DhString.format("'%s'::jsonb", idx_manual_json ));
+        /* update xyz_idx_status table with searchableProperties information */
+        SQLQuery q = new SQLQuery("INSERT INTO  "+IDX_STATUS_TABLE+" as x_s (spaceid, schem, idx_creation_finished, idx_manual, auto_indexing) "
+                + "		VALUES (#{table}, #{schema} , false, (${{idx_manual_sub}}), #{auto_indexing} ) "
+                + "ON CONFLICT (spaceid) DO "
+                + "		UPDATE SET schem=#{schema}, "
+                + "    			idx_manual = (${{idx_manual_sub}}), "
+                + "				idx_creation_finished = false,"
+                + "             auto_indexing = #{auto_indexing}"
+                + "		WHERE x_s.spaceid = #{table} AND x_s.schem=#{schema};");
 
-           /* update xyz_idx_status table with searchabelProperties information */
-        String query = "INSERT INTO  "+IDX_STATUS_TABLE+" as x_s (spaceid,schem,idx_creation_finished,idx_manual "
-                        + (enableAutoIndexing != null ? ",auto_indexing) ": ") ")
-                        + "		VALUES ('" + table + "', '" + schema + "', false, " + idx_manual_json + (enableAutoIndexing != null ? ","+enableAutoIndexing : " ")+") "
-                        + "ON CONFLICT (spaceid) DO "
-                        + "		UPDATE SET schem='" + schema + "', "
-                        + "    			idx_manual = " + idx_manual_json + ", "
-                        + "				idx_creation_finished = false "
-                        + (enableAutoIndexing != null ? " ,auto_indexing = " + enableAutoIndexing : "")
-                        + "		WHERE x_s.spaceid = '" + table + "' AND x_s.schem='"+schema+"'";
+        q.setQueryFragment("idx_manual_sub", idx_q);
+        q.setNamedParameter("table", table);
+        q.setNamedParameter("schema", schema);
+        q.setNamedParameter("auto_indexing", enableAutoIndexing);
 
-        return query;
+        /* update possible existing delta entries */
+        SQLQuery q2 = new SQLQuery("UPDATE "+IDX_STATUS_TABLE+" "
+                + "             SET schem=#{schema}, "
+                + "    			idx_manual = (${{idx_manual_sub}}), "
+                + "				idx_creation_finished = false,"
+                + "             auto_indexing = #{auto_indexing}"
+                + "		WHERE " +
+                "           array_position(" +
+                "               (SELECT ARRAY_AGG(h_id) " +
+                "                   FROM "+SPACE_META_TABLE+" as b "+
+                "               WHERE 1=1" +
+                "                   AND b.meta->'extends'->>'extendedTable' = #{table}" +
+                "                   AND b.schem = #{schema}" +
+                "               ), spaceid" +
+                "           ) > 0" +
+                "           AND schem = #{schema};");
+
+        q.append(q2);
+        return q;
     }
 
-    public static SQLQuery buildSearchablePropertiesUpsertQuery(Space spaceDefinition, ModifySpaceEvent.Operation operation,
-                                                                   String schema, String table) throws SQLException
-    { return new SQLQuery( _buildSearchablePropertiesUpsertQuery(spaceDefinition, operation,schema, table)  );  }
+    public static SQLQuery buildCleanUpQuery(String schema, String table)
+    {
+        SQLQuery q = new SQLQuery("DELETE FROM "+SPACE_META_TABLE+" WHERE h_id=#{table} AND schem=#{schema};");
+        q.append("DELETE FROM "+IDX_STATUS_TABLE+" WHERE spaceid=#{table} AND schem=#{schema};");
+        q.append("DROP TABLE IF EXISTS ${schema}.${table};");
+        q.append("DROP TABLE IF EXISTS ${schema}.${hsttable};");
+        q.append("DROP SEQUENCE IF EXISTS ${schema}.${hsttable_seq};");
+        q.append("DROP SEQUENCE IF EXISTS ${schema}.${table_seq};");
 
-
-
-    public static SQLQuery buildDeleteIDXConfigEntryQuery(String schema, String table){
-        final SQLQuery query = new SQLQuery("");
-        query.append(
-                "DO $$ " +
-                        "    BEGIN  "+
-                        "        IF EXISTS " +
-                        "            (SELECT 1 " +
-                        "              FROM   information_schema.tables " +
-                        "              WHERE  table_schema = 'xyz_config'" +
-                        "              AND    table_name = 'xyz_idxs_status')" +
-                        "        THEN" +
-                        "            delete from "+IDX_STATUS_TABLE+" where spaceid = '"+table+"' AND schem='"+schema+"';" +
-                        "        END IF ;" +
-                        "    END" +
-                        "$$ ;");
-        return query;
+        q.setNamedParameter("table", table);
+        q.setNamedParameter("schema", schema);
+        return q;
     }
+
 /** ###################################################################################### */
 
     private static SQLQuery generatePropertiesQuery(PropertiesQuery properties) {

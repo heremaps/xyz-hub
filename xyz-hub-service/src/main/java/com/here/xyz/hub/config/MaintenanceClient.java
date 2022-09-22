@@ -178,6 +178,9 @@ public class MaintenanceClient {
             logger.info("{}: Create required DB-Status-Table..", connectorId);
             executeQueryWithoutResults(new SQLQuery(MaintenanceSQL.createDbStatusTable), source);
 
+            logger.info("{}: Create required Space-Meta-Table..", connectorId);
+            executeQueryWithoutResults(new SQLQuery(MaintenanceSQL.createSpaceMetaTable), source);
+
             /** set searchPath */
             executeQueryWithoutResults(setSearchpath, source);
             /** Install extensions */
