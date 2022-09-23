@@ -797,9 +797,9 @@ public class SQLQueryBuilder {
 
     public static SQLQuery buildSearchablePropertiesUpsertQuery(Space spaceDefinition, String schema, String table,  Map extendedTables) throws SQLException
     {
-        String idx_manual_json = "";
-        JSONObject jo = new JSONObject();
+        String idx_manual_json;
         Boolean enableAutoIndexing = false;
+        SQLQuery q = new SQLQuery("${{upsertIDX}} ${{updateReferencedTables}}");
         SQLQuery idx_q;
 
         if(extendedTables == null) {
@@ -826,7 +826,7 @@ public class SQLQueryBuilder {
         }
 
         /* update xyz_idx_status table with searchableProperties information */
-        SQLQuery q = new SQLQuery("INSERT INTO  "+IDX_STATUS_TABLE+" as x_s (spaceid, schem, idx_creation_finished, idx_manual, auto_indexing) "
+        SQLQuery upsertIDX = new SQLQuery("INSERT INTO  "+IDX_STATUS_TABLE+" as x_s (spaceid, schem, idx_creation_finished, idx_manual, auto_indexing) "
                 + "		VALUES (#{table}, #{schema} , false, (${{idx_manual_sub}}), #{auto_indexing} ) "
                 + "ON CONFLICT (spaceid) DO "
                 + "		UPDATE SET schem=#{schema}, "
@@ -835,13 +835,13 @@ public class SQLQueryBuilder {
                 + "             auto_indexing = #{auto_indexing}"
                 + "		WHERE x_s.spaceid = #{table} AND x_s.schem=#{schema};");
 
-        q.setQueryFragment("idx_manual_sub", idx_q);
-        q.setNamedParameter("table", table);
-        q.setNamedParameter("schema", schema);
-        q.setNamedParameter("auto_indexing", enableAutoIndexing);
+        upsertIDX.setQueryFragment("idx_manual_sub", idx_q);
+        upsertIDX.setNamedParameter("table", table);
+        upsertIDX.setNamedParameter("schema", schema);
+        upsertIDX.setNamedParameter("auto_indexing", enableAutoIndexing);
 
-        /* update possible existing delta entries */
-        SQLQuery q2 = new SQLQuery("UPDATE "+IDX_STATUS_TABLE+" "
+        /* update possible existing delta tables */
+        SQLQuery updateReferencedTables = new SQLQuery("UPDATE "+IDX_STATUS_TABLE+" "
                 + "             SET schem=#{schema}, "
                 + "    			idx_manual = (${{idx_manual_sub}}), "
                 + "				idx_creation_finished = false,"
@@ -857,7 +857,9 @@ public class SQLQueryBuilder {
                 "           ) > 0" +
                 "           AND schem = #{schema};");
 
-        q.append(q2);
+        q.setQueryFragment("upsertIDX",upsertIDX);
+        q.setQueryFragment("updateReferencedTables",updateReferencedTables);
+
         return q;
     }
 

@@ -151,8 +151,6 @@ public class SQLQuery {
         parameters = new ArrayList<>();
       parameters.addAll(other.parameters);
     }
-    setNamedParameters(other.namedParameters);
-    setQueryFragments(other.queryFragments);
   }
 
   private void addText(CharSequence text) {
