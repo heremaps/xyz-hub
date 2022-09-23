@@ -23,30 +23,35 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent> {
         this.table = config.readTableFromEvent(event);
         this.spaceId = event.getSpaceDefinition() == null ? "" : event.getSpaceDefinition().getId();
 
-        SQLQuery q = new SQLQuery();
-
         if ((ModifySpaceEvent.Operation.CREATE == event.getOperation()
                 || ModifySpaceEvent.Operation.UPDATE == event.getOperation())) {
 
+            SQLQuery q = new SQLQuery("${{searchableUpsert}} ${{spaceMetaUpsert}}");
+
             Map<String, String> extendedTableNames = getExtendedTableNames(config);
             // Write idx related data
-            q.append(SQLQueryBuilder.buildSearchablePropertiesUpsertQuery(
+            SQLQuery searchableUpsertQuery = SQLQueryBuilder.buildSearchablePropertiesUpsertQuery(
                     event.getSpaceDefinition(),
                     schema,
                     table,
-                    extendedTableNames));
+                    extendedTableNames);
+
+            q.setQueryFragment("searchableUpsert", searchableUpsertQuery);
 
             // Write metadata
-            q.append(SQLQueryBuilder.buildSpaceMetaUpsertQuery(
+            SQLQuery spaceMetaUpsertQuery = SQLQueryBuilder.buildSpaceMetaUpsertQuery(
                     spaceId,
                     schema,
                     table,
-                    extendedTableNames));
+                    extendedTableNames);
 
+            q.setQueryFragment("spaceMetaUpsert", spaceMetaUpsertQuery);
+
+            return q;
         }else if (ModifySpaceEvent.Operation.DELETE == event.getOperation()) {
-            q.append(SQLQueryBuilder.buildCleanUpQuery(schema,table));
+            return SQLQueryBuilder.buildCleanUpQuery(schema,table);
         }
-        return q;
+        return null;
     }
 
     public void maintainSpace(){
