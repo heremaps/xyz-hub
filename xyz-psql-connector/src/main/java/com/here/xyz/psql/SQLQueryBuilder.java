@@ -753,23 +753,26 @@ public class SQLQueryBuilder {
     }
 
     private static class IdxManual {
-        @JsonInclude(JsonInclude.Include.NON_EMPTY)
+        @JsonInclude(JsonInclude.Include.NON_NULL)
         public Map<String, Boolean> searchableProperties;
         @JsonInclude(JsonInclude.Include.NON_EMPTY)
         public List<List<Object>> sortableProperties;
 
         IdxManual( Map<String, Boolean> searchableProperties, List<List<Object>> sortableProperties ){
-          this.searchableProperties = searchableProperties;
-          this.sortableProperties = sortableProperties;
-          if(this.searchableProperties != null) {
-              //Remove entries with null values
-              Map<String, Boolean> clearedSearchableProperties = new HashMap<>(searchableProperties);
-              for (String property : searchableProperties.keySet()) {
-                  if (searchableProperties.get(property) == null)
-                      clearedSearchableProperties.remove(property);
-              }
-              this.searchableProperties = clearedSearchableProperties;
-          }
+            this.searchableProperties = searchableProperties;
+            this.sortableProperties = sortableProperties;
+            if(this.searchableProperties != null) {
+                //Remove entries with null values
+                Map<String, Boolean> clearedSearchableProperties = new HashMap<>(searchableProperties);
+                for (String property : searchableProperties.keySet()) {
+                    if (searchableProperties.get(property) == null)
+                        clearedSearchableProperties.remove(property);
+                }
+                this.searchableProperties = clearedSearchableProperties;
+            }
+            if(this.sortableProperties != null && this.searchableProperties == null) {
+                this.searchableProperties = new HashMap<>();
+            }
         }
     }
 
