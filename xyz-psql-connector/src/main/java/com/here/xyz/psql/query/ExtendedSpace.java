@@ -24,6 +24,10 @@ public abstract class ExtendedSpace<E extends Event> extends GetFeatures<E> {
     return event.getParams() != null && event.getParams().containsKey(EXTENDS);
   }
 
+  protected boolean is2LevelExtendedSpace(E event) {
+    return isExtendedSpace(event) && ((Map<String, Object>) event.getParams().get(EXTENDS)).containsKey(EXTENDS);
+  }
+
   protected Map<String,String> getExtendedTableNames(E event) {
     Map<String, Object> extSpec = event.getParams() != null ? (Map<String, Object>) event.getParams().get(EXTENDS) : null;
     Map<String, String> extendedTables = new HashMap<>();
@@ -46,16 +50,19 @@ public abstract class ExtendedSpace<E extends Event> extends GetFeatures<E> {
 
   protected SQLQuery buildExtensionQuery(E event, String filterWhereClause) {
     SQLQuery extensionQuery = new SQLQuery(
-        "SELECT jsondata, ${{geo}}"
+        "SELECT jsondata, ${{geo}}${{iColumnExtension}}"
         + "    FROM ${schema}.${extensionTable}"
         + "    WHERE ${{filterWhereClause}} AND deleted = false "
         + "UNION ALL "
-        + "    SELECT jsondata, ${{geo}} FROM"
+        + "    SELECT jsondata, ${{geo}}${{iColumn}} FROM"
         + "        ("
         + "            ${{baseQuery}}"
         + "        ) a WHERE NOT exists(SELECT 1 FROM ${schema}.${extensionTable} b WHERE jsondata->>'id' = a.jsondata->>'id')");
 
     extensionQuery.setQueryFragment("geo", buildGeoFragment(event));
+    extensionQuery.setQueryFragment("iColumn", ""); //NOTE: This can be overridden by implementing subclasses
+    extensionQuery.setQueryFragment("iColumnExtension", ""); //NOTE: This can be overridden by implementing subclasses
+    extensionQuery.setQueryFragment("iColumnIntermediate", ""); //NOTE: This can be overridden by implementing subclasses
     extensionQuery.setQueryFragment("filterWhereClause", filterWhereClause);
     extensionQuery.setVariable(SCHEMA, getSchema());
     extensionQuery.setVariable("extensionTable", getDefaultTable(event));
@@ -77,7 +84,7 @@ public abstract class ExtendedSpace<E extends Event> extends GetFeatures<E> {
   }
 
   private SQLQuery build1LevelBaseQuery(String extendedTable) {
-    SQLQuery query = new SQLQuery("SELECT jsondata, geo"
+    SQLQuery query = new SQLQuery("SELECT jsondata, geo${{iColumn}}"
         + "    FROM ${schema}.${extendedTable} m"
         + "    WHERE ${{filterWhereClause}}"); //in the base table there is no need to check a deleted flag;
     query.setVariable("extendedTable", extendedTable);
@@ -85,11 +92,11 @@ public abstract class ExtendedSpace<E extends Event> extends GetFeatures<E> {
   }
 
   private SQLQuery build2LevelBaseQuery(String intermediateTable, String extendedTable) {
-    SQLQuery query = new SQLQuery("SELECT jsondata, geo"
+    SQLQuery query = new SQLQuery("SELECT jsondata, geo${{iColumnIntermediate}}"
         + "    FROM ${schema}.${intermediateExtensionTable}"
         + "    WHERE ${{filterWhereClause}} AND deleted = false "
         + "UNION ALL"
-        + "    SELECT jsondata, geo FROM"
+        + "    SELECT jsondata, geo${{iColumn}} FROM"
         + "        ("
         + "            ${{innerBaseQuery}}"
         + "        ) b WHERE NOT exists(SELECT 1 FROM ${schema}.${intermediateExtensionTable} WHERE jsondata->>'id' = b.jsondata->>'id')");

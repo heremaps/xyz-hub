@@ -23,6 +23,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
@@ -72,6 +73,30 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
 
   @Override
   protected SQLQuery buildQuery(IterateFeaturesEvent event) throws SQLException {
+    if (isExtendedSpace(event) && event.getContext() == SpaceContext.DEFAULT) {
+
+      SQLQuery extensionQuery = buildExtensionQuery(event, "TRUE"); //TODO: Do not support search on iterate for now;
+      extensionQuery.setQueryFragment("iColumn", ", CONCAT('', i) AS i");
+
+      if (is2LevelExtendedSpace(event)) {
+        extensionQuery.setQueryFragment("iColumnIntermediate", ", CONCAT('e1_', i) AS i");
+        extensionQuery.setQueryFragment("iColumnExtension", ", CONCAT('e2_', i) AS i");
+      }
+      else
+        extensionQuery.setQueryFragment("iColumnExtension", ", CONCAT('e', i) AS i");
+
+      SQLQuery offsetQuery = new SQLQuery(event.getHandle() == null? "TRUE" : "i::text > #{startOffset}", Collections.singletonMap("startOffset", event.getHandle()));
+
+      SQLQuery query = new SQLQuery(
+          "SELECT * FROM (${{extensionQuery}}) orderQuery WHERE ${{offsetQuery}} ORDER BY i ${{limit}}");
+      query.setQueryFragment("extensionQuery", extensionQuery);
+      query.setQueryFragment("offsetQuery", offsetQuery);
+      query.setQueryFragment("limit", buildLimitFragment(event.getLimit()));
+
+      return query;
+
+    }
+
     if (isOrderByEvent) //TODO: Combine execution paths for ordered / non-orderd events
       return buildQueryForOrderBy(event);
 
