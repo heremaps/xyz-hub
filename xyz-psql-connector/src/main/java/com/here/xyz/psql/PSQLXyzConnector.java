@@ -22,10 +22,6 @@ package com.here.xyz.psql;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 
 import com.amazonaws.services.lambda.runtime.Context;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
@@ -42,36 +38,28 @@ import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
-import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.events.PropertyQuery;
-import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.events.SearchForFeaturesEvent;
-import com.here.xyz.events.SearchForFeaturesOrderByEvent;
-import com.here.xyz.events.TagsQuery;
-import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.models.geojson.HQuad;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.factory.H3SQL;
 import com.here.xyz.psql.factory.QuadbinSQL;
 import com.here.xyz.psql.factory.TweaksSQL;
 import com.here.xyz.psql.query.GetFeaturesByBBox;
 import com.here.xyz.psql.query.GetFeaturesById;
 import com.here.xyz.psql.query.IterateFeatures;
+import com.here.xyz.psql.query.LoadFeatures;
 import com.here.xyz.psql.query.SearchForFeatures;
+import com.here.xyz.psql.query.GetStorageStatistics;
 import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.DhString;
-
-import java.security.GeneralSecurityException;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -83,7 +71,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -91,6 +78,18 @@ import org.apache.logging.log4j.Logger;
 
 public class PSQLXyzConnector extends DatabaseHandler {
 
+  /**
+   * Real live counts via count(*)
+   */
+  public static final String COUNTMODE_REAL = "real";
+  /**
+   * Estimated counts, determined with _postgis_selectivity() or EXPLAIN Plan analyze
+   */
+  public static final String COUNTMODE_ESTIMATED = "estimated";
+  /**
+   * Combination of real and estimated.
+   */
+  public static final String COUNTMODE_MIXED = "mixed";
   private static final Logger logger = LogManager.getLogger();
   /**
    * The context for this request.
@@ -347,7 +346,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
            final String countMode = (String) clusteringParams.get(QuadbinSQL.QUADBIN_COUNTMODE);
            final boolean noBuffer = (boolean) clusteringParams.getOrDefault(QuadbinSQL.QUADBIN_NOBOFFER,false);
 
-           QuadbinSQL.checkQuadbinInput(countMode, relResolution, event, config.readTableFromEvent(event), streamId, this);
+           checkQuadbinInput(countMode, relResolution, event, streamId);
 
             if( !bMvtRequested )
               return executeQueryWithRetry(SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config, noBuffer));
@@ -361,13 +360,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       final boolean isBigQuery = (bbox.widthInDegree(false) >= (360d / 4d) || (bbox.heightInDegree() >= (180d / 4d)));
 
-      if(isBigQuery){
-        /* Check if Properties are indexed */
-        if (!Capabilities.canSearchFor(config.readTableFromEvent(event), event.getPropertiesQuery(), this)) {
-          throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-                  "Invalid request parameters. Search for the provided properties is not supported for this space.");
-        }
-      }
+      if (isBigQuery)
+        //Check if Properties are indexed
+        checkCanSearchFor(event);
 
       if (event.getParams() != null && event.getParams().containsKey("extends") && event.getContext() == DEFAULT)
         return new GetFeaturesByBBox<>(event, this).run();
@@ -384,6 +379,28 @@ public class PSQLXyzConnector extends DatabaseHandler {
     }
   }
 
+  /**
+   * Check if request parameters are valid. In case of invalidity throw an Exception
+   */
+  private void checkQuadbinInput(String countMode, int relResolution, GetFeaturesByBBoxEvent event, String streamId) throws ErrorResponseException
+  {
+    if(countMode != null && (!countMode.equalsIgnoreCase(COUNTMODE_REAL) && !countMode.equalsIgnoreCase(COUNTMODE_ESTIMATED) && !countMode.equalsIgnoreCase(
+        COUNTMODE_MIXED)) )
+      throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
+          "Invalid request parameters. Unknown clustering.countmode="+countMode+". Available are: ["+ COUNTMODE_REAL
+              +","+ COUNTMODE_ESTIMATED +","+ COUNTMODE_MIXED +"]!");
+
+    if(relResolution > 5)
+      throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
+          "Invalid request parameters. clustering.relativeResolution="+relResolution+" to high. 5 is maximum!");
+
+    if(event.getPropertiesQuery() != null && event.getPropertiesQuery().get(0).size() != 1)
+      throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
+          "Invalid request parameters. Only one Property is allowed");
+
+    checkCanSearchFor(event);
+  }
+
   @Override
   protected XyzResponse processGetFeaturesByTileEvent(GetFeaturesByTileEvent event) throws Exception {
     return processGetFeaturesByBBoxEvent(event);
@@ -391,20 +408,63 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected XyzResponse processIterateFeaturesEvent(IterateFeaturesEvent event) throws Exception {
-    if (event.getV() != null)
-      return iterateVersions(event);
-    return findFeatures(event);
+    try {
+      logger.info("{} Received "+event.getClass().getSimpleName(), traceItem);
+      checkCanSearchFor(event);
+
+      if (isOrderByEvent(event))
+        return IterateFeatures.findFeaturesSort(event, this);
+      if (event.getV() != null)
+        return iterateVersions(event);
+
+      return new IterateFeatures(event, this).run();
+    }
+    catch (SQLException e) {
+      return checkSQLException(e, config.readTableFromEvent(event));
+    }
+    finally {
+      logger.info("{} Finished " + event.getClass().getSimpleName(), traceItem);
+    }
+  }
+
+  /**
+   * Kept for backwards compatibility. Will be removed after refactoring.
+   */
+  @Deprecated
+  public static boolean isOrderByEvent(IterateFeaturesEvent event) {
+    return event.getSort() != null || event.getPropertiesQuery() != null || event.getPart() != null || event.getHandle() != null && event.getHandle().startsWith(
+        IterateFeatures.HPREFIX);
   }
 
   @Override
   protected XyzResponse processSearchForFeaturesEvent(SearchForFeaturesEvent event) throws Exception {
-    if(! (event instanceof SearchForFeaturesOrderByEvent) )
-     return findFeatures(event);
-    else
-     return findFeaturesSort( (SearchForFeaturesOrderByEvent) event );
+    try {
+      logger.info("{} Received "+event.getClass().getSimpleName(), traceItem);
+      checkCanSearchFor(event);
+
+      // For testing purposes.
+      if (event.getSpace().contains("illegal_argument")) //TODO: Remove testing code from the actual connector implementation
+        return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
+            .withErrorMessage("Invalid request parameters.");
+
+      return new SearchForFeatures<>(event, this).run();
+    }
+    catch (SQLException e) {
+      return checkSQLException(e, config.readTableFromEvent(event));
+    }
+    finally {
+      logger.info("{} Finished " + event.getClass().getSimpleName(), traceItem);
+    }
+  }
+
+  private void checkCanSearchFor(SearchForFeaturesEvent event) throws ErrorResponseException {
+    if (!Capabilities.canSearchFor(config.readTableFromEvent(event), event.getPropertiesQuery(), this))
+      throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
+          "Invalid request parameters. Search for the provided properties is not supported for this space.");
   }
 
   @Override
+  @Deprecated
   protected XyzResponse processCountFeaturesEvent(CountFeaturesEvent event) throws Exception {
     try {
       logger.info("{} Received CountFeaturesEvent", traceItem);
@@ -427,6 +487,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   }
 
   @Override
+  @Deprecated
   protected XyzResponse processDeleteFeaturesByTagEvent(DeleteFeaturesByTagEvent event) throws Exception {
     try{
       logger.info("{} Received DeleteFeaturesByTagEvent", traceItem);
@@ -446,7 +507,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processLoadFeaturesEvent(LoadFeaturesEvent event) throws Exception {
     try{
       logger.info("{} Received LoadFeaturesEvent", traceItem);
-      return executeLoadFeatures(event);
+      if (event.getIdsMap() == null || event.getIdsMap().size() == 0)
+        return new FeatureCollection();
+
+      return new LoadFeatures(event, this).run();
     }catch (SQLException e){
       return checkSQLException(e, config.readTableFromEvent(event));
     }finally {
@@ -522,7 +586,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processGetStorageStatisticsEvent(GetStorageStatisticsEvent event) throws Exception {
     try {
       logger.info("{} Received " + event.getClass().getSimpleName(), traceItem);
-      return executeGetStorageStatistics(event);
+      return new GetStorageStatistics(event, this).run();
     }
     catch (SQLException e) {
       return checkSQLException(e, config.readTableFromEvent(event));
@@ -532,15 +596,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
     }
   }
 
-  protected XyzResponse iterateVersions(IterateFeaturesEvent event){
-    try{
-      logger.info("{} Received "+event.getClass().getSimpleName(), traceItem);
-      return executeIterateVersions(event);
-    }catch (SQLException e){
-      return checkSQLException(e, config.readTableFromEvent(event));
-    }finally {
-      logger.info("{} Finished "+event.getClass().getSimpleName(), traceItem);
-    }
+  protected XyzResponse iterateVersions(IterateFeaturesEvent event) throws SQLException {
+    return executeIterateVersions(event);
   }
 
   private void validateModifySpaceEvent(ModifySpaceEvent event) throws Exception{
@@ -596,203 +653,6 @@ public class PSQLXyzConnector extends DatabaseHandler {
       }
     }
   }
-
-  protected XyzResponse findFeatures(SearchForFeaturesEvent event) {
-    try {
-      logger.info("{} Received "+event.getClass().getSimpleName(), traceItem);
-
-      // For testing purposes.
-      if (event.getSpace().contains("illegal_argument")) //TODO: Remove testing code from the actual connector implementation
-        return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
-                .withErrorMessage("Invalid request parameters.");
-
-      if (!Capabilities.canSearchFor(config.readTableFromEvent(event), event.getPropertiesQuery(), this))
-        return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
-                .withErrorMessage("Invalid request parameters. Search for the provided properties is not supported for this space.");
-
-      return event instanceof IterateFeaturesEvent
-          ? new IterateFeatures((IterateFeaturesEvent) event, this).run()
-          : new SearchForFeatures<>(event, this).run();
-    }
-    catch (SQLException e) {
-      return checkSQLException(e, config.readTableFromEvent(event));
-    }
-    finally {
-      logger.info("{} Finished " + event.getClass().getSimpleName(), traceItem);
-    }
-  }
-
-  private void setEventValuesFromHandle(SearchForFeaturesOrderByEvent event, String handle) throws JsonMappingException, JsonProcessingException
-  {
-    ObjectMapper om = new ObjectMapper();
-    JsonNode jn = om.readTree(handle);
-    String ps = jn.get("p").toString();
-    String ts = jn.get("t").toString();
-    String ms = jn.get("m").toString();
-    PropertiesQuery pq = om.readValue( ps, PropertiesQuery.class );
-    TagsQuery tq = om.readValue( ts, TagsQuery.class );
-    Integer[] part = om.readValue(ms,Integer[].class);
-
-    event.setPart(part);
-    event.setPropertiesQuery(pq);
-    event.setTags(tq);
-    event.setHandle(handle);
-  }
-
-  private String addEventValuesToHandle(SearchForFeaturesOrderByEvent event, String dbhandle)  throws JsonProcessingException
-  {
-   ObjectMapper om = new ObjectMapper();
-   String pQry = DhString.format( ",\"p\":%s", event.getPropertiesQuery() != null ? om.writeValueAsString(event.getPropertiesQuery()) : "[]" ),
-          tQry = DhString.format( ",\"t\":%s", event.getTags() != null ? om.writeValueAsString(event.getTags()) : "[]" ),
-          mQry = DhString.format( ",\"m\":%s", event.getPart() != null ? om.writeValueAsString(event.getPart()) : "[]" ),
-          hndl = DhString.format("%s%s%s%s}", dbhandle.substring(0, dbhandle.lastIndexOf("}")), pQry, tQry, mQry );
-   return hndl;
-  }
-
-  private List<String> translateSortSysValues(List<String> sort)
-  { if( sort == null ) return null;
-    List<String> r = new ArrayList<String>();
-    for( String f : sort )      // f. sysval replacements - f.sysval:desc -> sysval:desc
-     if( f.toLowerCase().startsWith("f.createdat" ) || f.toLowerCase().startsWith("f.updatedat" ) )
-      r.add( f.replaceFirst("^f\\.", "properties.@ns:com:here:xyz.") );
-     else
-      r.add( f.replaceFirst("^f\\.", "") );
-
-    return r;
-  }
-
-  private static final String HPREFIX = "h07~";
-
-  private List<String> getSearchKeys(  PropertiesQuery p )
-  { return p.stream()
-             .flatMap(List::stream)
-             .filter(k -> k.getKey() != null && k.getKey().length() > 0)
-             .map(PropertyQuery::getKey)
-             .collect(Collectors.toList());
-  }
-
-  private List<String> getSortFromSearchKeys( List<String> searchKeys, String space, PSQLXyzConnector connector ) throws Exception
-  {
-   List<String> indices = Capabilities.IndexList.getIndexList(space, connector);
-   if( indices == null ) return null;
-
-   indices.sort((s1, s2) -> s1.length() - s2.length());
-
-   for(String sk : searchKeys )
-    switch( sk )
-    { case "id" : return null; // none is always sorted by ID;
-      case "properties.@ns:com:here:xyz.createdAt" : return Arrays.asList("f.createdAt");
-      case "properties.@ns:com:here:xyz.updatedAt" : return Arrays.asList("f.updatedAt");
-      default:
-       if( !sk.startsWith("properties.") ) sk = "o:f." + sk;
-       else sk = sk.replaceFirst("^properties\\.","o:");
-
-       for(String idx : indices)
-        if( idx.startsWith(sk) )
-        { List<String> r = new ArrayList<String>();
-          String[] sortIdx = idx.replaceFirst("^o:","").split(",");
-          for( int i = 0; i < sortIdx.length; i++)
-           r.add( sortIdx[i].startsWith("f.") ? sortIdx[i] : "properties." + sortIdx[i] );
-          return r;
-        }
-      break;
-    }
-
-   return null;
-  }
-
-  private String chrE( String s ) { return s.replace('+','-').replace('/','_').replace('=','.'); }
-  private String chrD( String s ) { return s.replace('-','+').replace('_','/').replace('.','='); }
-
-  private String createHandle(SearchForFeaturesOrderByEvent event, String jsonData ) throws Exception
-  { return HPREFIX + chrE( PSQLConfig.encrypt( addEventValuesToHandle(event, jsonData ) , "findFeaturesSort" )); }
-
-  private XyzResponse requestIterationHandles(SearchForFeaturesOrderByEvent event, int nrHandles ) throws Exception
-  {
-    event.setPart(null);
-    event.setTags(null);
-
-    FeatureCollection cl = executeQueryWithRetry( SQLQueryBuilder.buildGetIterateHandlesQuery(nrHandles));
-    List<List<Object>> hdata = cl.getFeatures().get(0).getProperties().get("handles");
-    for( List<Object> entry : hdata )
-    {
-      event.setPropertiesQuery(null);
-      if( entry.get(2) != null )
-      { PropertyQuery pqry = new PropertyQuery();
-        pqry.setKey("id");
-        pqry.setOperation(QueryOperation.LESS_THAN);
-        pqry.setValues(Arrays.asList( entry.get(2)) );
-        PropertiesQuery pqs = new PropertiesQuery();
-        PropertyQueryList pql = new PropertyQueryList();
-        pql.add( pqry );
-        pqs.add( pql );
-
-        event.setPropertiesQuery( pqs );
-      }
-      entry.set(0, createHandle(event,DhString.format("{\"h\":\"%s\",\"s\":[]}",entry.get(1).toString())));
-    }
-    return cl;
-  }
-
-  protected XyzResponse findFeaturesSort(SearchForFeaturesOrderByEvent event ) throws Exception
-  {
-    try{
-      logger.info("{} - Received "+event.getClass().getSimpleName(), traceItem);
-
-      boolean hasHandle = (event.getHandle() != null);
-      String space = config.readTableFromEvent(event);
-
-      if( !hasHandle )  // decrypt handle and configure event
-      {
-        if( event.getPart() != null && event.getPart()[0] == -1 )
-         return requestIterationHandles( event, event.getPart()[1] );
-
-        if (!Capabilities.canSearchFor(space, event.getPropertiesQuery(), this)) {
-          return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
-                  .withErrorMessage("Invalid request parameters. Search for the provided properties is not supported for this space.");
-        }
-
-        if( event.getPropertiesQuery() != null && (event.getSort() == null || event.getSort().isEmpty()) )
-        {
-         event.setSort( getSortFromSearchKeys( getSearchKeys( event.getPropertiesQuery() ), space, this ) );
-        }
-        else if (!Capabilities.canSortBy(space, event.getSort(), this))
-        {
-          return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
-                  .withErrorMessage("Invalid request parameters. Sorting by for the provided properties is not supported for this space.");
-        }
-
-        event.setSort( translateSortSysValues( event.getSort() ));
-      }
-      else if( !event.getHandle().startsWith( HPREFIX ) )
-       return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
-               .withErrorMessage("Invalid request parameter. handle is corrupted");
-      else
-       try { setEventValuesFromHandle(event, PSQLConfig.decrypt( chrD( event.getHandle().substring(HPREFIX.length()) ) ,"findFeaturesSort" ) ); }
-       catch ( GeneralSecurityException|IllegalArgumentException e)
-       { return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
-                 .withErrorMessage("Invalid request parameter. handle is corrupted");
-       }
-
-      SQLQuery query = SQLQueryBuilder.buildFeaturesSortQuery(event, dataSource) ;
-
-      FeatureCollection collection = executeQueryWithRetry(query);
-
-      if( collection.getHandle() != null ) // extend handle and encrypt
-      { final String handle = createHandle( event, collection.getHandle() );
-        collection.setHandle( handle );
-        collection.setNextPageToken(handle);
-      }
-
-      return collection;
-    } catch (SQLException e){
-      return checkSQLException(e, config.readTableFromEvent(event));
-    } finally {
-      logger.info("{} - Finished "+event.getClass().getSimpleName(), traceItem);
-    }
-  }
-
-
 
 
   private static final Pattern ERRVALUE_22P02 = Pattern.compile("invalid input syntax for type numeric:\\s+\"([^\"]*)\"\\s+Query:"),

@@ -2,6 +2,7 @@ package com.here.xyz.psql.query;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 
+import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
@@ -12,12 +13,12 @@ import java.util.Map;
 
 public class LoadFeatures extends ExtendedSpace<LoadFeaturesEvent> {
 
-  public LoadFeatures(LoadFeaturesEvent event, DatabaseHandler dbHandler) throws SQLException {
+  public LoadFeatures(LoadFeaturesEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(event, dbHandler);
   }
 
   @Override
-  protected SQLQuery buildQuery(LoadFeaturesEvent event) throws SQLException {
+  protected SQLQuery buildQuery(LoadFeaturesEvent event) {
     final Map<String, String> idMap = event.getIdsMap();
 
     final ArrayList<String> ids = new ArrayList<>(idMap.keySet());
@@ -46,6 +47,7 @@ public class LoadFeatures extends ExtendedSpace<LoadFeaturesEvent> {
         query.setQueryFragment("historyQuery", buildHistoryQuery(event, uuids));
       }
     }
+    //query.setQueryFragment("filterWhereClause", filterWhereClause);
     query.setNamedParameter("ids", ids.toArray(new String[0]));
     return query;
   }

@@ -19,6 +19,7 @@
 
 package com.here.xyz.psql;
 
+import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
 import com.here.xyz.responses.XyzResponse;
 import java.sql.ResultSet;
@@ -42,7 +43,7 @@ public abstract class QueryRunner<E extends Event, R extends XyzResponse> implem
   private boolean useReadReplica;
   protected DatabaseHandler dbHandler;
 
-  public QueryRunner(E event, DatabaseHandler dbHandler) throws SQLException {
+  public QueryRunner(E event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     this.dbHandler = dbHandler;
     query = buildQuery(event);
   }
@@ -63,7 +64,7 @@ public abstract class QueryRunner<E extends Event, R extends XyzResponse> implem
     query.replaceNamedParameters();
   }
 
-  protected abstract SQLQuery buildQuery(E event) throws SQLException;
+  protected abstract SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException;
 
   @Override
   public abstract R handle(ResultSet rs) throws SQLException;

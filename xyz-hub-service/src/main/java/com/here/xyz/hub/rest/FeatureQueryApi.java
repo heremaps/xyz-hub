@@ -38,7 +38,6 @@ import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.SearchForFeaturesEvent;
-import com.here.xyz.events.SearchForFeaturesOrderByEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
@@ -133,7 +132,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
       Integer[] part = Query.getPart(context);
 
       if (sort != null || propertiesQuery != null || part != null || ( handle != null && handle.startsWith("h07~"))) {
-        SearchForFeaturesOrderByEvent event = new SearchForFeaturesOrderByEvent();
+        IterateFeaturesEvent event = new IterateFeaturesEvent();
         event.withLimit(getLimit(context))
             .withForce2D(force2D)
             .withTags(Query.getTags(context))

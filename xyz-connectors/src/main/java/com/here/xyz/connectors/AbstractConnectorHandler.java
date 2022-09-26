@@ -225,6 +225,8 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
         dataOut = processEvent(event);
       }
       catch (ErrorResponseException e) {
+        if (e.getErrorResponse().getStreamId() == null)
+          e.getErrorResponse().setStreamId(this.streamId);
         dataOut = e.getErrorResponse();
       }
       catch (Exception e) {

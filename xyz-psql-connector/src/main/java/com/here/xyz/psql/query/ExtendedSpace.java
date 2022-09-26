@@ -1,5 +1,6 @@
 package com.here.xyz.psql.query;
 
+import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
@@ -10,12 +11,12 @@ import java.util.Map;
 
 public abstract class ExtendedSpace<E extends Event> extends GetFeatures<E> {
 
-  protected static final String EXTENDS = "extends";
-  protected static final String SPACE_ID = "spaceId";
-  protected static final String INTERMEDIATE_TABLE = "intermediateTable";
-  protected static final String EXTENDED_TABLE = "extendedTable";
+  private static final String EXTENDS = "extends";
+  private static final String SPACE_ID = "spaceId";
+  private static final String INTERMEDIATE_TABLE = "intermediateTable";
+  private static final String EXTENDED_TABLE = "extendedTable";
 
-  public ExtendedSpace(E event, DatabaseHandler dbHandler) throws SQLException {
+  public ExtendedSpace(E event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(event, dbHandler);
   }
 
@@ -25,21 +26,20 @@ public abstract class ExtendedSpace<E extends Event> extends GetFeatures<E> {
 
   protected Map<String,String> getExtendedTableNames(E event) {
     Map<String, Object> extSpec = event.getParams() != null ? (Map<String, Object>) event.getParams().get(EXTENDS) : null;
-    Map<String,String> extendedTables = new HashMap<>();
+    Map<String, String> extendedTables = new HashMap<>();
     PSQLConfig config = dbHandler.getConfig();
 
-    if(extSpec == null)
+    if (extSpec == null)
       return null;
 
-    if (!extSpec.containsKey(EXTENDS)) {
+    if (!extSpec.containsKey(EXTENDS))
       //1-level extension
-      extendedTables.put(EXTENDED_TABLE,config.getTableNameForSpaceId((String) extSpec.get(SPACE_ID)));
-    }
+      extendedTables.put(EXTENDED_TABLE, config.getTableNameForSpaceId((String) extSpec.get(SPACE_ID)));
     else {
       //2-level extension
       Map<String, Object> baseExtSpec = (Map<String, Object>) extSpec.get(EXTENDS);
-      extendedTables.put(INTERMEDIATE_TABLE,config.getTableNameForSpaceId((String) extSpec.get(SPACE_ID)));
-      extendedTables.put(EXTENDED_TABLE,config.getTableNameForSpaceId((String) baseExtSpec.get(SPACE_ID)));
+      extendedTables.put(INTERMEDIATE_TABLE, config.getTableNameForSpaceId((String) extSpec.get(SPACE_ID)));
+      extendedTables.put(EXTENDED_TABLE, config.getTableNameForSpaceId((String) baseExtSpec.get(SPACE_ID)));
     }
     return extendedTables;
   }
@@ -97,5 +97,4 @@ public abstract class ExtendedSpace<E extends Event> extends GetFeatures<E> {
     query.setQueryFragment("innerBaseQuery", build1LevelBaseQuery(extendedTable));
     return query;
   }
-
 }

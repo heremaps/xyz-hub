@@ -19,6 +19,7 @@
 
 package com.here.xyz.psql.query;
 
+import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.QueryEvent;
@@ -36,12 +37,12 @@ import java.util.List;
 
 public abstract class GetFeatures<E extends Event> extends QueryRunner<E, FeatureCollection> {
 
-  public GetFeatures(E event, DatabaseHandler dbHandler) throws SQLException {
+  public GetFeatures(E event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(event, dbHandler);
     setUseReadReplica(true);
   }
 
-  protected SQLQuery buildQuery(E event, String filterWhereClause) throws SQLException {
+  protected SQLQuery buildQuery(E event, String filterWhereClause) {
     SQLQuery query = new SQLQuery(
         "SELECT ${{selection}}, ${{geo}}${{iColumn}}"
             + "    FROM ${schema}.${table}"
