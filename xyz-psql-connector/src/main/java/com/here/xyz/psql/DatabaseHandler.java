@@ -1034,9 +1034,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
             if (event instanceof IterateFeaturesEvent) {
                 numFeatures++;
-                nextHandle = PSQLXyzConnector.isOrderByEvent((IterateFeaturesEvent) event)
-                    ? rs.getString(3)
-                    : "" + rs.getLong(3);
+                nextHandle = rs.getString(3);
             }
         }
 
