@@ -29,6 +29,7 @@ import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
+import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.QueryEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
@@ -798,35 +799,51 @@ public class SQLQueryBuilder {
         return q;
     }
 
-    public static SQLQuery buildSearchablePropertiesUpsertQuery(Space spaceDefinition, String schema, String table,  Map extendedTables) throws SQLException
+    public static SQLQuery buildSearchablePropertiesUpsertQuery(Space spaceDefinition, String schema, String table, Map extendedTables, ModifySpaceEvent.Operation operation) throws SQLException
     {
         String idx_manual_json;
-        Boolean enableAutoIndexing = false;
+        Boolean enableAutoIndexing;
         SQLQuery q = new SQLQuery("${{upsertIDX}} ${{updateReferencedTables}}");
         SQLQuery idx_q;
+        SQLQuery idx_ext_q;
 
-        if(extendedTables == null) {
-            Map<String, Boolean> searchableProperties = spaceDefinition.getSearchableProperties();
-            List<List<Object>> sortableProperties = spaceDefinition.getSortableProperties();
-            enableAutoIndexing = spaceDefinition.isEnableAutoSearchableProperties();
+        Map<String, Boolean> searchableProperties = spaceDefinition.getSearchableProperties();
+        List<List<Object>> sortableProperties = spaceDefinition.getSortableProperties();
+        enableAutoIndexing = spaceDefinition.isEnableAutoSearchableProperties();
 
-            try {
-                idx_manual_json = (new ObjectMapper()).writeValueAsString(new IdxManual(searchableProperties, sortableProperties));
-                idx_q = new SQLQuery("select (#{idx_manual})::jsonb");
-                idx_q.setNamedParameter("idx_manual", idx_manual_json);
-            } catch (JsonProcessingException e) {
-                throw new SQLException("buildSearchablePropertiesUpsertQuery", e);
-            }
-        }else{
-            String extendedTableId = (String)extendedTables.get("extendedTable");
-
-            idx_q = new SQLQuery("select idx_manual " +
-                    "FROM " +
-                    "   xyz_config.xyz_idxs_status " +
-                    "WHERE 1=1" +
-                    "   AND spaceid=#{extended_table} ");
-            idx_q.setNamedParameter("extended_table", extendedTableId);
+        try {
+            /** sortable and searchableProperties taken from space-definition */
+            idx_manual_json = (new ObjectMapper()).writeValueAsString(new IdxManual(searchableProperties, sortableProperties));
+            idx_q = new SQLQuery("select (#{idx_manual})::jsonb");
+            idx_q.setNamedParameter("idx_manual", idx_manual_json);
+        } catch (JsonProcessingException e) {
+            throw new SQLException("buildSearchablePropertiesUpsertQuery", e);
         }
+
+        String sourceTable = table;
+        if(extendedTables != null) {
+            /** only included in inserts of virtualSpaces */
+            sourceTable = (String) extendedTables.get("extendedTable" );
+            enableAutoIndexing = false;
+        }
+
+        idx_ext_q = new SQLQuery(
+                "SELECT jsonb_set(idx_manual,'{searchableProperties}',"+
+                        "         idx_manual->'searchableProperties' ||"+
+                        // Copy possible existing auto-indices into searchableProperties Config of extended space
+                        "        (SELECT COALESCE(jsonb_object_agg(key,value), '{}')"+
+                        "            FROM("+
+                        "                SELECT idx_property as key, true as value"+
+                        "                    FROM xyz_index_list_all_available('public',#{extended_table})"+
+                        "                WHERE src='a'"+
+                        "            )A"+
+                        "        ),"+
+                        "        true) "+
+                        "FROM "+IDX_STATUS_TABLE+
+                        "    WHERE spaceid=#{extended_table} ");
+
+        idx_ext_q.setNamedParameter("extended_table", sourceTable);
+
 
         /* update xyz_idx_status table with searchableProperties information */
         SQLQuery upsertIDX = new SQLQuery("INSERT INTO  "+IDX_STATUS_TABLE+" as x_s (spaceid, schem, idx_creation_finished, idx_manual, auto_indexing) "
@@ -838,27 +855,31 @@ public class SQLQueryBuilder {
                 + "             auto_indexing = #{auto_indexing}"
                 + "		WHERE x_s.spaceid = #{table} AND x_s.schem=#{schema};");
 
-        upsertIDX.setQueryFragment("idx_manual_sub", idx_q);
+        upsertIDX.setQueryFragment("idx_manual_sub", extendedTables == null ? idx_q : idx_ext_q);
         upsertIDX.setNamedParameter("table", table);
         upsertIDX.setNamedParameter("schema", schema);
         upsertIDX.setNamedParameter("auto_indexing", enableAutoIndexing);
 
-        /* update possible existing delta tables */
-        SQLQuery updateReferencedTables = new SQLQuery("UPDATE "+IDX_STATUS_TABLE+" "
-                + "             SET schem=#{schema}, "
-                + "    			idx_manual = (${{idx_manual_sub}}), "
-                + "				idx_creation_finished = false,"
-                + "             auto_indexing = #{auto_indexing}"
-                + "		WHERE " +
-                "           array_position(" +
-                "               (SELECT ARRAY_AGG(h_id) " +
-                "                   FROM "+SPACE_META_TABLE+" as b "+
-                "               WHERE 1=1" +
-                "                   AND b.meta->'extends'->>'extendedTable' = #{table}" +
-                "                   AND b.schem = #{schema}" +
-                "               ), spaceid" +
-                "           ) > 0" +
-                "           AND schem = #{schema};");
+        SQLQuery updateReferencedTables = new SQLQuery();
+        if(operation == ModifySpaceEvent.Operation.UPDATE) {
+            /* update possible existing delta tables */
+            updateReferencedTables = new SQLQuery("UPDATE " + IDX_STATUS_TABLE + " "
+                    + "             SET schem=#{schema}, "
+                    + "    			idx_manual = (${{idx_manual_sub2}}), "
+                    + "				idx_creation_finished = false"
+                    + "		WHERE " +
+                    "           array_position(" +
+                    "               (SELECT ARRAY_AGG(h_id) " +
+                    "                   FROM " + SPACE_META_TABLE + " as b " +
+                    "               WHERE 1=1" +
+                    "                   AND b.meta->'extends'->>'extendedTable' = #{table}" +
+                    "                   AND b.schem = #{schema}" +
+                    "               ), spaceid" +
+                    "           ) > 0" +
+                    "           AND schem = #{schema};" );
+
+            updateReferencedTables.setQueryFragment("idx_manual_sub2", idx_ext_q);
+        }
 
         q.setQueryFragment("upsertIDX",upsertIDX);
         q.setQueryFragment("updateReferencedTables",updateReferencedTables);

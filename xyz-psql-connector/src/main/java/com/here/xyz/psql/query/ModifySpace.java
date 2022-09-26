@@ -34,7 +34,8 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent> {
                     event.getSpaceDefinition(),
                     schema,
                     table,
-                    extendedTableNames);
+                    extendedTableNames,
+                    event.getOperation());
 
             q.setQueryFragment("searchableUpsert", searchableUpsertQuery);
 
