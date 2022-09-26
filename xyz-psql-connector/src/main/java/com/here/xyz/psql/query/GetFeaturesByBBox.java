@@ -11,7 +11,7 @@ import java.sql.SQLException;
 public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent> extends ExtendedSpace<E> {
 
   public GetFeaturesByBBox(E event, DatabaseHandler dbHandler) throws SQLException {
-    super(event, dbHandler, false);
+    super(event, dbHandler);
   }
 
   @Override
