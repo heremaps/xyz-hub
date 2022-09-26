@@ -23,7 +23,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
-import com.here.xyz.psql.factory.IterateSortSQL;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -69,9 +68,9 @@ public class Capabilities {
         boolean isPropertyQuery = key.startsWith("properties.");
 
         /** If property query hits default system index - allow search. [id, properties.@ns:com:here:xyz.createdAt, properties.@ns:com:here:xyz.updatedAt]" */
-        if (     key.equals("id") 
-             ||  key.equals("properties.@ns:com:here:xyz.createdAt") 
-             ||  key.equals("properties.@ns:com:here:xyz.updatedAt") 
+        if (     key.equals("id")
+             ||  key.equals("properties.@ns:com:here:xyz.createdAt")
+             ||  key.equals("properties.@ns:com:here:xyz.updatedAt")
         )
          return true;
 
@@ -104,44 +103,18 @@ public class Capabilities {
     }
   }
 
-  public static boolean canSortBy(String space, List<String> sort, PSQLXyzConnector connector)
-  {
-    if (sort == null || sort.isEmpty() ) return true;
-
-    try
-    {
-     String normalizedSortProp = "o:" + IterateSortSQL.IdxMaintenance.normalizedSortProperies(sort);
-
-     switch( normalizedSortProp.toLowerCase() ) { case "o:f.id" : case "o:f.createdat" : case "o:f.updatedat" : return true; }
-
-     List<String> indices = IndexList.getIndexList(space, connector);
-
-     if (indices == null) return true; // The table is small and not indexed. It's not listed in the xyz_idxs_status table
-
-     for( String idx : indices )
-      if( idx.startsWith( normalizedSortProp) ) return true;
-     
-     return false; 
-    }
-    catch (Exception e)
-    { // In all cases, when something with the check went wrong, allow the sort
-    }
-
-    return true;
-  }
-
   public static class IndexList {
     /** Cache indexList for 3 Minutes  */
     static long CACHE_INTERVAL_MS = TimeUnit.MINUTES.toMillis(3);
 
     /** Get list of indexed Values from a XYZ-Space */
-    static List<String> getIndexList(String space, PSQLXyzConnector connector) throws SQLException {
+    public static List<String> getIndexList(String space, DatabaseHandler dbHandler) throws SQLException {
       IndexList indexList = cachedIndices.get(space);
       if (indexList != null && indexList.expiry >= System.currentTimeMillis()) {
         return indexList.indices;
       }
 
-      indexList = connector.executeQuery(SQLQueryBuilder.generateIDXStatusQuery(space),
+      indexList = dbHandler.executeQuery(SQLQueryBuilder.generateIDXStatusQuery(space),
               Capabilities::rsHandler);
 
       cachedIndices.put(space, indexList);

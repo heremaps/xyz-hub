@@ -30,7 +30,6 @@ import com.here.xyz.psql.DatabaseMaintainer;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.DhString;
 
-import java.io.UnsupportedEncodingException;
 import java.security.GeneralSecurityException;
 import java.util.Arrays;
 import java.util.Base64;
@@ -233,12 +232,6 @@ public class PSQLConfig {
     }
   }
 
-  @SuppressWarnings("unused")
-  public static String encrypt(String plaintext, String phrase) throws Exception { return encryptECPS( plaintext, phrase ); }  
-
-  @SuppressWarnings("unused")
-  public static String decrypt(String encryptedtext, String phrase) throws Exception { return AESGCMHelper.getInstance(phrase).decrypt(encryptedtext); }
-
   /**
    * Encrypt and decrypt ECPS Strings by using AesGcm
    */
@@ -259,7 +252,7 @@ public class PSQLConfig {
      * @param passphrase The passphrase from which to derive a key.
      */
     @SuppressWarnings("WeakerAccess")
-    protected static AESGCMHelper getInstance(String passphrase) throws GeneralSecurityException {
+    public static AESGCMHelper getInstance(String passphrase) throws GeneralSecurityException {
       if (helpers.get(passphrase) == null) {
         helpers.put(passphrase, new AESGCMHelper(passphrase));
       }
@@ -285,7 +278,7 @@ public class PSQLConfig {
      * @param data The string to encode
      * @return A Base 64 encoded string, which represents the encoded bytes.
      */
-    public String encrypt(String data) throws UnsupportedEncodingException, GeneralSecurityException {
+    public String encrypt(String data) throws GeneralSecurityException {
       byte[] encrypted = key.encrypt(data.getBytes(), null);
       return new String(Base64.getEncoder().encode(encrypted));
     }

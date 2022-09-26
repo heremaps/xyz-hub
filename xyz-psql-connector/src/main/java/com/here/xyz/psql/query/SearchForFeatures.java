@@ -19,6 +19,7 @@
 
 package com.here.xyz.psql.query;
 
+import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.QueryEvent;
@@ -42,7 +43,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends Extende
 
   protected boolean hasSearch;
 
-  public SearchForFeatures(E event, DatabaseHandler dbHandler) throws SQLException {
+  public SearchForFeatures(E event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(event, dbHandler);
   }
 
@@ -169,7 +170,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends Extende
     return query;
   }
 
-  private static SQLQuery generateSearchQuery(final QueryEvent event) {
+  public static SQLQuery generateSearchQuery(final QueryEvent event) { //TODO: Make private again
     final SQLQuery propertiesQuery = generatePropertiesQuery(event.getPropertiesQuery());
     final SQLQuery tagsQuery = generateTagsQuery(event.getTags());
 

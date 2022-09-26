@@ -21,6 +21,7 @@ package com.here.xyz.events;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "IterateFeaturesEvent")
@@ -28,6 +29,8 @@ public final class IterateFeaturesEvent extends SearchForFeaturesEvent<IterateFe
 
   private String handle;
   private Integer v;
+  private List<String> sort;
+  private Integer[] part;
 
   public Integer getV() {
     return v;
@@ -55,6 +58,38 @@ public final class IterateFeaturesEvent extends SearchForFeaturesEvent<IterateFe
   @SuppressWarnings("unused")
   public IterateFeaturesEvent withHandle(String handle) {
     setHandle(handle);
+    return this;
+  }
+
+  @SuppressWarnings("unused")
+  public List<String> getSort() {
+    return this.sort;
+  }
+
+  @SuppressWarnings("WeakerAccess")
+  public void setSort(List<String> sort) {
+    this.sort = sort;
+  }
+
+  @SuppressWarnings("unused")
+  public IterateFeaturesEvent withSort(List<String> sort) {
+    setSort(sort);
+    return this;
+  }
+
+  @SuppressWarnings("unused")
+  public Integer[] getPart() {
+    return this.part;
+  }
+
+  @SuppressWarnings("WeakerAccess")
+  public void setPart(Integer[] part) {
+    this.part = part;
+  }
+
+  @SuppressWarnings("unused")
+  public IterateFeaturesEvent withPart(Integer[] part) {
+    setPart(part);
     return this;
   }
 }

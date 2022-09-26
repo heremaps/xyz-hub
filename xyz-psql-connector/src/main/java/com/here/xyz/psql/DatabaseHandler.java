@@ -28,31 +28,26 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.connectors.SimulatedContext;
 import com.here.xyz.connectors.StorageConnector;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
-import com.here.xyz.events.GetStorageStatisticsEvent;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
-import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
-import com.here.xyz.events.SearchForFeaturesOrderByEvent;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
-import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.config.DatabaseSettings;
 import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.query.ModifySpace;
-import com.here.xyz.psql.query.LoadFeatures;
-import com.here.xyz.psql.query.StorageStatisticsQueryRunner;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
@@ -301,7 +296,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         return executeQuery(query, handler, readDataSource);
     }
 
-    protected FeatureCollection executeQueryWithRetry(SQLQuery query) throws SQLException {
+    public FeatureCollection executeQueryWithRetry(SQLQuery query) throws SQLException {
         return executeQueryWithRetry(query, this::defaultFeatureResultSetHandler, true);
     }
 
@@ -428,14 +423,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
-    protected XyzResponse executeLoadFeatures(LoadFeaturesEvent event) throws SQLException {
-        if (event.getIdsMap() == null || event.getIdsMap().size() == 0)
-            return new FeatureCollection();
-
-        return new LoadFeatures(event, this).run();
-    }
-
-    protected XyzResponse executeModifySpace(ModifySpaceEvent event) throws SQLException {
+    protected XyzResponse executeModifySpace(ModifySpaceEvent event) throws SQLException, ErrorResponseException {
         if (event.getSpaceDefinition() != null && event.getSpaceDefinition().isEnableHistory()) {
             Integer maxVersionCount = event.getSpaceDefinition().getMaxVersionCount();
             boolean isEnableGlobalVersioning = event.getSpaceDefinition().isEnableGlobalVersioning();
@@ -466,10 +454,6 @@ public abstract class DatabaseHandler extends StorageConnector {
     protected XyzResponse executeIterateVersions(IterateFeaturesEvent event) throws SQLException {
         SQLQuery query = SQLQueryBuilder.buildLatestHistoryQuery(event);
         return executeQueryWithRetry(query, this::iterateVersionsHandler, true);
-    }
-
-    protected XyzResponse executeGetStorageStatistics(GetStorageStatisticsEvent event) throws SQLException {
-        return new StorageStatisticsQueryRunner(event, this).run();
     }
 
     /**
@@ -667,6 +651,11 @@ public abstract class DatabaseHandler extends StorageConnector {
                 }
             }
 
+            /*
+            FIXME: In case of an edit on an extending space for a feature which was existing in the extended (base) space already,
+            ... the feature object must be put into the "updated" list rather than to the "inserted" list.
+            Same is true for deletions, in that case the features should go the "deleted" list.
+             */
             /** filter out failed ids */
             final List<String> failedIds = fails.stream().map(FeatureCollection.ModificationFailure::getId).filter(Objects::nonNull).collect(Collectors.toList());
             final List<String> insertIds = inserts.stream().map(Feature::getId).filter(x -> !failedIds.contains(x)).collect(Collectors.toList());
@@ -743,7 +732,7 @@ public abstract class DatabaseHandler extends StorageConnector {
      * @return true if the table for the space exists; false otherwise.
      * @throws SQLException if the test fails due to any SQL error.
      */
-    public boolean hasTable() throws SQLException {
+    protected boolean hasTable() throws SQLException {
         if (event instanceof HealthCheckEvent) {
             return true;
         }
@@ -1024,11 +1013,8 @@ public abstract class DatabaseHandler extends StorageConnector {
      */
 
     private final long MAX_RESULT_CHARS = 100 * 1024 *1024;
-    private final int F_Iterate = 1,
-                      F_IterateOrderBy  = 2;
 
     protected FeatureCollection _defaultFeatureResultSetHandler(ResultSet rs, boolean skipNullGeom) throws SQLException {
-        int hint = ((event instanceof IterateFeaturesEvent) ? F_Iterate : ((event instanceof SearchForFeaturesOrderByEvent ) ? F_IterateOrderBy : 0) );
         String nextHandle = "";
 
         StringBuilder sb = new StringBuilder();
@@ -1046,12 +1032,12 @@ public abstract class DatabaseHandler extends StorageConnector {
             sb.append("}");
             sb.append(",");
 
-            if ( hint > 0 ) numFeatures++;
-            switch( hint )
-            { case F_Iterate         : nextHandle = "" + rs.getLong(3); break;
-              case F_IterateOrderBy  : nextHandle = rs.getString(3); break;
+            if (event instanceof IterateFeaturesEvent) {
+                numFeatures++;
+                nextHandle = PSQLXyzConnector.isOrderByEvent((IterateFeaturesEvent) event)
+                    ? rs.getString(3)
+                    : "" + rs.getLong(3);
             }
-
         }
 
         if (sb.length() > prefix.length()) {
@@ -1064,7 +1050,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         if (sb.length() > MAX_RESULT_CHARS) throw new SQLException(DhString.format("Maxchar limit(%d) reached", MAX_RESULT_CHARS));
 
-        if( hint > 0 && numFeatures > 0 && numFeatures == ((SearchForFeaturesEvent) event).getLimit() ) {
+        if (event instanceof IterateFeaturesEvent && numFeatures > 0 && numFeatures == ((SearchForFeaturesEvent) event).getLimit() ) {
           featureCollection.setHandle(nextHandle);
           featureCollection.setNextPageToken(nextHandle);
         }

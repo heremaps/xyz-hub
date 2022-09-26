@@ -7,11 +7,11 @@ import static com.here.xyz.events.ModifySpaceEvent.Operation.UPDATE;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.models.hub.Space;
-import com.here.xyz.psql.*;
-import com.here.xyz.psql.config.PSQLConfig;
-
+import com.here.xyz.psql.DatabaseHandler;
+import com.here.xyz.psql.SQLQuery;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
@@ -21,18 +21,15 @@ import org.json.JSONObject;
 public class ModifySpace extends ExtendedSpace<ModifySpaceEvent> {
 
     public static final String IDX_STATUS_TABLE = "xyz_config.xyz_idxs_status";
-    public static final String SPACE_META_TABLE = "xyz_config.space_meta";
-    public ModifySpace(ModifySpaceEvent event, DatabaseHandler dbHandler) throws SQLException {
+    private static final String SPACE_META_TABLE = "xyz_config.space_meta";
+    public ModifySpace(ModifySpaceEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
         super(event, dbHandler);
         setUseReadReplica(false);
     }
 
     @Override
     protected SQLQuery buildQuery(ModifySpaceEvent event) throws SQLException {
-        PSQLConfig config = dbHandler.getConfig();
-
         if (event.getOperation() == CREATE || event.getOperation() == UPDATE) {
-
             SQLQuery q = new SQLQuery("${{searchableUpsert}} ${{spaceMetaUpsert}}");
 
             Map<String, String> extendedTableNames = getExtendedTableNames(event);

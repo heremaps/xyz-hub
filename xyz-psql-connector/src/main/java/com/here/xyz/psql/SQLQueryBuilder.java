@@ -29,7 +29,6 @@ import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.QueryEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
-import com.here.xyz.events.SearchForFeaturesOrderByEvent;
 import com.here.xyz.models.geojson.HQuad;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
@@ -37,7 +36,6 @@ import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.factory.H3SQL;
-import com.here.xyz.psql.factory.IterateSortSQL;
 import com.here.xyz.psql.factory.QuadbinSQL;
 import com.here.xyz.psql.factory.TweaksSQL;
 import com.here.xyz.psql.query.ModifySpace;
@@ -592,24 +590,7 @@ public class SQLQueryBuilder {
 
     /***************************************** TWEAKS END **************************************************/
 
-  public static SQLQuery buildFeaturesSortQuery(final SearchForFeaturesOrderByEvent event, DataSource dataSource) throws SQLException {
-        SQLQuery searchQuery = generateSearchQuery(event);
-
-        SQLQuery innerQry = IterateSortSQL.innerSortedQry(searchQuery, event.getSort(), event.getPart(), event.getHandle(), event.getLimit());
-
-        final SQLQuery query = new SQLQuery( DhString.format("%s select",IterateSortSQL.pg_hint_plan));
-        query.append(SQLQuery.selectJson(event));
-        query.append(", replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "(geo)," + GEOMETRY_DECIMAL_DIGITS + "),'nan','0'), nxthandle from ( ");
-        query.append(innerQry);
-        query.append(" ) o");
-
-        return query;
-    }
-
-    public static SQLQuery buildGetIterateHandlesQuery( int nrHandles ) throws Exception
-    { return IterateSortSQL.getIterateHandles(nrHandles);  }
-
-    public static SQLQuery buildDeleteFeaturesByTagQuery(boolean includeOldStates, SQLQuery searchQuery) {
+  public static SQLQuery buildDeleteFeaturesByTagQuery(boolean includeOldStates, SQLQuery searchQuery) {
 
         final SQLQuery query;
 
