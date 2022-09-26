@@ -15,19 +15,18 @@ public abstract class ExtendedSpace<E extends Event> extends GetFeatures<E> {
   protected static final String INTERMEDIATE_TABLE = "intermediateTable";
   protected static final String EXTENDED_TABLE = "extendedTable";
 
-  public ExtendedSpace(E event, DatabaseHandler dbHandler, boolean isWrite) throws SQLException {
+  public ExtendedSpace(E event, DatabaseHandler dbHandler) throws SQLException {
     super(event, dbHandler);
-    if(!isWrite)
-      setUseReadReplica(true);
   }
 
   protected boolean isExtendedSpace(E event) {
     return event.getParams() != null && event.getParams().containsKey(EXTENDS);
   }
 
-  protected Map<String,String> getExtendedTableNames(PSQLConfig config){
+  protected Map<String,String> getExtendedTableNames(E event) {
     Map<String, Object> extSpec = event.getParams() != null ? (Map<String, Object>) event.getParams().get(EXTENDS) : null;
     Map<String,String> extendedTables = new HashMap<>();
+    PSQLConfig config = dbHandler.getConfig();
 
     if(extSpec == null)
       return null;
@@ -46,9 +45,6 @@ public abstract class ExtendedSpace<E extends Event> extends GetFeatures<E> {
   }
 
   protected SQLQuery buildExtensionQuery(E event, String filterWhereClause) {
-    PSQLConfig config = dbHandler.getConfig();
-    Map<String,String> extendedTables = getExtendedTableNames(config);
-
     SQLQuery extensionQuery = new SQLQuery(
         "SELECT jsondata, ${{geo}}"
         + "    FROM ${schema}.${extensionTable}"
@@ -62,8 +58,9 @@ public abstract class ExtendedSpace<E extends Event> extends GetFeatures<E> {
     extensionQuery.setQueryFragment("geo", buildGeoFragment(event));
     extensionQuery.setQueryFragment("filterWhereClause", filterWhereClause);
     extensionQuery.setVariable(SCHEMA, getSchema());
-    extensionQuery.setVariable("extensionTable", config.readTableFromEvent(event));
+    extensionQuery.setVariable("extensionTable", getDefaultTable(event));
 
+    Map<String, String> extendedTables = getExtendedTableNames(event);
     SQLQuery baseQuery;
     if (extendedTables.get(INTERMEDIATE_TABLE) == null) {
       //1-level extension

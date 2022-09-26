@@ -128,7 +128,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    * Can be used for writing Log-Entries (streamId + connectorId). The connectorId should get configured in the
    * Connector Parameters of the Connector Config.
    */
-  public TraceItem traceItem;
+  protected TraceItem traceItem;
 
   /**
    * Start timestamp for logging.

@@ -13,7 +13,7 @@ import java.util.Map;
 public class LoadFeatures extends ExtendedSpace<LoadFeaturesEvent> {
 
   public LoadFeatures(LoadFeaturesEvent event, DatabaseHandler dbHandler) throws SQLException {
-    super(event, dbHandler,false);
+    super(event, dbHandler);
   }
 
   @Override

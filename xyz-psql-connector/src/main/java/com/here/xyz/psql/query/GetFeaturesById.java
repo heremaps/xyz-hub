@@ -10,7 +10,7 @@ import java.sql.SQLException;
 public class GetFeaturesById extends ExtendedSpace<GetFeaturesByIdEvent> {
 
   public GetFeaturesById(GetFeaturesByIdEvent event, DatabaseHandler dbHandler) throws SQLException {
-    super(event, dbHandler, false);
+    super(event, dbHandler);
   }
 
   @Override

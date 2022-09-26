@@ -20,6 +20,9 @@
 package com.here.xyz.psql;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.ModifySpaceEvent.Operation.CREATE;
+import static com.here.xyz.events.ModifySpaceEvent.Operation.DELETE;
+import static com.here.xyz.events.ModifySpaceEvent.Operation.UPDATE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -43,6 +46,7 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.config.DatabaseSettings;
 import com.here.xyz.psql.config.PSQLConfig;
@@ -133,7 +137,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     /**
      * The dbMaintainer for the current event.
      */
-    public DatabaseMaintainer dbMaintainer;
+    protected DatabaseMaintainer dbMaintainer;
 
     private Map<String, String> replacements = new HashMap<>();
 
@@ -431,27 +435,23 @@ public abstract class DatabaseHandler extends StorageConnector {
         return new LoadFeatures(event, this).run();
     }
 
-    protected XyzResponse executeModifySpace(ModifySpaceEvent event) throws SQLException{
-
-        if(event.getSpaceDefinition() != null && event.getSpaceDefinition().isEnableHistory()){
+    protected XyzResponse executeModifySpace(ModifySpaceEvent event) throws SQLException {
+        if (event.getSpaceDefinition() != null && event.getSpaceDefinition().isEnableHistory()) {
             Integer maxVersionCount = event.getSpaceDefinition().getMaxVersionCount();
             boolean isEnableGlobalVersioning = event.getSpaceDefinition().isEnableGlobalVersioning();
             boolean compactHistory = config.getConnectorParams().isCompactHistory();
 
-            if(ModifySpaceEvent.Operation.CREATE == event.getOperation()){
-                /** Create History Table **/
+            if (event.getOperation() == CREATE)
+                //Create History Table
                 ensureHistorySpace(maxVersionCount, compactHistory, isEnableGlobalVersioning);
-            }else if(ModifySpaceEvent.Operation.UPDATE == event.getOperation()){
-                //update Trigger to apply maxVersionCount.
-                /** Update HistoryTrigger */
+            else if(event.getOperation() == UPDATE)
+                //Update HistoryTrigger to apply maxVersionCount.
                 updateHistoryTrigger(maxVersionCount, compactHistory, isEnableGlobalVersioning);
-            }
         }
 
-        ModifySpace modifySpaceQueryRunner = new ModifySpace(event, this);
-
-        modifySpaceQueryRunner.write();
-        modifySpaceQueryRunner.maintainSpace();
+        new ModifySpace(event, this).write();
+        if (event.getOperation() != DELETE)
+            dbMaintainer.maintainSpace(traceItem, config.getDatabaseSettings().getSchema(), config.readTableFromEvent(event));
 
         //If we reach this point we are okay!
         return new SuccessResponse().withStatus("OK");
