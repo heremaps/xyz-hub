@@ -1,3 +1,22 @@
+/*
+ * Copyright (C) 2017-2022 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 package com.here.xyz.psql.query;
 
 import static com.here.xyz.events.ModifySpaceEvent.Operation.CREATE;
@@ -32,30 +51,39 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent> {
         if (event.getOperation() == CREATE || event.getOperation() == UPDATE) {
             SQLQuery q = new SQLQuery("${{searchableUpsert}} ${{spaceMetaUpsert}}");
 
-            Map<String, String> extendedTableNames = getExtendedTableNames(event);
-            // Write idx related data
-            SQLQuery searchableUpsertQuery = buildSearchablePropertiesUpsertQuery(event, extendedTableNames);
-
+            //Write idx related data
+            SQLQuery searchableUpsertQuery = buildSearchablePropertiesUpsertQuery(event);
             q.setQueryFragment("searchableUpsert", searchableUpsertQuery);
 
-            // Write metadata
-            SQLQuery spaceMetaUpsertQuery = buildSpaceMetaUpsertQuery(event, extendedTableNames);
-
+            //Write metadata
+            SQLQuery spaceMetaUpsertQuery = buildSpaceMetaUpsertQuery(event);
             q.setQueryFragment("spaceMetaUpsert", spaceMetaUpsertQuery);
 
             return q;
         }
-        else if (event.getOperation() == DELETE) {
+        else if (event.getOperation() == DELETE)
             return buildCleanUpQuery(event);
-        }
+
         return null;
     }
 
-    public SQLQuery buildSpaceMetaUpsertQuery(ModifySpaceEvent event, Map extendedTables) throws SQLException
-      {
-          JSONObject extend = new JSONObject();
-          extend.put("extends", extendedTables);
+    private static final String INTERMEDIATE_TABLE = "intermediateTable";
+    private static final String EXTENDED_TABLE = "extendedTable";
 
+    @Deprecated
+    private JSONObject buildExtendedTablesJSON(ModifySpaceEvent event) {
+        if (!isExtendedSpace(event))
+            return new JSONObject().put("extends", (Object) null);
+
+        Map<String, String> extendedTables = new HashMap<String, String>() {{
+           put(EXTENDED_TABLE, getExtendedTable(event));
+           if (is2LevelExtendedSpace(event))
+               put(INTERMEDIATE_TABLE, getIntermediateTable(event));
+        }};
+        return new JSONObject().put("extends", extendedTables);
+    }
+
+    public SQLQuery buildSpaceMetaUpsertQuery(ModifySpaceEvent event) throws SQLException {
           SQLQuery q = new SQLQuery("INSERT INTO "+ SPACE_META_TABLE +" as s_m VALUES (#{spaceid},#{schema},#{table},(#{extend})::json)" +
                   "  ON CONFLICT (id,schem)" +
                   "  DO " +
@@ -67,7 +95,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent> {
 
           q.setNamedParameter("spaceid", event.getSpaceDefinition() == null ? "" : event.getSpaceDefinition().getId());
           q.setNamedParameter("schema", getSchema());
-          q.setNamedParameter("extend", extend.toString());
+          q.setNamedParameter("extend", buildExtendedTablesJSON(event).toString()); //TODO: Only use one field here for the most down base space instead
           q.setNamedParameter("table", getDefaultTable(event));
 
           return q;
@@ -75,18 +103,17 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent> {
 
 
 
-    public SQLQuery buildSearchablePropertiesUpsertQuery(ModifySpaceEvent event, Map extendedTables) throws SQLException
+    public SQLQuery buildSearchablePropertiesUpsertQuery(ModifySpaceEvent event) throws SQLException
     {
-        String idx_manual_json;
-        Boolean enableAutoIndexing;
-        SQLQuery q = new SQLQuery("${{upsertIDX}} ${{updateReferencedTables}}");
-        SQLQuery idx_q;
-        SQLQuery idx_ext_q;
-
         Space spaceDefinition = event.getSpaceDefinition();
         Map<String, Boolean> searchableProperties = spaceDefinition.getSearchableProperties();
         List<List<Object>> sortableProperties = spaceDefinition.getSortableProperties();
-        enableAutoIndexing = spaceDefinition.isEnableAutoSearchableProperties();
+        Boolean enableAutoIndexing = spaceDefinition.isEnableAutoSearchableProperties() == Boolean.TRUE && !isExtendedSpace(event);
+
+        String idx_manual_json;
+        SQLQuery q = new SQLQuery("${{upsertIDX}} ${{updateReferencedTables}}");
+        SQLQuery idx_q;
+        SQLQuery idx_ext_q;
 
         try {
             /** sortable and searchableProperties taken from space-definition */
@@ -97,12 +124,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent> {
             throw new SQLException("buildSearchablePropertiesUpsertQuery", e);
         }
 
-        String sourceTable = getDefaultTable(event);
-        if(extendedTables != null) {
-            /** only included in inserts of virtualSpaces */
-            sourceTable = (String) extendedTables.get("extendedTable" );
-            enableAutoIndexing = false;
-        }
+        String sourceTable = isExtendedSpace(event) ? getExtendedTable(event) : getDefaultTable(event);
 
         idx_ext_q = new SQLQuery(
                 "SELECT jsonb_set(idx_manual,'{searchableProperties}',"+
@@ -132,7 +154,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent> {
                 + "             auto_indexing = #{auto_indexing}"
                 + "		WHERE x_s.spaceid = #{table} AND x_s.schem=#{schema};");
 
-        upsertIDX.setQueryFragment("idx_manual_sub", extendedTables == null ? idx_q : idx_ext_q);
+        upsertIDX.setQueryFragment("idx_manual_sub", !isExtendedSpace(event) ? idx_q : idx_ext_q);
         upsertIDX.setNamedParameter("table", getDefaultTable(event));
         upsertIDX.setNamedParameter("schema", getSchema());
         upsertIDX.setNamedParameter("auto_indexing", enableAutoIndexing);

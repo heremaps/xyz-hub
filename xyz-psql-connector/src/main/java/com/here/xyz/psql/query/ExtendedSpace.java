@@ -1,20 +1,35 @@
+/*
+ * Copyright (C) 2017-2022 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 package com.here.xyz.psql.query;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
-import com.here.xyz.psql.config.PSQLConfig;
 import java.sql.SQLException;
-import java.util.HashMap;
 import java.util.Map;
 
 public abstract class ExtendedSpace<E extends Event> extends GetFeatures<E> {
 
   private static final String EXTENDS = "extends";
   private static final String SPACE_ID = "spaceId";
-  private static final String INTERMEDIATE_TABLE = "intermediateTable";
-  private static final String EXTENDED_TABLE = "extendedTable";
 
   public ExtendedSpace(E event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(event, dbHandler);
@@ -28,24 +43,33 @@ public abstract class ExtendedSpace<E extends Event> extends GetFeatures<E> {
     return isExtendedSpace(event) && ((Map<String, Object>) event.getParams().get(EXTENDS)).containsKey(EXTENDS);
   }
 
-  protected Map<String,String> getExtendedTableNames(E event) {
-    Map<String, Object> extSpec = event.getParams() != null ? (Map<String, Object>) event.getParams().get(EXTENDS) : null;
-    Map<String, String> extendedTables = new HashMap<>();
-    PSQLConfig config = dbHandler.getConfig();
+  private String getFirstLevelExtendedTable(E event) {
+    if (isExtendedSpace(event))
+      return dbHandler.getConfig().getTableNameForSpaceId((String) ((Map<String, Object>) event.getParams().get(EXTENDS)).get(SPACE_ID));
+    return null;
+  }
 
-    if (extSpec == null)
-      return null;
-
-    if (!extSpec.containsKey(EXTENDS))
-      //1-level extension
-      extendedTables.put(EXTENDED_TABLE, config.getTableNameForSpaceId((String) extSpec.get(SPACE_ID)));
-    else {
-      //2-level extension
+  private String getSecondLevelExtendedTable(E event) {
+    if (is2LevelExtendedSpace(event)) {
+      Map<String, Object> extSpec = (Map<String, Object>) event.getParams().get(EXTENDS);
       Map<String, Object> baseExtSpec = (Map<String, Object>) extSpec.get(EXTENDS);
-      extendedTables.put(INTERMEDIATE_TABLE, config.getTableNameForSpaceId((String) extSpec.get(SPACE_ID)));
-      extendedTables.put(EXTENDED_TABLE, config.getTableNameForSpaceId((String) baseExtSpec.get(SPACE_ID)));
+      return dbHandler.getConfig().getTableNameForSpaceId((String) baseExtSpec.get(SPACE_ID));
     }
-    return extendedTables;
+    return null;
+  }
+
+  protected String getExtendedTable(E event) {
+    if (is2LevelExtendedSpace(event))
+      return getSecondLevelExtendedTable(event);
+    else if (isExtendedSpace(event))
+      return getFirstLevelExtendedTable(event);
+    return null;
+  }
+
+  protected String getIntermediateTable(E event) {
+    if (is2LevelExtendedSpace(event))
+      return getFirstLevelExtendedTable(event);
+    return null;
   }
 
   protected SQLQuery buildExtensionQuery(E event, String filterWhereClause) {
@@ -67,16 +91,10 @@ public abstract class ExtendedSpace<E extends Event> extends GetFeatures<E> {
     extensionQuery.setVariable(SCHEMA, getSchema());
     extensionQuery.setVariable("extensionTable", getDefaultTable(event));
 
-    Map<String, String> extendedTables = getExtendedTableNames(event);
-    SQLQuery baseQuery;
-    if (extendedTables.get(INTERMEDIATE_TABLE) == null) {
-      //1-level extension
-      baseQuery = build1LevelBaseQuery(extendedTables.get(EXTENDED_TABLE));
-    }
-    else {
-      //2-level extension
-      baseQuery = build2LevelBaseQuery(extendedTables.get(INTERMEDIATE_TABLE), extendedTables.get(EXTENDED_TABLE));
-    }
+    SQLQuery baseQuery = !is2LevelExtendedSpace(event)
+        ? build1LevelBaseQuery(getExtendedTable(event)) //1-level extension
+        : build2LevelBaseQuery(getIntermediateTable(event), getExtendedTable(event)); //2-level extension
+
     baseQuery.setQueryFragment("filterWhereClause", filterWhereClause);
     extensionQuery.setQueryFragment("baseQuery", baseQuery);
 
