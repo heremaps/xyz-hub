@@ -75,7 +75,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
   protected SQLQuery buildQuery(IterateFeaturesEvent event) throws SQLException {
     if (isExtendedSpace(event) && event.getContext() == SpaceContext.DEFAULT) {
 
-      SQLQuery extensionQuery = buildExtensionQuery(event, "TRUE"); //TODO: Do not support search on iterate for now;
+      SQLQuery extensionQuery = buildQuery(event, "TRUE"); //TODO: Do not support search on iterate for now
       extensionQuery.setQueryFragment("iColumn", ", CONCAT('', i) AS i");
 
       if (is2LevelExtendedSpace(event)) {

@@ -39,7 +39,7 @@ NOTE: All subclasses of QueryEvent are deprecated except SearchForFeaturesEvent.
 Once refactoring is complete, all members of SearchForFeaturesEvent can be pulled up to QueryEvent and QueryEvent
 can be renamed to SearchForFeaturesEvent again.
  */
-public class SearchForFeatures<E extends SearchForFeaturesEvent> extends ExtendedSpace<E> {
+public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeatures<E> {
 
   protected boolean hasSearch;
 
@@ -49,8 +49,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends Extende
 
   @Override
   protected SQLQuery buildQuery(E event) throws SQLException {
-    final SQLQuery searchQuery = SearchForFeatures.generateSearchQuery(event);
-    hasSearch = searchQuery != null;
+    SQLQuery searchQuery = buildSearchFragment(event);
 
     SQLQuery query = super.buildQuery(event, "TRUE");
     query.setQueryFragment("iColumn", ", i");
@@ -62,6 +61,12 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends Extende
 
     query.setQueryFragment("limit", buildLimitFragment(event.getLimit()));
     return query;
+  }
+
+  protected SQLQuery buildSearchFragment(E event) {
+    final SQLQuery searchQuery = SearchForFeatures.generateSearchQuery(event);
+    hasSearch = searchQuery != null;
+    return searchQuery;
   }
 
   protected SQLQuery buildLimitFragment(long limit) {
@@ -170,7 +175,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends Extende
     return query;
   }
 
-  public static SQLQuery generateSearchQuery(final QueryEvent event) { //TODO: Make private again
+  protected static SQLQuery generateSearchQuery(final QueryEvent event) { //TODO: Make private again
     final SQLQuery propertiesQuery = generatePropertiesQuery(event.getPropertiesQuery());
     final SQLQuery tagsQuery = generateTagsQuery(event.getTags());
 

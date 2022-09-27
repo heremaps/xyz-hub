@@ -22,11 +22,12 @@ package com.here.xyz.psql.query;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
 import com.here.xyz.psql.DatabaseHandler;
-import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.psql.QueryRunner;
+import com.here.xyz.responses.XyzResponse;
 import java.sql.SQLException;
 import java.util.Map;
 
-public abstract class ExtendedSpace<E extends Event> extends GetFeatures<E> {
+public abstract class ExtendedSpace<E extends Event, R extends XyzResponse> extends QueryRunner<E, R> {
 
   private static final String EXTENDS = "extends";
   private static final String SPACE_ID = "spaceId";
@@ -70,56 +71,5 @@ public abstract class ExtendedSpace<E extends Event> extends GetFeatures<E> {
     if (is2LevelExtendedSpace(event))
       return getFirstLevelExtendedTable(event);
     return null;
-  }
-
-  protected SQLQuery buildExtensionQuery(E event, String filterWhereClause) {
-    SQLQuery extensionQuery = new SQLQuery(
-        "SELECT jsondata, ${{geo}}${{iColumnExtension}}"
-        + "    FROM ${schema}.${extensionTable}"
-        + "    WHERE ${{filterWhereClause}} AND deleted = false "
-        + "UNION ALL "
-        + "    SELECT jsondata, ${{geo}}${{iColumn}} FROM"
-        + "        ("
-        + "            ${{baseQuery}}"
-        + "        ) a WHERE NOT exists(SELECT 1 FROM ${schema}.${extensionTable} b WHERE jsondata->>'id' = a.jsondata->>'id')");
-
-    extensionQuery.setQueryFragment("geo", buildGeoFragment(event));
-    extensionQuery.setQueryFragment("iColumn", ""); //NOTE: This can be overridden by implementing subclasses
-    extensionQuery.setQueryFragment("iColumnExtension", ""); //NOTE: This can be overridden by implementing subclasses
-    extensionQuery.setQueryFragment("iColumnIntermediate", ""); //NOTE: This can be overridden by implementing subclasses
-    extensionQuery.setQueryFragment("filterWhereClause", filterWhereClause);
-    extensionQuery.setVariable(SCHEMA, getSchema());
-    extensionQuery.setVariable("extensionTable", getDefaultTable(event));
-
-    SQLQuery baseQuery = !is2LevelExtendedSpace(event)
-        ? build1LevelBaseQuery(getExtendedTable(event)) //1-level extension
-        : build2LevelBaseQuery(getIntermediateTable(event), getExtendedTable(event)); //2-level extension
-
-    baseQuery.setQueryFragment("filterWhereClause", filterWhereClause);
-    extensionQuery.setQueryFragment("baseQuery", baseQuery);
-
-    return extensionQuery;
-  }
-
-  private SQLQuery build1LevelBaseQuery(String extendedTable) {
-    SQLQuery query = new SQLQuery("SELECT jsondata, geo${{iColumn}}"
-        + "    FROM ${schema}.${extendedTable} m"
-        + "    WHERE ${{filterWhereClause}}"); //in the base table there is no need to check a deleted flag;
-    query.setVariable("extendedTable", extendedTable);
-    return query;
-  }
-
-  private SQLQuery build2LevelBaseQuery(String intermediateTable, String extendedTable) {
-    SQLQuery query = new SQLQuery("SELECT jsondata, geo${{iColumnIntermediate}}"
-        + "    FROM ${schema}.${intermediateExtensionTable}"
-        + "    WHERE ${{filterWhereClause}} AND deleted = false "
-        + "UNION ALL"
-        + "    SELECT jsondata, geo${{iColumn}} FROM"
-        + "        ("
-        + "            ${{innerBaseQuery}}"
-        + "        ) b WHERE NOT exists(SELECT 1 FROM ${schema}.${intermediateExtensionTable} WHERE jsondata->>'id' = b.jsondata->>'id')");
-    query.setVariable("intermediateExtensionTable", intermediateTable);
-    query.setQueryFragment("innerBaseQuery", build1LevelBaseQuery(extendedTable));
-    return query;
   }
 }

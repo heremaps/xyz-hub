@@ -19,14 +19,16 @@
 
 package com.here.xyz.psql.query;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+
 import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.QueryEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.DatabaseHandler;
-import com.here.xyz.psql.QueryRunner;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.SQLQueryBuilder;
 import java.sql.ResultSet;
@@ -35,7 +37,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public abstract class GetFeatures<E extends Event> extends QueryRunner<E, FeatureCollection> {
+public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedSpace<E, FeatureCollection> {
 
   public GetFeatures(E event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(event, dbHandler);
@@ -43,10 +45,27 @@ public abstract class GetFeatures<E extends Event> extends QueryRunner<E, Featur
   }
 
   protected SQLQuery buildQuery(E event, String filterWhereClause) {
-    SQLQuery query = new SQLQuery(
-        "SELECT ${{selection}}, ${{geo}}${{iColumn}}"
-            + "    FROM ${schema}.${table}"
-            + "    WHERE ${{filterWhereClause}} ${{orderBy}} ${{limit}} ${{offset}}");
+    boolean isExtended = isExtendedSpace(event) && event.getContext() == DEFAULT;
+    SQLQuery query;
+    if (isExtended) {
+      query = new SQLQuery(
+          "SELECT * FROM ("
+          + "    SELECT ${{selection}}, ${{geo}}${{iColumnExtension}}"
+          + "        FROM ${schema}.${table}"
+          + "        WHERE ${{filterWhereClause}} AND deleted = false "
+          + "    UNION ALL "
+          + "        SELECT ${{selection}}, ${{geo}}${{iColumn}} FROM"
+          + "            ("
+          + "                ${{baseQuery}}"
+          + "            ) a WHERE NOT exists(SELECT 1 FROM ${schema}.${table} b WHERE jsondata->>'id' = a.jsondata->>'id')"
+          + ") limitQuery ${{limit}}");
+    }
+    else {
+      query = new SQLQuery(
+          "SELECT ${{selection}}, ${{geo}}${{iColumn}}"
+              + "    FROM ${schema}.${table}"
+              + "    WHERE ${{filterWhereClause}} ${{orderBy}} ${{limit}} ${{offset}}");
+    }
 
     if (event instanceof QueryEvent)
       query.setQueryFragment("selection", buildSelectionFragment((QueryEvent) event));
@@ -56,12 +75,49 @@ public abstract class GetFeatures<E extends Event> extends QueryRunner<E, Featur
     query.setQueryFragment("geo", buildGeoFragment(event));
     query.setQueryFragment("iColumn", ""); //NOTE: This can be overridden by implementing subclasses
     query.setQueryFragment("filterWhereClause", filterWhereClause);
-    query.setQueryFragment("orderBy", ""); //NOTE: This can be overridden by implementing subclasses
     query.setQueryFragment("limit", ""); //NOTE: This can be overridden by implementing subclasses
-    query.setQueryFragment("offset", ""); //NOTE: This can be overridden by implementing subclasses
-    query.setVariable(SCHEMA, getSchema());
-    query.setVariable(TABLE, dbHandler.getConfig().readTableFromEvent(event));
 
+    query.setVariable(SCHEMA, getSchema());
+    query.setVariable(TABLE, getDefaultTable(event));
+
+    if (isExtended) {
+      query.setQueryFragment("iColumnExtension", ""); //NOTE: This can be overridden by implementing subclasses
+      query.setQueryFragment("iColumnIntermediate", ""); //NOTE: This can be overridden by implementing subclasses
+
+      SQLQuery baseQuery = !is2LevelExtendedSpace(event)
+          ? build1LevelBaseQuery(getExtendedTable(event)) //1-level extension
+          : build2LevelBaseQuery(getIntermediateTable(event), getExtendedTable(event)); //2-level extension
+
+      baseQuery.setQueryFragment("filterWhereClause", filterWhereClause);
+      query.setQueryFragment("baseQuery", baseQuery);
+    }
+    else {
+      query.setQueryFragment("orderBy", ""); //NOTE: This can be overridden by implementing subclasses
+      query.setQueryFragment("offset", ""); //NOTE: This can be overridden by implementing subclasses
+    }
+
+    return query;
+  }
+
+  private SQLQuery build1LevelBaseQuery(String extendedTable) {
+    SQLQuery query = new SQLQuery("SELECT jsondata, geo${{iColumn}}"
+        + "    FROM ${schema}.${extendedTable} m"
+        + "    WHERE ${{filterWhereClause}}"); //in the base table there is no need to check a deleted flag;
+    query.setVariable("extendedTable", extendedTable);
+    return query;
+  }
+
+  private SQLQuery build2LevelBaseQuery(String intermediateTable, String extendedTable) {
+    SQLQuery query = new SQLQuery("SELECT jsondata, geo${{iColumnIntermediate}}"
+        + "    FROM ${schema}.${intermediateExtensionTable}"
+        + "    WHERE ${{filterWhereClause}} AND deleted = false "
+        + "UNION ALL"
+        + "    SELECT jsondata, geo${{iColumn}} FROM"
+        + "        ("
+        + "            ${{innerBaseQuery}}"
+        + "        ) b WHERE NOT exists(SELECT 1 FROM ${schema}.${intermediateExtensionTable} WHERE jsondata->>'id' = b.jsondata->>'id')");
+    query.setVariable("intermediateExtensionTable", intermediateTable);
+    query.setQueryFragment("innerBaseQuery", build1LevelBaseQuery(extendedTable));
     return query;
   }
 
