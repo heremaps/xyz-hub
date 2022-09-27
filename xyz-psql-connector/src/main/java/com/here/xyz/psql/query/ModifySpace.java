@@ -31,13 +31,15 @@ import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.responses.XyzResponse;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.json.JSONObject;
 
-public class ModifySpace extends ExtendedSpace<ModifySpaceEvent> {
+public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, XyzResponse> {
 
     public static final String IDX_STATUS_TABLE = "xyz_config.xyz_idxs_status";
     private static final String SPACE_META_TABLE = "xyz_config.space_meta";
@@ -64,6 +66,11 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent> {
         else if (event.getOperation() == DELETE)
             return buildCleanUpQuery(event);
 
+        return null;
+    }
+
+    @Override
+    public XyzResponse handle(ResultSet rs) throws SQLException {
         return null;
     }
 
