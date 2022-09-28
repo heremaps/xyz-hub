@@ -858,11 +858,6 @@ public class SQLQueryBuilder {
         return new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)", (Object) idsToFetch);
     }
 
-    protected static SQLQuery generateLoadExistingIdsQuery(final String[] idsToFetch, final DataSource dataSource)
-        throws SQLException {
-      return new SQLQuery("SELECT jsondata->>'id' id FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)", (Object) idsToFetch);
-    }
-
     protected static SQLQuery generateIDXStatusQuery(final String space){
         return new SQLQuery("SELECT idx_available FROM "+ ModifySpace.IDX_STATUS_TABLE+" WHERE spaceid=? AND count >=?", space, BIG_SPACE_THRESHOLD);
     }

@@ -26,9 +26,7 @@ import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 
 public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {

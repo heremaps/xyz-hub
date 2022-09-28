@@ -23,7 +23,6 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
-import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.QueryEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;

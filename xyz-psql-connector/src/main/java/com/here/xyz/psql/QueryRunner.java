@@ -20,21 +20,19 @@
 package com.here.xyz.psql;
 
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.events.Event;
-import com.here.xyz.responses.XyzResponse;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import org.apache.commons.dbutils.ResultSetHandler;
 
 /**
- * This class provides the utility to run a single database query which is described by an XYZ {@link Event}
- * and which returns an {@link XyzResponse}.
+ * This class provides the utility to run a single database query which is described by an incoming object
+ * and which returns an some specified other object.
  * It has the internal capability to build & run the necessary {@link SQLQuery} and translate
- * the resulting {@link ResultSet} into an {@link XyzResponse}.
- * @param <E> The event type
- * @param <R> The response type
+ * the resulting {@link ResultSet} into the specified response object.
+ * @param <E> The incoming object type, describing the query
+ * @param <R> The outgoing object response type
  */
-public abstract class QueryRunner<E extends Event, R extends XyzResponse> implements ResultSetHandler<R> {
+public abstract class QueryRunner<E extends Object, R extends Object> implements ResultSetHandler<R> {
 
   protected static final String SCHEMA = "schema";
   protected static final String TABLE = "table";
@@ -43,9 +41,9 @@ public abstract class QueryRunner<E extends Event, R extends XyzResponse> implem
   private boolean useReadReplica;
   protected DatabaseHandler dbHandler;
 
-  public QueryRunner(E event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
+  public QueryRunner(E input, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     this.dbHandler = dbHandler;
-    query = buildQuery(event);
+    query = buildQuery(input);
   }
 
   public R run() throws SQLException {
@@ -64,7 +62,7 @@ public abstract class QueryRunner<E extends Event, R extends XyzResponse> implem
     query.replaceNamedParameters();
   }
 
-  protected abstract SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException;
+  protected abstract SQLQuery buildQuery(E input) throws SQLException, ErrorResponseException;
 
   @Override
   public abstract R handle(ResultSet rs) throws SQLException;
@@ -79,9 +77,5 @@ public abstract class QueryRunner<E extends Event, R extends XyzResponse> implem
 
   protected String getSchema() {
     return dbHandler.config.getDatabaseSettings().getSchema();
-  }
-
-  protected String getDefaultTable(E event) {
-    return dbHandler.config.readTableFromEvent(event);
   }
 }
