@@ -205,7 +205,7 @@ public class SpaceTaskHandler {
 
       /** extends is immutable and it is only allowed to set it during the space creation */
       if(spaceHead != null && spaceHead.getExtension() != null && task.modifyOp.entries.get(0).input.get("extends") != null
-          && ((DiffMap) Patcher.getDifference(spaceHead.asMap().get("extends"), task.modifyOp.entries.get(0).input.get("extends"))).isEmpty())
+          && Patcher.getDifference(spaceHead.asMap().get("extends"), task.modifyOp.entries.get(0).input.get("extends")) == null)
         task.modifyOp.entries.get(0).input.put("extension" , spaceHead.getExtension());
       else if(spaceHead != null && task.modifyOp.entries.get(0).input.get("extends") != null)
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'extension' can only be set on space creation!");
