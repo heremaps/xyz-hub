@@ -26,6 +26,7 @@ import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.QueryEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
@@ -66,8 +67,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
               + "    WHERE ${{filterWhereClause}} ${{orderBy}} ${{limit}} ${{offset}}");
     }
 
-    if (event instanceof QueryEvent)
-      query.setQueryFragment("selection", buildSelectionFragment((QueryEvent) event));
+    if (event instanceof SelectiveEvent)
+      query.setQueryFragment("selection", buildSelectionFragment((SelectiveEvent) event));
     else
       query.setQueryFragment("selection", "jsondata");
 
@@ -125,7 +126,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
     return dbHandler.defaultFeatureResultSetHandler(rs);
   }
 
-  protected static SQLQuery buildSelectionFragment(QueryEvent event) {
+  protected static SQLQuery buildSelectionFragment(SelectiveEvent event) {
     if (event.getSelection() == null || event.getSelection().size() == 0)
       return new SQLQuery("jsondata");
 

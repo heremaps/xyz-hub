@@ -19,38 +19,25 @@
 
 package com.here.xyz.events;
 
-public abstract class QueryEvent<T extends QueryEvent> extends SelectiveEvent<T> {
+import java.util.List;
 
-  private TagsQuery tags;
-  private PropertiesQuery propertiesQuery;
+public class SelectiveEvent<T extends ContextAwareEvent> extends ContextAwareEvent<T> {
 
-  public TagsQuery getTags() {
-    return this.tags;
-  }
-
-  public void setTags(TagsQuery tags) {
-    this.tags = tags;
-  }
+  private List<String> selection;
 
   @SuppressWarnings("unused")
-  public T withTags(TagsQuery tags) {
-    setTags(tags);
-    return (T)this;
-  }
-
-  @SuppressWarnings("unused")
-  public PropertiesQuery getPropertiesQuery() {
-    return this.propertiesQuery;
+  public List<String> getSelection() {
+    return this.selection;
   }
 
   @SuppressWarnings("WeakerAccess")
-  public void setPropertiesQuery(PropertiesQuery propertiesQuery) {
-    this.propertiesQuery = propertiesQuery;
+  public void setSelection(List<String> selection) {
+    this.selection = selection;
   }
 
   @SuppressWarnings("unused")
-  public T withPropertiesQuery(PropertiesQuery propertiesQuery) {
-    setPropertiesQuery(propertiesQuery);
+  public T withSelection(List<String> selection) {
+    setSelection(selection);
     return (T)this;
   }
 }
