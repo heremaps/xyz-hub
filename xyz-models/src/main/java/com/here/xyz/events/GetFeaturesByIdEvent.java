@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,10 +26,9 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "GetFeaturesByIdEvent")
 @SuppressWarnings({"WeakerAccess", "unused"})
-public final class GetFeaturesByIdEvent extends ContextAwareEvent<GetFeaturesByIdEvent> {
+public final class GetFeaturesByIdEvent extends SelectiveEvent<GetFeaturesByIdEvent> {
 
   private List<String> ids;
-  private List<String> selection;
   private boolean force2D;
 
   public List<String> getIds() {
@@ -42,19 +41,6 @@ public final class GetFeaturesByIdEvent extends ContextAwareEvent<GetFeaturesByI
 
   public GetFeaturesByIdEvent withIds(List<String> ids) {
     setIds(ids);
-    return this;
-  }
-
-  public List<String> getSelection() {
-    return this.selection;
-  }
-
-  public void setSelection(List<String> selection) {
-    this.selection = selection;
-  }
-
-  public GetFeaturesByIdEvent withSelection(List<String> selection) {
-    setSelection(selection);
     return this;
   }
 
