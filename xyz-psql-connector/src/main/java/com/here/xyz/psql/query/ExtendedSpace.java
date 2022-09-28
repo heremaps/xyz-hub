@@ -22,12 +22,11 @@ package com.here.xyz.psql.query;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
 import com.here.xyz.psql.DatabaseHandler;
-import com.here.xyz.psql.QueryRunner;
 import com.here.xyz.responses.XyzResponse;
 import java.sql.SQLException;
 import java.util.Map;
 
-public abstract class ExtendedSpace<E extends Event, R extends XyzResponse> extends QueryRunner<E, R> {
+public abstract class ExtendedSpace<E extends Event, R extends XyzResponse> extends XyzQueryRunner<E, R> {
 
   private static final String EXTENDS = "extends";
   private static final String SPACE_ID = "spaceId";
@@ -36,21 +35,21 @@ public abstract class ExtendedSpace<E extends Event, R extends XyzResponse> exte
     super(event, dbHandler);
   }
 
-  protected boolean isExtendedSpace(E event) {
+  protected static <E extends Event> boolean isExtendedSpace(E event) {
     return event.getParams() != null && event.getParams().containsKey(EXTENDS);
   }
 
-  protected boolean is2LevelExtendedSpace(E event) {
+  protected static <E extends Event> boolean is2LevelExtendedSpace(E event) {
     return isExtendedSpace(event) && ((Map<String, Object>) event.getParams().get(EXTENDS)).containsKey(EXTENDS);
   }
 
-  private String getFirstLevelExtendedTable(E event) {
+  private static <E extends Event> String getFirstLevelExtendedTable(E event, DatabaseHandler dbHandler) {
     if (isExtendedSpace(event))
       return dbHandler.getConfig().getTableNameForSpaceId((String) ((Map<String, Object>) event.getParams().get(EXTENDS)).get(SPACE_ID));
     return null;
   }
 
-  private String getSecondLevelExtendedTable(E event) {
+  private static <E extends Event> String getSecondLevelExtendedTable(E event, DatabaseHandler dbHandler) {
     if (is2LevelExtendedSpace(event)) {
       Map<String, Object> extSpec = (Map<String, Object>) event.getParams().get(EXTENDS);
       Map<String, Object> baseExtSpec = (Map<String, Object>) extSpec.get(EXTENDS);
@@ -59,17 +58,25 @@ public abstract class ExtendedSpace<E extends Event, R extends XyzResponse> exte
     return null;
   }
 
-  protected String getExtendedTable(E event) {
+  public static <E extends Event> String getExtendedTable(E event, DatabaseHandler dbHandler) {
     if (is2LevelExtendedSpace(event))
-      return getSecondLevelExtendedTable(event);
+      return getSecondLevelExtendedTable(event, dbHandler);
     else if (isExtendedSpace(event))
-      return getFirstLevelExtendedTable(event);
+      return getFirstLevelExtendedTable(event, dbHandler);
+    return null;
+  }
+
+  protected String getExtendedTable(E event) {
+    return getExtendedTable(event, dbHandler);
+  }
+
+  protected static <E extends Event> String getIntermediateTable(E event, DatabaseHandler dbHandler) {
+    if (is2LevelExtendedSpace(event))
+      return getFirstLevelExtendedTable(event, dbHandler);
     return null;
   }
 
   protected String getIntermediateTable(E event) {
-    if (is2LevelExtendedSpace(event))
-      return getFirstLevelExtendedTable(event);
-    return null;
+    return getIntermediateTable(event, dbHandler);
   }
 }

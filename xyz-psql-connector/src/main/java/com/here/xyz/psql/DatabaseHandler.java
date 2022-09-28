@@ -47,7 +47,10 @@ import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.config.DatabaseSettings;
 import com.here.xyz.psql.config.PSQLConfig;
+import com.here.xyz.psql.query.ExtendedSpace;
 import com.here.xyz.psql.query.ModifySpace;
+import com.here.xyz.psql.query.helpers.FetchExistingIds;
+import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
@@ -71,7 +74,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -473,16 +475,6 @@ public abstract class DatabaseHandler extends StorageConnector {
         return oldFeatures;
     }
 
-    /**
-     *
-     * @param idsToFetch Ids of objects which should get fetched
-     * @return List of Feature's id which could get fetched
-     * @throws Exception if any error occurred.
-     */
-    protected List<String> fetchExistingIds(String[] idsToFetch) throws Exception {
-      return executeQueryWithRetry(SQLQueryBuilder.generateLoadExistingIdsQuery(idsToFetch, dataSource), this::idsListResultSetHandler, true);
-    }
-
     protected XyzResponse executeModifyFeatures(ModifyFeaturesEvent event) throws Exception {
         final boolean includeOldStates = event.getParams() != null && event.getParams().get(INCLUDE_OLD_STATES) == Boolean.TRUE;
         final boolean handleUUID = event.getEnableUUID() == Boolean.TRUE;
@@ -500,21 +492,27 @@ public abstract class DatabaseHandler extends StorageConnector {
         List<Feature> upserts = Optional.ofNullable(event.getUpsertFeatures()).orElse(new ArrayList<>());
         Map<String, String> deletes = Optional.ofNullable(event.getDeleteFeatures()).orElse(new HashMap<>());
         List<FeatureCollection.ModificationFailure> fails = Optional.ofNullable(event.getFailed()).orElse(new ArrayList<>());
-        boolean forExtendedSpace = isForExtendedSpace(event);
+        boolean forExtendingSpace = isForExtendingSpace(event);
 
+        List<String> originalUpdates = updates.stream().map(f -> f.getId()).collect(Collectors.toList());
+        List<String> originalDeletes = new ArrayList<>(deletes.keySet());
         //Handle deletes / updates on extended spaces
-        if (forExtendedSpace && event.getContext() == DEFAULT) {
-            if (deletes.size() > 0) {
-                //Transform the incoming deletes into upserts with deleted flag
-                for (String featureId : deletes.keySet()) {
-                    upserts.add(new Feature()
-                        .withId(featureId)
-                        .withProperties(new Properties().withXyzNamespace(new XyzNamespace().withDeleted(true))));
+        if (forExtendingSpace && event.getContext() == DEFAULT) {
+            if (!deletes.isEmpty()) {
+                //Transform the incoming deletes into upserts with deleted flag for features which don't exist in the extended layer (base)
+                List<String> existingIdsInBase = new FetchExistingIds(
+                    new FetchIdsInput(ExtendedSpace.getExtendedTable(event, this), originalDeletes), this).run();
 
+                for (String featureId : originalDeletes) {
+                    if (existingIdsInBase.contains(featureId)) {
+                        upserts.add(new Feature()
+                            .withId(featureId)
+                            .withProperties(new Properties().withXyzNamespace(new XyzNamespace().withDeleted(true))));
+                        deletes.remove(featureId);
+                    }
                 }
-                deletes = Collections.emptyMap();
             }
-            if (updates.size() > 0) {
+            if (!updates.isEmpty()) {
                 //Transform the incoming updates into upserts, because we don't know whether the object is existing in the extension already
                 upserts.addAll(updates);
                 updates.clear();
@@ -533,8 +531,9 @@ public abstract class DatabaseHandler extends StorageConnector {
 
           /** Include Upserts */
           if (!upserts.isEmpty()) {
-            String[] upsertIds = upserts.stream().map(Feature::getId).filter(Objects::nonNull).toArray(String[]::new);
-            List<String> existingIds = fetchExistingIds(upsertIds);
+            List<String> upsertIds = upserts.stream().map(Feature::getId).filter(Objects::nonNull).collect(Collectors.toList());
+            List<String> existingIds = new FetchExistingIds(new FetchIdsInput(config.readTableFromEvent(event),
+                upsertIds), this).run();
             upserts.forEach(f -> (existingIds.contains(f.getId()) ? updates : inserts).add(f));
           }
 
@@ -566,10 +565,10 @@ public abstract class DatabaseHandler extends StorageConnector {
                     DatabaseWriter.deleteFeatures(this, schema, table, traceItem, fails, deletes, connection, transactional, handleUUID, version);
                 }
                 if (inserts.size() > 0) {
-                    DatabaseWriter.insertFeatures(this, schema, table, traceItem, collection, fails, inserts, connection, transactional, version, forExtendedSpace);
+                    DatabaseWriter.insertFeatures(this, schema, table, traceItem, collection, fails, inserts, connection, transactional, version, forExtendingSpace);
                 }
                 if (updates.size() > 0) {
-                    DatabaseWriter.updateFeatures(this, schema, table, traceItem, collection, fails, updates, connection, transactional, handleUUID, version, forExtendedSpace);
+                    DatabaseWriter.updateFeatures(this, schema, table, traceItem, collection, fails, updates, connection, transactional, handleUUID, version, forExtendingSpace);
                 }
 
                 if (transactional) {
@@ -651,16 +650,15 @@ public abstract class DatabaseHandler extends StorageConnector {
                 }
             }
 
-            /*
-            FIXME: In case of an edit on an extending space for a feature which was existing in the extended (base) space already,
-            ... the feature object must be put into the "updated" list rather than to the "inserted" list.
-            Same is true for deletions, in that case the features should go the "deleted" list.
-             */
             /** filter out failed ids */
-            final List<String> failedIds = fails.stream().map(FeatureCollection.ModificationFailure::getId).filter(Objects::nonNull).collect(Collectors.toList());
-            final List<String> insertIds = inserts.stream().map(Feature::getId).filter(x -> !failedIds.contains(x)).collect(Collectors.toList());
-            final List<String> updateIds = updates.stream().map(Feature::getId).filter(x -> !failedIds.contains(x)).collect(Collectors.toList());
-            final List<String> deleteIds = deletes.keySet().stream().filter(x -> !failedIds.contains(x)).collect(Collectors.toList());
+            final List<String> failedIds = fails.stream().map(FeatureCollection.ModificationFailure::getId)
+                .filter(Objects::nonNull).collect(Collectors.toList());
+            final List<String> insertIds = inserts.stream().map(Feature::getId)
+                .filter(x -> !failedIds.contains(x) && !originalUpdates.contains(x) && !originalDeletes.contains(x)).collect(Collectors.toList());
+            final List<String> updateIds = originalUpdates.stream()
+                .filter(x -> !failedIds.contains(x) && !originalDeletes.contains(x)).collect(Collectors.toList());
+            final List<String> deleteIds = originalDeletes.stream()
+                .filter(x -> !failedIds.contains(x)).collect(Collectors.toList());
 
             collection.setFailed(fails);
 
@@ -789,7 +787,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private static void advisoryUnlock(String tablename, Connection connection ) throws SQLException { _advisory(tablename,connection,false); }
 
-    private static boolean isForExtendedSpace(Event event) {
+    private static boolean isForExtendingSpace(Event event) {
         return event.getParams() != null && event.getParams().containsKey("extends");
     }
 
@@ -808,7 +806,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                   connection.setAutoCommit(false);
 
                 try (Statement stmt = connection.createStatement()) {
-                    createSpaceStatement(stmt, tableName, isForExtendedSpace(event));
+                    createSpaceStatement(stmt, tableName, isForExtendingSpace(event));
 
                     stmt.setQueryTimeout(calculateTimeout());
                     stmt.executeBatch();
@@ -1289,23 +1287,6 @@ public abstract class DatabaseHandler extends StorageConnector {
         final FeatureCollection featureCollection = new FeatureCollection();
         featureCollection._setFeatures(sb.toString());
         return featureCollection;
-    }
-
-    /**
-     * handler for list of feature's id results.
-     *
-     * @param rs the result set.
-     * @return the generated feature collection from the result set.
-     * @throws SQLException when any unexpected error happened.
-     */
-    protected List<String> idsListResultSetHandler(ResultSet rs) throws SQLException {
-      final ArrayList<String> result = new ArrayList<>();
-
-      while (rs.next()) {
-        result.add(rs.getString("id"));
-      }
-
-      return result;
     }
 
     /**

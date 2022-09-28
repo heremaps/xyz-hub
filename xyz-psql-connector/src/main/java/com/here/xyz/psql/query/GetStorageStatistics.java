@@ -38,7 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class GetStorageStatistics extends QueryRunner<GetStorageStatisticsEvent, StorageStatistics> {
+public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEvent, StorageStatistics> {
 
   private static final String TABLE_NAME = "table_name";
   private static final String TABLE_BYTES = "table_bytes";
