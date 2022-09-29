@@ -41,16 +41,14 @@ public class CreateSpaceWithExtensionApiIT extends TestSpaceWithFeature {
 
   @BeforeClass
   public static void setupClass() {
-    removeSpace("x-psql-test");
-    removeSpace("x-psql-test-extensible");
+    removeAllSpaces();
     createSpaceWithCustomStorage("x-psql-test-extensible", "psql", null);
     createSpace();
   }
 
   @AfterClass
   public static void tearDownClass() {
-    removeSpace("x-psql-test");
-    removeSpace("x-psql-test-extensible");
+    removeAllSpaces();
   }
 
   @Before
@@ -61,6 +59,13 @@ public class CreateSpaceWithExtensionApiIT extends TestSpaceWithFeature {
     for (String cleanUpId : cleanUpIds) {
       removeSpace(cleanUpId);
     }
+  }
+
+  public static void removeAllSpaces() {
+    removeSpace("x-psql-test");
+    removeSpace("x-psql-test-extensible");
+    removeSpace("x-psql-extends");
+    removeSpace("x-psql-third-extends");
   }
 
   @Test // should pass
@@ -199,16 +204,17 @@ public class CreateSpaceWithExtensionApiIT extends TestSpaceWithFeature {
         .statusCode(BAD_REQUEST.code());
   }
 
-//  @Test // should fail
+  @Test // should fail
   public void createSpaceWithExtensionAndStorage() {
     given()
         .contentType(APPLICATION_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body("{\"id\": \"x-psql-extends\", \"title\": \"x-psql-extends\", \"extends\":{\"spaceId\":\"x-psql-test\"}, \"storage\":{\"id\": \"psql\", \"params\":{\"foo\": \"bar\"}}}")
         .when()
         .post("/spaces")
         .then()
-        .statusCode(BAD_REQUEST.code());
+        .statusCode(BAD_REQUEST.code())
+        .body("errorMessage", equalTo("Validation failed. The properties 'storage' and 'extends' cannot be set together."));
   }
 
   @Test // should fail
