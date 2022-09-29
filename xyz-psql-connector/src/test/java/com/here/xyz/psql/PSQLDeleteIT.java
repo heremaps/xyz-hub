@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ import com.amazonaws.util.IOUtils;
 import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.After;
-import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -39,25 +38,22 @@ public class PSQLDeleteIT extends PSQLAbstractIT {
     @BeforeClass
     public static void init() throws Exception { initEnv(null); }
 
-    @Before
-    public void removeTestSpaces() throws Exception { deleteTestSpace(null); }
-
     @After
-    public void shutdown() throws Exception { shutdownEnv(null); }
+    public void shutdown() throws Exception { invokeDeleteTestSpace(null); }
 
     @Test
     public void testDeleteFeatures() throws Exception {
         // =========== INSERT ==========
         String insertJsonFile = "/events/InsertFeaturesEvent.json";
         String insertResponse = invokeLambdaFromFile(insertJsonFile);
-        logger.info("RAW RESPONSE: " + insertResponse);
+        LOGGER.info("RAW RESPONSE: " + insertResponse);
 
-        String insertRequest = IOUtils.toString(GSContext.class.getResourceAsStream(insertJsonFile));
+        String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
         assertRead(insertRequest, insertResponse, false);
 
         final JsonPath jsonPathFeatureIds = JsonPath.compile("$.features..id");
         List<String> ids = jsonPathFeatureIds.read(insertResponse, jsonPathConf);
-        logger.info("Preparation: Inserted features {}", ids);
+        LOGGER.info("Preparation: Inserted features {}", ids);
 
         // =========== DELETE ==========
         final DocumentContext modifyFeaturesEventDoc = getEventFromResource("/events/InsertFeaturesEvent.json");
@@ -70,7 +66,7 @@ public class PSQLDeleteIT extends PSQLAbstractIT {
         String deleteEvent = modifyFeaturesEventDoc.jsonString();
         String deleteResponse = invokeLambda(deleteEvent);
         assertNoErrorInResponse(deleteResponse);
-        logger.info("Modify features tested successfully");
+        LOGGER.info("Modify features tested successfully");
     }
 
     @Test
@@ -83,22 +79,22 @@ public class PSQLDeleteIT extends PSQLAbstractIT {
         testDeleteFeaturesByTag(false);
     }
 
-    private void testDeleteFeaturesByTag(boolean includeOldStates) throws Exception {
+    protected void testDeleteFeaturesByTag(boolean includeOldStates) throws Exception {
         // =========== INSERT ==========
         String insertJsonFile = "/events/InsertFeaturesEvent.json";
         String insertResponse = invokeLambdaFromFile(insertJsonFile);
-        logger.info("RAW RESPONSE: " + insertResponse);
-        String insertRequest = IOUtils.toString(GSContext.class.getResourceAsStream(insertJsonFile));
+        LOGGER.info("RAW RESPONSE: " + insertResponse);
+        String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
         assertRead(insertRequest, insertResponse, false);
-        logger.info("Preparation: Insert features");
+        LOGGER.info("Preparation: Insert features");
 
         // =========== COUNT ==========
         String countResponse = invokeLambdaFromFile("/events/CountFeaturesEvent.json");
         Integer originalCount = JsonPath.read(countResponse, "$.count");
-        logger.info("Preparation: feature count = {}", originalCount);
+        LOGGER.info("Preparation: feature count = {}", originalCount);
 
         // =========== DELETE SOME TAGGED FEATURES ==========
-        logger.info("Delete tagged features");
+        LOGGER.info("Delete tagged features");
         final DocumentContext deleteByTagEventDoc = getEventFromResource("/events/DeleteFeaturesByTagEvent.json");
         deleteByTagEventDoc.put("$", "params", Collections.singletonMap("includeOldStates", includeOldStates));
         String[][] tags = {{"yellow"}};
@@ -118,7 +114,7 @@ public class PSQLDeleteIT extends PSQLAbstractIT {
         countResponse = invokeLambdaFromFile("/events/CountFeaturesEvent.json");
         Integer count = JsonPath.read(countResponse, "$.count");
         assertTrue(originalCount > count);
-        logger.info("Delete tagged features tested successfully");
+        LOGGER.info("Delete tagged features tested successfully");
 
         // =========== DELETE ALL FEATURES ==========
         deleteByTagEventDoc.put("$", "tags", null);
@@ -133,6 +129,6 @@ public class PSQLDeleteIT extends PSQLAbstractIT {
         countResponse = invokeLambdaFromFile("/events/CountFeaturesEvent.json");
         count = JsonPath.read(countResponse, "$.count");
         assertEquals(0, count.intValue());
-        logger.info("Delete all features tested successfully");
+        LOGGER.info("Delete all features tested successfully");
     }
 }

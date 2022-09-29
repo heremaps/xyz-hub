@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,12 +49,12 @@ public class PSQLResponseSizeIT extends PSQLAbstractIT {
 
   @Before
   public void prepare() throws Exception {
-    deleteTestSpace(connectorParams);
+    invokeDeleteTestSpace(connectorParams);
     invokeLambdaFromFile("/events/InsertFeaturesEventTransactional.json");
   }
 
   @After
-  public void shutdown() throws Exception { shutdownEnv(connectorParams); }
+  public void shutdown() throws Exception { invokeDeleteTestSpace(connectorParams); }
 
   @Test
   public void testMaxConnectorResponseSize() throws Exception {

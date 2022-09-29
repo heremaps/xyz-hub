@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.psql.config.ConnectorParameters;
+import com.here.xyz.psql.tools.FeatureGenerator;
 import com.here.xyz.util.Hasher;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -35,25 +36,24 @@ import java.util.*;
 import java.util.stream.Collectors;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.junit.After;
-import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 @SuppressWarnings("unused")
 public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
 
-  static Map<String, Object> connectorParams = new HashMap<String,Object>(){
-    {put(ConnectorParameters.CONNECTOR_ID, "test-connector"); put(ConnectorParameters.ENABLE_HASHED_SPACEID, true); put(ConnectorParameters.AUTO_INDEXING, true);}};
-
+  protected static Map<String, Object> connectorParams = new HashMap<String,Object>(){
+        {   put(ConnectorParameters.CONNECTOR_ID, "test-connector");
+            put(ConnectorParameters.ENABLE_HASHED_SPACEID, true);
+            put(ConnectorParameters.AUTO_INDEXING, true);
+        }
+  };
 
   @BeforeClass
   public static void init() throws Exception { initEnv(connectorParams); }
 
-  @Before
-  public void removeTestSpaces() throws Exception { deleteTestSpace(connectorParams); }
-
   @After
-  public void shutdown() throws Exception { shutdownEnv(connectorParams); }
+  public void shutdown() throws Exception { invokeDeleteTestSpace(connectorParams); }
 
   @Test
   public void testTableCreation() throws Exception {
@@ -62,7 +62,7 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
     final XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
 
     final List<Feature> features = new ArrayList<Feature>(){{
-      add(generateFeature(xyzNamespace, null));
+      add(FeatureGenerator.generateFeature(xyzNamespace, null));
     }};
 
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent()
@@ -74,9 +74,9 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
 
     /** Needed to trigger update on pg_stat */
     try (
-        final Connection connection = lambda.dataSource.getConnection();
-        final Statement stmt = connection.createStatement();
-        final ResultSet rs = stmt.executeQuery("SELECT table_name FROM information_schema.tables WHERE table_name='" + hashedSpaceId + "'");
+            final Connection connection = LAMBDA.dataSource.getConnection();
+            final Statement stmt = connection.createStatement();
+            final ResultSet rs = stmt.executeQuery("SELECT table_name FROM information_schema.tables WHERE table_name='" + hashedSpaceId + "'");
     ) {
       assertTrue(rs.next());
       assertEquals(hashedSpaceId, rs.getString("table_name"));
@@ -88,7 +88,7 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
     final String spaceId = "foo";
     final String hashedSpaceId = Hasher.getHash(spaceId);
 
-    final List<Feature> features = get11kFeatureCollection().getFeatures();
+    final List<Feature> features = FeatureGenerator.get11kFeatureCollection().getFeatures();
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent()
             .withSpace(spaceId)
             .withConnectorParams(connectorParams)
@@ -98,7 +98,7 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
     invokeLambda(mfevent.serialize());
 
     /** Needed to trigger update on pg_stat */
-    try (final Connection connection = lambda.dataSource.getConnection()) {
+    try (final Connection connection = LAMBDA.dataSource.getConnection()) {
       Statement stmt = connection.createStatement();
       stmt.execute("DELETE FROM xyz_config.xyz_idxs_status WHERE spaceid='" + hashedSpaceId + "';");
       stmt.execute("ANALYZE \"" + hashedSpaceId + "\";");
@@ -107,7 +107,7 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
     //Triggers dbMaintenance
     invokeLambdaFromFile("/events/HealthCheckWithEnableHashedSpaceIdEvent.json");
 
-    try (final Connection connection = lambda.dataSource.getConnection()) {
+    try (final Connection connection = LAMBDA.dataSource.getConnection()) {
       Statement stmt = connection.createStatement();
       // check for the index status
       try (ResultSet rs = stmt.executeQuery("SELECT * FROM xyz_config.xyz_idxs_status where spaceid = '" + hashedSpaceId + "';")) {

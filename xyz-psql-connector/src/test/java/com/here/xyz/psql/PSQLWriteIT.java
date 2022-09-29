@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,14 +24,16 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.After;
-import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.Assert.*;
 
@@ -40,11 +42,8 @@ public class PSQLWriteIT extends PSQLAbstractIT {
     @BeforeClass
     public static void init() throws Exception { initEnv(null); }
 
-    @Before
-    public void removeTestSpaces() throws Exception { deleteTestSpace(null); }
-
     @After
-    public void shutdown() throws Exception { shutdownEnv(null); }
+    public void shutdown() throws Exception { invokeDeleteTestSpace(null); }
 
     @Test
     public void testTableCreated() throws Exception {
@@ -59,10 +58,10 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         // =========== UPSERT ==========
         String jsonFile = "/events/UpsertFeaturesEvent.json";
         String response = invokeLambdaFromFile(jsonFile);
-        logger.info("RAW RESPONSE: " + response);
-        String request = IOUtils.toString(GSContext.class.getResourceAsStream(jsonFile));
+        LOGGER.info("RAW RESPONSE: " + response);
+        String request = IOUtils.toString(this.getClass().getResourceAsStream(jsonFile));
         assertRead(request, response, false);
-        logger.info("Upsert feature tested successfully");
+        LOGGER.info("Upsert feature tested successfully");
     }
 
     @Test
@@ -70,9 +69,9 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         // =========== INSERT ==========
         String insertJsonFile = "/events/InsertFeaturesEventWithHash.json";
         String insertResponse = invokeLambdaFromFile(insertJsonFile);
-        String insertRequest = IOUtils.toString(GSContext.class.getResourceAsStream(insertJsonFile));
+        String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
         assertRead(insertRequest, insertResponse, true);
-        logger.info("Insert feature tested successfully");
+        LOGGER.info("Insert feature tested successfully");
 
         // =========== UPDATE ==========
         FeatureCollection featureCollection = XyzSerializable.deserialize(insertResponse);
@@ -94,7 +93,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
 
         assertUpdate(updateRequest, updateResponse, true);
         assertUpdate(updateRequest, updateResponse, true);
-        logger.info("Update feature tested successfully");
+        LOGGER.info("Update feature tested successfully");
     }
 
     @Test
@@ -102,9 +101,9 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         // =========== INSERT ==========
         String insertJsonFile = "/events/InsertFeaturesEventTransactional.json";
         String insertResponse = invokeLambdaFromFile(insertJsonFile);
-        String insertRequest = IOUtils.toString(GSContext.class.getResourceAsStream(insertJsonFile));
+        String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
         assertRead(insertRequest, insertResponse, true);
-        logger.info("Insert feature tested successfully");
+        LOGGER.info("Insert feature tested successfully");
 
         // =========== UPDATE ==========
         FeatureCollection featureCollection = XyzSerializable.deserialize(insertResponse);
@@ -120,7 +119,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         String updateResponse = invokeLambda(mfevent.serialize());
 
         assertUpdate(mfevent.serialize(), updateResponse, true);
-        logger.info("Update feature tested successfully");
+        LOGGER.info("Update feature tested successfully");
 
         // =========== LoadFeaturesEvent ==========
         String loadFeaturesEvent = "/events/LoadFeaturesEvent.json";
@@ -152,25 +151,25 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         // =========== INSERT ==========
         String insertJsonFile = "/events/InsertFeaturesEvent.json";
         String insertResponse = invokeLambdaFromFile(insertJsonFile);
-        logger.info("RAW RESPONSE: " + insertResponse);
-        String insertRequest = IOUtils.toString(GSContext.class.getResourceAsStream(insertJsonFile));
+        LOGGER.info("RAW RESPONSE: " + insertResponse);
+        String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
         assertRead(insertRequest, insertResponse, false);
-        logger.info("Insert feature tested successfully");
+        LOGGER.info("Insert feature tested successfully");
 
         // =========== COUNT ==========
         String countResponse = invokeLambdaFromFile("/events/CountFeaturesEvent.json");
         assertCount(insertRequest, countResponse);
-        logger.info("Count feature tested successfully");
+        LOGGER.info("Count feature tested successfully");
 
         // =========== SEARCH ==========
         String searchResponse = invokeLambdaFromFile("/events/SearchForFeaturesEvent.json");
         assertRead(insertRequest, searchResponse, false);
-        logger.info("Search feature tested successfully");
+        LOGGER.info("Search feature tested successfully");
 
         // =========== SEARCH WITH PROPERTIES ========
         String searchPropertiesResponse = invokeLambdaFromFile("/events/SearchForFeaturesByPropertiesEvent.json");
         assertRead(insertRequest, searchPropertiesResponse, false);
-        logger.info("Search Properties feature tested successfully");
+        LOGGER.info("Search Properties feature tested successfully");
 
         // =========== UPDATE ==========
         FeatureCollection featureCollection = XyzSerializable.deserialize(insertResponse);
@@ -186,11 +185,11 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         String updateResponse = invokeLambda(updateRequest);
 
         assertUpdate(updateRequest, updateResponse, false);
-        logger.info("Update feature tested successfully");
+        LOGGER.info("Update feature tested successfully");
 
         // =========== DELETE FEATURES ==========
         invokeLambdaFromFile("/events/DeleteFeaturesByTagEvent.json");
-        logger.info("Delete feature tested successfully");
+        LOGGER.info("Delete feature tested successfully");
     }
 
     @Test
@@ -199,10 +198,10 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         // =========== INSERT ==========
         String insertJsonFile = "/events/InsertNullGeometry.json";
         String insertResponse = invokeLambdaFromFile(insertJsonFile);
-        logger.info("RAW RESPONSE: " + insertResponse);
-        String insertRequest = IOUtils.toString(GSContext.class.getResourceAsStream(insertJsonFile));
+        LOGGER.info("RAW RESPONSE: " + insertResponse);
+        String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
         assertRead(insertRequest, insertResponse, false);
-        logger.info("Preparation: Insert features");
+        LOGGER.info("Preparation: Insert features");
 
         // =========== Validate that "geometry":null is serialized ==========
         String response = invokeLambdaFromFile("/events/GetFeaturesByIdEvent.json");
@@ -217,5 +216,107 @@ public class PSQLWriteIT extends PSQLAbstractIT {
     @Test
     public void testModifyFeaturesWithOldStates() throws Exception {
         testModifyFeatures(true);
+    }
+
+    protected void assertUpdate(String updateRequest, String response, boolean checkGuid) throws Exception {
+        ModifyFeaturesEvent gsModifyFeaturesEvent = XyzSerializable.deserialize(updateRequest);
+        FeatureCollection featureCollection = XyzSerializable.deserialize(response);
+        for (int i = 0; i < gsModifyFeaturesEvent.getUpdateFeatures().size(); i++) {
+            Feature expectedFeature = gsModifyFeaturesEvent.getUpdateFeatures().get(i);
+            Feature actualFeature = featureCollection.getFeatures().get(i);
+            assertTrue("Check geometry", jsonCompare(expectedFeature.getGeometry(), actualFeature.getGeometry()));
+            assertEquals("Check name", (String) expectedFeature.getProperties().get("name"), actualFeature.getProperties().get("name"));
+            assertNotNull("Check id", actualFeature.getId());
+
+            assertTrue("Check tags", jsonCompare(expectedFeature.getProperties().getXyzNamespace().getTags(),
+                    actualFeature.getProperties().getXyzNamespace().getTags()));
+            assertEquals("Check space", gsModifyFeaturesEvent.getSpace(), actualFeature.getProperties().getXyzNamespace().getSpace());
+            assertNotEquals("Check createdAt", 0L, actualFeature.getProperties().getXyzNamespace().getCreatedAt());
+            assertNotEquals("Check updatedAt", 0L, actualFeature.getProperties().getXyzNamespace().getUpdatedAt());
+            if (checkGuid) {
+                assertNotNull("Check uuid", actualFeature.getProperties().getXyzNamespace().getUuid()); // After version 0.2.0
+                assertNotNull("Check uuid", actualFeature.getProperties().getXyzNamespace().getUuid());
+            } else {
+                assertNull("Check parent", actualFeature.getProperties().getXyzNamespace().getPuuid());
+                assertNull("Check uuid", actualFeature.getProperties().getXyzNamespace().getUuid());
+            }
+        }
+    }
+
+    protected void assertCount(String insertRequest, String countResponse) {
+        if (!JsonPath.<Boolean>read(countResponse, "$.estimated")) {
+            assertEquals("Check inserted feature count vs fetched count", JsonPath.read(insertRequest, "$.insertFeatures.length()").toString(),
+                    JsonPath.read(countResponse, "$.count").toString());
+        }
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    protected void testModifyFeatures(boolean includeOldStates) throws Exception {
+        // =========== INSERT ==========
+        String insertJsonFile = "/events/InsertFeaturesEvent.json";
+        String insertResponse = invokeLambdaFromFile(insertJsonFile);
+        LOGGER.info("RAW RESPONSE: " + insertResponse);
+        String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
+        assertRead(insertRequest, insertResponse, false);
+        final JsonPath jsonPathFeatures = JsonPath.compile("$.features");
+        List<Map> originalFeatures = jsonPathFeatures.read(insertResponse, jsonPathConf);
+
+        final JsonPath jsonPathFeatureIds = JsonPath.compile("$.features..id");
+        List<String> ids = jsonPathFeatureIds.read(insertResponse, jsonPathConf);
+        LOGGER.info("Preparation: Inserted features {}", ids);
+
+        // =========== UPDATE ==========
+        LOGGER.info("Modify features");
+        final DocumentContext updateFeaturesEventDoc = getEventFromResource("/events/InsertFeaturesEvent.json");
+        updateFeaturesEventDoc.put("$", "params", Collections.singletonMap("includeOldStates", includeOldStates));
+
+        List<Map> updateFeatures = jsonPathFeatures.read(insertResponse, jsonPathConf);
+        updateFeaturesEventDoc.delete("$.insertFeatures");
+        updateFeatures.forEach((Map feature) -> {
+            final Map<String, Object> properties = (Map<String, Object>) feature.get("properties");
+            properties.put("test", "updated");
+        });
+        updateFeaturesEventDoc.put("$", "updateFeatures", updateFeatures);
+
+        String updateFeaturesEvent = updateFeaturesEventDoc.jsonString();
+        String updateFeaturesResponse = invokeLambda(updateFeaturesEvent);
+        assertNoErrorInResponse(updateFeaturesResponse);
+
+        List features = jsonPathFeatures.read(updateFeaturesResponse, jsonPathConf);
+        assertNotNull("'features' element in ModifyFeaturesResponse is missing", features);
+        assertTrue("'features' element in ModifyFeaturesResponse is empty", features.size() > 0);
+
+        final JsonPath jsonPathOldFeatures = JsonPath.compile("$.oldFeatures");
+        List oldFeatures = jsonPathOldFeatures.read(updateFeaturesResponse, jsonPathConf);
+        if (includeOldStates) {
+            assertNotNull("'oldFeatures' element in ModifyFeaturesResponse is missing", oldFeatures);
+            assertTrue("'oldFeatures' element in ModifyFeaturesResponse is empty", oldFeatures.size() > 0);
+            assertEquals(oldFeatures, originalFeatures);
+        } else if (oldFeatures != null) {
+            assertEquals("unexpected oldFeatures in ModifyFeaturesResponse", 0, oldFeatures.size());
+        }
+
+        // =========== DELETE ==========
+        final DocumentContext modifyFeaturesEventDoc = getEventFromResource("/events/InsertFeaturesEvent.json");
+        modifyFeaturesEventDoc.put("$", "params", Collections.singletonMap("includeOldStates", includeOldStates));
+        modifyFeaturesEventDoc.delete("$.insertFeatures");
+
+        Map<String, String> idsMap = new HashMap<>();
+        ids.forEach(id -> idsMap.put(id, null));
+        modifyFeaturesEventDoc.put("$", "deleteFeatures", idsMap);
+
+        String deleteEvent = modifyFeaturesEventDoc.jsonString();
+        String deleteResponse = invokeLambda(deleteEvent);
+        assertNoErrorInResponse(deleteResponse);
+        oldFeatures = jsonPathOldFeatures.read(deleteResponse, jsonPathConf);
+        if (includeOldStates) {
+            assertNotNull("'oldFeatures' element in ModifyFeaturesResponse is missing", oldFeatures);
+            assertTrue("'oldFeatures' element in ModifyFeaturesResponse is empty", oldFeatures.size() > 0);
+            assertEquals(oldFeatures, features);
+        } else if (oldFeatures != null) {
+            assertEquals("unexpected oldFeatures in ModifyFeaturesResponse", 0, oldFeatures.size());
+        }
+
+        LOGGER.info("Modify features tested successfully");
     }
 }

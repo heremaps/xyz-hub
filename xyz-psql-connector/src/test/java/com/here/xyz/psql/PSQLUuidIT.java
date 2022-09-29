@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,14 +29,10 @@ import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import org.junit.After;
-import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.*;
@@ -46,11 +42,8 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     @BeforeClass
     public static void init() throws Exception { initEnv(null); }
 
-    @Before
-    public void removeTestSpaces() throws Exception { deleteTestSpace(null); }
-
     @After
-    public void shutdown() throws Exception { shutdownEnv(null); }
+    public void shutdown() throws Exception { invokeDeleteTestSpace(null); }
 
     @Test
     public void testStreamUUIDCases() throws Exception {
@@ -59,9 +52,9 @@ public class PSQLUuidIT extends PSQLAbstractIT {
         // =========== INSERT ==========
         String insertJsonFile = "/events/InsertFeaturesEventTransactional.json";
         String insertResponse = invokeLambdaFromFile(insertJsonFile);
-        String insertRequest = IOUtils.toString(GSContext.class.getResourceAsStream(insertJsonFile));
+        String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
         assertRead(insertRequest, insertResponse, true);
-        logger.info("Insert feature tested successfully");
+        LOGGER.info("Insert feature tested successfully");
 
         // =========== UPDATE With wrong UUID ==========
         FeatureCollection featureCollection = XyzSerializable.deserialize(insertResponse);
@@ -201,9 +194,9 @@ public class PSQLUuidIT extends PSQLAbstractIT {
         // =========== INSERT ==========
         String insertJsonFile = "/events/InsertFeaturesEventTransactional.json";
         String insertResponse = invokeLambdaFromFile(insertJsonFile);
-        String insertRequest = IOUtils.toString(GSContext.class.getResourceAsStream(insertJsonFile));
+        String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
         assertRead(insertRequest, insertResponse, true);
-        logger.info("Insert feature tested successfully");
+        LOGGER.info("Insert feature tested successfully");
 
         // =========== UPDATE With wrong UUID ==========
         FeatureCollection featureCollection = XyzSerializable.deserialize(insertResponse);
@@ -327,5 +320,121 @@ public class PSQLUuidIT extends PSQLAbstractIT {
         searchResponse = invokeLambda(eventJson);
         responseCollection = XyzSerializable.deserialize(searchResponse);
         assertEquals(0, responseCollection.getFeatures().size());
+    }
+
+    protected void testModifyFeatureFailures(boolean withUUID) throws Exception {
+        // =========== INSERT ==========
+        String insertJsonFile = withUUID ? "/events/InsertFeaturesEventTransactional.json" : "/events/InsertFeaturesEvent.json";
+        final String insertResponse = invokeLambdaFromFile(insertJsonFile);
+        final String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
+        final FeatureCollection insertRequestCollection = XyzSerializable.deserialize(insertResponse);
+        assertRead(insertRequest, insertResponse, withUUID);
+        LOGGER.info("Insert feature tested successfully");
+
+        // =========== DELETE NOT EXISTING FEATURE ==========
+        //Stream
+        ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent()
+                .withConnectorParams(defaultTestConnectorParams)
+                .withSpace("foo")
+                .withTransaction(false)
+                .withDeleteFeatures(Collections.singletonMap("doesnotexist", null));
+        if(withUUID)
+            mfevent.setEnableUUID(true);
+
+        String response = invokeLambda(mfevent.serialize());
+        FeatureCollection responseCollection = XyzSerializable.deserialize(response);
+        assertEquals("doesnotexist", responseCollection.getFailed().get(0).getId());
+        assertEquals(0,responseCollection.getFeatures().size());
+        assertNull(responseCollection.getUpdated());
+        assertNull(responseCollection.getInserted());
+        assertNull(responseCollection.getDeleted());
+
+        if(withUUID)
+            assertEquals(DatabaseWriter.DELETE_ERROR_UUID, responseCollection.getFailed().get(0).getMessage());
+        else
+            assertEquals(DatabaseWriter.DELETE_ERROR_NOT_EXISTS, responseCollection.getFailed().get(0).getMessage());
+
+        //Transactional
+        mfevent.setTransaction(true);
+        response = invokeLambda(mfevent.serialize());
+
+        // Transaction should have failed
+        ErrorResponse errorResponse = XyzSerializable.deserialize(response);
+        assertEquals(XyzError.CONFLICT, errorResponse.getError());
+        ArrayList failedList = ((ArrayList)errorResponse.getErrorDetails().get("FailedList"));
+        assertEquals(1, failedList.size());
+
+        HashMap<String,String> failure1 = ((HashMap<String,String>)failedList.get(0));
+        assertEquals("doesnotexist", failure1.get("id"));
+
+        if(withUUID)
+            assertEquals(DatabaseWriter.DELETE_ERROR_UUID, failure1.get("message"));
+        else
+            assertEquals(DatabaseWriter.DELETE_ERROR_NOT_EXISTS, failure1.get("message"));
+
+        // =========== INSERT EXISTING FEATURE ==========
+        //Stream
+        Feature existing = insertRequestCollection.getFeatures().get(0);
+        existing.getProperties().getXyzNamespace().setPuuid(existing.getProperties().getXyzNamespace().getUuid());
+
+        mfevent.setInsertFeatures(new ArrayList<Feature>(){{add(existing);}});
+        mfevent.setDeleteFeatures(new HashMap<>());
+        mfevent.setTransaction(false);
+        response = invokeLambda(mfevent.serialize());
+        responseCollection = XyzSerializable.deserialize(response);
+        assertEquals(existing.getId(), responseCollection.getFailed().get(0).getId());
+        assertEquals(DatabaseWriter.INSERT_ERROR_GENERAL, responseCollection.getFailed().get(0).getMessage());
+        assertEquals(0,responseCollection.getFeatures().size());
+        assertNull(responseCollection.getUpdated());
+        assertNull(responseCollection.getInserted());
+        assertNull(responseCollection.getDeleted());
+
+        //Transactional
+        mfevent.setTransaction(true);
+        response = invokeLambda(mfevent.serialize());
+
+        errorResponse = XyzSerializable.deserialize(response);
+        assertEquals(XyzError.CONFLICT, errorResponse.getError());
+        failedList = ((ArrayList)errorResponse.getErrorDetails().get("FailedList"));
+        assertEquals(0, failedList.size());
+        assertEquals(DatabaseWriter.TRANSACTION_ERROR_GENERAL, errorResponse.getErrorMessage());
+
+        // =========== UPDATE NOT EXISTING FEATURE ==========
+        //Stream
+        //Change ID to not existing one
+        existing.setId("doesnotexist");
+        mfevent.setInsertFeatures(new ArrayList<>());
+        mfevent.setUpdateFeatures(new ArrayList<Feature>(){{add(existing);}});
+        mfevent.setTransaction(false);
+
+        response = invokeLambda(mfevent.serialize());
+        responseCollection = XyzSerializable.deserialize(response);
+        assertEquals(existing.getId(), responseCollection.getFailed().get(0).getId());
+        assertEquals(0,responseCollection.getFeatures().size());
+        assertNull(responseCollection.getUpdated());
+        assertNull(responseCollection.getInserted());
+        assertNull(responseCollection.getDeleted());
+
+        if(withUUID)
+            assertEquals(DatabaseWriter.UPDATE_ERROR_UUID, responseCollection.getFailed().get(0).getMessage());
+        else
+            assertEquals(DatabaseWriter.UPDATE_ERROR_NOT_EXISTS, responseCollection.getFailed().get(0).getMessage());
+
+        //Transactional
+        mfevent.setTransaction(true);
+        response = invokeLambda(mfevent.serialize());
+
+        errorResponse = XyzSerializable.deserialize(response);
+        assertEquals(XyzError.CONFLICT, errorResponse.getError());
+        failedList = ((ArrayList)errorResponse.getErrorDetails().get("FailedList"));
+        assertEquals(1, failedList.size());
+
+        failure1 = ((HashMap<String,String>)failedList.get(0));
+        assertEquals("doesnotexist", failure1.get("id"));
+
+        if(withUUID)
+            assertEquals(DatabaseWriter.UPDATE_ERROR_UUID, failure1.get("message"));
+        else
+            assertEquals(DatabaseWriter.UPDATE_ERROR_NOT_EXISTS, failure1.get("message"));
     }
 }
