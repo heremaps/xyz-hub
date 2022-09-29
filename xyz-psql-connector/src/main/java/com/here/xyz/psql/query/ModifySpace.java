@@ -115,7 +115,9 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, XyzResponse> {
         Space spaceDefinition = event.getSpaceDefinition();
         Map<String, Boolean> searchableProperties = spaceDefinition.getSearchableProperties();
         List<List<Object>> sortableProperties = spaceDefinition.getSortableProperties();
-        Boolean enableAutoIndexing = spaceDefinition.isEnableAutoSearchableProperties() == Boolean.TRUE && !isExtendedSpace(event);
+        Boolean enableAutoIndexing = spaceDefinition.isEnableAutoSearchableProperties();
+        //Disable Autoindexing for spaces which are extending another space.
+        enableAutoIndexing = (isExtendedSpace(event) ? Boolean.FALSE : enableAutoIndexing);
 
         String idx_manual_json;
         SQLQuery q = new SQLQuery("${{upsertIDX}} ${{updateReferencedTables}}");
