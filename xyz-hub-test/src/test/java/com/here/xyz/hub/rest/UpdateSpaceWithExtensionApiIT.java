@@ -72,6 +72,16 @@ public class UpdateSpaceWithExtensionApiIT extends TestSpaceWithFeature {
         .body("extends.spaceId", equalTo("x-psql-test"))
         .body("title", equalTo("x-psql-test-extension-new-title"))
         .body("description", equalTo("a test space which extends x-psql-test"));
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .get("/spaces/x-psql-test-extension")
+        .then()
+        .statusCode(OK.code())
+        .body("id", equalTo("x-psql-test-extension"))
+        .body("title", equalTo("x-psql-test-extension-new-title"))
+        .body("extends.spaceId", equalTo("x-psql-test"));
   }
 
   @Test
