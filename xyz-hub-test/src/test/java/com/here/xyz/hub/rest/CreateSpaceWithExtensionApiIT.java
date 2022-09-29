@@ -79,8 +79,16 @@ public class CreateSpaceWithExtensionApiIT extends TestSpaceWithFeature {
         .then()
         .statusCode(OK.code())
         .body("extends.spaceId", equalTo("x-psql-test-extensible"));
-
     cleanUpIds.add(response.extract().path("id"));
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .get("/spaces/x-psql-extending-test")
+        .then()
+        .statusCode(OK.code())
+        .body("id", equalTo("x-psql-extending-test"))
+        .body("extends.spaceId", equalTo("x-psql-test-extensible"));
   }
 
   @Test // should pass

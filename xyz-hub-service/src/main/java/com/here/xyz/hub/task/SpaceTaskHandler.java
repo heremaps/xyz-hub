@@ -165,7 +165,7 @@ public class SpaceTaskHandler {
   }
 
   public static void validate(ConditionalOperation task, Callback<ConditionalOperation> callback) throws Exception {
-    if (task.isDelete()) {
+    if (task.isDelete() || task.isRead()) {
       callback.call(task);
       return;
     }
@@ -252,17 +252,21 @@ public class SpaceTaskHandler {
     }
 
     if (task.modifyOp.entries.get(0).result.getExtension() != null) {
-      Object storageResult = task.modifyOp.entries.get(0).result.asMap().get("storage");
       // in case of create, the storage must be not set from the user (or set exactly as if the storage property in space template)
-      Object storageInput = getSpaceTemplate(null, null).asMap().get("storage");
-
       // in case of update, the property storage is checked for modification against the head value
-      if (task.isUpdate()) {
-        storageInput = task.modifyOp.entries.get(0).head.asMap().get("storage");
-      }
+      Space inputSpace = task.isUpdate() ? task.modifyOp.entries.get(0).head : getSpaceTemplate(null, null);
+      Space resultSpace = task.modifyOp.entries.get(0).result;
+
+      // normalize params in case of null, so the diff calculator considers: null params == empty params
+      // normalization is necessary because params from head or result are always a map, unless the user specifies params: null and params from space template is null
+      if (inputSpace.getStorage().getParams() == null)
+        inputSpace.getStorage().setParams(new HashMap<>());
+
+      if (resultSpace.getStorage().getParams() == null)
+        resultSpace.getStorage().setParams(new HashMap<>());
 
       // if there is any modification, means the user tried to submit 'storage' and 'extends' properties together
-      if (Patcher.getDifference(storageResult, storageInput) != null) {
+      if (Patcher.getDifference(resultSpace.asMap().get("storage"), inputSpace.asMap().get("storage")) != null) {
         throw new HttpException(BAD_REQUEST, "Validation failed. The properties 'storage' and 'extends' cannot be set together.");
       }
     }
