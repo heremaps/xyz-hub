@@ -251,8 +251,21 @@ public class SpaceTaskHandler {
       throw new HttpException(BAD_REQUEST, "Validation failed. The properties 'searchableProperties' and 'extends' cannot be set together.");
     }
 
-    //if (task.modifyOp.entries.get(0).result.getExtension() != null && task.modifyOp.entries.get(0).input.get("storage") != null)
-      //throw new HttpException(BAD_REQUEST, "Validation failed. The properties 'storage' and 'extends' cannot be set together.");
+    if (task.modifyOp.entries.get(0).result.getExtension() != null) {
+      Object storageResult = task.modifyOp.entries.get(0).result.asMap().get("storage");
+      // in case of create, the storage must be not set from the user (or set exactly as if the storage property in space template)
+      Object storageInput = getSpaceTemplate(null, null).asMap().get("storage");
+
+      // in case of update, the property storage is checked for modification against the head value
+      if (task.isUpdate()) {
+        storageInput = task.modifyOp.entries.get(0).head.asMap().get("storage");
+      }
+
+      // if there is any modification, means the user tried to submit 'storage' and 'extends' properties together
+      if (Patcher.getDifference(storageResult, storageInput) != null) {
+        throw new HttpException(BAD_REQUEST, "Validation failed. The properties 'storage' and 'extends' cannot be set together.");
+      }
+    }
 
     if ((space.getSearchableProperties() != null && !space.getSearchableProperties().isEmpty()) || space.getExtension() != null) {
       Space.resolveConnector(task.getMarker(), space.getStorage().getId(), arConnector -> {
