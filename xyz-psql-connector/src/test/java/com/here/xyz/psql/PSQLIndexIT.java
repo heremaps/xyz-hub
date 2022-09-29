@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,14 +24,11 @@ import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.config.ConnectorParameters;
-import com.here.xyz.responses.ErrorResponse;
-import com.here.xyz.responses.StatisticsResponse;
-import com.here.xyz.responses.SuccessResponse;
-import com.here.xyz.responses.XyzError;
+import com.here.xyz.psql.tools.FeatureGenerator;
+import com.here.xyz.responses.*;
 import com.here.xyz.util.DhString;
 
 import org.junit.After;
-import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -49,16 +46,17 @@ import static org.junit.Assert.assertEquals;
 public class PSQLIndexIT extends PSQLAbstractIT {
 
     static Map<String, Object> connectorParams = new HashMap<String,Object>(){
-        {put(ConnectorParameters.CONNECTOR_ID, "test-connector");put(ConnectorParameters.AUTO_INDEXING, true);put(ConnectorParameters.PROPERTY_SEARCH, true);}};
+        {   put(ConnectorParameters.CONNECTOR_ID, "test-connector");
+            put(ConnectorParameters.AUTO_INDEXING, true);
+            put(ConnectorParameters.PROPERTY_SEARCH, true);
+        }
+    };
 
     @BeforeClass
     public static void init() throws Exception { initEnv(connectorParams); }
 
-    @Before
-    public void removeTestSpaces() throws Exception { deleteTestSpace(connectorParams); }
-
     @After
-    public void shutdown() throws Exception { shutdownEnv(connectorParams); }
+    public void shutdown() throws Exception { invokeDeleteTestSpace(connectorParams); }
 
     @Test
     public void testOnDemandIdxLimit() throws Exception {
@@ -117,7 +115,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
         response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
         assertEquals("OK",response.getStatus());
 
-        try (final Connection connection = lambda.dataSource.getConnection()) {
+        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
             /** Default System Indices */
             List<String> systemIndices = new ArrayList<String>(){{
                 add("createdAt");
@@ -174,7 +172,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
         SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
         assertEquals("OK",response.getStatus());
 
-        try (final Connection connection = lambda.dataSource.getConnection()) {
+        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
             /** Default System Indices */
             List<String> systemIndices = new ArrayList<String>(){{
                 add("createdAt");
@@ -253,7 +251,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
         SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
         assertEquals("OK",response.getStatus());
 
-        try (final Connection connection = lambda.dataSource.getConnection()) {
+        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
             Statement stmt = connection.createStatement();
             stmt.execute("select xyz_maintain_idxs_for_space('public', 'foo');");
 
@@ -310,13 +308,13 @@ public class PSQLIndexIT extends PSQLAbstractIT {
         ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent()
                 .withSpace("foo")
                 .withTransaction(true)
-                .withInsertFeatures(get11kFeatureCollection().getFeatures())
+                .withInsertFeatures(FeatureGenerator.get11kFeatureCollection().getFeatures())
                 .withConnectorParams(connectorParams);
 
         invokeLambda(mfevent.serialize());
 
         /** Needed to trigger update on pg_stat */
-        try (final Connection connection = lambda.dataSource.getConnection()) {
+        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
             Statement stmt = connection.createStatement();
             stmt.execute("DELETE FROM xyz_config.xyz_idxs_status WHERE spaceid='foo';");
             stmt.execute("ANALYZE \"foo\";");

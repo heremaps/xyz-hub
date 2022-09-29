@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ public class PSQLXyzConnectorIT extends PSQLAbstractIT {
     HealthCheckEvent event = new HealthCheckEvent()
         .withConnectorParams(connectorParams);
 
-    PSQLConfig config = new PSQLConfig(event, GSContext.newLocal(), new TraceItem("test-stream-id","testing"));
+    PSQLConfig config = new PSQLConfig(event, GS_CONTEXT, new TraceItem("test-stream-id","testing"));
     assertEquals(config.getDatabaseSettings().getHost(), "example.com");
     assertEquals(config.getDatabaseSettings().getPort(), 1234);
     assertEquals(config.getDatabaseSettings().getPassword(), "1234password");

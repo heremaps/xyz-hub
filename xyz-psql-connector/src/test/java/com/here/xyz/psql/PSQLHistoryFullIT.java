@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ import com.here.xyz.models.geojson.implementation.*;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.config.ConnectorParameters;
 import org.junit.After;
-import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -44,16 +43,17 @@ import static org.junit.Assert.assertTrue;
 public class PSQLHistoryFullIT extends PSQLAbstractIT {
 
     static Map<String, Object> connectorParams = new HashMap<String,Object>(){
-        {put(ConnectorParameters.CONNECTOR_ID, "test-connector");put(ConnectorParameters.COMPACT_HISTORY, false);put(ConnectorParameters.PROPERTY_SEARCH, true);}};
+        {   put(ConnectorParameters.CONNECTOR_ID, "test-connector");
+            put(ConnectorParameters.COMPACT_HISTORY, false);
+            put(ConnectorParameters.PROPERTY_SEARCH, true);
+        }
+    };
 
     @BeforeClass
     public static void init() throws Exception { initEnv(connectorParams); }
 
-    @Before
-    public void removeTestSpaces() throws Exception { deleteTestSpace(connectorParams); }
-
     @After
-    public void shutdown() throws Exception { shutdownEnv(connectorParams); }
+    public void shutdown() throws Exception { invokeDeleteTestSpace(connectorParams); }
 
     @Test
     public void testFullHistoryTableWriting() throws Exception {
@@ -109,7 +109,7 @@ public class PSQLHistoryFullIT extends PSQLAbstractIT {
         setPUUID(collection);
         invokeLambda(mfevent.serialize());
 
-        try (final Connection connection = lambda.dataSource.getConnection()) {
+        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
             Statement stmt = connection.createStatement();
             String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'foo', jsondata->'properties'->'@ns:com:here:xyz'->'deleted' desc";
 
@@ -151,7 +151,7 @@ public class PSQLHistoryFullIT extends PSQLAbstractIT {
 
         invokeLambda(mse.serialize());
 
-        try (final Connection connection = lambda.dataSource.getConnection()) {
+        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
             Statement stmt = connection.createStatement();
             String sql = "SELECT pg_get_triggerdef(oid) as trigger_def " +
                     "FROM pg_trigger " +

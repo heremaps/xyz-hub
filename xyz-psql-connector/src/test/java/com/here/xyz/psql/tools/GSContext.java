@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.psql;
+package com.here.xyz.psql.tools;
 
 import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import com.here.xyz.connectors.SimulatedContext;
