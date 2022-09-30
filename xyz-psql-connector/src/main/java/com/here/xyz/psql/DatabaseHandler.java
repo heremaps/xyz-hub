@@ -225,10 +225,6 @@ public abstract class DatabaseHandler extends StorageConnector {
         this.readDataSource = dbInstanceMap.get(connectorId).getReadDataSource();
         this.dbMaintainer = dbInstanceMap.get(connectorId).getDatabaseMaintainer();
 
-        if (event.getPreferPrimaryDataSource() != null && event.getPreferPrimaryDataSource() == Boolean.TRUE) {
-            this.readDataSource = this.dataSource;
-        }
-
         String table = config.readTableFromEvent(event);
         String hstTable = table+HISTORY_TABLE_SUFFIX;
 
