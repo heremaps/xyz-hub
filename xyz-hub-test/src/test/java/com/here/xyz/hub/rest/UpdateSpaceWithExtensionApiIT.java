@@ -33,16 +33,16 @@ public class UpdateSpaceWithExtensionApiIT extends TestSpaceWithFeature {
 
   @BeforeClass
   public static void setupClass() {
-    removeSpace("x-psql-test");
     removeSpace("x-psql-test-extension");
+    removeSpace("x-psql-test");
     createSpace();
     createSpaceWithExtension();
   }
 
   @AfterClass
   public static void tearDownClass() {
-    removeSpace("x-psql-test");
     removeSpace("x-psql-test-extension");
+    removeSpace("x-psql-test");
   }
 
   private static void createSpaceWithExtension() {
