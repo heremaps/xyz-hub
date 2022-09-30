@@ -83,6 +83,10 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
   @JsonIgnore
   private Map<ConnectorType, Map<String, List<ResolvableListenerConnectorRef>>> resolvedConnectorRefs;
 
+  public static Future<Space> resolveSpace(Marker marker, String spaceId) {
+    return Service.spaceConfigClient.get(marker, spaceId);
+  }
+
   public static Future<Connector> resolveConnector(Marker marker, String connectorId) {
     Promise<Connector> p = Promise.promise();
     resolveConnector(marker, connectorId, p);
@@ -289,5 +293,14 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
     } catch (Exception e) {
       return Collections.emptyMap();
     }
+  }
+
+  /**
+   * Used for logging purposes.
+   * @return
+   */
+  @Override
+  public String toString() {
+    return Json.encode(this);
   }
 }

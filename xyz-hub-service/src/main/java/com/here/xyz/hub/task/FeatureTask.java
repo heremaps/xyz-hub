@@ -25,6 +25,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERR
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
 import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
@@ -80,6 +81,11 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
    * The space for this operation.
    */
   public Space space;
+
+  /**
+   * The spaces being extended by {@link #space} (if existing).
+   */
+  public List<Space> extendedSpaces;
 
   /**
    * The storage connector to be used for this operation.
@@ -144,13 +150,15 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
     try {
       //noinspection UnstableApiUsage
-      cacheKey = Hashing.murmur3_128().newHasher()
+      Hasher hasher = Hashing.murmur3_128().newHasher()
           .putString(getEvent().getCacheString(), Charset.defaultCharset())
           .putString(responseType.toString(), Charset.defaultCharset())
-          .putLong(space.contentUpdatedAt)
-          .hash()
-          .toString();
-      return cacheKey;
+          .putLong(space.contentUpdatedAt);
+
+      if (space.getExtension() != null)
+        extendedSpaces.forEach(extendedSpace -> hasher.putLong(extendedSpace.getContentUpdatedAt()));
+
+      return cacheKey = hasher.hash().toString();
     } catch (JsonProcessingException e) {
       return null;
     }

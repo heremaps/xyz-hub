@@ -79,6 +79,12 @@ public class TTLTestsIT extends TestWithSpaceCleanup {
         .then()
         .extract().body().path("features[0].id");
 
+    try {
+      //Wait 1s to give the asynchronous cache-write some time.
+      Thread.sleep(1_000);
+    }
+    catch (InterruptedException e) {}
+
     String id_cached = given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(APPLICATION_JSON)
