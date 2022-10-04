@@ -63,7 +63,7 @@ import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.responses.changesets.CompactChangeset;
-import com.here.xyz.util.DhString;
+import com.here.xyz.psql.tools.DhString;
 import com.mchange.v2.c3p0.AbstractConnectionCustomizer;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
 import com.mchange.v2.c3p0.PooledDataSource;

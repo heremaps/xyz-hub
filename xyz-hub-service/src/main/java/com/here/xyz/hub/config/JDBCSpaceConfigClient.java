@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,12 +22,10 @@ package com.here.xyz.hub.config;
 import static com.here.xyz.hub.config.JDBCConfig.SPACE_TABLE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.psql.SQLQuery;
-import com.here.xyz.util.DhString;
-
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -82,7 +80,7 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
   @Override
   public Future<Space> getSpace(Marker marker, String spaceId) {
     Promise<Space> p = Promise.promise();
-    SQLQuery query = new SQLQuery(DhString.format("SELECT config FROM %s WHERE id = ?", SPACE_TABLE), spaceId);
+    SQLQuery query = new SQLQuery("SELECT config FROM " + SPACE_TABLE + " WHERE id = ?", spaceId);
     client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
         Optional<String> config = out.result().getRows().stream().map(r -> r.getString("config")).findFirst();
@@ -103,10 +101,9 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
   protected Future<Void> storeSpace(Marker marker, Space space) {
     SQLQuery query = null;
     try {
-      query = new SQLQuery(DhString.format(
-          "INSERT INTO %s(id, owner, cid, config) VALUES (?, ?, ?, cast(? as JSONB)) ON CONFLICT (id) DO UPDATE SET owner = excluded.owner, cid = excluded.cid, config = excluded.config",
-          SPACE_TABLE), space.getId(), space.getOwner(), space.getCid(),
-          XyzSerializable.STATIC_MAPPER.get().writeValueAsString(space));
+      query = new SQLQuery(
+          "INSERT INTO " + SPACE_TABLE + " (id, owner, cid, config) VALUES (?, ?, ?, cast(? as JSONB)) ON CONFLICT (id) DO UPDATE SET owner = excluded.owner, cid = excluded.cid, config = excluded.config",
+          space.getId(), space.getOwner(), space.getCid(), XyzSerializable.STATIC_MAPPER.get().writeValueAsString(space));
       return updateWithParams(space, query).mapEmpty();
     }
     catch (JsonProcessingException e) {
@@ -116,7 +113,7 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
 
   @Override
   protected Future<Space> deleteSpace(Marker marker, String spaceId) {
-    SQLQuery query = new SQLQuery(DhString.format("DELETE FROM %s WHERE id = ?", SPACE_TABLE), spaceId);
+    SQLQuery query = new SQLQuery("DELETE FROM " + SPACE_TABLE + " WHERE id = ?", spaceId);
     return get(marker, spaceId).compose(space -> updateWithParams(space, query).map(space));
   }
 
@@ -125,7 +122,7 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
       SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery) {
     //BUILD THE QUERY
     List<String> whereConjunctions = new ArrayList<>();
-    String baseQuery = DhString.format("SELECT config FROM %s", SPACE_TABLE);
+    String baseQuery = "SELECT config FROM " + SPACE_TABLE;
     List<String> authorizationWhereClauses = generateWhereClausesFor(authorizedCondition);
     if (!authorizationWhereClauses.isEmpty()) {
       authorizationWhereClauses.add("config->'shared' = 'true'");

@@ -39,7 +39,7 @@ import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.config.PSQLConfig.AESGCMHelper;
 import com.here.xyz.responses.XyzError;
-import com.here.xyz.util.DhString;
+import com.here.xyz.psql.tools.DhString;
 import java.security.GeneralSecurityException;
 import java.sql.ResultSet;
 import java.sql.SQLException;

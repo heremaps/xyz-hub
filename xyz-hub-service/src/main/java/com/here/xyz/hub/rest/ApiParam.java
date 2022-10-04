@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,8 +26,6 @@ import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.events.TagsQuery;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;
-import com.here.xyz.util.DhString;
-
 import io.vertx.ext.web.RoutingContext;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
@@ -476,42 +474,42 @@ public class ApiParam {
     }
 
     private static void validateAdditionalParams(String type, String key, Object value) throws  Exception{
-      if(type.equals(CLUSTERING)){
-        switch (key){
-
+      if (type.equals(CLUSTERING)) {
+        String invalidKeyMessage = "Invalid clustering. " + key + " value. ";
+        switch (key) {
           case CLUSTERING_PARAM_RESOLUTION_ABSOLUTE:
           case CLUSTERING_PARAM_RESOLUTION_RELATIVE:
           case CLUSTERING_PARAM_RESOLUTION:
-            if(!(value instanceof Long))
-              throw new Exception(DhString.format("Invalid clustering.%s value. Expect Integer.",key));
+            if (!(value instanceof Long))
+              throw new Exception(invalidKeyMessage + "Expect Integer.");
 
-            if( CLUSTERING_PARAM_RESOLUTION_RELATIVE.equals(key) && ((long)value < -2 || (long)value > 4))
-             throw new Exception(DhString.format("Invalid clustering.%s value. Expect Integer hexbin:[-2,2], quadbin:[0-4].",key));
+            if (CLUSTERING_PARAM_RESOLUTION_RELATIVE.equals(key) && ((long)value < -2 || (long)value > 4))
+             throw new Exception(invalidKeyMessage + "Expect Integer hexbin:[-2,2], quadbin:[0-4].");
 
-            if(!CLUSTERING_PARAM_RESOLUTION_RELATIVE.equals(key) && ((long)value < 0 || (long)value > 18))
-              throw new Exception(DhString.format("Invalid clustering.%s value. Expect Integer hexbin:[0,13], quadbin:[0,18].",key));
+            if (!CLUSTERING_PARAM_RESOLUTION_RELATIVE.equals(key) && ((long)value < 0 || (long)value > 18))
+              throw new Exception(invalidKeyMessage + "Expect Integer hexbin:[0,13], quadbin:[0,18].");
             break;
 
           case CLUSTERING_PARAM_PROPERTY:
             if(!(value instanceof String))
-              throw new Exception(DhString.format("Invalid clustering.%s value. Expect String.",key));
+              throw new Exception(invalidKeyMessage + "Expect String.");
             break;
 
           case CLUSTERING_PARAM_POINTMODE:
           case CLUSTERING_PARAM_SINGLECOORD:
           case CLUSTERING_PARAM_NOBUFFER:
           if(!(value instanceof Boolean))
-              throw new Exception(DhString.format("Invalid clustering.%s value. Expect true or false.",key));
+              throw new Exception(invalidKeyMessage + "Expect true or false.");
             break;
 
           case CLUSTERING_PARAM_COUNTMODE:
             if(!(value instanceof String))
-              throw new Exception(DhString.format("Invalid clustering.%s value. Expect one of [real,estimated,mixed].",key));
+              throw new Exception(invalidKeyMessage + "Expect one of [real,estimated,mixed].");
             break;
 
           case CLUSTERING_PARAM_SAMPLING:
             if(!(value instanceof String))
-              throw new Exception(DhString.format("Invalid clustering.%s value. Expect one of [low,lowmed,med,medhigh,high].",key));
+              throw new Exception(invalidKeyMessage + "Expect one of [low,lowmed,med,medhigh,high].");
             break;
 
           default: throw new Exception("Invalid Clustering Parameter! Expect one of ["
@@ -550,7 +548,7 @@ public class ApiParam {
 
          case TWEAKS_PARAM_SAMPLINGTHRESHOLD : // testing, parameter evaluation
           if(!(value instanceof Long) || ((long) value < 10) || ((long) value > 100) )
-           throw new Exception(DhString.format("Invalid tweaks.%s. Expect Integer [10,100].",key));
+           throw new Exception("Invalid tweaks. " + key + ". Expect Integer [10,100].");
           break;
 
          default:

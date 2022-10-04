@@ -61,7 +61,7 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
-import com.here.xyz.util.DhString;
+import com.here.xyz.psql.tools.DhString;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Collection;
