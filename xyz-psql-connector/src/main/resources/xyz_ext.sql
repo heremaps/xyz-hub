@@ -3221,12 +3221,14 @@ DECLARE
     output LOAD_FEATURE_VERSION_INPUT[];
     item LOAD_FEATURE_VERSION_INPUT;
 BEGIN
-    FOR i IN 1 .. array_upper(ids, 1)
-        LOOP
-            item := ROW(ids[i], versions[i]);
-            SELECT array_append(output, item) into output;
+    IF coalesce(array_length(ids, 1),0) > 0 THEN
+        FOR i IN 1 .. array_upper(ids, 1)
+            LOOP
+                item := ROW(ids[i], versions[i]);
+                SELECT array_append(output, item) into output;
 
-        END LOOP;
+            END LOOP;
+    END IF;
     RETURN output;
 END
 $BODY$
@@ -3237,13 +3239,18 @@ CREATE OR REPLACE FUNCTION transform_load_features_input(ids TEXT[])
     RETURNS LOAD_FEATURE_VERSION_INPUT[] AS
 $BODY$
 DECLARE
+    output LOAD_FEATURE_VERSION_INPUT[];
     versions BIGINT[];
 BEGIN
-    FOR i IN 1 .. array_upper(ids, 1)
-    LOOP
-        versions := array_append(versions, max_bigint());
-    END LOOP;
-    RETURN transform_load_features_input(ids, versions);
+    IF array_length(ids, 1) IS NULL THEN
+        RETURN output;
+    ELSE
+        FOR i IN 1 .. array_upper(ids, 1)
+        LOOP
+            versions := array_append(versions, max_bigint());
+        END LOOP;
+        RETURN transform_load_features_input(ids, versions);
+    END IF;
 END
 $BODY$
 LANGUAGE plpgsql VOLATILE;
