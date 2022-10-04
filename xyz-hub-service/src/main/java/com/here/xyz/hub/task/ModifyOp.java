@@ -230,10 +230,12 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
     public boolean isModified;
     public Exception exception;
     public String inputUUID;
+    public long inputVersion;
     private Map<String, Object> resultMap;
 
     public Entry(Map<String, Object> input, IfNotExists ifNotExists, IfExists ifExists, ConflictResolution cr) {
       this.inputUUID = getUuid(input);
+      this.inputVersion = getVersion(input);
       this.input = filterMetadata(input);
       this.cr = cr;
       this.ifExists = ifExists;
@@ -259,6 +261,8 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
     protected abstract String getUuid(T record);
 
     protected abstract String getUuid(Map<String, Object> record);
+
+    protected abstract long getVersion(Map<String, Object> record);
 
     public T patch() throws ModifyOpError, HttpException {
       final Map<String, Object> computedInput = toMap(base);

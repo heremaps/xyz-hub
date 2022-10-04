@@ -1291,6 +1291,9 @@ public class FeatureTaskHandler {
       }
     }
 
+    // version
+    nsXyz.setVersion(entry.inputVersion);
+
     // author
     nsXyz.setAuthor(task.author);
   }
@@ -1614,7 +1617,8 @@ public class FeatureTaskHandler {
     final HashMap<String, String> idsMap = new HashMap<>();
     for (FeatureEntry entry : task.modifyOp.entries) {
       if (entry.input.get("id") instanceof String) {
-        idsMap.put((String) entry.input.get("id"), useVersion ? String.valueOf(entry.inputVersion) : entry.inputUUID);
+        String version = entry.inputVersion == -1 ? null : String.valueOf(entry.inputVersion);
+        idsMap.put((String) entry.input.get("id"), useVersion ? version : entry.inputUUID);
       }
     }
     if (idsMap.size() == 0) {
@@ -1628,7 +1632,8 @@ public class FeatureTaskHandler {
         .withContext(task.getEvent().getContext())
         .withEnableGlobalVersioning(task.space.isEnableGlobalVersioning())
         .withEnableHistory(task.space.isEnableHistory())
-        .withIdsMap(idsMap);
+        .withIdsMap(idsMap)
+        .withVersionsToKeep(task.space.getVersionsToKeep());
 
     task.loadFeaturesEvent = event;
     return event;
@@ -1669,17 +1674,26 @@ public class FeatureTaskHandler {
           throw new IllegalStateException("Received a feature with missing space namespace properties for object '" + feature.getId() + "'");
         }
 
-        String uuid = feature.getProperties().getXyzNamespace().getUuid();
+        if (task.getEvent().getVersionsToKeep() > 1) {
+          long version = feature.getProperties().getXyzNamespace().getVersion();
+          long requestedVersion = requestedUuid == null ? -1 : Long.parseLong(requestedUuid);
+          if (task.modifyOp.entries.get(position).head == null || version != -1 && version != requestedVersion)
+            task.modifyOp.entries.get(position).head = feature;
+          if (task.modifyOp.entries.get(position).base == null || version != -1 && version == requestedVersion && task.getEvent().getEnableUUID())
+            task.modifyOp.entries.get(position).base = feature;
+        }
+        else {
+          String uuid = feature.getProperties().getXyzNamespace().getUuid();
+          //Set the head state( i.e. the latest version in the database )
+          if (task.modifyOp.entries.get(position).head == null || uuid != null && !uuid.equals(requestedUuid))
+            task.modifyOp.entries.get(position).head = feature;
 
-        //Set the head state( i.e. the latest version in the database )
-        if (task.modifyOp.entries.get(position).head == null || uuid != null && !uuid.equals(requestedUuid))
-          task.modifyOp.entries.get(position).head = feature;
-
-        //Set the base state( i.e. the original version that the user was editing )
-        //Note: The base state must not be empty. If the connector doesn't support history and doesn't return the base state, use the
-        //head state instead.
-        if (task.modifyOp.entries.get(position).base == null || uuid != null && uuid.equals(requestedUuid))
-          task.modifyOp.entries.get(position).base = feature;
+          //Set the base state( i.e. the original version that the user was editing )
+          //Note: The base state must not be empty. If the connector doesn't support history and doesn't return the base state, use the
+          //head state instead.
+          if (task.modifyOp.entries.get(position).base == null || uuid != null && uuid.equals(requestedUuid))
+            task.modifyOp.entries.get(position).base = feature;
+        }
       }
 
       callback.call(task);

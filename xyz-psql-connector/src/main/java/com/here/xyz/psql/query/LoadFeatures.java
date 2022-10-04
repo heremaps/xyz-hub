@@ -51,9 +51,8 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
       Map<String, String> idsWithVersions = new HashMap<>();
 
       idMap.forEach((k,v) -> {
-        if (v == null)
-          idsOnly.add(k);
-        else
+        idsOnly.add(k);
+        if (v != null)
           idsWithVersions.put(k, v);
       });
 

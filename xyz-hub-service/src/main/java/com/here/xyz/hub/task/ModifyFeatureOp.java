@@ -100,12 +100,8 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
   }
 
   public static class FeatureEntry extends ModifyOp.Entry<Feature> {
-
-    public int inputVersion;
-
     public FeatureEntry(Map<String, Object> input, IfNotExists ifNotExists, IfExists ifExists, ConflictResolution cr) {
       super(input, ifNotExists, ifExists, cr);
-      inputVersion = getVersion(input);
     }
 
     @Override
@@ -141,6 +137,16 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
     }
 
     @Override
+    protected long getVersion(Map<String, Object> feature) {
+      try {
+        return new JsonObject(feature).getJsonObject(PROPERTIES).getJsonObject(XyzNamespace.XYZ_NAMESPACE).getLong(VERSION, -1L);
+      }
+      catch (Exception e) {
+        return -1;
+      }
+    }
+
+    @Override
     protected String getUuid(Feature input) {
       try {
         return input.getProperties().getXyzNamespace().getUuid();
@@ -172,15 +178,6 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
                     .put(VERSION, true)
                     .put(AUTHOR, true))
         ).mapTo(Map.class);
-
-    private int getVersion(Map<String, Object> input) {
-      try {
-        return new JsonObject(input).getJsonObject(PROPERTIES).getJsonObject(XyzNamespace.XYZ_NAMESPACE).getInteger(VERSION, 0);
-      }
-      catch (Exception e) {
-        return -1;
-      }
-    }
   }
 
   /**
