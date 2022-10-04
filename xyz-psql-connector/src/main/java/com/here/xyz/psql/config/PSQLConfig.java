@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import com.here.xyz.connectors.SimulatedContext;
 import com.here.xyz.events.Event;
 import com.here.xyz.psql.DatabaseMaintainer;
 import com.here.xyz.util.Hasher;
-import com.here.xyz.util.DhString;
+import com.here.xyz.psql.tools.DhString;
 
 import java.security.GeneralSecurityException;
 import java.util.Arrays;

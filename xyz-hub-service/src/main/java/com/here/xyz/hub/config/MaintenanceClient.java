@@ -18,6 +18,14 @@
  */
 package com.here.xyz.hub.config;
 
+import static com.here.xyz.psql.config.DatabaseSettings.PSQL_DB;
+import static com.here.xyz.psql.config.DatabaseSettings.PSQL_HOST;
+import static com.here.xyz.psql.config.DatabaseSettings.PSQL_PASSWORD;
+import static com.here.xyz.psql.config.DatabaseSettings.PSQL_PORT;
+import static com.here.xyz.psql.config.DatabaseSettings.PSQL_REPLICA_HOST;
+import static com.here.xyz.psql.config.DatabaseSettings.PSQL_SCHEMA;
+import static com.here.xyz.psql.config.DatabaseSettings.PSQL_USER;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.Core;
@@ -30,27 +38,23 @@ import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.factory.MaintenanceSQL;
 import com.here.xyz.responses.maintenance.ConnectorStatus;
 import com.here.xyz.responses.maintenance.SpaceStatus;
-import com.here.xyz.util.DhString;
 import com.mchange.v2.c3p0.AbstractConnectionCustomizer;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
 import com.mchange.v2.c3p0.PooledDataSource;
 import io.vertx.core.json.DecodeException;
-import org.apache.commons.dbutils.QueryRunner;
-import org.apache.commons.dbutils.ResultSetHandler;
-import org.apache.commons.dbutils.StatementConfiguration;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import javax.naming.NoPermissionException;
-import javax.sql.DataSource;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static com.here.xyz.psql.config.DatabaseSettings.*;
+import javax.naming.NoPermissionException;
+import javax.sql.DataSource;
+import org.apache.commons.dbutils.QueryRunner;
+import org.apache.commons.dbutils.ResultSetHandler;
+import org.apache.commons.dbutils.StatementConfiguration;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class MaintenanceClient {
 
@@ -323,10 +327,8 @@ public class MaintenanceClient {
     private ComboPooledDataSource getComboPooledDataSource(DatabaseSettings dbSettings, String applicationName, boolean useReplica) {
         final ComboPooledDataSource cpds = new ComboPooledDataSource();
 
-        cpds.setJdbcUrl(
-                DhString.format("jdbc:postgresql://%1$s:%2$d/%3$s?ApplicationName=%4$s&tcpKeepAlive=true",
-                        useReplica ? dbSettings.getReplicaHost() : dbSettings.getHost(),
-                        dbSettings.getPort(), dbSettings.getDb(), applicationName));
+        cpds.setJdbcUrl("jdbc:postgresql://" + (useReplica ? dbSettings.getReplicaHost() : dbSettings.getHost()) + ":"
+            + dbSettings.getPort() + "/" + dbSettings.getDb() + "?ApplicationName=" + applicationName + "&tcpKeepAlive=true");
 
         cpds.setUser(dbSettings.getUser());
         cpds.setPassword(dbSettings.getPassword());

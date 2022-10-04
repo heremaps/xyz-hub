@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,21 +23,17 @@ import static com.here.xyz.hub.config.JDBCConfig.CONNECTOR_TABLE;
 
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.psql.SQLQuery;
-import com.here.xyz.util.DhString;
-
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.ext.sql.SQLClient;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -70,7 +66,7 @@ public class JDBCConnectorConfigClient extends ConnectorConfigClient {
 
   @Override
   protected void getConnector(final Marker marker, final String connectorId, final Handler<AsyncResult<Connector>> handler) {
-    final SQLQuery query = new SQLQuery(DhString.format("SELECT config FROM %s WHERE id = ?", CONNECTOR_TABLE), connectorId);
+    final SQLQuery query = new SQLQuery("SELECT config FROM " + CONNECTOR_TABLE + " WHERE id = ?", connectorId);
     client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
         final Optional<String> config = out.result().getRows().stream().map(r -> r.getString("config")).findFirst();
@@ -91,7 +87,7 @@ public class JDBCConnectorConfigClient extends ConnectorConfigClient {
 
   @Override
   protected void getConnectorsByOwner(Marker marker, String ownerId, Handler<AsyncResult<List<Connector>>> handler) {
-    final SQLQuery query = new SQLQuery(DhString.format("SELECT config FROM %s WHERE owner = ?", CONNECTOR_TABLE), ownerId);
+    final SQLQuery query = new SQLQuery("SELECT config FROM " + CONNECTOR_TABLE + " WHERE owner = ?", ownerId);
     client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
         final Stream<String> config = out.result().getRows().stream().map(r -> r.getString("config"));
@@ -114,9 +110,9 @@ public class JDBCConnectorConfigClient extends ConnectorConfigClient {
 
   @Override
   protected void storeConnector(Marker marker, Connector connector, Handler<AsyncResult<Connector>> handler) {
-    final SQLQuery query = new SQLQuery(DhString.format("INSERT INTO %s(id, owner, config) VALUES (?, ?, cast(? as JSONB)) " +
+    final SQLQuery query = new SQLQuery("INSERT INTO " + CONNECTOR_TABLE + " (id, owner, config) VALUES (?, ?, cast(? as JSONB)) " +
         "ON CONFLICT (id) DO " +
-        "UPDATE SET id = ?, owner = ?, config = cast(? as JSONB)", CONNECTOR_TABLE),
+        "UPDATE SET id = ?, owner = ?, config = cast(? as JSONB)",
         connector.id, connector.owner, Json.encode(connector),
         connector.id, connector.owner, Json.encode(connector));
     updateWithParams(connector, query, handler);
@@ -124,7 +120,7 @@ public class JDBCConnectorConfigClient extends ConnectorConfigClient {
 
   @Override
   protected void deleteConnector(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler) {
-    final SQLQuery query = new SQLQuery(DhString.format("DELETE FROM %s WHERE id = ?", CONNECTOR_TABLE), connectorId);
+    final SQLQuery query = new SQLQuery("DELETE FROM " + CONNECTOR_TABLE + " WHERE id = ?", connectorId);
     get(marker, connectorId, ar -> {
       if (ar.succeeded()) {
         updateWithParams(ar.result(), query, handler);
@@ -147,7 +143,7 @@ public class JDBCConnectorConfigClient extends ConnectorConfigClient {
 
   @Override
   protected void getAllConnectors(Marker marker, Handler<AsyncResult<List<Connector>>> handler) {
-    client.query(DhString.format("SELECT config FROM %s", CONNECTOR_TABLE), out -> {
+    client.query("SELECT config FROM " + CONNECTOR_TABLE, out -> {
       if (out.succeeded()) {
         List<Connector> configs = out.result().getRows().stream()
             .map(r -> r.getString("config"))

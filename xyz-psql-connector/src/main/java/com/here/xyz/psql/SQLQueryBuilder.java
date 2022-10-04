@@ -43,7 +43,7 @@ import com.here.xyz.psql.factory.QuadbinSQL;
 import com.here.xyz.psql.factory.TweaksSQL;
 import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.SearchForFeatures;
-import com.here.xyz.util.DhString;
+import com.here.xyz.psql.tools.DhString;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;

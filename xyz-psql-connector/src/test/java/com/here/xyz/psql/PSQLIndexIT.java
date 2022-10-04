@@ -26,7 +26,7 @@ import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.tools.FeatureGenerator;
 import com.here.xyz.responses.*;
-import com.here.xyz.util.DhString;
+import com.here.xyz.psql.tools.DhString;
 
 import org.junit.After;
 import org.junit.BeforeClass;
@@ -223,7 +223,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
            //assertNull(propStat.isSearchable());
         }
     }
-    
+
     @Test
     public void testOnDemandIndexContent() throws Exception {
         Map<String,Boolean> searchableProperties = new HashMap(){{

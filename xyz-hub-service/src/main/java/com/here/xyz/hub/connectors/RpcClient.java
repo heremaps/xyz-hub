@@ -57,7 +57,6 @@ import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.HistoryStatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
-import com.here.xyz.util.DhString;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -362,7 +361,8 @@ public class RpcClient {
         case BAD_GATEWAY:
           throw new HttpException(BAD_GATEWAY, "Connector error.", errorResponse.getErrorDetails());
         case PAYLOAD_TO_LARGE:
-          throw new HttpException(Api.RESPONSE_PAYLOAD_TOO_LARGE, DhString.format("%s %s",Api.RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE, errorResponse.getErrorMessage()) , errorResponse.getErrorDetails());
+          throw new HttpException(Api.RESPONSE_PAYLOAD_TOO_LARGE,
+              Api.RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE + " " + errorResponse.getErrorMessage(), errorResponse.getErrorDetails());
       }
     }
   }

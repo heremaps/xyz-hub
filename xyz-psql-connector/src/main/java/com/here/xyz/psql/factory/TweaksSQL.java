@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
 
 package com.here.xyz.psql.factory;
 
-import com.here.xyz.util.DhString;
+import com.here.xyz.psql.tools.DhString;
 
 public class TweaksSQL
 {
@@ -41,7 +41,7 @@ public class TweaksSQL
   public static final String ENSURE = "ensure";
   public static final String ENSURE_DEFAULT_SELECTION = "defaultselection";
   public static final String ENSURE_SAMPLINGTHRESHOLD = "samplingthreshold";
-  
+
   /*
    [  1     |   (1) | 1/3    | ~ md5( '' || i) < '5'   ]
    [  5     |   (5) | 1/4    | ~ md5( '' || i) < '4'   ]
@@ -57,32 +57,32 @@ public class TweaksSQL
   public static String distributionFunctionIndexExpression() { return DstFunctIndexExpr; }
 
   public static String strengthSql(int strength, boolean bRandom)
-  { 
-   if( !bRandom ) 
+  {
+   if( !bRandom )
    {
-    double bxLen = ( strength <=  5  ? 0.001  : 
-                     strength <= 10  ? 0.002  : 
-                     strength <= 30  ? 0.004  : 
+    double bxLen = ( strength <=  5  ? 0.001  :
+                     strength <= 10  ? 0.002  :
+                     strength <= 30  ? 0.004  :
                      strength <= 50  ? 0.008  :
                      strength <= 75  ? 0.01   : 0.05 );
-    return DhString.format("( ST_Perimeter(box2d(geo) ) > %f )", bxLen );              
+    return DhString.format("( ST_Perimeter(box2d(geo) ) > %f )", bxLen );
    }
-    
-   String s = ( strength <=  1  ? "5"   : 
-                strength <=  5  ? "4"   : 
-                strength <= 10  ? "2"   : 
+
+   String s = ( strength <=  1  ? "5"   :
+                strength <=  5  ? "4"   :
+                strength <= 10  ? "2"   :
                 strength <= 30  ? "08"  :
                 strength <= 50  ? "02"  :
                 strength <= 75  ? "004" : "001" );
-     
+
    return DhString.format("%s < '%s'",DstFunctIndexExpr,s);
   }
 
   public static float tableSampleRatio(int strength)
-  { 
-   float r = (  strength <=  1  ? (1 / 3f)    : 
-                strength <=  5  ? (1 / 4f)    : 
-                strength <= 10  ? (1 / 8f)    : 
+  {
+   float r = (  strength <=  1  ? (1 / 3f)    :
+                strength <=  5  ? (1 / 4f)    :
+                strength <= 10  ? (1 / 8f)    :
                 strength <= 30  ? (1 / 32f)   :
                 strength <= 50  ? (1 / 128f)  :
                 strength <= 75  ? (1 / 1024f) : (1 / 4096f) );
@@ -90,8 +90,8 @@ public class TweaksSQL
   }
 
 
-  public static int calculateDistributionStrength(int rCount, int chunkSize) 
-  { 
+  public static int calculateDistributionStrength(int rCount, int chunkSize)
+  {
     if( rCount <= (       chunkSize ) ) return  0;
     if( rCount <= (   3 * chunkSize ) ) return  1;
     if( rCount <= (   4 * chunkSize ) ) return  5;
@@ -101,9 +101,9 @@ public class TweaksSQL
     if( rCount <= (1024 * chunkSize ) ) return 75;
     return 100;
   }
- 
 
-  public static String mergeBeginSql = 
+
+  public static String mergeBeginSql =
     "select jsondata, geo "
    +"from "
    +"( "
@@ -123,8 +123,8 @@ public class TweaksSQL
    +"     from ${schema}.${table} "
    +"     where 1 = 1 "
    +"       and %3$s ";  // bboxquery
- 
-  private static String _mergeEndSql = 
+
+  private static String _mergeEndSql =
     "    ) o "
    +"   ) oo "
    +"   group by gsz, gh"
@@ -133,20 +133,20 @@ public class TweaksSQL
    +") ooooo "
    +"where 1 = 1 "
    +"and geo is not null ";
-   
+
 
   public static String mergeEndSql(boolean bGeojson)
-  {  return _mergeEndSql + "and " + ( bGeojson ? "geo->>'type' != 'GeometryCollection' and jsonb_array_length(geo->'coordinates') > 0 " 
+  {  return _mergeEndSql + "and " + ( bGeojson ? "geo->>'type' != 'GeometryCollection' and jsonb_array_length(geo->'coordinates') > 0 "
                                                : "geometrytype(geo) != 'GEOMETRYCOLLECTION' and not st_isempty(geo) " );  }
-  
-  public static String linemergeBeginSql = 
+
+  public static String linemergeBeginSql =
     "with "
    +"indata as "
    +"( select i, %1$s as geo from ${schema}.${table} "
    +"  where 1 = 1 "
    +"    and %2$s ";  // bboxquery
 
-  public static String linemergeEndSql1 =    
+  public static String linemergeEndSql1 =
     "), "
    +"cx2ids as "
    +"( select left( gid, %1$d ) as region, ids "
@@ -189,7 +189,7 @@ public class TweaksSQL
    +"(	select "
    +"   case when step = 0 "
    +"    then ( select "; /* prj_jsondata */
-  public static String linemergeEndSql2 =    
+  public static String linemergeEndSql2 =
                          " from ${schema}.${table} where i = ids[1] ) "
    +"    else ( select jsonb_set( jsonb_set('{\"type\":\"Feature\",\"properties\":{}}'::jsonb,'{id}', to_jsonb( max(jsondata->>'id') )),'{properties,ids}', jsonb_agg( jsondata->>'id' )) from ${schema}.${table} where i in ( select unnest( ids ) ) ) "
    +"   end as jsondata, "
@@ -200,21 +200,21 @@ public class TweaksSQL
    +"  from iddata "
    +") "
    +"select jsondata, %1$s as geo from finaldata ";
-  
 
-  private static String 
-   estWithPgClass_B = 
+
+  private static String
+   estWithPgClass_B =
      "   select sum( coalesce( c2.reltuples, c1.reltuples ) )::bigint as reltuples, "
     +"   string_agg(  coalesce( c2.reltuples, c1.reltuples ) || '~' || coalesce(c2.relname, c1.relname),',' ) as rtup "
     +"   from indata i, pg_class c1 left join pg_inherits pm on ( c1.oid = pm.inhparent ) left join pg_class c2 on ( c2.oid = pm.inhrelid ) "
     +"   where c1.oid = format('%s.%s',i.schema,i.space)::regclass",
 
-   estWithoutPgClass_B = 
+   estWithoutPgClass_B =
      "   select sum( c0.reltuples )::bigint as reltuples, "
     +"   '%1$s'::text as rtup "
     +"   from indata i, ( select split_part(r1,'~',2)::name as tblname, split_part(r1,'~',1)::real as reltuples from ( select regexp_split_to_table( '%1$s',',' ) as r1 ) r2 ) c0",
 
-   estimateCountByBboxesSql_B =  //flavour2: calc _postgis_selectivity using sum of reltupels 
+   estimateCountByBboxesSql_B =  //flavour2: calc _postgis_selectivity using sum of reltupels
     " with indata as "
     +" ( select '${schema}' as schema, '${table}' as space, array[ %1$s ] as tiles, 'geo' as colname ), "
     +" reldata as ( %2$s ),"
@@ -258,19 +258,19 @@ public class TweaksSQL
     +" ) "
     +" select jsonb_set( jsonb_set( '{\"type\":\"Feature\"}', '{rcount}', to_jsonb( max(estim)::integer)), '{rtuples}', to_jsonb(max(rtup))) as rcount, null from iiidata ";
 
-  public static String  
+  public static String
    requestedTileBoundsSql = DhString.format("ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)", 14 /*GEOMETRY_DECIMAL_DIGITS*/),
-    
+
    estWithPgClass = estWithPgClass_A,
    estWithoutPgClass = estWithoutPgClass_A,
    estimateCountByBboxesSql = estimateCountByBboxesSql_A;
 
 
-  public static String 
-   mvtPropertiesSql        = "( select jsonb_object_agg(key, case when jsonb_typeof(value) in ('object', 'array') then to_jsonb(value::text) else value end) from jsonb_each(jsonb_set((jsondata)->'properties','{id}', to_jsonb(jsondata->>'id'))))", 
+  public static String
+   mvtPropertiesSql        = "( select jsonb_object_agg(key, case when jsonb_typeof(value) in ('object', 'array') then to_jsonb(value::text) else value end) from jsonb_each(jsonb_set((jsondata)->'properties','{id}', to_jsonb(jsondata->>'id'))))",
    mvtPropertiesFlattenSql = "( select jsonb_object_agg('properties.' || jkey,jval) from prj_flatten( jsonb_set((jsondata)->'properties','{id}', to_jsonb( jsondata->>'id' )) ))",
 
-   hrtBeginSql = 
+   hrtBeginSql =
     "with tile as ( select %1$s as bounds, %3$d::integer as extend, %4$d::integer as buffer, true as clip_geom ), "
    +"mvtdata as "
    +"( "
@@ -278,7 +278,7 @@ public class TweaksSQL
    +" from "
    +" ( ",
 
-   mvtBeginSql = 
+   mvtBeginSql =
     "with tile as ( select st_transform(%1$s,3857) as bounds, %3$d::integer as extend, %4$d::integer as buffer, true as clip_geom ), "
    +"mvtdata as "
    +"( "
@@ -286,11 +286,11 @@ public class TweaksSQL
    +" from "
    +" ( ",
     /** inner sql comes here, like "select jsondata, geo from table " , it is expected that the attributs are named "jsondata" and "geo" */
-   mvtEndSql = 
+   mvtEndSql =
     " ) data , tile t "
    +") "
    +"select ST_AsMVT( mvtdata , '%1$s' ) as bin from mvtdata where mgeo is not null";
-   
+
 
 }
 
