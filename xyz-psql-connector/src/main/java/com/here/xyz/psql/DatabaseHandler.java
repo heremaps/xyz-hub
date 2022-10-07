@@ -820,7 +820,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 if (hasTable()) {
                     return;
                 }
-                throw new SQLException("Missing table " + SQLQuery.sqlQuote(tableName) + " and creation failed: " + e.getMessage(), e);
+                throw new SQLException("Missing table \"" + tableName + "\" and creation failed: " + e.getMessage(), e);
             } finally {
                 advisoryUnlock( tableName, connection );
                 if (cStateFlag)

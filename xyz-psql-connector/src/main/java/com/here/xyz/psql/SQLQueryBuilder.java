@@ -54,7 +54,7 @@ public class SQLQueryBuilder {
     public static final long GEOMETRY_DECIMAL_DIGITS = 8;
   private static final Integer BIG_SPACE_THRESHOLD = 10000;
 
-    public static SQLQuery buildGetStatisticsQuery(Event event, PSQLConfig config, boolean historyMode) throws Exception {
+    public static SQLQuery buildGetStatisticsQuery(Event event, PSQLConfig config, boolean historyMode) {
         String function;
         if(event instanceof GetHistoryStatisticsEvent)
             function = "xyz_statistic_history";
@@ -66,7 +66,7 @@ public class SQLQueryBuilder {
         return new SQLQuery("SELECT * from " + schema + "."+function+"('" + schema + "','" + table + "')");
     }
 
-    public static SQLQuery buildGetNextVersionQuery(String table) throws Exception {
+    public static SQLQuery buildGetNextVersionQuery(String table) {
         return new SQLQuery("SELECT nextval('${schema}.\"" + table.replaceAll("-","_") + "_hst_seq\"')");
     }
 
@@ -722,7 +722,7 @@ public class SQLQueryBuilder {
       return SearchForFeatures.generatePropertiesQueryBWC(properties);
     }
 
-    private static SQLQuery generateCombinedQueryTweaks(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, String tweaksgeo, boolean bTestTweaksGeoIfNull, DataSource dataSource, float sampleRatio, boolean bSortByHashedValue) throws SQLException
+    private static SQLQuery generateCombinedQueryTweaks(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, String tweaksgeo, boolean bTestTweaksGeoIfNull, DataSource dataSource, float sampleRatio, boolean bSortByHashedValue)
     {
      String tSample = ( sampleRatio <= 0.0 ? "" : DhString.format("tablesample system(%.6f) repeatable(499)", 100.0 * sampleRatio) );
 
@@ -751,10 +751,10 @@ public class SQLQueryBuilder {
      return query;
     }
 
-    private static SQLQuery generateCombinedQueryTweaks(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, String tweaksgeo, boolean bTestTweaksGeoIfNull, DataSource dataSource) throws SQLException
+    private static SQLQuery generateCombinedQueryTweaks(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, String tweaksgeo, boolean bTestTweaksGeoIfNull, DataSource dataSource)
     { return generateCombinedQueryTweaks(event, indexedQuery, secondaryQuery, tweaksgeo, bTestTweaksGeoIfNull, dataSource, -1.0f, false );  }
 
-    private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, DataSource dataSource, boolean bConvertGeo2Geojson, String h3Index, float sampleRatio, boolean bSortByHashedValue ) throws SQLException
+    private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, DataSource dataSource, boolean bConvertGeo2Geojson, String h3Index, float sampleRatio, boolean bSortByHashedValue )
     {
         String tSample = ( sampleRatio <= 0.0 ? "" : DhString.format("tablesample system(%.6f) repeatable(499)", 100.0 * sampleRatio) );
 
@@ -788,7 +788,7 @@ public class SQLQueryBuilder {
         return query;
     }
 
-    private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, DataSource dataSource, boolean bConvertGeo2Geojson, String h3Index ) throws SQLException
+    private static SQLQuery generateCombinedQuery(SearchForFeaturesEvent event, SQLQuery indexedQuery, SQLQuery secondaryQuery, DataSource dataSource, boolean bConvertGeo2Geojson, String h3Index )
     { return generateCombinedQuery(event,indexedQuery,secondaryQuery,dataSource,bConvertGeo2Geojson,h3Index, -1.0f, false); }
 
     /**
@@ -844,8 +844,7 @@ public class SQLQueryBuilder {
       return SearchForFeatures.generateSearchQueryBWC(event);
   }
 
-    protected static SQLQuery generateLoadOldFeaturesQuery(final String[] idsToFetch, final DataSource dataSource)
-            throws SQLException {
+    protected static SQLQuery generateLoadOldFeaturesQuery(final String[] idsToFetch, final DataSource dataSource) {
         return new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)", (Object) idsToFetch);
     }
 
