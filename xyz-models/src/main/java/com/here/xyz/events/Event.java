@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,7 +55,6 @@ import java.util.Map;
     @JsonSubTypes.Type(value = GetFeaturesByBBoxEvent.class, name = "GetFeaturesByBBoxEvent"),
     @JsonSubTypes.Type(value = GetFeaturesByGeometryEvent.class, name = "GetFeaturesByGeometryEvent"),
     @JsonSubTypes.Type(value = GetFeaturesByTileEvent.class, name = "GetFeaturesByTileEvent"),
-    @JsonSubTypes.Type(value = CountFeaturesEvent.class, name = "CountFeaturesEvent"),
     @JsonSubTypes.Type(value = GetStatisticsEvent.class, name = "GetStatisticsEvent"),
     @JsonSubTypes.Type(value = GetStorageStatisticsEvent.class, name = "GetStorageStatisticsEvent"),
     @JsonSubTypes.Type(value = GetHistoryStatisticsEvent.class, name = "GetHistoryStatisticsEvent"),

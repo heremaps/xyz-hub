@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,6 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
-import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
@@ -528,23 +527,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::readCache)
           .then(FeatureTaskHandler::invoke)
           .then(FeatureTaskHandler::writeCache);
-    }
-  }
-
-  //TODO: Remove that implementation finally
-  @Deprecated
-  public static class CountQuery extends ReadQuery<CountFeaturesEvent, CountQuery> {
-
-    public CountQuery(CountFeaturesEvent event, RoutingContext context, ApiResponseType apiResponseTypeType) {
-      super(event, context, apiResponseTypeType);
-    }
-
-    @Override
-    public TaskPipeline<CountQuery> createPipeline() {
-      return TaskPipeline.create(this)
-          .then(FeatureTaskHandler::resolveSpace)
-          .then(FeatureAuthorization::authorize)
-          .then(FeatureTaskHandler::invoke);
     }
   }
 

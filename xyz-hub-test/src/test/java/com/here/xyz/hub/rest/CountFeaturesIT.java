@@ -32,6 +32,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import com.jayway.restassured.RestAssured;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class CountFeaturesIT extends TestSpaceWithFeature {
@@ -70,6 +71,7 @@ public class CountFeaturesIT extends TestSpaceWithFeature {
         statusCode(OK.code());
   }
 
+  @Ignore("Disabled as of deprecation of the count endpoint")
   @Test
   public void testBaseBallFeaturesCount() {
     given().
@@ -82,6 +84,7 @@ public class CountFeaturesIT extends TestSpaceWithFeature {
         body("count", equalTo(10));
   }
 
+  @Ignore("Disabled as of deprecation of the count endpoint")
   @Test
   public void testFootBallFeaturesCount() {
     given().
@@ -94,6 +97,7 @@ public class CountFeaturesIT extends TestSpaceWithFeature {
         body("count", equalTo(41));
   }
 
+  @Ignore("Disabled as of deprecation of the count endpoint")
   @Test
   public void testCommaSeparatedTags() {
     given().
@@ -107,6 +111,7 @@ public class CountFeaturesIT extends TestSpaceWithFeature {
         body("count", equalTo(252));
   }
 
+  @Ignore("Disabled as of deprecation of the count endpoint")
   @Test
   public void testCommaSeparatedTagsEncoded() {
     given().
@@ -119,6 +124,7 @@ public class CountFeaturesIT extends TestSpaceWithFeature {
         body("count", equalTo(0));
   }
 
+  @Ignore("Disabled as of deprecation of the count endpoint")
   @Test
   public void testCombinedTags() {
     boolean bFlag = RestAssured.urlEncodingEnabled;
@@ -136,6 +142,7 @@ public class CountFeaturesIT extends TestSpaceWithFeature {
     RestAssured.urlEncodingEnabled = bFlag;
   }
 
+  @Ignore("Disabled as of deprecation of the count endpoint")
   @Test
   public void testMultipleParameterTags() {
     given().

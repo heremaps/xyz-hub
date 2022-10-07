@@ -1290,19 +1290,6 @@ public abstract class DatabaseHandler extends StorageConnector {
         return featureCollection;
     }
 
-    /**
-     * The result handler for a CountFeatures event.
-     *
-     * @param rs the result set.
-     * @return the feature collection generated from the result.
-     * @throws SQLException if any error occurred.
-     */
-    protected XyzResponse countResultSetHandler(ResultSet rs) throws SQLException {
-        rs.next();
-        long count = rs.getLong(1);
-        return new CountResponse().withCount(count).withEstimated(count > MAX_PRECISE_STATS_COUNT);
-    }
-
     protected int calculateTimeout() throws SQLException{
         int remainingSeconds = context.getRemainingTimeInMillis() / 1000;
 

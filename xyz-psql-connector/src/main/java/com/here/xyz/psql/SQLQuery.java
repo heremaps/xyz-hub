@@ -183,7 +183,7 @@ public class SQLQuery {
    * @param text the text to escape.
    * @return the escaped text surrounded with quotes.
    */
-  public static String sqlQuote(final String text) {
+  private static String sqlQuote(final String text) {
     return text == null ? "" : '"' + text.replace("\"", "\"\"") + '"';
   }
 

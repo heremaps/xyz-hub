@@ -157,8 +157,8 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         LOGGER.info("Insert feature tested successfully");
 
         // =========== COUNT ==========
-        String countResponse = invokeLambdaFromFile("/events/CountFeaturesEvent.json");
-        assertCount(insertRequest, countResponse);
+        String statsResponse = invokeLambdaFromFile("/events/GetStatisticsEvent.json");
+        assertCount(insertRequest, statsResponse);
         LOGGER.info("Count feature tested successfully");
 
         // =========== SEARCH ==========
@@ -244,9 +244,9 @@ public class PSQLWriteIT extends PSQLAbstractIT {
     }
 
     protected void assertCount(String insertRequest, String countResponse) {
-        if (!JsonPath.<Boolean>read(countResponse, "$.estimated")) {
+        if (!JsonPath.<Boolean>read(countResponse, "$.count.estimated")) {
             assertEquals("Check inserted feature count vs fetched count", JsonPath.read(insertRequest, "$.insertFeatures.length()").toString(),
-                    JsonPath.read(countResponse, "$.count").toString());
+                    JsonPath.read(countResponse, "$.count.value").toString());
         }
     }
 
