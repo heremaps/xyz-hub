@@ -20,7 +20,6 @@ package com.here.xyz.psql;
 
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.GEO_JSON;
 
-import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
@@ -98,25 +97,6 @@ public class SQLQueryBuilder {
                 bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
 
         return generateCombinedQuery(event, geoQuery);
-    }
-
-    protected static SQLQuery buildCountFeaturesQuery(CountFeaturesEvent event, DataSource dataSource, String schema, String table)
-        throws SQLException{
-
-        final SQLQuery searchQuery = generateSearchQuery(event);
-        final String schemaTable = SQLQuery.sqlQuote(schema) + "." + SQLQuery.sqlQuote(table);
-        final SQLQuery query;
-
-        if (searchQuery != null) {
-            query = new SQLQuery("SELECT count(*) FROM ${schema}.${table} WHERE");
-            query.append(searchQuery);
-        } else {
-            query = new SQLQuery("SELECT CASE WHEN reltuples < ?");
-            query.append("THEN (SELECT count(*) FROM ${schema}.${table})");
-            query.append("ELSE reltuples END AS count");
-            query.append("FROM pg_class WHERE oid =?::regclass", BIG_SPACE_THRESHOLD, schemaTable);
-        }
-        return query;
     }
 
     /***************************************** CLUSTERING ******************************************************/

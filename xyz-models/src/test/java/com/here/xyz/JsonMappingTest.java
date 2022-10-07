@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ import static org.junit.Assert.assertTrue;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -92,15 +91,6 @@ public class JsonMappingTest {
     assertEquals("2018-09-15T07:12:25.013Z a368c0ea-b8b6-11e8-b894-eb5a7755e998 Task timed out after 25.01 seconds",
         obj.getErrorMessage());
   }
-
-  @SuppressWarnings("deprecation")
-  @Test
-  public void test_map() throws Exception {
-    final String json = "{\"type\":\"CountFeaturesEvent\", \"space\":\"test\"}";
-    CountFeaturesEvent obj = new ObjectMapper().readValue(json, CountFeaturesEvent.class);
-    assertNotNull(obj);
-  }
-
 
   //@Test
   //TODO: Please change the URL to some file:/// URL

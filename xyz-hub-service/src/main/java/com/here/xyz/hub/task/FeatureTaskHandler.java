@@ -41,12 +41,12 @@ import com.google.common.base.Strings;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContentModifiedNotification;
-import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.Event.TrustedParams;
 import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetHistoryStatisticsEvent;
+import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
@@ -88,7 +88,6 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection.Modification
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.models.hub.Space.Extension;
 import com.here.xyz.responses.BinaryResponse;
-import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.ModifiedEventResponse;
 import com.here.xyz.responses.ModifiedPayloadResponse;
@@ -1354,7 +1353,7 @@ public class FeatureTaskHandler {
   }
 
   private static <X extends FeatureTask<?, X>>void getCountForSpace(X task, Handler<AsyncResult<Long>> handler) {
-    final CountFeaturesEvent countEvent = new CountFeaturesEvent();
+    final GetStatisticsEvent countEvent = new GetStatisticsEvent();
     countEvent.setSpace(task.getEvent().getSpace());
     countEvent.setParams(task.getEvent().getParams());
 
@@ -1367,11 +1366,9 @@ public class FeatureTaskHandler {
             }
             Long count;
             final XyzResponse response = eventHandler.result();
-            if (response instanceof CountResponse) {
-              count = ((CountResponse) response).getCount();
-            } else if (response instanceof FeatureCollection) {
-              count = ((FeatureCollection) response).getCount();
-            } else {
+            if (response instanceof StatisticsResponse)
+              count = ((StatisticsResponse) response).getCount().getValue();
+            else {
               handler.handle(Future.failedFuture(Api.responseToHttpException(response)));
               return;
             }

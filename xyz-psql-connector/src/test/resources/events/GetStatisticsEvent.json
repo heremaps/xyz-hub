@@ -1,13 +1,9 @@
 {
-  "type": "CountFeaturesEvent",
+  "type": "GetStatisticsEvent",
   "space": "foo",
   "params": {},
   "connectorParams": {
     "propertySearch": true,
     "connectorId": "test-connector"
-  },
-  "tags": [
-    ["red"],
-    ["yellow"]
-  ]
+  }
 }

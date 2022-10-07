@@ -19,7 +19,6 @@
 
 package com.here.xyz.connectors;
 
-import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
@@ -96,9 +95,6 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
     if (event instanceof LoadFeaturesEvent) {
       return processLoadFeaturesEvent((LoadFeaturesEvent) event);
     }
-    if (event instanceof CountFeaturesEvent) {
-      return processCountFeaturesEvent((CountFeaturesEvent) event);
-    }
     if (event instanceof GetStorageStatisticsEvent)
       return processGetStorageStatisticsEvent((GetStorageStatisticsEvent) event);
 
@@ -155,13 +151,6 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
    */
   @SuppressWarnings("WeakerAccess")
   protected abstract XyzResponse processSearchForFeaturesEvent(SearchForFeaturesEvent event) throws Exception;
-
-  /**
-   * Processes a CountFeatures event.
-   */
-  @SuppressWarnings("WeakerAccess")
-  @Deprecated
-  protected abstract XyzResponse processCountFeaturesEvent(CountFeaturesEvent event) throws Exception;
 
   /**
    * Processes a DeleteFeaturesEvent event.

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,10 +21,9 @@ package com.here.xyz.responses;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.here.xyz.events.CountFeaturesEvent;
 
 /**
- * The response to an {@link CountFeaturesEvent}.
+ * The response providing the count of features in a space.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "CountResponse")
