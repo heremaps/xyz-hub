@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -140,6 +140,7 @@ public class Space {
    */
   @JsonView({Public.class, Static.class})
   @JsonInclude(Include.NON_DEFAULT)
+  @Deprecated
   private boolean enableUUID = false;
 
   /**
@@ -147,6 +148,7 @@ public class Space {
    */
   @JsonView({Public.class, Static.class})
   @JsonInclude(Include.NON_DEFAULT)
+  @Deprecated
   private boolean enableHistory = false;
 
   /**
@@ -154,6 +156,7 @@ public class Space {
    */
   @JsonView({Public.class, Static.class})
   @JsonInclude(Include.NON_DEFAULT)
+  @Deprecated
   private boolean enableGlobalVersioning = false;
 
   /**
@@ -161,7 +164,15 @@ public class Space {
    */
   @JsonView({Public.class, Static.class})
   @JsonInclude(Include.NON_EMPTY)
+  @Deprecated
   private Integer maxVersionCount;
+
+  /**
+   * Defines how many revisions will be kept before the automatic purging of old revisions is starting.
+   * By default this value will be set to 1. That means there will be only one
+   * (HEAD) state of the space and no further revisions will be kept.
+   */
+  private int revisionsToKeep = 0;
 
   /**
    * If false, auto-indexing gets disabled
@@ -400,55 +411,80 @@ public class Space {
     return this;
   }
 
+  @Deprecated
   public boolean isEnableUUID() {
     return enableUUID;
   }
 
+  @Deprecated
   public void setEnableUUID(final boolean enableUUID) {
     this.enableUUID = enableUUID;
   }
 
+  @Deprecated
   public Space withEnableUUID(final boolean enableUUID) {
     this.enableUUID = enableUUID;
     return this;
   }
 
+  @Deprecated
   public boolean isEnableHistory() {
     return enableHistory;
   }
 
+  @Deprecated
   public void setEnableHistory(final boolean enableHistory) {
     this.enableHistory = enableHistory;
   }
 
+  @Deprecated
   public Space withEnableHistory(final boolean enableHistory) {
     this.enableHistory = enableHistory;
     return this;
   }
 
+  @Deprecated
   public boolean isEnableGlobalVersioning() {
     return enableGlobalVersioning;
   }
 
+  @Deprecated
   public void setEnableGlobalVersioning(final boolean enableGlobalVersioning) {
     this.enableGlobalVersioning = enableGlobalVersioning;
   }
 
+  @Deprecated
   public Space withEnableGlobalVersioning(final boolean enableGlobalVersioning) {
     this.enableGlobalVersioning = enableGlobalVersioning;
     return this;
   }
 
+  @Deprecated
   public Integer getMaxVersionCount() {
     return maxVersionCount;
   }
 
+  @Deprecated
   public void setMaxVersionCount(final Integer maxVersionCount) {
     this.maxVersionCount = maxVersionCount;
   }
 
+  @Deprecated
   public Space withMaxVersionCount(final Integer maxVersionCount) {
     this.maxVersionCount = maxVersionCount;
+    return this;
+  }
+
+  public int getRevisionsToKeep() {
+    return revisionsToKeep;
+  }
+
+  public void setRevisionsToKeep(int revisionsToKeep) {
+    this.revisionsToKeep = revisionsToKeep;
+  }
+
+  public Space withRevisionsToKeep(int revisionsToKeep) {
+    setRevisionsToKeep(revisionsToKeep);
     return this;
   }
 
