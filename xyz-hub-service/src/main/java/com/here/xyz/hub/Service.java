@@ -733,6 +733,11 @@ public class Service extends Core {
      * Flag that indicates whether the creation of features on history spaces contains features in the request payload with uuid.
      */
     public boolean MONITOR_FEATURES_WITH_UUID = true;
+
+    /**
+     * Global limit for the maximum amount of revisions to keep per space.
+     */
+    public long MAX_REVISIONS_TO_KEEP = 1_000_000;
   }
 
   /**
