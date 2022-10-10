@@ -25,62 +25,33 @@ import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class UpdateSpaceWithExtensionApiIT extends TestSpaceWithFeature {
-
-  @BeforeClass
-  public static void setupClass() {
-    removeSpace("x-psql-test-extension");
-    removeSpace("x-psql-test");
-    createSpace();
-    createSpaceWithExtension();
-  }
-
-  @AfterClass
-  public static void tearDownClass() {
-    removeSpace("x-psql-test-extension");
-    removeSpace("x-psql-test");
-  }
-
-  private static void createSpaceWithExtension() {
-    given()
-        .contentType(APPLICATION_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"id\":\"x-psql-test-extension\",\"title\":\"x-psql-test-extension\",\"extends\":{\"spaceId\":\"x-psql-test\"}}")
-        .when()
-        .post("/spaces")
-        .then()
-        .statusCode(OK.code())
-        .body("id", equalTo("x-psql-test-extension"))
-        .body("extends.spaceId", equalTo("x-psql-test"));
-  }
+public class UpdateSpaceWithExtensionApiIT extends ExtensionApiIT {
 
   @Test
   public void updateMutableSpaceProperties() {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"title\":\"x-psql-test-extension-new-title\",\"description\":\"a test space which extends x-psql-test\"}")
+        .body("{\"title\":\"x-psql-test-ext-new-title\",\"description\":\"a test space which extends x-psql-test\"}")
         .when()
-        .patch("/spaces/x-psql-test-extension")
+        .patch("/spaces/x-psql-test-ext")
         .then()
         .statusCode(OK.code())
-        .body("id", equalTo("x-psql-test-extension"))
+        .body("id", equalTo("x-psql-test-ext"))
         .body("extends.spaceId", equalTo("x-psql-test"))
-        .body("title", equalTo("x-psql-test-extension-new-title"))
+        .body("title", equalTo("x-psql-test-ext-new-title"))
         .body("description", equalTo("a test space which extends x-psql-test"));
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test-extension")
+        .get("/spaces/x-psql-test-ext")
         .then()
         .statusCode(OK.code())
-        .body("id", equalTo("x-psql-test-extension"))
-        .body("title", equalTo("x-psql-test-extension-new-title"))
+        .body("id", equalTo("x-psql-test-ext"))
+        .body("title", equalTo("x-psql-test-ext-new-title"))
         .body("extends.spaceId", equalTo("x-psql-test"));
   }
 
@@ -89,9 +60,9 @@ public class UpdateSpaceWithExtensionApiIT extends TestSpaceWithFeature {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"id\":\"x-psql-test-extension\",\"title\":\"x-psql-test-extension\",\"extends\":{\"spaceId\":\"x-psql-test\"}}")
+        .body("{\"id\":\"x-psql-test-ext\",\"title\":\"x-psql-test-ext\",\"extends\":{\"spaceId\":\"x-psql-test\"}}")
         .when()
-        .patch("/spaces/x-psql-test-extension")
+        .patch("/spaces/x-psql-test-ext")
         .then()
         .statusCode(OK.code());
   }
@@ -103,7 +74,7 @@ public class UpdateSpaceWithExtensionApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body("{\"searchableProperties\":{\"property1\":true}}")
         .when()
-        .patch("/spaces/x-psql-test-extension")
+        .patch("/spaces/x-psql-test-ext")
         .then()
         .statusCode(BAD_REQUEST.code());
 
@@ -112,7 +83,7 @@ public class UpdateSpaceWithExtensionApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body("{\"storage\":{\"id\":\"psql\",\"params\":{\"foo\":\"bar\"}}}")
         .when()
-        .patch("/spaces/x-psql-test-extension")
+        .patch("/spaces/x-psql-test-ext")
         .then()
         .statusCode(BAD_REQUEST.code())
         .body("errorMessage", equalTo("Validation failed. The properties 'storage' and 'extends' cannot be set together."));
