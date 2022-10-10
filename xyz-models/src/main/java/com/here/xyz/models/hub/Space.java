@@ -240,7 +240,7 @@ public class Space {
   }
 
   public Space withId(final String id) {
-    this.id = id;
+    setId(id);
     return this;
   }
 
@@ -253,7 +253,7 @@ public class Space {
   }
 
   public Space withTitle(final String title) {
-    this.title = title;
+    setTitle(title);
     return this;
   }
 
@@ -266,7 +266,7 @@ public class Space {
   }
 
   public Space withDescription(final String description) {
-    this.description = description;
+    setDescription(description);
     return this;
   }
 
@@ -279,7 +279,7 @@ public class Space {
   }
 
   public Space withShared(final boolean shared) {
-    this.shared = shared;
+    setShared(shared);
     return this;
   }
 
@@ -292,7 +292,7 @@ public class Space {
   }
 
   public Space withCopyright(final List<Copyright> copyright) {
-    this.copyright = copyright;
+    setCopyright(copyright);
     return this;
   }
 
@@ -305,7 +305,7 @@ public class Space {
   }
 
   public Space withLicense(final License license) {
-    this.license = license;
+    setLicense(license);
     return this;
   }
 
@@ -318,7 +318,7 @@ public class Space {
   }
 
   public Space withExtension(final Extension extension) {
-    this.extension = extension;
+    setExtension(extension);
     return this;
   }
 
@@ -331,7 +331,7 @@ public class Space {
   }
 
   public Space withStorage(final ConnectorRef storage) {
-    this.storage = storage;
+    setStorage(storage);
     return this;
   }
 
@@ -344,7 +344,7 @@ public class Space {
   }
 
   public Space withListeners(final Map<String, List<ListenerConnectorRef>> listeners) {
-    this.listeners = listeners;
+    setListeners(listeners);
     return this;
   }
 
@@ -357,7 +357,7 @@ public class Space {
   }
 
   public Space withProcessors(final Map<String, List<ListenerConnectorRef>> processors) {
-    this.processors = processors;
+    setProcessors(processors);
     return this;
   }
 
@@ -370,7 +370,7 @@ public class Space {
   }
 
   public Space withOwner(final String owner) {
-    this.owner = owner;
+    setOwner(owner);
     return this;
   }
 
@@ -383,7 +383,7 @@ public class Space {
   }
 
   public Space withCacheTTL(final int cacheTTL) {
-    this.cacheTTL = cacheTTL;
+    setCacheTTL(cacheTTL);
     return this;
   }
 
@@ -396,7 +396,7 @@ public class Space {
   }
 
   public Space withClient(final Map<String, Object> client) {
-    this.client = client;
+    setClient(client);
     return this;
   }
 
@@ -409,7 +409,7 @@ public class Space {
   }
 
   public Space withEnableUUID(final boolean enableUUID) {
-    this.enableUUID = enableUUID;
+    setEnableUUID(enableUUID);
     return this;
   }
 
@@ -422,7 +422,7 @@ public class Space {
   }
 
   public Space withEnableHistory(final boolean enableHistory) {
-    this.enableHistory = enableHistory;
+    setEnableHistory(enableHistory);
     return this;
   }
 
@@ -435,7 +435,7 @@ public class Space {
   }
 
   public Space withEnableGlobalVersioning(final boolean enableGlobalVersioning) {
-    this.enableGlobalVersioning = enableGlobalVersioning;
+    setEnableGlobalVersioning(enableGlobalVersioning);
     return this;
   }
 
@@ -448,7 +448,7 @@ public class Space {
   }
 
   public Space withMaxVersionCount(final Integer maxVersionCount) {
-    this.maxVersionCount = maxVersionCount;
+    setMaxVersionCount(maxVersionCount);
     return this;
   }
 
@@ -456,12 +456,12 @@ public class Space {
     return enableAutoSearchableProperties;
   }
 
-  public void enableAutoSearchableProperties(final Boolean enableAutoSearchableProperties) {
+  public void setEnableAutoSearchableProperties(final Boolean enableAutoSearchableProperties) {
     this.enableAutoSearchableProperties = enableAutoSearchableProperties;
   }
 
   public Space withEnableAutoSearchableProperties(final Boolean enableAutoSearchableProperties) {
-    this.enableAutoSearchableProperties = enableAutoSearchableProperties;
+    setEnableAutoSearchableProperties(enableAutoSearchableProperties);
     return this;
   }
 
@@ -474,7 +474,7 @@ public class Space {
   }
 
   public Space withPackages(final List<String> packages) {
-    this.packages = packages;
+    setPackages(packages);
     return this;
   }
 
@@ -487,7 +487,7 @@ public class Space {
   }
 
   public Space withCid(final String cid) {
-    this.cid = cid;
+    setCid(cid);
     return this;
   }
 
@@ -500,7 +500,7 @@ public class Space {
   }
 
   public Space withTags(final List<String> tags) {
-    this.tags = tags;
+    setTags(tags);
     return this;
   }
 
@@ -513,7 +513,7 @@ public class Space {
   }
 
   public Space withCreatedAt(final long createdAt) {
-    this.createdAt = createdAt;
+    setCreatedAt(createdAt);
     return this;
   }
 
@@ -526,7 +526,7 @@ public class Space {
   }
 
   public Space withUpdatedAt(final long updatedAt) {
-    this.updatedAt = updatedAt;
+    setUpdatedAt(updatedAt);
     return this;
   }
 
@@ -539,7 +539,7 @@ public class Space {
   }
 
   public Space withReadOnly(final boolean readOnly) {
-    this.readOnly = readOnly;
+    setReadOnly(readOnly);
     return this;
   }
 
@@ -552,7 +552,7 @@ public class Space {
   }
 
   public Space withSearchableProperties(final Map<String, Boolean> searchableProperties) {
-    this.searchableProperties = searchableProperties;
+    setSearchableProperties(searchableProperties);
     return this;
   }
 
@@ -565,7 +565,7 @@ public class Space {
   }
 
   public Space withSortableProperties(final List<List<Object>> sortableProperties) {
-    this.sortableProperties = sortableProperties;
+    setSortableProperties(sortableProperties);
     return this;
   }
 
@@ -578,7 +578,7 @@ public class Space {
   }
 
   public Space withAllowFeatureCreationWithUUID(final boolean allowFeatureCreationWithUUID) {
-    this.allowFeatureCreationWithUUID = allowFeatureCreationWithUUID;
+    setAllowFeatureCreationWithUUID(allowFeatureCreationWithUUID);
     return this;
   }
 
@@ -631,7 +631,7 @@ public class Space {
 
     @SuppressWarnings("WeakerAccess")
     public ConnectorRef withId(final String id) {
-      this.id = id;
+      setId(id);
       return this;
     }
 
@@ -645,7 +645,7 @@ public class Space {
 
     @SuppressWarnings("WeakerAccess")
     public ConnectorRef withParams(final Map<String, Object> params) {
-      this.params = params;
+      setParams(params);
       return this;
     }
   }
@@ -675,7 +675,7 @@ public class Space {
 
     @SuppressWarnings("WeakerAccess")
     public ListenerConnectorRef withEventTypes(final List<String> eventTypes) {
-      this.eventTypes = eventTypes;
+      setEventTypes(eventTypes);
       return this;
     }
 
@@ -690,7 +690,7 @@ public class Space {
 
     @SuppressWarnings("WeakerAccess")
     public ListenerConnectorRef withOrder(final Integer order) {
-      this.order = order;
+      setOrder(order);
       return this;
     }
   }
@@ -722,7 +722,7 @@ public class Space {
     }
 
     public Copyright withLabel(final String label) {
-      this.label = label;
+      setLabel(label);
       return this;
     }
 
@@ -735,7 +735,7 @@ public class Space {
     }
 
     public Copyright withAlt(final String alt) {
-      this.alt = alt;
+      setAlt(alt);
       return this;
     }
   }
@@ -790,7 +790,7 @@ public class Space {
     }
 
     public License withKeyword(final String keyword) {
-      this.keyword = keyword;
+      setKeyword(keyword);
       return this;
     }
 
@@ -819,7 +819,7 @@ public class Space {
     }
 
     public Extension withSpaceId(final String spaceId) {
-      this.spaceId = spaceId;
+      setSpaceId(spaceId);
       return this;
     }
   }
