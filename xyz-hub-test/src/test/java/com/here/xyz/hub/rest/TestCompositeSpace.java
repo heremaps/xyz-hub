@@ -25,33 +25,28 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-public class ExtensionApiIT extends TestSpaceWithFeature {
+public class TestCompositeSpace extends TestSpaceWithFeature {
 
-  @BeforeClass
-  public static void setupClass() {
-    removeSpace("x-psql-test-extension");
+  @Before
+  public void setup() {
+    removeSpace("x-psql-test-ext-ext");
+    removeSpace("x-psql-test-ext");
     removeSpace("x-psql-test");
     createSpace();
     createSpaceWithExtension("x-psql-test");
     createSpaceWithExtension("x-psql-test-ext");
   }
 
-  @AfterClass
-  public static void tearDownClass() {
+  @After
+  public void tearDown() {
     removeSpace("x-psql-test-ext-ext");
     removeSpace("x-psql-test-ext");
     removeSpace("x-psql-test");
-  }
-
-  @Before
-  public void setup() {
-    deleteAllFrom("x-psql-test-ext-ext");
-    deleteAllFrom("x-psql-test-ext");
-    deleteAllFrom("x-psql-test");
   }
 
   private static void createSpaceWithExtension(String extendingSpaceId) {
@@ -66,15 +61,5 @@ public class ExtensionApiIT extends TestSpaceWithFeature {
         .statusCode(OK.code())
         .body("id", equalTo(extensionId))
         .body("extends.spaceId", equalTo(extendingSpaceId));
-  }
-
-  private void deleteAllFrom(String spaceId) {
-    // TODO check whether this is the right way to clean up a space
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .when()
-        .delete("/spaces/"+spaceId+ "/features?tags=*")
-        .then()
-        .statusCode(NO_CONTENT.code());
   }
 }
