@@ -34,7 +34,7 @@ import com.here.xyz.models.geojson.implementation.Properties;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.Test;
 
-public class FeatureExtensionApiIT extends ExtensionApiIT {
+public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
 
   private static Feature newFeature() {
     return new Feature()

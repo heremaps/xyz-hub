@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 import org.junit.Test;
 
-public class UpdateSpaceWithExtensionApiIT extends ExtensionApiIT {
+public class ModifyCompositeSpaceIT extends TestCompositeSpace {
 
   @Test
   public void updateMutableSpaceProperties() {
