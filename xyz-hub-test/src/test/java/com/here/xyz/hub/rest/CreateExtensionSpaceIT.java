@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class CreateSpaceWithExtensionApiIT extends TestSpaceWithFeature {
+public class CreateExtensionSpaceIT extends TestSpaceWithFeature {
 
   private Set<String> cleanUpIds = new HashSet<>();
 
