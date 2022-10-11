@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -101,23 +101,26 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
 
   @Test
   public void getOnlyOnDelta() {
-    Feature feature = newFeature();
-    postFeature("x-psql-test-ext", feature);
+    Feature f1 = newFeature();
+    Feature f2 = newFeature();
+    // FIXME in order to get the extending space to be created, a read or write operation must be executed, otherwise a 504 is returned
+    postFeature("x-psql-test", f1);
+    postFeature("x-psql-test-ext", f2);
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test/features/" + feature.getId())
+        .get("/spaces/x-psql-test/features/" + f2.getId())
         .then()
         .statusCode(NOT_FOUND.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test-ext/features/" + feature.getId())
+        .get("/spaces/x-psql-test-ext/features/" + f2.getId())
         .then()
         .statusCode(OK.code())
-        .body("id", equalTo(feature.getId()));
+        .body("id", equalTo(f2.getId()));
   }
 
   @Test
