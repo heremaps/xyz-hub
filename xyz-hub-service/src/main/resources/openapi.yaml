@@ -2884,18 +2884,21 @@ components:
         client:
           $ref: '#/components/schemas/SpaceClient'
         enableUUID:
+          deprecated: true
           default: false
           description: >-
             Whether the uuid should be added to the response or not.
           example: true
           type: boolean
         enableHistory:
+          deprecated: true
           default: false
           description: >-
             Whether the feature's modification history should be saved.
           example: true
           type: boolean
         maxVersionCount:
+          deprecated: true
           default: 0
           description: >-
             Used to control how many versions should be kept in the history. -1 means infinite.
@@ -2984,6 +2987,15 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Connector'
+        revisionsToKeep:
+          default: 1
+          description: >-
+            Defines how many revisions will be kept, while older revisions may be purged. By default
+            this value will be set to 1. That means there will be only one (HEAD) state of the space
+            and no further revisions will be kept. If the value is bigger than 1, then older
+            revisions, up to the "revisionsToKeep" revision, can be retrieved by e.g. ?rev=rev_number
+          example: 2
+          type: integer
       example:
         title: My Demo Space
         description: Description as markdown
