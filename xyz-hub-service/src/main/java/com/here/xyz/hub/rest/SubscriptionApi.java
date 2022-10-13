@@ -62,17 +62,18 @@ public class SubscriptionApi extends Api {
 
   private void getSubscription(final RoutingContext context) {
     try {
+      String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
       String subscriptionId = context.pathParam(ApiParam.Path.SUBSCRIPTION_ID);
-      SubscriptionHandler.getSubscription(context, subscriptionId, ar -> {
-        if(ar.failed()) {
-          this.sendErrorResponse(context, ar.cause());
+
+      SubscriptionApi.SubscriptionAuthorization.authorizeManageSpacesRights(context, spaceId, arAuth -> {
+        if (arAuth.failed()) {
+          sendErrorResponse(context, arAuth.cause());
         } else {
-          Subscription subscription = ar.result();
-          SubscriptionApi.SubscriptionAuthorization.authorizeManageSpacesRights(context, subscription.getSource(), arAuth -> {
-            if (arAuth.failed()) {
-              sendErrorResponse(context, arAuth.cause());
+          SubscriptionHandler.getSubscription(context, subscriptionId, ar -> {
+            if(ar.failed()) {
+              sendErrorResponse(context, ar.cause());
             } else {
-              sendResponse(context, OK, subscription);
+              sendResponse(context, OK, ar.result());
             }
           });
         }
@@ -84,42 +85,30 @@ public class SubscriptionApi extends Api {
   }
 
   private void getSubscriptions(final RoutingContext context) {
-    String sourceSpace = context.queryParams().get("source");
-    if(sourceSpace == null) {
-      if(SubscriptionAuthorization.isAdmin(context)) {
-        SubscriptionHandler.getAllSubscriptions(context, ar -> {
-          if (ar.failed()) {
+    String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
+    SubscriptionAuthorization.authorizeManageSpacesRights(context, spaceId, arAuth -> {
+      if(arAuth.failed()) {
+        sendErrorResponse(context, arAuth.cause());
+      } else {
+        SubscriptionHandler.getSubscriptions(context, spaceId, ar -> {
+          if(ar.failed()) {
             sendErrorResponse(context, ar.cause());
           } else {
             sendResponse(context, OK, ar.result());
           }
         });
-      } else {
-        sendErrorResponse(context, new HttpException(BAD_REQUEST, "The subscription source should be provided as query parameter"));
       }
-    } else {
-      SubscriptionAuthorization.authorizeManageSpacesRights(context, sourceSpace, arAuth -> {
-        if(arAuth.failed()) {
-          sendErrorResponse(context, arAuth.cause());
-        } else {
-          SubscriptionHandler.getSubscriptions(context, sourceSpace, ar -> {
-            if(ar.failed()) {
-              sendErrorResponse(context, ar.cause());
-            } else {
-              sendResponse(context, OK, ar.result());
-            }
-          });
-        }
-      });
-    }
+    });
   }
 
   private void postSubscription(final RoutingContext context) {
     try {
+      String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
       Subscription subscription = DatabindCodec.mapper().convertValue(getInput(context), Subscription.class);
+      subscription.setSource(spaceId);
       validateSubscriptionRequest(subscription);
 
-      SubscriptionAuthorization.authorizeManageSpacesRights(context, subscription.getSource(), arAuth -> {
+      SubscriptionAuthorization.authorizeManageSpacesRights(context, spaceId, arAuth -> {
         if(arAuth.failed()) {
           sendErrorResponse(context, arAuth.cause());
         } else {
@@ -139,18 +128,20 @@ public class SubscriptionApi extends Api {
 
   private void deleteSubscription(final RoutingContext context) {
     try {
+      String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
       String subscriptionId = context.pathParam(ApiParam.Path.SUBSCRIPTION_ID);
-      // Check if subscription exists
-      SubscriptionHandler.getSubscription(context, subscriptionId, arGet -> {
-        if(arGet.failed()) {
-          sendErrorResponse(context, arGet.cause());
+
+      // Check authorization
+      SubscriptionApi.SubscriptionAuthorization.authorizeManageSpacesRights(context, spaceId, arAuth -> {
+        if (arAuth.failed()) {
+          sendErrorResponse(context, arAuth.cause());
         } else {
-          Subscription subscription = arGet.result();
-          // Check authorization
-          SubscriptionApi.SubscriptionAuthorization.authorizeManageSpacesRights(context, subscription.getSource(), arAuth -> {
-            if (arAuth.failed()) {
-              sendErrorResponse(context, arAuth.cause());
+          // Check if subscription exists
+          SubscriptionHandler.getSubscription(context, subscriptionId, arGet -> {
+            if(arGet.failed()) {
+              sendErrorResponse(context, arGet.cause());
             } else {
+              Subscription subscription = arGet.result();
               // Delete subscription
               SubscriptionHandler.deleteSubscription(context, subscription, ar -> {
                 if(ar.failed()) {
@@ -163,6 +154,7 @@ public class SubscriptionApi extends Api {
           });
         }
       });
+
     }
     catch (Exception e) {
       sendErrorResponse(context, e);
@@ -176,8 +168,6 @@ public class SubscriptionApi extends Api {
       throw new HttpException(BAD_REQUEST, "Validation failed. The property 'source' cannot be empty.");
     if(subscription.getDestination() == null)
       throw new HttpException(BAD_REQUEST, "Validation failed. The property 'destination' cannot be empty.");
-    if(subscription.getDestinationType() == null)
-      throw new HttpException(BAD_REQUEST, "Validation failed. The property 'destinationType' cannot be empty.");
     if(subscription.getConfig() == null || subscription.getConfig().getType() == null)
       throw new HttpException(BAD_REQUEST, "Validation failed. The property config 'type' cannot be empty.");
   }
@@ -193,21 +183,6 @@ public class SubscriptionApi extends Api {
       } catch (HttpException e) {
         handler.handle(Future.failedFuture(e));
       }
-    }
-
-    private static boolean isAdmin(RoutingContext context) {
-      XyzHubActionMatrix xyzHubActionMatrix = Api.Context.getJWT(context).getXyzHubMatrix();
-      if (xyzHubActionMatrix == null) return false;
-      List<AttributeMap> manageSpacesRights = xyzHubActionMatrix.get(XyzHubActionMatrix.MANAGE_SPACES);
-      if (manageSpacesRights != null) {
-        for (AttributeMap attributeMap : manageSpacesRights) {
-          //If manageSpaces[{}] -> Admin (no restrictions)
-          if (attributeMap.isEmpty()) {
-            return true;
-          }
-        }
-      }
-      return false;
     }
 
   }
