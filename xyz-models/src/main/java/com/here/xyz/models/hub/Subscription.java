@@ -19,6 +19,8 @@
 
 package com.here.xyz.models.hub;
 
+import java.util.Map;
+
 public class Subscription {
 
     /**
@@ -35,11 +37,6 @@ public class Subscription {
      * The destination of the subscribe notification
      */
     private String destination;
-
-    /**
-     * The type of the destination
-     */
-    private String destinationType;
 
     /**
      * The configuration of the subscription
@@ -87,19 +84,6 @@ public class Subscription {
         return this;
     }
 
-    public String getDestinationType() {
-        return destinationType;
-    }
-
-    public void setDestinationType(String destinationType) {
-        this.destinationType = destinationType;
-    }
-
-    public Subscription withDestinationType(String destinationType) {
-        this.destinationType = destinationType;
-        return this;
-    }
-
     public SubscriptionConfig getConfig() {
         return config;
     }
@@ -133,6 +117,8 @@ public class Subscription {
          */
         private SubscriptionType type;
 
+        private Map<String, Object> params;
+
         public SubscriptionType getType() {
             return type;
         }
@@ -143,6 +129,19 @@ public class Subscription {
 
         public SubscriptionConfig withType(SubscriptionType type) {
             this.type = type;
+            return this;
+        }
+
+        public Map<String, Object> getParams() {
+            return params;
+        }
+
+        public void setParams(Map<String, Object> params) {
+            this.params = params;
+        }
+
+        public SubscriptionConfig withParams(Map<String, Object> params) {
+            this.params = params;
             return this;
         }
 
@@ -158,7 +157,7 @@ public class Subscription {
          */
         private State state;
 
-        private String reason;
+        private String stateReason;
 
         public State getState() {
             return state;
@@ -173,16 +172,16 @@ public class Subscription {
             return this;
         }
 
-        public String getReason() {
-            return reason;
+        public String getStateReason() {
+            return stateReason;
         }
 
-        public void setReason(String reason) {
-            this.reason = reason;
+        public void setStateReason(String stateReason) {
+            this.stateReason = stateReason;
         }
 
-        public SubscriptionStatus withReason(String reason) {
-            this.reason = reason;
+        public SubscriptionStatus withStateReason(String stateReason) {
+            this.stateReason = stateReason;
             return this;
         }
 

@@ -937,13 +937,15 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
-  '/subscriptions':
+  '/spaces/{spaceId}/subscriptions':
     post:
       tags:
         - Manage Subscriptions
       summary: Create a subscription
       description: Creates a subscription.
       operationId: postSubscription
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
       requestBody:
         $ref: '#/components/requestBodies/SubscriptionRequest'
       responses:
@@ -964,7 +966,7 @@ paths:
       description: Gets a list of all subscription for a space.
       operationId: getSubscriptions
       parameters:
-        - $ref: '#/components/parameters/SubscriptionSource'
+        - $ref: '#/components/parameters/SpaceId'
       responses:
         '200':
           $ref: '#/components/responses/SubscriptionsResponse'
@@ -974,7 +976,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse401'
         '403':
           $ref: '#/components/responses/ErrorResponse403'
-  '/subscriptions/{subscriptionId}':
+  '/spaces/{spaceId}/subscriptions/{subscriptionId}':
     get:
       tags:
         - Manage Subscriptions
@@ -982,6 +984,7 @@ paths:
       description: Returns the subscription definition
       operationId: getSubscription
       parameters:
+        - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/SubscriptionId'
       responses:
         '200':
@@ -1001,6 +1004,7 @@ paths:
       description: Deletes a subscription configuration.
       operationId: deleteSubscription
       parameters:
+        - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/SubscriptionId'
       responses:
         '200':
@@ -1652,14 +1656,6 @@ components:
       required: true
       schema:
         type: string
-    SubscriptionSource:
-      name: source
-      in: query
-      description: >-
-        The source space of subscriptions.
-      required: true
-      schema:
-        type: string
   responses:
     ConnectorResponse:
       description: The connector
@@ -1943,9 +1939,7 @@ components:
             $ref: '#/components/schemas/Subscription'
           example:
             id: my-subscription-id
-            source: source-space
             destination: string
-            destinationType: string
             config:
               type: PER_FEATURE
   schemas:
@@ -3295,10 +3289,6 @@ components:
           description: >-
             The destination for the subscribed notification.
           type: string
-        destinationType:
-          description: >-
-            The type of destination for the subscribed notification.
-          type: string
         config:
           $ref: '#/components/schemas/SubscriptionConfig'
         status:
@@ -3310,7 +3300,7 @@ components:
               description: The state of the subscription.
               type: string
               example: ACTIVE
-            reason:
+            stateReason:
               description: "The reason for the current state."
               type: string
               example: ""
@@ -3325,3 +3315,6 @@ components:
           enum:
             - PER_FEATURE
             - PER_TRANSACTION
+        params:
+          type: "object"
+          description: "The additional parameters of the subscription config"
