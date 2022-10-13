@@ -14,7 +14,7 @@ import static org.hamcrest.Matchers.is;
 
 public class SubscriptionApiIT extends TestSpaceWithFeature {
 
-    private String cleanUpId;
+    private static String cleanUpId = "space-1";
 
     @BeforeClass
     public static void setupClass() {
@@ -23,18 +23,16 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
     
     @Before
     public void setup() {
-        cleanUpId = "space-1";
         createSpaceWithCustomStorage(cleanUpId, "psql", null);
     }
 
     @After
     public void teardown() {
-        removeSpace(cleanUpId);
         removeAll();
     }
 
     private static void removeAll() {
-        // Delete all subscriptions which have potentially been created during the test
+        removeSpace(cleanUpId);
         removeSubscription(AuthProfile.ACCESS_ALL, "test-subscription-1");
     }
 
@@ -49,7 +47,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
                 .headers(getAuthHeaders(authProfile))
                 .body(content(contentFile))
                 .when()
-                .post("/subscriptions")
+                .post("/spaces/" + cleanUpId + "/subscriptions")
                 .then();
     }
     public static ValidatableResponse removeSubscription(AuthProfile authProfile, String subscriptionId) {
@@ -57,7 +55,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
                 .accept(APPLICATION_JSON)
                 .headers(getAuthHeaders(authProfile))
                 .when()
-                .delete("/subscriptions/" + subscriptionId)
+                .delete("/spaces/" + cleanUpId + "/subscriptions/" + subscriptionId)
                 .then();
     }
 
@@ -110,7 +108,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
                 .accept(APPLICATION_JSON)
                 .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES))
                 .when()
-                .get("/subscriptions/" + subscriptionId)
+                .get("/spaces/" + cleanUpId + "/subscriptions/" + subscriptionId)
                 .then()
                 .statusCode(OK.code())
                 .body("id", equalTo(subscriptionId));
@@ -124,7 +122,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
                 .accept(APPLICATION_JSON)
                 .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_2_MANAGE_SPACES))
                 .when()
-                .get("/subscriptions/test-subscription-1")
+                .get("/spaces/" + cleanUpId + "/subscriptions/test-subscription-1")
                 .then()
                 .statusCode(FORBIDDEN.code());
     }
@@ -137,7 +135,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
                 .accept(APPLICATION_JSON)
                 .headers(getAuthHeaders(AuthProfile.NO_ACCESS))
                 .when()
-                .get("/subscriptions/test-subscription-1")
+                .get("/spaces/" + cleanUpId + "/subscriptions/test-subscription-1")
                 .then()
                 .statusCode(FORBIDDEN.code());
     }
@@ -154,15 +152,14 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
     }
 
     @Test
-    public void getSubscriptionBySource() {
+    public void getSubscriptionsForSpace() {
         addTestSubscription();
 
         given()
                 .accept(APPLICATION_JSON)
                 .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES))
-                .queryParam("source", "space-1")
                 .when()
-                .get("/subscriptions")
+                .get("/spaces/" + cleanUpId + "/subscriptions")
                 .then()
                 .statusCode(OK.code())
                 .body("size()", is(1))
@@ -170,29 +167,16 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
     }
 
     @Test
-    public void getSubscriptionBySourceWithNoSubscriptions() {
+    public void getSubscriptionForSpaceWithNoSubscriptions() {
         given()
                 .accept(APPLICATION_JSON)
                 .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES))
                 .queryParam("source", "space-1")
                 .when()
-                .get("/subscriptions")
+                .get("/spaces/" + cleanUpId + "/subscriptions")
                 .then()
                 .statusCode(OK.code())
                 .body("size()", is(0));
-    }
-
-    @Test
-    public void getSubscriptionBySourceWithoutSourceParam() {
-        addTestSubscription();
-
-        given()
-                .accept(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES))
-                .when()
-                .get("/subscriptions")
-                .then()
-                .statusCode(BAD_REQUEST.code());
     }
 
     @Test
