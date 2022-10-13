@@ -25,6 +25,7 @@ import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.QueryEvent;
 import com.here.xyz.psql.query.GetFeatures;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -251,7 +252,7 @@ public class SQLQuery {
   }
 
   public void replaceFragments() {
-    if (queryFragments == null)
+    if (queryFragments == null || queryFragments.size() == 0)
       return;
     //First replace all query fragments of sub-fragments & incorporate all named parameters of the sub fragments into this query
     queryFragments.forEach((key, fragment) -> {
@@ -369,9 +370,24 @@ public class SQLQuery {
     return new HashMap<>(queryFragments);
   }
 
-  private void initQueryFragments() {
-    if (parameters() != null && parameters().size() > 0)
+  //TODO: Can be removed after completion of refactoring
+  @Deprecated
+  private static void checkForUnnamedParametersInFragment(SQLQuery fragment) {
+    if (fragment == null)
+      return;
+    if (fragment.parameters() != null && fragment.parameters().size() > 0)
       throw new RuntimeException("No query fragments can be used inside queries which use parameters. Use named parameters instead!");
+    if (fragment.queryFragments != null)
+      checkForUnnamedParametersInFragments(fragment.queryFragments.values());
+  }
+
+  //TODO: Can be removed after completion of refactoring
+  @Deprecated
+  private static void checkForUnnamedParametersInFragments(Collection<SQLQuery> fragments) {
+    fragments.forEach(f -> checkForUnnamedParametersInFragment(f));
+  }
+
+  private void initQueryFragments() {
     if (queryFragments == null)
       queryFragments = new HashMap<>();
   }
@@ -380,6 +396,7 @@ public class SQLQuery {
     if (queryFragments == null)
       return;
     initQueryFragments();
+    checkForUnnamedParametersInFragments(queryFragments.values()); //TODO: Can be removed after completion of refactoring
     this.queryFragments.putAll(queryFragments);
   }
 
@@ -395,6 +412,7 @@ public class SQLQuery {
 
   public void setQueryFragment(String key, SQLQuery fragment) {
     initQueryFragments();
+    checkForUnnamedParametersInFragment(fragment); //TODO: Can be removed after completion of refactoring
     queryFragments.put(key, fragment);
   }
 

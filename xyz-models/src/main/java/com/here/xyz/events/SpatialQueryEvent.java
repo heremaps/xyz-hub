@@ -20,115 +20,26 @@
 package com.here.xyz.events;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class SpatialQueryEvent<T extends SpatialQueryEvent> extends SearchForFeaturesEvent<T> {
 
-  private String clusteringType;
-  private Map<String, Object> clusteringParams;
-  private String tweakType;
-  private Map<String, Object> tweakParams;
-
-  private String optimizationMode;
-  private String vizSampling;
+  private boolean clip;
 
   @SuppressWarnings("unused")
-  public String getClusteringType() {
-    return this.clusteringType;
+  public Boolean getClip() {
+    return this.clip;
   }
 
   @SuppressWarnings("WeakerAccess")
-  public void setClusteringType(String clusteringType) {
-    this.clusteringType = clusteringType;
+  public void setClip(Boolean clip) {
+    this.clip = clip;
   }
 
   @SuppressWarnings("unused")
-  public T withClusteringType(String clusteringType) {
-    setClusteringType(clusteringType);
+  public T withClip(boolean clip) {
+    setClip(clip);
     //noinspection unchecked
     return (T) this;
   }
-
-  @SuppressWarnings("unused")
-  public Map<String, Object> getClusteringParams() {
-    return this.clusteringParams;
-  }
-
-  public void setClusteringParams(Map<String, Object> clusteringParams) {
-    this.clusteringParams = clusteringParams;
-  }
-
-  @SuppressWarnings({"unused", "unchecked"})
-  public T withClusteringParams(Map<String, Object> clusteringParams) {
-    this.clusteringParams = clusteringParams;
-    return (T) this;
-  }
-
-  @SuppressWarnings("unused")
-  public Map<String, Object> getTweakParams() {
-    return this.tweakParams;
-  }
-
-  public void setTweakParams(Map<String, Object> tweakParams) {
-    this.tweakParams = tweakParams;
-  }
-
-  @SuppressWarnings({"unused", "unchecked"})
-  public T withTweakParams(Map<String, Object> tweakParams) {
-    this.tweakParams = tweakParams;
-    return (T) this;
-  }
-
-  @SuppressWarnings("unused")
-  public String getTweakType() {
-    return this.tweakType;
-  }
-
-  @SuppressWarnings("WeakerAccess")
-  public void setTweakType(String tweakType) {
-    this.tweakType = tweakType;
-  }
-
-  @SuppressWarnings("unused")
-  public T withTweakType(String tweakType) {
-    setTweakType(tweakType);
-    //noinspection unchecked
-    return (T) this;
-  }
-
-  @SuppressWarnings("unused")
-  public String getOptimizationMode() {
-    return this.optimizationMode;
-  }
-
-  @SuppressWarnings("WeakerAccess")
-  public void setOptimizationMode(String optimizationMode) {
-    this.optimizationMode = optimizationMode;
-  }
-
-  @SuppressWarnings("unused")
-  public T withOptimizationMode(String optimizationMode) {
-    setOptimizationMode(optimizationMode);
-    //noinspection unchecked
-    return (T) this;
-  }
-
-  @SuppressWarnings("unused")
-  public String getVizSampling() {
-    return this.vizSampling;
-  }
-
-  @SuppressWarnings("WeakerAccess")
-  public void setVizSampling(String vizSampling) {
-    this.vizSampling = vizSampling;
-  }
-
-  @SuppressWarnings("unused")
-  public T withVizSampling(String vizSampling) {
-    setVizSampling(vizSampling);
-    //noinspection unchecked
-    return (T) this;
-  }
-
 }

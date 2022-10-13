@@ -229,7 +229,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
       final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
       final SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()).toUpperCase());
 
-      GetFeaturesByBBoxEvent event = new GetFeaturesByBBoxEvent<>()
+      GetFeaturesByBBoxEvent event = (GetFeaturesByBBoxEvent) new GetFeaturesByBBoxEvent<>()
           .withForce2D(force2D)
           .withBbox(getBBox(context))
           .withClip(clip);

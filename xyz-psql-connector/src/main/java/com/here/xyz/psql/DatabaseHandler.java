@@ -316,6 +316,7 @@ public abstract class DatabaseHandler extends StorageConnector {
      */
     protected <T> T executeQueryWithRetry(SQLQuery query, ResultSetHandler<T> handler, boolean useReadReplica) throws SQLException {
         try {
+            query.replaceFragments();
             return executeQuery(query, handler, useReadReplica ? readDataSource : dataSource);
         } catch (Exception e) {
             try {
