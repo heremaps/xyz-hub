@@ -281,6 +281,22 @@ public class SQLQuery {
     namedParameters = null;
   }
 
+  //TODO: Can be removed after completion of refactoring
+  @Deprecated
+  public void replaceUnnamedParameters() {
+    if (parameters() == null || parameters().size() == 0)
+      return;
+    List<Object> params = parameters();
+    //Clear all un-named parameters
+    parameters = new ArrayList<>();
+    int i = 0;
+    for (Object paramValue : params) {
+      String paramName = "param" + ++i;
+      setNamedParameter(paramName, paramValue);
+      setText(text().replaceFirst(Pattern.quote("?"), "#{" + paramName + "}"));
+    }
+  }
+
   public static SQLQuery selectJson(QueryEvent event) {
     return GetFeatures.buildSelectionFragmentBWC(event);
   }

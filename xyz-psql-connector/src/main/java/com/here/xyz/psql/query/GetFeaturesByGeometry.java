@@ -34,6 +34,7 @@ import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.SQLQueryBuilder;
 import com.here.xyz.psql.tools.DhString;
 import java.sql.SQLException;
+import java.util.Collections;
 
 public class GetFeaturesByGeometry extends SearchForFeatures<GetFeaturesByGeometryEvent> {
 
@@ -52,12 +53,12 @@ public class GetFeaturesByGeometry extends SearchForFeatures<GetFeaturesByGeomet
 
     if(event.getH3Index() != null){
       if(radius != 0)
-        geoQuery = new SQLQuery("ST_Intersects( geo, ST_Buffer(hexbin::geography,? )::geometry)", radius);
+        geoQuery = new SQLQuery("ST_Intersects( geo, ST_Buffer(hexbin::geography, #{radius} )::geometry)", Collections.singletonMap("radius", radius));
       else
         geoQuery = new SQLQuery("ST_Intersects( geo, hexbin)");
     }else{
       geoQuery = radius != 0 ? new SQLQuery("ST_Intersects(geo, ST_Buffer(ST_GeomFromText('"
-          + WKTHelper.geometryToWKB(geometry) + "')::geography, ? )::geometry)", radius) : new SQLQuery("ST_Intersects(geo, ST_GeomFromText('"
+          + WKTHelper.geometryToWKB(geometry) + "')::geography, #{radius} )::geometry)", Collections.singletonMap("radius", radius)) : new SQLQuery("ST_Intersects(geo, ST_GeomFromText('"
           + WKTHelper.geometryToWKB(geometry) + "',4326))");
     }
     return generateCombinedQuery(event, geoQuery);
@@ -73,7 +74,7 @@ public class GetFeaturesByGeometry extends SearchForFeatures<GetFeaturesByGeomet
   }
 
   private static SQLQuery generateCombinedQuery(SpatialQueryEvent event, SQLQuery indexedQuery) {
-    SQLQuery searchQuery = generateSearchQueryBWC(event);
+    SQLQuery searchQuery = generateSearchQuery(event);
     boolean bConvertGeo2Geojson = event instanceof GetFeaturesByGeometryEvent || SQLQueryBuilder.getResponseType((GetFeaturesByBBoxEvent) event) == GEO_JSON;
     String h3Index = event instanceof GetFeaturesByGeometryEvent ? ((GetFeaturesByGeometryEvent) event).getH3Index() : null;
 
@@ -84,10 +85,12 @@ public class GetFeaturesByGeometry extends SearchForFeatures<GetFeaturesByGeomet
 
       query.append("SELECT ");
 
-      query.append(SQLQuery.selectJson(event));
+      SQLQuery selection = buildSelectionFragment(event);
+      query.append(selection);
       query.append(",");
       query.append(" ${{geo}} ");
       query.setQueryFragment("geo", geometrySelectorForEvent(event, bConvertGeo2Geojson));
+      query.setNamedParameters(selection.getNamedParameters());
 
       if(h3Index != null)
           query.append("FROM ${schema}.${table} ${{tableSample}}, h WHERE");
@@ -95,17 +98,23 @@ public class GetFeaturesByGeometry extends SearchForFeatures<GetFeaturesByGeomet
           query.append("FROM ${schema}.${table} ${{tableSample}} WHERE");
       query.setQueryFragment("tableSample", ""); //Can be overridden by caller
 
+      indexedQuery.replaceUnnamedParameters();
       query.append(indexedQuery);
+      query.setNamedParameters(indexedQuery.getNamedParameters());
 
       if( searchQuery != null )
       { query.append(" and ");
           query.append(searchQuery);
+          query.setNamedParameters(searchQuery.getNamedParameters());
       }
 
       query.append(" ${{orderBy}} ");
       query.setQueryFragment("orderBy", ""); //Can be overridden by caller
 
-      query.append("LIMIT ?", event.getLimit());
+      query.append(" ${{limit}} ");
+      query.setQueryFragment("limit", buildLimitFragment(event.getLimit()));
+
+
       return query;
   }
 
@@ -117,15 +126,20 @@ public class GetFeaturesByGeometry extends SearchForFeatures<GetFeaturesByGeomet
 
       if(!event.getClip()){
           return (bGeoJson ?
-                  new SQLQuery("replace(ST_AsGeojson("+forceMode+"(geo),?::INTEGER),'nan','0') as geo", SQLQueryBuilder.GEOMETRY_DECIMAL_DIGITS)
+                  new SQLQuery("replace(ST_AsGeojson("+forceMode+"(geo), " + SQLQueryBuilder.GEOMETRY_DECIMAL_DIGITS + "),'nan','0') as geo")
                   : new SQLQuery(forceMode+"(geo) as geo"));
       }else{
           if(event instanceof GetFeaturesByBBoxEvent){
               final BBox bbox = ((GetFeaturesByBBoxEvent)event).getBbox();
-              String geoSqlAttrib = (bGeoJson ? DhString.format("replace(ST_AsGeoJson(ST_Intersection(ST_MakeValid(geo),ST_MakeEnvelope(?,?,?,?,4326)),%d),'nan','0') as geo", SQLQueryBuilder.GEOMETRY_DECIMAL_DIGITS)
-                      : "ST_Intersection( ST_MakeValid(geo),ST_MakeEnvelope(?,?,?,?,4326) ) as geo");
+              SQLQuery geoQuery = new SQLQuery(bGeoJson ? "replace(ST_AsGeoJson(ST_Intersection(ST_MakeValid(geo),ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326)), " + SQLQueryBuilder.GEOMETRY_DECIMAL_DIGITS + "),'nan','0') as geo"
+                      : "ST_Intersection( ST_MakeValid(geo),ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326) ) as geo");
 
-              return new SQLQuery(geoSqlAttrib, bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
+              geoQuery.setNamedParameter("minLon", bbox.minLon());
+              geoQuery.setNamedParameter("minLat", bbox.minLat());
+              geoQuery.setNamedParameter("maxLon", bbox.maxLon());
+              geoQuery.setNamedParameter("maxLat", bbox.maxLat());
+
+              return geoQuery;
           }else if(event instanceof GetFeaturesByGeometryEvent){
               //Clip=true =>  Use input Geometry for clipping
               final Geometry geometry = ((GetFeaturesByGeometryEvent)event).getGeometry();
@@ -141,7 +155,7 @@ public class GetFeaturesByGeometry extends SearchForFeatures<GetFeaturesByGeomet
                           DhString.format("ST_Buffer(ST_GeomFromText('" + WKTHelper.geometryToWKB(geometry) + "')::geography, %d )::geometry", ((GetFeaturesByGeometryEvent)event).getRadius())
                           : DhString.format("ST_Buffer(hexbin::geography,%d)::geometry", ((GetFeaturesByGeometryEvent)event).getRadius()));
               }
-              return new SQLQuery("replace(ST_AsGeoJson(ST_Intersection(ST_MakeValid(geo),"+wktGeom+"),?::INTEGER),'nan','0') as geo", SQLQueryBuilder.GEOMETRY_DECIMAL_DIGITS);
+              return new SQLQuery("replace(ST_AsGeoJson(ST_Intersection(ST_MakeValid(geo),"+wktGeom+"), " + SQLQueryBuilder.GEOMETRY_DECIMAL_DIGITS + "),'nan','0') as geo");
           }
       }
       //Should not happen (currently only used with GetFeaturesByBBoxEvent / GetFeaturesByGeometryEvent)
