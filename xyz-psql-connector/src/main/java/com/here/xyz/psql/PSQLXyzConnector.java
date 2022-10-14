@@ -160,11 +160,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processGetFeaturesByGeometryEvent(GetFeaturesByGeometryEvent event) throws Exception {
     try {
       logger.info("{} Received GetFeaturesByGeometryEvent", traceItem);
-
-      if (event.getParams() != null && event.getParams().containsKey("extends") && event.getContext() == DEFAULT)
         return new GetFeaturesByGeometry(event, this).run();
-
-      return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByGeometryQuery(event));
     }catch (SQLException e){
       return checkSQLException(e, config.readTableFromEvent(event));
     }finally {
