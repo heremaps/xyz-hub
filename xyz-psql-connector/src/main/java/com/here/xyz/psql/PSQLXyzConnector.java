@@ -51,6 +51,7 @@ import com.here.xyz.psql.factory.H3SQL;
 import com.here.xyz.psql.factory.QuadbinSQL;
 import com.here.xyz.psql.factory.TweaksSQL;
 import com.here.xyz.psql.query.GetFeaturesByBBox;
+import com.here.xyz.psql.query.GetFeaturesByGeometry;
 import com.here.xyz.psql.query.GetFeaturesById;
 import com.here.xyz.psql.query.GetStorageStatistics;
 import com.here.xyz.psql.query.IterateFeatures;
@@ -159,6 +160,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processGetFeaturesByGeometryEvent(GetFeaturesByGeometryEvent event) throws Exception {
     try {
       logger.info("{} Received GetFeaturesByGeometryEvent", traceItem);
+
+      if (event.getParams() != null && event.getParams().containsKey("extends") && event.getContext() == DEFAULT)
+        return new GetFeaturesByGeometry(event, this).run();
+
       return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByGeometryQuery(event));
     }catch (SQLException e){
       return checkSQLException(e, config.readTableFromEvent(event));
