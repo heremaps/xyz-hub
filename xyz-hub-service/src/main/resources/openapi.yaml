@@ -191,13 +191,41 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
+  '/spaces/{spaceId}/revisions':
+    delete:
+      tags:
+        - Manage Spaces
+      summary: Delete revisions
+      description: >-
+        Deletes one or more revisions where the revision number can be specified by the query parameter 'rev',
+        by using one of the comparators available: =eq=, =gt=, =ge=, =lt= or =le= and the value,
+        must be an integer, bigger than 0.
+
+        Example: To remove revisions older than the 10th revision,
+        a DELETE /spaces/{spaceId}/revisions?rev=lt=10 must be issued.
+
+        The service will begin the process to remove the revisions from 9th revision until the 1st revision.
+        During the deletion process, newer revisions can be created and won't be affected.
+      operationId: deleteRevisions
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/Revision'
+      responses:
+        '204':
+          $ref: '#/components/responses/EmptyResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
   '/spaces/{spaceId}/features':
     get:
       tags:
         - Read Features
       summary: Get features by ID
       description: >-
-        Returns all of the features found for the provided list of IDs.
+        Returns all the features found for the provided list of IDs.
         The response is always a FeatureCollection,
         even if there are no features with the provided IDs.
       operationId: getFeatures
@@ -207,6 +235,7 @@ paths:
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
+        - $ref: '#/components/parameters/Revision'
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionResponse'
@@ -422,6 +451,7 @@ paths:
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
+        - $ref: '#/components/parameters/Revision'
       responses:
         '200':
           $ref: '#/components/responses/FeatureResponse'
@@ -705,6 +735,7 @@ paths:
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/SkipCache'
         - $ref: '#/components/parameters/Force2D'
+        - $ref: '#/components/parameters/Author'
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionResponse'
@@ -964,6 +995,14 @@ components:
         type: array
         items:
           type: string
+    Author:
+      name: author
+      in: query
+      description: >-
+        Filter the results per author.
+      required: false
+      schema:
+        type: string
     Clip:
       name: clip
       in: query
@@ -1401,6 +1440,24 @@ components:
           * id=value1,value2
           * id=value1,id=value2
       required: true
+      schema:
+        type: array
+        items:
+          type: string
+    Revision:
+      name: rev
+      in: query
+      description: >-
+        A comma separated list of unique revision numbers.
+        The wildcard sign '*' can be used to represent all available revisions.
+        Acceptable formats for this field are:
+          * ?rev=*
+          * ?rev=1,2
+          * ?rev=1&rev=2
+
+        The default operator supported is '=', however, operators like '=eq=', '=lt=' and others
+        may be supported if specified on the endpoint supporting this parameter.
+      required: false
       schema:
         type: array
         items:
@@ -2727,6 +2784,21 @@ components:
           format: int64
           readOnly: true
           type: integer
+        revision:
+          description: >-
+            The revision number groups the feature modifications in the space history in which
+            this feature is part of.
+          example: 1
+          format: int64
+          readOnly: true
+          type: integer
+        author:
+          description: >-
+            The author who performed the modification in the Feature's revision pointed
+            by 'revision'.
+          example: anonymous
+          readOnly: true
+          type: string
     OnFeatureExists:
       type: string
       enum:
