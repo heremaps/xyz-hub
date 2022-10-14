@@ -45,7 +45,6 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Map;
-import javax.sql.DataSource;
 
 public class SQLQueryBuilder {
     public static final long GEOMETRY_DECIMAL_DIGITS = 8;
@@ -99,7 +98,7 @@ public class SQLQueryBuilder {
 
     public static SQLQuery buildHexbinClusteringQuery(
             GetFeaturesByBBoxEvent event, BBox bbox,
-            Map<String, Object> clusteringParams, DataSource dataSource) {
+            Map<String, Object> clusteringParams) {
 
         int zLevel = (event instanceof GetFeaturesByTileEvent ? ((GetFeaturesByTileEvent) event).getLevel() : H3SQL.bbox2zoom(bbox)),
             defaultResForLevel = H3SQL.zoom2resolution(zLevel),
@@ -729,7 +728,7 @@ public class SQLQueryBuilder {
       return SearchForFeatures.generateSearchQueryBWC(event);
   }
 
-    protected static SQLQuery generateLoadOldFeaturesQuery(final String[] idsToFetch, final DataSource dataSource) {
+    protected static SQLQuery generateLoadOldFeaturesQuery(final String[] idsToFetch) {
         return new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)", (Object) idsToFetch);
     }
 
