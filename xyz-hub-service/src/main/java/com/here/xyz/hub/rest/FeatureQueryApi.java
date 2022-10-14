@@ -39,6 +39,7 @@ import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
@@ -103,9 +104,9 @@ public class FeatureQueryApi extends SpaceBasedApi {
 
       final SearchForFeaturesEvent event = new SearchForFeaturesEvent();
       event.withLimit(getLimit(context))
-          .withForce2D(force2D)
           .withTags(Query.getTags(context))
           .withPropertiesQuery(Query.getPropertiesQuery(context))
+          .withForce2D(force2D)
           .withSelection(Query.getSelection(context));
 
       final SearchQuery task = new SearchQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache);

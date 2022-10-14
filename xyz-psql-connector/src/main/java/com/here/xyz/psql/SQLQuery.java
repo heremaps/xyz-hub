@@ -376,7 +376,7 @@ public class SQLQuery {
     if (fragment == null)
       return;
     if (fragment.parameters() != null && fragment.parameters().size() > 0)
-      throw new RuntimeException("No query fragments can be used inside queries which use parameters. Use named parameters instead!");
+      throw new RuntimeException("Query which use parameters can't be added as query fragment to a query. Use named parameters instead!");
     if (fragment.queryFragments != null)
       checkForUnnamedParametersInFragments(fragment.queryFragments.values());
   }

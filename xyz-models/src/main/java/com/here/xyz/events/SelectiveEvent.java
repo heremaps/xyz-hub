@@ -21,9 +21,10 @@ package com.here.xyz.events;
 
 import java.util.List;
 
-public class SelectiveEvent<T extends ContextAwareEvent> extends ContextAwareEvent<T> {
+public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<T> {
 
   private List<String> selection;
+  private boolean force2D;
 
   private long revision = Long.MAX_VALUE; //Default is HEAD revision
 
@@ -68,6 +69,23 @@ public class SelectiveEvent<T extends ContextAwareEvent> extends ContextAwareEve
 
   public T withRevision(String author) {
     setAuthor(author);
+    return (T) this;
+  }
+
+  @SuppressWarnings("WeakerAccess")
+  public boolean isForce2D() {
+    return force2D;
+  }
+
+  @SuppressWarnings("WeakerAccess")
+  public void setForce2D(boolean force2D) {
+    this.force2D = force2D;
+  }
+
+  @SuppressWarnings("unused")
+  public T withForce2D(boolean force2D) {
+    setForce2D(force2D);
+    //noinspection unchecked
     return (T) this;
   }
 }

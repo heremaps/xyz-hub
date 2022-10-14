@@ -73,9 +73,9 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
     return new SQLQuery("LIMIT #{limit}", Collections.singletonMap("limit", limit));
   }
 
-  /**
-   * This method is kept for backwards compatibility until refactoring is complete.
-   */
+
+  //TODO: Can be removed after completion of refactoring
+  @Deprecated
   public static SQLQuery generatePropertiesQueryBWC(PropertiesQuery properties) {
     SQLQuery query = generatePropertiesQuery(properties);
     if (query != null)
