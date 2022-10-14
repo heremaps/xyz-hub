@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -232,8 +232,13 @@ public abstract class Api {
           break;
 
         case COUNT_RESPONSE:
-          if (response instanceof CountResponse) {
-            sendJsonResponse(task, Json.encode(response));
+          if (response instanceof StatisticsResponse) {
+            XyzResponse transformedResponse = new CountResponse()
+                .withCount(((StatisticsResponse) response).getCount().getValue())
+                .withEstimated(((StatisticsResponse) response).getCount().getEstimated())
+                .withEtag(response.getEtag());
+
+            sendJsonResponse(task, Json.encode(transformedResponse));
             return;
           }
           break;

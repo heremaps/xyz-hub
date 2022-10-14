@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,12 +25,11 @@ import com.here.xyz.models.geojson.implementation.Geometry;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "GetFeaturesByGeometryEvent")
-public class GetFeaturesByGeometryEvent extends SearchForFeaturesEvent<GetFeaturesByGeometryEvent> {
+public class GetFeaturesByGeometryEvent extends SpatialQueryEvent<GetFeaturesByGeometryEvent> {
 
   private int radius;
   private Geometry geometry;
   private String h3Index;
-  private boolean clip;
 
   @SuppressWarnings("unused")
   public String getH3Index() {
@@ -75,19 +74,4 @@ public class GetFeaturesByGeometryEvent extends SearchForFeaturesEvent<GetFeatur
     return this;
   }
 
-  @SuppressWarnings("unused")
-  public Boolean getClip() {
-    return this.clip;
-  }
-
-  @SuppressWarnings("WeakerAccess")
-  public void setClip(Boolean clip) {
-    this.clip = clip;
-  }
-
-  @SuppressWarnings("unused")
-  public GetFeaturesByGeometryEvent withClip(boolean clip) {
-    setClip(clip);
-    return this;
-  }
 }

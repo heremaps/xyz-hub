@@ -32,11 +32,9 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
-import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
-import com.here.xyz.events.GetFeaturesByTileEvent.ResponseType;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.PropertiesQuery;
@@ -46,7 +44,6 @@ import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.FeatureTask;
 import com.here.xyz.hub.task.FeatureTask.BBoxQuery;
-import com.here.xyz.hub.task.FeatureTask.CountQuery;
 import com.here.xyz.hub.task.FeatureTask.GeometryQuery;
 import com.here.xyz.hub.task.FeatureTask.GetStatistics;
 import com.here.xyz.hub.task.FeatureTask.IterateQuery;
@@ -84,9 +81,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
    */
   @Deprecated
   private void getFeaturesCount(final RoutingContext context) {
-    CountFeaturesEvent event = new CountFeaturesEvent()
-        .withTags(Query.getTags(context));
-    new CountQuery(event, context, ApiResponseType.COUNT_RESPONSE)
+    new GetStatistics(new GetStatisticsEvent(), context, ApiResponseType.COUNT_RESPONSE, Query.getBoolean(context, SKIP_CACHE, false))
         .execute(this::sendResponse, this::sendErrorResponse);
   }
 
@@ -230,7 +225,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
       final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
       final SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()).toUpperCase());
 
-      GetFeaturesByBBoxEvent event = new GetFeaturesByBBoxEvent<>()
+      GetFeaturesByBBoxEvent event = (GetFeaturesByBBoxEvent) new GetFeaturesByBBoxEvent<>()
           .withForce2D(force2D)
           .withBbox(getBBox(context))
           .withClip(clip);

@@ -89,8 +89,8 @@ public class PSQLDeleteIT extends PSQLAbstractIT {
         LOGGER.info("Preparation: Insert features");
 
         // =========== COUNT ==========
-        String countResponse = invokeLambdaFromFile("/events/CountFeaturesEvent.json");
-        Integer originalCount = JsonPath.read(countResponse, "$.count");
+        String statsResponse = invokeLambdaFromFile("/events/GetStatisticsEvent.json");
+        Integer originalCount = JsonPath.read(statsResponse, "$.count.value");
         LOGGER.info("Preparation: feature count = {}", originalCount);
 
         // =========== DELETE SOME TAGGED FEATURES ==========
@@ -111,8 +111,8 @@ public class PSQLDeleteIT extends PSQLAbstractIT {
             assertEquals("unexpected features in DeleteByTagResponse", 0, features.size());
         }
 
-        countResponse = invokeLambdaFromFile("/events/CountFeaturesEvent.json");
-        Integer count = JsonPath.read(countResponse, "$.count");
+        statsResponse = invokeLambdaFromFile("/events/GetStatisticsEvent.json");
+        Integer count = JsonPath.read(statsResponse, "$.count.value");
         assertTrue(originalCount > count);
         LOGGER.info("Delete tagged features tested successfully");
 
@@ -126,8 +126,8 @@ public class PSQLDeleteIT extends PSQLAbstractIT {
             assertEquals("unexpected features in DeleteByTagResponse", 0, features.size());
         }
 
-        countResponse = invokeLambdaFromFile("/events/CountFeaturesEvent.json");
-        count = JsonPath.read(countResponse, "$.count");
+        statsResponse = invokeLambdaFromFile("/events/GetStatisticsEvent.json");
+        count = JsonPath.read(statsResponse, "$.count.value");
         assertEquals(0, count.intValue());
         LOGGER.info("Delete all features tested successfully");
     }

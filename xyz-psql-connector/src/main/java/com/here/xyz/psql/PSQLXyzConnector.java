@@ -22,10 +22,10 @@ package com.here.xyz.psql;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
+import static com.here.xyz.responses.XyzError.EXCEPTION;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
@@ -56,12 +56,11 @@ import com.here.xyz.psql.query.GetStorageStatistics;
 import com.here.xyz.psql.query.IterateFeatures;
 import com.here.xyz.psql.query.LoadFeatures;
 import com.here.xyz.psql.query.SearchForFeatures;
-import com.here.xyz.responses.CountResponse;
+import com.here.xyz.psql.tools.DhString;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
-import com.here.xyz.psql.tools.DhString;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -160,7 +159,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processGetFeaturesByGeometryEvent(GetFeaturesByGeometryEvent event) throws Exception {
     try {
       logger.info("{} Received GetFeaturesByGeometryEvent", traceItem);
-      return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByGeometryQuery(event,dataSource));
+      return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByGeometryQuery(event));
     }catch (SQLException e){
       return checkSQLException(e, config.readTableFromEvent(event));
     }finally {
@@ -291,7 +290,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
             distStrength = TweaksSQL.calculateDistributionStrength( rCount, Math.max(Math.min((int) tweakParams.getOrDefault(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD,10),100),10) * 1000 );
 
-            HashMap<String, Object> hmap = new HashMap<String, Object>();
+            HashMap<String, Object> hmap = new HashMap<>();
             hmap.put("algorithm", new String("distribution"));
             hmap.put("strength", new Integer( distStrength ));
             tweakParams = hmap;
@@ -302,28 +301,28 @@ public class PSQLXyzConnector extends DatabaseHandler {
             if( bTweaks || !bVizSamplingOff )
             {
               if( !bMvtRequested )
-              { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, bSortByHashedValue, dataSource));
+              { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, bSortByHashedValue));
                 if( distStrength > 0 ) collection.setPartial(true); // either ensure mode or explicit tweaks:sampling request where strenght in [1..100]
                 return collection;
               }
               else
                return executeBinQueryWithRetry(
-                         SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, bSortByHashedValue, dataSource) , mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
+                         SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, bSortByHashedValue) , mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
             }
             else
             { // fall thru tweaks=simplification e.g. mode=viz and vizSampling=off
-              tweakParams.put("algorithm", new String("gridbytilelevel"));
+              tweakParams.put("algorithm", "gridbytilelevel");
             }
           }
 
           case TweaksSQL.SIMPLIFICATION: {
             if( !bMvtRequested )
-            { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams, dataSource));
+            { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams));
               return collection;
             }
             else
              return executeBinQueryWithRetry(
-               SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams, dataSource) , mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
+               SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams) , mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
           }
 
           default: break; // fall back to non-tweaks usage.
@@ -371,9 +370,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
         return new GetFeaturesByBBox<>(event, this).run();
 
       if( !bMvtRequested )
-       return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource));
+       return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event));
       else
-       return executeBinQueryWithRetry( SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event, isBigQuery, dataSource), mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
+       return executeBinQueryWithRetry( SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event), mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
 
     }catch (SQLException e){
       return checkSQLException(e, config.readTableFromEvent(event));
@@ -464,29 +463,6 @@ public class PSQLXyzConnector extends DatabaseHandler {
     if (!Capabilities.canSearchFor(config.readTableFromEvent(event), event.getPropertiesQuery(), this))
       throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
           "Invalid request parameters. Search for the provided properties is not supported for this space.");
-  }
-
-  @Override
-  @Deprecated
-  protected XyzResponse processCountFeaturesEvent(CountFeaturesEvent event) throws Exception {
-    try {
-      logger.info("{} Received CountFeaturesEvent", traceItem);
-      return executeQueryWithRetry(SQLQueryBuilder.buildCountFeaturesQuery(event, dataSource, config.getDatabaseSettings().getSchema(), config.readTableFromEvent(event)),
-              this::countResultSetHandler, true);
-    } catch (SQLException e) {
-      // 3F000	INVALID SCHEMA NAME
-      // 42P01	UNDEFINED TABLE
-      // see: https://www.postgresql.org/docs/current/static/errcodes-appendix.html
-      // Note: We know that we're creating the table (and optionally the schema) lazy, that means when a space is created only a
-      // corresponding configuration entry is made and only if data is written or read from that space, the schema/table for that space
-      // is created, so if the schema and/or space does not exist, we simply assume it is empty.
-      if ("42P01".equals(e.getSQLState()) || "3F000".equals(e.getSQLState())) {
-        return new CountResponse().withCount(0L).withEstimated(false);
-      }
-      throw new SQLException(e);
-    }finally {
-      logger.info("{} Finished CountFeaturesEvent", traceItem);
-    }
   }
 
   @Override
@@ -733,6 +709,6 @@ public class PSQLXyzConnector extends DatabaseHandler {
         break;
     }
 
-    return new ErrorResponse().withStreamId(streamId).withError(XyzError.EXCEPTION).withErrorMessage(e.getMessage());
+    return new ErrorResponse().withStreamId(streamId).withError(EXCEPTION).withErrorMessage(e.getMessage());
   }
 }

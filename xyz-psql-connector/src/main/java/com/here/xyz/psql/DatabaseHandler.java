@@ -316,6 +316,7 @@ public abstract class DatabaseHandler extends StorageConnector {
      */
     protected <T> T executeQueryWithRetry(SQLQuery query, ResultSetHandler<T> handler, boolean useReadReplica) throws SQLException {
         try {
+            query.replaceFragments();
             return executeQuery(query, handler, useReadReplica ? readDataSource : dataSource);
         } catch (Exception e) {
             try {
@@ -820,7 +821,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 if (hasTable()) {
                     return;
                 }
-                throw new SQLException("Missing table " + SQLQuery.sqlQuote(tableName) + " and creation failed: " + e.getMessage(), e);
+                throw new SQLException("Missing table \"" + tableName + "\" and creation failed: " + e.getMessage(), e);
             } finally {
                 advisoryUnlock( tableName, connection );
                 if (cStateFlag)
@@ -1287,19 +1288,6 @@ public abstract class DatabaseHandler extends StorageConnector {
         final FeatureCollection featureCollection = new FeatureCollection();
         featureCollection._setFeatures(sb.toString());
         return featureCollection;
-    }
-
-    /**
-     * The result handler for a CountFeatures event.
-     *
-     * @param rs the result set.
-     * @return the feature collection generated from the result.
-     * @throws SQLException if any error occurred.
-     */
-    protected XyzResponse countResultSetHandler(ResultSet rs) throws SQLException {
-        rs.next();
-        long count = rs.getLong(1);
-        return new CountResponse().withCount(count).withEstimated(count > MAX_PRECISE_STATS_COUNT);
     }
 
     protected int calculateTimeout() throws SQLException{

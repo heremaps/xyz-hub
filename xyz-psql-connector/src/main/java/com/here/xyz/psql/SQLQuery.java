@@ -24,9 +24,8 @@ import static com.here.xyz.psql.DatabaseHandler.HISTORY_TABLE_SUFFIX;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.QueryEvent;
 import com.here.xyz.psql.query.GetFeatures;
-import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -39,11 +38,11 @@ import java.util.regex.Pattern;
  * A struct like object that contains the string for a prepared statement and the respective parameters for replacement.
  */
 public class SQLQuery {
-  private StringBuilder statement;
+  private String statement;
   private List<Object> parameters;
   private Map<String, Object> namedParameters;
   private Map<String, String> variables;
-  private Map<String, String> queryFragments;
+  private Map<String, SQLQuery> queryFragments;
   private static final String PREFIX = "\\$\\{";
   private static final String SUFFIX = "\\}";
   private static final String FRAGMENT_PREFIX = "${{";
@@ -55,7 +54,7 @@ public class SQLQuery {
   private static final String VAR_HST_TABLE_SEQ = "${hsttable_seq}";
 
   public SQLQuery() {
-    this.statement = new StringBuilder();
+    this.statement = "";
     this.parameters = new ArrayList<>();
   }
 
@@ -101,47 +100,9 @@ public class SQLQuery {
     return result;
   }
 
-  public static SQLQuery join(String delimiter, SQLQuery... queries) {
-    return join(Arrays.asList(queries), delimiter, false);
-  }
-
-  private static SQLQuery replaceNamedParameters( String query, Map<String, Object> namedParameters )
-  {  // replace #{namedVar} in query with ? and appends corresponding parameter from map namedParameters
-   Pattern p = Pattern.compile("#\\{\\s*([^\\s\\}]+)\\s*\\}");
-   SQLQuery qry = new SQLQuery();
-   Matcher m = p.matcher( query );
-
-   while( m.find() )
-   { String nParam = m.group(1);
-     if( !namedParameters.containsKey(nParam) )
-      throw new IllegalArgumentException("sql: named Parameter ["+ nParam +"] missing");
-     qry.addParameter( namedParameters.get(nParam) );
-   }
-
-   qry.append( m.replaceAll("?") );
-
-   return qry;
-  }
-
-  public void replaceNamedParameters() {
-    if (namedParameters == null || namedParameters.size() == 0)
-      return;
-    if (parameters() != null && parameters().size() != 0)
-      throw new RuntimeException("No named parameters can be used inside queries which use un-named parameters. "
-          + "Use only named parameters instead!");
-    SQLQuery q = replaceNamedParameters(text(), namedParameters);
-    setText(q.text());
-    addParameters(q.parameters.toArray());
-  }
-
   public void append(String text, Object... parameters) {
     addText(text);
     addParameters(parameters);
-  }
-
-  public void append(String text, Map<String, Object> namedParameters) {
-    addText(text);
-    setNamedParameters(namedParameters);
   }
 
   public void append(SQLQuery other) {
@@ -154,44 +115,67 @@ public class SQLQuery {
   }
 
   private void addText(CharSequence text) {
-    if (text == null || text.length() == 0) {
+    if (text == null || text.length() == 0)
       return;
-    }
-    if (text.charAt(0) == ' ' || statement.length() == 0 || statement.charAt(statement.length() - 1) == ' ') {
-      statement.append(text);
-    } else {
-      statement.append(' ');
-      statement.append(text);
-    }
+    if (text.charAt(0) == ' ' || statement.length() == 0 || statement.charAt(statement.length() - 1) == ' ')
+      statement += text;
+    else
+      statement += " " + text;
   }
 
   public void addParameter(Object value) {
     parameters.add(value);
   }
 
-  public void addParameters(Object... values) {
+  private void addParameters(Object... values) {
     if (values != null) {
       Collections.addAll(parameters, values);
     }
   }
 
   public String text() {
-    return statement.toString();
+    return statement;
   }
 
-  public void setText(CharSequence queryText) {
-    statement.setLength(0);
-    statement.append(queryText);
+  @Override
+  public String toString() {
+    return text();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o)
+      return true;
+    if (!(o instanceof SQLQuery))
+      return false;
+
+    SQLQuery query = (SQLQuery) o;
+
+    if (!statement.equals(query.statement)
+      || !Objects.equals(parameters, query.parameters)
+      || !Objects.equals(namedParameters, query.namedParameters)
+      || !Objects.equals(variables, query.variables))
+      return false;
+    return Objects.equals(queryFragments, query.queryFragments);
+  }
+
+  @Override
+  public int hashCode() {
+    int result = statement.hashCode();
+    result = 31 * result + (parameters != null ? parameters.hashCode() : 0);
+    result = 31 * result + (namedParameters != null ? namedParameters.hashCode() : 0);
+    result = 31 * result + (variables != null ? variables.hashCode() : 0);
+    result = 31 * result + (queryFragments != null ? queryFragments.hashCode() : 0);
+    return result;
+  }
+
+  public void setText(String queryText) {
+    statement = queryText;
   }
 
   public List<Object> parameters() {
     return parameters;
   }
-
-  public void setParameters(List<Object> parameters) {
-    this.parameters = parameters;
-  }
-
 
   /**
    * Quote the given string so that it can be inserted into an SQL statement.
@@ -199,7 +183,7 @@ public class SQLQuery {
    * @param text the text to escape.
    * @return the escaped text surrounded with quotes.
    */
-  public static String sqlQuote(final String text) {
+  private static String sqlQuote(final String text) {
     return text == null ? "" : '"' + text.replace("\"", "\"\"") + '"';
   }
 
@@ -212,32 +196,92 @@ public class SQLQuery {
             .replace(VAR_HST_TABLE_SEQ, sqlQuote(table != null ? (table+HISTORY_TABLE_SUFFIX+"_seq").replaceAll("-", "_") :" "));
   }
 
+  /**
+   * Replaces #{namedVar} in the queryText with ? and appends the corresponding parameter from the specified map.
+   */
+  private static SQLQuery replaceNamedParameters(String query, Map<String, Object> namedParameters) {
+    Pattern p = Pattern.compile("#\\{\\s*([^\\s\\}]+)\\s*\\}");
+    SQLQuery qry = new SQLQuery();
+    Matcher m = p.matcher( query );
+
+    while( m.find() )
+    { String nParam = m.group(1);
+      if( !namedParameters.containsKey(nParam) )
+        throw new IllegalArgumentException("sql: named Parameter ["+ nParam +"] missing");
+      qry.addParameter( namedParameters.get(nParam) );
+    }
+
+    qry.append( m.replaceAll("?") );
+
+    return qry;
+  }
+
+  //TODO: Replace usages by calls to #substitute()
   protected static String replaceVars(String query, Map<String, String> replacements, String schema, String table) {
     return replaceVars(replaceVars(query, schema, table), replacements);
   }
 
-  protected static String replaceVars(String query, Map<String, String> replacements) {
+  private static String replaceVars(String queryText, Map<String, String> replacements) {
     for (String key : replacements.keySet())
-      query = query.replaceAll(PREFIX + key + SUFFIX, sqlQuote(replacements.get(key)));
-    return query;
+      queryText = queryText.replaceAll(PREFIX + key + SUFFIX, sqlQuote(replacements.get(key)));
+    return queryText;
   }
 
-  public void replaceVars() {
+  private static String replaceFragments(String queryText, Map<String, SQLQuery> fragments) {
+    for (String key : fragments.keySet())
+      queryText = queryText.replace(FRAGMENT_PREFIX + key + FRAGMENT_SUFFIX, fragments.get(key).text());
+    return queryText;
+  }
+
+  public void substitute() {
+    replaceVars();
+    replaceFragments();
+    replaceNamedParameters();
+  }
+
+  private void replaceVars() {
+    //Replace the variables in all sub-fragments first
+    if (queryFragments != null)
+      queryFragments.values().forEach(fragment -> fragment.replaceVars());
+    //Now replace all direct variables
     if (variables == null)
       return;
     setText(replaceVars(text(), variables));
+    //Clear all variables
+    variables = null;
   }
 
   public void replaceFragments() {
-    if (queryFragments == null)
+    if (queryFragments == null || queryFragments.size() == 0)
       return;
-    String text = text();
-    for (String key : queryFragments.keySet())
-      text = text.replace(FRAGMENT_PREFIX + key + FRAGMENT_SUFFIX, queryFragments.get(key));
-    setText(text);
+    //First replace all query fragments of sub-fragments & incorporate all named parameters of the sub fragments into this query
+    queryFragments.forEach((key, fragment) -> {
+      fragment.replaceFragments();
+      if (isClashing(namedParameters, fragment.namedParameters))
+        throw new RuntimeException("Can not add substitute fragment ${{" + key + "}} into this query. "
+            + "This query contains at least one named parameter which clashes with a named parameter of the fragment.");
+      setNamedParameters(fragment.namedParameters);
+    });
+    //Now replace all direct child fragments
+    setText(replaceFragments(text(), queryFragments));
+    //Clear all fragments
+    queryFragments = null;
   }
 
-  public static SQLQuery selectJson(QueryEvent event) throws SQLException {
+  public void replaceNamedParameters() {
+    if (namedParameters == null || namedParameters.size() == 0)
+      return;
+    if (parameters() != null && parameters().size() != 0)
+      throw new RuntimeException("No named parameters can be used inside queries which use un-named parameters. "
+          + "Use only named parameters instead!");
+    SQLQuery q = replaceNamedParameters(text(), namedParameters);
+    setText(q.text());
+    addParameters(q.parameters.toArray());
+    //Clear all named parameters
+    namedParameters = null;
+  }
+
+  public static SQLQuery selectJson(QueryEvent event) {
     return GetFeatures.buildSelectionFragmentBWC(event);
   }
 
@@ -320,56 +364,56 @@ public class SQLQuery {
     variables.put(key, value);
   }
 
-  public Map<String, String> getQueryFragments() {
+  public Map<String, SQLQuery> getQueryFragments() {
     if (queryFragments == null)
       return Collections.emptyMap();
     return new HashMap<>(queryFragments);
   }
 
-  private void initQueryFragments() {
-    if (parameters() != null && parameters().size() > 0)
+  //TODO: Can be removed after completion of refactoring
+  @Deprecated
+  private static void checkForUnnamedParametersInFragment(SQLQuery fragment) {
+    if (fragment == null)
+      return;
+    if (fragment.parameters() != null && fragment.parameters().size() > 0)
       throw new RuntimeException("No query fragments can be used inside queries which use parameters. Use named parameters instead!");
+    if (fragment.queryFragments != null)
+      checkForUnnamedParametersInFragments(fragment.queryFragments.values());
+  }
+
+  //TODO: Can be removed after completion of refactoring
+  @Deprecated
+  private static void checkForUnnamedParametersInFragments(Collection<SQLQuery> fragments) {
+    fragments.forEach(f -> checkForUnnamedParametersInFragment(f));
+  }
+
+  private void initQueryFragments() {
     if (queryFragments == null)
       queryFragments = new HashMap<>();
   }
 
-  public void setQueryFragments(Map<String, String> queryFragments) {
+  public void setQueryFragments(Map<String, SQLQuery> queryFragments) {
     if (queryFragments == null)
       return;
     initQueryFragments();
+    checkForUnnamedParametersInFragments(queryFragments.values()); //TODO: Can be removed after completion of refactoring
     this.queryFragments.putAll(queryFragments);
   }
 
-  public String getQueryFragment(String key) {
+  public SQLQuery getQueryFragment(String key) {
     if (queryFragments == null)
       return null;
     return queryFragments.get(key);
   }
 
   public void setQueryFragment(String key, String fragmentText) {
-    initQueryFragments();
-    queryFragments.put(key, fragmentText);
+    setQueryFragment(key, new SQLQuery(fragmentText));
   }
 
   public void setQueryFragment(String key, SQLQuery fragment) {
-    //The fragment itself could also have sub-fragments. These must be replaced first.
-    fragment.replaceFragments();
-    setQueryFragment(key, fragment.text());
-
-    if (isClashing(queryFragments, fragment.queryFragments))
-      throw new RuntimeException("Can not add sub-fragments of fragment ${{" + key + "}} to this query. "
-          + "This query contains at least one fragment which clashes with these sub-fragments.");
-    setQueryFragments(fragment.queryFragments);
-
-    if (isClashing(variables, fragment.variables))
-      throw new RuntimeException("Can not add variables of fragment ${{" + key + "}} to this query. "
-          + "This query contains at least one variable which clashes with these variables.");
-    setVariables(fragment.variables);
-
-    if (isClashing(namedParameters, fragment.namedParameters))
-      throw new RuntimeException("Can not add named parameters of fragment ${{" + key + "}} to this query. "
-          + "This query contains at least one named parameter which clashes with these named parameters.");
-    setNamedParameters(fragment.namedParameters);
+    initQueryFragments();
+    checkForUnnamedParametersInFragment(fragment); //TODO: Can be removed after completion of refactoring
+    queryFragments.put(key, fragment);
   }
 
   private static boolean isClashing(Map<String, ?> map1, Map<String, ?> map2) {

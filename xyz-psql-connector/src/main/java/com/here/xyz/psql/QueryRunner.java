@@ -57,9 +57,7 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
   }
 
   private void prepareQuery() {
-    query.replaceFragments();
-    query.replaceVars();
-    query.replaceNamedParameters();
+    query.substitute();
   }
 
   protected abstract SQLQuery buildQuery(E input) throws SQLException, ErrorResponseException;
