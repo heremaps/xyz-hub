@@ -526,7 +526,10 @@ public class SQLQueryBuilder {
 
     public static SQLQuery buildMvtEncapsuledQuery( String spaceId, SQLQuery dataQry, WebMercatorTile mvtTile, HQuad hereTile, BBox eventBbox, int mvtMargin, boolean bFlattend )
     {
+      //TODO: The following is a workaround for backwards-compatibility and can be removed after completion of refactoring
+      dataQry.replaceUnnamedParameters();
       dataQry.replaceFragments();
+      dataQry.replaceNamedParameters();
       int extend = 4096, buffer = (extend / WebMercatorTile.TileSizeInPixel) * mvtMargin;
       BBox b = ( mvtTile != null ? mvtTile.getBBox(false) : ( hereTile != null ? hereTile.getBoundingBox() : eventBbox) ); // pg ST_AsMVTGeom expects tiles bbox without buffer.
 

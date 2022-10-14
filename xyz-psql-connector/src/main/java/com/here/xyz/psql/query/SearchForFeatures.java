@@ -69,7 +69,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
     return searchQuery;
   }
 
-  protected SQLQuery buildLimitFragment(long limit) {
+  protected static SQLQuery buildLimitFragment(long limit) {
     return new SQLQuery("LIMIT #{limit}", Collections.singletonMap("limit", limit));
   }
 
