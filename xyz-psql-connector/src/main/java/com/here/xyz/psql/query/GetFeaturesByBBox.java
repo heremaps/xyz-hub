@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,20 +36,6 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent> extends Spatial
     super(event, dbHandler);
   }
 
-  static SQLQuery buildClippedGeoFragment(final GetFeaturesByBBoxEvent event) {
-    boolean bGeoJson = SQLQueryBuilder.getResponseType(event) == GEO_JSON;
-    final BBox bbox = event.getBbox();
-    SQLQuery geoQuery = new SQLQuery(bGeoJson ? "replace(ST_AsGeoJson(ST_Intersection(ST_MakeValid(geo),ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326)), " + SQLQueryBuilder.GEOMETRY_DECIMAL_DIGITS + "),'nan','0') as geo"
-        : "ST_Intersection( ST_MakeValid(geo),ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326) ) as geo");
-
-    geoQuery.setNamedParameter("minLon", bbox.minLon());
-    geoQuery.setNamedParameter("minLat", bbox.minLat());
-    geoQuery.setNamedParameter("maxLon", bbox.maxLon());
-    geoQuery.setNamedParameter("maxLat", bbox.maxLat());
-
-    return geoQuery;
-  }
-
   @Override
   protected SQLQuery buildQuery(E event) {
     //NOTE: So far this query runner only handles queries regarding extended spaces
@@ -76,5 +62,63 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent> extends Spatial
       return query;
     }
     return null;
+  }
+
+  //TODO: Can be removed after completion of refactoring
+  @Deprecated
+  public static SQLQuery generateCombinedQueryBWC(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery) {
+    indexedQuery.replaceUnnamedParameters();
+    SQLQuery query = generateCombinedQuery(event, indexedQuery);
+    if (query != null)
+      query.replaceNamedParameters();
+    return query;
+  }
+
+  private static SQLQuery generateCombinedQuery(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery) {
+    final SQLQuery query = new SQLQuery(
+        "SELECT ${{selection}}, ${{geo}}"
+        + "    FROM ${schema}.${table} ${{tableSample}}"
+        + "    WHERE ${{filterWhereClause}} ${{orderBy}} ${{limit}}"
+    );
+
+    query.setQueryFragment("selection", buildSelectionFragment(event));
+    query.setQueryFragment("geo", buildClippedGeoFragment(event));
+    query.setQueryFragment("tableSample", ""); //Can be overridden by caller
+
+    SQLQuery filterWhereClause = new SQLQuery("${{indexedQuery}} AND ${{searchQuery}}");
+
+    filterWhereClause.setQueryFragment("indexedQuery", indexedQuery);
+    SQLQuery searchQuery = generateSearchQuery(event);
+    if (searchQuery == null)
+      filterWhereClause.setQueryFragment("searchQuery", "TRUE");
+    else
+      filterWhereClause.setQueryFragment("searchQuery", searchQuery);
+
+    query.setQueryFragment("filterWhereClause", filterWhereClause);
+    query.setQueryFragment("orderBy", ""); //Can be overridden by caller
+    query.setQueryFragment("limit", buildLimitFragment(event.getLimit()));
+
+    return query;
+  }
+
+  @Override
+  protected SQLQuery buildClippedGeoFragment(E event, SQLQuery geoFilter) {
+    return null;
+    //TODO: Move code from static method here after refactoring
+  }
+
+  static SQLQuery buildClippedGeoFragment(final GetFeaturesByBBoxEvent event) {
+    boolean convertToGeoJson = SQLQueryBuilder.getResponseType(event) == GEO_JSON;
+    if (!event.getClip())
+      return buildGeoFragment(event, convertToGeoJson);
+
+    //TODO: Refactor by re-using geoFilter for clippedGeo (see: GetFeaturesByGeometry#buildClippedGeoFragment())
+    SQLQuery clippedGeo = new SQLQuery("ST_Intersection(ST_MakeValid(geo), ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326))");
+    final BBox bbox = event.getBbox();
+    clippedGeo.setNamedParameter("minLon", bbox.minLon());
+    clippedGeo.setNamedParameter("minLat", bbox.minLat());
+    clippedGeo.setNamedParameter("maxLon", bbox.maxLon());
+    clippedGeo.setNamedParameter("maxLat", bbox.maxLat());
+    return buildGeoFragment(event, convertToGeoJson, clippedGeo);
   }
 }

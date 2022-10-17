@@ -52,7 +52,6 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
     SQLQuery searchQuery = buildSearchFragment(event);
 
     SQLQuery query = super.buildQuery(event, "TRUE");
-    query.setQueryFragment("iColumn", ", i");
 
     if (hasSearch)
       query.setQueryFragment("filterWhereClause", searchQuery);
@@ -165,9 +164,8 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
     return query;
   }
 
-  /**
-   * This method is kept for backwards compatibility until refactoring is complete.
-   */
+  //TODO: Can be removed after completion of refactoring
+  @Deprecated
   public static SQLQuery generateSearchQueryBWC(QueryEvent event) {
     SQLQuery query = generateSearchQuery(event);
     if (query != null)
