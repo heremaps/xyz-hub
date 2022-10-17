@@ -719,7 +719,7 @@ public class SQLQueryBuilder {
     private static SQLQuery generateCombinedQueryTweaks(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery, String tweaksgeo, boolean bTestTweaksGeoIfNull)
     { return generateCombinedQueryTweaks(event, indexedQuery, tweaksgeo, bTestTweaksGeoIfNull, -1.0f, false );  }
 
-  private static SQLQuery generateCombinedQuery(SpatialQueryEvent event, SQLQuery indexedQuery) {
+  private static SQLQuery generateCombinedQuery(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery) {
       return GetFeaturesByGeometry.generateCombinedQueryBWC(event, indexedQuery);
   }
 

@@ -20,18 +20,34 @@
 package com.here.xyz.psql.query;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.GEO_JSON;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.psql.SQLQueryBuilder;
 import java.sql.SQLException;
 
-public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent> extends SearchForFeatures<E> {
+public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent> extends Spatial<E> {
 
   public GetFeaturesByBBox(E event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(event, dbHandler);
+  }
+
+  static SQLQuery buildClippedGeoFragment(final GetFeaturesByBBoxEvent event) {
+    boolean bGeoJson = SQLQueryBuilder.getResponseType(event) == GEO_JSON;
+    final BBox bbox = event.getBbox();
+    SQLQuery geoQuery = new SQLQuery(bGeoJson ? "replace(ST_AsGeoJson(ST_Intersection(ST_MakeValid(geo),ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326)), " + SQLQueryBuilder.GEOMETRY_DECIMAL_DIGITS + "),'nan','0') as geo"
+        : "ST_Intersection( ST_MakeValid(geo),ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326) ) as geo");
+
+    geoQuery.setNamedParameter("minLon", bbox.minLon());
+    geoQuery.setNamedParameter("minLat", bbox.minLat());
+    geoQuery.setNamedParameter("maxLon", bbox.maxLon());
+    geoQuery.setNamedParameter("maxLat", bbox.maxLat());
+
+    return geoQuery;
   }
 
   @Override
