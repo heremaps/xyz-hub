@@ -138,10 +138,10 @@ public class FeatureTaskHandler {
   private static final Logger logger = LogManager.getLogger();
 
   private static final ExpiringMap<String, Long> countCache = ExpiringMap.builder()
-          .maxSize(1024)
-          .variableExpiration()
-          .expirationPolicy(ExpirationPolicy.CREATED)
-          .build();
+      .maxSize(1024)
+      .variableExpiration()
+      .expirationPolicy(ExpirationPolicy.CREATED)
+      .build();
   private static final byte JSON_VALUE = 1;
   private static final byte BINARY_VALUE = 2;
   private static SnsAsyncClient snsClient;
@@ -215,7 +215,7 @@ public class FeatureTaskHandler {
         return;
       }
       Event eventToExecute = extractPayloadFromResponse(
-              (ModifiedPayloadResponse<? extends ModifiedPayloadResponse>) preProcessingResult.result(), Event.class, event);
+          (ModifiedPayloadResponse<? extends ModifiedPayloadResponse>) preProcessingResult.result(), Event.class, event);
       //Call the pre-processed hook if there is one
       if (eventToExecute != event && callProcessedHook(task, eventToExecute, callback)) {
         return;
@@ -254,8 +254,8 @@ public class FeatureTaskHandler {
               return;
             }
             XyzResponse responseToSend = extractPayloadFromResponse(
-                    (ModifiedPayloadResponse<? extends ModifiedPayloadResponse>) postProcessingResult.result(),
-                    XyzResponse.class, storageResult.result());
+                (ModifiedPayloadResponse<? extends ModifiedPayloadResponse>) postProcessingResult.result(),
+                XyzResponse.class, storageResult.result());
             task.setResponse(responseToSend);
             //Success! Call the callback to send the response to the client.
             callback.call(task);
@@ -299,8 +299,8 @@ public class FeatureTaskHandler {
           task.space.contentUpdatedAt = Core.currentTimeMillis();
           task.space.volatilityAtLastContentUpdate = task.space.getVolatility();
           Service.spaceConfigClient.store(task.getMarker(), task.space)
-                  .onSuccess(v -> logger.info(task.getMarker(), "Updated contentUpdatedAt for space {}", task.space.getId()))
-                  .onFailure(t -> logger.error(task.getMarker(), "Error while updating contentUpdatedAt for space {}", task.space.getId(), t));
+              .onSuccess(v -> logger.info(task.getMarker(), "Updated contentUpdatedAt for space {}", task.space.getId()))
+              .onFailure(t -> logger.error(task.getMarker(), "Error while updating contentUpdatedAt for space {}", task.space.getId(), t));
         }
       }
       //Send event to potentially registered request-listeners
@@ -398,7 +398,7 @@ public class FeatureTaskHandler {
     //noinspection rawtypes
     XyzResponse response = task.getResponse();
     if (cacheProfile.serviceTTL > 0 && response != null && !task.isCacheHit()
-            && !(response instanceof NotModifiedResponse) && !(response instanceof ErrorResponse)) {
+        && !(response instanceof NotModifiedResponse) && !(response instanceof ErrorResponse)) {
       String cacheKey = task.getCacheKey();
       if (cacheKey == null) {
         String npe = "cacheKey is null. Couldn't write cache.";
@@ -428,8 +428,8 @@ public class FeatureTaskHandler {
   }
 
   private static <R extends Payload> R extractPayloadFromResponse(ModifiedPayloadResponse<? extends ModifiedPayloadResponse> response,
-                                                                  Class<R> type,
-                                                                  R originalPayload) {
+      Class<R> type,
+      R originalPayload) {
     if (response == null) {
       return originalPayload;
     }
@@ -445,7 +445,7 @@ public class FeatureTaskHandler {
   }
 
   private static <T extends FeatureTask> void handleProcessorFailure(Marker marker, AsyncResult<XyzResponse> processingResult,
-                                                                     Callback<T> callback) {
+      Callback<T> callback) {
     if (processingResult.failed())
       callback.exception(processingResult.cause());
     else if (processingResult.result() instanceof ErrorResponse)
@@ -511,7 +511,7 @@ public class FeatureTaskHandler {
   static void setLatestSeenContentVersion(Space space, int version) {
     if ((space.isEnableHistory() || space.isEnableGlobalVersioning()) && version > 0)
       latestSeenContentVersions.compute(space.getId(), (spaceId, currentVersion) -> Math.max(currentVersion != null ? currentVersion : 0,
-              version));
+          version));
   }
 
   /**
@@ -528,7 +528,7 @@ public class FeatureTaskHandler {
   }
 
   private static void scheduleContentModificationNotificationIfAbsent(NotificationContext nc, ConcurrentHashMap<String, Long> timerMap,
-                                                                      long interval, boolean adminNotification) {
+      long interval, boolean adminNotification) {
     if (!timerMap.containsKey(nc.space.getId())) {
       //Schedule a new notification
       long timerId = Service.vertx.setTimer(interval, tId -> {
@@ -557,7 +557,7 @@ public class FeatureTaskHandler {
   }
 
   private static <T extends FeatureTask> void notifyProcessors(T task, String eventType, Payload payload,
-                                                               Handler<AsyncResult<XyzResponse>> callback) {
+      Handler<AsyncResult<XyzResponse>> callback) {
     if (payload instanceof BinaryResponse) {
       //No post-processor support for binary responses, skipping post-processor notification
       callback.handle(Future.succeededFuture(new ModifiedResponseResponse().withResponse(payload)));
@@ -567,7 +567,7 @@ public class FeatureTaskHandler {
   }
 
   private static <T extends FeatureTask> void notifyConnectors(NotificationContext nc, ConnectorType connectorType, String eventType,
-                                                               Payload payload, Handler<AsyncResult<XyzResponse>> callback) {
+      Payload payload, Handler<AsyncResult<XyzResponse>> callback) {
     //Send the event to all registered & matching listeners / processors
     Map<String, List<ResolvableListenerConnectorRef>> connectorMap = nc.space.getEventTypeConnectorRefsMap(connectorType);
     if (connectorMap != null && !connectorMap.isEmpty()) {
@@ -595,7 +595,7 @@ public class FeatureTaskHandler {
   }
 
   private static void notifyListeners(NotificationContext nc, List<ResolvableListenerConnectorRef> listeners,
-                                      String notificationEventType, Payload payload) {
+      String notificationEventType, Payload payload) {
     listeners.forEach(l -> {
       RpcClient client;
       try {
@@ -611,11 +611,11 @@ public class FeatureTaskHandler {
   }
 
   private static <T extends FeatureTask> void notifyProcessors(NotificationContext nc, List<ResolvableListenerConnectorRef> processors,
-                                                               String notificationEventType, Payload payload, Handler<AsyncResult<XyzResponse>> callback) {
+      String notificationEventType, Payload payload, Handler<AsyncResult<XyzResponse>> callback) {
 
     //For the first call we're mocking a ModifiedPayloadResponse as if it was coming from a previous processor
     ModifiedPayloadResponse initialResponse = payload instanceof Event ?
-            new ModifiedEventResponse().withEvent((Event<? extends Event>) payload) : new ModifiedResponseResponse().withResponse(payload);
+        new ModifiedEventResponse().withEvent((Event<? extends Event>) payload) : new ModifiedResponseResponse().withResponse(payload);
     CompletableFuture<XyzResponse> initialFuture = CompletableFuture.completedFuture(initialResponse);
     final List<FeatureCollection.ModificationFailure> failed = new LinkedList<>();
 
@@ -623,52 +623,52 @@ public class FeatureTaskHandler {
       CompletableFuture<XyzResponse> nextFuture = new CompletableFuture<>();
 
       prevFuture
-              //In case of error fail all following stages directly as well
-              .exceptionally(e -> {
-                nextFuture.completeExceptionally(e);
-                return null;
-              })
-              //Execute the processor with the result of the previous processor and inform following stages about the outcome
-              .thenAccept(result -> {
-                if (nc.task.getState().isFinal()) return;
-                if (result == null) {
-                  return; //Happens in case of exception. Then the exceptionally handler already took over to inform the following stages.
-                }
+          //In case of error fail all following stages directly as well
+          .exceptionally(e -> {
+            nextFuture.completeExceptionally(e);
+            return null;
+          })
+          //Execute the processor with the result of the previous processor and inform following stages about the outcome
+          .thenAccept(result -> {
+            if (nc.task.getState().isFinal()) return;
+            if (result == null) {
+              return; //Happens in case of exception. Then the exceptionally handler already took over to inform the following stages.
+            }
 
-                Payload payloadToSend;
+            Payload payloadToSend;
 
-                if (result instanceof ErrorResponse) {
-                  //Handle well-thrown connector error by bubbling it through all stages till the end
-                  nextFuture.complete(result);
-                  return;
+            if (result instanceof ErrorResponse) {
+              //Handle well-thrown connector error by bubbling it through all stages till the end
+              nextFuture.complete(result);
+              return;
+            }
+            else if (result instanceof ModifiedEventResponse) {
+              payloadToSend = ((ModifiedEventResponse) result).getEvent();
+              // CMEKB-2779 Store ModificationFailures outside of the event
+              if (payloadToSend instanceof ModifyFeaturesEvent) {
+                ModifyFeaturesEvent modifyFeaturesEvent = (ModifyFeaturesEvent) payloadToSend;
+                if (modifyFeaturesEvent.getFailed() != null) {
+                  failed.addAll(modifyFeaturesEvent.getFailed());
+                  modifyFeaturesEvent.setFailed(null);
                 }
-                else if (result instanceof ModifiedEventResponse) {
-                  payloadToSend = ((ModifiedEventResponse) result).getEvent();
-                  // CMEKB-2779 Store ModificationFailures outside of the event
-                  if (payloadToSend instanceof ModifyFeaturesEvent) {
-                    ModifyFeaturesEvent modifyFeaturesEvent = (ModifyFeaturesEvent) payloadToSend;
-                    if (modifyFeaturesEvent.getFailed() != null) {
-                      failed.addAll(modifyFeaturesEvent.getFailed());
-                      modifyFeaturesEvent.setFailed(null);
-                    }
+              }
+            }
+            else {
+              payloadToSend = ((ModifiedResponseResponse) result).getResponse();
+            }
+
+            //Execute the processor with the event / response payload (do pre-processing / post-processing)
+            executeProcessor(nc, processor, notificationEventType, payloadToSend)
+                .exceptionally(ex -> {
+                  nextFuture.completeExceptionally(ex);
+                  return null;
+                })
+                .thenAccept(processed -> {
+                  if (processed != null) {
+                    nextFuture.complete(processed);
                   }
-                }
-                else {
-                  payloadToSend = ((ModifiedResponseResponse) result).getResponse();
-                }
-
-                //Execute the processor with the event / response payload (do pre-processing / post-processing)
-                executeProcessor(nc, processor, notificationEventType, payloadToSend)
-                        .exceptionally(ex -> {
-                          nextFuture.completeExceptionally(ex);
-                          return null;
-                        })
-                        .thenAccept(processed -> {
-                          if (processed != null) {
-                            nextFuture.complete(processed);
-                          }
-                        });
-              });
+                });
+          });
 
       //Return the future for the next processor
       return nextFuture;
@@ -676,28 +676,28 @@ public class FeatureTaskHandler {
 
     //Finally report the result of the last stage
     processedResult
-            .exceptionally(ex -> {
-              callback.handle(Future.failedFuture(ex));
-              return null;
-            })
-            .thenAccept(processed -> {
-              if (processed != null) {
-                //CMEKB-2779 Get ModificationFailures from last processor and set the collected list
-                if (processed instanceof ModifiedEventResponse &&
-                        ((ModifiedEventResponse) processed).getEvent() instanceof ModifyFeaturesEvent) {
-                  ModifyFeaturesEvent event = (ModifyFeaturesEvent) ((ModifiedEventResponse) processed).getEvent();
-                  if (event.getFailed() != null) {
-                    failed.addAll(event.getFailed());
-                  }
-                  event.setFailed(failed.isEmpty() ? null : failed);
-                }
-                callback.handle(Future.succeededFuture(processed));
+        .exceptionally(ex -> {
+          callback.handle(Future.failedFuture(ex));
+          return null;
+        })
+        .thenAccept(processed -> {
+          if (processed != null) {
+            //CMEKB-2779 Get ModificationFailures from last processor and set the collected list
+            if (processed instanceof ModifiedEventResponse &&
+                ((ModifiedEventResponse) processed).getEvent() instanceof ModifyFeaturesEvent) {
+              ModifyFeaturesEvent event = (ModifyFeaturesEvent) ((ModifiedEventResponse) processed).getEvent();
+              if (event.getFailed() != null) {
+                failed.addAll(event.getFailed());
               }
-            });
+              event.setFailed(failed.isEmpty() ? null : failed);
+            }
+            callback.handle(Future.succeededFuture(processed));
+          }
+        });
   }
 
   private static <T extends FeatureTask> CompletableFuture<XyzResponse> executeProcessor(NotificationContext nc,
-                                                                                         ResolvableListenerConnectorRef p, String notificationEventType, Payload payload) {
+      ResolvableListenerConnectorRef p, String notificationEventType, Payload payload) {
     CompletableFuture<XyzResponse> f = new CompletableFuture<>();
 
     RpcClient client;
@@ -714,7 +714,7 @@ public class FeatureTaskHandler {
     rpcContextHolder.rpcContext = client.execute(nc.marker, createNotification(nc, payload, notificationEventType, p), ar -> {
       if (p.getOrder() != null && rpcContextHolder.rpcContext != null)
         addProcessorPerformanceInfo(nc.task, Core.currentTimeMillis() - processorRequestStart,
-                rpcContextHolder.rpcContext, p.getOrder());
+            rpcContextHolder.rpcContext, p.getOrder());
 
       if (ar.failed()) {
         f.completeExceptionally(ar.cause());
@@ -732,14 +732,14 @@ public class FeatureTaskHandler {
   }
 
   private static EventNotification createNotification(NotificationContext nc, Payload payload, String notificationEventType,
-                                                      ResolvableListenerConnectorRef l) {
+      ResolvableListenerConnectorRef l) {
     //Create the EventNotification-event
     EventNotification event = new EventNotification()
-            .withParams(l.getParams())
-            .withEventType(notificationEventType)
-            .withEvent(payload)
-            .withSpace(nc.space.getId())
-            .withStreamId(nc.marker.getName());
+        .withParams(l.getParams())
+        .withEventType(notificationEventType)
+        .withEvent(payload)
+        .withSpace(nc.space.getId())
+        .withStreamId(nc.marker.getName());
     setAdditionalEventProps(nc, l.resolvedConnector, event);
     return event;
   }
@@ -750,13 +750,13 @@ public class FeatureTaskHandler {
   static <X extends FeatureTask> void resolveSpace(final X task, final Callback<X> callback) {
     try {
       resolveSpace(task)
-              .compose(space -> CompositeFuture.all(
-                      resolveStorageConnector(task),
-                      resolveListenersAndProcessors(task),
-                      resolveExtendedSpaces(task, space)
-              ))
-              .onFailure(t -> callback.exception(t))
-              .onSuccess(connector -> callback.call(task));
+          .compose(space -> CompositeFuture.all(
+              resolveStorageConnector(task),
+              resolveListenersAndProcessors(task),
+              resolveExtendedSpaces(task, space)
+          ))
+          .onFailure(t -> callback.exception(t))
+          .onSuccess(connector -> callback.call(task));
     }
     catch (Exception e) {
       callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition.", e));
@@ -771,18 +771,18 @@ public class FeatureTaskHandler {
 
       //Load the space definition.
       return Space.resolveSpace(task.getMarker(), task.getEvent().getSpace())
-              .compose(
-                      space -> {
-                        task.space = space;
-                        if (space != null)
-                          task.getEvent().setParams(space.getStorage().getParams());
-                        return Future.succeededFuture(space);
-                      },
-                      t -> {
-                        logger.warn(task.getMarker(), "Unable to load the space definition for space '{}' {}", task.getEvent().getSpace(), t);
-                        return Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition", t));
-                      }
-              );
+          .compose(
+              space -> {
+                task.space = space;
+                if (space != null)
+                  task.getEvent().setParams(space.getStorage().getParams());
+                return Future.succeededFuture(space);
+              },
+              t -> {
+                logger.warn(task.getMarker(), "Unable to load the space definition for space '{}' {}", task.getEvent().getSpace(), t);
+                return Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition", t));
+              }
+          );
     }
     catch (Exception e) {
       return Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition.", e));
@@ -799,15 +799,15 @@ public class FeatureTaskHandler {
     if (spaceExtension == null)
       return Future.succeededFuture();
     return Space.resolveSpace(task.getMarker(), spaceExtension.getSpaceId())
-            .compose(
-                    extendedSpace -> {
-                      if (task.extendedSpaces == null)
-                        task.extendedSpaces = new ArrayList();
-                      task.extendedSpaces.add(extendedSpace);
-                      return resolveExtendedSpace(task, extendedSpace.getExtension()); //Go to next extension level
-                    },
-                    t -> Future.failedFuture(t)
-            );
+        .compose(
+            extendedSpace -> {
+              if (task.extendedSpaces == null)
+                task.extendedSpaces = new ArrayList();
+              task.extendedSpaces.add(extendedSpace);
+              return resolveExtendedSpace(task, extendedSpace.getExtension()); //Go to next extension level
+            },
+            t -> Future.failedFuture(t)
+        );
   }
 
   private static <X extends FeatureTask> Future<Connector> resolveStorageConnector(final X task) {
@@ -819,13 +819,13 @@ public class FeatureTaskHandler {
     final String storageId = task.space.getStorage().getId();
     AbstractHttpServerVerticle.addStreamInfo(task.context, "SID", storageId);
     return Space.resolveConnector(task.getMarker(), storageId)
-            .compose(
-                    connector -> {
-                      task.storage = connector;
-                      return Future.succeededFuture(connector);
-                    },
-                    t -> Future.failedFuture(new InvalidStorageException("Unable to load the definition for this storage."))
-            );
+        .compose(
+            connector -> {
+              task.storage = connector;
+              return Future.succeededFuture(connector);
+            },
+            t -> Future.failedFuture(new InvalidStorageException("Unable to load the definition for this storage."))
+        );
   }
 
   private static <X extends FeatureTask> Future<Void> resolveListenersAndProcessors(final X task) {
@@ -833,8 +833,8 @@ public class FeatureTaskHandler {
     try {
       //Also resolve all listeners & processors
       CompletableFuture.allOf(
-              resolveConnectors(task.getMarker(), task.space, ConnectorType.LISTENER),
-              resolveConnectors(task.getMarker(), task.space, ConnectorType.PROCESSOR)
+          resolveConnectors(task.getMarker(), task.space, ConnectorType.LISTENER),
+          resolveConnectors(task.getMarker(), task.space, ConnectorType.PROCESSOR)
       ).thenRun(() -> {
         //All listener & processor refs have been resolved now
         p.complete();
@@ -876,7 +876,7 @@ public class FeatureTaskHandler {
             rCR.resolvedConnector = c;
             //If no event types have been defined in the connectorRef we use the defaultEventTypes from the resolved connector config
             if ((rCR.getEventTypes() == null || rCR.getEventTypes().isEmpty()) && c.defaultEventTypes != null && !c.defaultEventTypes
-                    .isEmpty()) {
+                .isEmpty()) {
               rCR.setEventTypes(new ArrayList<>(c.defaultEventTypes));
             }
             // replace ListenerConnectorRef with ResolvableListenerConnectorRef
@@ -890,8 +890,8 @@ public class FeatureTaskHandler {
 
     //When all listeners have been resolved we can complete the returned future.
     CompletableFuture
-            .allOf(futures.toArray(new CompletableFuture[0]))
-            .thenRun(() -> future.complete(null));
+        .allOf(futures.toArray(new CompletableFuture[0]))
+        .thenRun(() -> future.complete(null));
 
     return future;
   }
@@ -936,7 +936,7 @@ public class FeatureTaskHandler {
       }
       //For other GCs, only throttle requests if the request memory filled up over the specified request memory threshold
       else if (globalInflightRequestMemory.sum() >
-              GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE * Service.configuration.GLOBAL_INFLIGHT_REQUEST_MEMORY_HIGH_UTILIZATION_THRESHOLD) {
+          GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE * Service.configuration.GLOBAL_INFLIGHT_REQUEST_MEMORY_HIGH_UTILIZATION_THRESHOLD) {
         LongAdder storageInflightRequestMemory = inflightRequestMemory.get(storage.id);
         long storageInflightRequestMemorySum = 0;
         if (storageInflightRequestMemory == null || (storageInflightRequestMemorySum = storageInflightRequestMemory.sum()) == 0) {
@@ -1041,7 +1041,7 @@ public class FeatureTaskHandler {
       }
       else {
         throw new HttpException(BAD_REQUEST, "The provided content does not have a type of FeatureCollection,"
-                + " Feature or FeatureModificationList.");
+            + " Feature or FeatureModificationList.");
       }
     }
     catch (Exception e) {
@@ -1100,9 +1100,9 @@ public class FeatureTaskHandler {
   static void monitorFeatureRequest(ConditionalOperation task, Callback<ConditionalOperation> callback) {
     try {
       if (Service.configuration.MONITOR_FEATURES_WITH_UUID
-              && task.space.isEnableHistory()
-              && task.modifyOp.isWrite()
-              && !task.modifyOp.entries.isEmpty()) {
+          && task.space.isEnableHistory()
+          && task.modifyOp.isWrite()
+          && !task.modifyOp.entries.isEmpty()) {
 
         FeatureEntry entry = task.modifyOp.entries.get(0);
 
@@ -1121,8 +1121,8 @@ public class FeatureTaskHandler {
           String ifNotExists = entry.ifNotExists.name();
 
           logger.warn(task.getMarker(), "Monitoring WRITE feature on space: " + spaceId + "; owner: " + owner +
-                  "; featureId: " + featureId + "; containsInput: " + containsInput + "; containsHead: " + containsHead + "; containsBase: "
-                  + containsBase + "; uuid: " + uuid + "; ifExists: " + ifExists + "; ifNotExists: " + ifNotExists);
+              "; featureId: " + featureId + "; containsInput: " + containsInput + "; containsHead: " + containsHead + "; containsBase: "
+              + containsBase + "; uuid: " + uuid + "; ifExists: " + ifExists + "; ifNotExists: " + ifNotExists);
         }
       }
     }
@@ -1149,8 +1149,8 @@ public class FeatureTaskHandler {
 
         if(entry.exception != null){
           ModificationFailure failure = new ModificationFailure()
-                  .withMessage(entry.exception.getMessage())
-                  .withPosition((long) i);
+              .withMessage(entry.exception.getMessage())
+              .withPosition((long) i);
           if (entry.input.get("id") instanceof String) {
             failure.setId((String) entry.input.get("id"));
           }
@@ -1265,7 +1265,7 @@ public class FeatureTaskHandler {
     for (Entry<Feature> entry : task.modifyOp.entries) {
       // For existing objects: if the input does not contain the tags, copy them from the edited state.
       final Map<String, Object> nsXyz = new JsonObject(entry.input).getJsonObject("properties").getJsonObject(XyzNamespace.XYZ_NAMESPACE)
-              .getMap();
+          .getMap();
       if (!(nsXyz.get("tags") instanceof List)) {
         ArrayList<String> inputTags = new ArrayList<>();
         if (entry.base != null && entry.base.getProperties().getXyzNamespace().getTags() != null) {
@@ -1318,7 +1318,7 @@ public class FeatureTaskHandler {
   static <X extends FeatureTask> void injectSpaceParams(final X task, final Callback<X> callback) {
     try {
       if(task.getEvent() instanceof ModifyFeaturesEvent) {
-        ((ModifyFeaturesEvent) task.getEvent()).setMaxVersionCount(task.space.getMaxVersionCount());
+         ((ModifyFeaturesEvent) task.getEvent()).setMaxVersionCount(task.space.getMaxVersionCount());
         ((ModifyFeaturesEvent) task.getEvent()).setEnableGlobalVersioning(task.space.isEnableGlobalVersioning());
         ((ModifyFeaturesEvent) task.getEvent()).setEnableHistory(task.space.isEnableHistory());
       }
@@ -1329,7 +1329,7 @@ public class FeatureTaskHandler {
   }
 
   private static <X extends FeatureTask<?, X>> void checkFeaturesPerSpaceQuota(X task, Callback<X> callback,
-                                                                               long maxFeaturesPerSpace, Long count) {
+      long maxFeaturesPerSpace, Long count) {
     try {
       ModifyFeaturesEvent modifyEvent = (ModifyFeaturesEvent) task.getEvent();
       if (modifyEvent != null) {
@@ -1341,8 +1341,8 @@ public class FeatureTaskHandler {
         final String spaceId = modifyEvent.getSpace();
         if (featuresDelta > 0 && count + featuresDelta > maxFeaturesPerSpace) {
           callback.exception(new HttpException(FORBIDDEN,
-                  "The maximum number of " + maxFeaturesPerSpace + " features for the resource \"" + spaceId + "\" was reached. " +
-                          "The resource contains " + count + " features and cannot store " + featuresDelta + " more features."));
+              "The maximum number of " + maxFeaturesPerSpace + " features for the resource \"" + spaceId + "\" was reached. " +
+              "The resource contains " + count + " features and cannot store " + featuresDelta + " more features."));
           return;
         }
       }
@@ -1359,21 +1359,21 @@ public class FeatureTaskHandler {
 
     try {
       getRpcClient(task.storage)
-              .execute(task.getMarker(), countEvent, (AsyncResult<XyzResponse> eventHandler) -> {
-                if (eventHandler.failed()) {
-                  handler.handle(Future.failedFuture((eventHandler.cause())));
-                  return;
-                }
-                Long count;
-                final XyzResponse response = eventHandler.result();
-                if (response instanceof StatisticsResponse)
-                  count = ((StatisticsResponse) response).getCount().getValue();
-                else {
-                  handler.handle(Future.failedFuture(Api.responseToHttpException(response)));
-                  return;
-                }
-                handler.handle(Future.succeededFuture(count));
-              });
+          .execute(task.getMarker(), countEvent, (AsyncResult<XyzResponse> eventHandler) -> {
+            if (eventHandler.failed()) {
+              handler.handle(Future.failedFuture((eventHandler.cause())));
+              return;
+            }
+            Long count;
+            final XyzResponse response = eventHandler.result();
+            if (response instanceof StatisticsResponse)
+              count = ((StatisticsResponse) response).getCount().getValue();
+            else {
+              handler.handle(Future.failedFuture(Api.responseToHttpException(response)));
+              return;
+            }
+            handler.handle(Future.succeededFuture(count));
+          });
     }
     catch (Exception e) {
       handler.handle(Future.failedFuture((e)));
@@ -1382,10 +1382,10 @@ public class FeatureTaskHandler {
 
   static void transformResponse(TileQuery task, Callback<TileQuery> callback) {
     if (task.responseType != MVT
-            && task.responseType != MVT_FLATTENED
-            || !(task.getResponse() instanceof FeatureCollection)
-            //The mvt transformation is not executed, if the source feature collection is the same.
-            || task.etagMatches()) {
+        && task.responseType != MVT_FLATTENED
+        || !(task.getResponse() instanceof FeatureCollection)
+        //The mvt transformation is not executed, if the source feature collection is the same.
+        || task.etagMatches()) {
       callback.call(task);
       return;
     }
@@ -1395,13 +1395,13 @@ public class FeatureTaskHandler {
       byte[] mvt;
       if (MVT == task.responseType) {
         mvt = new MapBoxVectorTileBuilder()
-                .build(WebMercatorTile.forWeb(tc.level, tc.x, tc.y), tc.margin, task.space.getId(),
-                        ((FeatureCollection) task.getResponse()).getFeatures());
+            .build(WebMercatorTile.forWeb(tc.level, tc.x, tc.y), tc.margin, task.space.getId(),
+                ((FeatureCollection) task.getResponse()).getFeatures());
       }
       else {
         mvt = new MapBoxVectorTileFlattenedBuilder()
-                .build(WebMercatorTile.forWeb(tc.level, tc.x, tc.y), tc.margin, task.space.getId(),
-                        ((FeatureCollection) task.getResponse()).getFeatures());
+            .build(WebMercatorTile.forWeb(tc.level, tc.x, tc.y), tc.margin, task.space.getId(),
+                ((FeatureCollection) task.getResponse()).getFeatures());
       }
       task.setResponse(new BinaryResponse()
               .withMimeType(APPLICATION_VND_MAPBOX_VECTOR_TILE)
@@ -1418,9 +1418,9 @@ public class FeatureTaskHandler {
 
   public static <X extends FeatureTask<?, X>> void validate(X task, Callback<X> callback) {
     if (task instanceof ReadQuery && ((ReadQuery) task).hasPropertyQuery()
-            && !task.storage.capabilities.propertySearch) {
+        && !task.storage.capabilities.propertySearch) {
       callback.exception(new HttpException(BAD_REQUEST, "Property search queries are not supported by storage connector "
-              + "\"" + task.storage.id + "\"."));
+          + "\"" + task.storage.id + "\"."));
       return;
     }
 
@@ -1428,9 +1428,9 @@ public class FeatureTaskHandler {
       GetFeaturesByBBoxEvent event = (GetFeaturesByBBoxEvent) task.getEvent();
       String clusteringType = event.getClusteringType();
       if (clusteringType != null && (task.storage.capabilities.clusteringTypes == null
-              || !task.storage.capabilities.clusteringTypes.contains(clusteringType))) {
+          || !task.storage.capabilities.clusteringTypes.contains(clusteringType))) {
         callback.exception(new HttpException(BAD_REQUEST, "Clustering of type \"" + clusteringType + "\" is not"
-                + "supported by storage connector \"" + task.storage.id + "\"."));
+            + "supported by storage connector \"" + task.storage.id + "\"."));
       }
     }
 
@@ -1471,7 +1471,7 @@ public class FeatureTaskHandler {
     } else if (task instanceof FeatureTask.IdsQuery) {
       //Ensure to return a FeatureCollection when there are multiple features in the response (could happen e.g. for a virtual-space)
       if (task.getResponse() instanceof FeatureCollection && ((FeatureCollection) task.getResponse()).getFeatures() != null
-              && ((FeatureCollection) task.getResponse()).getFeatures().size() > 1) {
+          && ((FeatureCollection) task.getResponse()).getFeatures().size() > 1) {
         task.responseType = ApiResponseType.FEATURE_COLLECTION;
       }
     }
@@ -1495,11 +1495,11 @@ public class FeatureTaskHandler {
   static <X extends FeatureTask<?, X>> void checkPreconditions(X task, Callback<X> callback) throws HttpException {
     if (task.space.isReadOnly() && (task instanceof ConditionalOperation || task instanceof DeleteOperation)) {
       throw new HttpException(METHOD_NOT_ALLOWED,
-              "The method is not allowed, because the resource \"" + task.space.getId() + "\" is marked as read-only. Update the resource definition to enable editing of features.");
+          "The method is not allowed, because the resource \"" + task.space.getId() + "\" is marked as read-only. Update the resource definition to enable editing of features.");
     }
     if (task.space.isEnableGlobalVersioning() && task.getEvent() instanceof  ModifyFeaturesEvent && ((ModifyFeaturesEvent) task.getEvent()).getTransaction() == false) {
       throw new HttpException(METHOD_NOT_ALLOWED,
-              "The method is not allowed, because the resource \"" + task.space.getId() + "\" has enabledGlobalVersioning. Due to that, stream writing is not allowed.");
+           "The method is not allowed, because the resource \"" + task.space.getId() + "\" has enabledGlobalVersioning. Due to that, stream writing is not allowed.");
     }
     callback.call(task);
   }
@@ -1512,18 +1512,18 @@ public class FeatureTaskHandler {
     try {
       if (Service.configuration.MSE_NOTIFICATION_TOPIC != null) {
         PublishRequest req = PublishRequest.builder()
-                .topicArn(Service.configuration.MSE_NOTIFICATION_TOPIC)
-                .message(event.serialize())
-                .messageGroupId(event.getSpace())
-                .build();
+            .topicArn(Service.configuration.MSE_NOTIFICATION_TOPIC)
+            .message(event.serialize())
+            .messageGroupId(event.getSpace())
+            .build();
         getSnsClient()
-                .publish(req)
-                .whenComplete((result, error) -> {
-                  if (error != null)
-                    logger.error(marker,"Error sending MSE notification of type " + eventType + " for space " + spaceId, error);
-                  else
-                    logger.info(marker, "MSE notification of type " + eventType + " for space " + spaceId + " was sent.");
-                });
+            .publish(req)
+            .whenComplete((result, error) -> {
+              if (error != null)
+                logger.error(marker,"Error sending MSE notification of type " + eventType + " for space " + spaceId, error);
+              else
+                logger.info(marker, "MSE notification of type " + eventType + " for space " + spaceId + " was sent.");
+            });
       }
     }
     catch (Exception e) {
@@ -1581,12 +1581,12 @@ public class FeatureTaskHandler {
     }
 
     final LoadFeaturesEvent event = new LoadFeaturesEvent()
-            .withStreamId(task.getMarker().getName())
-            .withSpace(task.space.getId())
-            .withParams(task.space.getStorage().getParams())
-            .withEnableGlobalVersioning(task.space.isEnableGlobalVersioning())
-            .withEnableHistory(task.space.isEnableHistory())
-            .withIdsMap(idsMap);
+        .withStreamId(task.getMarker().getName())
+        .withSpace(task.space.getId())
+        .withParams(task.space.getStorage().getParams())
+        .withEnableGlobalVersioning(task.space.isEnableGlobalVersioning())
+        .withEnableHistory(task.space.isEnableHistory())
+        .withIdsMap(idsMap);
 
     task.loadFeaturesEvent = event;
     return event;
@@ -1707,7 +1707,7 @@ public class FeatureTaskHandler {
 
     <T extends FeatureTask, R extends XyzResponse> void enrichResponse(T task, R response) {
       if (task instanceof ConditionalOperation && response instanceof FeatureCollection && ((ConditionalOperation) task).hasNonModified
-              && ((ConditionalOperation) task).unmodifiedFeatures != null) {
+          && ((ConditionalOperation) task).unmodifiedFeatures != null) {
         try {
           ((FeatureCollection) response).getFeatures().addAll(((ConditionalOperation) task).unmodifiedFeatures);
         }
