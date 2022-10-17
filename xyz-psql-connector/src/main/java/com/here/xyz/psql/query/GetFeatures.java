@@ -156,6 +156,6 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
   protected String buildGeoFragment(E event) {
     boolean isForce2D = event instanceof SelectiveEvent ? ((SelectiveEvent) event).isForce2D() : false;
     return "replace(ST_AsGeojson(" + (isForce2D ? "ST_Force2D" : "ST_Force3D") + "(geo), "
-        + SQLQueryBuilder.GEOMETRY_DECIMAL_DIGITS + "), 'nan', '0')";
+        + SQLQueryBuilder.GEOMETRY_DECIMAL_DIGITS + "), 'nan', '0') as geo";
   }
 }

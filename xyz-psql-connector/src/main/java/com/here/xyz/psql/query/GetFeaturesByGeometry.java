@@ -19,24 +19,18 @@
 
 package com.here.xyz.psql.query;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
-import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.GEO_JSON;
-
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.SpatialQueryEvent;
-import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.SQLQueryBuilder;
-import com.here.xyz.psql.tools.DhString;
 import java.sql.SQLException;
-import java.util.Collections;
 
-public class GetFeaturesByGeometry extends SearchForFeatures<GetFeaturesByGeometryEvent> {
+public class GetFeaturesByGeometry extends Spatial<GetFeaturesByGeometryEvent> {
 
   public GetFeaturesByGeometry(GetFeaturesByGeometryEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(event, dbHandler);
@@ -47,26 +41,25 @@ public class GetFeaturesByGeometry extends SearchForFeatures<GetFeaturesByGeomet
     //if (isExtendedSpace(event) && event.getContext() == DEFAULT)
 
     final int radius = event.getRadius();
-    final Geometry geometry = event.getGeometry();
 
-    final SQLQuery geoQuery;
+    String geoFilter = event.getH3Index() != null
+        ? "(h3ToGeoBoundaryDeg(('x' || '" + event.getH3Index() + "')::bit(60)::bigint))"
+        : "ST_GeomFromText('" + WKTHelper.geometryToWKB(event.getGeometry()) + "'" + (radius != 0 ? "" : ", 4326") + ")";
 
-    if(event.getH3Index() != null){
-      if(radius != 0)
-        geoQuery = new SQLQuery("ST_Intersects( geo, ST_Buffer(hexbin::geography, #{radius} )::geometry)", Collections.singletonMap("radius", radius));
-      else
-        geoQuery = new SQLQuery("ST_Intersects( geo, hexbin)");
-    }else{
-      geoQuery = radius != 0 ? new SQLQuery("ST_Intersects(geo, ST_Buffer(ST_GeomFromText('"
-          + WKTHelper.geometryToWKB(geometry) + "')::geography, #{radius} )::geometry)", Collections.singletonMap("radius", radius)) : new SQLQuery("ST_Intersects(geo, ST_GeomFromText('"
-          + WKTHelper.geometryToWKB(geometry) + "',4326))");
-    }
+    SQLQuery geoQuery = new SQLQuery(radius != 0
+        ? "ST_Intersects(geo, ST_Buffer(${{geoFilter}}::geography, #{radius})::geometry)"
+        : "ST_Intersects(geo, ${{geoFilter}})");
+    geoQuery.setQueryFragment("geoFilter", geoFilter);
+    if (radius != 0)
+      geoQuery.setNamedParameter("radius", radius);
+
     return generateCombinedQuery(event, geoQuery);
   }
 
   //TODO: Can be removed after completion of refactoring
   @Deprecated
-  public static SQLQuery generateCombinedQueryBWC(SpatialQueryEvent event, SQLQuery indexedQuery) {
+  public static SQLQuery generateCombinedQueryBWC(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery) {
+    indexedQuery.replaceUnnamedParameters();
     SQLQuery query = generateCombinedQuery(event, indexedQuery);
     if (query != null)
       query.replaceNamedParameters();
@@ -74,91 +67,66 @@ public class GetFeaturesByGeometry extends SearchForFeatures<GetFeaturesByGeomet
   }
 
   private static SQLQuery generateCombinedQuery(SpatialQueryEvent event, SQLQuery indexedQuery) {
+    final SQLQuery query = new SQLQuery(
+        "SELECT ${{selection}}, ${{geo}}"
+        + "    FROM ${schema}.${table} ${{tableSample}}"
+        + "    WHERE ${{filterWhereClause}} ${{orderBy}} ${{limit}}"
+    );
+
+    query.setQueryFragment("selection", buildSelectionFragment(event));
+    query.setQueryFragment("geo", buildClippedGeoFragment(event));
+    query.setQueryFragment("tableSample", ""); //Can be overridden by caller
+
+    SQLQuery filterWhereClause = new SQLQuery("${{indexedQuery}} AND ${{searchQuery}}");
+
+    filterWhereClause.setQueryFragment("indexedQuery", indexedQuery);
     SQLQuery searchQuery = generateSearchQuery(event);
-    boolean bConvertGeo2Geojson = event instanceof GetFeaturesByGeometryEvent || SQLQueryBuilder.getResponseType((GetFeaturesByBBoxEvent) event) == GEO_JSON;
-    String h3Index = event instanceof GetFeaturesByGeometryEvent ? ((GetFeaturesByGeometryEvent) event).getH3Index() : null;
+    if (searchQuery == null)
+      filterWhereClause.setQueryFragment("searchQuery", "TRUE");
+    else
+      filterWhereClause.setQueryFragment("searchQuery", searchQuery);
 
-      final SQLQuery query = new SQLQuery();
+    query.setQueryFragment("filterWhereClause", filterWhereClause);
+    query.setQueryFragment("orderBy", ""); //Can be overridden by caller
+    query.setQueryFragment("limit", buildLimitFragment(event.getLimit()));
 
-      if(h3Index != null)
-          query.append("WITH h AS (SELECT h3ToGeoBoundaryDeg( ('x' || '"+h3Index+"' )::bit(60)::bigint ) as hexbin )");
+    return query;
+  }
 
-      query.append("SELECT ");
+  private static SQLQuery buildClippedGeoFragment(final GetFeaturesByGeometryEvent event) {
+    //Clip=true =>  Use input Geometry for clipping
+    final Geometry geometry = event.getGeometry();
+    //If h3Index is given - use it as input geometry
+    final String h3Index =  event.getH3Index();
 
-      SQLQuery selection = buildSelectionFragment(event);
-      query.append(selection);
-      query.append(",");
-      query.append(" ${{geo}} ");
-      query.setQueryFragment("geo", geometrySelectorForEvent(event, bConvertGeo2Geojson));
-      query.setNamedParameters(selection.getNamedParameters());
+    String hexBinGeo = "(h3ToGeoBoundaryDeg(('x' || '" + h3Index + "')::bit(60)::bigint))";
 
-      if(h3Index != null)
-          query.append("FROM ${schema}.${table} ${{tableSample}}, h WHERE");
-      else
-          query.append("FROM ${schema}.${table} ${{tableSample}} WHERE");
-      query.setQueryFragment("tableSample", ""); //Can be overridden by caller
+    String wktGeom = h3Index == null ? "ST_GeomFromText('" + WKTHelper.geometryToWKB(geometry) + "',4326)" : hexBinGeo ;
 
-      indexedQuery.replaceUnnamedParameters();
-      query.append(indexedQuery);
-      query.setNamedParameters(indexedQuery.getNamedParameters());
-
-      if( searchQuery != null )
-      { query.append(" and ");
-          query.append(searchQuery);
-          query.setNamedParameters(searchQuery.getNamedParameters());
-      }
-
-      query.append(" ${{orderBy}} ");
-      query.setQueryFragment("orderBy", ""); //Can be overridden by caller
-
-      query.append(" ${{limit}} ");
-      query.setQueryFragment("limit", buildLimitFragment(event.getLimit()));
-
-
-      return query;
+    //If radius is not null
+    if(event.getRadius() != 0){
+      //Enlarge input geometry with ST_Buffer
+      wktGeom = h3Index == null ?
+          "ST_Buffer(ST_GeomFromText('" + WKTHelper.geometryToWKB(geometry) + "')::geography, #{radius} )::geometry"
+          : "ST_Buffer(" + hexBinGeo + "::geography, #{radius})::geometry";
+    }
+    return new SQLQuery("replace(ST_AsGeoJson(ST_Intersection(ST_MakeValid(geo)," + wktGeom + "), "
+        + SQLQueryBuilder.GEOMETRY_DECIMAL_DIGITS + "),'nan','0') as geo");
   }
 
   /**
-   * Returns the query, which will contains the geometry object.
+   * Returns the geo-query, which will return the clipped geometry objects
+   * depending on whether clipping is active or not.
    */
-  private static SQLQuery geometrySelectorForEvent(final SpatialQueryEvent event, boolean bGeoJson) {
-      String forceMode = SQLQueryBuilder.getForceMode(event.isForce2D());
+  protected static SQLQuery buildClippedGeoFragment(final SpatialQueryEvent event) {
+    if (!event.getClip())
+      return Spatial.buildClippedGeoFragment(event);
 
-      if(!event.getClip()){
-          return (bGeoJson ?
-                  new SQLQuery("replace(ST_AsGeojson("+forceMode+"(geo), " + SQLQueryBuilder.GEOMETRY_DECIMAL_DIGITS + "),'nan','0') as geo")
-                  : new SQLQuery(forceMode+"(geo) as geo"));
-      }else{
-          if(event instanceof GetFeaturesByBBoxEvent){
-              final BBox bbox = ((GetFeaturesByBBoxEvent)event).getBbox();
-              SQLQuery geoQuery = new SQLQuery(bGeoJson ? "replace(ST_AsGeoJson(ST_Intersection(ST_MakeValid(geo),ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326)), " + SQLQueryBuilder.GEOMETRY_DECIMAL_DIGITS + "),'nan','0') as geo"
-                      : "ST_Intersection( ST_MakeValid(geo),ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326) ) as geo");
+    if (event instanceof GetFeaturesByBBoxEvent)
+      return GetFeaturesByBBox.buildClippedGeoFragment((GetFeaturesByBBoxEvent) event);
+    else if (event instanceof GetFeaturesByGeometryEvent)
+      return buildClippedGeoFragment((GetFeaturesByGeometryEvent) event);
 
-              geoQuery.setNamedParameter("minLon", bbox.minLon());
-              geoQuery.setNamedParameter("minLat", bbox.minLat());
-              geoQuery.setNamedParameter("maxLon", bbox.maxLon());
-              geoQuery.setNamedParameter("maxLat", bbox.maxLat());
-
-              return geoQuery;
-          }else if(event instanceof GetFeaturesByGeometryEvent){
-              //Clip=true =>  Use input Geometry for clipping
-              final Geometry geometry = ((GetFeaturesByGeometryEvent)event).getGeometry();
-              //If h3Index is given - use it as input geometry
-              final String h3Index =  ((GetFeaturesByGeometryEvent)event).getH3Index();
-
-              String wktGeom = h3Index == null ? "ST_GeomFromText('" + WKTHelper.geometryToWKB(geometry) + "',4326)" : "hexbin" ;
-
-              //If radius is not null
-              if(((GetFeaturesByGeometryEvent)event).getRadius() != 0){
-                  //Enlarge input geometry with ST_Buffer
-                  wktGeom = (h3Index == null ?
-                          DhString.format("ST_Buffer(ST_GeomFromText('" + WKTHelper.geometryToWKB(geometry) + "')::geography, %d )::geometry", ((GetFeaturesByGeometryEvent)event).getRadius())
-                          : DhString.format("ST_Buffer(hexbin::geography,%d)::geometry", ((GetFeaturesByGeometryEvent)event).getRadius()));
-              }
-              return new SQLQuery("replace(ST_AsGeoJson(ST_Intersection(ST_MakeValid(geo),"+wktGeom+"), " + SQLQueryBuilder.GEOMETRY_DECIMAL_DIGITS + "),'nan','0') as geo");
-          }
-      }
-      //Should not happen (currently only used with GetFeaturesByBBoxEvent / GetFeaturesByGeometryEvent)
-      return new SQLQuery("ST_AsGeojson(geo) as geo");
+    return null; //Should never happen
   }
 }
