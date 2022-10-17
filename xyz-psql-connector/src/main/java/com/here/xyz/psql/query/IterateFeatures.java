@@ -101,6 +101,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
       return buildQueryForOrderBy(event);
 
     SQLQuery query = super.buildQuery(event);
+    query.setQueryFragment("iColumn", ", i");
 
     boolean hasHandle = event.getHandle() != null;
     start = hasHandle ? Long.parseLong(event.getHandle()) : 0L;

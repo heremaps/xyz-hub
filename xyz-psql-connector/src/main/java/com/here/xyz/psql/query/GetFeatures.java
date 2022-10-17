@@ -23,9 +23,7 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
-import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.QueryEvent;
-import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.DatabaseHandler;
@@ -144,18 +142,37 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
         Collections.singletonMap("selection", selection.toArray(new String[0])));
   }
 
-  /**
-   * This method is kept for backwards compatibility until refactoring is complete.
-   */
+  //TODO: Can be removed after completion of refactoring
+  @Deprecated
   public static SQLQuery buildSelectionFragmentBWC(QueryEvent event) {
     SQLQuery selectionFragment = buildSelectionFragment(event);
     selectionFragment.replaceNamedParameters();
     return selectionFragment;
   }
 
-  protected String buildGeoFragment(E event) {
+  protected SQLQuery buildGeoFragment(E event) {
+    return buildGeoFragment(event, true, null);
+  }
+
+  protected SQLQuery buildGeoFragment(ContextAwareEvent event, SQLQuery geoOverride) {
+    return buildGeoFragment(event, true, geoOverride);
+  }
+
+  protected static SQLQuery buildGeoFragment(ContextAwareEvent event, boolean convertToGeoJson) {
+    return buildGeoFragment(event, convertToGeoJson, null);
+  }
+
+  protected static SQLQuery buildGeoFragment(ContextAwareEvent event, boolean convertToGeoJson, SQLQuery geoOverride) {
     boolean isForce2D = event instanceof SelectiveEvent ? ((SelectiveEvent) event).isForce2D() : false;
-    return "replace(ST_AsGeojson(" + (isForce2D ? "ST_Force2D" : "ST_Force3D") + "(geo), "
-        + SQLQueryBuilder.GEOMETRY_DECIMAL_DIGITS + "), 'nan', '0') as geo";
+    String geo = geoOverride != null ? "${{geoOverride}}" : ((isForce2D ? "ST_Force2D" : "ST_Force3D") + "(geo)");
+
+    if (convertToGeoJson)
+      geo = "replace(ST_AsGeojson(" + geo + ", " + SQLQueryBuilder.GEOMETRY_DECIMAL_DIGITS + "), 'nan', '0')";
+
+    SQLQuery geoFragment = new SQLQuery(geo + " as geo");
+    if (geoOverride != null)
+      geoFragment.setQueryFragment("geoOverride", geoOverride);
+
+    return geoFragment;
   }
 }

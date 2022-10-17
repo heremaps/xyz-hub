@@ -19,14 +19,10 @@
 
 package com.here.xyz.psql.query;
 
-import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.GEO_JSON;
-
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.SpatialQueryEvent;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
-import com.here.xyz.psql.SQLQueryBuilder;
 import java.sql.SQLException;
 
 public abstract class Spatial<E extends SpatialQueryEvent> extends SearchForFeatures<E> {
@@ -35,15 +31,9 @@ public abstract class Spatial<E extends SpatialQueryEvent> extends SearchForFeat
     super(event, dbHandler);
   }
 
-  protected static SQLQuery buildClippedGeoFragment(final SpatialQueryEvent event) {
-    boolean convertToGeoJson = !(event instanceof GetFeaturesByTileEvent && ((GetFeaturesByTileEvent) event).getResponseType() != GEO_JSON);
-    String forceMode = SQLQueryBuilder.getForceMode(event.isForce2D());
-
-    if (!event.getClip())
-      return new SQLQuery(convertToGeoJson
-          ? "replace(ST_AsGeojson(" + forceMode + "(geo), " + SQLQueryBuilder.GEOMETRY_DECIMAL_DIGITS + "),'nan','0') as geo"
-          : forceMode + "(geo) as geo");
-
-    return null; //Should never happen
-  }
+  /**
+   * Returns a geo-fragment, which will return the geometry objects clipped by the provided geoFilter
+   * depending on whether clipping is active or not.
+   */
+  protected abstract SQLQuery buildClippedGeoFragment(final E event, SQLQuery geoFilter);
 }

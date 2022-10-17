@@ -29,7 +29,6 @@ import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.QueryEvent;
-import com.here.xyz.events.SpatialQueryEvent;
 import com.here.xyz.models.geojson.HQuad;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
@@ -37,7 +36,7 @@ import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.factory.H3SQL;
 import com.here.xyz.psql.factory.QuadbinSQL;
 import com.here.xyz.psql.factory.TweaksSQL;
-import com.here.xyz.psql.query.GetFeaturesByGeometry;
+import com.here.xyz.psql.query.GetFeaturesByBBox;
 import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.psql.tools.DhString;
@@ -720,7 +719,7 @@ public class SQLQueryBuilder {
     { return generateCombinedQueryTweaks(event, indexedQuery, tweaksgeo, bTestTweaksGeoIfNull, -1.0f, false );  }
 
   private static SQLQuery generateCombinedQuery(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery) {
-      return GetFeaturesByGeometry.generateCombinedQueryBWC(event, indexedQuery);
+      return GetFeaturesByBBox.generateCombinedQueryBWC(event, indexedQuery);
   }
 
 

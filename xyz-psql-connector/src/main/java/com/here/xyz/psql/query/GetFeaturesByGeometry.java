@@ -20,14 +20,10 @@
 package com.here.xyz.psql.query;
 
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
-import com.here.xyz.events.SpatialQueryEvent;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
-import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
-import com.here.xyz.psql.SQLQueryBuilder;
 import java.sql.SQLException;
 
 public class GetFeaturesByGeometry extends Spatial<GetFeaturesByGeometryEvent> {
@@ -38,95 +34,43 @@ public class GetFeaturesByGeometry extends Spatial<GetFeaturesByGeometryEvent> {
 
   @Override
   protected SQLQuery buildQuery(GetFeaturesByGeometryEvent event) throws SQLException {
-    //if (isExtendedSpace(event) && event.getContext() == DEFAULT)
-
     final int radius = event.getRadius();
 
-    String geoFilter = event.getH3Index() != null
+    SQLQuery geoFilter = new SQLQuery(event.getH3Index() != null
         ? "(h3ToGeoBoundaryDeg(('x' || '" + event.getH3Index() + "')::bit(60)::bigint))"
-        : "ST_GeomFromText('" + WKTHelper.geometryToWKB(event.getGeometry()) + "'" + (radius != 0 ? "" : ", 4326") + ")";
+        : "ST_GeomFromText('" + WKTHelper.geometryToWKB(event.getGeometry()) + "'" + (radius != 0 ? "" : ", 4326") + ")");
 
-    SQLQuery geoQuery = new SQLQuery(radius != 0
-        ? "ST_Intersects(geo, ST_Buffer(${{geoFilter}}::geography, #{radius})::geometry)"
-        : "ST_Intersects(geo, ${{geoFilter}})");
+    if (radius != 0) {
+      //Wrap the geoFilter with ST_Buffer to enlarge the input geometry
+      geoFilter.setText("ST_Buffer(" + geoFilter.text() + "::geography, #{radius})::geometry");
+      geoFilter.setNamedParameter("radius", radius);
+    }
+
+    SQLQuery geoQuery = new SQLQuery("ST_Intersects(geo, ${{geoFilter}})");
     geoQuery.setQueryFragment("geoFilter", geoFilter);
-    if (radius != 0)
-      geoQuery.setNamedParameter("radius", radius);
 
-    return generateCombinedQuery(event, geoQuery);
-  }
+    SQLQuery query = super.buildQuery(event);
 
-  //TODO: Can be removed after completion of refactoring
-  @Deprecated
-  public static SQLQuery generateCombinedQueryBWC(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery) {
-    indexedQuery.replaceUnnamedParameters();
-    SQLQuery query = generateCombinedQuery(event, indexedQuery);
-    if (query != null)
-      query.replaceNamedParameters();
-    return query;
-  }
-
-  private static SQLQuery generateCombinedQuery(SpatialQueryEvent event, SQLQuery indexedQuery) {
-    final SQLQuery query = new SQLQuery(
-        "SELECT ${{selection}}, ${{geo}}"
-        + "    FROM ${schema}.${table} ${{tableSample}}"
-        + "    WHERE ${{filterWhereClause}} ${{orderBy}} ${{limit}}"
-    );
-
-    query.setQueryFragment("selection", buildSelectionFragment(event));
-    query.setQueryFragment("geo", buildClippedGeoFragment(event));
-    query.setQueryFragment("tableSample", ""); //Can be overridden by caller
+    //Override the geo fragment by a clipped version
+    query.setQueryFragment("geo", buildClippedGeoFragment(event, geoFilter));
 
     SQLQuery filterWhereClause = new SQLQuery("${{indexedQuery}} AND ${{searchQuery}}");
-
-    filterWhereClause.setQueryFragment("indexedQuery", indexedQuery);
-    SQLQuery searchQuery = generateSearchQuery(event);
-    if (searchQuery == null)
-      filterWhereClause.setQueryFragment("searchQuery", "TRUE");
-    else
-      filterWhereClause.setQueryFragment("searchQuery", searchQuery);
-
+    filterWhereClause.setQueryFragment("indexedQuery", geoQuery);
+    //Use the existing clause as searchQuery (from the base query)
+    filterWhereClause.setQueryFragment("searchQuery", query.getQueryFragment("filterWhereClause"));
     query.setQueryFragment("filterWhereClause", filterWhereClause);
-    query.setQueryFragment("orderBy", ""); //Can be overridden by caller
-    query.setQueryFragment("limit", buildLimitFragment(event.getLimit()));
+    //TODO: For composite spaces also set the filterWhereClause in the sub fragments recursively! (Maybe not necessary if the filterWhereClause gets inherited from the parent queries - write unit tests for SQLQuery!)
 
     return query;
   }
 
-  private static SQLQuery buildClippedGeoFragment(final GetFeaturesByGeometryEvent event) {
-    //Clip=true =>  Use input Geometry for clipping
-    final Geometry geometry = event.getGeometry();
-    //If h3Index is given - use it as input geometry
-    final String h3Index =  event.getH3Index();
-
-    String hexBinGeo = "(h3ToGeoBoundaryDeg(('x' || '" + h3Index + "')::bit(60)::bigint))";
-
-    String wktGeom = h3Index == null ? "ST_GeomFromText('" + WKTHelper.geometryToWKB(geometry) + "',4326)" : hexBinGeo ;
-
-    //If radius is not null
-    if(event.getRadius() != 0){
-      //Enlarge input geometry with ST_Buffer
-      wktGeom = h3Index == null ?
-          "ST_Buffer(ST_GeomFromText('" + WKTHelper.geometryToWKB(geometry) + "')::geography, #{radius} )::geometry"
-          : "ST_Buffer(" + hexBinGeo + "::geography, #{radius})::geometry";
-    }
-    return new SQLQuery("replace(ST_AsGeoJson(ST_Intersection(ST_MakeValid(geo)," + wktGeom + "), "
-        + SQLQueryBuilder.GEOMETRY_DECIMAL_DIGITS + "),'nan','0') as geo");
-  }
-
-  /**
-   * Returns the geo-query, which will return the clipped geometry objects
-   * depending on whether clipping is active or not.
-   */
-  protected static SQLQuery buildClippedGeoFragment(final SpatialQueryEvent event) {
+  @Override
+  protected SQLQuery buildClippedGeoFragment(final GetFeaturesByGeometryEvent event, SQLQuery geoFilter) {
     if (!event.getClip())
-      return Spatial.buildClippedGeoFragment(event);
+      return super.buildGeoFragment(event);
 
-    if (event instanceof GetFeaturesByBBoxEvent)
-      return GetFeaturesByBBox.buildClippedGeoFragment((GetFeaturesByBBoxEvent) event);
-    else if (event instanceof GetFeaturesByGeometryEvent)
-      return buildClippedGeoFragment((GetFeaturesByGeometryEvent) event);
-
-    return null; //Should never happen
+    SQLQuery clippedGeo = new SQLQuery("ST_Intersection(ST_MakeValid(geo), ${{geoFilter}})");
+    clippedGeo.setQueryFragment("geoFilter", geoFilter);
+    return super.buildGeoFragment(event, clippedGeo);
   }
 }
