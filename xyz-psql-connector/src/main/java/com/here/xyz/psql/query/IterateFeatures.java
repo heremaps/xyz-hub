@@ -75,7 +75,8 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
   protected SQLQuery buildQuery(IterateFeaturesEvent event) throws SQLException {
     if (isExtendedSpace(event) && event.getContext() == SpaceContext.DEFAULT) {
 
-      SQLQuery extensionQuery = buildQuery(event, "TRUE"); //TODO: Do not support search on iterate for now
+      SQLQuery extensionQuery = super.buildQuery(event);
+      extensionQuery.setQueryFragment("filterWhereClause", "TRUE"); //TODO: Do not support search on iterate for now
       extensionQuery.setQueryFragment("iColumn", ", CONCAT('', i) AS i");
 
       if (is2LevelExtendedSpace(event)) {
@@ -85,7 +86,8 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
       else
         extensionQuery.setQueryFragment("iColumnExtension", ", CONCAT('e', i) AS i");
 
-      SQLQuery offsetQuery = new SQLQuery(event.getHandle() == null? "TRUE" : "i::text > #{startOffset}", Collections.singletonMap("startOffset", event.getHandle()));
+      SQLQuery offsetQuery = new SQLQuery(event.getHandle() == null? "TRUE" : "i::text > #{startOffset}")
+          .withNamedParameter("startOffset", event.getHandle());
 
       SQLQuery query = new SQLQuery(
           "SELECT * FROM (${{extensionQuery}}) orderQuery WHERE ${{offsetQuery}} ORDER BY i ${{limit}}");
@@ -112,7 +114,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
     }
     else {
       if (hasHandle)
-        query.setQueryFragment("filterWhereClause", query.getQueryFragment("filterWhereClause") + " AND i > #{startOffset}");
+        query.setQueryFragment("filterWhereClause", "i > #{startOffset}");
 
       query.setQueryFragment("orderBy", "ORDER BY i");
     }
