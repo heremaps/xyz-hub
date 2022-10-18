@@ -690,9 +690,7 @@ public class SQLQueryBuilder {
       SQLQuery searchQuery = generateSearchQuery(event);
      String tSample = ( sampleRatio <= 0.0 ? "" : DhString.format("tablesample system(%.6f) repeatable(499)", 100.0 * sampleRatio) );
 
-     final SQLQuery query = new SQLQuery();
-
-     query.append("select * from ( SELECT");
+     final SQLQuery query = new SQLQuery("select * from ( SELECT");
 
      query.append(SQLQuery.selectJson(event));
 

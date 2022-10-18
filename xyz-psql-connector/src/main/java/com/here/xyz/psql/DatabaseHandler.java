@@ -23,6 +23,8 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.CREATE;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.DELETE;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.UPDATE;
+import static com.here.xyz.psql.QueryRunner.SCHEMA;
+import static com.here.xyz.psql.QueryRunner.TABLE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -415,7 +417,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         try {
             final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null,calculateTimeout()));
 
-            query.setText(SQLQuery.replaceVars(query.text(),config.getDatabaseSettings().getSchema(), config.readTableFromEvent(event)));
+            query.setText(SQLQuery.replaceVars(query.text(), config.getDatabaseSettings().getSchema(), config.readTableFromEvent(event)));
             final String queryText = query.text();
             final List<Object> queryParameters = query.parameters();
             logger.debug("{} executeUpdate: {} - Parameter: {}", traceItem, queryText, queryParameters);
