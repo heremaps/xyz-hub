@@ -45,7 +45,7 @@ public class SubscriptionHandler {
     public static void getSubscription(RoutingContext context, String subscriptionId, Handler<AsyncResult<Subscription>> handler) {
         Marker marker = Api.Context.getMarker(context);
 
-        Service.subscriptionConfigClient.get(marker, subscriptionId, ar -> {
+        Service.subscriptionConfigClient.get(marker, subscriptionId).onComplete(ar -> {
             if (ar.failed()) {
                 logger.warn(marker, "The requested resource does not exist.'", ar.cause());
                 handler.handle(Future.failedFuture(new HttpException(NOT_FOUND, "The requested resource does not exist.", ar.cause())));
@@ -59,7 +59,7 @@ public class SubscriptionHandler {
     public static void getSubscriptions(RoutingContext context, String source, Handler<AsyncResult<List<Subscription>>> handler) {
         Marker marker = Api.Context.getMarker(context);
 
-        Service.subscriptionConfigClient.getBySource(marker, source, ar -> {
+        Service.subscriptionConfigClient.getBySource(marker, source).onComplete(ar -> {
             if (ar.failed()) {
                 logger.warn(marker, "Unable to load resource definitions.'", ar.cause());
                 handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definitions.", ar.cause())));
@@ -72,7 +72,7 @@ public class SubscriptionHandler {
     public static void getAllSubscriptions(RoutingContext context, Handler<AsyncResult<List<Subscription>>> handler) {
         Marker marker = Api.Context.getMarker(context);
 
-        Service.subscriptionConfigClient.getAll(marker, ar -> {
+        Service.subscriptionConfigClient.getAll(marker).onComplete(ar -> {
             if (ar.failed()) {
                 logger.warn(marker, "Unable to load resource definitions.'", ar.cause());
                 handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definitions.", ar.cause())));
@@ -85,7 +85,7 @@ public class SubscriptionHandler {
     public static void createSubscription(RoutingContext context, Subscription subscription, Handler<AsyncResult<Subscription>> handler) {
         Marker marker = Api.Context.getMarker(context);
         subscription.setStatus(new Subscription.SubscriptionStatus().withState(Subscription.SubscriptionStatus.State.ACTIVE));
-        Service.subscriptionConfigClient.get(marker, subscription.getId(), ar -> {
+        Service.subscriptionConfigClient.get(marker, subscription.getId()).onComplete(ar -> {
             if (ar.failed()) {
                 // Send ModifySubscriptionEvent to the connector
                 sendEvent(context, Operation.CREATE, subscription, false, marker, eventAr -> {
@@ -105,12 +105,12 @@ public class SubscriptionHandler {
 
     protected static void storeSubscription(RoutingContext context, Subscription subscription, Handler<AsyncResult<Subscription>> handler, Marker marker) {
 
-        Service.subscriptionConfigClient.store(marker, subscription, ar -> {
+        Service.subscriptionConfigClient.store(marker, subscription).onComplete(ar -> {
             if (ar.failed()) {
                 logger.error(marker, "Unable to store resource definition.", ar.cause());
                 handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to store the resource definition.", ar.cause())));
             } else {
-                handler.handle(Future.succeededFuture(ar.result()));
+                handler.handle(Future.succeededFuture(subscription));
             }
         });
     }
@@ -148,7 +148,7 @@ public class SubscriptionHandler {
     protected static void removeSubscription(RoutingContext context, Subscription subscription, Handler<AsyncResult<Subscription>> handler) {
         Marker marker = Api.Context.getMarker(context);
 
-        Service.subscriptionConfigClient.delete(marker, subscription.getId(), ar -> {
+        Service.subscriptionConfigClient.delete(marker, subscription.getId()).onComplete( ar -> {
             if (ar.failed()) {
                 logger.error(marker, "Unable to delete resource definition.", ar.cause());
                 handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to delete the resource definition.", ar.cause())));
@@ -158,7 +158,7 @@ public class SubscriptionHandler {
         });
     }
 
-    private static void sendEvent(RoutingContext context, Operation op, Subscription subscription, boolean hardDelete,Marker marker, Handler<AsyncResult<Subscription>> handler) {
+    private static void sendEvent(RoutingContext context, Operation op, Subscription subscription, boolean hasNoActiveSubscriptions,Marker marker, Handler<AsyncResult<Subscription>> handler) {
 
         ModifySubscriptionEvent event = new ModifySubscriptionEvent()
                 .withOperation(op)
@@ -166,7 +166,7 @@ public class SubscriptionHandler {
                 .withStreamId(marker.getName())
                 .withIfNoneMatch(context.request().headers().get("If-None-Match"))
                 .withSpace(subscription.getSource())
-                .withHardDelete(hardDelete);
+                .withHasNoActiveSubscriptions(hasNoActiveSubscriptions);
 
         ModifySubscriptionQuery query = new ModifySubscriptionQuery(event, context, ApiResponseType.EMPTY);
 

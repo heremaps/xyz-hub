@@ -62,69 +62,48 @@ public class DynamoSubscriptionConfigClient extends SubscriptionConfigClient {
     }
 
     @Override
-    protected void getSubscription(Marker marker, String subscriptionId, Handler<AsyncResult<Subscription>> handler) {
-        DynamoClient.dynamoWorkers.executeBlocking(
+    protected Future<Subscription> getSubscription(Marker marker, String subscriptionId) {
+        return DynamoClient.dynamoWorkers.executeBlocking(
                 future -> {
                     try {
                         logger.debug(marker, "Getting subscriptionId {} from Dynamo Table {}", subscriptionId, dynamoClient.tableName);
                         final Item item = subscriptions.getItem("id", subscriptionId);
-                        future.complete(item);
+                        if(item == null) {
+                            future.complete();
+                        } else {
+                            final Subscription subscription = Json.decodeValue(item.toJSON(), Subscription.class);
+                            future.complete(subscription);
+                        }
                     }
                     catch (Exception e) {
                         future.fail(e);
-                    }
-                },
-                ar -> {
-                    if (ar.failed()) {
-                        logger.error(marker, "Error getting subscription with ID {}", subscriptionId, ar.cause());
-                        handler.handle(Future.failedFuture(new RuntimeException("Error getting subscription with ID " + subscriptionId, ar.cause())));
-                    }
-                    else {
-                        Item item = (Item) ar.result();
-                        if (item == null) {
-                            logger.debug(marker, "subscription ID [{}]: This configuration does not exist", subscriptionId);
-                            handler.handle(Future.failedFuture(new RuntimeException("The subscription config was not found for subscription ID: " + subscriptionId)));
-                            return;
-                        }
-
-                        final Subscription subscription = Json.decodeValue(item.toJSON(), Subscription.class);
-                        handler.handle(Future.succeededFuture(subscription));
                     }
                 }
         );
     }
 
     @Override
-    protected void getSubscriptionsBySource(Marker marker, String source, Handler<AsyncResult<List<Subscription>>> handler) {
-        DynamoClient.dynamoWorkers.executeBlocking(
+    protected Future<List<Subscription>> getSubscriptionsBySource(Marker marker, String source) {
+        return DynamoClient.dynamoWorkers.executeBlocking(
                 future -> {
                     try {
                         logger.debug(marker, "Getting subscription by source {} from Dynamo Table {}", source, dynamoClient.tableName);
                         final PageIterable<Item, QueryOutcome> items = subscriptions.getIndex("source-index").query(new QuerySpec().withHashKey("source", source)).pages();
-                        future.complete(items);
+
+                        List<Subscription> result = new ArrayList<>();
+                        items.forEach(page -> page.forEach(item -> result.add(Json.decodeValue(item.toJSON(), Subscription.class))));
+                        future.complete(result);
                     }
                     catch (Exception e) {
                         future.fail(e);
-                    }
-                },
-                ar -> {
-                    if (ar.failed()) {
-                        logger.error(marker, "Error getting subscription for source {}", source, ar.cause());
-                        handler.handle(Future.failedFuture("Error getting subscription for source " + source));
-                    }
-                    else {
-                        PageIterable<Item, QueryOutcome> items = (PageIterable<Item, QueryOutcome>) ar.result();
-                        List<Subscription> result = new ArrayList<>();
-                        items.forEach(page -> page.forEach(item -> result.add(Json.decodeValue(item.toJSON(), Subscription.class))));
-                        handler.handle(Future.succeededFuture(result));
                     }
                 }
         );
     }
 
     @Override
-    protected void getAllSubscriptions(Marker marker, Handler<AsyncResult<List<Subscription>>> handler) {
-        DynamoClient.dynamoWorkers.executeBlocking( future -> {
+    protected Future<List<Subscription>> getAllSubscriptions(Marker marker) {
+        return DynamoClient.dynamoWorkers.executeBlocking( future -> {
                 try {
                     final List<Subscription> result = new ArrayList<>();
                     subscriptions.scan().pages().forEach(p -> p.forEach(i -> {
@@ -136,22 +115,14 @@ public class DynamoSubscriptionConfigClient extends SubscriptionConfigClient {
                 catch (Exception e) {
                     future.fail(e);
                 }
-            }, ar -> {
-                if (ar.failed()) {
-                    logger.error(marker, "Error retrieving all subscriptions.", ar.cause());
-                    handler.handle(Future.failedFuture(new RuntimeException("Error retrieving all subscriptions.", ar.cause())));
-                }
-                else {
-                    handler.handle(Future.succeededFuture((List<Subscription>) ar.result()));
-                }
             }
         );
     }
 
     @Override
-    protected void storeSubscription(Marker marker, Subscription subscription, Handler<AsyncResult<Subscription>> handler) {
+    protected Future<Void> storeSubscription(Marker marker, Subscription subscription) {
         logger.debug(marker, "Storing subscription ID {} into Dynamo Table {}", subscription.getId(), dynamoClient.tableName);
-        DynamoClient.dynamoWorkers.executeBlocking(
+        return DynamoClient.dynamoWorkers.executeBlocking(
                 future -> {
                     try {
                         subscriptions.putItem(Item.fromJSON(Json.encode(subscription)));
@@ -160,23 +131,14 @@ public class DynamoSubscriptionConfigClient extends SubscriptionConfigClient {
                     catch (Exception e) {
                         future.fail(e);
                     }
-                },
-                ar -> {
-                    if (ar.failed()) {
-                        logger.error(marker, "Error while storing subscription.", ar.cause());
-                        handler.handle(Future.failedFuture("Error while storing subscription."));
-                    }
-                    else {
-                        handler.handle(Future.succeededFuture(subscription));
-                    }
                 }
         );
     }
 
     @Override
-    protected void deleteSubscription(Marker marker, String subscriptionId, Handler<AsyncResult<Subscription>> handler) {
+    protected Future<Subscription> deleteSubscription(Marker marker, String subscriptionId) {
         logger.debug(marker, "Removing subscription with ID {} from Dynamo Table {}", subscriptionId, dynamoClient.tableName);
-        DynamoClient.dynamoWorkers.executeBlocking(future -> {
+        return DynamoClient.dynamoWorkers.executeBlocking(future -> {
                     try {
                         DeleteItemSpec deleteItemSpec = new DeleteItemSpec()
                                 .withPrimaryKey("id", subscriptionId)
@@ -189,14 +151,6 @@ public class DynamoSubscriptionConfigClient extends SubscriptionConfigClient {
                     }
                     catch (Exception e) {
                         future.fail(e);
-                    }
-                }, ar -> {
-                    if (ar.failed()) {
-                        logger.error(marker, "Error while deleting subscription.", ar.cause());
-                        handler.handle(Future.failedFuture("Error while deleting subscription."));
-                    }
-                    else {
-                        handler.handle(Future.succeededFuture((Subscription) ar.result()));
                     }
                 }
         );

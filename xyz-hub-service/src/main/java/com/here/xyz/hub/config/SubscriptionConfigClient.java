@@ -25,6 +25,7 @@ import com.here.xyz.models.hub.Subscription;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.Promise;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -44,6 +45,11 @@ public abstract class SubscriptionConfigClient implements Initializable {
             .expiration(1, TimeUnit.MINUTES)
             .build();
 
+    public static final ExpiringMap<String, List<Subscription>> cacheBySource = ExpiringMap.builder()
+            .expirationPolicy(ExpirationPolicy.CREATED)
+            .expiration(1, TimeUnit.MINUTES)
+            .build();
+
     public static SubscriptionConfigClient getInstance() {
         if (Service.configuration.SUBSCRIPTIONS_DYNAMODB_TABLE_ARN != null) {
             return new DynamoSubscriptionConfigClient(Service.configuration.SUBSCRIPTIONS_DYNAMODB_TABLE_ARN);
@@ -52,104 +58,104 @@ public abstract class SubscriptionConfigClient implements Initializable {
         }
     }
 
-    public void get(Marker marker, String subscriptionId, Handler<AsyncResult<Subscription>> handler) {
+    public Future<Subscription> get(Marker marker, String subscriptionId) {
         final Subscription subscriptionFromCache = cache.get(subscriptionId);
 
         if (subscriptionFromCache != null) {
             logger.info(marker, "subscriptionId: {} - The subscription was loaded from cache", subscriptionId);
-            handler.handle(Future.succeededFuture(subscriptionFromCache));
-            return;
+            return Future.succeededFuture(subscriptionFromCache);
         }
 
-        getSubscription(marker, subscriptionId, ar -> {
+        Promise<Subscription> p = Promise.promise();
+        getSubscription(marker, subscriptionId).onComplete(ar -> {
             if (ar.succeeded()) {
                 final Subscription subscription = ar.result();
+                if(subscription == null) {
+                    logger.warn(marker, "subscriptionId [{}]: Subscription not found", subscriptionId);
+                    p.fail(new RuntimeException("The subscription config was not found for subscription ID: " + subscriptionId));
+                }
                 cache.put(subscriptionId, subscription);
-                handler.handle(Future.succeededFuture(subscription));
+                p.complete(subscription);
             }
             else {
-                logger.warn(marker, "subscriptionId[{}]: Subscription not found", subscriptionId);
-                handler.handle(Future.failedFuture(ar.cause()));
+                logger.warn(marker, "subscriptionId [{}]: Subscription not found", subscriptionId);
+                p.fail(ar.cause());
             }
         });
+        return p.future();
     }
 
-    public void getBySource(Marker marker, String source, Handler<AsyncResult<List<Subscription>>> handler) {
-        getSubscriptionsBySource(marker, source, ar -> {
+    public Future<List<Subscription>> getBySource(Marker marker, String source) {
+
+        final List<Subscription> subscriptionsFromCache = cacheBySource.get(source);
+
+        if (subscriptionsFromCache != null) {
+            logger.info(marker, "source: {} - The subscriptions was loaded from cache", source);
+            return Future.succeededFuture(subscriptionsFromCache);
+        }
+
+        Promise<List<Subscription>> p = Promise.promise();
+        getSubscriptionsBySource(marker, source).onComplete( ar -> {
             if (ar.succeeded()) {
                 final List<Subscription> subscriptions = ar.result();
                 subscriptions.forEach(s -> {
                     cache.put(s.getId(), s);
                 });
-                handler.handle(Future.succeededFuture(subscriptions));
+                p.complete(subscriptions);
             }
             else {
                 logger.warn(marker, "source[{}]: Subscription for source not found", source);
-                handler.handle(Future.failedFuture(ar.cause()));
+                p.fail(ar.cause());
             }
         });
+        return p.future();
     }
 
-    public void getAll(Marker marker, Handler<AsyncResult<List<Subscription>>> handler) {
-        getAllSubscriptions(marker, ar -> {
+    public Future<List<Subscription>> getAll(Marker marker) {
+        Promise<List<Subscription>> p = Promise.promise();
+        getAllSubscriptions(marker).onComplete( ar -> {
             if (ar.succeeded()) {
                 final List<Subscription> subscriptions = ar.result();
                 subscriptions.forEach(s -> {
                     cache.put(s.getId(), s);
                 });
-                handler.handle(Future.succeededFuture(subscriptions));
+                p.complete(subscriptions);
             } else {
                 logger.error(marker, "Failed to load subscriptions, reason: ", ar.cause());
-                handler.handle(Future.failedFuture(ar.cause()));
+                p.fail(ar.cause());
             }
         });
+        return p.future();
     }
 
-    public void store(Marker marker, Subscription subscription, Handler<AsyncResult<Subscription>> handler) {
-        store(marker, subscription, handler, true);
-    }
-
-    private void store(Marker marker, Subscription subscription, Handler<AsyncResult<Subscription>> handler, boolean withInvalidation) {
+    public Future<Void> store(Marker marker, Subscription subscription) {
+        Promise<Void> p = Promise.promise();
         if (subscription.getId() == null) {
             subscription.setId(RandomStringUtils.randomAlphanumeric(10));
         }
 
-        storeSubscription(marker, subscription, ar -> {
-            if (ar.succeeded()) {
-                final Subscription subscriptionResult = ar.result();
-                if (withInvalidation) {
+        return storeSubscription(marker, subscription)
+                .onSuccess(ar -> {
                     invalidateCache(subscription.getId());
-                }
-                handler.handle(Future.succeededFuture(subscriptionResult));
-            } else {
-                logger.error(marker, "subscriptionId[{}]: Failed to store subscription configuration, reason: ", subscription.getId(), ar.cause());
-                handler.handle(Future.failedFuture(ar.cause()));
-            }
-        });
+                }).onFailure(t -> logger.error(marker, "subscriptionId[{}]: Failed to store subscription configuration, reason: ", subscription.getId(), t));
     }
 
-    public void delete(Marker marker, String subscriptionId, Handler<AsyncResult<Subscription>> handler) {
-        deleteSubscription(marker, subscriptionId, ar -> {
-            if (ar.succeeded()) {
-                final Subscription subscriptionResult = ar.result();
-                invalidateCache(subscriptionId);
-                handler.handle(Future.succeededFuture(subscriptionResult));
-            } else {
-                logger.error(marker, "subscriptionId[{}]: Failed to delete subscription configuration, reason: ", subscriptionId, ar.cause());
-                handler.handle(Future.failedFuture(ar.cause()));
-            }
-        });
+    public Future<Subscription> delete(Marker marker, String subscriptionId) {
+        return deleteSubscription(marker, subscriptionId)
+                .onSuccess(ar -> {
+                    invalidateCache(subscriptionId);
+                }).onFailure(t -> logger.error(marker, "subscriptionId[{}]: Failed to delete subscription configuration, reason: ", subscriptionId, t));
     }
 
-    protected abstract void getSubscription(Marker marker, String subscriptionId, Handler<AsyncResult<Subscription>> handler);
+    protected abstract Future<Subscription> getSubscription(Marker marker, String subscriptionId);
 
-    protected abstract void getSubscriptionsBySource(Marker marker, String source, Handler<AsyncResult<List<Subscription>>> handler);
+    protected abstract Future<List<Subscription>> getSubscriptionsBySource(Marker marker, String source);
 
-    protected abstract void storeSubscription(Marker marker, Subscription subscription, Handler<AsyncResult<Subscription>> handler);
+    protected abstract Future<Void> storeSubscription(Marker marker, Subscription subscription);
 
-    protected abstract void deleteSubscription(Marker marker, String subscriptionId, Handler<AsyncResult<Subscription>> handler);
+    protected abstract Future<Subscription> deleteSubscription(Marker marker, String subscriptionId);
 
-    protected abstract void getAllSubscriptions(Marker marker, Handler<AsyncResult<List<Subscription>>> handler);
+    protected abstract Future<List<Subscription>> getAllSubscriptions(Marker marker);
 
     public void invalidateCache(String subscriptionId) {
         cache.remove(subscriptionId);

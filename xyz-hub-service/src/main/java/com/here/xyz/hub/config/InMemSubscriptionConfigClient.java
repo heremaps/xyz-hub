@@ -43,35 +43,35 @@ public class InMemSubscriptionConfigClient extends SubscriptionConfigClient {
   }
 
   @Override
-  protected void getSubscription(Marker marker, String subscriptionId, Handler<AsyncResult<Subscription>> handler) {
+  protected Future<Subscription> getSubscription(Marker marker, String subscriptionId) {
     Subscription subscription = storageMap.get(subscriptionId);
-    handler.handle(Future.succeededFuture(subscription));
+    return Future.succeededFuture(subscription);
   }
 
   @Override
-  protected void getSubscriptionsBySource(Marker marker, String source, Handler<AsyncResult<List<Subscription>>> handler) {
+  protected Future<List<Subscription>> getSubscriptionsBySource(Marker marker, String source) {
     List<Subscription> subscriptions = storageMap.values().stream().filter(s -> s.getSource().equals(source)).collect(Collectors.toList());
-    handler.handle(Future.succeededFuture(subscriptions));
+    return Future.succeededFuture(subscriptions);
   }
 
   @Override
-  protected void getAllSubscriptions(Marker marker, Handler<AsyncResult<List<Subscription>>> handler) {
+  protected Future<List<Subscription>> getAllSubscriptions(Marker marker) {
     List<Subscription> subscriptions = new ArrayList<>(storageMap.values());
-    handler.handle(Future.succeededFuture(subscriptions));
+    return Future.succeededFuture(subscriptions);
   }
 
   @Override
-  protected void storeSubscription(Marker marker, Subscription subscription, Handler<AsyncResult<Subscription>> handler) {
+  protected Future<Void> storeSubscription(Marker marker, Subscription subscription) {
     if (subscription.getId() == null) {
       subscription.setId(RandomStringUtils.randomAlphanumeric(10));
     }
     storageMap.put(subscription.getId(), subscription);
-    handler.handle(Future.succeededFuture(subscription));
+    return Future.succeededFuture();
   }
 
   @Override
-  protected void deleteSubscription(Marker marker, String subscriptionId, Handler<AsyncResult<Subscription>> handler) {
+  protected Future<Subscription> deleteSubscription(Marker marker, String subscriptionId) {
     Subscription subscription = storageMap.remove(subscriptionId);
-    handler.handle(Future.succeededFuture(subscription));
+    return Future.succeededFuture(subscription);
   }
 }

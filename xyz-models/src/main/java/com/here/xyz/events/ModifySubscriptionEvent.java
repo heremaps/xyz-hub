@@ -29,7 +29,7 @@ public class ModifySubscriptionEvent extends Event<ModifySubscriptionEvent> {
 
   private Operation operation;
   private Subscription subscription;
-  private boolean hardDelete;
+  private boolean hasNoActiveSubscriptions;
 
 
   @SuppressWarnings("unused")
@@ -63,16 +63,16 @@ public class ModifySubscriptionEvent extends Event<ModifySubscriptionEvent> {
     return this;
   }
 
-  public boolean getHardDelete() {
-    return hardDelete;
+  public boolean getHasNoActiveSubscriptions() {
+    return hasNoActiveSubscriptions;
   }
 
-  public void setHardDelete(boolean hardDelete) {
-    this.hardDelete = hardDelete;
+  public void setHasNoActiveSubscriptions(boolean hasNoActiveSubscriptions) {
+    this.hasNoActiveSubscriptions = hasNoActiveSubscriptions;
   }
 
-  public ModifySubscriptionEvent withHardDelete(boolean hardDelete) {
-    this.hardDelete = hardDelete;
+  public ModifySubscriptionEvent withHasNoActiveSubscriptions(boolean hasNoActiveSubscriptions) {
+    this.hasNoActiveSubscriptions = hasNoActiveSubscriptions;
     return this;
   }
 

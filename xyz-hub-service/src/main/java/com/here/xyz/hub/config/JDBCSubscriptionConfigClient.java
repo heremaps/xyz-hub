@@ -24,6 +24,7 @@ import com.here.xyz.psql.SQLQuery;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.Promise;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.ext.sql.SQLClient;
@@ -66,7 +67,8 @@ public class JDBCSubscriptionConfigClient extends SubscriptionConfigClient {
   }
 
   @Override
-  protected void getSubscription(final Marker marker, final String subscriptionId, final Handler<AsyncResult<Subscription>> handler) {
+  protected Future<Subscription> getSubscription(final Marker marker, final String subscriptionId) {
+    Promise<Subscription> p = Promise.promise();
     final SQLQuery query = new SQLQuery("SELECT config FROM " + SUBSCRIPTION_TABLE + " WHERE id = ?", subscriptionId);
     client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
@@ -74,20 +76,22 @@ public class JDBCSubscriptionConfigClient extends SubscriptionConfigClient {
         if (config.isPresent()) {
           final Subscription subscription = Json.decodeValue(config.get(), Subscription.class);
           logger.debug(marker, "subscriptionId[{}]: Loaded subscription from the database.", subscriptionId);
-          handler.handle(Future.succeededFuture(subscription));
+          p.complete(subscription);
         } else {
           logger.debug(marker, "subscriptionId[{}]: This configuration does not exist", subscriptionId);
-          handler.handle(Future.failedFuture("The subscription config not found for subscriptionId: " + subscriptionId));
+          p.complete();
         }
       } else {
         logger.debug(marker, "subscriptionId[{}]: Failed to load configuration, reason: ", subscriptionId, out.cause());
-        handler.handle(Future.failedFuture(out.cause()));
+        p.fail(out.cause());
       }
     });
+    return p.future();
   }
 
   @Override
-  protected void getSubscriptionsBySource(Marker marker, String source, Handler<AsyncResult<List<Subscription>>> handler) {
+  protected Future<List<Subscription>> getSubscriptionsBySource(Marker marker, String source) {
+    Promise<List<Subscription>> p = Promise.promise();
     final SQLQuery query = new SQLQuery("SELECT config FROM " + SUBSCRIPTION_TABLE + " WHERE source = ?", source);
     client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
@@ -100,61 +104,59 @@ public class JDBCSubscriptionConfigClient extends SubscriptionConfigClient {
             logger.debug(marker, "ownerId[{}]: Loaded subscriptions from the database.", source);
           }
         });
-        handler.handle(Future.succeededFuture(result));
+        p.complete(result);
 
       } else {
         logger.debug(marker, "source[{}]: Failed to load configurations, reason: ", source, out.cause());
-        handler.handle(Future.failedFuture(out.cause()));
+        p.fail(out.cause());
       }
     });
+    return p.future();
   }
 
   @Override
-  protected void getAllSubscriptions(Marker marker, Handler<AsyncResult<List<Subscription>>> handler) {
+  protected Future<List<Subscription>> getAllSubscriptions(Marker marker) {
+    Promise<List<Subscription>> p = Promise.promise();
     client.query("SELECT config FROM " + SUBSCRIPTION_TABLE, out -> {
       if (out.succeeded()) {
         List<Subscription> configs = out.result().getRows().stream()
                 .map(r -> r.getString("config"))
                 .map(json -> Json.decodeValue(json, Subscription.class))
                 .collect(Collectors.toList());
-        handler.handle(Future.succeededFuture(configs));
+        p.complete(configs);
 
       } else {
-        handler.handle(Future.failedFuture(out.cause()));
+        p.fail(out.cause());
       }
     });
+    return p.future();
   }
 
   @Override
-  protected void storeSubscription(Marker marker, Subscription subscription, Handler<AsyncResult<Subscription>> handler) {
+  protected Future<Void> storeSubscription(Marker marker, Subscription subscription) {
     final SQLQuery query = new SQLQuery("INSERT INTO " + SUBSCRIPTION_TABLE + " (id, source, config) VALUES (?, ?, cast(? as JSONB)) " +
         "ON CONFLICT (id) DO " +
         "UPDATE SET id = ?, source = ?, config = cast(? as JSONB)",
         subscription.getId(), subscription.getSource(), Json.encode(subscription),
         subscription.getId(), subscription.getSource(), Json.encode(subscription));
-    updateWithParams(subscription, query, handler);
+    return updateWithParams(subscription, query);
   }
 
   @Override
-  protected void deleteSubscription(Marker marker, String subscriptionId, Handler<AsyncResult<Subscription>> handler) {
+  protected Future<Subscription> deleteSubscription(Marker marker, String subscriptionId) {
     final SQLQuery query = new SQLQuery("DELETE FROM " + SUBSCRIPTION_TABLE + " WHERE id = ?", subscriptionId);
-    get(marker, subscriptionId, ar -> {
-      if (ar.succeeded()) {
-        updateWithParams(ar.result(), query, handler);
-      } else {
-        logger.error(ar.cause());
-        handler.handle(Future.failedFuture(ar.cause()));
-      }
-    });
+    return get(marker, subscriptionId).compose(subscription -> updateWithParams(subscription, query).map(subscription));
   }
 
-  private void updateWithParams(Subscription modifiedObject, SQLQuery query, Handler<AsyncResult<Subscription>> handler) {
+  private Future<Void> updateWithParams(Subscription modifiedObject, SQLQuery query) {
+    Promise<Void> p = Promise.promise();
     client.updateWithParams(query.text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
-        handler.handle(Future.succeededFuture(modifiedObject));
+        p.complete();
       } else {
-        handler.handle(Future.failedFuture(out.cause()));
+        p.fail(out.cause());
       }
     });
+    return p.future();
   }
 }
