@@ -296,4 +296,8 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
         .body("features.size()", equalTo(1))
         .body("features[0].id", equalTo(f1.getId()));
   }
+
+  //TODO: Add tests for iteration on a composite space
+  //TODO: Add tests for spatial search on a composite space
+
 }

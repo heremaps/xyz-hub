@@ -51,6 +51,7 @@ import com.here.xyz.psql.factory.H3SQL;
 import com.here.xyz.psql.factory.QuadbinSQL;
 import com.here.xyz.psql.factory.TweaksSQL;
 import com.here.xyz.psql.query.GetFeaturesByBBox;
+import com.here.xyz.psql.query.GetFeaturesByGeometry;
 import com.here.xyz.psql.query.GetFeaturesById;
 import com.here.xyz.psql.query.GetStorageStatistics;
 import com.here.xyz.psql.query.IterateFeatures;
@@ -159,7 +160,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processGetFeaturesByGeometryEvent(GetFeaturesByGeometryEvent event) throws Exception {
     try {
       logger.info("{} Received GetFeaturesByGeometryEvent", traceItem);
-      return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByGeometryQuery(event));
+        return new GetFeaturesByGeometry(event, this).run();
     }catch (SQLException e){
       return checkSQLException(e, config.readTableFromEvent(event));
     }finally {
@@ -336,10 +337,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
         {
           case H3SQL.HEXBIN :
            if( !bMvtRequested )
-            return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource));
+            return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams));
            else
             return executeBinQueryWithRetry(
-             SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams,dataSource), mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
+             SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams), mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
 
           case QuadbinSQL.QUAD :
            final int relResolution = ( clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) != null ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) :

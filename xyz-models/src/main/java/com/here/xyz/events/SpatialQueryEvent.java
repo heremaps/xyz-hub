@@ -22,7 +22,7 @@ package com.here.xyz.events;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class SpatialQueryEvent<T extends SpatialQueryEvent> extends SearchForFeaturesEvent<T> {
+public abstract class SpatialQueryEvent<T extends SpatialQueryEvent> extends SearchForFeaturesEvent<T> {
 
   private boolean clip;
 

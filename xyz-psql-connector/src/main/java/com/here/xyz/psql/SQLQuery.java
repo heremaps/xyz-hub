@@ -281,6 +281,22 @@ public class SQLQuery {
     namedParameters = null;
   }
 
+  //TODO: Can be removed after completion of refactoring
+  @Deprecated
+  public void replaceUnnamedParameters() {
+    if (parameters() == null || parameters().size() == 0)
+      return;
+    List<Object> params = parameters();
+    //Clear all un-named parameters
+    parameters = new ArrayList<>();
+    int i = 0;
+    for (Object paramValue : params) {
+      String paramName = "param" + ++i;
+      setNamedParameter(paramName, paramValue);
+      setText(text().replaceFirst(Pattern.quote("?"), "#{" + paramName + "}"));
+    }
+  }
+
   public static SQLQuery selectJson(QueryEvent event) {
     return GetFeatures.buildSelectionFragmentBWC(event);
   }
@@ -376,7 +392,7 @@ public class SQLQuery {
     if (fragment == null)
       return;
     if (fragment.parameters() != null && fragment.parameters().size() > 0)
-      throw new RuntimeException("No query fragments can be used inside queries which use parameters. Use named parameters instead!");
+      throw new RuntimeException("Query which use parameters can't be added as query fragment to a query. Use named parameters instead!");
     if (fragment.queryFragments != null)
       checkForUnnamedParametersInFragments(fragment.queryFragments.values());
   }

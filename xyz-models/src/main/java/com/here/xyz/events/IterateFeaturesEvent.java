@@ -28,18 +28,22 @@ import java.util.List;
 public final class IterateFeaturesEvent extends SearchForFeaturesEvent<IterateFeaturesEvent> {
 
   private String handle;
+  @Deprecated
   private Integer v;
   private List<String> sort;
   private Integer[] part;
 
+  @Deprecated
   public Integer getV() {
     return v;
   }
 
+  @Deprecated
   public void setV(Integer v) {
     this.v = v;
   }
 
+  @Deprecated
   public IterateFeaturesEvent withV(Integer v) {
     setV(v);
     return this;

@@ -22,7 +22,6 @@ import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.GEO_JSON;
 
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
-import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent.ResponseType;
 import com.here.xyz.events.GetHistoryStatisticsEvent;
@@ -30,16 +29,14 @@ import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.QueryEvent;
-import com.here.xyz.events.SpatialQueryEvent;
 import com.here.xyz.models.geojson.HQuad;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
-import com.here.xyz.models.geojson.coordinates.WKTHelper;
-import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.factory.H3SQL;
 import com.here.xyz.psql.factory.QuadbinSQL;
 import com.here.xyz.psql.factory.TweaksSQL;
+import com.here.xyz.psql.query.GetFeaturesByBBox;
 import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.psql.tools.DhString;
@@ -47,7 +44,6 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Map;
-import javax.sql.DataSource;
 
 public class SQLQueryBuilder {
     public static final long GEOMETRY_DECIMAL_DIGITS = 8;
@@ -69,27 +65,7 @@ public class SQLQueryBuilder {
         return new SQLQuery("SELECT nextval('${schema}.\"" + table.replaceAll("-","_") + "_hst_seq\"')");
     }
 
-    public static SQLQuery buildGetFeaturesByGeometryQuery(GetFeaturesByGeometryEvent event)
-        throws SQLException{
-        final int radius = event.getRadius();
-        final Geometry geometry = event.getGeometry();
-
-        final SQLQuery geoQuery;
-
-        if(event.getH3Index() != null){
-            if(radius != 0)
-                geoQuery = new SQLQuery("ST_Intersects( geo, ST_Buffer(hexbin::geography,? )::geometry)", radius);
-            else
-                geoQuery = new SQLQuery("ST_Intersects( geo, hexbin)");
-        }else{
-            geoQuery = radius != 0 ? new SQLQuery("ST_Intersects(geo, ST_Buffer(ST_GeomFromText('"
-                    + WKTHelper.geometryToWKB(geometry) + "')::geography, ? )::geometry)", radius) : new SQLQuery("ST_Intersects(geo, ST_GeomFromText('"
-                    + WKTHelper.geometryToWKB(geometry) + "',4326))");
-        }
-        return generateCombinedQuery(event, geoQuery);
-    }
-
-    public static SQLQuery buildGetFeaturesByBBoxQuery(final GetFeaturesByBBoxEvent event)
+  public static SQLQuery buildGetFeaturesByBBoxQuery(final GetFeaturesByBBoxEvent event)
         throws SQLException{
         final BBox bbox = event.getBbox();
 
@@ -121,7 +97,7 @@ public class SQLQueryBuilder {
 
     public static SQLQuery buildHexbinClusteringQuery(
             GetFeaturesByBBoxEvent event, BBox bbox,
-            Map<String, Object> clusteringParams, DataSource dataSource) {
+            Map<String, Object> clusteringParams) {
 
         int zLevel = (event instanceof GetFeaturesByTileEvent ? ((GetFeaturesByTileEvent) event).getLevel() : H3SQL.bbox2zoom(bbox)),
             defaultResForLevel = H3SQL.zoom2resolution(zLevel),
@@ -548,7 +524,10 @@ public class SQLQueryBuilder {
 
     public static SQLQuery buildMvtEncapsuledQuery( String spaceId, SQLQuery dataQry, WebMercatorTile mvtTile, HQuad hereTile, BBox eventBbox, int mvtMargin, boolean bFlattend )
     {
+      //TODO: The following is a workaround for backwards-compatibility and can be removed after completion of refactoring
+      dataQry.replaceUnnamedParameters();
       dataQry.replaceFragments();
+      dataQry.replaceNamedParameters();
       int extend = 4096, buffer = (extend / WebMercatorTile.TileSizeInPixel) * mvtMargin;
       BBox b = ( mvtTile != null ? mvtTile.getBBox(false) : ( hereTile != null ? hereTile.getBoundingBox() : eventBbox) ); // pg ST_AsMVTGeom expects tiles bbox without buffer.
 
@@ -739,88 +718,16 @@ public class SQLQueryBuilder {
     private static SQLQuery generateCombinedQueryTweaks(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery, String tweaksgeo, boolean bTestTweaksGeoIfNull)
     { return generateCombinedQueryTweaks(event, indexedQuery, tweaksgeo, bTestTweaksGeoIfNull, -1.0f, false );  }
 
-    private static SQLQuery generateCombinedQuery(SpatialQueryEvent event, SQLQuery indexedQuery)
-    {
-      SQLQuery searchQuery = generateSearchQuery(event);
-      boolean bConvertGeo2Geojson = event instanceof GetFeaturesByGeometryEvent || getResponseType((GetFeaturesByBBoxEvent) event) == GEO_JSON;
+  private static SQLQuery generateCombinedQuery(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery) {
+      return GetFeaturesByBBox.generateCombinedQueryBWC(event, indexedQuery);
+  }
 
-        final SQLQuery query = new SQLQuery();
-
-        String h3Index = event instanceof GetFeaturesByGeometryEvent ? ((GetFeaturesByGeometryEvent) event).getH3Index() : null;
-
-        if(h3Index != null)
-            query.append("WITH h AS (SELECT h3ToGeoBoundaryDeg( ('x' || '"+h3Index+"' )::bit(60)::bigint ) as hexbin )");
-
-        query.append("SELECT ");
-
-        query.append(SQLQuery.selectJson(event));
-        query.append(",");
-        query.append(geometrySelectorForEvent( event, bConvertGeo2Geojson));
-
-        if(h3Index != null)
-            query.append("FROM ${schema}.${table} ${{tableSample}}, h WHERE");
-        else
-            query.append("FROM ${schema}.${table} ${{tableSample}} WHERE");
-        query.setQueryFragment("tableSample", ""); //Can be overridden by caller
-
-        query.append(indexedQuery);
-
-        if( searchQuery != null )
-        { query.append(" and ");
-            query.append(searchQuery);
-        }
-
-        query.append(" ${{orderBy}} ");
-        query.setQueryFragment("orderBy", ""); //Can be overridden by caller
-
-        query.append("LIMIT ?", event.getLimit());
-        return query;
-    }
-
-    /**
-     * Returns the query, which will contains the geometry object.
-     */
-    private static SQLQuery geometrySelectorForEvent(final SpatialQueryEvent event, boolean bGeoJson) {
-        String forceMode = getForceMode(event.isForce2D());
-
-        if(!event.getClip()){
-            return (bGeoJson ?
-                    new SQLQuery("replace(ST_AsGeojson("+forceMode+"(geo),?::INTEGER),'nan','0') as geo", GEOMETRY_DECIMAL_DIGITS)
-                    : new SQLQuery(forceMode+"(geo) as geo"));
-        }else{
-            if(event instanceof GetFeaturesByBBoxEvent){
-                final BBox bbox = ((GetFeaturesByBBoxEvent)event).getBbox();
-                String geoSqlAttrib = (bGeoJson ? DhString.format("replace(ST_AsGeoJson(ST_Intersection(ST_MakeValid(geo),ST_MakeEnvelope(?,?,?,?,4326)),%d),'nan','0') as geo", GEOMETRY_DECIMAL_DIGITS)
-                        : "ST_Intersection( ST_MakeValid(geo),ST_MakeEnvelope(?,?,?,?,4326) ) as geo");
-
-                return new SQLQuery(geoSqlAttrib, bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
-            }else if(event instanceof GetFeaturesByGeometryEvent){
-                //Clip=true =>  Use input Geometry for clipping
-                final Geometry geometry = ((GetFeaturesByGeometryEvent)event).getGeometry();
-                //If h3Index is given - use it as input geometry
-                final String h3Index =  ((GetFeaturesByGeometryEvent)event).getH3Index();
-
-                String wktGeom = h3Index == null ? "ST_GeomFromText('" + WKTHelper.geometryToWKB(geometry) + "',4326)" : "hexbin" ;
-
-                //If radius is not null
-                if(((GetFeaturesByGeometryEvent)event).getRadius() != 0){
-                    //Enlarge input geometry with ST_Buffer
-                    wktGeom = (h3Index == null ?
-                            DhString.format("ST_Buffer(ST_GeomFromText('" + WKTHelper.geometryToWKB(geometry) + "')::geography, %d )::geometry", ((GetFeaturesByGeometryEvent)event).getRadius())
-                            : DhString.format("ST_Buffer(hexbin::geography,%d)::geometry", ((GetFeaturesByGeometryEvent)event).getRadius()));
-                }
-                return new SQLQuery("replace(ST_AsGeoJson(ST_Intersection(ST_MakeValid(geo),"+wktGeom+"),?::INTEGER),'nan','0') as geo", GEOMETRY_DECIMAL_DIGITS);
-            }
-        }
-        //Should not happen (currently only used with GetFeaturesByBBoxEvent / GetFeaturesByGeometryEvent)
-        return new SQLQuery("ST_AsGeojson(geo) as geo");
-    }
 
   protected static SQLQuery generateSearchQuery(final QueryEvent event) {
       return SearchForFeatures.generateSearchQueryBWC(event);
   }
 
-    protected static SQLQuery generateLoadOldFeaturesQuery(final String[] idsToFetch, final DataSource dataSource) {
+    protected static SQLQuery generateLoadOldFeaturesQuery(final String[] idsToFetch) {
         return new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)", (Object) idsToFetch);
     }
 

@@ -51,8 +51,8 @@ import com.here.xyz.psql.query.ExtendedSpace;
 import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.helpers.FetchExistingIds;
 import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
+import com.here.xyz.psql.tools.DhString;
 import com.here.xyz.responses.BinaryResponse;
-import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.HistoryStatisticsResponse;
@@ -63,7 +63,6 @@ import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.responses.changesets.CompactChangeset;
-import com.here.xyz.psql.tools.DhString;
 import com.mchange.v2.c3p0.AbstractConnectionCustomizer;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
 import com.mchange.v2.c3p0.PooledDataSource;
@@ -94,7 +93,6 @@ public abstract class DatabaseHandler extends StorageConnector {
     private static final Logger logger = LogManager.getLogger();
 
     private static final Pattern pattern = Pattern.compile("^BOX\\(([-\\d\\.]*)\\s([-\\d\\.]*),([-\\d\\.]*)\\s([-\\d\\.]*)\\)$");
-    private static final int MAX_PRECISE_STATS_COUNT = 10_000;
     private static final String C3P0EXT_CONFIG_SCHEMA = "config.schema()";
     public static final String HISTORY_TABLE_SUFFIX = "_hst";
 
@@ -316,7 +314,9 @@ public abstract class DatabaseHandler extends StorageConnector {
      */
     protected <T> T executeQueryWithRetry(SQLQuery query, ResultSetHandler<T> handler, boolean useReadReplica) throws SQLException {
         try {
+            query.replaceUnnamedParameters();
             query.replaceFragments();
+            query.replaceNamedParameters();
             return executeQuery(query, handler, useReadReplica ? readDataSource : dataSource);
         } catch (Exception e) {
             try {
@@ -467,7 +467,7 @@ public abstract class DatabaseHandler extends StorageConnector {
      */
     protected List<Feature> fetchOldStates(String[] idsToFetch) throws Exception {
         List<Feature> oldFeatures = null;
-        FeatureCollection oldFeaturesCollection = executeQueryWithRetry(SQLQueryBuilder.generateLoadOldFeaturesQuery(idsToFetch, dataSource));
+        FeatureCollection oldFeaturesCollection = executeQueryWithRetry(SQLQueryBuilder.generateLoadOldFeaturesQuery(idsToFetch));
 
         if (oldFeaturesCollection != null) {
             oldFeatures = oldFeaturesCollection.getFeatures();
