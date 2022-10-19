@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.rest;
 
+import com.amazonaws.util.StringUtils;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQuery.QueryOperation;
@@ -31,6 +32,8 @@ import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -169,6 +172,8 @@ public class ApiParam {
     static final String START_VERSION = "startVersion";
     static final String END_VERSION = "endVersion";
     static final String PAGE_TOKEN = "pageToken";
+
+    static final String REV = "rev";
 
     private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{
       put("!=", QueryOperation.NOT_EQUALS);
@@ -355,6 +360,44 @@ public class ApiParam {
         context.put("propertyQuery", propertyQuery);
       }
       return propertyQuery;
+    }
+
+    /**
+     * Returns the first property found in the query string in the format of key-operator-value(s)
+     * @param query the query part in the url
+     * @param key the property to be searched
+     * @param multiValue when true, checks for comma separated values, otherwise return the first value found
+     * @return null in case none is found
+     */
+    static PropertyQuery getPropertyQuery(String query, String key, boolean multiValue) {
+      if (StringUtils.isNullOrEmpty(query) || StringUtils.isNullOrEmpty(key))
+        return null;
+
+      int startIndex;
+      if ((startIndex=query.indexOf("?" + key)) != -1 || (startIndex=query.indexOf("?" + key))!= -1) {
+        String keyOpValue = query.substring(startIndex + 1); // e.g. rev=eq=head
+        String operation = shortOperators
+            .stream()
+            .sorted(Comparator.reverseOrder()) // reverse a sorted list because u want to get the longer ops first.
+            .filter(keyOpValue::startsWith) // e.g. in case of key=eq=val, 2 ops will be filtered in: '=eq=' and '='.
+            .findFirst() // The reversed sort plus the findFirst makes sure the =eq= is the one you are looking for.
+            .orElse(null); // e.g. anything different from the allowed operators
+
+        if (operation == null)
+          return null;
+
+        String value = keyOpValue.substring(key.length() + operation.length()).split("&")[0];
+        List<Object> values = multiValue
+            ? Arrays.asList(value.split(","))
+            : Collections.singletonList(value.split(",")[0]);
+
+        return new PropertyQuery()
+            .withKey(key)
+            .withOperation(operators.get(operation))
+            .withValues(values);
+      }
+
+      return null;
     }
 
     protected static PropertiesQuery parsePropertiesQuery(String query, String property, boolean spaceProperties) {
