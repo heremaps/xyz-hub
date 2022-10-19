@@ -37,28 +37,22 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent> extends Spatial
   }
 
   @Override
-  protected SQLQuery buildQuery(E event) {
+  protected SQLQuery buildQuery(E event) throws SQLException {
     //NOTE: So far this query runner only handles queries regarding extended spaces
     if (isExtendedSpace(event) && event.getContext() == DEFAULT) {
-      String filterWhereClause = "ST_Intersects(geo, ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326))";
-
-      SQLQuery searchQuery = buildSearchFragment(event);
-      if (hasSearch)
-        filterWhereClause += " AND " + searchQuery.text();
-
-      SQLQuery query = buildQuery(event, filterWhereClause);
-      if (hasSearch) {
-        searchQuery.replaceFragments();
-        query.setNamedParameters(searchQuery.getNamedParameters());
-      }
-      query.setQueryFragment("limit", buildLimitFragment(event.getLimit()));
-
-      //query.setQueryFragment("filterWhereClause", filterWhereClause);
+      SQLQuery geoQuery = new SQLQuery("ST_Intersects(geo, ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326))");
       final BBox bbox = event.getBbox();
-      query.setNamedParameter("minLon", bbox.minLon());
-      query.setNamedParameter("minLat", bbox.minLat());
-      query.setNamedParameter("maxLon", bbox.maxLon());
-      query.setNamedParameter("maxLat", bbox.maxLat());
+      geoQuery.setNamedParameter("minLon", bbox.minLon());
+      geoQuery.setNamedParameter("minLat", bbox.minLat());
+      geoQuery.setNamedParameter("maxLon", bbox.maxLon());
+      geoQuery.setNamedParameter("maxLat", bbox.maxLat());
+
+      SQLQuery query = super.buildQuery(event);
+
+      SQLQuery filterWhereClause = new SQLQuery("${{geoQuery}} AND ${{searchQuery}}");
+      filterWhereClause.setQueryFragment("geoQuery", geoQuery);
+      filterWhereClause.setQueryFragment("searchQuery", query.getQueryFragment("filterWhereClause"));
+      query.setQueryFragment("filterWhereClause", filterWhereClause);
       return query;
     }
     return null;

@@ -42,7 +42,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
     setUseReadReplica(true);
   }
 
-  protected SQLQuery buildQuery(E event, String filterWhereClause) {
+  @Override
+  protected SQLQuery buildQuery(E event) throws SQLException {
     boolean isExtended = isExtendedSpace(event) && event.getContext() == DEFAULT;
     SQLQuery query;
     if (isExtended) {
@@ -72,7 +73,6 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
 
     query.setQueryFragment("geo", buildGeoFragment(event));
     query.setQueryFragment("iColumn", ""); //NOTE: This can be overridden by implementing subclasses
-    query.setQueryFragment("filterWhereClause", filterWhereClause);
     query.setQueryFragment("limit", ""); //NOTE: This can be overridden by implementing subclasses
 
     query.setVariable(SCHEMA, getSchema());
@@ -86,7 +86,6 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
           ? build1LevelBaseQuery(getExtendedTable(event)) //1-level extension
           : build2LevelBaseQuery(getIntermediateTable(event), getExtendedTable(event)); //2-level extension
 
-      baseQuery.setQueryFragment("filterWhereClause", filterWhereClause);
       query.setQueryFragment("baseQuery", baseQuery);
     }
     else {
@@ -138,8 +137,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
         + "CASE WHEN prj_build ?? 'properties' THEN prj_build "
         + "ELSE jsonb_set(prj_build,'{properties}','{}'::jsonb) "
         + "END "
-        + "FROM prj_build(#{selection}, jsondata)) AS jsondata",
-        Collections.singletonMap("selection", selection.toArray(new String[0])));
+        + "FROM prj_build(#{selection}, jsondata)) AS jsondata")
+        .withNamedParameter("selection", selection.toArray(new String[0]));
   }
 
   //TODO: Can be removed after completion of refactoring

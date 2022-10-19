@@ -49,10 +49,9 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
 
   @Override
   protected SQLQuery buildQuery(E event) throws SQLException {
+    SQLQuery query = super.buildQuery(event);
+
     SQLQuery searchQuery = buildSearchFragment(event);
-
-    SQLQuery query = super.buildQuery(event, "TRUE");
-
     if (hasSearch)
       query.setQueryFragment("filterWhereClause", searchQuery);
     else
@@ -69,7 +68,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
   }
 
   protected static SQLQuery buildLimitFragment(long limit) {
-    return new SQLQuery("LIMIT #{limit}", Collections.singletonMap("limit", limit));
+    return new SQLQuery("LIMIT #{limit}").withNamedParameter("limit", limit);
   }
 
 
@@ -214,7 +213,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
       segmentNames.put(segmentParamName, keySegment);
     }
 
-    return new SQLQuery(keyPath, segmentNames);
+    return new SQLQuery(keyPath).withNamedParameters(segmentNames);
   }
 
   private static String getValue(Object value, PropertyQuery.QueryOperation op, String key, String paramName) {

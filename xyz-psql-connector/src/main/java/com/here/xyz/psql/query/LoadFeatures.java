@@ -36,15 +36,17 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
   }
 
   @Override
-  protected SQLQuery buildQuery(LoadFeaturesEvent event) {
+  protected SQLQuery buildQuery(LoadFeaturesEvent event) throws SQLException {
     final Map<String, String> idMap = event.getIdsMap();
 
-    String filterWhereClause = "jsondata->>'id' = ANY(#{ids})";
-    SQLQuery query;
+    SQLQuery filterWhereClause = new SQLQuery("jsondata->>'id' = ANY(#{ids})")
+        .withNamedParameter("ids", idMap.keySet().toArray(new String[0]));
 
-    if (isExtendedSpace(event) && event.getContext() == DEFAULT || !event.getEnableHistory() || idMap.size() == 0)
-      query = buildQuery(event, filterWhereClause);
-    else {
+    SQLQuery headQuery = super.buildQuery(event)
+        .withQueryFragment("filterWhereClause", filterWhereClause);
+
+    SQLQuery query = headQuery;
+    if (event.getEnableHistory() && (!isExtendedSpace(event) || event.getContext() != DEFAULT)) {
       final boolean compactHistory = !event.getEnableGlobalVersioning() && dbHandler.getConfig().getConnectorParams().isCompactHistory();
       if (compactHistory)
         //History does not contain Inserts
@@ -55,11 +57,11 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
             + "    ${{headQuery}} UNION ${{historyQuery}}"
             + ")A");
 
-      query.setQueryFragment("headQuery", buildQuery(event, filterWhereClause));
-      query.setQueryFragment("historyQuery", buildHistoryQuery(event, idMap.values()));
+      query
+          .withQueryFragment("headQuery", headQuery)
+          .withQueryFragment("historyQuery", buildHistoryQuery(event, idMap.values()));
     }
-    //query.setQueryFragment("filterWhereClause", filterWhereClause);
-    query.setNamedParameter("ids", idMap.keySet().toArray(new String[0]));
+
     return query;
   }
 

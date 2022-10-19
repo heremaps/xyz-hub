@@ -19,8 +19,6 @@
 
 package com.here.xyz.psql.query;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
-
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.psql.DatabaseHandler;
@@ -34,13 +32,12 @@ public class GetFeaturesById extends GetFeatures<GetFeaturesByIdEvent> {
   }
 
   @Override
-  protected SQLQuery buildQuery(GetFeaturesByIdEvent event) {
+  protected SQLQuery buildQuery(GetFeaturesByIdEvent event) throws SQLException {
     String[] idArray = event.getIds().toArray(new String[0]);
     String filterWhereClause = "jsondata->>'id' = ANY(#{ids})";
 
-    SQLQuery query = buildQuery(event, filterWhereClause);
-
-    //query.setQueryFragment("filterWhereClause", filterWhereClause);
+    SQLQuery query = super.buildQuery(event);
+    query.setQueryFragment("filterWhereClause", filterWhereClause);
     query.setNamedParameter("ids", idArray);
     return query;
   }
