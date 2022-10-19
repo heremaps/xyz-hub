@@ -62,7 +62,8 @@ import java.util.Map;
     @JsonSubTypes.Type(value = GetFeaturesByIdEvent.class, name = "GetFeaturesByIdEvent"),
     @JsonSubTypes.Type(value = LoadFeaturesEvent.class, name = "LoadFeaturesEvent"),
     @JsonSubTypes.Type(value = IterateHistoryEvent.class, name = "IterateHistoryEvent"),
-    @JsonSubTypes.Type(value = ContentModifiedNotification.class, name = "ContentModifiedNotification")
+    @JsonSubTypes.Type(value = ContentModifiedNotification.class, name = "ContentModifiedNotification"),
+    @JsonSubTypes.Type(value = RevisionEvent.class, name = "RevisionEvent")
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
 public abstract class Event<T extends Event> extends Payload {
