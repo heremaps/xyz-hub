@@ -32,6 +32,7 @@ import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent.ResponseType;
+import com.here.xyz.events.ModifySubscriptionEvent.Operation;
 import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.GetStorageStatisticsEvent;
@@ -552,10 +553,28 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected XyzResponse processModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception {
-    // Needs further implementation
-    return new SuccessResponse();
+    try{
+      logger.info("{} Received ModifySpaceEvent", traceItem);
+
+      this.validateModifySubscriptionEvent(event);
+
+      return executeModifySubscription(event);
+    }catch (SQLException e){
+      return checkSQLException(e, config.readTableFromEvent(event));
+    }finally {
+      logger.info("{} Finished ModifySpaceEvent", traceItem);
+    }
   }
 
+  private void validateModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception {
+    
+   switch(event.getOperation())
+   { case CREATE : case UPDATE : case DELETE : break;
+     default:
+      throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "Modify Subscription - Operation (" + event.getOperation() + ") not supported" );
+   }
+
+  }
 
   @Override
   protected XyzResponse processIterateHistoryEvent(IterateHistoryEvent event) {
@@ -640,7 +659,6 @@ public class PSQLXyzConnector extends DatabaseHandler {
       }
     }
   }
-
 
   private static final Pattern ERRVALUE_22P02 = Pattern.compile("invalid input syntax for type numeric:\\s+\"([^\"]*)\"\\s+Query:"),
                                ERRVALUE_22P05 = Pattern.compile("ERROR:\\s+(.*)\\s+Detail:\\s+(.*)\\s+Where:");
