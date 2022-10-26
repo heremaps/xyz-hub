@@ -114,9 +114,7 @@ public class CreateExtensionSpaceIT extends TestSpaceWithFeature {
     cleanUpIds.add(response.extract().path("id"));
 
     response.statusCode(OK.code())
-        .body("extends.spaceId", equalTo("x-psql-extending-test"))
-        .body("storage.params.extends.spaceId", equalTo("x-psql-extending-test"))
-        .body("storage.params.extends.extends.spaceId", equalTo("x-psql-test-extensible"));
+        .body("extends.spaceId", equalTo("x-psql-extending-test"));
   }
 
   @Test // should fail
@@ -209,7 +207,7 @@ public class CreateExtensionSpaceIT extends TestSpaceWithFeature {
         .when()
         .patch("/spaces/x-psql-extending-test")
         .then()
-        .statusCode(BAD_REQUEST.code());
+        .statusCode(OK.code());
   }
 
   @Test // should fail

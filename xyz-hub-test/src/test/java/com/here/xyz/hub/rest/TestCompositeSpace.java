@@ -34,9 +34,7 @@ public class TestCompositeSpace extends TestSpaceWithFeature {
 
   @Before
   public void setup() {
-    removeSpace("x-psql-test-ext-ext");
-    removeSpace("x-psql-test-ext");
-    removeSpace("x-psql-test");
+    tearDown();
     createSpace();
     createSpaceWithExtension("x-psql-test");
     createSpaceWithExtension("x-psql-test-ext");

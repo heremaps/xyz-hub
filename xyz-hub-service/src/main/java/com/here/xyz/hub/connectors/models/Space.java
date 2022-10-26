@@ -106,6 +106,25 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
     });
   }
 
+  public Future<Map<String, Object>> resolveCompositeParams(Marker marker) {
+    if (getExtension() == null)
+      return Future.succeededFuture(Collections.emptyMap());
+    return resolveSpace(marker, getExtension().getSpaceId())
+        .compose(extendedSpace -> Future.succeededFuture(resolveCompositeParams(extendedSpace)));
+  }
+
+  public Map<String, Object> resolveCompositeParams(Space extendedSpace) {
+    if (getExtension() == null)
+      return Collections.emptyMap();
+    //Storage params are taken from the input and then resolved based on the extensions
+    final Map<String, Object> extendsMap = getExtension().asMap();
+    //Check if the extended space itself is extending some other space (2-level extension)
+    if (extendedSpace.getExtension() != null)
+      //Get the extension definition from the extended space and add it to this one additionally
+      extendsMap.put("extends", extendedSpace.getExtension().asMap());
+    return Collections.singletonMap("extends", extendsMap);
+  }
+
   @JsonView(Internal.class)
   @SuppressWarnings("unused")
   public CacheProfile getAutoCacheProfile() {
