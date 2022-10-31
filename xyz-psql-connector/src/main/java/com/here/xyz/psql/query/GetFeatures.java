@@ -49,9 +49,9 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
     if (isExtended) {
       query = new SQLQuery(
           "SELECT * FROM ("
-          + "    SELECT ${{selection}}, ${{geo}}${{iColumnExtension}}"
+          + "    (SELECT ${{selection}}, ${{geo}}${{iColumnExtension}}"
           + "        FROM ${schema}.${table}"
-          + "        WHERE ${{filterWhereClause}} AND deleted = false "
+          + "        WHERE ${{filterWhereClause}} AND deleted = false ${{iOffsetExtension}} ${{limit}})"
           + "    UNION ALL "
           + "        SELECT ${{selection}}, ${{geo}}${{iColumn}} FROM"
           + "            ("
@@ -80,13 +80,18 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
 
     if (isExtended) {
       query.setQueryFragment("iColumnExtension", ""); //NOTE: This can be overridden by implementing subclasses
-      query.setQueryFragment("iColumnIntermediate", ""); //NOTE: This can be overridden by implementing subclasses
+      query.setQueryFragment("iOffsetExtension", "");
 
       SQLQuery baseQuery = !is2LevelExtendedSpace(event)
           ? build1LevelBaseQuery(getExtendedTable(event)) //1-level extension
           : build2LevelBaseQuery(getIntermediateTable(event), getExtendedTable(event)); //2-level extension
 
       query.setQueryFragment("baseQuery", baseQuery);
+
+      query.setQueryFragment("iColumnBase", ""); //NOTE: This can be overridden by implementing subclasses
+      query.setQueryFragment("iOffsetBase", ""); //NOTE: This can be overridden by implementing subclasses
+      query.setQueryFragment("iColumnIntermediate", ""); //NOTE: This can be overridden by implementing subclasses
+      query.setQueryFragment("iOffsetIntermediate", ""); //NOTE: This can be overridden by implementing subclasses
     }
     else {
       query.setQueryFragment("orderBy", ""); //NOTE: This can be overridden by implementing subclasses
@@ -97,17 +102,17 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
   }
 
   private SQLQuery build1LevelBaseQuery(String extendedTable) {
-    SQLQuery query = new SQLQuery("SELECT jsondata, geo${{iColumn}}"
+    SQLQuery query = new SQLQuery("SELECT jsondata, geo${{iColumnBase}}"
         + "    FROM ${schema}.${extendedTable} m"
-        + "    WHERE ${{filterWhereClause}}"); //in the base table there is no need to check a deleted flag;
+        + "    WHERE ${{filterWhereClause}} ${{iOffsetBase}} ${{limit}}"); //in the base table there is no need to check a deleted flag;
     query.setVariable("extendedTable", extendedTable);
     return query;
   }
 
   private SQLQuery build2LevelBaseQuery(String intermediateTable, String extendedTable) {
-    SQLQuery query = new SQLQuery("SELECT jsondata, geo${{iColumnIntermediate}}"
+    SQLQuery query = new SQLQuery("(SELECT jsondata, geo${{iColumnIntermediate}}"
         + "    FROM ${schema}.${intermediateExtensionTable}"
-        + "    WHERE ${{filterWhereClause}} AND deleted = false "
+        + "    WHERE ${{filterWhereClause}} AND deleted = false ${{iOffsetIntermediate}} ${{limit}})"
         + "UNION ALL"
         + "    SELECT jsondata, geo${{iColumn}} FROM"
         + "        ("

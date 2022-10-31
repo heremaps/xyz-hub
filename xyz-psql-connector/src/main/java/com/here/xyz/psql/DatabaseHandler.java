@@ -1016,7 +1016,8 @@ public abstract class DatabaseHandler extends StorageConnector {
     private final long MAX_RESULT_CHARS = 100 * 1024 *1024;
 
     protected FeatureCollection _defaultFeatureResultSetHandler(ResultSet rs, boolean skipNullGeom) throws SQLException {
-        String nextHandle = "";
+        String nextIOffset = "";
+        String nextDataset = null;
 
         StringBuilder sb = new StringBuilder();
         String prefix = "[";
@@ -1035,7 +1036,9 @@ public abstract class DatabaseHandler extends StorageConnector {
 
             if (event instanceof IterateFeaturesEvent) {
                 numFeatures++;
-                nextHandle = rs.getString(3);
+                nextIOffset = rs.getString(3);
+                if (rs.getMetaData().getColumnCount() >= 4)
+                    nextDataset = rs.getString(4);
             }
         }
 
@@ -1050,6 +1053,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         if (sb.length() > MAX_RESULT_CHARS) throw new SQLException(DhString.format("Maxchar limit(%d) reached", MAX_RESULT_CHARS));
 
         if (event instanceof IterateFeaturesEvent && numFeatures > 0 && numFeatures == ((SearchForFeaturesEvent) event).getLimit() ) {
+          String nextHandle = (nextDataset != null ? nextDataset + "_" : "") + nextIOffset;
           featureCollection.setHandle(nextHandle);
           featureCollection.setNextPageToken(nextHandle);
         }
