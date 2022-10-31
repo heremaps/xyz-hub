@@ -40,6 +40,7 @@ import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -449,6 +450,31 @@ public abstract class DatabaseHandler extends StorageConnector {
         //If we reach this point we are okay!
         return new SuccessResponse().withStatus("OK");
     }
+
+
+    protected XyzResponse executeModifySubscription(ModifySubscriptionEvent event) throws SQLException {
+    
+        String space = event.getSpace(),
+               tableName  = config.readTableFromEvent(event),
+               schemaName = config.getDatabaseSettings().getSchema();
+     
+        boolean bLastSubscriptionToDelete = event.getHasNoActiveSubscriptions();
+
+        switch(event.getOperation())
+        { case CREATE : 
+          case UPDATE : return new FeatureCollection().withCount((long) executeUpdateWithRetry( SQLQueryBuilder.buildAddSubscriptionQuery(space, schemaName, tableName ) ));
+
+          case DELETE : 
+           if( !bLastSubscriptionToDelete )
+            return new FeatureCollection().withCount( 1l );
+           else  
+            return new FeatureCollection().withCount((long) executeUpdateWithRetry(SQLQueryBuilder.buildRemoveSubscriptionQuery(space, schemaName)));
+
+          default: break;
+        }
+     
+         return null;
+       }
 
     protected XyzResponse executeIterateHistory(IterateHistoryEvent event) throws SQLException {
         if(event.isCompact())

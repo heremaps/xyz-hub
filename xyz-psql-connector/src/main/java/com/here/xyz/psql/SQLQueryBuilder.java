@@ -890,4 +890,22 @@ public class SQLQueryBuilder {
     public static String getForceMode(boolean isForce2D) {
       return isForce2D ? "ST_Force2D" : "ST_Force3D";
     }
+
+	public static SQLQuery buildAddSubscriptionQuery(String space, String schemaName, String tableName) {
+        String theSql = 
+          "insert into xyz_config.space_meta  ( id, schem, h_id, meta ) values(?,?,?,'{\"subscriptions\":true}' )" 
+         +" on conflict (id,schem) do "
+         +"  update set meta = xyz_config.space_meta.meta || excluded.meta ";
+     
+        return new SQLQuery(theSql, space,schemaName,tableName);
+	}
+
+	public static SQLQuery buildRemoveSubscriptionQuery(String space, String schemaName) {
+        String theSql = 
+          "update xyz_config.space_meta "
+         +" set meta = meta - 'subscriptions' "
+         +"where ( id, schem ) = ( ?, ? ) ";
+            
+        return new SQLQuery(theSql, space,schemaName );
+	}
 }
