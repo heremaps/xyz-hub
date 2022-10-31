@@ -248,14 +248,13 @@ public class SQLQuery {
     variablesLookup.putAll(parentVariables);
     if (variables != null)
       variablesLookup.putAll(variables);
-    if (variablesLookup.size() == 0)
-      return;
 
     //First replace all variables in all sub-fragments
     if (queryFragments != null)
       queryFragments.values().forEach(fragment -> fragment.replaceAllSubVars(variablesLookup));
     //Now replace all direct variables
-    replaceChildVars(variablesLookup);
+    if (variablesLookup.size() != 0)
+      replaceChildVars(variablesLookup);
     //Clear all variables
     variables = null;
   }
