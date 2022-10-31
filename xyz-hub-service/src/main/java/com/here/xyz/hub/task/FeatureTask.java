@@ -41,6 +41,7 @@ import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
+import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.QueryEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.hub.Service;
@@ -604,6 +605,21 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureTaskHandler::invoke);
+    }
+  }
+
+  public static class ModifySubscriptionQuery extends FeatureTask<ModifySubscriptionEvent, ModifySubscriptionQuery> {
+
+    ModifySubscriptionQuery(ModifySubscriptionEvent event, RoutingContext context, ApiResponseType apiResponseTypeType) {
+      super(event, context, apiResponseTypeType, true);
+    }
+
+    @Override
+    public TaskPipeline<ModifySubscriptionQuery> createPipeline() {
+
+      return TaskPipeline.create(this)
+              .then(FeatureTaskHandler::resolveSpace)
+              .then(FeatureTaskHandler::invoke);
     }
   }
 

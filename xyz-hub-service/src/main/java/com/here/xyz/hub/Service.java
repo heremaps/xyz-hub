@@ -25,6 +25,7 @@ import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.cache.CacheClient;
 import com.here.xyz.hub.config.ConnectorConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;
+import com.here.xyz.hub.config.SubscriptionConfigClient;
 import com.here.xyz.hub.connectors.BurstAndUpdateThread;
 import com.here.xyz.hub.connectors.WarmupRemoteFunctionThread;
 import com.here.xyz.hub.rest.admin.MessageBroker;
@@ -106,9 +107,14 @@ public class Service extends Core {
   public static SpaceConfigClient spaceConfigClient;
 
   /**
-   * The client to access the the connector configuration.
+   * The client to access the connector configuration.
    */
   public static ConnectorConfigClient connectorConfigClient;
+
+  /**
+   * The client to access the subscription configuration.
+   */
+  public static SubscriptionConfigClient subscriptionConfigClient;
 
   /**
    * A web client to access XYZ Hub nodes and other web resources.
@@ -162,6 +168,7 @@ public class Service extends Core {
     });
     spaceConfigClient = SpaceConfigClient.getInstance();
     connectorConfigClient = ConnectorConfigClient.getInstance();
+    subscriptionConfigClient = SubscriptionConfigClient.getInstance();
 
     webClient = WebClient.create(vertx, new WebClientOptions()
         .setUserAgent(XYZ_HUB_USER_AGENT)
@@ -185,6 +192,7 @@ public class Service extends Core {
             }
           }
         });
+        subscriptionConfigClient.init(subscriptionConfigReady -> {});
       }
     });
   }
@@ -523,6 +531,11 @@ public class Service extends Core {
      * The ARN of the packages table in DynamoDB.
      */
     public String PACKAGES_DYNAMODB_TABLE_ARN;
+
+    /**
+     * The ARN of the subscriptions table in DynamoDB.
+     */
+    public String SUBSCRIPTIONS_DYNAMODB_TABLE_ARN;
 
     /**
      * The ARN of the admin message topic.

@@ -45,6 +45,7 @@ import java.util.Map;
  */
 @JsonSubTypes({
     @JsonSubTypes.Type(value = ModifySpaceEvent.class, name = "ModifySpaceEvent"),
+    @JsonSubTypes.Type(value = ModifySubscriptionEvent.class, name = "ModifySubscriptionEvent"),
     @JsonSubTypes.Type(value = ModifyFeaturesEvent.class, name = "ModifyFeaturesEvent"),
     @JsonSubTypes.Type(value = TransformEvent.class, name = "TransformEvent"),
     @JsonSubTypes.Type(value = RelocatedEvent.class, name = "RelocatedEvent"),

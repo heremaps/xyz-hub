@@ -41,6 +41,7 @@ import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.HQuad;
 import com.here.xyz.models.geojson.WebMercatorTile;
@@ -549,6 +550,13 @@ public class PSQLXyzConnector extends DatabaseHandler {
       logger.info("{} Finished ModifySpaceEvent", traceItem);
     }
   }
+
+  @Override
+  protected XyzResponse processModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception {
+    // Needs further implementation
+    return new SuccessResponse();
+  }
+
 
   @Override
   protected XyzResponse processIterateHistoryEvent(IterateHistoryEvent event) {

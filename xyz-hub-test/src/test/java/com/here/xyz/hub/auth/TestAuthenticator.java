@@ -101,7 +101,9 @@ public class TestAuthenticator {
     ACCESS_OWNER_2_WITH_FEATURES_ADMIN_ALL_SPACES,
     ACCESS_OWNER_3,
     ACCESS_OWNER_3_WITH_CUSTOM_SPACE_IDS,
-    ACCESS_OWNER_1_READ_ALL_FEATURES;
+    ACCESS_OWNER_1_READ_ALL_FEATURES,
+    ACCESS_SPACE_1_MANAGE_SPACES,
+    ACCESS_SPACE_2_MANAGE_SPACES;
 
     public final String jwt_string;
     public final JWTPayload payload;
