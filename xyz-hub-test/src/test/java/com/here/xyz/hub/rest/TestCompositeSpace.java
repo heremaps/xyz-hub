@@ -25,6 +25,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 
+import com.jayway.restassured.response.ValidatableResponse;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -36,14 +37,22 @@ public class TestCompositeSpace extends TestSpaceWithFeature {
   public void setup() {
     tearDown();
     createSpace();
+    createSpaceWithCustomStorage("x-psql-test-2", "psql", null);
     createSpaceWithExtension("x-psql-test");
     createSpaceWithExtension("x-psql-test-ext");
+
+    // FIXME avoid 504
+    getFeature("x-psql-test", "F1");
+    getFeature("x-psql-test-2", "F1");
+    getFeature("x-psql-test-ext", "F1");
+    getFeature("x-psql-test-ext-ext", "F1");
   }
 
   @After
   public void tearDown() {
     removeSpace("x-psql-test-ext-ext");
     removeSpace("x-psql-test-ext");
+    removeSpace("x-psql-test-2");
     removeSpace("x-psql-test");
   }
 
@@ -59,5 +68,16 @@ public class TestCompositeSpace extends TestSpaceWithFeature {
         .statusCode(OK.code())
         .body("id", equalTo(extensionId))
         .body("extends.spaceId", equalTo(extendingSpaceId));
+  }
+
+  protected void modifyComposite(String spaceId, String newExtendingId) {
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body("{\"extends\":{\"spaceId\":\"" + newExtendingId + "\"}}")
+        .when()
+        .patch("/spaces/" + spaceId)
+        .then()
+        .statusCode(OK.code());
   }
 }
