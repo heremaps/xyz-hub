@@ -44,11 +44,12 @@ import java.util.Map;
 import static org.junit.Assert.*;
 
 public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
-    private static final String BASE = "base_test";
+    private static final String BASE1 = "base1_test";
+    private static final String BASE2 = "base2_test";
     private static final String DELTA1 = "delta1_test";
     private static final String DELTA2 = "delta2_test";
 
-    private static List<String> spaces = new ArrayList<String>(){{add(BASE);add(DELTA1);add(DELTA2);}};
+    private static List<String> spaces = new ArrayList<String>(){{add(BASE1);add(BASE2);add(DELTA1);add(DELTA2);}};
 
     protected static Map<String, Object> connectorParams = new HashMap<String,Object>(){
         {   put(ConnectorParameters.CONNECTOR_ID, "test-connector");
@@ -68,8 +69,7 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
 
     @Test
     public void checkIDX() throws Exception {
-
-        checkIDXTable(new JSONObject("{\"sortableProperties\": [[\"sort_test\"]], \"searchableProperties\": {\"search_test\": true}}"));
+        checkIDXTable(1, false);
 
         Map<String,Boolean> searchableProperties = new HashMap();
         List<List<Object>> sortableProperties = new ArrayList<>();
@@ -78,12 +78,12 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
 
         /** Update Searchable and SortableProperties in Base */
         ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent()
-            .withSpace(BASE)
+            .withSpace(BASE1)
             .withOperation(ModifySpaceEvent.Operation.UPDATE)
             .withConnectorParams(connectorParams)
             .withSpaceDefinition(
                     new Space()
-                            .withId(BASE)
+                            .withId(BASE1)
                             .withSearchableProperties(searchableProperties)
                             .withSortableProperties(sortableProperties)
             );
@@ -91,7 +91,26 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
         assertEquals("OK",response.getStatus());
 
         /** Check if IDX-Table reflects this changes */
-        checkIDXTable(new JSONObject("{\"searchableProperties\": {\"search_test\": false,\"search_test2\": true}}"));
+        checkIDXTable(2, false);
+
+        /** Change Base Layer */
+        Map<String, Object> params = new HashMap<>();
+        params.put("extends",new Space.Extension().withSpaceId(BASE2));
+
+        modifySpaceEvent = new ModifySpaceEvent()
+                .withSpace(DELTA1)
+                .withOperation(ModifySpaceEvent.Operation.UPDATE)
+                .withConnectorParams(connectorParams)
+                .withParams(params)
+                .withSpaceDefinition(
+                        new Space()
+                                .withId(DELTA1)
+                );
+        response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
+        assertEquals("OK",response.getStatus());
+
+        /** Check if IDX-Table reflects this changes */
+        checkIDXTable(3, true);
     }
 
     protected static void generateTestSpaces() throws Exception {
@@ -107,17 +126,20 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
             Map<String, Object> extendsL2 = new HashMap<>();
 
             switch (space){
-                case BASE:
+                case BASE1:
                     searchableProperties.put("search_test", true);
                     sortableProperties.add(new ArrayList<Object>(){{add("sort_test");}});
                     break;
+                case BASE2:
+                    searchableProperties.put("search_test_base2", true);
+                    break;
                 case DELTA1:
                     mockAutoIndexing();
-                    params.put("extends",new Space.Extension().withSpaceId(BASE));
+                    params.put("extends",new Space.Extension().withSpaceId(BASE1));
                     break;
                 case DELTA2:
                     extendsL2.put("spaceId",DELTA1);
-                    extendsL2.put("extends",new Space.Extension().withSpaceId(BASE));
+                    extendsL2.put("extends",new Space.Extension().withSpaceId(BASE1));
                     params.put("extends",extendsL2);
             }
 
@@ -148,8 +170,32 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
         }
     }
 
-    protected static void checkIDXTable(JSONObject idx_manual_ref) throws Exception{
-        String q = "SELECT * FROM "+ ModifySpace.IDX_STATUS_TABLE+" WHERE spaceid IN ('"+BASE+"','"+DELTA1+"','"+DELTA2+"');";
+    protected static void checkIDXTable(int szenario, boolean baselayerSwitch) throws Exception{
+        String q = "SELECT * FROM "+ ModifySpace.IDX_STATUS_TABLE+" WHERE spaceid IN ('"+ BASE1 +"','"+BASE2+"','"+DELTA1+"','"+DELTA2+"');";
+        JSONObject base1_ref = null;
+        JSONObject base2_ref = new JSONObject("{\"searchableProperties\": {\"search_test_base2\": true}}");;
+        JSONObject delta1_ref = null;
+        JSONObject delta2_ref = null;
+
+        switch (szenario){
+            //Baseline (base1,base2,delta1,delta2 newly created)
+            case 1:
+                base1_ref = new JSONObject("{\"sortableProperties\": [[\"sort_test\"]], \"searchableProperties\": {\"search_test\": true}}");
+                delta1_ref = base1_ref;
+                delta2_ref = base1_ref;
+                break;
+            //Searchable and SortableProperties got updated in Base1
+            case 2:
+                base1_ref = new JSONObject("{\"searchableProperties\": {\"search_test\": false,\"search_test2\": true}}");
+                delta1_ref = base1_ref;
+                delta2_ref = base1_ref;
+                break;
+            //Switch Base Layer from delta_2 from base1 to bas2
+            case 3:
+                base1_ref = new JSONObject("{\"searchableProperties\": {\"search_test\": false,\"search_test2\": true}}");
+                delta2_ref = base1_ref;
+                delta1_ref = base2_ref;
+        }
 
         try (final Connection connection = LAMBDA.dataSource.getConnection()) {
             Statement stmt = connection.createStatement();
@@ -164,29 +210,39 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
                 boolean idx_creation_finished = resultSet.getBoolean("idx_creation_finished");
 
                 switch (spaceId){
-                    case BASE:
+                    case BASE1:
+                        assertTrue(base1_ref.similar(idx_manual));
+                        assertNull(autoIndexing);
+                        break;
+                    case BASE2:
+                        assertTrue(base2_ref.similar(idx_manual));
                         assertNull(autoIndexing);
                         break;
                     case DELTA1:
+                        if(!baselayerSwitch) {
+                            /** Inject mocked Auto-Index*/
+                            delta1_ref.put("searchableProperties", ((JSONObject) delta1_ref.get("searchableProperties")).put("foo", true));
+                        }
+                        assertTrue(delta1_ref.similar(idx_manual));
+                        assertEquals("f",autoIndexing);
+                        break;
                     case DELTA2:
                         /** Inject mocked Auto-Index*/
-                        idx_manual_ref.put("searchableProperties",((JSONObject)idx_manual_ref.get("searchableProperties")).put("foo",true));
+                        delta2_ref.put("searchableProperties", ((JSONObject) delta2_ref.get("searchableProperties")).put("foo", true));
+
+                        assertTrue(delta2_ref.similar(idx_manual));
                         assertEquals("f",autoIndexing);
                 }
-                System.out.println(spaceId+" "+idx_manual);
-                System.out.println(spaceId+" "+idx_manual_ref);
-
                 assertFalse(idx_creation_finished);
-                assertTrue(idx_manual_ref.similar(idx_manual));
             }
             /** Are all entries are present? */
-            assertEquals(3, i);
+            assertEquals(4, i);
         }
     }
 
     protected static void mockAutoIndexing() throws Exception{
         String q = "CREATE INDEX IF NOT EXISTS idx_base_test_foo_a" +
-                " ON public."+BASE+" USING btree" +
+                " ON public."+ BASE1 +" USING btree" +
                 " (((jsondata -> 'properties'::text) -> 'foo'::text));" +
                 "COMMENT ON INDEX public.idx_base_test_foo_a" +
                 "    IS 'foo';";
