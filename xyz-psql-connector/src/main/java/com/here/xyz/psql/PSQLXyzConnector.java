@@ -339,10 +339,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
         {
           case H3SQL.HEXBIN :
            if( !bMvtRequested )
-            return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams));
+            return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams),false);
            else
             return executeBinQueryWithRetry(
-             SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams), mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
+             SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams), mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ),false );
 
           case QuadbinSQL.QUAD :
            final int relResolution = ( clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) != null ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) :

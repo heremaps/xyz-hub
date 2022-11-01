@@ -774,9 +774,20 @@ public class FeatureTaskHandler {
           .compose(
               space -> {
                 task.space = space;
-                if (space != null)
-                  task.getEvent().setParams(space.getStorage().getParams());
-                return Future.succeededFuture(space);
+                if (space != null) {
+                  //Inject the extension-map
+                  return space.resolveCompositeParams(task.getMarker()).compose(resolvedExtensions -> {
+                    Map<String, Object> storageParams = new HashMap<>();
+                    if (space.getStorage().getParams() != null)
+                      storageParams.putAll(space.getStorage().getParams());
+                    storageParams.putAll(resolvedExtensions);
+
+                    task.getEvent().setParams(storageParams);
+                    return Future.succeededFuture(space);
+                  });
+                }
+                else
+                  return Future.succeededFuture();
               },
               t -> {
                 logger.warn(task.getMarker(), "Unable to load the space definition for space '{}' {}", task.getEvent().getSpace(), t);
@@ -1583,7 +1594,7 @@ public class FeatureTaskHandler {
     final LoadFeaturesEvent event = new LoadFeaturesEvent()
         .withStreamId(task.getMarker().getName())
         .withSpace(task.space.getId())
-        .withParams(task.space.getStorage().getParams())
+        .withParams(task.getEvent().getParams())
         .withEnableGlobalVersioning(task.space.isEnableGlobalVersioning())
         .withEnableHistory(task.space.isEnableHistory())
         .withIdsMap(idsMap);

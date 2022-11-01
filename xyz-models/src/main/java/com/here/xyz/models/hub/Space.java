@@ -28,6 +28,7 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.here.xyz.XyzSerializable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -842,7 +843,7 @@ public class Space {
     }
   }
 
-  public static class Extension {
+  public static class Extension implements XyzSerializable {
 
     private String spaceId;
 

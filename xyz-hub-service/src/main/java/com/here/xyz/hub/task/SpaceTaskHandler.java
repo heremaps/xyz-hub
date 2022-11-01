@@ -53,7 +53,6 @@ import com.here.xyz.hub.task.SpaceTask.View;
 import com.here.xyz.hub.task.TaskPipeline.C1;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
 import com.here.xyz.hub.util.diff.Difference;
-import com.here.xyz.hub.util.diff.Difference.DiffMap;
 import com.here.xyz.hub.util.diff.Patcher;
 import com.here.xyz.models.hub.Space.ConnectorRef;
 import io.vertx.core.json.Json;
@@ -66,6 +65,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -202,13 +202,6 @@ public class SpaceTaskHandler {
         task.modifyOp.entries.get(0).input.put("maxVersionCount" , spaceHead.getMaxVersionCount());
       else if(spaceHead != null && spaceHead.isEnableGlobalVersioning() && task.modifyOp.entries.get(0).input.get("maxVersionCount") != null )
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'maxVersionCount' can only get set, in combination of enableGlobalVersioning, on space creation!");
-
-      /** extends is immutable and it is only allowed to set it during the space creation */
-      if(spaceHead != null && spaceHead.getExtension() != null && task.modifyOp.entries.get(0).input.get("extends") != null
-          && Patcher.getDifference(spaceHead.asMap().get("extends"), task.modifyOp.entries.get(0).input.get("extends")) == null)
-        task.modifyOp.entries.get(0).input.put("extension" , spaceHead.getExtension());
-      else if(spaceHead != null && task.modifyOp.entries.get(0).input.get("extends") != null)
-        throw new HttpException(BAD_REQUEST, "Validation failed. The property 'extension' can only be set on space creation!");
     }
 
     if (task.isCreate()) {
@@ -271,7 +264,7 @@ public class SpaceTaskHandler {
       }
     }
 
-    if ((space.getSearchableProperties() != null && !space.getSearchableProperties().isEmpty()) || space.getExtension() != null) {
+    if (space.getSearchableProperties() != null && !space.getSearchableProperties().isEmpty() || space.getExtension() != null) {
       Space.resolveConnector(task.getMarker(), space.getStorage().getId(), arConnector -> {
         if (arConnector.failed()) {
           callback.exception(new Exception(arConnector.cause()));
@@ -414,59 +407,71 @@ public class SpaceTaskHandler {
   }
 
   static void resolveExtensions(ConditionalOperation task, Callback<ConditionalOperation> callback) {
-    if (!task.isCreate()) {
+    if (!task.isCreate() && !task.isUpdate()) {
       callback.call(task);
       return;
     }
 
     Space space = task.modifyOp.entries.get(0).result;
 
-    if (space.getStorage().getParams() == null && space.getExtension() == null) {
+    if (space.getExtension() == null) {
       callback.call(task);
       return;
     }
 
-    if (space.getExtension() != null) {
-      Service.spaceConfigClient.get(task.getMarker(), space.getExtension().getSpaceId())
-        .onFailure(t -> {
-          logger.error(task.getMarker(), "Unable to load the space definitions while resolving extensions.'", t);
-          callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definitions while resolving extensions.", t));
-        })
-        .onSuccess(extendedSpace -> {
-          // check for existing space to be extended
-          if (extendedSpace == null) {
-            callback.exception(new HttpException(BAD_REQUEST, "The space " + space.getId() + " cannot extend a the space "
-                + space.getExtension().getSpaceId() + " because it does not exist."));
-            return;
-          }
+    //Load the space being extended
+    Space.resolveSpace(task.getMarker(), space.getExtension().getSpaceId())
+      .onFailure(t -> onExtensionResolveError(task, t, callback))
+      .onSuccess(extendedSpace -> {
+        // check for existing space to be extended
+        if (extendedSpace == null) {
+          callback.exception(new HttpException(BAD_REQUEST, "The space " + space.getId() + " cannot extend the space "
+              + space.getExtension().getSpaceId() + " because it does not exist."));
+          return;
+        }
 
-          // check for extensions with more than 2 levels
-          if (extendedSpace.getExtension() != null && ((Map<String,Map<String, Object>>) extendedSpace.getStorage().getParams().get("extends")).containsKey("extends")) {
-            callback.exception(new HttpException(BAD_REQUEST, "The space " + space.getId() + " cannot extend the space "
-                + space.getExtension().getSpaceId() + " because the maximum extension level is 2."));
-            return;
-          }
-
+        ConnectorRef extendedConnector = extendedSpace.getStorage();
+        if (task.isCreate()) {
           //Override the storage config by copying it from the extended space
-          ConnectorRef extendedConnector = extendedSpace.getStorage();
           space.setStorage(new ConnectorRef()
               .withId(extendedConnector.getId())
               .withParams(extendedConnector.getParams() != null ? extendedConnector.getParams() : new HashMap<>()));
+        }
+        else if (!Objects.equals(space.getStorage().getId(), extendedConnector.getId())) {
+          callback.exception(new HttpException(BAD_REQUEST, "The storage of space " + space.getId()
+              + " [storage: " + space.getStorage().getId() + "] is not matching the storage of the space to be extended "
+              + "(" + extendedSpace.getId() + " [storage: " + extendedConnector.getId() + "])."));
+          return;
+        }
 
-          //Storage params are taken from the input and then resolved based on the extensions
-          Map<String, Object> params = space.getStorage().getParams();
-          final Map<String, Object> extendsMap = (Map<String, Object>) space.asMap().get("extends");
-          //Check if the extended space itself is extending some other space (2-level extension)
-          if (extendedSpace.getExtension() != null)
-            //Get the extension definition from the extended space and add it to this one additionally
-            extendsMap.put("extends", extendedSpace.asMap().get("extends"));
-          params.put("extends", extendsMap);
+        task.resolvedExtensions = space.resolveCompositeParams(extendedSpace);
 
+        //Check for extensions with more than 2 levels
+        //((Map<String,Map<String, Object>>) extendedSpace.getStorage().getParams().get("extends")).containsKey("extends")
+        if (extendedSpace.getExtension() != null) {
+          Space.resolveSpace(task.getMarker(), extendedSpace.getExtension().getSpaceId())
+              .onFailure(t -> onExtensionResolveError(task, t, callback))
+              .onSuccess(secondLvlExtendedSpace -> {
+                if (secondLvlExtendedSpace == null)
+                  onExtensionResolveError(task, new Exception("Unexpected error: Extension of extended space could not be found."), callback);
+
+                Map<String, Object> resolvedSecondLvlExtensions = extendedSpace.resolveCompositeParams(secondLvlExtendedSpace);
+                if (((Map<String, Object>) resolvedSecondLvlExtensions.get("extends")).containsKey("extends"))
+                  callback.exception(new HttpException(BAD_REQUEST, "The space " + space.getId() + " cannot extend the space "
+                      + extendedSpace.getId() + " because the maximum extension level is 2."));
+                else
+                  callback.call(task);
+              });
+        }
+        else
           callback.call(task);
-        });
-    } else {
-      callback.call(task);
-    }
+      });
+  }
+
+  private static void onExtensionResolveError(ConditionalOperation task, Throwable error, Callback<ConditionalOperation> callback) {
+    String errMsg = "Error during resolving extensions.";
+    logger.error(task.getMarker(), errMsg, error);
+    callback.exception(new HttpException(INTERNAL_SERVER_ERROR, errMsg, error));
   }
 
   static void sendEvents(ConditionalOperation task, Callback<ConditionalOperation> callback) {
@@ -485,11 +490,18 @@ public class SpaceTaskHandler {
       return;
     }
 
+    Map<String, Object> storageParams = new HashMap<>();
+    if (space.getStorage().getParams() != null)
+      storageParams.putAll(space.getStorage().getParams());
+    //Inject the extension-map
+    if (task.resolvedExtensions != null)
+      storageParams.putAll(task.resolvedExtensions);
+
     final ModifySpaceEvent event = new ModifySpaceEvent()
         .withOperation(op)
         .withSpaceDefinition(space)
         .withStreamId(task.getMarker().getName())
-        .withParams(space.getStorage().getParams())
+        .withParams(storageParams)
         .withIfNoneMatch(task.context.request().headers().get("If-None-Match"))
         .withSpace(space.getId());
 
