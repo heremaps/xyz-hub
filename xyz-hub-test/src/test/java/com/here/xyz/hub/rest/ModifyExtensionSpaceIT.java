@@ -99,7 +99,7 @@ public class ModifyExtensionSpaceIT extends TestCompositeSpace {
         .patch("/spaces/x-psql-test-ext-ext")
         .then()
         .statusCode(BAD_REQUEST.code())
-        .body("errorMessage", equalTo("The space x-psql-test-ext-ext cannot extend a the space non-existing-space because it does not exist."));
+        .body("errorMessage", equalTo("The space x-psql-test-ext-ext cannot extend the space non-existing-space because it does not exist."));
 
     given()
         .contentType(APPLICATION_JSON)
@@ -109,7 +109,7 @@ public class ModifyExtensionSpaceIT extends TestCompositeSpace {
         .patch("/spaces/x-psql-test-ext-ext")
         .then()
         .statusCode(OK.code())
-        .body("id", equalTo("x-psql-test-ext"))
+        .body("id", equalTo("x-psql-test-ext-ext"))
         .body("extends.spaceId", equalTo("x-psql-test"));
   }
 }
