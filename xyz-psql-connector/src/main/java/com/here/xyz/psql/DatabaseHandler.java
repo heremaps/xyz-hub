@@ -299,16 +299,24 @@ public abstract class DatabaseHandler extends StorageConnector {
         return executeQuery(query, handler, readDataSource);
     }
 
+    public FeatureCollection executeQueryWithRetry(SQLQuery query, boolean useReadReplica) throws SQLException {
+        return executeQueryWithRetry(query, this::defaultFeatureResultSetHandler, useReadReplica);
+    }
+
     public FeatureCollection executeQueryWithRetry(SQLQuery query) throws SQLException {
-        return executeQueryWithRetry(query, this::defaultFeatureResultSetHandler, true);
+        return executeQueryWithRetry(query, true);
     }
 
     protected FeatureCollection executeQueryWithRetrySkipIfGeomIsNull(SQLQuery query) throws SQLException {
         return executeQueryWithRetry(query, this::defaultFeatureResultSetHandlerSkipIfGeomIsNull, true);
     }
 
+    protected BinaryResponse executeBinQueryWithRetry(SQLQuery query, boolean useReadReplica) throws SQLException {
+        return executeQueryWithRetry(query, this::defaultBinaryResultSetHandler, useReadReplica);
+    }
+
     protected BinaryResponse executeBinQueryWithRetry(SQLQuery query) throws SQLException {
-        return executeQueryWithRetry(query, this::defaultBinaryResultSetHandler, true);
+        return executeBinQueryWithRetry(query, true);
     }
 
     /**
