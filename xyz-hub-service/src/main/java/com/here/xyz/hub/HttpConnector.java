@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.here.xyz.hub.config.MaintenanceClient;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.VertxOptions;
@@ -36,7 +37,7 @@ public class HttpConnector extends Core {
    */
   public static MaintenanceClient maintenanceClient;
 
-  public static JsonObject configuration;
+  public static Config configuration;;
 
   private static final Logger logger = LogManager.getLogger();
 
@@ -49,7 +50,7 @@ public class HttpConnector extends Core {
   }
 
   private static void onConfigLoaded(JsonObject jsonConfig) {
-    configuration = jsonConfig;
+    configuration = jsonConfig.mapTo(Config.class);
     maintenanceClient = new MaintenanceClient();
 
     final DeploymentOptions options = new DeploymentOptions()
@@ -62,7 +63,31 @@ public class HttpConnector extends Core {
         logger.error("Unable to deploy the verticle.");
         System.exit(1);
       }
-      logger.info("The http-connector is up and running on port " + jsonConfig.getInteger("HTTP_PORT") );
+      logger.info("The http-connector is up and running on port " + configuration.HTTP_PORT );
     });
   }
+
+  /**
+   * The http-connector configuration.
+   */
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  public static class Config {
+    public String LOG_CONFIG;
+    public int HTTP_PORT;
+    public String ECPS_PHRASE;
+
+    public int DB_STATEMENT_TIMEOUT_IN_S;
+    public int DB_INITIAL_POOL_SIZE;
+    public int DB_MIN_POOL_SIZE;
+    public int DB_MAX_POOL_SIZE;
+    public int DB_ACQUIRE_INCREMENT;
+    public int DB_ACQUIRE_RETRY_ATTEMPTS;
+    public int DB_CHECKOUT_TIMEOUT;
+    public boolean DB_TEST_CONNECTION_ON_CHECKOUT;
+    public int MAX_CONCURRENT_MAINTENANCE_TASKS;
+    public int MISSING_MAINTENANCE_WARNING_IN_HR;
+
+    public String JOBS_DYNAMODB_TABLE_ARN;
+
+    }
 }

@@ -92,12 +92,12 @@ public class HttpConnectorTaskHandler {
 
           if(autoIndexingStatus.getMaintenanceRunning().size() > 0 ){
             Long timeSinceLastRunInHr = (Core.currentTimeMillis() - autoIndexingStatus.getMaintainedAt()) / 1000 / 60 / 60;
-            if(timeSinceLastRunInHr > PsqlHttpVerticle.MISSING_MAINTENANCE_WARNING_IN_HR) {
+            if(timeSinceLastRunInHr > HttpConnector.configuration.MISSING_MAINTENANCE_WARNING_IN_HR) {
               logger.warn("Last MaintenanceRun is older than {}h - connector: {}", timeSinceLastRunInHr, connectorId);
               //clean potential orphan maintenance jobIds
               force = true;
             }else{
-              if(autoIndexingStatus.getMaintenanceRunning().size() >=  PsqlHttpVerticle.MAX_CONCURRENT_MAINTENANCE_TASKS) {
+              if(autoIndexingStatus.getMaintenanceRunning().size() >= HttpConnector.configuration.MAX_CONCURRENT_MAINTENANCE_TASKS) {
                 handler.handle(Future.failedFuture(new HttpException(CONFLICT, "Maximal concurrent Indexing tasks are running!")));
                 return;
               }

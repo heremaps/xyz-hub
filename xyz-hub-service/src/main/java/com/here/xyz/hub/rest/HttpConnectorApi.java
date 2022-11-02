@@ -21,6 +21,7 @@ package com.here.xyz.hub.rest;
 
 import com.here.xyz.connectors.AbstractConnectorHandler;
 import com.here.xyz.hub.Core;
+import com.here.xyz.hub.HttpConnector;
 import com.here.xyz.hub.PsqlHttpVerticle;
 import com.here.xyz.hub.connectors.EmbeddedFunctionClient;
 import com.here.xyz.hub.rest.ApiParam.Query;
@@ -80,7 +81,8 @@ public class HttpConnectorApi extends Api {
     context.getBody().getBytes(inputBytes);
     InputStream inputStream = new ByteArrayInputStream(inputBytes);
     ByteArrayOutputStream os = new ByteArrayOutputStream();
-    EmbeddedFunctionClient.EmbeddedContext embeddedContext = new EmbeddedFunctionClient.EmbeddedContext(Context.getMarker(context), "psql", PsqlHttpVerticle.getEnvMap());
+    EmbeddedFunctionClient.EmbeddedContext embeddedContext
+            = new EmbeddedFunctionClient.EmbeddedContext(Context.getMarker(context), "psql", PsqlHttpVerticle.getEnvMap());
     connector.handleRequest(inputStream, os, embeddedContext, streamId);
     this.sendResponse(context, OK, os);
   }
@@ -220,7 +222,7 @@ public class HttpConnectorApi extends Api {
     return new String[]{
             connectorId,
             Query.getString(context, "ecps", null),
-            Query.getString(context, "passphrase", PsqlHttpVerticle.ECPS_PASSPHRASE)
+            Query.getString(context, "passphrase", HttpConnector.configuration.ECPS_PHRASE)
     };
   }
 

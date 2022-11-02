@@ -20,7 +20,7 @@
 package com.here.xyz.hub.rest.httpconnector;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.hub.PsqlHttpVerticle;
+import com.here.xyz.hub.HttpConnector;
 import com.here.xyz.hub.auth.TestAuthenticator;
 import com.here.xyz.hub.config.MaintenanceClient;
 import com.here.xyz.hub.rest.RestAssuredConfig;
@@ -71,15 +71,15 @@ public class HCMaintenanceTestIT {
     }
 
     public static MaintenanceClient initMaintenanceClient() throws Exception {
-        PsqlHttpVerticle.DB_INITIAL_POOL_SIZE = 1;
-        PsqlHttpVerticle.DB_MIN_POOL_SIZE = 1;
-        PsqlHttpVerticle.DB_MAX_POOL_SIZE = 1;
+        HttpConnector.configuration.DB_INITIAL_POOL_SIZE = 1;
+        HttpConnector.configuration.DB_MIN_POOL_SIZE = 1;
+        HttpConnector.configuration.DB_MAX_POOL_SIZE = 1;
 
-        PsqlHttpVerticle.DB_ACQUIRE_RETRY_ATTEMPTS = 1;
-        PsqlHttpVerticle.DB_ACQUIRE_INCREMENT = 1;
+        HttpConnector.configuration.DB_ACQUIRE_RETRY_ATTEMPTS = 1;
+        HttpConnector.configuration.DB_ACQUIRE_INCREMENT = 1;
 
-        PsqlHttpVerticle.DB_CHECKOUT_TIMEOUT = 10;
-        PsqlHttpVerticle.DB_TEST_CONNECTION_ON_CHECKOUT = true;
+        HttpConnector.configuration.DB_CHECKOUT_TIMEOUT = 10;
+        HttpConnector.configuration.DB_TEST_CONNECTION_ON_CHECKOUT = true;
 
         return new MaintenanceClient();
     }

@@ -29,7 +29,7 @@ import static com.here.xyz.psql.config.DatabaseSettings.PSQL_USER;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.Core;
-import com.here.xyz.hub.PsqlHttpVerticle;
+import com.here.xyz.hub.HttpConnector;
 import com.here.xyz.psql.DatabaseMaintainer;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.SQLQueryBuilder;
@@ -69,7 +69,7 @@ public class MaintenanceClient {
     public <T> T executeQuery(SQLQuery query, ResultSetHandler<T> handler, DataSource dataSource) throws SQLException {
         final long start = System.currentTimeMillis();
         try {
-            final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null, PsqlHttpVerticle.DB_STATEMENT_TIMEOUT_IN_S));
+            final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null, HttpConnector.configuration.DB_STATEMENT_TIMEOUT_IN_S));
             return run.query(query.text(), handler, query.parameters().toArray());
         } finally {
             final long end = System.currentTimeMillis();
@@ -80,7 +80,7 @@ public class MaintenanceClient {
     public int executeQueryWithoutResults(SQLQuery query, DataSource dataSource) throws SQLException {
         final long start = System.currentTimeMillis();
         try {
-            final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null, PsqlHttpVerticle.DB_STATEMENT_TIMEOUT_IN_S));
+            final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null, HttpConnector.configuration.DB_STATEMENT_TIMEOUT_IN_S));
             return run.execute(query.text(), query.parameters().toArray());
         } finally {
             final long end = System.currentTimeMillis();
@@ -91,7 +91,7 @@ public class MaintenanceClient {
     public int executeUpdate(SQLQuery query, DataSource dataSource) throws SQLException {
         final long start = System.currentTimeMillis();
         try {
-            final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null, PsqlHttpVerticle.DB_STATEMENT_TIMEOUT_IN_S));
+            final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null,  HttpConnector.configuration.DB_STATEMENT_TIMEOUT_IN_S));
             final String queryText = query.text();
             final List<Object> queryParameters = query.parameters();
 
@@ -333,15 +333,15 @@ public class MaintenanceClient {
         cpds.setUser(dbSettings.getUser());
         cpds.setPassword(dbSettings.getPassword());
 
-        cpds.setInitialPoolSize(PsqlHttpVerticle.DB_INITIAL_POOL_SIZE);
-        cpds.setMinPoolSize(PsqlHttpVerticle.DB_MIN_POOL_SIZE);
-        cpds.setMaxPoolSize(PsqlHttpVerticle.DB_MAX_POOL_SIZE);
+        cpds.setInitialPoolSize( HttpConnector.configuration.DB_INITIAL_POOL_SIZE);
+        cpds.setMinPoolSize( HttpConnector.configuration.DB_MIN_POOL_SIZE);
+        cpds.setMaxPoolSize( HttpConnector.configuration.DB_MAX_POOL_SIZE);
 
-        cpds.setAcquireRetryAttempts(PsqlHttpVerticle.DB_ACQUIRE_RETRY_ATTEMPTS);
-        cpds.setAcquireIncrement(PsqlHttpVerticle.DB_ACQUIRE_INCREMENT);
+        cpds.setAcquireRetryAttempts( HttpConnector.configuration.DB_ACQUIRE_RETRY_ATTEMPTS);
+        cpds.setAcquireIncrement( HttpConnector.configuration.DB_ACQUIRE_INCREMENT);
 
-        cpds.setCheckoutTimeout(PsqlHttpVerticle.DB_CHECKOUT_TIMEOUT * 1000 );
-        cpds.setTestConnectionOnCheckout(PsqlHttpVerticle.DB_TEST_CONNECTION_ON_CHECKOUT);
+        cpds.setCheckoutTimeout( HttpConnector.configuration.DB_CHECKOUT_TIMEOUT * 1000 );
+        cpds.setTestConnectionOnCheckout( HttpConnector.configuration.DB_TEST_CONNECTION_ON_CHECKOUT);
 
         cpds.setConnectionCustomizerClassName(ConnectionCustomizer.class.getName());
         return cpds;
@@ -357,7 +357,7 @@ public class MaintenanceClient {
             QueryRunner runner = new QueryRunner();
             try {
                 runner.execute(c, "SET enable_seqscan = off;");
-                runner.execute(c, "SET statement_timeout = " + (PsqlHttpVerticle.DB_STATEMENT_TIMEOUT_IN_S * 1000) + " ;");
+                runner.execute(c, "SET statement_timeout = " + (  HttpConnector.configuration.DB_STATEMENT_TIMEOUT_IN_S * 1000) + " ;");
                 runner.execute(c, "SET search_path=" + schema + ",h3,public,topology;");
             } catch (SQLException e) {
                 logger.error("Failed to initialize connection " + c + " [" + pdsIdt + "] : {}", e);

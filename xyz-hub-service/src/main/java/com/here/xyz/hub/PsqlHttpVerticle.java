@@ -21,6 +21,7 @@ package com.here.xyz.hub;
 
 import static io.vertx.core.http.HttpHeaders.CONTENT_LENGTH;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.io.ByteStreams;
 import com.here.xyz.connectors.AbstractConnectorHandler;
 import com.here.xyz.hub.rest.HttpConnectorApi;
@@ -43,23 +44,6 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
 
   private static String LOCATION = "openapi-http-connector.yaml";
   private static String API;
-  private static int HTTP_PORT;
-
-  public static String ECPS_PASSPHRASE;
-  public static Integer DB_INITIAL_POOL_SIZE;
-  public static Integer DB_MIN_POOL_SIZE;
-  public static Integer DB_MAX_POOL_SIZE;
-
-  public static Integer DB_ACQUIRE_RETRY_ATTEMPTS;
-  public static Integer DB_ACQUIRE_INCREMENT;
-
-  public static Integer DB_CHECKOUT_TIMEOUT;
-  public static boolean DB_TEST_CONNECTION_ON_CHECKOUT;
-
-  public static int DB_STATEMENT_TIMEOUT_IN_S;
-
-  public static int MAX_CONCURRENT_MAINTENANCE_TASKS;
-  public static int MISSING_MAINTENANCE_WARNING_IN_HR;
 
   static {
     try {
@@ -80,7 +64,7 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
           final RouterBuilder rb = ar.result();
           populateEnvMap();
 
-          new HttpConnectorApi(rb,connector);
+          new HttpConnectorApi(rb, connector);
 
           final Router router = rb.createRouter();
 
@@ -101,7 +85,7 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
 
           //Add default handlers
           addDefaultHandlers(router);
-          createHttpServer(HTTP_PORT, router);
+          createHttpServer(HttpConnector.configuration.HTTP_PORT, router);
         }
         catch (Exception e) {
           logger.error("An error occurred, during the creation of the router from the Open API specification file.", e);
@@ -127,30 +111,7 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
   }
 
   public static synchronized void populateEnvMap() throws Exception{
-    envMap = new HashMap<>();
-    HttpConnector.configuration.fieldNames().forEach(fieldName -> {
-      Object value = HttpConnector.configuration.getValue(fieldName);
-      if (value != null){
-        envMap.put(fieldName, value.toString());
-      }
-    });
-
-    ECPS_PASSPHRASE = (envMap.get("ECPS_PHRASE") == null ? "local" : envMap.get("ECPS_PHRASE")) ;
-    HTTP_PORT = Integer.parseInt((envMap.get("HTTP_PORT") == null ? "9090" : envMap.get("HTTP_PORT")));
-
-    DB_INITIAL_POOL_SIZE = Integer.parseInt((envMap.get("DB_INITIAL_POOL_SIZE") == null ? "5" : envMap.get("DB_INITIAL_POOL_SIZE")));
-    DB_MIN_POOL_SIZE = Integer.parseInt((envMap.get("DB_MIN_POOL_SIZE") == null ? "1" : envMap.get("DB_MIN_POOL_SIZE")));
-    DB_MAX_POOL_SIZE = Integer.parseInt((envMap.get("DB_MAX_POOL_SIZE") == null ? "50" : envMap.get("DB_MAX_POOL_SIZE")));
-
-    DB_ACQUIRE_RETRY_ATTEMPTS = Integer.parseInt((envMap.get("DB_ACQUIRE_RETRY_ATTEMPTS") == null ? "10" : envMap.get("DB_ACQUIRE_RETRY_ATTEMPTS")));
-    DB_ACQUIRE_INCREMENT = Integer.parseInt((envMap.get("DB_ACQUIRE_INCREMENT") == null ? "1" : envMap.get("DB_ACQUIRE_INCREMENT")));
-
-    DB_CHECKOUT_TIMEOUT = Integer.parseInt((envMap.get("DB_CHECKOUT_TIMEOUT") == null ? "10" : envMap.get("DB_CHECKOUT_TIMEOUT")) );
-    DB_TEST_CONNECTION_ON_CHECKOUT = Boolean.parseBoolean((envMap.get("DB_TEST_CONNECTION_ON_CHECKOUT")));
-
-    DB_STATEMENT_TIMEOUT_IN_S = Integer.parseInt(envMap.get("DB_STATEMENT_TIMEOUT_IN_S") == null ? "10" : envMap.get("DB_STATEMENT_TIMEOUT_IN_S"));
-
-    MAX_CONCURRENT_MAINTENANCE_TASKS = Integer.parseInt((envMap.get("MAX_CONCURRENT_MAINTENANCE_TASKS") == null ? "1" : envMap.get("MAX_CONCURRENT_MAINTENANCE_TASKS")));
-    MISSING_MAINTENANCE_WARNING_IN_HR = Integer.parseInt((envMap.get("MISSING_MAINTENANCE_WARNING_IN_HR") == null ? "12" : envMap.get("MISSING_MAINTENANCE_WARNING_IN_HR")));
+    envMap =
+      new ObjectMapper().convertValue(HttpConnector.configuration, HashMap.class);
   }
 }
