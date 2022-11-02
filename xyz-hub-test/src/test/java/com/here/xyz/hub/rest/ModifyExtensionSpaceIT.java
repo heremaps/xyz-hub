@@ -112,4 +112,39 @@ public class ModifyExtensionSpaceIT extends TestCompositeSpace {
         .body("id", equalTo("x-psql-test-ext-ext"))
         .body("extends.spaceId", equalTo("x-psql-test"));
   }
+
+  @Test
+  public void updateExtendsSelfExtending() {
+    String s = given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body("{\"extends\":{\"spaceId\":\"x-psql-test-ext-ext\"}}")
+        .when()
+        .patch("/spaces/x-psql-test-ext-ext")
+        .then()
+        .statusCode(BAD_REQUEST.code()).extract().body().asString();
+    System.out.println(s);
+  }
+
+  @Test
+  public void updateExtendsMoreThan2Levels() {
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body("{\"extends\":{\"spaceId\":\"x-psql-test-2\"}}")
+        .when()
+        .patch("/spaces/x-psql-test")
+        .then()
+        .statusCode(BAD_REQUEST.code());
+  }
+
+  @Test
+  public void deleteExtendingSpace() {
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .delete("/spaces/x-psql-test")
+        .then()
+        .statusCode(BAD_REQUEST.code());
+  }
 }
