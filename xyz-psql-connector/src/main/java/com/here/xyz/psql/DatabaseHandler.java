@@ -470,7 +470,10 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         switch(event.getOperation())
         { case CREATE : 
-          case UPDATE : return new FeatureCollection().withCount((long) executeUpdateWithRetry( SQLQueryBuilder.buildAddSubscriptionQuery(space, schemaName, tableName ) ));
+          case UPDATE : 
+            long rVal = (long) executeUpdateWithRetry( SQLQueryBuilder.buildAddSubscriptionQuery(space, schemaName, tableName ) );
+            setReplicaIdentity();
+            return new FeatureCollection().withCount(rVal);
 
           case DELETE : 
            if( !bLastSubscriptionToDelete )
@@ -1026,7 +1029,6 @@ public abstract class DatabaseHandler extends StorageConnector {
                     stmt.setQueryTimeout(calculateTimeout());
                     stmt.executeBatch();
                     connection.commit();
-                    logger.debug("{} Updated of trigger has failed: '{}'", traceItem, tableName);
                 }
             } catch (Exception e) {
                 throw new SQLException("Update of trigger has failed: "+tableName, e);
@@ -1037,6 +1039,46 @@ public abstract class DatabaseHandler extends StorageConnector {
             }
         }
     }
+
+    protected void setReplicaIdentity() throws SQLException {
+        final String tableName = config.readTableFromEvent(event);
+
+        try (final Connection connection = dataSource.getConnection()) {
+            advisoryLock( tableName, connection );
+            boolean cStateFlag = connection.getAutoCommit();
+            try {
+                if (cStateFlag)
+                    connection.setAutoCommit(false);
+
+                String infoSql = SQLQueryBuilder.getReplicaIdentity(config.getDatabaseSettings().getSchema(), tableName),
+                       setReplIdSql = SQLQueryBuilder.setReplicaIdentity(config.getDatabaseSettings().getSchema(), tableName);
+
+                try (Statement stmt = connection.createStatement();
+                     ResultSet rs = stmt.executeQuery(infoSql); ) 
+                {   
+                    if( !rs.next() )
+                    { createSpaceStatement(stmt, tableName); /** Create Space-Table */
+                      stmt.addBatch(setReplIdSql);
+                    } 
+                    else if(! "f".equals(rs.getString(1) ) ) /** Table exists, but wrong replic identity */
+                     stmt.addBatch(setReplIdSql);
+                    else
+                     return; /** Table exists with propper replic identity */
+
+                    stmt.setQueryTimeout(calculateTimeout());
+                    stmt.executeBatch();
+                    connection.commit();
+                }
+            } catch (Exception e) {
+                throw new SQLException("set replica identity to full failed: "+tableName, e);
+            } finally {
+                advisoryUnlock( tableName, connection );
+                if (cStateFlag)
+                    connection.setAutoCommit(true);
+            }
+        }
+    }
+
 
 /** #################################### Resultset Handlers #################################### */
     /**
