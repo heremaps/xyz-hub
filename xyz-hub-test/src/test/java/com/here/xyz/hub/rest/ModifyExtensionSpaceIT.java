@@ -115,7 +115,7 @@ public class ModifyExtensionSpaceIT extends TestCompositeSpace {
 
   @Test
   public void updateExtendsSelfExtending() {
-    String s = given()
+    given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body("{\"extends\":{\"spaceId\":\"x-psql-test-ext-ext\"}}")
@@ -123,7 +123,6 @@ public class ModifyExtensionSpaceIT extends TestCompositeSpace {
         .patch("/spaces/x-psql-test-ext-ext")
         .then()
         .statusCode(BAD_REQUEST.code()).extract().body().asString();
-    System.out.println(s);
   }
 
   @Test
