@@ -122,7 +122,7 @@ public class ModifyExtensionSpaceIT extends TestCompositeSpace {
         .when()
         .patch("/spaces/x-psql-test-ext-ext")
         .then()
-        .statusCode(BAD_REQUEST.code()).extract().body().asString();
+        .statusCode(BAD_REQUEST.code());
   }
 
   @Test
