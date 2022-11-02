@@ -891,7 +891,7 @@ public class SQLQueryBuilder {
       return isForce2D ? "ST_Force2D" : "ST_Force3D";
     }
 
-	public static SQLQuery buildAddSubscriptionQuery(String space, String schemaName, String tableName) {
+	protected static SQLQuery buildAddSubscriptionQuery(String space, String schemaName, String tableName) {
         String theSql = 
           "insert into xyz_config.space_meta  ( id, schem, h_id, meta ) values(?,?,?,'{\"subscriptions\":true}' )" 
          +" on conflict (id,schem) do "
@@ -899,6 +899,36 @@ public class SQLQueryBuilder {
      
         return new SQLQuery(theSql, space,schemaName,tableName);
 	}
+
+	protected static SQLQuery buildSetReplicaIdentIfNeeded() {
+        String theSql = 
+          "do "
+         +"$body$ "
+         +"declare "
+         +" mrec record; "
+         +"begin "
+         +" for mrec in "
+         +"  select l.schem,l.h_id --, l.meta, r.relreplident, r.oid  "
+         +"  from xyz_config.space_meta l left join pg_class r on ( r.oid = to_regclass(schem || '.' || '\"' || h_id || '\"') ) "
+         +"  where 1 = 1 "
+         +"    and l.meta->'subscriptions' = to_jsonb( true ) "
+         +"        and r.relreplident is not null "
+         +"      and r.relreplident != 'f' "
+         +"  loop "
+         +"     execute format('alter table %I.%I replica identity full', mrec.schem, mrec.h_id); "
+         +"  end loop; "
+         +"end; "
+         +"$body$  "
+         +"language plpgsql ";
+
+        return new SQLQuery(theSql);
+	}
+
+    protected static String getReplicaIdentity(final String schema, final String table)
+    { return String.format("select relreplident from pg_class where oid = to_regclass( '\"%s\".\"%s\"' )",schema,table); }
+    
+    protected static String setReplicaIdentity(final String schema, final String table)
+    { return String.format("alter table \"%s\".\"%s\" replica identity full",schema,table); }
 
 	public static SQLQuery buildRemoveSubscriptionQuery(String space, String schemaName) {
         String theSql = 
