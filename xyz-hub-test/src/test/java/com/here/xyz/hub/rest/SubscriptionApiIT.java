@@ -1,5 +1,6 @@
 package com.here.xyz.hub.rest;
 
+import com.here.xyz.models.hub.Subscription;
 import com.jayway.restassured.response.ValidatableResponse;
 import org.junit.After;
 import org.junit.Before;
@@ -14,7 +15,7 @@ import static org.hamcrest.Matchers.is;
 
 public class SubscriptionApiIT extends TestSpaceWithFeature {
 
-    private static String cleanUpId = "space-1";
+    private static String cleanUpSpaceId = "space-1";
 
     @BeforeClass
     public static void setupClass() {
@@ -23,7 +24,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
     
     @Before
     public void setup() {
-        createSpaceWithCustomStorage(cleanUpId, "psql", null);
+        createSpaceWithCustomStorage(cleanUpSpaceId, "psql", null);
     }
 
     @After
@@ -32,12 +33,18 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
     }
 
     private static void removeAll() {
-        removeSpace(cleanUpId);
+        removeSpace(cleanUpSpaceId);
         removeSubscription(AuthProfile.ACCESS_ALL, "test-subscription-1");
     }
 
-    private void addTestSubscription() {
-        addSubscription(AuthProfile.ACCESS_ALL,"/xyz/hub/createSubscription.json");
+    private Subscription addTestSubscription() {
+        return given()
+                .accept(APPLICATION_JSON)
+                .contentType(APPLICATION_JSON)
+                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .body(content("/xyz/hub/createSubscription.json"))
+                .post("/spaces/" + cleanUpSpaceId + "/subscriptions")
+                .as(Subscription.class);
     }
 
     public static ValidatableResponse addSubscription(AuthProfile authProfile, String contentFile) {
@@ -47,7 +54,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
                 .headers(getAuthHeaders(authProfile))
                 .body(content(contentFile))
                 .when()
-                .post("/spaces/" + cleanUpId + "/subscriptions")
+                .post("/spaces/" + cleanUpSpaceId + "/subscriptions")
                 .then();
     }
     public static ValidatableResponse removeSubscription(AuthProfile authProfile, String subscriptionId) {
@@ -55,7 +62,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
                 .accept(APPLICATION_JSON)
                 .headers(getAuthHeaders(authProfile))
                 .when()
-                .delete("/spaces/" + cleanUpId + "/subscriptions/" + subscriptionId)
+                .delete("/spaces/" + cleanUpSpaceId + "/subscriptions/" + subscriptionId)
                 .then();
     }
 
@@ -100,6 +107,69 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
     }
 
     @Test
+    public void createSubscriptionWithoutBody() {
+         given()
+                .accept(APPLICATION_JSON)
+                .contentType(APPLICATION_JSON)
+                .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES))
+                .when()
+                .post("/spaces/" + cleanUpSpaceId + "/subscriptions")
+                .then()
+                .statusCode(BAD_REQUEST.code());
+    }
+
+    @Test
+    public void createSubscriptionWithPUT() {
+        String subscriptionId = "test-subscription-1";
+
+        given()
+                .accept(APPLICATION_JSON)
+                .contentType(APPLICATION_JSON)
+                .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES))
+                .body(content("/xyz/hub/createSubscription.json"))
+                .when()
+                .put("/spaces/" + cleanUpSpaceId + "/subscriptions/" + subscriptionId)
+                .then()
+                .statusCode(OK.code())
+                .body("id", equalTo(subscriptionId));
+    }
+
+    @Test
+    public void updateSubscription() {
+
+        Subscription subscription = addTestSubscription();
+
+        subscription.getStatus().withState(Subscription.SubscriptionStatus.State.INACTIVE).withStateReason("Test Inactive State");
+
+        given()
+                .accept(APPLICATION_JSON)
+                .contentType(APPLICATION_JSON)
+                .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES))
+                .body(subscription)
+                .when()
+                .put("/spaces/" + cleanUpSpaceId + "/subscriptions/" + subscription.getId())
+                .then()
+                .statusCode(OK.code())
+                .body("status.state", equalTo(subscription.getStatus().getState().name()));
+    }
+
+    @Test
+    public void updateSubscriptionByIdWithAnotherSpaceAccess() {
+        Subscription subscription = addTestSubscription();
+        subscription.getStatus().withState(Subscription.SubscriptionStatus.State.INACTIVE).withStateReason("Test Inactive State");
+
+        given()
+                .accept(APPLICATION_JSON)
+                .contentType(APPLICATION_JSON)
+                .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_2_MANAGE_SPACES))
+                .body(subscription)
+                .when()
+                .put("/spaces/" + cleanUpSpaceId + "/subscriptions/test-subscription-1")
+                .then()
+                .statusCode(FORBIDDEN.code());
+    }
+
+    @Test
     public void getSubscriptionById() {
         addTestSubscription();
 
@@ -108,7 +178,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
                 .accept(APPLICATION_JSON)
                 .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES))
                 .when()
-                .get("/spaces/" + cleanUpId + "/subscriptions/" + subscriptionId)
+                .get("/spaces/" + cleanUpSpaceId + "/subscriptions/" + subscriptionId)
                 .then()
                 .statusCode(OK.code())
                 .body("id", equalTo(subscriptionId));
@@ -122,7 +192,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
                 .accept(APPLICATION_JSON)
                 .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_2_MANAGE_SPACES))
                 .when()
-                .get("/spaces/" + cleanUpId + "/subscriptions/test-subscription-1")
+                .get("/spaces/" + cleanUpSpaceId + "/subscriptions/test-subscription-1")
                 .then()
                 .statusCode(FORBIDDEN.code());
     }
@@ -135,7 +205,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
                 .accept(APPLICATION_JSON)
                 .headers(getAuthHeaders(AuthProfile.NO_ACCESS))
                 .when()
-                .get("/spaces/" + cleanUpId + "/subscriptions/test-subscription-1")
+                .get("/spaces/" + cleanUpSpaceId + "/subscriptions/test-subscription-1")
                 .then()
                 .statusCode(FORBIDDEN.code());
     }
@@ -159,7 +229,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
                 .accept(APPLICATION_JSON)
                 .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES))
                 .when()
-                .get("/spaces/" + cleanUpId + "/subscriptions")
+                .get("/spaces/" + cleanUpSpaceId + "/subscriptions")
                 .then()
                 .statusCode(OK.code())
                 .body("size()", is(1))
@@ -173,7 +243,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
                 .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES))
                 .queryParam("source", "space-1")
                 .when()
-                .get("/spaces/" + cleanUpId + "/subscriptions")
+                .get("/spaces/" + cleanUpSpaceId + "/subscriptions")
                 .then()
                 .statusCode(OK.code())
                 .body("size()", is(0));
@@ -207,7 +277,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
     }
 
     @Test
-    public void deleteSubscriptionWithAnotherSpaceAccesss() {
+    public void deleteSubscriptionWithAnotherSpaceAccess() {
         addTestSubscription();
 
         String subscriptionId = "test-subscription-1";
