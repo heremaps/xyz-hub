@@ -49,8 +49,7 @@ public class SubscriptionHandler {
             if (ar.failed()) {
                 logger.warn(marker, "The requested resource does not exist.'", ar.cause());
                 handler.handle(Future.failedFuture(new HttpException(NOT_FOUND, "The requested resource does not exist.", ar.cause())));
-            }
-            else {
+            } else {
                 handler.handle(Future.succeededFuture(ar.result()));
             }
         });
@@ -101,6 +100,27 @@ public class SubscriptionHandler {
             }
         });
 
+    }
+
+    public static void createOrReplaceSubscription(RoutingContext context, Subscription subscription, Handler<AsyncResult<Subscription>> handler) {
+        Marker marker = Api.Context.getMarker(context);
+
+        // Set status to 'ACTIVE' only when status is not present
+        if(subscription.getStatus() == null || subscription.getStatus().getState() == null) {
+            subscription.setStatus(new Subscription.SubscriptionStatus().withState(Subscription.SubscriptionStatus.State.ACTIVE));
+        }
+
+        Service.subscriptionConfigClient.get(marker, subscription.getId()).onComplete(ar -> {
+            Operation operation = ar.failed() ? Operation.CREATE : Operation.UPDATE;
+
+            sendEvent(context, operation, subscription, false, marker, eventAr -> {
+                if(eventAr.failed()) {
+                    handler.handle(Future.failedFuture(eventAr.cause()));
+                } else {
+                    storeSubscription(context, subscription, handler, marker);
+                }
+            });
+        });
     }
 
     protected static void storeSubscription(RoutingContext context, Subscription subscription, Handler<AsyncResult<Subscription>> handler, Marker marker) {

@@ -19,7 +19,6 @@
 
 package com.here.xyz.hub.rest;
 
-import com.here.xyz.hub.auth.AttributeMap;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.auth.XyzHubActionMatrix;
 import com.here.xyz.hub.auth.XyzHubAttributeMap;
@@ -29,14 +28,11 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.json.DecodeException;
-import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import java.util.List;
 
 import static com.here.xyz.hub.auth.XyzHubAttributeMap.SPACE;
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
@@ -48,12 +44,13 @@ public class SubscriptionApi extends Api {
     rb.operation("getSubscriptions").handler(this::getSubscriptions);
     rb.operation("postSubscription").handler(this::postSubscription);
     rb.operation("getSubscription").handler(this::getSubscription);
+    rb.operation("putSubscription").handler(this::putSubscription);
     rb.operation("deleteSubscription").handler(this::deleteSubscription);
   }
 
-  private JsonObject getInput(final RoutingContext context) throws HttpException {
+  private Subscription getSubscriptionInput(final RoutingContext context) throws HttpException {
     try {
-      return context.getBodyAsJson();
+      return DatabindCodec.mapper().convertValue(context.getBodyAsJson(), Subscription.class);
     }
     catch (DecodeException e) {
       throw new HttpException(BAD_REQUEST, "Invalid JSON string");
@@ -104,7 +101,7 @@ public class SubscriptionApi extends Api {
   private void postSubscription(final RoutingContext context) {
     try {
       String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
-      Subscription subscription = DatabindCodec.mapper().convertValue(getInput(context), Subscription.class);
+      Subscription subscription = getSubscriptionInput(context);
       subscription.setSource(spaceId);
       validateSubscriptionRequest(subscription);
 
@@ -117,6 +114,33 @@ public class SubscriptionApi extends Api {
               sendErrorResponse(context, ar.cause());
             } else {
               sendResponse(context, CREATED, ar.result());
+            }
+          });
+        }
+      });
+    } catch (Exception e) {
+      sendErrorResponse(context, e);
+    }
+  }
+
+  private void putSubscription(final RoutingContext context) {
+    try {
+      String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
+      String subscriptionId = context.pathParam(ApiParam.Path.SUBSCRIPTION_ID);
+      Subscription subscription = getSubscriptionInput(context);
+      subscription.setId(subscriptionId);
+      subscription.setSource(spaceId);
+      validateSubscriptionRequest(subscription);
+
+      SubscriptionAuthorization.authorizeManageSpacesRights(context, spaceId, arAuth -> {
+        if(arAuth.failed()) {
+          sendErrorResponse(context, arAuth.cause());
+        } else {
+          SubscriptionHandler.createOrReplaceSubscription(context, subscription, ar -> {
+            if(ar.failed()) {
+              sendErrorResponse(context, ar.cause());
+            } else {
+              sendResponse(context, OK, ar.result());
             }
           });
         }

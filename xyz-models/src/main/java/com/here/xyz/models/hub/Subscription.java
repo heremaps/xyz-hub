@@ -19,8 +19,11 @@
 
 package com.here.xyz.models.hub;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import java.util.Map;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class Subscription {
 
     /**
@@ -110,6 +113,7 @@ public class Subscription {
         return this;
     }
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class SubscriptionConfig {
 
         /**
@@ -146,10 +150,11 @@ public class Subscription {
         }
 
         public enum SubscriptionType {
-            PER_FEATURE, PER_TRANSACTION
+            PER_FEATURE, PER_TRANSACTION, CONTENT_CHANGE
         }
     }
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class SubscriptionStatus {
 
         /**
