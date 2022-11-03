@@ -22,9 +22,7 @@ package com.here.xyz.hub.config;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.models.hub.Subscription;
-import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
-import io.vertx.core.Handler;
 import io.vertx.core.Promise;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
@@ -73,9 +71,10 @@ public abstract class SubscriptionConfigClient implements Initializable {
                 if(subscription == null) {
                     logger.warn(marker, "subscriptionId [{}]: Subscription not found", subscriptionId);
                     p.fail(new RuntimeException("The subscription config was not found for subscription ID: " + subscriptionId));
+                } else {
+                    cache.put(subscriptionId, subscription);
+                    p.complete(subscription);
                 }
-                cache.put(subscriptionId, subscription);
-                p.complete(subscription);
             }
             else {
                 logger.warn(marker, "subscriptionId [{}]: Subscription not found", subscriptionId);
@@ -129,7 +128,7 @@ public abstract class SubscriptionConfigClient implements Initializable {
     }
 
     public Future<Void> store(Marker marker, Subscription subscription) {
-        Promise<Void> p = Promise.promise();
+
         if (subscription.getId() == null) {
             subscription.setId(RandomStringUtils.randomAlphanumeric(10));
         }

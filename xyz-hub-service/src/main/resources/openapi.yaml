@@ -983,6 +983,28 @@ paths:
         '403':
           $ref: '#/components/responses/ErrorResponse403'
   '/spaces/{spaceId}/subscriptions/{subscriptionId}':
+    put:
+      tags:
+        - Manage Subscriptions
+      summary: Create or replace a subscription
+      description: Creates or replaces a subscription to a space.
+      operationId: putSubscription
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/SubscriptionId'
+      requestBody:
+        $ref: '#/components/requestBodies/SubscriptionRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/SubscriptionResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
     get:
       tags:
         - Manage Subscriptions
@@ -3351,6 +3373,7 @@ components:
           enum:
             - PER_FEATURE
             - PER_TRANSACTION
+            - CONTENT_CHANGE
         params:
           type: "object"
           description: "The additional parameters of the subscription config"
