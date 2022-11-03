@@ -22,6 +22,7 @@ package com.here.xyz.hub.rest;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -138,12 +139,31 @@ public class ModifyExtensionSpaceIT extends TestCompositeSpace {
   }
 
   @Test
-  public void deleteExtendingSpace() {
+  public void deleteExtendedSpace() {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
         .delete("/spaces/x-psql-test")
         .then()
-        .statusCode(BAD_REQUEST.code());
+        .statusCode(NO_CONTENT.code());
   }
+
+  @Test
+  public void deleteDanglingCompositeSpace() {
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .delete("/spaces/x-psql-test")
+        .then()
+        .statusCode(NO_CONTENT.code());
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .delete("/spaces/x-psql-test-ext")
+        .then()
+        .statusCode(NO_CONTENT.code());
+  }
+
+  //TODO create test for update cyclic a->b->a
 }

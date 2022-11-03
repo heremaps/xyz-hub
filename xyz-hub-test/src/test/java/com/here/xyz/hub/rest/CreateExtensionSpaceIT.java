@@ -237,4 +237,7 @@ public class CreateExtensionSpaceIT extends TestSpaceWithFeature {
         .then()
         .statusCode(BAD_REQUEST.code());
   }
+
+  //TODO create test self extending during creation
+  //TODO create test for create cyclic a->b->a
 }

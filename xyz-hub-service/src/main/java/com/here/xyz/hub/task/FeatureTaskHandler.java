@@ -812,6 +812,9 @@ public class FeatureTaskHandler {
     return Space.resolveSpace(task.getMarker(), spaceExtension.getSpaceId())
         .compose(
             extendedSpace -> {
+              if(extendedSpace == null)
+                return Future.succeededFuture();
+
               if (task.extendedSpaces == null)
                 task.extendedSpaces = new ArrayList();
               task.extendedSpaces.add(extendedSpace);
