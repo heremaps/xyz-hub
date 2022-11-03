@@ -55,7 +55,7 @@ public class SubscriptionHandler {
                     logger.warn(marker, "The requested source {} does not match the source {} of the subscription {}", spaceId, subscription.getSource(), subscriptionId);
                     handler.handle(Future.failedFuture(new HttpException(NOT_FOUND, "The requested resource does not exist.", ar.cause())));
                 } else {
-                    handler.handle(Future.succeededFuture(ar.result()));
+                    handler.handle(Future.succeededFuture(subscription));
                 }
             }
         });
