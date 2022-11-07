@@ -66,7 +66,7 @@ public class SubscriptionApi extends Api {
         if (arAuth.failed()) {
           sendErrorResponse(context, arAuth.cause());
         } else {
-          SubscriptionHandler.getSubscription(context, subscriptionId, ar -> {
+          SubscriptionHandler.getSubscription(context, spaceId, subscriptionId, ar -> {
             if(ar.failed()) {
               sendErrorResponse(context, ar.cause());
             } else {
@@ -161,7 +161,7 @@ public class SubscriptionApi extends Api {
           sendErrorResponse(context, arAuth.cause());
         } else {
           // Check if subscription exists
-          SubscriptionHandler.getSubscription(context, subscriptionId, arGet -> {
+          SubscriptionHandler.getSubscription(context, spaceId, subscriptionId, arGet -> {
             if(arGet.failed()) {
               sendErrorResponse(context, arGet.cause());
             } else {

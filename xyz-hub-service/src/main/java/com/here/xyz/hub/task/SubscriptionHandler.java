@@ -42,7 +42,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.*;
 public class SubscriptionHandler {
     private static final Logger logger = LogManager.getLogger();
 
-    public static void getSubscription(RoutingContext context, String subscriptionId, Handler<AsyncResult<Subscription>> handler) {
+    public static void getSubscription(RoutingContext context, String spaceId, String subscriptionId, Handler<AsyncResult<Subscription>> handler) {
         Marker marker = Api.Context.getMarker(context);
 
         Service.subscriptionConfigClient.get(marker, subscriptionId).onComplete(ar -> {
@@ -50,7 +50,13 @@ public class SubscriptionHandler {
                 logger.warn(marker, "The requested resource does not exist.'", ar.cause());
                 handler.handle(Future.failedFuture(new HttpException(NOT_FOUND, "The requested resource does not exist.", ar.cause())));
             } else {
-                handler.handle(Future.succeededFuture(ar.result()));
+                Subscription subscription = ar.result();
+                if(!spaceId.equals(subscription.getSource())) {
+                    logger.warn(marker, "The requested source {} does not match the source {} of the subscription {}", spaceId, subscription.getSource(), subscriptionId);
+                    handler.handle(Future.failedFuture(new HttpException(NOT_FOUND, "The requested resource does not exist.", ar.cause())));
+                } else {
+                    handler.handle(Future.succeededFuture(subscription));
+                }
             }
         });
     }
@@ -168,7 +174,7 @@ public class SubscriptionHandler {
     protected static void removeSubscription(RoutingContext context, Subscription subscription, Handler<AsyncResult<Subscription>> handler) {
         Marker marker = Api.Context.getMarker(context);
 
-        Service.subscriptionConfigClient.delete(marker, subscription.getId()).onComplete( ar -> {
+        Service.subscriptionConfigClient.delete(marker, subscription).onComplete( ar -> {
             if (ar.failed()) {
                 logger.error(marker, "Unable to delete resource definition.", ar.cause());
                 handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to delete the resource definition.", ar.cause())));
