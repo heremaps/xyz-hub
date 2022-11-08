@@ -160,20 +160,19 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
         .body("properties.name", nullValue())
         .body("properties.@ns:com:here:xyz.deleted", equalTo(true));
 
-    // FIXME aren't supposed the delete with context=extension to execute a real deletion (e.g. removing the deleted flagged feature?)
-//    given()
-//        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-//        .when()
-//        .delete("/spaces/x-psql-test-ext/features/" + feature.getId() + "?context=extension")
-//        .then()
-//        .statusCode(NO_CONTENT.code());
-//
-//    given()
-//        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-//        .when()
-//        .get("/spaces/x-psql-test-ext/features/" + feature.getId() + "?context=extension")
-//        .then()
-//        .statusCode(NOT_FOUND.code());
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .delete("/spaces/x-psql-test-ext/features/" + feature.getId() + "?context=extension")
+        .then()
+        .statusCode(NO_CONTENT.code());
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .get("/spaces/x-psql-test-ext/features/" + feature.getId() + "?context=extension")
+        .then()
+        .statusCode(NOT_FOUND.code());
   }
 
   @Test
@@ -300,6 +299,7 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
 
   //TODO: Add tests for iteration on a composite space
   //TODO: Add tests for spatial search on a composite space
+  //TODO: test for correct context on all endpoints (read / write) (extend existing ITs for reading / writing features)
 
   @Test
   public void changeBaseAndGetFeatures() {
