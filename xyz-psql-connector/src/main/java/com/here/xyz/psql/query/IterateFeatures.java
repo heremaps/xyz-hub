@@ -77,22 +77,39 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
 
       SQLQuery extensionQuery = super.buildQuery(event);
       extensionQuery.setQueryFragment("filterWhereClause", "TRUE"); //TODO: Do not support search on iterate for now
-      extensionQuery.setQueryFragment("iColumn", ", CONCAT('', i) AS i");
+      extensionQuery.setQueryFragment("iColumn", ", i, dataset");
 
       if (is2LevelExtendedSpace(event)) {
-        extensionQuery.setQueryFragment("iColumnIntermediate", ", CONCAT('e1_', i) AS i");
-        extensionQuery.setQueryFragment("iColumnExtension", ", CONCAT('e2_', i) AS i");
-      }
-      else
-        extensionQuery.setQueryFragment("iColumnExtension", ", CONCAT('e', i) AS i");
+        int ds = 3;
 
-      SQLQuery offsetQuery = new SQLQuery(event.getHandle() == null? "TRUE" : "i::text > #{startOffset}")
-          .withNamedParameter("startOffset", event.getHandle());
+        ds--;
+        extensionQuery.setQueryFragment("iColumnBase", buildIColumnFragment(ds));
+        extensionQuery.setQueryFragment("iOffsetBase", buildIOffsetFragment(event, ds));
+
+        ds--;
+        extensionQuery.setQueryFragment("iColumnIntermediate", buildIColumnFragment(ds));
+        extensionQuery.setQueryFragment("iOffsetIntermediate", buildIOffsetFragment(event, ds));
+
+        ds--;
+        extensionQuery.setQueryFragment("iColumnExtension", buildIColumnFragment(ds));
+        extensionQuery.setQueryFragment("iOffsetExtension", buildIOffsetFragment(event, ds));
+      }
+      else {
+        int ds = 2;
+
+        ds--;
+        extensionQuery.setQueryFragment("iColumnBase", buildIColumnFragment(ds));
+        extensionQuery.setQueryFragment("iOffsetBase", buildIOffsetFragment(event, ds));
+
+        ds--;
+        extensionQuery.setQueryFragment("iColumnExtension", buildIColumnFragment(ds));
+        extensionQuery.setQueryFragment("iOffsetExtension", buildIOffsetFragment(event, ds));
+      }
+      extensionQuery.setNamedParameter("currentDataset", getDatasetFromHandle(event));
 
       SQLQuery query = new SQLQuery(
-          "SELECT * FROM (${{extensionQuery}}) orderQuery WHERE ${{offsetQuery}} ORDER BY i ${{limit}}");
+          "SELECT * FROM (${{extensionQuery}}) orderQuery ORDER BY dataset, i ${{limit}}");
       query.setQueryFragment("extensionQuery", extensionQuery);
-      query.setQueryFragment("offsetQuery", offsetQuery);
       query.setQueryFragment("limit", buildLimitFragment(event.getLimit()));
 
       return query;
@@ -123,6 +140,54 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
       query.setNamedParameter("startOffset", start);
 
     return query;
+  }
+
+  private static String buildIColumnFragment(int dataset) {
+    return ", i, " + dataset + " as dataset";
+  }
+
+  private SQLQuery buildIOffsetFragment(IterateFeaturesEvent event, int dataset) {
+    return new SQLQuery("AND " + dataset + " >= #{currentDataset} "
+        + "AND (" + dataset + " > #{currentDataset} OR i > #{startOffset}) ORDER BY i")
+        .withNamedParameter("startOffset", getIOffsetFromHandle(event));
+  }
+
+  private int getDatasetFromHandle(IterateFeaturesEvent event) {
+    if (event.getHandle() == null)
+      return -1;
+    return Integer.parseInt(event.getHandle().split("_")[0]);
+  }
+
+  private int getIOffsetFromHandle(IterateFeaturesEvent event) {
+    if (event.getHandle() == null)
+      return 0;
+    return Integer.parseInt(event.getHandle().split("_")[1]);
+  }
+
+  @Override
+  public FeatureCollection handle(ResultSet rs) throws SQLException {
+    FeatureCollection fc = super.handle(rs);
+    if (isOrderByEvent) {
+      if (fc.getHandle() != null) {
+        //Extend handle and encrypt
+        final String handle;
+        try {
+          handle = createHandle(tmpEvent, fc.getHandle() );
+        }
+        catch (Exception e) {
+          throw new RuntimeException(e); //TODO: Use ErrorResponseException here after refactoring of the base class
+        }
+        fc.setHandle(handle);
+        fc.setNextPageToken(handle);
+      }
+    }
+    else {
+      if (hasSearch && fc.getHandle() != null) {
+        fc.setHandle("" + (start + limit)); //Kept for backwards compatibility for now
+        fc.setNextPageToken("" + (start + limit));
+      }
+    }
+    return fc;
   }
 
   private SQLQuery buildQueryForOrderBy(IterateFeaturesEvent event) throws SQLException {
@@ -198,32 +263,6 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
         + "        WHERE ${{filterWhereClause}} ${{continuation}} ${{orderBy}} LIMIT #{limit}"
         + "    ) inr"
         + ")";
-  }
-
-  @Override
-  public FeatureCollection handle(ResultSet rs) throws SQLException {
-    FeatureCollection fc = super.handle(rs);
-    if (isOrderByEvent) {
-      if (fc.getHandle() != null) {
-        //Extend handle and encrypt
-        final String handle;
-        try {
-          handle = createHandle(tmpEvent, fc.getHandle() );
-        }
-        catch (Exception e) {
-          throw new RuntimeException(e); //TODO: Use ErrorResponseException here after refactoring of the base class
-        }
-        fc.setHandle(handle);
-        fc.setNextPageToken(handle);
-      }
-    }
-    else {
-      if (hasSearch && fc.getHandle() != null) {
-        fc.setHandle("" + (start + limit)); //Kept for backwards compatibility for now
-        fc.setNextPageToken("" + (start + limit));
-      }
-    }
-    return fc;
   }
 
   private static SQLQuery buildGetIterateHandlesQuery( int nrHandles )

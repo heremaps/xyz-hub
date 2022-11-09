@@ -40,6 +40,7 @@ import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -298,16 +299,24 @@ public abstract class DatabaseHandler extends StorageConnector {
         return executeQuery(query, handler, readDataSource);
     }
 
+    public FeatureCollection executeQueryWithRetry(SQLQuery query, boolean useReadReplica) throws SQLException {
+        return executeQueryWithRetry(query, this::defaultFeatureResultSetHandler, useReadReplica);
+    }
+
     public FeatureCollection executeQueryWithRetry(SQLQuery query) throws SQLException {
-        return executeQueryWithRetry(query, this::defaultFeatureResultSetHandler, true);
+        return executeQueryWithRetry(query, true);
     }
 
     protected FeatureCollection executeQueryWithRetrySkipIfGeomIsNull(SQLQuery query) throws SQLException {
         return executeQueryWithRetry(query, this::defaultFeatureResultSetHandlerSkipIfGeomIsNull, true);
     }
 
+    protected BinaryResponse executeBinQueryWithRetry(SQLQuery query, boolean useReadReplica) throws SQLException {
+        return executeQueryWithRetry(query, this::defaultBinaryResultSetHandler, useReadReplica);
+    }
+
     protected BinaryResponse executeBinQueryWithRetry(SQLQuery query) throws SQLException {
-        return executeQueryWithRetry(query, this::defaultBinaryResultSetHandler, true);
+        return executeBinQueryWithRetry(query, true);
     }
 
     /**
@@ -449,6 +458,34 @@ public abstract class DatabaseHandler extends StorageConnector {
         //If we reach this point we are okay!
         return new SuccessResponse().withStatus("OK");
     }
+
+
+    protected XyzResponse executeModifySubscription(ModifySubscriptionEvent event) throws SQLException {
+    
+        String space = event.getSpace(),
+               tableName  = config.readTableFromEvent(event),
+               schemaName = config.getDatabaseSettings().getSchema();
+     
+        boolean bLastSubscriptionToDelete = event.getHasNoActiveSubscriptions();
+
+        switch(event.getOperation())
+        { case CREATE : 
+          case UPDATE : 
+            long rVal = (long) executeUpdateWithRetry( SQLQueryBuilder.buildAddSubscriptionQuery(space, schemaName, tableName ) );
+            setReplicaIdentity();
+            return new FeatureCollection().withCount(rVal);
+
+          case DELETE : 
+           if( !bLastSubscriptionToDelete )
+            return new FeatureCollection().withCount( 1l );
+           else  
+            return new FeatureCollection().withCount((long) executeUpdateWithRetry(SQLQueryBuilder.buildRemoveSubscriptionQuery(space, schemaName)));
+
+          default: break;
+        }
+     
+         return null;
+       }
 
     protected XyzResponse executeIterateHistory(IterateHistoryEvent event) throws SQLException {
         if(event.isCompact())
@@ -992,7 +1029,6 @@ public abstract class DatabaseHandler extends StorageConnector {
                     stmt.setQueryTimeout(calculateTimeout());
                     stmt.executeBatch();
                     connection.commit();
-                    logger.debug("{} Updated of trigger has failed: '{}'", traceItem, tableName);
                 }
             } catch (Exception e) {
                 throw new SQLException("Update of trigger has failed: "+tableName, e);
@@ -1003,6 +1039,46 @@ public abstract class DatabaseHandler extends StorageConnector {
             }
         }
     }
+
+    protected void setReplicaIdentity() throws SQLException {
+        final String tableName = config.readTableFromEvent(event);
+
+        try (final Connection connection = dataSource.getConnection()) {
+            advisoryLock( tableName, connection );
+            boolean cStateFlag = connection.getAutoCommit();
+            try {
+                if (cStateFlag)
+                    connection.setAutoCommit(false);
+
+                String infoSql = SQLQueryBuilder.getReplicaIdentity(config.getDatabaseSettings().getSchema(), tableName),
+                       setReplIdSql = SQLQueryBuilder.setReplicaIdentity(config.getDatabaseSettings().getSchema(), tableName);
+
+                try (Statement stmt = connection.createStatement();
+                     ResultSet rs = stmt.executeQuery(infoSql); ) 
+                {   
+                    if( !rs.next() )
+                    { createSpaceStatement(stmt, tableName); /** Create Space-Table */
+                      stmt.addBatch(setReplIdSql);
+                    } 
+                    else if(! "f".equals(rs.getString(1) ) ) /** Table exists, but wrong replic identity */
+                     stmt.addBatch(setReplIdSql);
+                    else
+                     return; /** Table exists with propper replic identity */
+
+                    stmt.setQueryTimeout(calculateTimeout());
+                    stmt.executeBatch();
+                    connection.commit();
+                }
+            } catch (Exception e) {
+                throw new SQLException("set replica identity to full failed: "+tableName, e);
+            } finally {
+                advisoryUnlock( tableName, connection );
+                if (cStateFlag)
+                    connection.setAutoCommit(true);
+            }
+        }
+    }
+
 
 /** #################################### Resultset Handlers #################################### */
     /**
@@ -1016,7 +1092,8 @@ public abstract class DatabaseHandler extends StorageConnector {
     private final long MAX_RESULT_CHARS = 100 * 1024 *1024;
 
     protected FeatureCollection _defaultFeatureResultSetHandler(ResultSet rs, boolean skipNullGeom) throws SQLException {
-        String nextHandle = "";
+        String nextIOffset = "";
+        String nextDataset = null;
 
         StringBuilder sb = new StringBuilder();
         String prefix = "[";
@@ -1035,7 +1112,9 @@ public abstract class DatabaseHandler extends StorageConnector {
 
             if (event instanceof IterateFeaturesEvent) {
                 numFeatures++;
-                nextHandle = rs.getString(3);
+                nextIOffset = rs.getString(3);
+                if (rs.getMetaData().getColumnCount() >= 4)
+                    nextDataset = rs.getString(4);
             }
         }
 
@@ -1050,6 +1129,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         if (sb.length() > MAX_RESULT_CHARS) throw new SQLException(DhString.format("Maxchar limit(%d) reached", MAX_RESULT_CHARS));
 
         if (event instanceof IterateFeaturesEvent && numFeatures > 0 && numFeatures == ((SearchForFeaturesEvent) event).getLimit() ) {
+          String nextHandle = (nextDataset != null ? nextDataset + "_" : "") + nextIOffset;
           featureCollection.setHandle(nextHandle);
           featureCollection.setNextPageToken(nextHandle);
         }

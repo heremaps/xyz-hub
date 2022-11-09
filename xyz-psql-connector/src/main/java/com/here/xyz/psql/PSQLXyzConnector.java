@@ -32,6 +32,7 @@ import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent.ResponseType;
+import com.here.xyz.events.ModifySubscriptionEvent.Operation;
 import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.GetStorageStatisticsEvent;
@@ -41,6 +42,7 @@ import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.HQuad;
 import com.here.xyz.models.geojson.WebMercatorTile;
@@ -337,10 +339,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
         {
           case H3SQL.HEXBIN :
            if( !bMvtRequested )
-            return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams));
+            return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams),false);
            else
             return executeBinQueryWithRetry(
-             SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams), mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
+             SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams), mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ),false );
 
           case QuadbinSQL.QUAD :
            final int relResolution = ( clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) != null ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) :
@@ -551,6 +553,31 @@ public class PSQLXyzConnector extends DatabaseHandler {
   }
 
   @Override
+  protected XyzResponse processModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception {
+    try{
+      logger.info("{} Received ModifySpaceEvent", traceItem);
+
+      this.validateModifySubscriptionEvent(event);
+
+      return executeModifySubscription(event);
+    }catch (SQLException e){
+      return checkSQLException(e, config.readTableFromEvent(event));
+    }finally {
+      logger.info("{} Finished ModifySpaceEvent", traceItem);
+    }
+  }
+
+  private void validateModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception {
+    
+   switch(event.getOperation())
+   { case CREATE : case UPDATE : case DELETE : break;
+     default:
+      throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "Modify Subscription - Operation (" + event.getOperation() + ") not supported" );
+   }
+
+  }
+
+  @Override
   protected XyzResponse processIterateHistoryEvent(IterateHistoryEvent event) {
     logger.info("{} Received IterateHistoryEvent", traceItem);
     try{
@@ -633,7 +660,6 @@ public class PSQLXyzConnector extends DatabaseHandler {
       }
     }
   }
-
 
   private static final Pattern ERRVALUE_22P02 = Pattern.compile("invalid input syntax for type numeric:\\s+\"([^\"]*)\"\\s+Query:"),
                                ERRVALUE_22P05 = Pattern.compile("ERROR:\\s+(.*)\\s+Detail:\\s+(.*)\\s+Where:");

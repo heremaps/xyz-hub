@@ -20,6 +20,7 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
@@ -300,4 +301,69 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
   //TODO: Add tests for iteration on a composite space
   //TODO: Add tests for spatial search on a composite space
 
+  @Test
+  public void changeBaseAndGetFeatures() {
+    Feature f1 = newFeature();
+
+    // insert F1(p.name="a") into x-psql-test
+    postFeature("x-psql-test", f1.withProperties(new Properties().with("name", "a")));
+
+    // insert F1(p.name="b") into x-psql-test-ext
+    postFeature("x-psql-test-ext", f1.withProperties(new Properties().with("name", "b")));
+
+    // modify x-psql-test-ext-ext to point to x-psql-test
+    modifyComposite("x-psql-test-ext-ext", "x-psql-test");
+
+    // get F1 from x-psql-test-ext-ext -> assert F1(p.name="a")
+    getFeature("x-psql-test-ext-ext", f1.getId(), OK.code(), "properties.name", "a");
+  }
+
+  @Test
+  public void changeBaseAndGetDeletedFeatures() {
+    Feature f1 = newFeature();
+
+    // insert F1(p.name="a") into x-psql-test
+    postFeature("x-psql-test", f1.withProperties(new Properties().with("name", "a")));
+
+    // insert F1(p.name="b") into x-psql-test-ext
+    postFeature("x-psql-test-ext", f1.withProperties(new Properties().with("name", "b")));
+
+    // delete F1 from x-psql-test-ext
+    deleteFeature("x-psql-test-ext", f1.getId());
+
+    // modify x-psql-test-ext-ext to point to x-psql-test
+    modifyComposite("x-psql-test-ext-ext", "x-psql-test");
+
+    // get F1 from x-psql-test-ext-ext -> assert F1(p.name="a")
+    getFeature("x-psql-test-ext-ext", f1.getId(), OK.code(), "properties.name", "a");
+
+    // modify x-psql-test-ext-ext to point to x-psql-test-ext
+    modifyComposite("x-psql-test-ext-ext", "x-psql-test-ext");
+
+    // get F1 from x-psql-test-ext-ext -> assert 404
+    getFeature("x-psql-test-ext-ext", f1.getId(), NOT_FOUND.code());
+  }
+
+  @Test
+  public void changeIntermediateDeltaAndGetFeatures() {
+    Feature f1 = newFeature();
+
+    // insert F1(p.name="a") into x-psql-test
+    postFeature("x-psql-test", f1.withProperties(new Properties().with("name", "a")));
+
+    // insert F1(p.name="b") into x-psql-test-2
+    postFeature("x-psql-test-2", f1.withProperties(new Properties().with("name", "b")));
+
+    // modify x-psql-test-ext to point to x-psql-test-2
+    modifyComposite("x-psql-test-ext", "x-psql-test-2");
+
+    // get F1 from x-psql-test-ext-ext -> assert F1(p.name="b")
+    getFeature("x-psql-test-ext-ext", f1.getId(), OK.code(), "properties.name", "b");
+
+    // modify x-psql-test-ext to point to x-psql-test
+    modifyComposite("x-psql-test-ext", "x-psql-test");
+
+    // get F1 from x-psql-test-ext-ext -> assert F1(p.name="a")
+    getFeature("x-psql-test-ext-ext", f1.getId(), OK.code(), "properties.name", "a");
+  }
 }

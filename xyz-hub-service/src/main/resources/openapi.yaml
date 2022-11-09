@@ -1002,6 +1002,108 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
+  '/spaces/{spaceId}/subscriptions':
+    post:
+      tags:
+        - Manage Subscriptions
+      summary: Create a subscription
+      description: Creates a subscription.
+      operationId: postSubscription
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+      requestBody:
+        $ref: '#/components/requestBodies/SubscriptionRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/SubscriptionResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '409':
+          $ref: '#/components/responses/ErrorResponse409'
+    get:
+      tags:
+        - Manage Subscriptions
+      summary: Get list of subscriptions
+      description: Gets a list of all subscription for a space.
+      operationId: getSubscriptions
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+      responses:
+        '200':
+          $ref: '#/components/responses/SubscriptionsResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+  '/spaces/{spaceId}/subscriptions/{subscriptionId}':
+    put:
+      tags:
+        - Manage Subscriptions
+      summary: Create or replace a subscription
+      description: Creates or replaces a subscription to a space.
+      operationId: putSubscription
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/SubscriptionId'
+      requestBody:
+        $ref: '#/components/requestBodies/SubscriptionRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/SubscriptionResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+    get:
+      tags:
+        - Manage Subscriptions
+      summary: Get a subscription by ID
+      description: Returns the subscription definition
+      operationId: getSubscription
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/SubscriptionId'
+      responses:
+        '200':
+          $ref: '#/components/responses/SubscriptionResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+    delete:
+      tags:
+        - Manage Subscriptions
+      summary: Delete a subscription
+      description: Deletes a subscription configuration.
+      operationId: deleteSubscription
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/SubscriptionId'
+      responses:
+        '200':
+          $ref: '#/components/responses/SubscriptionResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
 components:
   securitySchemes:
     AccessToken:
@@ -1678,6 +1780,13 @@ components:
         format: double
         minimum: -180
         maximum: 180
+    SubscriptionId:
+      name: subscriptionId
+      in: path
+      description: The unique identifier of the subscription.
+      required: true
+      schema:
+        type: string
   responses:
     ConnectorResponse:
       description: The connector
@@ -1897,6 +2006,19 @@ components:
             type: string
             format: binary
           example: ''
+    SubscriptionResponse:
+      description: The subscription
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Subscription'
+    SubscriptionsResponse:
+      description: The list of subscriptions
+      content:
+        application/json:
+          schema:
+            items:
+              $ref: '#/components/schemas/Subscription'
   requestBodies:
     ConnectorConfig:
       required: true
@@ -1940,6 +2062,17 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Space'
+    SubscriptionRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Subscription'
+          example:
+            id: my-subscription-id
+            destination: string
+            config:
+              type: PER_FEATURE
   schemas:
     # TODO add Typed and Iterable schemas
     AWSLambda:
@@ -3310,3 +3443,50 @@ components:
           items:
             type: string
           type: array
+    Subscription:
+      type: object
+      description: A subscription object that contains notification information.
+      properties:
+        id:
+          description: >- 
+            The uniques identifier for the subscription.
+          type: string
+          example: my-subscription-id
+        source:
+          description: >-
+            The source for the subscribed notification (usually the space).
+          type: string
+        destination:
+          description: >-
+            The destination for the subscribed notification.
+          type: string
+        config:
+          $ref: '#/components/schemas/SubscriptionConfig'
+        status:
+          description: >-
+            The status of the subscription.
+          type: object
+          properties:
+            state:
+              description: The state of the subscription.
+              type: string
+              example: ACTIVE
+            stateReason:
+              description: "The reason for the current state."
+              type: string
+              example: ""
+    SubscriptionConfig:
+      type: object
+      description: The subscription configuration.
+      properties:
+        type:
+          description: >- 
+            The type of subscribed notification.
+          type: string
+          enum:
+            - PER_FEATURE
+            - PER_TRANSACTION
+            - CONTENT_CHANGE
+        params:
+          type: "object"
+          description: "The additional parameters of the subscription config"
