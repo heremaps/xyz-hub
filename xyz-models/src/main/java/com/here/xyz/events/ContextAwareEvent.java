@@ -11,6 +11,7 @@ public abstract class ContextAwareEvent<T extends Event> extends Event<T> {
 
   public enum SpaceContext {
     EXTENSION,
+    SUPER,
     DEFAULT;
 
     public static SpaceContext of(String value) {

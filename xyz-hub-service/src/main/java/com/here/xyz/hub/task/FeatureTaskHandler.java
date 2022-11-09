@@ -19,6 +19,8 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
 import static com.here.xyz.hub.rest.ApiResponseType.MVT;
@@ -41,6 +43,7 @@ import com.google.common.base.Strings;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContentModifiedNotification;
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.Event.TrustedParams;
 import com.here.xyz.events.EventNotification;
@@ -773,8 +776,10 @@ public class FeatureTaskHandler {
       return Space.resolveSpace(task.getMarker(), task.getEvent().getSpace())
           .compose(
               space -> {
-                task.space = space;
                 if (space != null) {
+                  if (space.getExtension() != null && task.getEvent() instanceof ContextAwareEvent && SUPER.equals(((ContextAwareEvent<?>) task.getEvent()).getContext()))
+                    return switchToSuperSpace(task, space);
+                  task.space = space;
                   //Inject the extension-map
                   return space.resolveCompositeParams(task.getMarker()).compose(resolvedExtensions -> {
                     Map<String, Object> storageParams = new HashMap<>();
@@ -798,6 +803,15 @@ public class FeatureTaskHandler {
     catch (Exception e) {
       return Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition.", e));
     }
+  }
+
+  private static <X extends FeatureTask> Future<Space> switchToSuperSpace(X task, Space space) {
+    //Overwrite the event's space ID to be the ID of the extended (super) space ...
+    task.getEvent().setSpace(space.getExtension().getSpaceId());
+    //also overwrite the space context to be DEFAULT now ...
+    ((ContextAwareEvent<?>) task.getEvent()).setContext(DEFAULT);
+    //... and resolve the extended (super) space instead
+    return resolveSpace(task);
   }
 
   private static <X extends FeatureTask> Future<Space> resolveExtendedSpaces(X task, Space extendingSpace) {

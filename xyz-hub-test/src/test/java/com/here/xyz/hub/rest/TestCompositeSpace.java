@@ -21,15 +21,11 @@ package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.jayway.restassured.RestAssured.given;
-import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 
-import com.jayway.restassured.response.ValidatableResponse;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 public class TestCompositeSpace extends TestSpaceWithFeature {
 
@@ -41,7 +37,7 @@ public class TestCompositeSpace extends TestSpaceWithFeature {
     createSpaceWithExtension("x-psql-test");
     createSpaceWithExtension("x-psql-test-ext");
 
-    // FIXME avoid 504
+    //FIXME: in order to get the extending space to be created, a read or write operation must be executed, otherwise a 504 is returned
     getFeature("x-psql-test", "F1");
     getFeature("x-psql-test-2", "F1");
     getFeature("x-psql-test-ext", "F1");

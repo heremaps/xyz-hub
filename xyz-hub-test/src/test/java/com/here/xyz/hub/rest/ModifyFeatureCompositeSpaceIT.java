@@ -20,8 +20,8 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.jayway.restassured.RestAssured.given;
+import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
@@ -102,26 +102,80 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
 
   @Test
   public void getOnlyOnDelta() {
-    Feature f1 = newFeature();
-    Feature f2 = newFeature();
-    // FIXME in order to get the extending space to be created, a read or write operation must be executed, otherwise a 504 is returned
-    postFeature("x-psql-test", f1);
-    postFeature("x-psql-test-ext", f2);
+    Feature feature = newFeature();
+    postFeature("x-psql-test-ext", feature);
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test/features/" + f2.getId())
+        .get("/spaces/x-psql-test/features/" + feature.getId())
         .then()
         .statusCode(NOT_FOUND.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/x-psql-test-ext/features/" + f2.getId())
+        .get("/spaces/x-psql-test-ext/features/" + feature.getId())
         .then()
         .statusCode(OK.code())
-        .body("id", equalTo(f2.getId()));
+        .body("id", equalTo(feature.getId()));
+  }
+
+  @Test
+  public void getOnlyFromSuper() {
+    Feature feature = newFeature();
+    postFeature("x-psql-test", feature.withProperties(new Properties().with("name", "abc")));
+    postFeature("x-psql-test-ext", feature.withProperties(new Properties().with("name", "xyz")));
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .get("/spaces/x-psql-test-ext/features/" + feature.getId() + "?context=super")
+        .then()
+        .statusCode(OK.code())
+        .body("id", equalTo(feature.getId()))
+        .body("properties.name", equalTo("abc"));
+  }
+
+  @Test
+  public void createSuperNegative() {
+    Feature feature = newFeature();
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body(feature.serialize())
+        .when()
+        .post("/spaces/x-psql-test-ext/features?context=super")
+        .then()
+        .statusCode(FORBIDDEN.code());
+  }
+
+  @Test
+  public void updateSuperNegative() {
+    Feature feature = newFeature();
+    postFeature("x-psql-test", feature);
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .contentType("application/geo+json")
+        .body(feature.withProperties(new Properties().with("name", "abc")).serialize())
+        .when()
+        .patch("/spaces/x-psql-test-ext/features/" + feature.getId() + "?context=super")
+        .then()
+        .statusCode(FORBIDDEN.code());
+  }
+
+  @Test
+  public void deleteSuperNegative() {
+    Feature feature = newFeature();
+    postFeature("x-psql-test", feature);
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .delete("/spaces/x-psql-test-ext/features/" + feature.getId() + "?context=super")
+        .then()
+        .statusCode(FORBIDDEN.code());
   }
 
   @Test
