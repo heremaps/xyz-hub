@@ -20,15 +20,19 @@
 package com.here.xyz.hub.rest;
 
 import com.here.xyz.events.PropertyQuery;
+import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.events.RevisionEvent;
 import com.here.xyz.events.RevisionEvent.Operation;
+import com.here.xyz.hub.auth.RevisionAuthorization;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
-import com.here.xyz.hub.task.RevisionHandler;
+import com.here.xyz.hub.task.SpaceConnectorBasedHandler;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
+import java.util.Arrays;
+import java.util.List;
 
 public class RevisionApi extends SpaceBasedApi {
 
@@ -42,15 +46,22 @@ public class RevisionApi extends SpaceBasedApi {
   private void deleteRevisions(final RoutingContext context) {
     final String space = context.pathParam(Path.SPACE_ID);
     final PropertyQuery revision = Query.getPropertyQuery(context.request().query(), Query.REV, false);
+    final List<QueryOperation> supportedOps = Arrays.asList(QueryOperation.EQUALS, QueryOperation.GREATER_THAN, QueryOperation.GREATER_THAN_OR_EQUALS,
+        QueryOperation.LESS_THAN, QueryOperation.LESS_THAN_OR_EQUALS);
 
-    Future<Void> future = revision != null
-        ? Future.succeededFuture()
+    Future<PropertyQuery> future = revision != null
+        ? Future.succeededFuture(revision)
         : Future.failedFuture(new HttpException(HttpResponseStatus.BAD_REQUEST, "Query parameter rev is required"));
 
-    future.map((nothing) -> RevisionHandler.execute(new RevisionEvent()
-        .withSpace(space)
-        .withRevision(revision)
-        .withOperation(Operation.DELETE)))
+    future
+        .map(rev -> supportedOps.contains(rev.getOperation())
+            ? Future.succeededFuture()
+            : Future.failedFuture(new HttpException(HttpResponseStatus.BAD_REQUEST, "Unsupported operator used in the field rev")))
+        .map(nothing -> RevisionAuthorization.authorize(context))
+        .map(nothing -> SpaceConnectorBasedHandler.execute(Api.Context.getMarker(context), new RevisionEvent()
+          .withSpace(space)
+          .withRevision(revision)
+          .withOperation(Operation.DELETE)))
       .onSuccess(result -> this.sendResponse(context, HttpResponseStatus.NO_CONTENT, null))
       .onFailure((ex) -> this.sendErrorResponse(context, ex));
   }

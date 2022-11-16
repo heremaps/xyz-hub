@@ -197,40 +197,17 @@ paths:
         - Manage Spaces
       summary: Delete revisions
       description: >-
-        Deletes one or more revisions where the revision number can be specified by the query parameter 'rev',
-        by using one of the comparators available: =eq=, =gt=, =ge=, =lt= or =le= and the value,
-        must be an integer, bigger than 0.
-
+        Deletes one or more revisions where the revision number can be specified by the query parameter 'rev', where
+        the value must be an integer, bigger than 0 and the comparator should be one of the below list:
+          - =
+          - <
+          - =eq=
+          - =lt=
+        
+        
         Example: To remove revisions older than the 10th revision,
-        a DELETE /spaces/{spaceId}/revisions?rev=lt=10 must be issued.
+        a DELETE /spaces/{spaceId}/revisions?rev=lt=10 could be executed.
 
-        The service will begin the process to remove the revisions from 9th revision until the 1st revision.
-        During the deletion process, newer revisions can be created and won't be affected.
-      operationId: deleteRevisions
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/Revision'
-      responses:
-        '204':
-          $ref: '#/components/responses/EmptyResponse'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
-        '404':
-          $ref: '#/components/responses/ErrorResponse404'
-  '/spaces/{spaceId}/revisions':
-    delete:
-      tags:
-        - Manage Spaces
-      summary: Delete revisions
-      description: >-
-        Deletes one or more revisions where the revision number can be specified by the query parameter 'rev',
-        by using one of the comparators available: =eq=, =gt=, =gte=, =lt= or =lte= and the value,
-        must be an integer, bigger than 0.
-
-        Example: To remove revisions older than the 10th revision,
-        a DELETE /spaces/{spaceId}/revisions?rev=lt=10 must be issued.
 
         The service will begin the process to remove the revisions from 9th revision until the 1st revision.
         During the deletion process, newer revisions can be created and won't be affected.
@@ -1578,16 +1555,28 @@ components:
       name: rev
       in: query
       description: >-
-        A comma separated list of unique revision numbers.
-        The wildcard sign '*' can be used to represent all available revisions.
+        The revision number or string pointing to an specific point-in-time in the space's history,
+        which represents a change set occured in the past in the space's content,
+        containing insertion, modification or deletion of features.
+        The first change set has number 1, the second has number 2 and so on.
+        
+        
+        More than one revision can be specified by using wildcard sign '*', representing all available revisions,
+        or one of the logical operators when supported by the endpoint where this field is used.
+        
+        The list of all available operators are:
+          - =eq= or =
+          - =lt= or <
+          - =gt= or >
+          - =lte= or <=
+          - =gte= or >=
+        
         Acceptable formats for this field are:
           * ?rev=*
           * ?rev=1
           * ?rev=eq=1
           * ?rev=lt=10
-
-        The default operator supported is '=', however, operators like '=eq=', '=lt=' and others
-        may be supported if specified on the endpoint supporting this parameter.
+          * ?rev<10
       required: false
       schema:
         type: array
