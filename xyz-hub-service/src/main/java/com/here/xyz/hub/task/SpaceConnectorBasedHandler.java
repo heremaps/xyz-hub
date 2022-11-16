@@ -22,12 +22,15 @@ package com.here.xyz.hub.task;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 
 import com.here.xyz.events.Event;
+import com.here.xyz.hub.auth.RevisionAuthorization;
 import com.here.xyz.hub.config.ConnectorConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.RpcClient;
+import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
+import io.vertx.ext.web.RoutingContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -36,11 +39,13 @@ public class SpaceConnectorBasedHandler {
 
   private static final Logger logger = LogManager.getLogger();
 
-  public static <T extends Event<T>> Future<Void> execute(Marker marker, Event<T> e) {
+  public static <T extends Event<T>> Future<Void> execute(RoutingContext context, Event<T> e) {
+    final Marker marker = Api.Context.getMarker(context);
     return SpaceConfigClient.getInstance().get(marker, e.getSpace())
         .flatMap(space -> space == null
             ? Future.failedFuture(new HttpException(BAD_REQUEST, "The resource ID '" + e.getSpace() + "' does not exist!"))
             : Future.succeededFuture(space))
+        .flatMap(space -> RevisionAuthorization.authorize(context, space).map(space))
         .flatMap(space -> ConnectorConfigClient.getInstance().get(marker, space.getStorage().getId()))
         .map(RpcClient::getInstanceFor)
         .recover(t -> t instanceof HttpException

@@ -19,26 +19,21 @@
 
 package com.here.xyz.hub.auth;
 
+import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.Api;
-import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.HttpException;
-import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.ext.web.RoutingContext;
 
 public class RevisionAuthorization extends Authorization {
 
-  public static Future<Void> authorize(RoutingContext context) {
-    String spaceId;
-    if (context == null || (spaceId = context.pathParam(Path.SPACE_ID)) == null)
-      return Future.failedFuture(new HttpException(HttpResponseStatus.BAD_REQUEST, "Path parameter space id is required"));
-
+  public static Future<Void> authorize(RoutingContext context, Space space) {
     final Promise<Void> result = Promise.promise();
     JWTPayload jwt = Api.Context.getJWT(context);
 
     final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
-    requestRights.adminSpaces(XyzHubAttributeMap.forIdValues(spaceId));
+    requestRights.adminSpaces(XyzHubAttributeMap.forIdValues(space.getOwner(), space.getId()));
 
     try {
       evaluateRights(Api.Context.getMarker(context), requestRights, jwt.getXyzHubMatrix());
