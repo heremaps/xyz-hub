@@ -175,6 +175,7 @@ public class ApiParam {
     static final String PAGE_TOKEN = "pageToken";
 
     static final String REV = "rev";
+    static final String AUTHOR = "author";
     static final String SUBSCRIPTION_SOURCE = "source";
 
     private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{

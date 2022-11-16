@@ -101,13 +101,15 @@ public class FeatureQueryApi extends SpaceBasedApi {
     try {
       final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
       final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
+      final String author = Query.getString(context, Query.AUTHOR, null);
 
       final SearchForFeaturesEvent event = new SearchForFeaturesEvent();
       event.withLimit(getLimit(context))
           .withTags(Query.getTags(context))
           .withPropertiesQuery(Query.getPropertiesQuery(context))
           .withForce2D(force2D)
-          .withSelection(Query.getSelection(context));
+          .withSelection(Query.getSelection(context))
+          .withAuthor(author);
 
       final SearchQuery task = new SearchQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache);
       task.execute(this::sendResponse, this::sendErrorResponse);
@@ -125,6 +127,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
       final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
       Integer version = Query.getInteger(context, Query.VERSION, null);
       final SpaceContext spaceContext = getSpaceContext(context);
+      final String author = Query.getString(context, Query.AUTHOR, null);
 
       List<String> sort = Query.getSort(context);
       PropertiesQuery propertiesQuery = Query.getPropertiesQuery(context);
@@ -141,7 +144,8 @@ public class FeatureQueryApi extends SpaceBasedApi {
             .withSort(sort)
             .withPart(part)
             .withHandle(handle)
-            .withContext(spaceContext);
+            .withContext(spaceContext)
+            .withAuthor(author);
 
         final SearchQuery task = new SearchQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache);
         task.execute(this::sendResponse, this::sendErrorResponse);
@@ -205,6 +209,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
       final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
       final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
       final SpaceContext spaceContext = getSpaceContext(context);
+      final String author = Query.getString(context, Query.AUTHOR, null);
 
       GetFeaturesByGeometryEvent event = new GetFeaturesByGeometryEvent()
           .withGeometry(geometry)
@@ -216,7 +221,8 @@ public class FeatureQueryApi extends SpaceBasedApi {
           .withPropertiesQuery(Query.getPropertiesQuery(context))
           .withSelection(Query.getSelection(context))
           .withForce2D(force2D)
-          .withContext(spaceContext);
+          .withContext(spaceContext)
+          .withAuthor(author);
 
       final GeometryQuery task = new GeometryQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache, refSpaceId, refFeatureId);
       task.execute(this::sendResponse, this::sendErrorResponse);
@@ -234,6 +240,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
       final boolean clip = Query.getBoolean(context, Query.CLIP, false);
       final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
       final SpaceContext spaceContext = getSpaceContext(context);
+      final String author = Query.getString(context, Query.AUTHOR, null);
 
       GetFeaturesByBBoxEvent event = (GetFeaturesByBBoxEvent) new GetFeaturesByBBoxEvent<>()
           .withForce2D(force2D)
@@ -249,6 +256,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
             .withTags(Query.getTags(context))
             .withPropertiesQuery(Query.getPropertiesQuery(context))
             .withSelection(Query.getSelection(context))
+            .withAuthor(author)
             .withContext(spaceContext);
       } catch (Exception e) {
         throw new HttpException(BAD_REQUEST,e.getMessage());
@@ -273,6 +281,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
       final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
       final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
       final SpaceContext spaceContext = getSpaceContext(context);
+      final String author = Query.getString(context, Query.AUTHOR, null);
 
       final int indexOfPoint = tileId.indexOf('.');
       if (indexOfPoint >= 0) {
@@ -313,7 +322,8 @@ public class FeatureQueryApi extends SpaceBasedApi {
             .withVizSampling(Query.getString(context, Query.OPTIM_VIZSAMPLING, "med"))
             .withResponseType(responseType == ApiResponseType.MVT ? MVT : responseType == ApiResponseType.MVT_FLATTENED ? MVT_FLATTENED : GEO_JSON)
             .withHereTileFlag("here".equals(tileType))
-            .withContext(spaceContext);
+            .withContext(spaceContext)
+            .withAuthor(author);
       } catch (Exception e) {
         throw new HttpException(BAD_REQUEST,e.getMessage());
       }
