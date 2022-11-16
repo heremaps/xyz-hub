@@ -57,11 +57,11 @@ public class RevisionApi extends SpaceBasedApi {
         .map(rev -> supportedOps.contains(rev.getOperation())
             ? Future.succeededFuture()
             : Future.failedFuture(new HttpException(HttpResponseStatus.BAD_REQUEST, "Unsupported operator used in the field rev")))
-        .map(nothing -> SpaceConnectorBasedHandler.execute(context, new RevisionEvent()
+        .flatMap(nothing -> SpaceConnectorBasedHandler.execute(context, new RevisionEvent()
           .withSpace(space)
           .withRevision(revision)
           .withOperation(Operation.DELETE)))
-      .onSuccess(result -> this.sendResponse(context, HttpResponseStatus.NO_CONTENT, null))
-      .onFailure((ex) -> this.sendErrorResponse(context, ex));
+        .onSuccess(result -> this.sendResponse(context, HttpResponseStatus.NO_CONTENT, null))
+        .onFailure((ex) -> this.sendErrorResponse(context, ex));
   }
 }

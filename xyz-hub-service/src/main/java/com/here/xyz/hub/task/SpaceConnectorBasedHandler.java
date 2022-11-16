@@ -41,25 +41,26 @@ public class SpaceConnectorBasedHandler {
 
   public static <T extends Event<T>> Future<Void> execute(RoutingContext context, Event<T> e) {
     final Marker marker = Api.Context.getMarker(context);
+
     return SpaceConfigClient.getInstance().get(marker, e.getSpace())
-        .flatMap(space -> space == null
-            ? Future.failedFuture(new HttpException(BAD_REQUEST, "The resource ID '" + e.getSpace() + "' does not exist!"))
-            : Future.succeededFuture(space))
-        .flatMap(space -> RevisionAuthorization.authorize(context, space).map(space))
-        .flatMap(space -> ConnectorConfigClient.getInstance().get(marker, space.getStorage().getId()))
-        .map(RpcClient::getInstanceFor)
-        .recover(t -> t instanceof HttpException
-            ? Future.failedFuture(t)
-            : Future.failedFuture(new HttpException(BAD_REQUEST, "Connector is not available", t)))
-        .flatMap(rpcClient -> {
-          final Promise<Void> result = Promise.promise();
-          rpcClient.execute(marker, e, handler -> {
-            if (handler.failed())
-              result.fail(new HttpException(BAD_REQUEST, "Error calling the connector"));
-            else
-              result.complete();
-          });
-          return result.future();
+      .flatMap(space -> space == null
+          ? Future.failedFuture(new HttpException(BAD_REQUEST, "The resource ID '" + e.getSpace() + "' does not exist!"))
+          : Future.succeededFuture(space))
+      .flatMap(space -> RevisionAuthorization.authorize(context, space).map(space))
+      .flatMap(space -> ConnectorConfigClient.getInstance().get(marker, space.getStorage().getId()))
+      .map(RpcClient::getInstanceFor)
+      .recover(t -> t instanceof HttpException
+          ? Future.failedFuture(t)
+          : Future.failedFuture(new HttpException(BAD_REQUEST, "Connector is not available", t)))
+      .flatMap(rpcClient -> {
+        final Promise<Void> promise = Promise.promise();
+        rpcClient.execute(marker, e, handler -> {
+          if (handler.failed())
+            promise.fail(new HttpException(BAD_REQUEST, "Error calling the connector"));
+          else
+            promise.complete();
         });
+        return promise.future();
+      });
   }
 }

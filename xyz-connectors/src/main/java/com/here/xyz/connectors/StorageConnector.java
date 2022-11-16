@@ -34,9 +34,11 @@ import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySubscriptionEvent;
+import com.here.xyz.events.RevisionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 
@@ -99,8 +101,12 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
     if (event instanceof LoadFeaturesEvent) {
       return processLoadFeaturesEvent((LoadFeaturesEvent) event);
     }
-    if (event instanceof GetStorageStatisticsEvent)
+    if (event instanceof GetStorageStatisticsEvent) {
       return processGetStorageStatisticsEvent((GetStorageStatisticsEvent) event);
+    }
+    if (event instanceof RevisionEvent) {
+      return new SuccessResponse();
+    }
 
     return new ErrorResponse()
         .withStreamId(streamId)

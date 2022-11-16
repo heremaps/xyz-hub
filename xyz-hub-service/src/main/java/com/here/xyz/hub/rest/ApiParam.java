@@ -367,7 +367,7 @@ public class ApiParam {
 
     /**
      * Returns the first property found in the query string in the format of key-operator-value(s)
-     * @param query the query part in the url
+     * @param query the query part in the url without the '?' symbol
      * @param key the property to be searched
      * @param multiValue when true, checks for comma separated values, otherwise return the first value found
      * @return null in case none is found
@@ -377,19 +377,19 @@ public class ApiParam {
         return null;
 
       int startIndex;
-      if ((startIndex=query.indexOf("?" + key)) != -1 || (startIndex=query.indexOf("?" + key))!= -1) {
-        String keyOpValue = query.substring(startIndex + 1); // e.g. rev=eq=head
+      if ((startIndex=query.indexOf(key)) != -1) {
+        String opValue = query.substring(startIndex + key.length()); // e.g. =eq=head
         String operation = shortOperators
             .stream()
-            .sorted(Comparator.reverseOrder()) // reverse a sorted list because u want to get the longer ops first.
-            .filter(keyOpValue::startsWith) // e.g. in case of key=eq=val, 2 ops will be filtered in: '=eq=' and '='.
+            .sorted(Comparator.comparingInt(k->k.length() * -1)) // reverse a sorted list because u want to get the longer ops first.
+            .filter(opValue::startsWith) // e.g. in case of key=eq=val, 2 ops will be filtered in: '=eq=' and '='.
             .findFirst() // The reversed sort plus the findFirst makes sure the =eq= is the one you are looking for.
             .orElse(null); // e.g. anything different from the allowed operators
 
         if (operation == null)
           return null;
 
-        String value = keyOpValue.substring(key.length() + operation.length()).split("&")[0];
+        String value = opValue.substring(operation.length()).split("&")[0];
         List<Object> values = multiValue
             ? Arrays.asList(value.split(","))
             : Collections.singletonList(value.split(",")[0]);

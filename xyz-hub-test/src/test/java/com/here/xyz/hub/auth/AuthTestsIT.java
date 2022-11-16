@@ -1040,6 +1040,6 @@ public class AuthTestsIT extends RestAssuredTest {
         .when()
         .delete("/spaces/" + cleanUpId + "/revisions?rev=10")
         .then()
-        .statusCode(NO_CONTENT.code());
+        .statusCode(FORBIDDEN.code());
   }
 }
