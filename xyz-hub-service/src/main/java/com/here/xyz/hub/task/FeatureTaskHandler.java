@@ -1591,14 +1591,14 @@ public class FeatureTaskHandler {
     if (task.loadFeaturesEvent != null)
       return task.loadFeaturesEvent;
 
-
     if (task.modifyOp.entries.size() == 0)
       return null;
 
+    final boolean useRevision = task.space.getRevisionsToKeep() > 0;
     final HashMap<String, String> idsMap = new HashMap<>();
-    for (Entry<Feature> entry : task.modifyOp.entries) {
+    for (FeatureEntry entry : task.modifyOp.entries) {
       if (entry.input.get("id") instanceof String) {
-        idsMap.put((String) entry.input.get("id"), entry.inputUUID);
+        idsMap.put((String) entry.input.get("id"), useRevision ? String.valueOf(entry.inputRev) : entry.inputUUID);
       }
     }
     if (idsMap.size() == 0) {
