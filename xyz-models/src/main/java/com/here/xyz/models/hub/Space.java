@@ -175,7 +175,7 @@ public class Space {
    * (HEAD) state of the space and no further revisions will be kept.
    */
   @JsonView({Public.class, Static.class})
-  private int revisionsToKeep = 1;
+  private int revisionsToKeep = 0;
 
   /**
    * If false, auto-indexing gets disabled
