@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.annotation.JsonIncludeProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonValue;
@@ -173,7 +174,8 @@ public class Space {
    * By default this value will be set to 1. That means there will be only one
    * (HEAD) state of the space and no further revisions will be kept.
    */
-  private int revisionsToKeep = 0;
+  @JsonView({Public.class, Static.class})
+  private int revisionsToKeep = 1;
 
   /**
    * If false, auto-indexing gets disabled
