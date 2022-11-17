@@ -1874,7 +1874,7 @@ components:
           schema:
             $ref: '#/components/schemas/FeatureCollectionIterable'
     RevisionResponse:
-      description: The space.
+      description: A Revision represents a set of Feature changes, single authored, which can contain multiple operations like insertions, deletions and updates.
       content:
         application/json:
           schema:
