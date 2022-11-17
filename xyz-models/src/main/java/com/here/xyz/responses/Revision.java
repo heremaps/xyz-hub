@@ -25,6 +25,9 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 
 import com.here.xyz.responses.changesets.Changeset;
 
+/**
+ * A Revision represents a set of Feature changes, single authored, which can contain multiple operations like insertions, deletions and updates.
+ */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "Revision")
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
