@@ -461,29 +461,29 @@ public abstract class DatabaseHandler extends StorageConnector {
 
 
     protected XyzResponse executeModifySubscription(ModifySubscriptionEvent event) throws SQLException {
-    
+
         String space = event.getSpace(),
                tableName  = config.readTableFromEvent(event),
                schemaName = config.getDatabaseSettings().getSchema();
-     
+
         boolean bLastSubscriptionToDelete = event.getHasNoActiveSubscriptions();
 
         switch(event.getOperation())
-        { case CREATE : 
-          case UPDATE : 
+        { case CREATE :
+          case UPDATE :
             long rVal = (long) executeUpdateWithRetry( SQLQueryBuilder.buildAddSubscriptionQuery(space, schemaName, tableName ) );
             setReplicaIdentity();
             return new FeatureCollection().withCount(rVal);
 
-          case DELETE : 
+          case DELETE :
            if( !bLastSubscriptionToDelete )
             return new FeatureCollection().withCount( 1l );
-           else  
+           else
             return new FeatureCollection().withCount((long) executeUpdateWithRetry(SQLQueryBuilder.buildRemoveSubscriptionQuery(space, schemaName)));
 
           default: break;
         }
-     
+
          return null;
        }
 
@@ -827,7 +827,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private static void advisoryUnlock(String tablename, Connection connection ) throws SQLException { _advisory(tablename,connection,false); }
 
-    private static boolean isForExtendingSpace(Event event) {
+    protected static boolean isForExtendingSpace(Event event) {
         return event.getParams() != null && event.getParams().containsKey("extends");
     }
 
@@ -846,7 +846,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                   connection.setAutoCommit(false);
 
                 try (Statement stmt = connection.createStatement()) {
-                    createSpaceStatement(stmt, tableName, isForExtendingSpace(event));
+                    createSpaceStatement(stmt, event);
 
                     stmt.setQueryTimeout(calculateTimeout());
                     stmt.executeBatch();
@@ -869,18 +869,33 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
-    private void createSpaceStatement(Statement stmt, String tableName) throws SQLException {
-        createSpaceStatement(stmt, tableName, false);
-    }
+    private void createSpaceStatement(Statement stmt, Event event) throws SQLException {
+        String tableName = config.readTableFromEvent(event);
+        boolean withRevisions = true;
 
-    private void createSpaceStatement(Statement stmt, String tableName, boolean withDeletedColumn) throws SQLException {
-        String query = "CREATE TABLE IF NOT EXISTS ${schema}.${table} (jsondata jsonb, geo geometry(GeometryZ,4326), i BIGSERIAL"
-            + (withDeletedColumn ? ", deleted BOOLEAN DEFAULT FALSE" : "") + ")";
+        String revisioningFields =
+            "id TEXT , " //"id TEXT NOT NULL, "
+            + "revision BIGINT , " //+ "revision BIGINT NOT NULL, "
+            + "next_revision BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, ";
+        String standardFields =
+            "deleted BOOLEAN DEFAULT FALSE, "
+            + "jsondata JSONB, "
+            + "geo geometry(GeometryZ, 4326), "
+            + "i BIGSERIAL";
 
-        query = SQLQuery.replaceVars(query, config.getDatabaseSettings().getSchema(), tableName);
-        stmt.addBatch(query);
+        String tableFields = (withRevisions ? revisioningFields : "") + standardFields
+            + (/* withRevisions */false ? ", CONSTRAINT " + tableName + "_pkey PRIMARY KEY (id, revision)" : "");
 
-        if (withDeletedColumn) {
+        SQLQuery q = new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}})");
+        q.setQueryFragment("tableFields", tableFields);
+        q.setVariable("schema", config.getDatabaseSettings().getSchema());
+        q.setVariable("table", tableName);
+
+        q.substitute();
+        stmt.addBatch(q.text());
+
+        String query;
+        if (withRevisions) {
             query = "CREATE INDEX IF NOT EXISTS ${idx_deleted} ON ${schema}.${table} USING btree (deleted ASC NULLS LAST) WHERE deleted = TRUE";
             query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
             stmt.addBatch(query);
@@ -929,7 +944,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
                 try (Statement stmt = connection.createStatement()) {
                     /** Create Space-Table */
-                    createSpaceStatement(stmt, tableName);
+                    createSpaceStatement(stmt, event);
 
                     String query = "CREATE TABLE IF NOT EXISTS ${schema}.${hsttable} (uuid text NOT NULL, jsondata jsonb, geo geometry(GeometryZ,4326)," +
                             (isEnableGlobalVersioning ? " vid text ," : "")+
@@ -1014,7 +1029,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
                 try (Statement stmt = connection.createStatement()) {
                     /** Create Space-Table */
-                    createSpaceStatement(stmt, tableName);
+                    createSpaceStatement(stmt, event);
 
                     /** old naming */
                     String query = SQLQueryBuilder.deleteHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName)[0];
@@ -1054,12 +1069,12 @@ public abstract class DatabaseHandler extends StorageConnector {
                        setReplIdSql = SQLQueryBuilder.setReplicaIdentity(config.getDatabaseSettings().getSchema(), tableName);
 
                 try (Statement stmt = connection.createStatement();
-                     ResultSet rs = stmt.executeQuery(infoSql); ) 
-                {   
+                     ResultSet rs = stmt.executeQuery(infoSql); )
+                {
                     if( !rs.next() )
-                    { createSpaceStatement(stmt, tableName); /** Create Space-Table */
+                    { createSpaceStatement(stmt, event); /** Create Space-Table */
                       stmt.addBatch(setReplIdSql);
-                    } 
+                    }
                     else if(! "f".equals(rs.getString(1) ) ) /** Table exists, but wrong replic identity */
                      stmt.addBatch(setReplIdSql);
                     else

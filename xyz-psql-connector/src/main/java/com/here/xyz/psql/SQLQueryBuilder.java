@@ -733,17 +733,14 @@ public class SQLQueryBuilder {
         return new SQLQuery("SELECT idx_available FROM "+ ModifySpace.IDX_STATUS_TABLE+" WHERE spaceid=? AND count >=?", space, BIG_SPACE_THRESHOLD);
     }
 
-    protected static String insertStmtSQL(final String schema, final String table, boolean withDeletedColumn) {
-        String insertStmtSQL ="INSERT INTO ${schema}.${table} (jsondata, geo" + (withDeletedColumn ? ", deleted" : "")
-            + ") VALUES(?::jsonb, ST_Force3D(ST_GeomFromWKB(?,4326))" + (withDeletedColumn ? ", ?" : "") + ")";
-        return SQLQuery.replaceVars(insertStmtSQL, schema, table);
-    }
-
-    protected static String insertWithoutGeometryStmtSQL(final String schema, final String table, boolean withDeletedColumn) {
-        String insertWithoutGeometryStmtSQL = "INSERT INTO ${schema}.${table} (jsondata, geo" + (withDeletedColumn ? ", deleted" : "")
-            + ") VALUES(?::jsonb, NULL" + (withDeletedColumn ? ", ?" : "") + ")";
-        return SQLQuery.replaceVars(insertWithoutGeometryStmtSQL, schema, table);
-    }
+  protected static SQLQuery buildInsertStmtQuery(final String schema, final String table, boolean withGeo, boolean withDeletedColumn) {
+    return new SQLQuery("INSERT INTO ${schema}.${table} (jsondata, geo" + (withDeletedColumn ? ", deleted" : "")
+        + ") VALUES(#{jsondata}::jsonb, ${{geo}}${{deleted}})")
+        .withQueryFragment("geo", withGeo ? "ST_Force3D(ST_GeomFromWKB(#{geo}, 4326))" : "NULL")
+        .withQueryFragment("deleted", withDeletedColumn ? ", #{deleted}" : "")
+        .withVariable("schema", schema)
+        .withVariable("table", table);
+  }
 
     protected static String updateStmtSQL(final String schema, final String table, final boolean handleUUID, boolean withDeletedColumn) {
         String updateStmtSQL = "UPDATE ${schema}.${table} SET jsondata = ?::jsonb, geo=ST_Force3D(ST_GeomFromWKB(?,4326))"
@@ -892,16 +889,16 @@ public class SQLQueryBuilder {
     }
 
 	protected static SQLQuery buildAddSubscriptionQuery(String space, String schemaName, String tableName) {
-        String theSql = 
-          "insert into xyz_config.space_meta  ( id, schem, h_id, meta ) values(?,?,?,'{\"subscriptions\":true}' )" 
+        String theSql =
+          "insert into xyz_config.space_meta  ( id, schem, h_id, meta ) values(?,?,?,'{\"subscriptions\":true}' )"
          +" on conflict (id,schem) do "
          +"  update set meta = xyz_config.space_meta.meta || excluded.meta ";
-     
+
         return new SQLQuery(theSql, space,schemaName,tableName);
 	}
 
 	protected static SQLQuery buildSetReplicaIdentIfNeeded() {
-        String theSql = 
+        String theSql =
           "do "
          +"$body$ "
          +"declare "
@@ -926,16 +923,16 @@ public class SQLQueryBuilder {
 
     protected static String getReplicaIdentity(final String schema, final String table)
     { return String.format("select relreplident from pg_class where oid = to_regclass( '\"%s\".\"%s\"' )",schema,table); }
-    
+
     protected static String setReplicaIdentity(final String schema, final String table)
     { return String.format("alter table \"%s\".\"%s\" replica identity full",schema,table); }
 
 	public static SQLQuery buildRemoveSubscriptionQuery(String space, String schemaName) {
-        String theSql = 
+        String theSql =
           "update xyz_config.space_meta "
          +" set meta = meta - 'subscriptions' "
          +"where ( id, schem ) = ( ?, ? ) ";
-            
+
         return new SQLQuery(theSql, space,schemaName );
 	}
 }

@@ -24,12 +24,16 @@ import static com.here.xyz.psql.DatabaseHandler.HISTORY_TABLE_SUFFIX;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.QueryEvent;
 import com.here.xyz.psql.query.GetFeatures;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -52,6 +56,10 @@ public class SQLQuery {
   private static final String VAR_HST_TABLE = "hsttable";
   private static final String VAR_TABLE_SEQ = "table_seq";
   private static final String VAR_HST_TABLE_SEQ = "hsttable_seq";
+
+  private HashMap<String, List<Integer>> namedParams2Positions = new HashMap<>();
+
+  private PreparedStatement preparedStatement;
 
   @Deprecated
   public SQLQuery() {
@@ -178,10 +186,34 @@ public class SQLQuery {
     return parameters;
   }
 
-  public void substitute() {
+  public SQLQuery substitute() {
     replaceVars();
     replaceFragments();
     replaceNamedParameters();
+    return this;
+  }
+
+  public PreparedStatement prepareStatement(Connection connection) throws SQLException {
+    Map<String, Object> namedParameters = this.namedParameters;
+    if (preparedStatement == null) {
+      substitute();
+      preparedStatement = connection.prepareStatement(text());
+    }
+    //Assign named parameters to according positions in the prepared statement
+    for (Entry<String, Object> namedParam : namedParameters.entrySet()) {
+      Object paramValue = namedParameters.get(namedParam.getKey());
+      for (int pos : namedParams2Positions.get(namedParam.getKey()))
+        preparedStatement.setObject(pos + 1, paramValue);
+    }
+    return preparedStatement;
+  }
+
+  public SQLQuery closeStatement() throws SQLException {
+    if (preparedStatement != null) {
+      preparedStatement.close();
+      preparedStatement = null;
+    }
+    return this;
   }
 
   /**
@@ -207,23 +239,23 @@ public class SQLQuery {
   }
 
   /**
-   * Replaces #{namedVar} in the queryText with ? and appends the corresponding parameter from the specified map.
+   * Replaces #{namedVar} in the queryText with ? and appends the corresponding parameters from the specified map.
    */
-  private static SQLQuery replaceNamedParameters(String query, Map<String, Object> namedParameters) {
+  private void replaceNamedParametersInt() {
     Pattern p = Pattern.compile("#\\{\\s*([^\\s\\}]+)\\s*\\}");
-    SQLQuery qry = new SQLQuery();
-    Matcher m = p.matcher( query );
+    Matcher m = p.matcher(text());
 
     while( m.find() )
     { String nParam = m.group(1);
-      if( !namedParameters.containsKey(nParam) )
+      if (!namedParameters.containsKey(nParam))
         throw new IllegalArgumentException("sql: named Parameter ["+ nParam +"] missing");
-      qry.addParameter( namedParameters.get(nParam) );
+      if (!namedParams2Positions.containsKey(nParam))
+        namedParams2Positions.put(nParam, new ArrayList<>());
+      namedParams2Positions.get(nParam).add(parameters.size());
+      addParameter( namedParameters.get(nParam) );
     }
 
-    qry.append( m.replaceAll("?") );
-
-    return qry;
+    setText(m.replaceAll("?"));
   }
 
   //TODO: Replace usages by calls to #substitute()
@@ -306,9 +338,7 @@ public class SQLQuery {
     if (parameters() != null && parameters().size() != 0)
       throw new RuntimeException("No named parameters can be used inside queries which use un-named parameters. "
           + "Use only named parameters instead!");
-    SQLQuery q = replaceNamedParameters(text(), namedParameters);
-    setText(q.text());
-    addParameters(q.parameters.toArray());
+    replaceNamedParametersInt();
     //Clear all named parameters
     namedParameters = null;
   }
@@ -366,8 +396,6 @@ public class SQLQuery {
   }
 
   private void initNamedParameters() {
-    if (parameters() != null && parameters().size() > 0)
-      throw new RuntimeException("No named parameters can be used inside queries which use parameters. Use only named parameters instead!");
     if (namedParameters == null)
       namedParameters = new HashMap<>();
   }

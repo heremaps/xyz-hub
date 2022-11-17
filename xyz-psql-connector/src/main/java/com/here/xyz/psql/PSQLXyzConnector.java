@@ -362,7 +362,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
         //Check if Properties are indexed
         checkCanSearchFor(event);
 
-      if (event.getParams() != null && event.getParams().containsKey("extends") && event.getContext() == DEFAULT)
+      if (isForExtendingSpace(event) && event.getContext() == DEFAULT)
         return new GetFeaturesByBBox<>(event, this).run();
 
       if( !bMvtRequested )
@@ -564,7 +564,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   }
 
   private void validateModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception {
-    
+
    switch(event.getOperation())
    { case CREATE : case UPDATE : case DELETE : break;
      default:

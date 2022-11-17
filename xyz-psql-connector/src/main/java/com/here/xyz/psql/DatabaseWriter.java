@@ -87,16 +87,6 @@ public class DatabaseWriter {
         return preparedStatement;
     }
 
-    protected static PreparedStatement createInsertStatement(Connection connection, String schema, String table, boolean withDeletedColumn)
-            throws SQLException {
-        return createStatement(connection, SQLQueryBuilder.insertStmtSQL(schema, table, withDeletedColumn));
-    }
-
-    protected static PreparedStatement createInsertWithoutGeometryStatement(Connection connection, String schema, String table, boolean withDeletedColumn)
-            throws SQLException {
-        return createStatement(connection, SQLQueryBuilder.insertWithoutGeometryStmtSQL(schema, table, withDeletedColumn));
-    }
-
     protected static PreparedStatement createUpdateStatement(Connection connection, String schema, String table, boolean handleUUID, boolean withDeletedColumn)
             throws SQLException {
         return createStatement(connection, SQLQueryBuilder.updateStmtSQL(schema, table, handleUUID, withDeletedColumn));
