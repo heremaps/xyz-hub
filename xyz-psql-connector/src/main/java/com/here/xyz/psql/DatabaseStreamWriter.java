@@ -24,13 +24,12 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.io.WKBWriter;
-import org.postgresql.util.PGobject;
-
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
+import org.postgresql.util.PGobject;
 
 public class DatabaseStreamWriter extends DatabaseWriter{
 
@@ -39,58 +38,59 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                                                       List<Feature> inserts, Connection connection, boolean forExtendedSpace)
             throws SQLException {
 
-        final PreparedStatement insertStmt = createInsertStatement(connection, schema, table, forExtendedSpace);
-        final PreparedStatement insertWithoutGeometryStmt = createInsertWithoutGeometryStatement(connection, schema, table, forExtendedSpace);
+        SQLQuery insertQuery = SQLQueryBuilder.buildInsertStmtQuery(schema, table, true, forExtendedSpace);
+        SQLQuery insertWithoutGeometryQuery = SQLQueryBuilder.buildInsertStmtQuery(schema, table, false, forExtendedSpace);
 
-        for (int i = 0; i < inserts.size(); i++) {
-
-            String fId = "";
+        for (final Feature feature : inserts) {
             try {
                 int rows = 0;
-                final Feature feature = inserts.get(i);
-                fId = feature.getId();
 
                 final PGobject jsonbObject= featureToPGobject(feature,null);
 
                 if (feature.getGeometry() == null) {
-                    insertWithoutGeometryStmt.setObject(1, jsonbObject);
+                    insertWithoutGeometryQuery.setNamedParameter("jsondata", jsonbObject);
                     if (forExtendedSpace)
-                        insertWithoutGeometryStmt.setBoolean(2, getDeletedFlagFromFeature(feature));
+                        insertWithoutGeometryQuery.setNamedParameter("deleted", getDeletedFlagFromFeature(feature));
+
+                    PreparedStatement insertWithoutGeometryStmt = insertWithoutGeometryQuery.prepareStatement(connection);
                     insertWithoutGeometryStmt.setQueryTimeout(dbh.calculateTimeout());
                     rows = insertWithoutGeometryStmt.executeUpdate();
-                } else {
-                    insertStmt.setObject(1, jsonbObject);
+                }
+                else {
+                    insertQuery.setNamedParameter("jsondata", jsonbObject);
                     final WKBWriter wkbWriter = new WKBWriter(3);
                     Geometry jtsGeometry = feature.getGeometry().getJTSGeometry();
                     //Avoid NAN values
                     assure3d(jtsGeometry.getCoordinates());
-                    insertStmt.setBytes(2, wkbWriter.write(jtsGeometry));
+                    insertQuery.setNamedParameter("geo", wkbWriter.write(jtsGeometry));
                     if (forExtendedSpace)
-                        insertStmt.setBoolean(3, getDeletedFlagFromFeature(feature));
+                        insertQuery.setNamedParameter("deleted", getDeletedFlagFromFeature(feature));
+
+                    PreparedStatement insertStmt = insertQuery.prepareStatement(connection);
                     insertStmt.setQueryTimeout(dbh.calculateTimeout());
                     rows = insertStmt.executeUpdate();
                 }
 
                 if(rows == 0) {
-                    fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage(INSERT_ERROR_GENERAL));
+                    fails.add(new FeatureCollection.ModificationFailure().withId(feature.getId()).withMessage(INSERT_ERROR_GENERAL));
                 }else
                     collection.getFeatures().add(feature);
 
             } catch (Exception e) {
                 if((e instanceof SQLException && ((SQLException)e).getSQLState() != null
                         && ((SQLException)e).getSQLState().equalsIgnoreCase("42P01"))){
-                    insertStmt.close();
-                    insertWithoutGeometryStmt.close();
+                    insertQuery.closeStatement();
+                    insertWithoutGeometryQuery.closeStatement();
                     throw new SQLException(e);
                 }
 
-                fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage(INSERT_ERROR_GENERAL));
+                fails.add(new FeatureCollection.ModificationFailure().withId(feature.getId()).withMessage(INSERT_ERROR_GENERAL));
                 logException(e, traceItem, LOG_EXCEPTION_INSERT, table);
             }
         }
 
-        insertStmt.close();
-        insertWithoutGeometryStmt.close();
+        insertQuery.closeStatement();
+        insertWithoutGeometryQuery.closeStatement();
 
         return collection;
     }

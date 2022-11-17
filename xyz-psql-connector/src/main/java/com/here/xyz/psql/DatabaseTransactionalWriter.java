@@ -19,16 +19,12 @@
 
 package com.here.xyz.psql;
 
-import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.io.WKBWriter;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.postgresql.util.PGobject;
-
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -36,6 +32,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.postgresql.util.PGobject;
 
 public class DatabaseTransactionalWriter extends  DatabaseWriter{
     private static final Logger logger = LogManager.getLogger();
@@ -49,34 +48,37 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
                 List<Feature> inserts, Connection connection, Integer version, boolean forExtendedSpace)
             throws SQLException, JsonProcessingException {
 
-        final PreparedStatement insertStmt = createInsertStatement(connection, schema, table, forExtendedSpace);
-        final PreparedStatement insertWithoutGeometryStmt = createInsertWithoutGeometryStatement(connection, schema, table, forExtendedSpace);
+        SQLQuery insertQuery = SQLQueryBuilder.buildInsertStmtQuery(schema, table, true, forExtendedSpace);
+        SQLQuery insertWithoutGeometryQuery = SQLQueryBuilder.buildInsertStmtQuery(schema, table, false, forExtendedSpace);
 
         List<String> insertIdList = new ArrayList<>();
         List<String> insertWithoutGeometryIdList = new ArrayList<>();
 
-        for (int i = 0; i < inserts.size(); i++) {
-            final Feature feature = inserts.get(i);
-
+        PreparedStatement insertStmt = null;
+        PreparedStatement insertWithoutGeometryStmt = null;
+        for (final Feature feature : inserts) {
             final PGobject jsonbObject= featureToPGobject(feature, version);
 
             if (feature.getGeometry() == null) {
-                insertWithoutGeometryStmt.setObject(1, jsonbObject);
+                insertWithoutGeometryQuery.setNamedParameter("jsondata", jsonbObject);
                 if (forExtendedSpace)
-                    insertWithoutGeometryStmt.setBoolean(2, getDeletedFlagFromFeature(feature));
+                    insertWithoutGeometryQuery.setNamedParameter("deleted", getDeletedFlagFromFeature(feature));
+
+                insertWithoutGeometryStmt = insertWithoutGeometryQuery.prepareStatement(connection);
                 insertWithoutGeometryStmt.addBatch();
                 insertWithoutGeometryIdList.add(feature.getId());
             } else {
-                insertStmt.setObject(1, jsonbObject);
+                insertQuery.setNamedParameter("jsondata", jsonbObject);
 
                 final WKBWriter wkbWriter = new WKBWriter(3);
                 Geometry jtsGeometry = feature.getGeometry().getJTSGeometry();
                 //Avoid NAN values
                 assure3d(jtsGeometry.getCoordinates());
-                insertStmt.setBytes(2, wkbWriter.write(jtsGeometry));
+                insertQuery.setNamedParameter("geo", wkbWriter.write(jtsGeometry));
                 if (forExtendedSpace)
-                    insertStmt.setBoolean(3, getDeletedFlagFromFeature(feature));
+                    insertQuery.setNamedParameter("deleted", getDeletedFlagFromFeature(feature));
 
+                insertStmt = insertQuery.prepareStatement(connection);
                 insertStmt.addBatch();
                 insertIdList.add(feature.getId());
             }
@@ -242,8 +244,10 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
                 fillFailList(batchStmtResult2, fails, idList2, handleUUID, type);
             }
         }finally {
-            batchStmt.close();
-            batchStmt2.close();
+            if (batchStmt != null)
+                batchStmt.close();
+            if (batchStmt2 != null)
+                batchStmt2.close();
         }
     }
 
