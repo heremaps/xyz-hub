@@ -1873,6 +1873,43 @@ components:
         application/geo+json:
           schema:
             $ref: '#/components/schemas/FeatureCollectionIterable'
+    RevisionResponse:
+      description: The space.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Revision'
+          examples:
+            response:
+              value:
+                type: "Revision"
+                rev: 5
+                author: "xyz"
+                createdAt: 1560417151751
+                changeset:
+                  type: "Changeset"
+                  inserted:
+                    - type: "FeatureCollection"
+                      features:
+                        - type: Feature
+                          id: BfiimUxHjj
+                          geometry:
+                            type: Point
+                            coordinates:
+                              - -2.960847
+                              - 53.430828
+                          properties:
+                            name: Anfield
+                            '@ns:com:here:xyz':
+                              createdAt: 1517504700726
+                              updatedAt: 1517504700726
+                              space: 0FzlE2wX
+                              tags:
+                                - football
+                                - stadium
+                            amenity: Football Stadium
+                            capacity: 54074
+                            description: Home of the Liverpool Football Club.
     SpaceResponse:
       description: The space.
       content:
@@ -2944,6 +2981,29 @@ components:
             This function can be disabled by setting warmUp to zero.
           type: integer
           format: int64
+    Revision:
+      type: object
+      description: >-
+        An arbitrary client configuration with hints or settings for the client,
+        for example rendering instructions.
+      properties:
+        rev:
+          type: integer
+          format: int64
+          description: The revision number.
+        author:
+          type: string
+          description: The author which caused the changes in the revision
+        createdAt:
+          type: integer
+          format: int64
+          default: 1538352000000
+          description: >-
+            The UNIX Epoch time of when this revision has been created (in
+            milliseconds since 01.01.1970). Defaults to October 1st, 2018.
+          example: 1538352000000
+        changeset:
+          $ref: '#/components/schemas/Changeset'
     Space:
       type: object
       description: A data holder for features which points to a persistent storage.
