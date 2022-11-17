@@ -240,8 +240,8 @@ public class SpaceTaskHandler {
       throw new HttpException(BAD_REQUEST, "The property client is over the allowed limit of " + CLIENT_VALUE_MAX_SIZE + " bytes.");
     }
 
-    if (space.getRevisionsToKeep() < 0) {
-      throw new HttpException(BAD_REQUEST, "The property revisionsToKeep must be equals to zero or a positive integer");
+    if (space.getRevisionsToKeep() < 0 || space.getRevisionsToKeep() > Service.configuration.MAX_REVISIONS_TO_KEEP) {
+      throw new HttpException(BAD_REQUEST, "The property revisionsToKeep must be equals to zero or a positive integer. Max value is " + Service.configuration.MAX_REVISIONS_TO_KEEP);
     }
 
     if (space.getExtension() != null && space.getSearchableProperties() != null) {
