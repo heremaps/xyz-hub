@@ -240,6 +240,10 @@ public class SpaceTaskHandler {
       throw new HttpException(BAD_REQUEST, "The property client is over the allowed limit of " + CLIENT_VALUE_MAX_SIZE + " bytes.");
     }
 
+    if (space.getRevisionsToKeep() < 0) {
+      throw new HttpException(BAD_REQUEST, "The property revisionsToKeep must be equals to zero or a positive integer");
+    }
+
     if (space.getExtension() != null && space.getSearchableProperties() != null) {
       throw new HttpException(BAD_REQUEST, "Validation failed. The properties 'searchableProperties' and 'extends' cannot be set together.");
     }
