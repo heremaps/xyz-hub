@@ -87,8 +87,23 @@ public class XyzNamespace implements XyzSerializable {
    * The space-version of the feature within the history of its space.
    * Multiple features could be part of a single space-version if they have been edited in one transaction.
    */
+  @Deprecated
   @JsonInclude(Include.NON_EMPTY)
   private Integer version;
+
+  /**
+   * The revision number of the feature within the space's revisions.
+   * Multiple features share the same revision number if they have been edited in one transaction.
+   */
+  @JsonInclude(Include.NON_EMPTY)
+  private Integer rev;
+
+  /**
+   * The author that changed the feature in the current revision.
+   * Multiple features share the same author if they have been edited in one transaction.
+   */
+  @JsonInclude(Include.NON_EMPTY)
+  private String author;
 
   /**
    * A method to normalize and lower case a tag.
@@ -377,6 +392,34 @@ public class XyzNamespace implements XyzSerializable {
   @SuppressWarnings("unused")
   public XyzNamespace withVersion(int version) {
     setVersion(version);
+    return this;
+  }
+
+  public Integer getRev() {
+    return rev;
+  }
+
+  public void setRev(Integer rev) {
+    this.rev = rev;
+  }
+
+  @SuppressWarnings("unused")
+  public XyzNamespace withRev(Integer rev) {
+    setRev(rev);
+    return this;
+  }
+
+  public String getAuthor() {
+    return author;
+  }
+
+  public void setAuthor(String author) {
+    this.author = author;
+  }
+
+  @SuppressWarnings("unused")
+  public XyzNamespace withAuthor(String author) {
+    setAuthor(author);
     return this;
   }
 }
