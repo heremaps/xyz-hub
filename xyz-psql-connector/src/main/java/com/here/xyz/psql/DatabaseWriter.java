@@ -25,6 +25,7 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.vividsolutions.jts.geom.Coordinate;
+import com.vividsolutions.jts.io.WKBWriter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.postgresql.util.PGobject;
@@ -76,6 +77,27 @@ public class DatabaseWriter {
         return jsonbObject;
     }
 
+    protected static void fillQueryFromFeature(SQLQuery query, Feature feature) throws SQLException {
+        fillQueryFromFeature(query, feature, null);
+    }
+
+    protected static void fillQueryFromFeature(SQLQuery query, Feature feature, Integer version) throws SQLException {
+        query
+            .withNamedParameter("jsondata", featureToPGobject(feature, version))
+            .withNamedParameter("deleted", getDeletedFlagFromFeature(feature));
+
+        if (feature.getGeometry() != null) {
+            final WKBWriter wkbWriter = new WKBWriter(3);
+            com.vividsolutions.jts.geom.Geometry jtsGeometry = feature.getGeometry().getJTSGeometry();
+            //Avoid NAN values
+            assure3d(jtsGeometry.getCoordinates());
+            query.setNamedParameter("geo", wkbWriter.write(jtsGeometry));
+        }
+        else
+            query.setNamedParameter("geo", null);
+
+    }
+
     protected static boolean getDeletedFlagFromFeature(Feature f) {
         return f.getProperties() == null ? false :
             f.getProperties().getXyzNamespace() == null ? false :
@@ -114,14 +136,14 @@ public class DatabaseWriter {
     protected static FeatureCollection insertFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem, FeatureCollection collection,
                                                       List<FeatureCollection.ModificationFailure> fails,
                                                       List<Feature> inserts, Connection connection,
-                                                      boolean transactional, Integer version, boolean forExtendedSpace)
+                                                      boolean transactional, Integer version)
             throws SQLException, JsonProcessingException {
         if(transactional) {
             setAutocommit(connection,false);
-            return DatabaseTransactionalWriter.insertFeatures(dbh, schema, table, traceItem, collection, fails, inserts, connection, version, forExtendedSpace);
+            return DatabaseTransactionalWriter.insertFeatures(dbh, schema, table, traceItem, collection, fails, inserts, connection, version);
         }
         setAutocommit(connection,true);
-        return DatabaseStreamWriter.insertFeatures(dbh, schema, table, traceItem, collection, fails, inserts, connection, forExtendedSpace);
+        return DatabaseStreamWriter.insertFeatures(dbh, schema, table, traceItem, collection, fails, inserts, connection);
     }
 
     protected static FeatureCollection updateFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem, FeatureCollection collection,

@@ -35,43 +35,20 @@ public class DatabaseStreamWriter extends DatabaseWriter{
 
     protected static FeatureCollection insertFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem, FeatureCollection collection,
                                                       List<FeatureCollection.ModificationFailure> fails,
-                                                      List<Feature> inserts, Connection connection, boolean forExtendedSpace)
+                                                      List<Feature> inserts, Connection connection)
             throws SQLException {
+        boolean forExtendedSpace = true; //TODO:
 
-        SQLQuery insertQuery = SQLQueryBuilder.buildInsertStmtQuery(schema, table, true, forExtendedSpace);
-        SQLQuery insertWithoutGeometryQuery = SQLQueryBuilder.buildInsertStmtQuery(schema, table, false, forExtendedSpace);
+        SQLQuery insertQuery = SQLQueryBuilder.buildInsertStmtQuery(schema, table, forExtendedSpace);
 
         for (final Feature feature : inserts) {
             try {
-                int rows = 0;
+                fillQueryFromFeature(insertQuery, feature);
+                PreparedStatement ps = insertQuery.prepareStatement(connection);
 
-                final PGobject jsonbObject= featureToPGobject(feature,null);
+                ps.setQueryTimeout(dbh.calculateTimeout());
 
-                if (feature.getGeometry() == null) {
-                    insertWithoutGeometryQuery.setNamedParameter("jsondata", jsonbObject);
-                    if (forExtendedSpace)
-                        insertWithoutGeometryQuery.setNamedParameter("deleted", getDeletedFlagFromFeature(feature));
-
-                    PreparedStatement insertWithoutGeometryStmt = insertWithoutGeometryQuery.prepareStatement(connection);
-                    insertWithoutGeometryStmt.setQueryTimeout(dbh.calculateTimeout());
-                    rows = insertWithoutGeometryStmt.executeUpdate();
-                }
-                else {
-                    insertQuery.setNamedParameter("jsondata", jsonbObject);
-                    final WKBWriter wkbWriter = new WKBWriter(3);
-                    Geometry jtsGeometry = feature.getGeometry().getJTSGeometry();
-                    //Avoid NAN values
-                    assure3d(jtsGeometry.getCoordinates());
-                    insertQuery.setNamedParameter("geo", wkbWriter.write(jtsGeometry));
-                    if (forExtendedSpace)
-                        insertQuery.setNamedParameter("deleted", getDeletedFlagFromFeature(feature));
-
-                    PreparedStatement insertStmt = insertQuery.prepareStatement(connection);
-                    insertStmt.setQueryTimeout(dbh.calculateTimeout());
-                    rows = insertStmt.executeUpdate();
-                }
-
-                if(rows == 0) {
+                if(ps.executeUpdate() == 0) {
                     fails.add(new FeatureCollection.ModificationFailure().withId(feature.getId()).withMessage(INSERT_ERROR_GENERAL));
                 }else
                     collection.getFeatures().add(feature);
@@ -80,7 +57,6 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                 if((e instanceof SQLException && ((SQLException)e).getSQLState() != null
                         && ((SQLException)e).getSQLState().equalsIgnoreCase("42P01"))){
                     insertQuery.closeStatement();
-                    insertWithoutGeometryQuery.closeStatement();
                     throw new SQLException(e);
                 }
 
@@ -90,7 +66,6 @@ public class DatabaseStreamWriter extends DatabaseWriter{
         }
 
         insertQuery.closeStatement();
-        insertWithoutGeometryQuery.closeStatement();
 
         return collection;
     }
