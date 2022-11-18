@@ -733,10 +733,10 @@ public class SQLQueryBuilder {
         return new SQLQuery("SELECT idx_available FROM "+ ModifySpace.IDX_STATUS_TABLE+" WHERE spaceid=? AND count >=?", space, BIG_SPACE_THRESHOLD);
     }
 
-  protected static SQLQuery buildInsertStmtQuery(final String schema, final String table, boolean withGeo, boolean withDeletedColumn) {
-    return new SQLQuery("INSERT INTO ${schema}.${table} (jsondata, geo" + (withDeletedColumn ? ", deleted" : "")
+  protected static SQLQuery buildInsertStmtQuery(final String schema, final String table, boolean withDeletedColumn) {
+    return new SQLQuery("WITH in_params AS (SELECT #{geo} as geo) INSERT INTO ${schema}.${table} (jsondata, geo" + (withDeletedColumn ? ", deleted" : "")
         + ") VALUES(#{jsondata}::jsonb, ${{geo}}${{deleted}})")
-        .withQueryFragment("geo", withGeo ? "ST_Force3D(ST_GeomFromWKB(#{geo}, 4326))" : "NULL")
+        .withQueryFragment("geo", "CASE WHEN (SELECT geo FROM in_params)::geometry IS NULL THEN NULL ELSE ST_Force3D(ST_GeomFromWKB((SELECT geo FROM in_params)::BYTEA, 4326)) END")
         .withQueryFragment("deleted", withDeletedColumn ? ", #{deleted}" : "")
         .withVariable("schema", schema)
         .withVariable("table", table);

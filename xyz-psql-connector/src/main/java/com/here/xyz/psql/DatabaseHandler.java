@@ -585,7 +585,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                         return rs.getInt(1);
                     }
                     return -1;
-                }, false);   // false -> not use readreplica due to sequence 'update' statement: SELECT nextval("...._hst_seq"')
+                }, false);   // false -> not use readreplica due to sequence 'update' statement: SELECT nextval("...._hst_seq"') and to make sure the read sequence value is the correct (most recent) one
               collection.setVersion(version);
           }
         } catch (Exception e) {
@@ -605,7 +605,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                     DatabaseWriter.deleteFeatures(this, schema, table, traceItem, fails, deletes, connection, transactional, handleUUID, version);
                 }
                 if (inserts.size() > 0) {
-                    DatabaseWriter.insertFeatures(this, schema, table, traceItem, collection, fails, inserts, connection, transactional, version, forExtendingSpace);
+                    DatabaseWriter.insertFeatures(this, schema, table, traceItem, collection, fails, inserts, connection, transactional, version);
                 }
                 if (updates.size() > 0) {
                     DatabaseWriter.updateFeatures(this, schema, table, traceItem, collection, fails, updates, connection, transactional, handleUUID, version, forExtendingSpace);

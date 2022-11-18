@@ -29,6 +29,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -45,48 +46,25 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
 
     public static FeatureCollection insertFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem,
                 FeatureCollection collection, List<FeatureCollection.ModificationFailure> fails,
-                List<Feature> inserts, Connection connection, Integer version, boolean forExtendedSpace)
+                List<Feature> inserts, Connection connection, Integer version)
             throws SQLException, JsonProcessingException {
+        boolean forExtendedSpace = true; //TODO:
 
-        SQLQuery insertQuery = SQLQueryBuilder.buildInsertStmtQuery(schema, table, true, forExtendedSpace);
-        SQLQuery insertWithoutGeometryQuery = SQLQueryBuilder.buildInsertStmtQuery(schema, table, false, forExtendedSpace);
+        SQLQuery insertQuery = SQLQueryBuilder.buildInsertStmtQuery(schema, table, forExtendedSpace);
 
-        List<String> insertIdList = new ArrayList<>();
-        List<String> insertWithoutGeometryIdList = new ArrayList<>();
+        List<String> insertIdList = new ArrayList<>(); //TODO: Get rid of the ID list
 
-        PreparedStatement insertStmt = null;
-        PreparedStatement insertWithoutGeometryStmt = null;
         for (final Feature feature : inserts) {
-            final PGobject jsonbObject= featureToPGobject(feature, version);
+            fillQueryFromFeature(insertQuery, feature, version);
+            PreparedStatement ps = insertQuery.prepareStatement(connection);
 
-            if (feature.getGeometry() == null) {
-                insertWithoutGeometryQuery.setNamedParameter("jsondata", jsonbObject);
-                if (forExtendedSpace)
-                    insertWithoutGeometryQuery.setNamedParameter("deleted", getDeletedFlagFromFeature(feature));
-
-                insertWithoutGeometryStmt = insertWithoutGeometryQuery.prepareStatement(connection);
-                insertWithoutGeometryStmt.addBatch();
-                insertWithoutGeometryIdList.add(feature.getId());
-            } else {
-                insertQuery.setNamedParameter("jsondata", jsonbObject);
-
-                final WKBWriter wkbWriter = new WKBWriter(3);
-                Geometry jtsGeometry = feature.getGeometry().getJTSGeometry();
-                //Avoid NAN values
-                assure3d(jtsGeometry.getCoordinates());
-                insertQuery.setNamedParameter("geo", wkbWriter.write(jtsGeometry));
-                if (forExtendedSpace)
-                    insertQuery.setNamedParameter("deleted", getDeletedFlagFromFeature(feature));
-
-                insertStmt = insertQuery.prepareStatement(connection);
-                insertStmt.addBatch();
-                insertIdList.add(feature.getId());
-            }
+            ps.addBatch();
+            insertIdList.add(feature.getId());
             collection.getFeatures().add(feature);
         }
 
-        executeBatchesAndCheckOnFailures(dbh, insertIdList, insertWithoutGeometryIdList,
-                insertStmt, insertWithoutGeometryStmt, fails, false, TYPE_INSERT, traceItem);
+        executeBatchesAndCheckOnFailures(dbh, insertIdList, insertQuery.prepareStatement(connection), fails, false,
+            TYPE_INSERT, traceItem);
 
         return collection;
     }
@@ -218,6 +196,12 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
             logException(null, traceItem, LOG_EXCEPTION_DELETE, table);
             throw new SQLException(DELETE_ERROR_GENERAL);
         }
+    }
+
+    private static void executeBatchesAndCheckOnFailures(DatabaseHandler dbh, List<String> idList, PreparedStatement batchStmt,
+        List<FeatureCollection.ModificationFailure> fails,
+        boolean handleUUID, int type, TraceItem traceItem) throws SQLException {
+        executeBatchesAndCheckOnFailures(dbh, idList, Collections.emptyList(), batchStmt, null, fails, handleUUID, type, traceItem);
     }
 
     private static void executeBatchesAndCheckOnFailures(DatabaseHandler dbh, List<String> idList, List<String> idList2,

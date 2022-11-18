@@ -199,6 +199,8 @@ public class SQLQuery {
       substitute();
       preparedStatement = connection.prepareStatement(text());
     }
+    if (namedParameters == null)
+      return preparedStatement;
     //Assign named parameters to according positions in the prepared statement
     for (Entry<String, Object> namedParam : namedParameters.entrySet()) {
       Object paramValue = namedParameters.get(namedParam.getKey());
