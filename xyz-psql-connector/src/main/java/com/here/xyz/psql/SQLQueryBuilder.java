@@ -733,30 +733,25 @@ public class SQLQueryBuilder {
         return new SQLQuery("SELECT idx_available FROM "+ ModifySpace.IDX_STATUS_TABLE+" WHERE spaceid=? AND count >=?", space, BIG_SPACE_THRESHOLD);
     }
 
-  protected static SQLQuery buildInsertStmtQuery(final String schema, final String table, boolean withDeletedColumn) {
-    return new SQLQuery("WITH in_params AS (SELECT #{geo} as geo) INSERT INTO ${schema}.${table} (jsondata, geo" + (withDeletedColumn ? ", deleted" : "")
-        + ") VALUES(#{jsondata}::jsonb, ${{geo}}${{deleted}})")
-        .withQueryFragment("geo", "CASE WHEN (SELECT geo FROM in_params)::geometry IS NULL THEN NULL ELSE ST_Force3D(ST_GeomFromWKB((SELECT geo FROM in_params)::BYTEA, 4326)) END")
-        .withQueryFragment("deleted", withDeletedColumn ? ", #{deleted}" : "")
-        .withVariable("schema", schema)
-        .withVariable("table", table);
+  protected static SQLQuery buildInsertStmtQuery(final String schema, final String table) {
+    return setWriteQueryComponents(new SQLQuery("${{geoWith}} INSERT INTO ${schema}.${table} (jsondata, geo, deleted) "
+        + "VALUES(#{jsondata}::jsonb, ${{geo}}, #{deleted})"), schema, table);
   }
 
-    protected static String updateStmtSQL(final String schema, final String table, final boolean handleUUID, boolean withDeletedColumn) {
-        String updateStmtSQL = "UPDATE ${schema}.${table} SET jsondata = ?::jsonb, geo=ST_Force3D(ST_GeomFromWKB(?,4326))"
-            + (withDeletedColumn ? ", deleted=?" : "") + " WHERE jsondata->>'id' = ?";
-        if (handleUUID)
-            updateStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ?";
-        return SQLQuery.replaceVars(updateStmtSQL, schema, table);
-    }
+  protected static SQLQuery buildUpdateStmtQuery(final String schema, final String table, final boolean handleUUID) {
+      return setWriteQueryComponents(new SQLQuery("${{geoWith}} UPDATE ${schema}.${table} SET jsondata = #{jsondata}::jsonb, geo = (${{geo}}), "
+          + "deleted = #{deleted} WHERE jsondata->>'id' = #{id} ${{uuidCheck}}"), schema, table)
+          .withQueryFragment("uuidCheck", handleUUID ? " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = #{puuid}" : "");
+  }
 
-    protected static String updateWithoutGeometryStmtSQL(final String schema, final String table, final boolean handleUUID, boolean withDeletedColumn) {
-        String updateWithoutGeometryStmtSQL = "UPDATE ${schema}.${table} SET  jsondata = ?::jsonb, geo=NULL"
-            + (withDeletedColumn ? ", deleted=?" : "") + " WHERE jsondata->>'id' = ?";
-        if (handleUUID)
-            updateWithoutGeometryStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ?";
-        return SQLQuery.replaceVars(updateWithoutGeometryStmtSQL, schema, table);
-    }
+  private static SQLQuery setWriteQueryComponents(SQLQuery writeQuery, String schema, String table) {
+      return writeQuery
+          .withQueryFragment("geoWith", "WITH in_params AS (SELECT #{geo} as geo)")
+          .withQueryFragment("geo", "CASE WHEN (SELECT geo FROM in_params)::geometry IS NULL THEN NULL ELSE "
+              + "ST_Force3D(ST_GeomFromWKB((SELECT geo FROM in_params)::BYTEA, 4326)) END")
+          .withVariable("schema", schema)
+          .withVariable("table", table);
+  }
 
     protected static String deleteStmtSQL(final String schema, final String table, final boolean handleUUID){
         String deleteStmtSQL = "DELETE FROM ${schema}.${table} WHERE jsondata->>'id' = ?";
