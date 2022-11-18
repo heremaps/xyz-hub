@@ -77,11 +77,24 @@ public class DatabaseWriter {
         return jsonbObject;
     }
 
-    protected static void fillQueryFromFeature(SQLQuery query, Feature feature) throws SQLException {
-        fillQueryFromFeature(query, feature, null);
+    protected static void fillInsertQueryFromFeature(SQLQuery query, Feature feature) throws SQLException {
+        fillInsertQueryFromFeature(query, feature, null);
     }
 
-    protected static void fillQueryFromFeature(SQLQuery query, Feature feature, Integer version) throws SQLException {
+    protected static void fillUpdateQueryFromFeature(SQLQuery query, Feature feature, boolean handleUUID) throws SQLException {
+        fillUpdateQueryFromFeature(query, feature, handleUUID, null);
+    }
+
+    protected static void fillUpdateQueryFromFeature(SQLQuery query, Feature feature, boolean handleUUID, Integer version) throws SQLException {
+        fillInsertQueryFromFeature(query, feature, version);
+        query
+            .withNamedParameter("id", feature.getId());
+
+        if (handleUUID)
+            query.setNamedParameter("puuid", feature.getProperties().getXyzNamespace().getPuuid());
+    }
+
+    protected static void fillInsertQueryFromFeature(SQLQuery query, Feature feature, Integer version) throws SQLException {
         query
             .withNamedParameter("jsondata", featureToPGobject(feature, version))
             .withNamedParameter("deleted", getDeletedFlagFromFeature(feature));
@@ -107,16 +120,6 @@ public class DatabaseWriter {
     protected static PreparedStatement createStatement(Connection connection, String statement) throws SQLException {
         final PreparedStatement preparedStatement = connection.prepareStatement(statement);
         return preparedStatement;
-    }
-
-    protected static PreparedStatement createUpdateStatement(Connection connection, String schema, String table, boolean handleUUID, boolean withDeletedColumn)
-            throws SQLException {
-        return createStatement(connection, SQLQueryBuilder.updateStmtSQL(schema, table, handleUUID, withDeletedColumn));
-    }
-
-    protected static PreparedStatement createUpdateWithoutGeometryStatement(Connection connection, String schema, String table, boolean handleUUID, boolean withDeletedColumn)
-            throws SQLException {
-        return createStatement(connection, SQLQueryBuilder.updateWithoutGeometryStmtSQL(schema, table, handleUUID, withDeletedColumn));
     }
 
     protected static PreparedStatement deleteStmtSQLStatement(Connection connection, String schema, String table, boolean handleUUID)
