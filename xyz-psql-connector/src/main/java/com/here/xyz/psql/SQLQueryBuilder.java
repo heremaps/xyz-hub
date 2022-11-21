@@ -734,13 +734,22 @@ public class SQLQueryBuilder {
     }
 
   protected static SQLQuery buildInsertStmtQuery(final String schema, final String table) {
-    return setWriteQueryComponents(new SQLQuery("${{geoWith}} INSERT INTO ${schema}.${table} (jsondata, geo, deleted) "
-        + "VALUES(#{jsondata}::jsonb, ${{geo}}, #{deleted})"), schema, table);
+    return setWriteQueryComponents(new SQLQuery("${{geoWith}} INSERT INTO ${schema}.${table} (id, rev, deleted, jsondata, geo) "
+        + "VALUES("
+        + "#{id}, "
+        + "#{rev}, "
+        + "#{deleted}, "
+        + "#{jsondata}::jsonb, "
+        + "${{geo}})"), schema, table);
   }
 
   protected static SQLQuery buildUpdateStmtQuery(final String schema, final String table, final boolean handleUUID) {
-      return setWriteQueryComponents(new SQLQuery("${{geoWith}} UPDATE ${schema}.${table} SET jsondata = #{jsondata}::jsonb, geo = (${{geo}}), "
-          + "deleted = #{deleted} WHERE jsondata->>'id' = #{id} ${{uuidCheck}}"), schema, table)
+      return setWriteQueryComponents(new SQLQuery("${{geoWith}} UPDATE ${schema}.${table} SET "
+          + "rev = #{rev}, "
+          + "deleted = #{deleted}, "
+          + "jsondata = #{jsondata}::jsonb, "
+          + "geo = (${{geo}}) "
+          + "WHERE jsondata->>'id' = #{id} ${{uuidCheck}}"), schema, table)
           .withQueryFragment("uuidCheck", handleUUID ? " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = #{puuid}" : "");
   }
 

@@ -532,12 +532,11 @@ public abstract class DatabaseHandler extends StorageConnector {
         List<Feature> upserts = Optional.ofNullable(event.getUpsertFeatures()).orElse(new ArrayList<>());
         Map<String, String> deletes = Optional.ofNullable(event.getDeleteFeatures()).orElse(new HashMap<>());
         List<FeatureCollection.ModificationFailure> fails = Optional.ofNullable(event.getFailed()).orElse(new ArrayList<>());
-        boolean forExtendingSpace = isForExtendingSpace(event);
 
         List<String> originalUpdates = updates.stream().map(f -> f.getId()).collect(Collectors.toList());
         List<String> originalDeletes = new ArrayList<>(deletes.keySet());
         //Handle deletes / updates on extended spaces
-        if (forExtendingSpace && event.getContext() == DEFAULT) {
+        if (isForExtendingSpace(event) && event.getContext() == DEFAULT) {
             if (!deletes.isEmpty()) {
                 //Transform the incoming deletes into upserts with deleted flag for features which don't exist in the extended layer (base)
                 List<String> existingIdsInBase = new FetchExistingIds(
@@ -608,7 +607,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                     DatabaseWriter.insertFeatures(this, schema, table, traceItem, collection, fails, inserts, connection, transactional, version);
                 }
                 if (updates.size() > 0) {
-                    DatabaseWriter.updateFeatures(this, schema, table, traceItem, collection, fails, updates, connection, transactional, handleUUID, version, forExtendingSpace);
+                    DatabaseWriter.updateFeatures(this, schema, table, traceItem, collection, fails, updates, connection, transactional, handleUUID, version);
                 }
 
                 if (transactional) {
@@ -871,35 +870,30 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private void createSpaceStatement(Statement stmt, Event event) throws SQLException {
         String tableName = config.readTableFromEvent(event);
-        boolean withRevisions = true;
 
-        String revisioningFields =
-            "id TEXT , " //"id TEXT NOT NULL, "
-            + "revision BIGINT , " //+ "revision BIGINT NOT NULL, "
-            + "next_revision BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, ";
-        String standardFields =
-            "deleted BOOLEAN DEFAULT FALSE, "
+        String tableFields =
+            "id TEXT NOT NULL, "
+            + "rev BIGINT NOT NULL, "
+            + "next_rev BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
+            + "deleted BOOLEAN DEFAULT FALSE, "
             + "jsondata JSONB, "
             + "geo geometry(GeometryZ, 4326), "
-            + "i BIGSERIAL";
+            + "i BIGSERIAL"
+            + ", CONSTRAINT ${constraintName} PRIMARY KEY (id, rev)";
 
-        String tableFields = (withRevisions ? revisioningFields : "") + standardFields
-            + (/* withRevisions */false ? ", CONSTRAINT " + tableName + "_pkey PRIMARY KEY (id, revision)" : "");
+        SQLQuery q = new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}})")
+            .withQueryFragment("tableFields", tableFields)
+            .withVariable("schema", config.getDatabaseSettings().getSchema())
+            .withVariable("table", tableName)
+            .withVariable("constraintName", tableName + "_primKey");
 
-        SQLQuery q = new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}})");
-        q.setQueryFragment("tableFields", tableFields);
-        q.setVariable("schema", config.getDatabaseSettings().getSchema());
-        q.setVariable("table", tableName);
-
-        q.substitute();
-        stmt.addBatch(q.text());
+        stmt.addBatch(q.substitute().text());
 
         String query;
-        if (withRevisions) {
-            query = "CREATE INDEX IF NOT EXISTS ${idx_deleted} ON ${schema}.${table} USING btree (deleted ASC NULLS LAST) WHERE deleted = TRUE";
-            query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
-            stmt.addBatch(query);
-        }
+
+        query = "CREATE INDEX IF NOT EXISTS ${idx_deleted} ON ${schema}.${table} USING btree (deleted ASC NULLS LAST) WHERE deleted = TRUE";
+        query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
+        stmt.addBatch(query);
 
         query = "CREATE UNIQUE INDEX IF NOT EXISTS ${idx_id} ON ${schema}.${table} ((jsondata->>'id'))";
         query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);

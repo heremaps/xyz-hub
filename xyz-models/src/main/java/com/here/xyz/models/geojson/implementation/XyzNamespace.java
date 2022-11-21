@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(Include.NON_DEFAULT)
 public class XyzNamespace implements XyzSerializable {
 
   public static final String XYZ_NAMESPACE = "@ns:com:here:xyz";

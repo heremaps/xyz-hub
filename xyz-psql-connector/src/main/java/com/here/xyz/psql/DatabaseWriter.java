@@ -26,6 +26,8 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.io.WKBWriter;
+import java.util.ArrayList;
+import java.util.Collections;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.postgresql.util.PGobject;
@@ -37,7 +39,11 @@ import java.util.List;
 import java.util.Map;
 
 public class DatabaseWriter {
-    private static final Logger logger = LogManager.getLogger();
+
+    protected static final int TYPE_INSERT = 1;
+    protected static final int TYPE_UPDATE = 2;
+    protected static final int TYPE_DELETE = 3;
+    protected static final Logger logger = LogManager.getLogger();
 
     public static final String UPDATE_ERROR_GENERAL = "Update has failed";
     public static final String UPDATE_ERROR_NOT_EXISTS = UPDATE_ERROR_GENERAL+" - Object does not exist";
@@ -87,24 +93,22 @@ public class DatabaseWriter {
 
     protected static void fillUpdateQueryFromFeature(SQLQuery query, Feature feature, boolean handleUUID, Integer version) throws SQLException {
         fillInsertQueryFromFeature(query, feature, version);
-        query
-            .withNamedParameter("id", feature.getId());
-
         if (handleUUID)
             query.setNamedParameter("puuid", feature.getProperties().getXyzNamespace().getPuuid());
     }
 
     protected static void fillInsertQueryFromFeature(SQLQuery query, Feature feature, Integer version) throws SQLException {
         query
-            .withNamedParameter("jsondata", featureToPGobject(feature, version))
-            .withNamedParameter("deleted", getDeletedFlagFromFeature(feature));
+            .withNamedParameter("id", feature.getId())
+            .withNamedParameter("rev", feature.getProperties().getXyzNamespace().getRev())
+            .withNamedParameter("deleted", getDeletedFlagFromFeature(feature))
+            .withNamedParameter("jsondata", featureToPGobject(feature, version));
 
-        if (feature.getGeometry() != null) {
-            final WKBWriter wkbWriter = new WKBWriter(3);
-            com.vividsolutions.jts.geom.Geometry jtsGeometry = feature.getGeometry().getJTSGeometry();
-            //Avoid NAN values
-            assure3d(jtsGeometry.getCoordinates());
-            query.setNamedParameter("geo", wkbWriter.write(jtsGeometry));
+        Geometry geo = feature.getGeometry();
+        if (geo != null) {
+            //Avoid NaN values
+            assure3d(geo.getJTSGeometry().getCoordinates());
+            query.setNamedParameter("geo", new WKBWriter(3).write(geo.getJTSGeometry()));
         }
         else
             query.setNamedParameter("geo", null);
@@ -141,25 +145,68 @@ public class DatabaseWriter {
                                                       List<Feature> inserts, Connection connection,
                                                       boolean transactional, Integer version)
             throws SQLException, JsonProcessingException {
-        if(transactional) {
+        List<String> insertIdList = null;
+        if (transactional) {
             setAutocommit(connection,false);
-            return DatabaseTransactionalWriter.insertFeatures(dbh, schema, table, traceItem, collection, fails, inserts, connection, version);
+            insertIdList = new ArrayList<>();
         }
-        setAutocommit(connection,true);
-        return DatabaseStreamWriter.insertFeatures(dbh, schema, table, traceItem, collection, fails, inserts, connection);
+        else
+            setAutocommit(connection,true);
+
+        SQLQuery insertQuery = SQLQueryBuilder.buildInsertStmtQuery(schema, table);
+
+        try {
+            for (final Feature feature : inserts) {
+                try {
+                    fillInsertQueryFromFeature(insertQuery, feature, version);
+                    PreparedStatement ps = insertQuery.prepareStatement(connection);
+
+                    if (transactional) {
+                        ps.addBatch();
+                        insertIdList.add(feature.getId());
+                    }
+                    else
+                        ps.setQueryTimeout(dbh.calculateTimeout());
+
+                    if (transactional || ps.executeUpdate() != 0)
+                        collection.getFeatures().add(feature);
+                    else
+                        fails.add(new FeatureCollection.ModificationFailure().withId(feature.getId()).withMessage(INSERT_ERROR_GENERAL));
+                }
+                catch (Exception e) {
+                    if (transactional)
+                        throw e;
+
+                    if (e instanceof SQLException && "42P01".equalsIgnoreCase(((SQLException) e).getSQLState()))
+                        throw (SQLException) e;
+
+                    fails.add(new FeatureCollection.ModificationFailure().withId(feature.getId()).withMessage(INSERT_ERROR_GENERAL));
+                    logException(e, traceItem, LOG_EXCEPTION_INSERT, table);
+                }
+            }
+
+            if (transactional)
+                executeBatchesAndCheckOnFailures(dbh, insertIdList, insertQuery.prepareStatement(connection), fails, false, TYPE_INSERT,
+                    traceItem);
+        }
+        finally {
+            insertQuery.closeStatement();
+        }
+
+        return collection;
     }
 
     protected static FeatureCollection updateFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem, FeatureCollection collection,
                                                       List<FeatureCollection.ModificationFailure> fails,
                                                       List<Feature> updates, Connection connection,
-                                                      boolean transactional, boolean handleUUID, Integer version, boolean forExtendedSpace)
+                                                      boolean transactional, boolean handleUUID, Integer version)
             throws SQLException, JsonProcessingException {
         if(transactional) {
             setAutocommit(connection,false);
-            return DatabaseTransactionalWriter.updateFeatures(dbh, schema, table, traceItem, collection, fails, updates, connection,handleUUID, version, forExtendedSpace);
+            return DatabaseTransactionalWriter.updateFeatures(dbh, schema, table, traceItem, collection, fails, updates, connection,handleUUID, version);
         }
         setAutocommit(connection,true);
-        return DatabaseStreamWriter.updateFeatures(dbh, schema, table, traceItem, collection, fails, updates, connection, handleUUID, forExtendedSpace);
+        return DatabaseStreamWriter.updateFeatures(dbh, schema, table, traceItem, collection, fails, updates, connection, handleUUID);
     }
 
     protected static void deleteFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem,
@@ -176,7 +223,7 @@ public class DatabaseWriter {
         DatabaseStreamWriter.deleteFeatures(dbh, schema, table, traceItem, fails, deletes, connection, handleUUID);
     }
 
-    protected static void assure3d(Coordinate[] coords){
+    private static void assure3d(Coordinate[] coords){
         for (Coordinate coord : coords){
             if(Double.valueOf(coord.z).isNaN())
                 coord.z= 0;
@@ -190,5 +237,63 @@ public class DatabaseWriter {
         }
         else
             logger.info("{} Failed to perform {} on table {} {}", traceItem, action, table, e);
+    }
+
+    protected static void executeBatchesAndCheckOnFailures(DatabaseHandler dbh, List<String> idList, PreparedStatement batchStmt,
+        List<FeatureCollection.ModificationFailure> fails,
+        boolean handleUUID, int type, TraceItem traceItem) throws SQLException {
+        DatabaseWriter.executeBatchesAndCheckOnFailures(dbh, idList, Collections.emptyList(), batchStmt, null, fails, handleUUID, type, traceItem);
+    }
+
+    protected static void executeBatchesAndCheckOnFailures(DatabaseHandler dbh, List<String> idList, List<String> idList2,
+        PreparedStatement batchStmt, PreparedStatement batchStmt2,
+        List<FeatureCollection.ModificationFailure> fails,
+        boolean handleUUID, int type, TraceItem traceItem) throws SQLException {
+        int[] batchStmtResult;
+        int[] batchStmtResult2;
+
+        try {
+            if (idList.size() > 0) {
+                logger.debug("{} batch execution [{}]: {} ", traceItem, type, batchStmt);
+
+                batchStmt.setQueryTimeout(dbh.calculateTimeout());
+                batchStmtResult = batchStmt.executeBatch();
+                DatabaseWriter.fillFailList(batchStmtResult, fails, idList, handleUUID, type);
+            }
+
+            if (idList2.size() > 0) {
+                logger.debug("{} batch2 execution [{}]: {} ", traceItem, type, batchStmt2);
+
+                batchStmt2.setQueryTimeout(dbh.calculateTimeout());
+                batchStmtResult2 = batchStmt2.executeBatch();
+                DatabaseWriter.fillFailList(batchStmtResult2, fails, idList2, handleUUID, type);
+            }
+        }finally {
+            if (batchStmt != null)
+                batchStmt.close();
+            if (batchStmt2 != null)
+                batchStmt2.close();
+        }
+    }
+
+    private static void fillFailList(int[] batchResult, List<FeatureCollection.ModificationFailure> fails,  List<String> idList, boolean handleUUID, int type){
+        for (int i= 0; i < batchResult.length; i++) {
+            if(batchResult[i] == 0 ) {
+                String message = TRANSACTION_ERROR_GENERAL;
+                switch (type){
+                    case TYPE_INSERT:
+                        message = INSERT_ERROR_GENERAL;
+                        break;
+                    case TYPE_UPDATE:
+                        message = handleUUID ? UPDATE_ERROR_UUID : UPDATE_ERROR_NOT_EXISTS;
+                        break;
+                    case TYPE_DELETE:
+                        message = handleUUID ? DELETE_ERROR_UUID : DELETE_ERROR_NOT_EXISTS;
+                        break;
+                }
+
+                fails.add(new FeatureCollection.ModificationFailure().withId(idList.get(i)).withMessage(message));
+            }
+        }
     }
 }
