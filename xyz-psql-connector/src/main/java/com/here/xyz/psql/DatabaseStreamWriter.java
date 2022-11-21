@@ -22,56 +22,18 @@ package com.here.xyz.psql;
 import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.io.WKBWriter;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
-import org.postgresql.util.PGobject;
 
 public class DatabaseStreamWriter extends DatabaseWriter{
-
-    protected static FeatureCollection insertFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem, FeatureCollection collection,
-                                                      List<FeatureCollection.ModificationFailure> fails,
-                                                      List<Feature> inserts, Connection connection)
-            throws SQLException {
-        SQLQuery insertQuery = SQLQueryBuilder.buildInsertStmtQuery(schema, table);
-
-        for (final Feature feature : inserts) {
-            try {
-                fillInsertQueryFromFeature(insertQuery, feature);
-                PreparedStatement ps = insertQuery.prepareStatement(connection);
-
-                ps.setQueryTimeout(dbh.calculateTimeout());
-
-                if(ps.executeUpdate() == 0) {
-                    fails.add(new FeatureCollection.ModificationFailure().withId(feature.getId()).withMessage(INSERT_ERROR_GENERAL));
-                }else
-                    collection.getFeatures().add(feature);
-
-            } catch (Exception e) {
-                if((e instanceof SQLException && ((SQLException)e).getSQLState() != null
-                        && ((SQLException)e).getSQLState().equalsIgnoreCase("42P01"))){
-                    insertQuery.closeStatement();
-                    throw new SQLException(e);
-                }
-
-                fails.add(new FeatureCollection.ModificationFailure().withId(feature.getId()).withMessage(INSERT_ERROR_GENERAL));
-                logException(e, traceItem, LOG_EXCEPTION_INSERT, table);
-            }
-        }
-
-        insertQuery.closeStatement();
-
-        return collection;
-    }
 
     protected static FeatureCollection updateFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem, FeatureCollection collection,
                                                       List<FeatureCollection.ModificationFailure> fails,
                                                       List<Feature> updates, Connection connection,
-                                                      boolean handleUUID, boolean forExtendedSpace)
+                                                      boolean handleUUID)
             throws SQLException {
         SQLQuery updateQuery = SQLQueryBuilder.buildUpdateStmtQuery(schema, table, handleUUID);
 
@@ -140,6 +102,7 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                 }
 
             } catch (Exception e) {
+                //TODO: Handle SQL state "42P01"? (see: #insertFeatures())
                 fails.add(new FeatureCollection.ModificationFailure().withId(deleteId).withMessage(DELETE_ERROR_GENERAL));
                 logException(e, traceItem, LOG_EXCEPTION_DELETE, table);
             }

@@ -23,51 +23,19 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.io.WKBWriter;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 public class DatabaseTransactionalWriter extends  DatabaseWriter{
-    private static final Logger logger = LogManager.getLogger();
-
-    private static final int TYPE_INSERT = 1;
-    private static final int TYPE_UPDATE = 2;
-    private static final int TYPE_DELETE = 3;
-
-    public static FeatureCollection insertFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem,
-                FeatureCollection collection, List<FeatureCollection.ModificationFailure> fails,
-                List<Feature> inserts, Connection connection, Integer version)
-            throws SQLException, JsonProcessingException {
-        SQLQuery insertQuery = SQLQueryBuilder.buildInsertStmtQuery(schema, table);
-        List<String> insertIdList = new ArrayList<>();
-
-        for (final Feature feature : inserts) {
-            fillInsertQueryFromFeature(insertQuery, feature, version);
-            PreparedStatement ps = insertQuery.prepareStatement(connection);
-
-            ps.addBatch();
-            insertIdList.add(feature.getId());
-            collection.getFeatures().add(feature);
-        }
-
-        executeBatchesAndCheckOnFailures(dbh, insertIdList, insertQuery.prepareStatement(connection), fails, false, TYPE_INSERT,
-            traceItem);
-
-        return collection;
-    }
 
     public static FeatureCollection updateFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem, FeatureCollection collection,
                                                    List<FeatureCollection.ModificationFailure> fails, List<Feature> updates,
-                                                   Connection connection, boolean handleUUID, Integer version, boolean forExtendedSpace)
+                                                   Connection connection, boolean handleUUID, Integer version)
             throws SQLException, JsonProcessingException {
 
         SQLQuery updateQuery = SQLQueryBuilder.buildUpdateStmtQuery(schema, table, handleUUID);
@@ -163,61 +131,4 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         }
     }
 
-    private static void executeBatchesAndCheckOnFailures(DatabaseHandler dbh, List<String> idList, PreparedStatement batchStmt,
-        List<FeatureCollection.ModificationFailure> fails,
-        boolean handleUUID, int type, TraceItem traceItem) throws SQLException {
-        executeBatchesAndCheckOnFailures(dbh, idList, Collections.emptyList(), batchStmt, null, fails, handleUUID, type, traceItem);
-    }
-
-    private static void executeBatchesAndCheckOnFailures(DatabaseHandler dbh, List<String> idList, List<String> idList2,
-                                                         PreparedStatement batchStmt, PreparedStatement batchStmt2,
-                                                         List<FeatureCollection.ModificationFailure> fails,
-                                                         boolean handleUUID, int type, TraceItem traceItem) throws SQLException {
-        int[] batchStmtResult;
-        int[] batchStmtResult2;
-
-        try {
-            if (idList.size() > 0) {
-                logger.debug("{} batch execution [{}]: {} ", traceItem, type, batchStmt);
-
-                batchStmt.setQueryTimeout(dbh.calculateTimeout());
-                batchStmtResult = batchStmt.executeBatch();
-                fillFailList(batchStmtResult, fails, idList, handleUUID, type);
-            }
-
-            if (idList2.size() > 0) {
-                logger.debug("{} batch2 execution [{}]: {} ", traceItem, type, batchStmt2);
-
-                batchStmt2.setQueryTimeout(dbh.calculateTimeout());
-                batchStmtResult2 = batchStmt2.executeBatch();
-                fillFailList(batchStmtResult2, fails, idList2, handleUUID, type);
-            }
-        }finally {
-            if (batchStmt != null)
-                batchStmt.close();
-            if (batchStmt2 != null)
-                batchStmt2.close();
-        }
-    }
-
-    private static void fillFailList(int[] batchResult, List<FeatureCollection.ModificationFailure> fails,  List<String> idList, boolean handleUUID, int type){
-        for (int i= 0; i < batchResult.length; i++) {
-            if(batchResult[i] == 0 ) {
-                String message = TRANSACTION_ERROR_GENERAL;
-                switch (type){
-                    case TYPE_INSERT:
-                        message = INSERT_ERROR_GENERAL;
-                        break;
-                    case TYPE_UPDATE:
-                        message = handleUUID ? UPDATE_ERROR_UUID : UPDATE_ERROR_NOT_EXISTS;
-                        break;
-                    case TYPE_DELETE:
-                        message = handleUUID ? DELETE_ERROR_UUID : DELETE_ERROR_NOT_EXISTS;
-                        break;
-                }
-
-                fails.add(new FeatureCollection.ModificationFailure().withId(idList.get(i)).withMessage(message));
-            }
-        }
-    }
 }
