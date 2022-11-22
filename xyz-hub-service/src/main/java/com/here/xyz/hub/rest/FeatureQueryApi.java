@@ -39,7 +39,6 @@ import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.SearchForFeaturesEvent;
-import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
@@ -166,10 +165,6 @@ public class FeatureQueryApi extends SpaceBasedApi {
     } catch (HttpException e) {
       sendErrorResponse(context, e);
     }
-  }
-
-  private static SpaceContext getSpaceContext(RoutingContext context) {
-    return SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()).toUpperCase());
   }
 
   /**

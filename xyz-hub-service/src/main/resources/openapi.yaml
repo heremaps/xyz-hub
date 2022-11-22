@@ -1237,18 +1237,23 @@ components:
       name: context
       in: query
       description: |
-        The context where the operation will be performed when the space extends
-        another space. If not specified, the operation occurs based on the extension
-        rules. For additional information, see Space.extends.
+        The context where the operation will be performed on a composite space.
+        If not specified, the operation occurs based on the extension rules.
+        For additional information, see Space.extends.
 
         Available context are:
         |Context|Description|
         |-------|-----------|
-        |extension|The operation will be executed only in the space which extends another and no operation will be performed in the extended space.
+        |default|The default value if none is given. For composite spaces the operation occurs based on the extension rules. For normal spaces this is the only valid context.|
+        |extension|The operation will be executed only in the extension and no operation will be performed in the extended space.|
+        |super|Only applicable for read-operations. The operation will be executed only in the space being extended (super space).|
       schema:
         type: string
         enum:
+          - default
           - extension
+          - super
+        default: default
 
     East:
       name: east
@@ -1943,6 +1948,43 @@ components:
         application/geo+json:
           schema:
             $ref: '#/components/schemas/FeatureCollectionIterable'
+    RevisionResponse:
+      description: A Revision represents a set of Feature changes, single authored, which can contain multiple operations like insertions, deletions and updates.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Revision'
+          examples:
+            response:
+              value:
+                type: "Revision"
+                rev: 5
+                author: "xyz"
+                createdAt: 1560417151751
+                changeset:
+                  type: "Changeset"
+                  inserted:
+                    - type: "FeatureCollection"
+                      features:
+                        - type: Feature
+                          id: BfiimUxHjj
+                          geometry:
+                            type: Point
+                            coordinates:
+                              - -2.960847
+                              - 53.430828
+                          properties:
+                            name: Anfield
+                            '@ns:com:here:xyz':
+                              createdAt: 1517504700726
+                              updatedAt: 1517504700726
+                              space: 0FzlE2wX
+                              tags:
+                                - football
+                                - stadium
+                            amenity: Football Stadium
+                            capacity: 54074
+                            description: Home of the Liverpool Football Club.
     SpaceResponse:
       description: The space.
       content:
@@ -3029,6 +3071,29 @@ components:
             This function can be disabled by setting warmUp to zero.
           type: integer
           format: int64
+    Revision:
+      type: object
+      description: >-
+        An arbitrary client configuration with hints or settings for the client,
+        for example rendering instructions.
+      properties:
+        rev:
+          type: integer
+          format: int64
+          description: The revision number.
+        author:
+          type: string
+          description: The author which caused the changes in the revision
+        createdAt:
+          type: integer
+          format: int64
+          default: 1538352000000
+          description: >-
+            The UNIX Epoch time of when this revision has been created (in
+            milliseconds since 01.01.1970). Defaults to October 1st, 2018.
+          example: 1538352000000
+        changeset:
+          $ref: '#/components/schemas/Changeset'
     Space:
       type: object
       description: A data holder for features which points to a persistent storage.
