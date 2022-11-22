@@ -310,4 +310,20 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .then()
         .statusCode(NO_CONTENT.code());
   }
+
+  public void postFeature(String spaceId, Feature feature) {
+    postFeature(spaceId, feature, AuthProfile.ACCESS_OWNER_1_ADMIN);
+  }
+
+  public void postFeature(String spaceId, Feature feature, AuthProfile authProfile) {
+    given()
+        .contentType(APPLICATION_GEO_JSON)
+        .headers(getAuthHeaders(authProfile))
+        .body(feature.serialize())
+        .when()
+        .post("/spaces/" + spaceId + "/features")
+        .then()
+        .statusCode(OK.code())
+        .body("features[0].id", equalTo(feature.getId()));
+  }
 }

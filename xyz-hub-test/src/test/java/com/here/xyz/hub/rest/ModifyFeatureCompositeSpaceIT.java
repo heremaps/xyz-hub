@@ -42,18 +42,6 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
         .withId(RandomStringUtils.randomAlphanumeric(3));
   }
 
-  private void postFeature(String spaceId, Feature feature) {
-    given()
-      .contentType(APPLICATION_GEO_JSON)
-      .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-      .body(feature.serialize())
-      .when()
-      .post("/spaces/" + spaceId + "/features")
-      .then()
-      .statusCode(OK.code())
-      .body("features[0].id", equalTo(feature.getId()));
-  }
-
   @Test
   public void getFromDelta() {
     Feature feature = newFeature();
