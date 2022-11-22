@@ -21,6 +21,7 @@ package com.here.xyz.responses;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 
 import com.here.xyz.responses.changesets.Changeset;
@@ -30,7 +31,7 @@ import com.here.xyz.responses.changesets.Changeset;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "Revision")
-@JsonInclude(JsonInclude.Include.NON_EMPTY)
+@JsonInclude(Include.NON_DEFAULT)
 public class Revision extends XyzResponse<Revision> {
   /**
    * The revision number.
