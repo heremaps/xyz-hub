@@ -345,4 +345,60 @@ public class CreateSpaceApiIT extends TestSpaceWithFeature {
 
     response.statusCode(BAD_REQUEST.code());
   }
+
+  @Test
+  public void createSpaceWithRevisionsToKeepNegativeNumber() {
+    final ValidatableResponse response = given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_NO_ADMIN))
+        .body("{\"title\":\"test\", \"revisionsToKeep\":-1}")
+        .when()
+        .post("/spaces")
+        .then();
+    cleanUpId = response.extract().path("id");
+
+    response.statusCode(BAD_REQUEST.code());
+  }
+
+  @Test
+  public void createSpaceWithRevisionsToKeepAsString() {
+    final ValidatableResponse response = given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_NO_ADMIN))
+        .body("{\"title\":\"test\", \"revisionsToKeep\":\"abc\"}")
+        .when()
+        .post("/spaces")
+        .then();
+    cleanUpId = response.extract().path("id");
+
+    response.statusCode(BAD_REQUEST.code());
+  }
+
+  @Test
+  public void createSpaceWithRevisionsToKeepPositive() {
+    final ValidatableResponse response = given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_NO_ADMIN))
+        .body("{\"title\":\"test\", \"revisionsToKeep\":0}")
+        .when()
+        .post("/spaces")
+        .then();
+    cleanUpId = response.extract().path("id");
+
+    response.statusCode(OK.code());
+  }
+
+  @Test
+  public void createSpaceWithRevisionsToKeepTooBig() {
+    final ValidatableResponse response = given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_NO_ADMIN))
+        .body("{\"title\":\"test\", \"revisionsToKeep\":1000001}")
+        .when()
+        .post("/spaces")
+        .then();
+    cleanUpId = response.extract().path("id");
+
+    response.statusCode(BAD_REQUEST.code());
+  }
 }
