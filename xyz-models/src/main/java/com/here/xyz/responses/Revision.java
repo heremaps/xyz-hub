@@ -50,7 +50,7 @@ public class Revision extends XyzResponse<Revision> {
   /**
    * The set of changes, including insertions, deletions and updates, that are part of this revision.
    */
-  private Changeset changeset;
+  private Changeset changes;
 
   public int getRev() {
     return rev;
@@ -91,16 +91,16 @@ public class Revision extends XyzResponse<Revision> {
     return this;
   }
 
-  public Changeset getChangeset() {
-    return changeset;
+  public Changeset getChanges() {
+    return changes;
   }
 
-  public void setChangeset(Changeset changeset) {
-    this.changeset = changeset;
+  public void setChanges(Changeset changes) {
+    this.changes = changes;
   }
 
-  public Revision withChangeset(Changeset changeset) {
-    this.changeset = changeset;
+  public Revision withChanges(Changeset changes) {
+    this.changes = changes;
     return this;
   }
 }
