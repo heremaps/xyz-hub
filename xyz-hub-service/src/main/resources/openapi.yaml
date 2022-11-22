@@ -197,16 +197,14 @@ paths:
         - Manage Spaces
       summary: Delete revisions
       description: >-
-        Deletes one or more revisions where the revision number can be specified by the query parameter 'rev', where
+        Deletes one or more revisions where the revision number can be specified by the query parameter 'revision', where
         the value must be an integer, bigger than 0 and the comparator should be one of the below list:
-          - =
           - <
-          - =eq=
           - =lt=
         
         
         Example: To remove revisions older than the 10th revision,
-        a DELETE /spaces/{spaceId}/revisions?rev=lt=10 could be executed.
+        a DELETE /spaces/{spaceId}/revisions?revision=lt=10 could be executed.
 
 
         The service will begin the process to remove the revisions from 9th revision until the 1st revision.
@@ -214,7 +212,7 @@ paths:
       operationId: deleteRevisions
       parameters:
         - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/Revision'
+        - $ref: '#/components/parameters/RevisionLowerThan'
       responses:
         '204':
           $ref: '#/components/responses/EmptyResponse'
@@ -241,6 +239,7 @@ paths:
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
         - $ref: '#/components/parameters/Revision'
+        - $ref: '#/components/parameters/Author'
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionResponse'
@@ -457,6 +456,7 @@ paths:
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
         - $ref: '#/components/parameters/Revision'
+        - $ref: '#/components/parameters/Author'
       responses:
         '200':
           $ref: '#/components/responses/FeatureResponse'
@@ -740,7 +740,6 @@ paths:
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/SkipCache'
         - $ref: '#/components/parameters/Force2D'
-        - $ref: '#/components/parameters/Author'
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionResponse'
@@ -1441,7 +1440,7 @@ components:
 
 
         Properties initiated with 'f.' are used to access values which are added by default in the
-        stored feature. The possible values are: 'f.id', 'f.createdAt' and 'f.updatedAt'.
+        stored feature. The possible values are: 'f.id', 'f.createdAt', 'f.updatedAt', 'f.revision' and 'f.author'
 
 
         Properties initiated with 'p.' are used to access values in the stored feature which are
@@ -1557,36 +1556,27 @@ components:
         items:
           type: string
     Revision:
-      name: rev
+      name: revision
       in: query
       description: >-
-        The revision number or string pointing to an specific point-in-time in the space's history,
-        which represents a change set occured in the past in the space's content,
-        containing insertion, modification or deletion of features.
-        The first change set has number 1, the second has number 2 and so on.
-        
-        
-        More than one revision can be specified by using wildcard sign '*', representing all available revisions,
-        or one of the logical operators when supported by the endpoint where this field is used.
-        
-        The list of all available operators are:
-          - =eq= or =
-          - =lt= or <
-          - =gt= or >
-          - =lte= or <=
-          - =gte= or >=
-        
-        Acceptable formats for this field are:
-          * ?rev=*
-          * ?rev=1
-          * ?rev=eq=1
-          * ?rev=lt=10
-          * ?rev<10
+        The query parameter used to specify one specific revision or all revisions when '*' is used.
+        The supported values for this field are:
+          - the char '*', e.g. ?revision=*
+          - an integer e.g. ?revision=5
       required: false
       schema:
-        type: array
-        items:
-          type: string
+        type: string
+    RevisionLowerThan:
+      name: revision
+      in: query
+      description: >-
+        The query parameter used to specify the revisions to be deleted.
+        The value must be an integer, bigger than 1, and the comparator should be one of the below list:
+          - <
+          - =lt=
+      required: false
+      schema:
+        type: string
     SkipCache:
       name: skipCache
       in: query
@@ -3221,7 +3211,8 @@ components:
             Defines how many revisions will be kept, while older revisions may be purged. By default
             this value will be set to 1. That means there will be only one (HEAD) state of the space
             and no further revisions will be kept. If the value is bigger than 1, then older
-            revisions, up to the "revisionsToKeep" revision, can be retrieved by e.g. ?rev=rev_number
+            revisions, up to the "revisionsToKeep" revision, can be retrieved by
+            e.g. ?revision=revision_number
           example: 2
           type: integer
       example:
