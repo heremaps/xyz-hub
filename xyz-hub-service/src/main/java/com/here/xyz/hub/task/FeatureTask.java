@@ -120,7 +120,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public static final String UUID = "uuid";
     public static final String PUUID = "puuid";
     public static final String MUUID = "muuid";
-    public static final String REV = "rev";
+    public static final String REVISION = "revision";
   }
 
   private FeatureTask(T event, RoutingContext context, ApiResponseType responseType, boolean skipCache) {
@@ -447,6 +447,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
 
     public TaskPipeline<IdsQuery> createPipeline() {
       return TaskPipeline.create(this)
+          .then(FeatureTaskHandler::validateReadFeaturesParams)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::readCache)

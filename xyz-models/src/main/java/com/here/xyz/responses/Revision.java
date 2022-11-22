@@ -36,7 +36,7 @@ public class Revision extends XyzResponse<Revision> {
   /**
    * The revision number.
    */
-  private int rev;
+  private int revision;
 
   /**
    * The author which caused the changes in the revision.
@@ -53,16 +53,16 @@ public class Revision extends XyzResponse<Revision> {
    */
   private Changeset changes;
 
-  public int getRev() {
-    return rev;
+  public int getRevision() {
+    return revision;
   }
 
-  public void setRev(int rev) {
-    this.rev = rev;
+  public void setRevision(int revision) {
+    this.revision = revision;
   }
 
-  public Revision withRev(int rev) {
-    this.rev = rev;
+  public Revision withRevision(int revision) {
+    this.revision = revision;
     return this;
   }
 

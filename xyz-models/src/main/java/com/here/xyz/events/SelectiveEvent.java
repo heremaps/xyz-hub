@@ -26,7 +26,7 @@ public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<
   private List<String> selection;
   private boolean force2D;
 
-  private PropertyQuery ref;
+  private String ref;
 
   private String author;
 
@@ -46,15 +46,15 @@ public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<
     return (T) this;
   }
 
-  public PropertyQuery getRef() {
+  public String getRef() {
     return ref;
   }
 
-  public void setRef(PropertyQuery ref) {
+  public void setRef(String ref) {
     this.ref = ref;
   }
 
-  public T withRef(PropertyQuery ref) {
+  public T withRef(String ref) {
     setRef(ref);
     return (T) this;
   }

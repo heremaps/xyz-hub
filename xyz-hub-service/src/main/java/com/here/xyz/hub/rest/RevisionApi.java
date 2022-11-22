@@ -45,18 +45,17 @@ public class RevisionApi extends SpaceBasedApi {
    */
   private void deleteRevisions(final RoutingContext context) {
     final String space = context.pathParam(Path.SPACE_ID);
-    final PropertyQuery revision = Query.getPropertyQuery(context.request().query(), Query.REV, false);
-    final List<QueryOperation> supportedOps = Arrays.asList(QueryOperation.EQUALS, QueryOperation.GREATER_THAN, QueryOperation.GREATER_THAN_OR_EQUALS,
-        QueryOperation.LESS_THAN, QueryOperation.LESS_THAN_OR_EQUALS);
+    final PropertyQuery revision = Query.getPropertyQuery(context.request().query(), Query.REVISION, false);
+    final QueryOperation supportedOp = QueryOperation.LESS_THAN;
 
     Future<PropertyQuery> future = revision != null
         ? Future.succeededFuture(revision)
-        : Future.failedFuture(new HttpException(HttpResponseStatus.BAD_REQUEST, "Query parameter rev is required"));
+        : Future.failedFuture(new HttpException(HttpResponseStatus.BAD_REQUEST, "Query parameter revision is required"));
 
     future
-        .map(rev -> supportedOps.contains(rev.getOperation())
+        .map(rev -> supportedOp.equals(rev.getOperation())
             ? Future.succeededFuture()
-            : Future.failedFuture(new HttpException(HttpResponseStatus.BAD_REQUEST, "Unsupported operator used in the field rev")))
+            : Future.failedFuture(new HttpException(HttpResponseStatus.BAD_REQUEST, "Unsupported operator used in the field revision")))
         .flatMap(nothing -> SpaceConnectorBasedHandler.execute(context, new RevisionEvent()
           .withSpace(space)
           .withRevision(revision)

@@ -55,6 +55,7 @@ import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.hub.AbstractHttpServerVerticle;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
@@ -1598,7 +1599,7 @@ public class FeatureTaskHandler {
     final HashMap<String, String> idsMap = new HashMap<>();
     for (FeatureEntry entry : task.modifyOp.entries) {
       if (entry.input.get("id") instanceof String) {
-        idsMap.put((String) entry.input.get("id"), useRevision ? String.valueOf(entry.inputRev) : entry.inputUUID);
+        idsMap.put((String) entry.input.get("id"), useRevision ? String.valueOf(entry.inputRevision) : entry.inputUUID);
       }
     }
     if (idsMap.size() == 0) {
@@ -1769,6 +1770,25 @@ public class FeatureTaskHandler {
       queryParams = task.context.request().params();
       if (keepTask)
         this.task = task;
+    }
+  }
+
+  static <X extends FeatureTask> void validateReadFeaturesParams(final X task, final Callback<X> callback) {
+
+    if (task.getEvent() instanceof SelectiveEvent) {
+      String ref = ((SelectiveEvent) task.getEvent()).getRef();
+      if (ref != null && !isRevisionValid(ref))
+        callback.exception(new HttpException(BAD_REQUEST, "Invalid value for revision: " + ref));
+    }
+
+    callback.call(task);
+  }
+
+  private static boolean isRevisionValid(String revision) {
+    try {
+      return "*".equals(revision) || Integer.parseInt(revision) > 0;
+    } catch (NumberFormatException e) {
+      return false;
     }
   }
 }

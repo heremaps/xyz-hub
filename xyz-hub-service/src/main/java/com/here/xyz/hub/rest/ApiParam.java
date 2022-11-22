@@ -174,7 +174,7 @@ public class ApiParam {
     static final String END_VERSION = "endVersion";
     static final String PAGE_TOKEN = "pageToken";
 
-    static final String REV = "rev";
+    static final String REVISION = "revision";
     static final String AUTHOR = "author";
     static final String SUBSCRIPTION_SOURCE = "source";
 

@@ -96,7 +96,7 @@ public class XyzNamespace implements XyzSerializable {
    * Multiple features share the same revision number if they have been edited in one transaction.
    */
   @JsonInclude(Include.NON_DEFAULT)
-  private int rev;
+  private int revision;
 
   /**
    * The author that changed the feature in the current revision.
@@ -395,17 +395,17 @@ public class XyzNamespace implements XyzSerializable {
     return this;
   }
 
-  public int getRev() {
-    return rev;
+  public int getRevision() {
+    return revision;
   }
 
-  public void setRev(int rev) {
-    this.rev = rev;
+  public void setRevision(int revision) {
+    this.revision = revision;
   }
 
   @SuppressWarnings("unused")
-  public XyzNamespace withRev(int rev) {
-    setRev(rev);
+  public XyzNamespace withRevision(int revision) {
+    setRevision(revision);
     return this;
   }
 
