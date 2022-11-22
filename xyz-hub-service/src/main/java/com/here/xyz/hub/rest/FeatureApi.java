@@ -112,8 +112,8 @@ public class FeatureApi extends SpaceBasedApi {
         .withIds(ids)
         .withSelection(Query.getSelection(context))
         .withForce2D(force2D)
+        .withRef(revision)
         .withContext(spaceContext)
-        .withRevision(revision)
         .withAuthor(author);
 
     new IdsQuery(event, context, apiResponseType, skipCache)
