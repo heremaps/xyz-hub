@@ -751,46 +751,48 @@ public class SQLQueryBuilder {
           + "jsondata = #{jsondata}::jsonb, "
           + "geo = (${{geo}}) "
           + "WHERE jsondata->>'id' = #{id} ${{uuidCheck}}"), dbHandler, event)
-          .withQueryFragment("uuidCheck", event.getEnableUUID() ? " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = #{puuid}" : "");
+          .withQueryFragment("uuidCheck", buildUuidCheckFragment(event));
   }
 
   private static SQLQuery setWriteQueryComponents(SQLQuery writeQuery, DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
-    String schema = dbHandler.config.getDatabaseSettings().getSchema();
-    String table = dbHandler.config.readTableFromEvent(event);
-      return writeQuery
+      return setTableVariables(writeQuery
           .withQueryFragment("geoWith", "WITH in_params AS (SELECT #{geo} as geo)")
           .withQueryFragment("geo", "CASE WHEN (SELECT geo FROM in_params)::geometry IS NULL THEN NULL ELSE "
-              + "ST_Force3D(ST_GeomFromWKB((SELECT geo FROM in_params)::BYTEA, 4326)) END")
-          .withVariable("schema", schema)
-          .withVariable("table", table);
+              + "ST_Force3D(ST_GeomFromWKB((SELECT geo FROM in_params)::BYTEA, 4326)) END"), dbHandler, event);
   }
 
-    protected static String deleteStmtSQL(final String schema, final String table, final boolean handleUUID){
-        String deleteStmtSQL = "DELETE FROM ${schema}.${table} WHERE jsondata->>'id' = ?";
-        if(handleUUID) {
-            deleteStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ?";
-        }
-        return SQLQuery.replaceVars(deleteStmtSQL, schema, table);
-    }
+  private static SQLQuery setTableVariables(SQLQuery writeQuery, DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
+    return writeQuery
+        .withVariable("schema", dbHandler.config.getDatabaseSettings().getSchema())
+        .withVariable("table", dbHandler.config.readTableFromEvent(event));
+  }
 
-    protected static String versionedDeleteStmtSQL(final String schema, final String table, final boolean handleUUID){
-        /** Use Update instead of Delete to inject a version. The delete gets performed afterwards from the trigger behind. */
+  protected static SQLQuery buildDeleteStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event, Integer version) {
+      SQLQuery query =
+          version == null
+          ? new SQLQuery("DELETE FROM ${schema}.${table} WHERE jsondata->>'id' = #{id} ${{uuidCheck}}")
+          //Use UPDATE instead of DELETE to inject a version and the deleted flag. The deletion gets performed afterwards by the trigger.
+          : new SQLQuery("UPDATE ${schema}.${table} "
+              + "SET jsondata = jsonb_set(jsondata, '{properties,@ns:com:here:xyz}', "
+              + "((jsondata->'properties'->'@ns:com:here:xyz')::JSONB "
+              + "|| format('{\"uuid\": \"%s_deleted\"}', jsondata->'properties'->'@ns:com:here:xyz'->>'uuid')::JSONB) "
+              + "|| format('{\"version\": %s}', #{version})::JSONB "
+              + "|| format('{\"updatedAt\": %s}', (extract(epoch from now()) * 1000)::BIGINT)::JSONB "
+              + "|| '{\"deleted\": true}'::JSONB) "
+              + "WHERE jsondata->>'id' = #{id} ${{uuidCheck}}")
+              .withNamedParameter("version", version);
 
-        String updateStmtSQL = "UPDATE  ${schema}.${table} "
-            +"SET jsondata = jsonb_set( jsondata, '{properties,@ns:com:here:xyz}', "
-                +"( (jsondata->'properties'->'@ns:com:here:xyz')::jsonb "
-                +"|| format('{\"uuid\": \"%s_deleted\"}',jsondata->'properties'->'@ns:com:here:xyz'->>'uuid')::jsonb ) "
-                +"|| format('{\"version\": %s}', ? )::jsonb "
-                +"|| format('{\"updatedAt\": %s}', (extract(epoch from now()) * 1000)::bigint )::jsonb "
-                +"|| '{\"deleted\": true }'::jsonb) "
-                +"where jsondata->>'id' = ? ";
-        if(handleUUID) {
-            updateStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ?";
-        }
-        return SQLQuery.replaceVars(updateStmtSQL, schema, table);
-    }
+      return setTableVariables(
+          query.withQueryFragment("uuidCheck", buildUuidCheckFragment(event)),
+          dbHandler,
+          event);
+  }
 
-    public static String deleteOldHistoryEntries(final String schema, final String table, long maxAllowedVersion){
+  private static String buildUuidCheckFragment(ModifyFeaturesEvent event) {
+    return event.getEnableUUID() ? " AND (#{puuid}::TEXT IS NULL OR jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = #{puuid})" : "";
+  }
+
+  public static String deleteOldHistoryEntries(final String schema, final String table, long maxAllowedVersion){
         /** Delete rows which have a too old version - only used if maxVersionCount is set */
 
         String deleteOldHistoryEntriesSQL =
@@ -842,14 +844,6 @@ public class SQLQueryBuilder {
                 "   AND jsondata->'properties'->'@ns:com:here:xyz'->'deleted' = 'true'::jsonb;";
 
         return SQLQuery.replaceVars(deleteHistoryEntriesWithDeleteFlag, schema, table);
-    }
-
-    protected static String deleteIdArrayStmtSQL(final String schema, final String table, final boolean handleUUID){
-        String deleteIdArrayStmtSQL = "DELETE FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?) ";
-        if(handleUUID) {
-            deleteIdArrayStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ANY(?)";
-        }
-        return SQLQuery.replaceVars(deleteIdArrayStmtSQL, schema, table);
     }
 
     protected static String[] deleteHistoryTriggerSQL(final String schema, final String table){
