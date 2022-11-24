@@ -601,13 +601,13 @@ public abstract class DatabaseHandler extends StorageConnector {
 
             try {
                 if (deletes.size() > 0) {
-                    DatabaseWriter.deleteFeatures(this, event, traceItem, fails, deletes, connection, handleUUID, version);
+                    DatabaseWriter.deleteFeatures(this, event, traceItem, fails, deletes, connection, version);
                 }
                 if (inserts.size() > 0) {
                     DatabaseWriter.insertFeatures(this, event, traceItem, collection, fails, inserts, connection, version);
                 }
                 if (updates.size() > 0) {
-                    DatabaseWriter.updateFeatures(this, event, traceItem, collection, fails, updates, connection, handleUUID, version);
+                    DatabaseWriter.updateFeatures(this, event, traceItem, collection, fails, updates, connection, version);
                 }
 
                 if (event.getTransaction()) {

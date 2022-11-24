@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -137,13 +137,11 @@ public class DatabaseWriter {
                                                       List<FeatureCollection.ModificationFailure> fails,
                                                       List<Feature> inserts, Connection connection, Integer version)
             throws SQLException, JsonProcessingException {
-        String schema = dbh.config.getDatabaseSettings().getSchema();
-        String table = dbh.config.readTableFromEvent(event);
         boolean transactional = event.getTransaction();
 
         List<String> insertIdList = transactional ? new ArrayList<>() : null;
         connection.setAutoCommit(!transactional);
-        SQLQuery insertQuery = SQLQueryBuilder.buildInsertStmtQuery(schema, table);
+        SQLQuery insertQuery = SQLQueryBuilder.buildInsertStmtQuery(dbh, event);
 
         try {
             for (final Feature feature : inserts) {
@@ -171,7 +169,7 @@ public class DatabaseWriter {
                         throw (SQLException) e;
 
                     fails.add(new FeatureCollection.ModificationFailure().withId(feature.getId()).withMessage(INSERT_ERROR_GENERAL));
-                    logException(e, traceItem, LOG_EXCEPTION_INSERT, table);
+                    logException(e, traceItem, LOG_EXCEPTION_INSERT, dbh, event);
                 }
             }
 
@@ -188,26 +186,24 @@ public class DatabaseWriter {
 
     protected static FeatureCollection updateFeatures(DatabaseHandler dbh, ModifyFeaturesEvent event, TraceItem traceItem, FeatureCollection collection,
                                                       List<FeatureCollection.ModificationFailure> fails,
-                                                      List<Feature> updates, Connection connection,
-                                                      boolean handleUUID, Integer version)
+                                                      List<Feature> updates, Connection connection, Integer version)
             throws SQLException, JsonProcessingException {
         connection.setAutoCommit(!event.getTransaction());
         if (event.getTransaction())
-            return DatabaseTransactionalWriter.updateFeatures(dbh, event, traceItem, collection, fails, updates, connection,handleUUID, version);
-        return DatabaseStreamWriter.updateFeatures(dbh, event, traceItem, collection, fails, updates, connection, handleUUID);
+            return DatabaseTransactionalWriter.updateFeatures(dbh, event, traceItem, collection, fails, updates, connection, version);
+        return DatabaseStreamWriter.updateFeatures(dbh, event, traceItem, collection, fails, updates, connection);
     }
 
     protected static void deleteFeatures(DatabaseHandler dbh, ModifyFeaturesEvent event, TraceItem traceItem,
                                                       List<FeatureCollection.ModificationFailure> fails,
-                                                      Map<String, String> deletes, Connection connection,
-                                                      boolean handleUUID, Integer version)
+                                                      Map<String, String> deletes, Connection connection, Integer version)
             throws SQLException {
         connection.setAutoCommit(!event.getTransaction());
         if (event.getTransaction()) {
-            DatabaseTransactionalWriter.deleteFeatures(dbh, event, traceItem, fails, deletes, connection ,handleUUID, version);
+            DatabaseTransactionalWriter.deleteFeatures(dbh, event, traceItem, fails, deletes, connection, version);
             return;
         }
-        DatabaseStreamWriter.deleteFeatures(dbh, event, traceItem, fails, deletes, connection, handleUUID);
+        DatabaseStreamWriter.deleteFeatures(dbh, event, traceItem, fails, deletes, connection);
     }
 
     private static void assure3d(Coordinate[] coords){
@@ -217,7 +213,8 @@ public class DatabaseWriter {
         }
     }
 
-    protected static void logException(Exception e, TraceItem traceItem, String action, String table){
+    protected static void logException(Exception e, TraceItem traceItem, String action, DatabaseHandler dbHandler, ModifyFeaturesEvent event){
+        String table = dbHandler.config.readTableFromEvent(event);
         if(e != null && e.getMessage() != null && e.getMessage().contains("does not exist")) {
             /* If table not yet exist */
             logger.info("{} Failed to perform {} - table {} does not exists {}", traceItem, action, table, e);
