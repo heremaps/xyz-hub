@@ -195,10 +195,8 @@ public class SQLQuery {
 
   public PreparedStatement prepareStatement(Connection connection) throws SQLException {
     Map<String, Object> namedParameters = this.namedParameters;
-    if (preparedStatement == null) {
-      substitute();
-      preparedStatement = connection.prepareStatement(text());
-    }
+    if (preparedStatement == null)
+      preparedStatement = connection.prepareStatement(substitute().text());
     if (namedParameters == null)
       return preparedStatement;
     //Assign named parameters to according positions in the prepared statement
@@ -431,6 +429,8 @@ public class SQLQuery {
   }
 
   private void initVariables() {
+    if (preparedStatement != null)
+      throw new IllegalStateException("Variables can not be set anymore as query is already in use by a PreparedStatement.");
     if (variables == null)
       variables = new HashMap<>();
   }
@@ -510,6 +510,8 @@ public class SQLQuery {
   }
 
   public void setQueryFragment(String key, SQLQuery fragment) {
+    if (preparedStatement != null)
+      throw new IllegalStateException("Query fragments can not be set anymore as query is already in use by a PreparedStatement.");
     initQueryFragments();
     checkForUnnamedParametersInFragment(fragment); //TODO: Can be removed after completion of refactoring
     queryFragments.put(key, fragment);

@@ -19,40 +19,39 @@
 
 package com.here.xyz.psql;
 
-import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.io.WKBWriter;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.postgresql.util.PGobject;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
-import java.util.List;
-import java.util.Map;
-
 public class DatabaseWriter {
 
-    protected static final int TYPE_INSERT = 1;
-    protected static final int TYPE_UPDATE = 2;
-    protected static final int TYPE_DELETE = 3;
-    protected static final Logger logger = LogManager.getLogger();
+    private static final int TYPE_INSERT = 1;
+    private static final int TYPE_UPDATE = 2;
+    private static final int TYPE_DELETE = 3;
+    private static final Logger logger = LogManager.getLogger();
 
-    public static final String UPDATE_ERROR_GENERAL = "Update has failed";
+    private static final String UPDATE_ERROR_GENERAL = "Update has failed";
     public static final String UPDATE_ERROR_NOT_EXISTS = UPDATE_ERROR_GENERAL+" - Object does not exist";
     public static final String UPDATE_ERROR_UUID = UPDATE_ERROR_GENERAL+" - Object does not exist or UUID mismatch";
-    public static final String UPDATE_ERROR_ID_MISSING = UPDATE_ERROR_GENERAL+" - Feature Id is missing";
-    public static final String UPDATE_ERROR_PUUID_MISSING = UPDATE_ERROR_GENERAL+" -  Feature puuid is missing";
+    private static final String UPDATE_ERROR_ID_MISSING = UPDATE_ERROR_GENERAL+" - Feature Id is missing";
+    private static final String UPDATE_ERROR_PUUID_MISSING = UPDATE_ERROR_GENERAL+" -  Feature puuid is missing";
 
-    public static final String DELETE_ERROR_GENERAL = "Delete has failed";
+    private static final String DELETE_ERROR_GENERAL = "Delete has failed";
     public static final String DELETE_ERROR_NOT_EXISTS = DELETE_ERROR_GENERAL+" - Object does not exist";
     public static final String DELETE_ERROR_UUID = DELETE_ERROR_GENERAL+" - Object does not exist or UUID mismatch";
 
@@ -60,11 +59,11 @@ public class DatabaseWriter {
 
     protected static final String TRANSACTION_ERROR_GENERAL = "Transaction has failed";
 
-    public static final String LOG_EXCEPTION_INSERT = "insert";
-    public static final String LOG_EXCEPTION_UPDATE = "update";
-    public static final String LOG_EXCEPTION_DELETE = "delete";
+    private static final String LOG_EXCEPTION_INSERT = "insert";
+    private static final String LOG_EXCEPTION_UPDATE = "update";
+    private static final String LOG_EXCEPTION_DELETE = "delete";
 
-    protected static PGobject featureToPGobject(final Feature feature, Integer version) throws SQLException {
+    private static PGobject featureToPGobject(final Feature feature, Integer version) throws SQLException {
         final Geometry geometry = feature.getGeometry();
         feature.setGeometry(null); // Do not serialize the geometry in the JSON object
 
@@ -84,7 +83,13 @@ public class DatabaseWriter {
         return jsonbObject;
     }
 
-    protected static void fillUpdateQueryFromFeature(SQLQuery query, Feature feature, boolean handleUUID, Integer version) throws SQLException {
+    private static void fillDeleteQueryFromDeletion(SQLQuery query, Entry<String, String> deletion, boolean handleUUID) {
+        query.setNamedParameter("id", deletion.getKey());
+        if (handleUUID)
+            query.setNamedParameter("puuid", deletion.getValue());
+    }
+
+    private static void fillUpdateQueryFromFeature(SQLQuery query, Feature feature, boolean handleUUID, Integer version) throws SQLException {
         if (feature.getId() == null)
             throw new WriteFeatureException(UPDATE_ERROR_ID_MISSING);
 
@@ -97,7 +102,7 @@ public class DatabaseWriter {
             query.setNamedParameter("puuid", puuid);
     }
 
-    protected static void fillInsertQueryFromFeature(SQLQuery query, Feature feature, Integer version) throws SQLException {
+    private static void fillInsertQueryFromFeature(SQLQuery query, Feature feature, Integer version) throws SQLException {
         query
             .withNamedParameter("id", feature.getId())
             .withNamedParameter("rev", feature.getProperties().getXyzNamespace().getRev())
@@ -115,25 +120,10 @@ public class DatabaseWriter {
 
     }
 
-    protected static boolean getDeletedFlagFromFeature(Feature f) {
+    private static boolean getDeletedFlagFromFeature(Feature f) {
         return f.getProperties() == null ? false :
             f.getProperties().getXyzNamespace() == null ? false :
             f.getProperties().getXyzNamespace().isDeleted();
-    }
-
-    protected static PreparedStatement createStatement(Connection connection, String statement) throws SQLException {
-        final PreparedStatement preparedStatement = connection.prepareStatement(statement);
-        return preparedStatement;
-    }
-
-    protected static PreparedStatement deleteStmtSQLStatement(Connection connection, String schema, String table, boolean handleUUID)
-            throws SQLException {
-        return createStatement(connection, SQLQueryBuilder.deleteStmtSQL(schema,table,handleUUID));
-    }
-
-    protected static PreparedStatement versionedDeleteStmtSQLStatement(Connection connection, String schema, String table, boolean handleUUID)
-            throws SQLException {
-        return createStatement(connection, SQLQueryBuilder.versionedDeleteStmtSQL(schema,table,handleUUID));
     }
 
     protected static FeatureCollection insertFeatures(DatabaseHandler dbh, ModifyFeaturesEvent event, TraceItem traceItem, FeatureCollection collection,
@@ -250,12 +240,56 @@ public class DatabaseWriter {
                                                       List<FeatureCollection.ModificationFailure> fails,
                                                       Map<String, String> deletes, Connection connection, Integer version)
             throws SQLException {
-        connection.setAutoCommit(!event.getTransaction());
-        if (event.getTransaction()) {
-            DatabaseTransactionalWriter.deleteFeatures(dbh, event, traceItem, fails, deletes, connection, version);
-            return;
+        boolean transactional = event.getTransaction();
+        connection.setAutoCommit(!transactional);
+        //If versioning is enabled, perform an update instead of a deletion. The trigger will finally delete the row.
+        SQLQuery deleteQuery = SQLQueryBuilder.buildDeleteStmtQuery(dbh, event, version);
+
+        List<String> deleteIdList = new ArrayList<>();
+        boolean handleUUID = event.getEnableUUID();
+
+        try {
+            for (Entry<String, String> deletion : deletes.entrySet()) {
+                try {
+                    fillDeleteQueryFromDeletion(deleteQuery, deletion, handleUUID);
+                    PreparedStatement ps = deleteQuery.prepareStatement(connection);
+
+                    if (transactional) {
+                        ps.addBatch();
+                        deleteIdList.add(deletion.getKey());
+                    }
+                    else {
+                        ps.setQueryTimeout(dbh.calculateTimeout());
+                        if (ps.executeUpdate() == 0)
+                            throw new WriteFeatureException(handleUUID ? DELETE_ERROR_UUID : DELETE_ERROR_NOT_EXISTS);
+                    }
+
+                }
+                catch (Exception e) {
+                    if (transactional)
+                        throw e;
+
+                    //TODO: Handle SQL state "42P01"? (see: #insertFeatures())
+
+                    fails.add(new FeatureCollection.ModificationFailure().withId(deletion.getKey())
+                        .withMessage(e instanceof WriteFeatureException ? e.getMessage() : DELETE_ERROR_GENERAL));
+                    logException(e, traceItem, LOG_EXCEPTION_DELETE, dbh, event);
+                }
+            }
+
+            if (transactional) {
+                executeBatchesAndCheckOnFailures(dbh, deleteIdList, deleteQuery.prepareStatement(connection), fails, handleUUID, TYPE_DELETE,
+                    traceItem);
+
+                if (fails.size() > 0) {
+                    logException(null, traceItem, LOG_EXCEPTION_DELETE, dbh, event);
+                    throw new SQLException(DELETE_ERROR_GENERAL);
+                }
+            }
         }
-        DatabaseStreamWriter.deleteFeatures(dbh, event, traceItem, fails, deletes, connection);
+        finally {
+            deleteQuery.closeStatement();
+        }
     }
 
     private static class WriteFeatureException extends RuntimeException {
@@ -271,7 +305,7 @@ public class DatabaseWriter {
         }
     }
 
-    protected static void logException(Exception e, TraceItem traceItem, String action, DatabaseHandler dbHandler, ModifyFeaturesEvent event){
+    private static void logException(Exception e, TraceItem traceItem, String action, DatabaseHandler dbHandler, ModifyFeaturesEvent event){
         String table = dbHandler.config.readTableFromEvent(event);
         if(e != null && e.getMessage() != null && e.getMessage().contains("does not exist")) {
             /* If table not yet exist */
@@ -281,18 +315,10 @@ public class DatabaseWriter {
             logger.info("{} Failed to perform {} on table {} {}", traceItem, action, table, e);
     }
 
-    protected static void executeBatchesAndCheckOnFailures(DatabaseHandler dbh, List<String> idList, PreparedStatement batchStmt,
-        List<FeatureCollection.ModificationFailure> fails,
-        boolean handleUUID, int type, TraceItem traceItem) throws SQLException {
-        DatabaseWriter.executeBatchesAndCheckOnFailures(dbh, idList, Collections.emptyList(), batchStmt, null, fails, handleUUID, type, traceItem);
-    }
-
-    protected static void executeBatchesAndCheckOnFailures(DatabaseHandler dbh, List<String> idList, List<String> idList2,
-        PreparedStatement batchStmt, PreparedStatement batchStmt2,
+    private static void executeBatchesAndCheckOnFailures(DatabaseHandler dbh, List<String> idList, PreparedStatement batchStmt,
         List<FeatureCollection.ModificationFailure> fails,
         boolean handleUUID, int type, TraceItem traceItem) throws SQLException {
         int[] batchStmtResult;
-        int[] batchStmtResult2;
 
         try {
             if (idList.size() > 0) {
@@ -302,19 +328,10 @@ public class DatabaseWriter {
                 batchStmtResult = batchStmt.executeBatch();
                 DatabaseWriter.fillFailList(batchStmtResult, fails, idList, handleUUID, type);
             }
-
-            if (idList2.size() > 0) {
-                logger.debug("{} batch2 execution [{}]: {} ", traceItem, type, batchStmt2);
-
-                batchStmt2.setQueryTimeout(dbh.calculateTimeout());
-                batchStmtResult2 = batchStmt2.executeBatch();
-                DatabaseWriter.fillFailList(batchStmtResult2, fails, idList2, handleUUID, type);
-            }
-        }finally {
+        }
+        finally {
             if (batchStmt != null)
                 batchStmt.close();
-            if (batchStmt2 != null)
-                batchStmt2.close();
         }
     }
 
