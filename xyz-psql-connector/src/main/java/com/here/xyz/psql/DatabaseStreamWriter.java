@@ -31,47 +31,6 @@ import java.util.Map;
 
 public class DatabaseStreamWriter extends DatabaseWriter{
 
-    protected static FeatureCollection updateFeatures(DatabaseHandler dbh, ModifyFeaturesEvent event, TraceItem traceItem, FeatureCollection collection,
-                                                      List<FeatureCollection.ModificationFailure> fails,
-                                                      List<Feature> updates, Connection connection)
-            throws SQLException {
-        boolean handleUUID = event.getEnableUUID();
-        SQLQuery updateQuery = SQLQueryBuilder.buildUpdateStmtQuery(dbh, event);
-
-        for (Feature feature : updates) {
-            String fId = "";
-            try {
-                final String puuid = feature.getProperties().getXyzNamespace().getPuuid();
-                fId = feature.getId();
-
-                if (fId == null || handleUUID && puuid == null) {
-                    fails.add(new FeatureCollection.ModificationFailure().withId(fId != null ? fId : "")
-                        .withMessage(fId == null ? UPDATE_ERROR_ID_MISSING : UPDATE_ERROR_PUUID_MISSING));
-                    continue;
-                }
-
-                fillUpdateQueryFromFeature(updateQuery, feature, handleUUID);
-                PreparedStatement ps = updateQuery.prepareStatement(connection);
-
-                ps.setQueryTimeout(dbh.calculateTimeout());
-
-                if(ps.executeUpdate() == 0) {
-                    fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage((handleUUID ? UPDATE_ERROR_UUID : UPDATE_ERROR_NOT_EXISTS)));
-                }else
-                    collection.getFeatures().add(feature);
-
-            } catch (Exception e) {
-                //TODO: Handle SQL state "42P01"? (see: #insertFeatures())
-                fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage(UPDATE_ERROR_GENERAL));
-                logException(e, traceItem, LOG_EXCEPTION_UPDATE, dbh, event);
-            }
-        }
-
-        updateQuery.closeStatement();
-
-        return collection;
-    }
-
     protected static void deleteFeatures( DatabaseHandler dbh, ModifyFeaturesEvent event, TraceItem traceItem,
                                          List<FeatureCollection.ModificationFailure> fails, Map<String, String> deletes,
                                          Connection connection)

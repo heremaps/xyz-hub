@@ -84,14 +84,17 @@ public class DatabaseWriter {
         return jsonbObject;
     }
 
-    protected static void fillUpdateQueryFromFeature(SQLQuery query, Feature feature, boolean handleUUID) throws SQLException {
-        fillUpdateQueryFromFeature(query, feature, handleUUID, null);
-    }
-
     protected static void fillUpdateQueryFromFeature(SQLQuery query, Feature feature, boolean handleUUID, Integer version) throws SQLException {
+        if (feature.getId() == null)
+            throw new WriteFeatureException(UPDATE_ERROR_ID_MISSING);
+
+        final String puuid = feature.getProperties().getXyzNamespace().getPuuid();
+        if (handleUUID && puuid == null)
+            throw new WriteFeatureException(UPDATE_ERROR_PUUID_MISSING);
+
         fillInsertQueryFromFeature(query, feature, version);
         if (handleUUID)
-            query.setNamedParameter("puuid", feature.getProperties().getXyzNamespace().getPuuid());
+            query.setNamedParameter("puuid", puuid);
     }
 
     protected static void fillInsertQueryFromFeature(SQLQuery query, Feature feature, Integer version) throws SQLException {
@@ -138,10 +141,10 @@ public class DatabaseWriter {
                                                       List<Feature> inserts, Connection connection, Integer version)
             throws SQLException, JsonProcessingException {
         boolean transactional = event.getTransaction();
-
-        List<String> insertIdList = transactional ? new ArrayList<>() : null;
         connection.setAutoCommit(!transactional);
         SQLQuery insertQuery = SQLQueryBuilder.buildInsertStmtQuery(dbh, event);
+
+        List<String> insertIdList = transactional ? new ArrayList<>() : null;
 
         try {
             for (final Feature feature : inserts) {
@@ -159,7 +162,7 @@ public class DatabaseWriter {
                     if (transactional || ps.executeUpdate() != 0)
                         collection.getFeatures().add(feature);
                     else
-                        fails.add(new FeatureCollection.ModificationFailure().withId(feature.getId()).withMessage(INSERT_ERROR_GENERAL));
+                        throw new WriteFeatureException(INSERT_ERROR_GENERAL);
                 }
                 catch (Exception e) {
                     if (transactional)
@@ -168,7 +171,8 @@ public class DatabaseWriter {
                     if (e instanceof SQLException && "42P01".equalsIgnoreCase(((SQLException) e).getSQLState()))
                         throw (SQLException) e;
 
-                    fails.add(new FeatureCollection.ModificationFailure().withId(feature.getId()).withMessage(INSERT_ERROR_GENERAL));
+                    fails.add(new FeatureCollection.ModificationFailure().withId(feature.getId())
+                        .withMessage(e instanceof WriteFeatureException ? e.getMessage() : INSERT_ERROR_GENERAL));
                     logException(e, traceItem, LOG_EXCEPTION_INSERT, dbh, event);
                 }
             }
@@ -188,10 +192,58 @@ public class DatabaseWriter {
                                                       List<FeatureCollection.ModificationFailure> fails,
                                                       List<Feature> updates, Connection connection, Integer version)
             throws SQLException, JsonProcessingException {
-        connection.setAutoCommit(!event.getTransaction());
-        if (event.getTransaction())
-            return DatabaseTransactionalWriter.updateFeatures(dbh, event, traceItem, collection, fails, updates, connection, version);
-        return DatabaseStreamWriter.updateFeatures(dbh, event, traceItem, collection, fails, updates, connection);
+        boolean transactional = event.getTransaction();
+        connection.setAutoCommit(!transactional);
+        SQLQuery updateQuery = SQLQueryBuilder.buildUpdateStmtQuery(dbh, event);
+
+        List<String> updateIdList = new ArrayList<>();
+        boolean handleUUID = event.getEnableUUID();
+
+        try {
+            for (Feature feature : updates) {
+                try {
+                    fillUpdateQueryFromFeature(updateQuery, feature, handleUUID, version);
+                    PreparedStatement ps = updateQuery.prepareStatement(connection);
+
+                    if (transactional) {
+                        ps.addBatch();
+                        updateIdList.add(feature.getId());
+                    }
+                    else
+                        ps.setQueryTimeout(dbh.calculateTimeout());
+
+                    if (transactional || ps.executeUpdate() != 0)
+                        collection.getFeatures().add(feature);
+                    else
+                        throw new WriteFeatureException(handleUUID ? UPDATE_ERROR_UUID : UPDATE_ERROR_NOT_EXISTS);
+                }
+                catch (Exception e) {
+                    if (transactional)
+                        throw e;
+
+                    //TODO: Handle SQL state "42P01"? (see: #insertFeatures())
+
+                    fails.add(new FeatureCollection.ModificationFailure().withId(feature.getId())
+                        .withMessage(e instanceof WriteFeatureException ? e.getMessage() : UPDATE_ERROR_GENERAL));
+                    logException(e, traceItem, LOG_EXCEPTION_UPDATE, dbh, event);
+                }
+            }
+
+            if (transactional) {
+                executeBatchesAndCheckOnFailures(dbh, updateIdList, updateQuery.prepareStatement(connection), fails, handleUUID, TYPE_UPDATE,
+                    traceItem);
+
+                if (fails.size() > 0) {
+                    logException(null, traceItem, LOG_EXCEPTION_UPDATE, dbh, event);
+                    throw new SQLException(UPDATE_ERROR_GENERAL);
+                }
+            }
+        }
+        finally {
+            updateQuery.closeStatement();
+        }
+
+        return collection;
     }
 
     protected static void deleteFeatures(DatabaseHandler dbh, ModifyFeaturesEvent event, TraceItem traceItem,
@@ -204,6 +256,12 @@ public class DatabaseWriter {
             return;
         }
         DatabaseStreamWriter.deleteFeatures(dbh, event, traceItem, fails, deletes, connection);
+    }
+
+    private static class WriteFeatureException extends RuntimeException {
+        WriteFeatureException(String message) {
+            super(message);
+        }
     }
 
     private static void assure3d(Coordinate[] coords){
