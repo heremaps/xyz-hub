@@ -27,6 +27,7 @@ import com.here.xyz.events.GetFeaturesByTileEvent.ResponseType;
 import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
+import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.QueryEvent;
 import com.here.xyz.models.geojson.HQuad;
@@ -733,27 +734,29 @@ public class SQLQueryBuilder {
         return new SQLQuery("SELECT idx_available FROM "+ ModifySpace.IDX_STATUS_TABLE+" WHERE spaceid=? AND count >=?", space, BIG_SPACE_THRESHOLD);
     }
 
-  protected static SQLQuery buildInsertStmtQuery(final String schema, final String table) {
+  protected static SQLQuery buildInsertStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
     return setWriteQueryComponents(new SQLQuery("${{geoWith}} INSERT INTO ${schema}.${table} (id, rev, operation, jsondata, geo) "
         + "VALUES("
         + "#{id}, "
         + "#{rev}, "
         + "#{operation}, "
         + "#{jsondata}::jsonb, "
-        + "${{geo}})"), schema, table);
+        + "${{geo}})"), dbHandler, event);
   }
 
-  protected static SQLQuery buildUpdateStmtQuery(final String schema, final String table, final boolean handleUUID) {
+  protected static SQLQuery buildUpdateStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
       return setWriteQueryComponents(new SQLQuery("${{geoWith}} UPDATE ${schema}.${table} SET "
           + "rev = #{rev}, "
           + "operation = #{operation}, "
           + "jsondata = #{jsondata}::jsonb, "
           + "geo = (${{geo}}) "
-          + "WHERE jsondata->>'id' = #{id} ${{uuidCheck}}"), schema, table)
-          .withQueryFragment("uuidCheck", handleUUID ? " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = #{puuid}" : "");
+          + "WHERE jsondata->>'id' = #{id} ${{uuidCheck}}"), dbHandler, event)
+          .withQueryFragment("uuidCheck", event.getEnableUUID() ? " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = #{puuid}" : "");
   }
 
-  private static SQLQuery setWriteQueryComponents(SQLQuery writeQuery, String schema, String table) {
+  private static SQLQuery setWriteQueryComponents(SQLQuery writeQuery, DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
+    String schema = dbHandler.config.getDatabaseSettings().getSchema();
+    String table = dbHandler.config.readTableFromEvent(event);
       return writeQuery
           .withQueryFragment("geoWith", "WITH in_params AS (SELECT #{geo} as geo)")
           .withQueryFragment("geo", "CASE WHEN (SELECT geo FROM in_params)::geometry IS NULL THEN NULL ELSE "

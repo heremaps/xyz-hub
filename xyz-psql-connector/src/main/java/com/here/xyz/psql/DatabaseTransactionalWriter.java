@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,12 +36,10 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
 
     public static FeatureCollection updateFeatures(DatabaseHandler dbh, ModifyFeaturesEvent event, TraceItem traceItem, FeatureCollection collection,
                                                    List<FeatureCollection.ModificationFailure> fails, List<Feature> updates,
-                                                   Connection connection, boolean handleUUID, Integer version)
+                                                   Connection connection, Integer version)
             throws SQLException, JsonProcessingException {
-        String schema = dbh.config.getDatabaseSettings().getSchema();
-        String table = dbh.config.readTableFromEvent(event);
-
-        SQLQuery updateQuery = SQLQueryBuilder.buildUpdateStmtQuery(schema, table, handleUUID);
+        boolean handleUUID = event.getEnableUUID();
+        SQLQuery updateQuery = SQLQueryBuilder.buildUpdateStmtQuery(dbh, event);
         List<String> updateIdList = new ArrayList<>();
 
         for (Feature feature : updates) {
@@ -60,7 +58,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
             traceItem);
 
         if(fails.size() > 0) {
-            logException(null, traceItem, LOG_EXCEPTION_UPDATE, table);
+            logException(null, traceItem, LOG_EXCEPTION_UPDATE, dbh, event);
             throw new SQLException(UPDATE_ERROR_GENERAL);
         }
 
@@ -69,9 +67,9 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
 
     protected static void deleteFeatures(DatabaseHandler dbh, ModifyFeaturesEvent event, TraceItem traceItem,
                                          List<FeatureCollection.ModificationFailure> fails, Map<String, String> deletes,
-                                         Connection connection, boolean handleUUID, Integer version)
+                                         Connection connection, Integer version)
             throws SQLException {
-
+        boolean handleUUID = event.getEnableUUID();
         String schema = dbh.config.getDatabaseSettings().getSchema();
         String table = dbh.config.readTableFromEvent(event);
 
@@ -132,7 +130,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         }
 
         if(fails.size() > 0) {
-            logException(null, traceItem, LOG_EXCEPTION_DELETE, table);
+            logException(null, traceItem, LOG_EXCEPTION_DELETE, dbh, event);
             throw new SQLException(DELETE_ERROR_GENERAL);
         }
     }

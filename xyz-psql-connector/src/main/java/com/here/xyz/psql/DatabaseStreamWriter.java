@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,13 +33,10 @@ public class DatabaseStreamWriter extends DatabaseWriter{
 
     protected static FeatureCollection updateFeatures(DatabaseHandler dbh, ModifyFeaturesEvent event, TraceItem traceItem, FeatureCollection collection,
                                                       List<FeatureCollection.ModificationFailure> fails,
-                                                      List<Feature> updates, Connection connection,
-                                                      boolean handleUUID)
+                                                      List<Feature> updates, Connection connection)
             throws SQLException {
-        String schema = dbh.config.getDatabaseSettings().getSchema();
-        String table = dbh.config.readTableFromEvent(event);
-
-        SQLQuery updateQuery = SQLQueryBuilder.buildUpdateStmtQuery(schema, table, handleUUID);
+        boolean handleUUID = event.getEnableUUID();
+        SQLQuery updateQuery = SQLQueryBuilder.buildUpdateStmtQuery(dbh, event);
 
         for (Feature feature : updates) {
             String fId = "";
@@ -66,7 +63,7 @@ public class DatabaseStreamWriter extends DatabaseWriter{
             } catch (Exception e) {
                 //TODO: Handle SQL state "42P01"? (see: #insertFeatures())
                 fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage(UPDATE_ERROR_GENERAL));
-                logException(e, traceItem, LOG_EXCEPTION_UPDATE, table);
+                logException(e, traceItem, LOG_EXCEPTION_UPDATE, dbh, event);
             }
         }
 
@@ -77,8 +74,9 @@ public class DatabaseStreamWriter extends DatabaseWriter{
 
     protected static void deleteFeatures( DatabaseHandler dbh, ModifyFeaturesEvent event, TraceItem traceItem,
                                          List<FeatureCollection.ModificationFailure> fails, Map<String, String> deletes,
-                                         Connection connection, boolean handleUUID)
+                                         Connection connection)
             throws SQLException {
+        boolean handleUUID = event.getEnableUUID();
         String schema = dbh.config.getDatabaseSettings().getSchema();
         String table = dbh.config.readTableFromEvent(event);
 
@@ -110,7 +108,7 @@ public class DatabaseStreamWriter extends DatabaseWriter{
             } catch (Exception e) {
                 //TODO: Handle SQL state "42P01"? (see: #insertFeatures())
                 fails.add(new FeatureCollection.ModificationFailure().withId(deleteId).withMessage(DELETE_ERROR_GENERAL));
-                logException(e, traceItem, LOG_EXCEPTION_DELETE, table);
+                logException(e, traceItem, LOG_EXCEPTION_DELETE, dbh, event);
             }
         }
 
