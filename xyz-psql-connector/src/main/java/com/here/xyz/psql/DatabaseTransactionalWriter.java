@@ -34,37 +34,6 @@ import java.util.Set;
 
 public class DatabaseTransactionalWriter extends  DatabaseWriter{
 
-    public static FeatureCollection updateFeatures(DatabaseHandler dbh, ModifyFeaturesEvent event, TraceItem traceItem, FeatureCollection collection,
-                                                   List<FeatureCollection.ModificationFailure> fails, List<Feature> updates,
-                                                   Connection connection, Integer version)
-            throws SQLException, JsonProcessingException {
-        boolean handleUUID = event.getEnableUUID();
-        SQLQuery updateQuery = SQLQueryBuilder.buildUpdateStmtQuery(dbh, event);
-        List<String> updateIdList = new ArrayList<>();
-
-        for (Feature feature : updates) {
-            if (feature.getId() == null)
-                throw new NullPointerException("id");
-
-            fillUpdateQueryFromFeature(updateQuery, feature, handleUUID, version);
-            PreparedStatement ps = updateQuery.prepareStatement(connection);
-
-            ps.addBatch();
-            updateIdList.add(feature.getId());
-            collection.getFeatures().add(feature);
-        }
-
-        executeBatchesAndCheckOnFailures(dbh, updateIdList, updateQuery.prepareStatement(connection), fails, handleUUID, TYPE_UPDATE,
-            traceItem);
-
-        if(fails.size() > 0) {
-            logException(null, traceItem, LOG_EXCEPTION_UPDATE, dbh, event);
-            throw new SQLException(UPDATE_ERROR_GENERAL);
-        }
-
-        return collection;
-    }
-
     protected static void deleteFeatures(DatabaseHandler dbh, ModifyFeaturesEvent event, TraceItem traceItem,
                                          List<FeatureCollection.ModificationFailure> fails, Map<String, String> deletes,
                                          Connection connection, Integer version)
