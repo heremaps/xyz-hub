@@ -1,4 +1,26 @@
+/*
+ * Copyright (C) 2017-2022 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
+
 package com.here.xyz.events;
+
+import static com.here.xyz.models.hub.Space.DEFAULT_REVISIONS_TO_KEEP;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -6,8 +28,8 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 @JsonInclude(Include.NON_DEFAULT)
 public abstract class ContextAwareEvent<T extends ContextAwareEvent> extends Event<T> {
 
-  @JsonInclude(Include.NON_DEFAULT)
   private SpaceContext context = SpaceContext.DEFAULT;
+  private int revisionsToKeep = DEFAULT_REVISIONS_TO_KEEP;
 
   public enum SpaceContext {
     EXTENSION,
@@ -46,4 +68,16 @@ public abstract class ContextAwareEvent<T extends ContextAwareEvent> extends Eve
     return (T) this;
   }
 
+  public int getRevisionsToKeep() {
+    return revisionsToKeep;
+  }
+
+  public void setRevisionsToKeep(int revisionsToKeep) {
+    this.revisionsToKeep = revisionsToKeep;
+  }
+
+  public T withRevisionsToKeep(int revisionsToKeep) {
+    setRevisionsToKeep(revisionsToKeep);
+    return (T) this;
+  }
 }

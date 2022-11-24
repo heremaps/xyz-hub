@@ -734,11 +734,11 @@ public class SQLQueryBuilder {
     }
 
   protected static SQLQuery buildInsertStmtQuery(final String schema, final String table) {
-    return setWriteQueryComponents(new SQLQuery("${{geoWith}} INSERT INTO ${schema}.${table} (id, rev, deleted, jsondata, geo) "
+    return setWriteQueryComponents(new SQLQuery("${{geoWith}} INSERT INTO ${schema}.${table} (id, rev, operation, jsondata, geo) "
         + "VALUES("
         + "#{id}, "
         + "#{rev}, "
-        + "#{deleted}, "
+        + "#{operation}, "
         + "#{jsondata}::jsonb, "
         + "${{geo}})"), schema, table);
   }
@@ -746,7 +746,7 @@ public class SQLQueryBuilder {
   protected static SQLQuery buildUpdateStmtQuery(final String schema, final String table, final boolean handleUUID) {
       return setWriteQueryComponents(new SQLQuery("${{geoWith}} UPDATE ${schema}.${table} SET "
           + "rev = #{rev}, "
-          + "deleted = #{deleted}, "
+          + "operation = #{operation}, "
           + "jsondata = #{jsondata}::jsonb, "
           + "geo = (${{geo}}) "
           + "WHERE jsondata->>'id' = #{id} ${{uuidCheck}}"), schema, table)

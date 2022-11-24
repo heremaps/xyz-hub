@@ -182,7 +182,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                 add("tags");
                 add("id");
                 add("viz");
-                add("deleted");
+                add("operation");
             }};
 
             String sqlSpaceSchema = "(select schema_name::text from information_schema.schemata where schema_name in ('xyz','public') order by 1 desc limit 1)";

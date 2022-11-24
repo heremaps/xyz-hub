@@ -21,6 +21,7 @@ package com.here.xyz.psql;
 
 import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Geometry;
@@ -83,10 +84,6 @@ public class DatabaseWriter {
         return jsonbObject;
     }
 
-    protected static void fillInsertQueryFromFeature(SQLQuery query, Feature feature) throws SQLException {
-        fillInsertQueryFromFeature(query, feature, null);
-    }
-
     protected static void fillUpdateQueryFromFeature(SQLQuery query, Feature feature, boolean handleUUID) throws SQLException {
         fillUpdateQueryFromFeature(query, feature, handleUUID, null);
     }
@@ -101,7 +98,7 @@ public class DatabaseWriter {
         query
             .withNamedParameter("id", feature.getId())
             .withNamedParameter("rev", feature.getProperties().getXyzNamespace().getRev())
-            .withNamedParameter("deleted", getDeletedFlagFromFeature(feature))
+            .withNamedParameter("operation", getDeletedFlagFromFeature(feature) ? 'D' : 'I')
             .withNamedParameter("jsondata", featureToPGobject(feature, version));
 
         Geometry geo = feature.getGeometry();
@@ -136,23 +133,16 @@ public class DatabaseWriter {
         return createStatement(connection, SQLQueryBuilder.versionedDeleteStmtSQL(schema,table,handleUUID));
     }
 
-    protected  static void setAutocommit(Connection connection, boolean isActive) throws SQLException {
-        connection.setAutoCommit(isActive);
-    }
-
-    protected static FeatureCollection insertFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem, FeatureCollection collection,
+    protected static FeatureCollection insertFeatures(DatabaseHandler dbh, ModifyFeaturesEvent event, TraceItem traceItem, FeatureCollection collection,
                                                       List<FeatureCollection.ModificationFailure> fails,
-                                                      List<Feature> inserts, Connection connection,
-                                                      boolean transactional, Integer version)
+                                                      List<Feature> inserts, Connection connection, Integer version)
             throws SQLException, JsonProcessingException {
-        List<String> insertIdList = null;
-        if (transactional) {
-            setAutocommit(connection,false);
-            insertIdList = new ArrayList<>();
-        }
-        else
-            setAutocommit(connection,true);
+        String schema = dbh.config.getDatabaseSettings().getSchema();
+        String table = dbh.config.readTableFromEvent(event);
+        boolean transactional = event.getTransaction();
 
+        List<String> insertIdList = transactional ? new ArrayList<>() : null;
+        connection.setAutoCommit(!transactional);
         SQLQuery insertQuery = SQLQueryBuilder.buildInsertStmtQuery(schema, table);
 
         try {
@@ -196,31 +186,28 @@ public class DatabaseWriter {
         return collection;
     }
 
-    protected static FeatureCollection updateFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem, FeatureCollection collection,
+    protected static FeatureCollection updateFeatures(DatabaseHandler dbh, ModifyFeaturesEvent event, TraceItem traceItem, FeatureCollection collection,
                                                       List<FeatureCollection.ModificationFailure> fails,
                                                       List<Feature> updates, Connection connection,
-                                                      boolean transactional, boolean handleUUID, Integer version)
+                                                      boolean handleUUID, Integer version)
             throws SQLException, JsonProcessingException {
-        if(transactional) {
-            setAutocommit(connection,false);
-            return DatabaseTransactionalWriter.updateFeatures(dbh, schema, table, traceItem, collection, fails, updates, connection,handleUUID, version);
-        }
-        setAutocommit(connection,true);
-        return DatabaseStreamWriter.updateFeatures(dbh, schema, table, traceItem, collection, fails, updates, connection, handleUUID);
+        connection.setAutoCommit(!event.getTransaction());
+        if (event.getTransaction())
+            return DatabaseTransactionalWriter.updateFeatures(dbh, event, traceItem, collection, fails, updates, connection,handleUUID, version);
+        return DatabaseStreamWriter.updateFeatures(dbh, event, traceItem, collection, fails, updates, connection, handleUUID);
     }
 
-    protected static void deleteFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem,
+    protected static void deleteFeatures(DatabaseHandler dbh, ModifyFeaturesEvent event, TraceItem traceItem,
                                                       List<FeatureCollection.ModificationFailure> fails,
                                                       Map<String, String> deletes, Connection connection,
-                                                      boolean transactional, boolean handleUUID, Integer version)
+                                                      boolean handleUUID, Integer version)
             throws SQLException {
-        if(transactional) {
-            setAutocommit(connection,false);
-            DatabaseTransactionalWriter.deleteFeatures(dbh, schema, table, traceItem, fails, deletes, connection ,handleUUID, version);
+        connection.setAutoCommit(!event.getTransaction());
+        if (event.getTransaction()) {
+            DatabaseTransactionalWriter.deleteFeatures(dbh, event, traceItem, fails, deletes, connection ,handleUUID, version);
             return;
         }
-        setAutocommit(connection,true);
-        DatabaseStreamWriter.deleteFeatures(dbh, schema, table, traceItem, fails, deletes, connection, handleUUID);
+        DatabaseStreamWriter.deleteFeatures(dbh, event, traceItem, fails, deletes, connection, handleUUID);
     }
 
     private static void assure3d(Coordinate[] coords){

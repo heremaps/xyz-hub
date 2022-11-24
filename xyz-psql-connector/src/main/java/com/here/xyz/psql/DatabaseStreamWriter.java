@@ -20,6 +20,7 @@
 package com.here.xyz.psql;
 
 import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
+import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import java.sql.Connection;
@@ -30,11 +31,14 @@ import java.util.Map;
 
 public class DatabaseStreamWriter extends DatabaseWriter{
 
-    protected static FeatureCollection updateFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem, FeatureCollection collection,
+    protected static FeatureCollection updateFeatures(DatabaseHandler dbh, ModifyFeaturesEvent event, TraceItem traceItem, FeatureCollection collection,
                                                       List<FeatureCollection.ModificationFailure> fails,
                                                       List<Feature> updates, Connection connection,
                                                       boolean handleUUID)
             throws SQLException {
+        String schema = dbh.config.getDatabaseSettings().getSchema();
+        String table = dbh.config.readTableFromEvent(event);
+
         SQLQuery updateQuery = SQLQueryBuilder.buildUpdateStmtQuery(schema, table, handleUUID);
 
         for (Feature feature : updates) {
@@ -71,10 +75,12 @@ public class DatabaseStreamWriter extends DatabaseWriter{
         return collection;
     }
 
-    protected static void deleteFeatures( DatabaseHandler dbh, String schema, String table, TraceItem traceItem,
+    protected static void deleteFeatures( DatabaseHandler dbh, ModifyFeaturesEvent event, TraceItem traceItem,
                                          List<FeatureCollection.ModificationFailure> fails, Map<String, String> deletes,
                                          Connection connection, boolean handleUUID)
             throws SQLException {
+        String schema = dbh.config.getDatabaseSettings().getSchema();
+        String table = dbh.config.readTableFromEvent(event);
 
         final PreparedStatement deleteStmt = deleteStmtSQLStatement(connection,schema,table,handleUUID);
         final PreparedStatement deleteStmtWithoutUUID = deleteStmtSQLStatement(connection,schema,table,false);

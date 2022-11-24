@@ -51,7 +51,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
           "SELECT * FROM ("
           + "    (SELECT ${{selection}}, ${{geo}}${{iColumnExtension}}"
           + "        FROM ${schema}.${table}"
-          + "        WHERE ${{filterWhereClause}} AND deleted = false ${{iOffsetExtension}} ${{limit}})"
+          + "        WHERE ${{filterWhereClause}} AND operation != 'D' ${{iOffsetExtension}} ${{limit}})"
           + "    UNION ALL "
           + "        SELECT ${{selection}}, ${{geo}}${{iColumn}} FROM"
           + "            ("
@@ -112,7 +112,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
   private SQLQuery build2LevelBaseQuery(String intermediateTable, String extendedTable) {
     SQLQuery query = new SQLQuery("(SELECT jsondata, geo${{iColumnIntermediate}}"
         + "    FROM ${schema}.${intermediateExtensionTable}"
-        + "    WHERE ${{filterWhereClause}} AND deleted = false ${{iOffsetIntermediate}} ${{limit}})"
+        + "    WHERE ${{filterWhereClause}} AND operation != 'D' ${{iOffsetIntermediate}} ${{limit}})"
         + "UNION ALL"
         + "    SELECT jsondata, geo${{iColumn}} FROM"
         + "        ("
