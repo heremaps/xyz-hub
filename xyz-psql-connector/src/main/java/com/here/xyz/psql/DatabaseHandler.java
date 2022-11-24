@@ -54,6 +54,7 @@ import com.here.xyz.psql.query.ExtendedSpace;
 import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.helpers.FetchExistingIds;
 import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
+import com.here.xyz.psql.query.helpers.GetNextRevision;
 import com.here.xyz.psql.tools.DhString;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.ErrorResponse;
@@ -233,7 +234,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         String table = config.readTableFromEvent(event);
         String hstTable = table+HISTORY_TABLE_SUFFIX;
 
-        replacements.put("idx_deleted", "idx_" + table + "_deleted");
+        replacements.put("idx_operation", "idx_" + table + "_operation");
         replacements.put("idx_serial", "idx_" + table + "_serial");
         replacements.put("idx_id", "idx_" + table + "_id");
         replacements.put("idx_tags", "idx_" + table + "_tags");
@@ -517,8 +518,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     protected XyzResponse executeModifyFeatures(ModifyFeaturesEvent event) throws Exception {
         final boolean includeOldStates = event.getParams() != null && event.getParams().get(INCLUDE_OLD_STATES) == Boolean.TRUE;
-        final boolean handleUUID = event.getEnableUUID() == Boolean.TRUE;
-        final boolean transactional = event.getTransaction() == Boolean.TRUE;
+        final boolean handleUUID = event.getEnableUUID();
 
         final String schema = config.getDatabaseSettings().getSchema();
         final String table = config.readTableFromEvent(event);
@@ -597,20 +597,20 @@ public abstract class DatabaseHandler extends StorageConnector {
         try (final Connection connection = dataSource.getConnection()) {
 
             boolean previousAutoCommitState = connection.getAutoCommit();
-            connection.setAutoCommit(!transactional);
+            connection.setAutoCommit(!event.getTransaction());
 
             try {
                 if (deletes.size() > 0) {
-                    DatabaseWriter.deleteFeatures(this, schema, table, traceItem, fails, deletes, connection, transactional, handleUUID, version);
+                    DatabaseWriter.deleteFeatures(this, event, traceItem, fails, deletes, connection, handleUUID, version);
                 }
                 if (inserts.size() > 0) {
-                    DatabaseWriter.insertFeatures(this, schema, table, traceItem, collection, fails, inserts, connection, transactional, version);
+                    DatabaseWriter.insertFeatures(this, event, traceItem, collection, fails, inserts, connection, version);
                 }
                 if (updates.size() > 0) {
-                    DatabaseWriter.updateFeatures(this, schema, table, traceItem, collection, fails, updates, connection, transactional, handleUUID, version);
+                    DatabaseWriter.updateFeatures(this, event, traceItem, collection, fails, updates, connection, handleUUID, version);
                 }
 
-                if (transactional) {
+                if (event.getTransaction()) {
                     /** Commit SQLS in one transaction */
                     connection.commit();
                 }
@@ -635,7 +635,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                     return executeModifyFeatures(event);
                 }
 
-                if (transactional) {
+                if (event.getTransaction()) {
                     connection.rollback();
 
                     if ((e instanceof SQLException && ((SQLException)e).getSQLState() != null
@@ -875,7 +875,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             "id TEXT NOT NULL, "
             + "rev BIGINT NOT NULL, "
             + "next_rev BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
-            + "deleted BOOLEAN DEFAULT FALSE, "
+            + "operation CHAR DEFAULT 'I', "
             + "jsondata JSONB, "
             + "geo geometry(GeometryZ, 4326), "
             + "i BIGSERIAL"
@@ -891,7 +891,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         String query;
 
-        query = "CREATE INDEX IF NOT EXISTS ${idx_deleted} ON ${schema}.${table} USING btree (deleted ASC NULLS LAST) WHERE deleted = TRUE";
+        query = "CREATE INDEX IF NOT EXISTS ${idx_operation} ON ${schema}.${table} USING btree (operation ASC NULLS LAST)";
         query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
         stmt.addBatch(query);
 

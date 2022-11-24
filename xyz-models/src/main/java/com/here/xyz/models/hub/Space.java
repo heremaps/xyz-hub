@@ -42,6 +42,8 @@ import java.util.Map;
 @SuppressWarnings("unused")
 public class Space {
 
+  public static final int DEFAULT_REVISIONS_TO_KEEP = 0;
+
   /**
    * Beta release date: 2018-10-01T00:00Z[UTC]
    */
@@ -175,7 +177,7 @@ public class Space {
    * (HEAD) state of the space and no further revisions will be kept.
    */
   @JsonView({Public.class, Static.class})
-  private int revisionsToKeep = 0;
+  private int revisionsToKeep = DEFAULT_REVISIONS_TO_KEEP;
 
   /**
    * If false, auto-indexing gets disabled

@@ -21,6 +21,7 @@ package com.here.xyz.psql;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
+import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import java.sql.Connection;
@@ -33,10 +34,12 @@ import java.util.Set;
 
 public class DatabaseTransactionalWriter extends  DatabaseWriter{
 
-    public static FeatureCollection updateFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem, FeatureCollection collection,
+    public static FeatureCollection updateFeatures(DatabaseHandler dbh, ModifyFeaturesEvent event, TraceItem traceItem, FeatureCollection collection,
                                                    List<FeatureCollection.ModificationFailure> fails, List<Feature> updates,
                                                    Connection connection, boolean handleUUID, Integer version)
             throws SQLException, JsonProcessingException {
+        String schema = dbh.config.getDatabaseSettings().getSchema();
+        String table = dbh.config.readTableFromEvent(event);
 
         SQLQuery updateQuery = SQLQueryBuilder.buildUpdateStmtQuery(schema, table, handleUUID);
         List<String> updateIdList = new ArrayList<>();
@@ -64,10 +67,13 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         return collection;
     }
 
-    protected static void deleteFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem,
+    protected static void deleteFeatures(DatabaseHandler dbh, ModifyFeaturesEvent event, TraceItem traceItem,
                                          List<FeatureCollection.ModificationFailure> fails, Map<String, String> deletes,
                                          Connection connection, boolean handleUUID, Integer version)
             throws SQLException {
+
+        String schema = dbh.config.getDatabaseSettings().getSchema();
+        String table = dbh.config.readTableFromEvent(event);
 
         final PreparedStatement batchDeleteStmt = deleteStmtSQLStatement(connection,schema,table,handleUUID);
         final PreparedStatement batchDeleteStmtWithoutUUID = deleteStmtSQLStatement(connection,schema,table,false);
