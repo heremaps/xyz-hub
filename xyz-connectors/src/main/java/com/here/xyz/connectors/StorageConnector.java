@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@
 
 package com.here.xyz.connectors;
 
-import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
@@ -34,9 +33,12 @@ import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.ModifySubscriptionEvent;
+import com.here.xyz.events.RevisionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 
@@ -54,15 +56,11 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
   }
 
   private XyzResponse _processEvent(Event event) throws Exception {
-    if (event == null) {
-      return new ErrorResponse()
-          .withStreamId(streamId)
-          .withError(XyzError.NOT_IMPLEMENTED)
-          .withErrorMessage("Unknown event type");
-    }
-
     if (event instanceof ModifySpaceEvent) {
       return processModifySpaceEvent((ModifySpaceEvent) event);
+    }
+    if (event instanceof ModifySubscriptionEvent) {
+      return processModifySubscriptionEvent((ModifySubscriptionEvent) event);
     }
     if (event instanceof ModifyFeaturesEvent) {
       return processModifyFeaturesEvent((ModifyFeaturesEvent) event);
@@ -103,11 +101,12 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
     if (event instanceof LoadFeaturesEvent) {
       return processLoadFeaturesEvent((LoadFeaturesEvent) event);
     }
-    if (event instanceof CountFeaturesEvent) {
-      return processCountFeaturesEvent((CountFeaturesEvent) event);
-    }
-    if (event instanceof GetStorageStatisticsEvent)
+    if (event instanceof GetStorageStatisticsEvent) {
       return processGetStorageStatisticsEvent((GetStorageStatisticsEvent) event);
+    }
+    if (event instanceof RevisionEvent) {
+      return new SuccessResponse();
+    }
 
     return new ErrorResponse()
         .withStreamId(streamId)
@@ -164,15 +163,10 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
   protected abstract XyzResponse processSearchForFeaturesEvent(SearchForFeaturesEvent event) throws Exception;
 
   /**
-   * Processes a CountFeatures event.
-   */
-  @SuppressWarnings("WeakerAccess")
-  protected abstract XyzResponse processCountFeaturesEvent(CountFeaturesEvent event) throws Exception;
-
-  /**
    * Processes a DeleteFeaturesEvent event.
    */
   @SuppressWarnings("WeakerAccess")
+  @Deprecated
   protected abstract XyzResponse processDeleteFeaturesByTagEvent(DeleteFeaturesByTagEvent event) throws Exception;
 
   /**
@@ -192,6 +186,12 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
    */
   @SuppressWarnings("WeakerAccess")
   protected abstract XyzResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception;
+
+  /**
+   * Processes a ModifySubscriptionEvent event.
+   */
+  @SuppressWarnings("WeakerAccess")
+  protected abstract XyzResponse processModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception;
 
   /**
    * Processes a IterateFeatures event.

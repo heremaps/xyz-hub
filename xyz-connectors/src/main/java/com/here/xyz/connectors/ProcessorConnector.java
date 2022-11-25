@@ -32,6 +32,7 @@ import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.ErrorResponse;
@@ -85,6 +86,12 @@ public abstract class ProcessorConnector extends AbstractConnectorHandler {
     }
     if ((ModifySpaceEvent.class.getSimpleName() + RESPONSE).equals(eventType)) {
       return wrapResponse(processModifySpace((SuccessResponse) notification.getEvent(), notificationParams));
+    }
+    if ((ModifySubscriptionEvent.class.getSimpleName() + REQUEST).equals(eventType)) {
+      return wrapEvent(processModifySubscription((ModifySubscriptionEvent) notification.getEvent(), notificationParams));
+    }
+    if ((ModifySubscriptionEvent.class.getSimpleName() + RESPONSE).equals(eventType)) {
+      return wrapResponse(processModifySubscription((SuccessResponse) notification.getEvent(), notificationParams));
     }
     if ((GetStatisticsEvent.class.getSimpleName() + REQUEST).equals(eventType)) {
       return wrapEvent(processGetStatistics((GetStatisticsEvent) notification.getEvent(), notificationParams));
@@ -235,6 +242,14 @@ public abstract class ProcessorConnector extends AbstractConnectorHandler {
   }
 
   protected SuccessResponse processModifySpace(SuccessResponse response, NotificationParams notificationParams) throws Exception {
+    throw new ErrorResponseException(streamId, XyzError.NOT_IMPLEMENTED, "Not implemented by this processor");
+  }
+
+  protected ModifySubscriptionEvent processModifySubscription(ModifySubscriptionEvent event, NotificationParams notificationParams) throws Exception {
+    throw new ErrorResponseException(streamId, XyzError.NOT_IMPLEMENTED, "Not implemented by this processor");
+  }
+
+  protected SuccessResponse processModifySubscription(SuccessResponse response, NotificationParams notificationParams) throws Exception {
     throw new ErrorResponseException(streamId, XyzError.NOT_IMPLEMENTED, "Not implemented by this processor");
   }
 

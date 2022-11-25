@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,8 +23,38 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-@JsonTypeName(value = "CountFeaturesEvent")
-@Deprecated
-public final class CountFeaturesEvent extends QueryEvent<CountFeaturesEvent> {
+@JsonTypeName(value = "RevisionEvent")
+public class RevisionEvent extends Event<RevisionEvent> {
+  private Operation operation;
+  private PropertyQuery revision;
 
+  public Operation getOperation() {
+    return operation;
+  }
+
+  public void setOperation(Operation operation) {
+    this.operation = operation;
+  }
+
+  public RevisionEvent withOperation(Operation operation) {
+    setOperation(operation);
+    return this;
+  }
+
+  public PropertyQuery getRevision() {
+    return revision;
+  }
+
+  public void setRevision(PropertyQuery revision) {
+    this.revision = revision;
+  }
+
+  public RevisionEvent withRevision(PropertyQuery revision) {
+    setRevision(revision);
+    return this;
+  }
+
+  public enum Operation {
+    DELETE
+  }
 }

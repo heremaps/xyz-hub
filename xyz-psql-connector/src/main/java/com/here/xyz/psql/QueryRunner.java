@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,36 +19,49 @@
 
 package com.here.xyz.psql;
 
-import com.here.xyz.events.Event;
-import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.connectors.ErrorResponseException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import org.apache.commons.dbutils.ResultSetHandler;
 
 /**
- * This class provides the utility to run a single database query which is described by an XYZ {@link Event}
- * and which returns an {@link XyzResponse}.
+ * This class provides the utility to run a single database query which is described by an incoming object
+ * and which returns an some specified other object.
  * It has the internal capability to build & run the necessary {@link SQLQuery} and translate
- * the resulting {@link ResultSet} into an {@link XyzResponse}.
- * @param <E> The event type
- * @param <R> The response type
+ * the resulting {@link ResultSet} into the specified response object.
+ * @param <E> The incoming object type, describing the query
+ * @param <R> The outgoing object response type
  */
-public abstract class QueryRunner<E extends Event, R extends XyzResponse> implements ResultSetHandler<R> {
+public abstract class QueryRunner<E extends Object, R extends Object> implements ResultSetHandler<R> {
+
+  //TODO: Make protected again after refactoring is complete
+  public static final String SCHEMA = "schema";
+  public static final String TABLE = "table";
 
   private final SQLQuery query;
   private boolean useReadReplica;
   protected DatabaseHandler dbHandler;
 
-  public QueryRunner(E event, DatabaseHandler dbHandler) {
+  public QueryRunner(E input, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     this.dbHandler = dbHandler;
-    query = buildQuery(event);
+    query = buildQuery(input);
   }
 
   public R run() throws SQLException {
+    prepareQuery();
     return dbHandler.executeQueryWithRetry(query, this, useReadReplica);
   }
 
-  protected abstract SQLQuery buildQuery(E event);
+  public void write() throws SQLException {
+    prepareQuery();
+    dbHandler.executeUpdateWithRetry(query);
+  }
+
+  private void prepareQuery() {
+    query.substitute();
+  }
+
+  protected abstract SQLQuery buildQuery(E input) throws SQLException, ErrorResponseException;
 
   @Override
   public abstract R handle(ResultSet rs) throws SQLException;

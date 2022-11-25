@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ package com.here.xyz.hub.connectors;
 
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
 import static io.netty.handler.codec.http.HttpHeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
@@ -52,15 +51,12 @@ import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.responses.BinResponse;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.HistoryStatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
-import com.here.xyz.util.DhString;
-
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -365,7 +361,8 @@ public class RpcClient {
         case BAD_GATEWAY:
           throw new HttpException(BAD_GATEWAY, "Connector error.", errorResponse.getErrorDetails());
         case PAYLOAD_TO_LARGE:
-          throw new HttpException(Api.RESPONSE_PAYLOAD_TOO_LARGE, DhString.format("%s %s",Api.RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE, errorResponse.getErrorMessage()) , errorResponse.getErrorDetails());
+          throw new HttpException(Api.RESPONSE_PAYLOAD_TOO_LARGE,
+              Api.RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE + " " + errorResponse.getErrorMessage(), errorResponse.getErrorDetails());
       }
     }
   }
@@ -396,9 +393,6 @@ public class RpcClient {
       Typed payload;
       try {
         payload = XyzSerializable.deserialize(stringResponse);
-        //Temporary backwards compat. for BinResponse
-        if (payload instanceof BinResponse)
-          payload = _transformBinResponseBackwardsCompat((BinResponse) payload);
       }
       catch (InvalidTypeIdException e) {
         JsonObject response = new JsonObject(stringResponse);
@@ -504,19 +498,6 @@ public class RpcClient {
           }
         }
     );
-  }
-
-  /**
-   * This method will be needed until {@link BinResponse} was fully removed.
-   *
-   * @param binResponse
-   * @return
-   */
-  private static BinaryResponse _transformBinResponseBackwardsCompat(BinResponse binResponse) {
-    return new BinaryResponse()
-        .withMimeType(APPLICATION_VND_MAPBOX_VECTOR_TILE) //In protocol-versions <0.6.0 all BinResponses are MVT responses
-        .withBytes(binResponse.getBytes())
-        .withEtag(binResponse.getEtag());
   }
 
   /**

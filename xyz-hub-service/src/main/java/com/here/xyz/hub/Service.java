@@ -27,6 +27,7 @@ import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.cache.CacheClient;
 import com.here.xyz.hub.config.ConnectorConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;
+import com.here.xyz.hub.config.SubscriptionConfigClient;
 import com.here.xyz.hub.connectors.BurstAndUpdateThread;
 import com.here.xyz.hub.connectors.WarmupRemoteFunctionThread;
 import com.here.xyz.hub.rest.admin.MessageBroker;
@@ -113,9 +114,14 @@ public class Service extends Core {
   public static SpaceConfigClient spaceConfigClient;
 
   /**
-   * The client to access the the connector configuration.
+   * The client to access the connector configuration.
    */
   public static ConnectorConfigClient connectorConfigClient;
+
+  /**
+   * The client to access the subscription configuration.
+   */
+  public static SubscriptionConfigClient subscriptionConfigClient;
 
   /**
    * A web client to access XYZ Hub nodes and other web resources.
@@ -171,6 +177,7 @@ public class Service extends Core {
     });
     spaceConfigClient = SpaceConfigClient.getInstance();
     connectorConfigClient = ConnectorConfigClient.getInstance();
+    subscriptionConfigClient = SubscriptionConfigClient.getInstance();
 
     webClient = WebClient.create(vertx,
         new WebClientOptions().setUserAgent(XYZ_HUB_USER_AGENT).setTcpKeepAlive(configuration.HTTP_CLIENT_TCP_KEEPALIVE)
@@ -192,6 +199,7 @@ public class Service extends Core {
             die(1, "Connector config client failed", ar.cause());
           }
         });
+        subscriptionConfigClient.init(subscriptionConfigReady -> {});
       } else {
         die(1, "Space config client failed", ar.cause());
       }
@@ -246,7 +254,7 @@ public class Service extends Core {
         logger.info("Deploying verticle: " + className);
         vertx.deployVerticle(className, options, deployVerticleHandler -> {
           if (deployVerticleHandler.failed()) {
-            logger.warn("Unable to load verticle class:" + className);
+            logger.warn("Unable to load verticle class:" + className, deployVerticleHandler.cause());
           }
           deployVerticlePromise.complete();
         });
@@ -549,26 +557,7 @@ public class Service extends Core {
     /**
      * The default {@link Broker} to use. If not given, Redis is used.
      */
-    public String DEFAULT_MESSAGE_BROKER;
-
-    /**
-     * Returns the broker to be used.
-     *
-     * @return the broker to be used.
-     */
-    @Nonnull
-    public Broker getDefaultMessageBroker() {
-      final String brokerName = nullable(DEFAULT_MESSAGE_BROKER);
-      Broker broker = null;
-      if (brokerName != null) {
-        try {
-          broker = Broker.valueOf(brokerName);
-        } catch (Exception e) {
-          logger.error("Illegal value for DEFAULT_MESSAGE_BROKER: " + brokerName, e);
-        }
-      }
-      return broker == null ? Broker.Redis : broker;
-    }
+    public String SUBSCRIPTIONS_DYNAMODB_TABLE_ARN;
 
     /**
      * The ARN of the admin message topic.
@@ -780,6 +769,11 @@ public class Service extends Core {
      * Flag that indicates whether the creation of features on history spaces contains features in the request payload with uuid.
      */
     public boolean MONITOR_FEATURES_WITH_UUID = true;
+
+    /**
+     * Global limit for the maximum amount of revisions to keep per space.
+     */
+    public long MAX_REVISIONS_TO_KEEP = 1_000_000;
   }
 
   /**

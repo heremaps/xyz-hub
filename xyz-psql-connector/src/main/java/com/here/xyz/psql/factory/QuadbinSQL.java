@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,15 +19,14 @@
 
 package com.here.xyz.psql.factory;
 
-import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.events.GetFeaturesByBBoxEvent;
+import static com.here.xyz.psql.PSQLXyzConnector.COUNTMODE_ESTIMATED;
+import static com.here.xyz.psql.PSQLXyzConnector.COUNTMODE_MIXED;
+import static com.here.xyz.psql.PSQLXyzConnector.COUNTMODE_REAL;
+
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
-import com.here.xyz.psql.Capabilities;
-import com.here.xyz.psql.PSQLXyzConnector;
 import com.here.xyz.psql.SQLQuery;
-import com.here.xyz.responses.XyzError;
-import com.here.xyz.util.DhString;
+import com.here.xyz.psql.tools.DhString;
 
 public class QuadbinSQL {
 
@@ -40,44 +39,9 @@ public class QuadbinSQL {
 
 
     /**
-     * Real live counts via count(*)
-     */
-    private static final String COUNTMODE_REAL = "real";
-    /**
-     * Estimated counts, determined with _postgis_selectivity() or EXPLAIN Plan analyze
-     */
-    private static final String COUNTMODE_ESTIMATED = "estimated";
-    /**
-     * Combination of real and estimated.
-     */
-    private static final String COUNTMODE_MIXED = "mixed";
-    /**
      * MIXED-mode only supports tables with lower than LIMIT_MIXED_MODE records
      */
-    private static final Integer LIMIT_COUNTMODE_MIXED = 6000000;
-
-    /**
-     * Check if request parameters are valid. In case of invalidity throw an Exception
-     */
-    public static void checkQuadbinInput(String countMode, int relResolution, GetFeaturesByBBoxEvent event, String spaceId, String streamId, PSQLXyzConnector connector) throws ErrorResponseException
-    {
-        if(countMode != null && (!countMode.equalsIgnoreCase(QuadbinSQL.COUNTMODE_REAL) && !countMode.equalsIgnoreCase(QuadbinSQL.COUNTMODE_ESTIMATED) && !countMode.equalsIgnoreCase(QuadbinSQL.COUNTMODE_MIXED)) )
-            throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-                    "Invalid request parameters. Unknown clustering.countmode="+countMode+". Available are: ["+ QuadbinSQL.COUNTMODE_REAL +","+ QuadbinSQL.COUNTMODE_ESTIMATED +","+ QuadbinSQL.COUNTMODE_MIXED +"]!");
-
-        if(relResolution > 5)
-            throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-                    "Invalid request parameters. clustering.relativeResolution="+relResolution+" to high. 5 is maximum!");
-
-        if(event.getPropertiesQuery() != null && event.getPropertiesQuery().get(0).size() != 1)
-            throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-                    "Invalid request parameters. Only one Property is allowed");
-
-        if (!Capabilities.canSearchFor(spaceId, event.getPropertiesQuery(), connector)) {
-            throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-                    "Invalid request parameters. Search for the provided properties is not supported for this resource.");
-        }
-    }
+    public static final Integer LIMIT_COUNTMODE_MIXED = 6000000;
 
     /**
      * Creates the SQLQuery for Quadbin requests.
@@ -100,17 +64,17 @@ public class QuadbinSQL {
          resultQkGeo = DhString.format("ST_Intersection(%s,%s)",resultQkGeo,bboxSql);
 
         if(quadMode == null)
-            quadMode = QuadbinSQL.COUNTMODE_MIXED;
+            quadMode = COUNTMODE_MIXED;
 
         switch (quadMode) {
-            case QuadbinSQL.COUNTMODE_REAL:
+            case COUNTMODE_REAL:
                 realCountCondition = "TRUE";
                 pureEstimation = _pureEstimation;
                 break;
-            case QuadbinSQL.COUNTMODE_ESTIMATED:
-            case QuadbinSQL.COUNTMODE_MIXED:
+            case COUNTMODE_ESTIMATED:
+            case COUNTMODE_MIXED:
 
-                realCountCondition = ( quadMode.equalsIgnoreCase(QuadbinSQL.COUNTMODE_MIXED) ? "cond_est_cnt < 100 AND est_cnt < "+ LIMIT_COUNTMODE_MIXED : "FALSE");
+                realCountCondition = ( quadMode.equalsIgnoreCase(COUNTMODE_MIXED) ? "cond_est_cnt < 100 AND est_cnt < "+ LIMIT_COUNTMODE_MIXED : "FALSE");
 
                 if(propQuery != null){
                     pureEstimation =
@@ -127,7 +91,7 @@ public class QuadbinSQL {
         }
 
         if( propQuery == null )  propQuery = "(1 = 1)";
-        
+
         query.append(
 /*cte begin*/
                 "with  "+
@@ -155,7 +119,7 @@ public class QuadbinSQL {
                 "		  ) prop "+
                 "		) as properties "+
                 "	  ) ftr "+
-                "    )::jsonb as jsondata,   "+      
+                "    )::jsonb as jsondata,   "+
                 "    (CASE WHEN cnt_bbox_est != 0"+
                 "        THEN"+
                 "            " + resultQkGeo +

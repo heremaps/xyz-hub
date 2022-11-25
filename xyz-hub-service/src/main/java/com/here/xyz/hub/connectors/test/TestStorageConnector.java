@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ package com.here.xyz.hub.connectors.test;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.connectors.StorageConnector;
-import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
@@ -36,6 +35,7 @@ import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.hub.Core;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
@@ -76,6 +76,12 @@ public class TestStorageConnector extends StorageConnector {
     if (XyzError.forValue(event.getSpace()) != null) {
       return new SuccessResponse();
     }
+    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
+  }
+
+  @Override
+  protected XyzResponse processModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception {
+    // Needs further implementation
     throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
   }
 
@@ -136,11 +142,6 @@ public class TestStorageConnector extends StorageConnector {
 
   @Override
   protected XyzResponse processSearchForFeaturesEvent(SearchForFeaturesEvent event) throws Exception {
-    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
-  }
-
-  @Override
-  protected XyzResponse processCountFeaturesEvent(CountFeaturesEvent event) throws Exception {
     throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
   }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,10 +26,11 @@ import com.here.xyz.events.*;
 import com.here.xyz.models.geojson.coordinates.*;
 import com.here.xyz.models.geojson.implementation.*;
 import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.responses.XyzResponse;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
-import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -47,11 +48,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
     @BeforeClass
     public static void init() throws Exception { initEnv(null); }
 
-    @Before
-    public void removeTestSpaces() throws Exception { deleteTestSpace(null); }
-
     @After
-    public void shutdown() throws Exception { shutdownEnv(null); }
+    public void shutdown() throws Exception { invokeDeleteTestSpace(null); }
 
     /**
      * Test all branches of the BBox query.
@@ -61,9 +59,9 @@ public class PSQLReadIT extends PSQLAbstractIT {
         // =========== INSERT ==========
         final String insertJsonFile = "/events/InsertFeaturesEventTransactional.json";
         final String insertResponse = invokeLambdaFromFile(insertJsonFile);
-        final String insertRequest = IOUtils.toString(GSContext.class.getResourceAsStream(insertJsonFile));
+        final String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
         assertRead(insertRequest, insertResponse, true);
-        logger.info("Insert feature tested successfully");
+        LOGGER.info("Insert feature tested successfully");
 
         String queryEvent;
         // =========== QUERY BBOX ==========
@@ -109,7 +107,10 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
         queryResponse = invokeLambda(getFeaturesByBBoxEvent.serialize());
         assertNotNull(queryResponse);
-        featureCollection = XyzSerializable.deserialize(queryResponse);
+        XyzResponse response = XyzSerializable.deserialize(queryResponse);
+        if (response instanceof ErrorResponse)
+            failWithError((ErrorResponse) response);
+        featureCollection = (FeatureCollection) response;
         assertNotNull(featureCollection);
         features = featureCollection.getFeatures();
         assertNotNull(features);
@@ -255,7 +256,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 .withInsertFeatures(collection.getFeatures());
 
         invokeLambda(mfevent.serialize());
-        logger.info("Insert feature tested successfully");
+        LOGGER.info("Insert feature tested successfully");
         // =========== QUERY WITH POLYGON ==========
         PolygonCoordinates polyCoords = new PolygonCoordinates();
         LinearRingCoordinates ringCords = new LinearRingCoordinates();
@@ -277,7 +278,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         FeatureCollection featureCollection = XyzSerializable.deserialize(queryResponse);
         assertNotNull(featureCollection);
         assertEquals(124, featureCollection.getFeatures().size());
-        logger.info("Area Query with POLYGON tested successfully");
+        LOGGER.info("Area Query with POLYGON tested successfully");
         // =========== QUERY WITH POLYGON WITH HOLE ==========
         LinearRingCoordinates holeCords = new LinearRingCoordinates();
         holeCords.add(new Position(7.05, 50.05));
@@ -303,7 +304,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
             }
         }
         assertEquals(114, featureCollection.getFeatures().size());
-        logger.info("Area Query with POLYGON incl. hole tested successfully");
+        LOGGER.info("Area Query with POLYGON incl. hole tested successfully");
         // =========== QUERY WITH MULTIPOLYGON ==========
         PolygonCoordinates polyCoords2 = new PolygonCoordinates();
         LinearRingCoordinates ringCords2 = new LinearRingCoordinates();
@@ -336,7 +337,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         }
         assertEquals(213, featureCollection.getFeatures().size());
         assertEquals(2, cnt);
-        logger.info("Area Query with MULTIPOLYGON tested successfully");
+        LOGGER.info("Area Query with MULTIPOLYGON tested successfully");
         // =========== QUERY WITH MULTIPOLYGON + PROPERTIES_SEARCH ==========
         PropertiesQuery pq = new PropertiesQuery();
         PropertyQueryList pql = new PropertyQueryList();
@@ -355,7 +356,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         featureCollection = XyzSerializable.deserialize(queryResponse);
         assertNotNull(featureCollection);
         assertEquals(121, featureCollection.getFeatures().size());
-        logger.info("Area Query with MULTIPOLYGON + PROPERTIES_SEARCH tested successfully");
+        LOGGER.info("Area Query with MULTIPOLYGON + PROPERTIES_SEARCH tested successfully");
         // =========== QUERY WITH MULTIPOLYGON + SELECTION ==========
         geo = new MultiPolygon().withCoordinates(multiCords);
         geometryEvent = new GetFeaturesByGeometryEvent()
@@ -365,6 +366,9 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 .withSelection(new ArrayList<>(Collections.singletonList("properties.foo2")));
 
         queryResponse = invokeLambda(geometryEvent.serialize());
+        XyzResponse response = XyzSerializable.deserialize(queryResponse);
+        if (response instanceof ErrorResponse)
+            failWithError((ErrorResponse) response);
         featureCollection = XyzSerializable.deserialize(queryResponse);
         assertNotNull(featureCollection);
         assertEquals(213, featureCollection.getFeatures().size());
@@ -372,7 +376,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Properties properties = featureCollection.getFeatures().get(0).getProperties();
         assertEquals(new Integer(1), properties.get("foo2"));
         assertNull(properties.get("foo"));
-        logger.info("Area Query with MULTIPOLYGON + SELECTION tested successfully");
+        LOGGER.info("Area Query with MULTIPOLYGON + SELECTION tested successfully");
 
         // =========== QUERY WITH H3Index ==========
         geometryEvent = new GetFeaturesByGeometryEvent()
@@ -385,7 +389,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         featureCollection = XyzSerializable.deserialize(queryResponse);
         assertNotNull(featureCollection);
         assertEquals(404, featureCollection.getFeatures().size());
-        logger.info("Hexbin Query (large) tested successfully");
+        LOGGER.info("Hexbin Query (large) tested successfully");
 
         geometryEvent = new GetFeaturesByGeometryEvent()
                 .withConnectorParams(defaultTestConnectorParams)
@@ -397,7 +401,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         featureCollection = XyzSerializable.deserialize(queryResponse);
         assertNotNull(featureCollection);
         assertEquals(42, featureCollection.getFeatures().size());
-        logger.info("H3Index Query (small) tested successfully");
+        LOGGER.info("H3Index Query (small) tested successfully");
 
         pq = new PropertiesQuery();
         pql = new PropertyQueryList();
@@ -416,7 +420,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         featureCollection = XyzSerializable.deserialize(queryResponse);
         assertNotNull(featureCollection);
         assertEquals(1, featureCollection.getFeatures().size());
-        logger.info("H3Index Query (small) with property query tested successfully");
+        LOGGER.info("H3Index Query (small) with property query tested successfully");
     }
 
     @Test
@@ -426,9 +430,9 @@ public class PSQLReadIT extends PSQLAbstractIT {
         XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
         String insertJsonFile = "/events/InsertFeaturesEventTransactional.json";
         String insertResponse = invokeLambdaFromFile(insertJsonFile);
-        String insertRequest = IOUtils.toString(GSContext.class.getResourceAsStream(insertJsonFile));
+        String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
         assertRead(insertRequest, insertResponse, true);
-        logger.info("Insert feature tested successfully");
+        LOGGER.info("Insert feature tested successfully");
 
         // =========== GetStatistics ==========
         GetStatisticsEvent event = new GetStatisticsEvent()
@@ -473,7 +477,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 Stream.generate(() -> {
                     Feature f = new Feature()
                             .withGeometry(
-                                    new Point().withCoordinates(new PointCoordinates(360d * random.nextDouble() - 180d, 180d * random.nextDouble() - 90d)))
+                                    new Point().withCoordinates(new PointCoordinates(360d * RANDOM.nextDouble() - 180d, 180d * RANDOM.nextDouble() - 90d)))
                             .withProperties(new Properties().withXyzNamespace(xyzNamespace));
                     pKeys.forEach(p -> f.getProperties().put(p, RandomStringUtils.randomAlphanumeric(8)));
                     return f;
@@ -489,7 +493,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         invokeLambda(mfevent.serialize());
 
         /* Needed to trigger update on pg_stat*/
-        try (final Connection connection = lambda.dataSource.getConnection()) {
+        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
             Statement stmt = connection.createStatement();
             stmt.execute("ANALYZE \"foo\";");
         }
@@ -527,15 +531,15 @@ public class PSQLReadIT extends PSQLAbstractIT {
         invokeLambdaFromFile(insertJsonFile);
 
         // retrieve the basic event
-        String basic = IOUtils.toString(GSContext.class.getResourceAsStream("/events/BasicSearchByPropertiesAndTagsEvent.json"));
+        String basic = IOUtils.toString(this.getClass().getResourceAsStream("/events/BasicSearchByPropertiesAndTagsEvent.json"));
 
         // Test 1
         Map<String, Object> test1 = mapper.readValue(basic, tr);
         Map<String, Object> properties1 = new HashMap<>();
         properties1.put("key", "properties.name");
         properties1.put("operation", "EQUALS");
-        properties1.put("values", Stream.of("Toyota").collect(Collectors.toList()));
-        addPropertiesQueryToSearchObject(test1, properties1);
+        properties1.put("values", Collections.singletonList("Toyota"));
+        addPropertiesQueryToSearchObject(test1, false, properties1);
         addTagsToSearchObject(test1, "yellow");
         invokeAndAssert(test1, 1, "Toyota");
 
@@ -544,8 +548,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties2 = new HashMap<>();
         properties2.put("key", "properties.size");
         properties2.put("operation", "LESS_THAN_OR_EQUALS");
-        properties2.put("values", Stream.of(1).collect(Collectors.toList()));
-        addPropertiesQueryToSearchObject(test2, properties2);
+        properties2.put("values", Collections.singletonList(1));
+        addPropertiesQueryToSearchObject(test2, false, properties2);
         invokeAndAssert(test2, 2, "Ducati", "BikeX");
 
         // Test 3
@@ -553,8 +557,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties3 = new HashMap<>();
         properties3.put("key", "properties.car");
         properties3.put("operation", "EQUALS");
-        properties3.put("values", Stream.of(true).collect(Collectors.toList()));
-        addPropertiesQueryToSearchObject(test3, properties3);
+        properties3.put("values", Collections.singletonList(true));
+        addPropertiesQueryToSearchObject(test3, false, properties3);
         invokeAndAssert(test3, 1, "Toyota");
 
         // Test 4
@@ -562,8 +566,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties4 = new HashMap<>();
         properties4.put("key", "properties.car");
         properties4.put("operation", "EQUALS");
-        properties4.put("values", Stream.of(false).collect(Collectors.toList()));
-        addPropertiesQueryToSearchObject(test4, properties4);
+        properties4.put("values", Collections.singletonList(false));
+        addPropertiesQueryToSearchObject(test4, false, properties4);
         invokeAndAssert(test4, 1, "Ducati");
 
         // Test 5
@@ -571,8 +575,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties5 = new HashMap<>();
         properties5.put("key", "properties.size");
         properties5.put("operation", "GREATER_THAN");
-        properties5.put("values", Stream.of(5).collect(Collectors.toList()));
-        addPropertiesQueryToSearchObject(test5, properties5);
+        properties5.put("values", Collections.singletonList(5));
+        addPropertiesQueryToSearchObject(test5, false, properties5);
         addTagsToSearchObject(test5, "red");
         invokeAndAssert(test5, 1, "Toyota");
 
@@ -581,8 +585,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties6 = new HashMap<>();
         properties6.put("key", "properties.size");
         properties6.put("operation", "LESS_THAN");
-        properties6.put("values", Stream.of(5).collect(Collectors.toList()));
-        addPropertiesQueryToSearchObject(test6, properties6);
+        properties6.put("values", Collections.singletonList(5));
+        addPropertiesQueryToSearchObject(test6, false, properties6);
         addTagsToSearchObject(test6, "red");
         invokeAndAssert(test6, 1, "Ducati");
 
@@ -591,8 +595,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties7 = new HashMap<>();
         properties7.put("key", "properties.name");
         properties7.put("operation", "EQUALS");
-        properties7.put("values", Stream.of("Toyota", "Tesla").collect(Collectors.toList()));
-        addPropertiesQueryToSearchObject(test7, properties7);
+        properties7.put("values", Arrays.asList("Toyota", "Tesla"));
+        addPropertiesQueryToSearchObject(test7,  false, properties7);
         invokeAndAssert(test7, 2, "Toyota", "Tesla");
 
         // Test 8
@@ -604,8 +608,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties9 = new HashMap<>();
         properties9.put("key", "properties.name");
         properties9.put("operation", "EQUALS");
-        properties9.put("values", Stream.of("Test").collect(Collectors.toList()));
-        addPropertiesQueryToSearchObject(test9, properties9);
+        properties9.put("values", Collections.singletonList("Test"));
+        addPropertiesQueryToSearchObject(test9, false, properties9);
         invokeAndAssert(test9, 0);
 
         // Test 10
@@ -613,8 +617,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties10 = new HashMap<>();
         properties10.put("key", "properties.name");
         properties10.put("operation", "EQUALS");
-        properties10.put("values", Stream.of("Toyota").collect(Collectors.toList()));
-        addPropertiesQueryToSearchObject(test10, properties10);
+        properties10.put("values", Collections.singletonList("Toyota"));
+        addPropertiesQueryToSearchObject(test10, false, properties10);
         addTagsToSearchObject(test10, "cyan");
         invokeAndAssert(test10, 0);
 
@@ -623,12 +627,12 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties11_1 = new HashMap<>();
         properties11_1.put("key", "properties.name");
         properties11_1.put("operation", "EQUALS");
-        properties11_1.put("values", Stream.of("Toyota", "Ducati", "BikeX").collect(Collectors.toList()));
+        properties11_1.put("values", Arrays.asList("Toyota", "Ducati", "BikeX"));
         Map<String, Object> properties11_2 = new HashMap<>();
         properties11_2.put("key", "properties.size");
         properties11_2.put("operation", "EQUALS");
-        properties11_2.put("values", Stream.of(1D, 0.3D).collect(Collectors.toList()));
-        addPropertiesQueryToSearchObject(test11, properties11_1, properties11_2);
+        properties11_2.put("values", Arrays.asList(1D, 0.3D));
+        addPropertiesQueryToSearchObject(test11, false, properties11_1, properties11_2);
         invokeAndAssert(test11, 2, "Ducati", "BikeX");
 
         // Test 12
@@ -636,12 +640,12 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties12_1 = new HashMap<>();
         properties12_1.put("key", "properties.name");
         properties12_1.put("operation", "EQUALS");
-        properties12_1.put("values", Stream.of("Toyota", "Ducati").collect(Collectors.toList()));
+        properties12_1.put("values", Arrays.asList("Toyota", "Ducati"));
         Map<String, Object> properties12_2 = new HashMap<>();
         properties12_2.put("key", "properties.name");
         properties12_2.put("operation", "EQUALS");
-        properties12_2.put("values", Stream.of("Toyota").collect(Collectors.toList()));
-        addPropertiesQueryToSearchObject(test12, properties12_1);
+        properties12_2.put("values", Collections.singletonList("Toyota"));
+        addPropertiesQueryToSearchObject(test12, false, properties12_1);
         addPropertiesQueryToSearchObject(test12, true, properties12_2);
         invokeAndAssert(test12, 2, "Toyota", "Ducati");
 
@@ -650,12 +654,12 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties13_1 = new HashMap<>();
         properties13_1.put("key", "properties.name");
         properties13_1.put("operation", "EQUALS");
-        properties13_1.put("values", Stream.of("Toyota").collect(Collectors.toList()));
+        properties13_1.put("values", Collections.singletonList("Toyota"));
         Map<String, Object> properties13_2 = new HashMap<>();
         properties13_2.put("key", "properties.name");
         properties13_2.put("operation", "EQUALS");
-        properties13_2.put("values", Stream.of("Ducati").collect(Collectors.toList()));
-        addPropertiesQueryToSearchObject(test13, properties13_1);
+        properties13_2.put("values", Collections.singletonList("Ducati"));
+        addPropertiesQueryToSearchObject(test13, false, properties13_1);
         addPropertiesQueryToSearchObject(test13, true, properties13_2);
         invokeAndAssert(test13, 2, "Toyota", "Ducati");
 
@@ -664,8 +668,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties14_1 = new HashMap<>();
         properties14_1.put("key", "id");
         properties14_1.put("operation", "GREATER_THAN");
-        properties14_1.put("values", Stream.of(0).collect(Collectors.toList()));
-        addPropertiesQueryToSearchObject(test14, properties14_1);
+        properties14_1.put("values", Collections.singletonList(0));
+        addPropertiesQueryToSearchObject(test14, false, properties14_1);
 
         String response = invokeLambda(mapper.writeValueAsString(test14));
         FeatureCollection responseCollection = XyzSerializable.deserialize(response);
@@ -677,8 +681,9 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Map<String, Object> properties15_1 = new HashMap<>();
         properties15_1.put("key", "id");
         properties15_1.put("operation", "EQUALS");
-        properties15_1.put("values", Stream.of(id).collect(Collectors.toList()));
-        addPropertiesQueryToSearchObject(test15, properties15_1);
+        properties15_1.put("values", Collections.singletonList(id));
+        addPropertiesQueryToSearchObject(test15, false, properties15_1);
+        addPropertiesQueryToSearchObject(test15, true, properties15_1);
 
         response = invokeLambda(mapper.writeValueAsString(test15));
         responseCollection = XyzSerializable.deserialize(response);
@@ -697,5 +702,50 @@ public class PSQLReadIT extends PSQLAbstractIT {
         final String response = invokeLambdaFromFile("/events/IterateMySpace.json");
         final FeatureCollection features = XyzSerializable.deserialize(response);
         features.serialize(true);
+    }
+
+    private void failWithError(ErrorResponse error) {
+        if (error instanceof ErrorResponse)
+            fail("Received error response: [" + error.getError() + "] " + error.getErrorMessage());
+        else
+            fail("Failing without a valid ErrorResponse was provided.");
+    }
+
+    @SafeVarargs
+    protected final void addPropertiesQueryToSearchObject(Map<String, Object> json, boolean or, Map<String, Object>... objects) {
+        if (!json.containsKey("propertiesQuery")) {
+            json.put("propertiesQuery", new ArrayList<List<Map<String, Object>>>());
+        }
+
+        @SuppressWarnings({"unchecked", "rawtypes"}) final List<List<Map<String, Object>>> list = (List) json.get("propertiesQuery");
+        if (or) {
+            list.add(Arrays.asList(objects));
+            return;
+        }
+
+        if (list.size() == 0) {
+            list.add(Arrays.asList(objects));
+            return;
+        }
+
+        list.get(0).addAll(Arrays.asList(objects));
+    }
+
+    protected void addTagsToSearchObject(Map<String, Object> json, String... tags) {
+        json.remove("tags");
+        json.put("tags", new ArrayList<String>());
+        ((List) json.get("tags")).add(new ArrayList(Arrays.asList(tags)));
+    }
+
+    protected void invokeAndAssert(Map<String, Object> json, int size, String... names) throws Exception {
+        String response = invokeLambda(new ObjectMapper().writeValueAsString(json));
+
+        final FeatureCollection responseCollection = XyzSerializable.deserialize(response);
+        final List<Feature> responseFeatures = responseCollection.getFeatures();
+        assertEquals("Check size", size, responseFeatures.size());
+
+        for (int i = 0; i < size; i++) {
+            assertEquals("Check name", names[i], responseFeatures.get(i).getProperties().get("name"));
+        }
     }
 }

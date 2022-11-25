@@ -245,6 +245,11 @@ public class Connector {
 
     public boolean mvtSupport;
 
+    /**
+     * Whether the storage connector supports the extends feature which allow spaces to extend content from another.
+     */
+    public boolean extensionSupport;
+
     @Override
     public boolean equals(Object o) {
       if (this == o) return true;
@@ -259,9 +264,9 @@ public class Connector {
           && enableAutoCache == that.enableAutoCache
           && Objects.equals(clusteringTypes, that.clusteringTypes)
           && storageUtilizationReporting == that.storageUtilizationReporting
-          && mvtSupport == that.mvtSupport;
+          && mvtSupport == that.mvtSupport
+          && extensionSupport == that.extensionSupport;
     }
-
   }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
@@ -449,7 +454,7 @@ public class Connector {
         if (!(o instanceof Http)) return false;
         if (!super.equals(o)) return false;
         Http http = (Http) o;
-        return metricsActive == http.metricsActive && url.equals(http.url);
+        return metricsActive == http.metricsActive && url.toString().equals(http.url.toString());
       }
 
       @Override

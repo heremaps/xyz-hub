@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -65,6 +65,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -164,7 +165,7 @@ public class SpaceTaskHandler {
   }
 
   public static void validate(ConditionalOperation task, Callback<ConditionalOperation> callback) throws Exception {
-    if (task.isDelete()) {
+    if (task.isDelete() || task.isRead()) {
       callback.call(task);
       return;
     }
@@ -174,7 +175,7 @@ public class SpaceTaskHandler {
     if (task.isUpdate()) {
       /**
        * Validate immutable settings which are only can get set during the space creation:
-       * enableUUID, enableHistory, enableGlobalVersioning, maxVersionCount
+       * enableUUID, enableHistory, enableGlobalVersioning, maxVersionCount, extension
        * */
       Space spaceHead = task.modifyOp.entries.get(0).head;
 
@@ -222,28 +223,64 @@ public class SpaceTaskHandler {
     if (space.getId() == null) {
       throw new HttpException(BAD_REQUEST, "Validation failed. The property 'id' cannot be empty.");
     }
+
     if (space.getOwner() == null) {
       throw new HttpException(BAD_REQUEST, "Validation failed. The property 'owner' cannot be empty.");
     }
+
     if (space.getStorage() == null || space.getStorage().getId() == null) {
       throw new HttpException(BAD_REQUEST, "Validation failed. The storage ID cannot be empty.");
     }
+
     if (space.getTitle() == null) {
       throw new HttpException(BAD_REQUEST, "Validation failed. The property 'title' cannot be empty.");
     }
+
     if (space.getClient() != null && Json.encode(space.getClient()).getBytes().length > CLIENT_VALUE_MAX_SIZE) {
-      throw new HttpException(
-          BAD_REQUEST, "The property client is over the allowed limit of " + CLIENT_VALUE_MAX_SIZE + " bytes.");
+      throw new HttpException(BAD_REQUEST, "The property client is over the allowed limit of " + CLIENT_VALUE_MAX_SIZE + " bytes.");
     }
-    if (space.getSearchableProperties() != null && !space.getSearchableProperties().isEmpty()) {
+
+    if (space.getRevisionsToKeep() < 0 || space.getRevisionsToKeep() > Service.configuration.MAX_REVISIONS_TO_KEEP) {
+      throw new HttpException(BAD_REQUEST, "The property revisionsToKeep must be equals to zero or a positive integer. Max value is " + Service.configuration.MAX_REVISIONS_TO_KEEP);
+    }
+
+    if (space.getExtension() != null && space.getSearchableProperties() != null) {
+      throw new HttpException(BAD_REQUEST, "Validation failed. The properties 'searchableProperties' and 'extends' cannot be set together.");
+    }
+
+    if (task.modifyOp.entries.get(0).result.getExtension() != null) {
+      // in case of create, the storage must be not set from the user (or set exactly as if the storage property in space template)
+      // in case of update, the property storage is checked for modification against the head value
+      Space inputSpace = task.isUpdate() ? task.modifyOp.entries.get(0).head : getSpaceTemplate(null, null);
+      Space resultSpace = task.modifyOp.entries.get(0).result;
+
+      // normalize params in case of null, so the diff calculator considers: null params == empty params
+      // normalization is necessary because params from head or result are always a map, unless the user specifies params: null and params from space template is null
+      if (inputSpace.getStorage().getParams() == null)
+        inputSpace.getStorage().setParams(new HashMap<>());
+
+      if (resultSpace.getStorage().getParams() == null)
+        resultSpace.getStorage().setParams(new HashMap<>());
+
+      // if there is any modification, means the user tried to submit 'storage' and 'extends' properties together
+      if (Patcher.getDifference(resultSpace.asMap().get("storage"), inputSpace.asMap().get("storage")) != null) {
+        throw new HttpException(BAD_REQUEST, "Validation failed. The properties 'storage' and 'extends' cannot be set together.");
+      }
+    }
+
+    if (space.getSearchableProperties() != null && !space.getSearchableProperties().isEmpty() || space.getExtension() != null) {
       Space.resolveConnector(task.getMarker(), space.getStorage().getId(), arConnector -> {
         if (arConnector.failed()) {
           callback.exception(new Exception(arConnector.cause()));
         } else {
-          Connector connector = arConnector.result();
-          if (!connector.capabilities.searchablePropertiesConfiguration) {
+          final Connector connector = arConnector.result();
+          if (space.getSearchableProperties() != null && !space.getSearchableProperties().isEmpty()
+              && !connector.capabilities.searchablePropertiesConfiguration) {
             callback.exception(new HttpException(BAD_REQUEST, "It's not supported to define the searchableProperties"
                 + " on space with storage connector " + space.getStorage().getId()));
+          } else if (space.getExtension() != null && !connector.capabilities.extensionSupport) {
+            callback.exception(new HttpException(BAD_REQUEST, "The space " + space.getId() + " cannot extend the space "
+                + space.getExtension().getSpaceId() + " because its storage does not have the capability 'extensionSupport'."));
           } else {
             callback.call(task);
           }
@@ -373,6 +410,74 @@ public class SpaceTaskHandler {
         });
   }
 
+  static void resolveExtensions(ConditionalOperation task, Callback<ConditionalOperation> callback) {
+    if (!task.isCreate() && !task.isUpdate()) {
+      callback.call(task);
+      return;
+    }
+
+    Space space = task.modifyOp.entries.get(0).result;
+
+    if (space.getExtension() == null) {
+      callback.call(task);
+      return;
+    }
+
+    //Load the space being extended
+    Space.resolveSpace(task.getMarker(), space.getExtension().getSpaceId())
+      .onFailure(t -> onExtensionResolveError(task, t, callback))
+      .onSuccess(extendedSpace -> {
+        // check for existing space to be extended
+        if (extendedSpace == null) {
+          callback.exception(new HttpException(BAD_REQUEST, "The space " + space.getId() + " cannot extend the space "
+              + space.getExtension().getSpaceId() + " because it does not exist."));
+          return;
+        }
+
+        ConnectorRef extendedConnector = extendedSpace.getStorage();
+        if (task.isCreate()) {
+          //Override the storage config by copying it from the extended space
+          space.setStorage(new ConnectorRef()
+              .withId(extendedConnector.getId())
+              .withParams(extendedConnector.getParams() != null ? extendedConnector.getParams() : new HashMap<>()));
+        }
+        else if (!Objects.equals(space.getStorage().getId(), extendedConnector.getId())) {
+          callback.exception(new HttpException(BAD_REQUEST, "The storage of space " + space.getId()
+              + " [storage: " + space.getStorage().getId() + "] is not matching the storage of the space to be extended "
+              + "(" + extendedSpace.getId() + " [storage: " + extendedConnector.getId() + "])."));
+          return;
+        }
+
+        task.resolvedExtensions = space.resolveCompositeParams(extendedSpace);
+
+        //Check for extensions with more than 2 levels
+        //((Map<String,Map<String, Object>>) extendedSpace.getStorage().getParams().get("extends")).containsKey("extends")
+        if (extendedSpace.getExtension() != null) {
+          Space.resolveSpace(task.getMarker(), extendedSpace.getExtension().getSpaceId())
+              .onFailure(t -> onExtensionResolveError(task, t, callback))
+              .onSuccess(secondLvlExtendedSpace -> {
+                if (secondLvlExtendedSpace == null)
+                  onExtensionResolveError(task, new Exception("Unexpected error: Extension of extended space could not be found."), callback);
+
+                Map<String, Object> resolvedSecondLvlExtensions = extendedSpace.resolveCompositeParams(secondLvlExtendedSpace);
+                if (((Map<String, Object>) resolvedSecondLvlExtensions.get("extends")).containsKey("extends"))
+                  callback.exception(new HttpException(BAD_REQUEST, "The space " + space.getId() + " cannot extend the space "
+                      + extendedSpace.getId() + " because the maximum extension level is 2."));
+                else
+                  callback.call(task);
+              });
+        }
+        else
+          callback.call(task);
+      });
+  }
+
+  private static void onExtensionResolveError(ConditionalOperation task, Throwable error, Callback<ConditionalOperation> callback) {
+    String errMsg = "Error during resolving extensions.";
+    logger.error(task.getMarker(), errMsg, error);
+    callback.exception(new HttpException(INTERNAL_SERVER_ERROR, errMsg, error));
+  }
+
   static void sendEvents(ConditionalOperation task, Callback<ConditionalOperation> callback) {
     if (!task.isCreate() && !task.isUpdate() && !task.isDelete()) {
       callback.call(task);
@@ -389,11 +494,18 @@ public class SpaceTaskHandler {
       return;
     }
 
+    Map<String, Object> storageParams = new HashMap<>();
+    if (space.getStorage().getParams() != null)
+      storageParams.putAll(space.getStorage().getParams());
+    //Inject the extension-map
+    if (task.resolvedExtensions != null)
+      storageParams.putAll(task.resolvedExtensions);
+
     final ModifySpaceEvent event = new ModifySpaceEvent()
         .withOperation(op)
         .withSpaceDefinition(space)
         .withStreamId(task.getMarker().getName())
-        .withParams(space.getStorage().getParams())
+        .withParams(storageParams)
         .withIfNoneMatch(task.context.request().headers().get("If-None-Match"))
         .withSpace(space.getId());
 

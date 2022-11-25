@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,11 +20,6 @@
 package com.here.xyz.hub.task;
 
 
-import static com.here.xyz.hub.task.ModifyOp.IfExists.DELETE;
-import static com.here.xyz.hub.task.ModifyOp.IfExists.MERGE;
-import static com.here.xyz.hub.task.ModifyOp.IfExists.PATCH;
-import static com.here.xyz.hub.task.ModifyOp.IfExists.REPLACE;
-import static com.here.xyz.hub.task.ModifyOp.IfExists.RETAIN;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
 import com.google.common.base.Strings;
@@ -37,12 +32,11 @@ import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.rest.HttpException;
-import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
 import io.vertx.ext.web.RoutingContext;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
 
@@ -54,6 +48,12 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
   public List<Space> responseSpaces;
   public boolean canReadAdminProperties = false;
   public boolean canReadConnectorsProperties = false;
+
+  /**
+   * If the space root space of this task is a composite-space, this field will contain the resolved extension-map.
+   * "Resolved" means it contains the full extended layer-stack. For a 2-level extension that means it would contain two levels of spaces.
+   */
+  Map<String, Object> resolvedExtensions;
 
   public SpaceTask(RoutingContext context, ApiResponseType responseType) {
     super(new SpaceEvent(), context, responseType, true);
@@ -189,6 +189,7 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
           .then(SpaceTaskHandler::processModifyOp)
           .then(SpaceTaskHandler::postProcess)
           .then(SpaceTaskHandler::validate)
+          .then(SpaceTaskHandler::resolveExtensions)
           .then(SpaceAuthorization::authorizeModifyOp)
           .then(SpaceTaskHandler::enforceUsageQuotas)
           .then(SpaceTaskHandler::sendEvents)

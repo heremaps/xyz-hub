@@ -36,7 +36,7 @@ import java.util.Map;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "LoadFeaturesEvent")
-public final class LoadFeaturesEvent extends Event<LoadFeaturesEvent> {
+public final class LoadFeaturesEvent extends ContextAwareEvent<LoadFeaturesEvent> {
 
   public LoadFeaturesEvent() {
     setPreferPrimaryDataSource(true);
@@ -44,7 +44,8 @@ public final class LoadFeaturesEvent extends Event<LoadFeaturesEvent> {
 
   @JsonInclude(Include.ALWAYS)
   private Map<String, String> idsMap;
-  private Boolean enableHistory;
+  @JsonInclude(Include.NON_DEFAULT)
+  private boolean enableHistory;
   @JsonInclude(Include.NON_DEFAULT)
   private boolean enableGlobalVersioning;
 
@@ -62,7 +63,7 @@ public final class LoadFeaturesEvent extends Event<LoadFeaturesEvent> {
    */
   @SuppressWarnings("unused")
   public Map<String, String> getIdsMap() {
-    return this.idsMap;
+    return idsMap;
   }
 
   public void setIdsMap(Map<String, String> idsMap) {
@@ -80,8 +81,8 @@ public final class LoadFeaturesEvent extends Event<LoadFeaturesEvent> {
    * @return true if the hash should be maintained, false otherwise.
    */
   @SuppressWarnings("unused")
-  public Boolean getEnableHistory() {
-    return this.enableHistory;
+  public boolean getEnableHistory() {
+    return enableHistory;
   }
 
   /**
@@ -90,12 +91,12 @@ public final class LoadFeaturesEvent extends Event<LoadFeaturesEvent> {
    * @param enableHistory if true, then set an uuid for each feature state
    */
   @SuppressWarnings("WeakerAccess")
-  public void setEnableHistory(Boolean enableHistory) {
+  public void setEnableHistory(boolean enableHistory) {
     this.enableHistory = enableHistory;
   }
 
   @SuppressWarnings("unused")
-  public LoadFeaturesEvent withEnableHistory(Boolean enableHistory) {
+  public LoadFeaturesEvent withEnableHistory(boolean enableHistory) {
     setEnableHistory(enableHistory);
     return this;
   }

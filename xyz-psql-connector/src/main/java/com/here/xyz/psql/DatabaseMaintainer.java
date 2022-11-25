@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ public class DatabaseMaintainer {
     private static final Logger logger = LogManager.getLogger();
 
     /** Is used to check against xyz_ext_version() */
-    public static final int XYZ_EXT_VERSION = 146;
+    public static final int XYZ_EXT_VERSION = 148;
 
     public static final int H3_CORE_VERSION = 107;
 
@@ -145,6 +145,7 @@ public class DatabaseMaintainer {
                 boolean configSchema = rs.getBoolean("config_schema");
                 final boolean idx_table = rs.getBoolean("idx_table");
                 final boolean db_status_table = rs.getBoolean("db_status_table");
+                final boolean space_meta_table = rs.getBoolean("space_meta_table");
 
                 try {
                     /** Create Missing Schemas */
@@ -166,6 +167,11 @@ public class DatabaseMaintainer {
                     if (!db_status_table) {
                         /** Create Missing IDX_Maintenance Table */
                         stmt.execute(MaintenanceSQL.createDbStatusTable);
+                    }
+
+                    if (!space_meta_table) {
+                        /** Create Missing IDX_Maintenance Table */
+                        stmt.execute(MaintenanceSQL.createSpaceMetaTable);
                     }
                 } catch (Exception e) {
                     logger.warn("{} Failed to create missing Schema(s) on database: {} / {}@{} '{}'", traceItem, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost(), e);

@@ -153,7 +153,7 @@ DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 146
+ select 148
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
@@ -208,7 +208,7 @@ CREATE OR REPLACE FUNCTION xyz_statistic_history(
   RETURNS TABLE(tablesize jsonb, count jsonb, maxversion jsonb, minversion jsonb) AS
 $BODY$
 	/**
-	* Description: Returns completet statisic about a big xyz-space. Therefor the results are including estimated values to reduce
+	* Description: Returns complete statistic about a big xyz-space. Therefore the results are including estimated values to reduce
 	*		the runtime of the query.
 	*
 	* Parameters:
@@ -234,37 +234,37 @@ $BODY$
         SELECT reltuples into estimate_cnt FROM pg_class WHERE oid = concat('"',$1, '"."', $2, '"')::regclass;
 
         IF estimate_cnt > big_space_threshold THEN
-                    RETURN QUERY EXECUTE
-                    'SELECT	format(''{"value": %s, "estimated" : true}'', tablesize)::jsonb as tablesize,  '
-                    ||'	format(''{"value": %s, "estimated" : true}'', count)::jsonb as count,  '
-                    ||'	format(''{"value": %s, "estimated" : false}'', COALESCE(maxversion,0))::jsonb as maxversion, '
-                    ||'	format(''{"value": %s, "estimated" : false}'', COALESCE(minversion,0))::jsonb as minversion  '
-                    ||'	FROM ('
-                    ||'		SELECT pg_total_relation_size('''||schema||'."'||spaceid||'"'') AS tablesize, '
-                    ||'			(SELECT jsondata->''properties''->''@ns:com:here:xyz''->''version'' FROM "'||schema||'"."'||spaceid||'"'
-                    ||'				order by jsondata->''properties''->''@ns:com:here:xyz''->''version'' DESC limit 1 )::TEXT::INTEGER as maxversion,'
-                    ||'			(SELECT jsondata->''properties''->''@ns:com:here:xyz''->''version'' FROM "'||schema||'"."'||spaceid||'"'
-                    ||'			    WHERE jsondata->''properties''->''@ns:com:here:xyz''->''version'' > to_jsonb(0::numeric) '
-                    ||'			order by jsondata->''properties''->''@ns:com:here:xyz''->''version'' ASC limit 1 )::TEXT::INTEGER as minversion,'
-                    ||'		    reltuples AS count '
-                    ||'		FROM pg_class '
-                    ||'	WHERE oid='''||schema||'."'||spaceid||'"''::regclass) A';
+                RETURN QUERY EXECUTE
+                'SELECT    format(''{"value": %s, "estimated" : true}'', tablesize)::jsonb as tablesize,  '
+                ||'    format(''{"value": %s, "estimated" : true}'', count)::jsonb as count,  '
+                ||'    format(''{"value": %s, "estimated" : false}'', COALESCE(maxversion,0))::jsonb as maxversion, '
+                ||'    format(''{"value": %s, "estimated" : false}'', COALESCE(minversion,0))::jsonb as minversion  '
+                ||'    FROM ('
+                ||'        SELECT pg_total_relation_size('''||schema||'."'||spaceid||'"'') AS tablesize, '
+                ||'            (SELECT jsondata->''properties''->''@ns:com:here:xyz''->''version'' FROM "'||schema||'"."'||spaceid||'" where jsondata->''properties''->''@ns:com:here:xyz''->''version'' is not null'
+                ||'                order by jsondata->''properties''->''@ns:com:here:xyz''->''version'' DESC limit 1 )::TEXT::INTEGER as maxversion,'
+                ||'            (SELECT jsondata->''properties''->''@ns:com:here:xyz''->''version'' FROM "'||schema||'"."'||spaceid||'"'
+                ||'                WHERE jsondata->''properties''->''@ns:com:here:xyz''->''version'' > to_jsonb(0::numeric) '
+                ||'            order by jsondata->''properties''->''@ns:com:here:xyz''->''version'' ASC limit 1 )::TEXT::INTEGER as minversion,'
+                ||'            reltuples AS count '
+                ||'        FROM pg_class '
+                ||'    WHERE oid='''||schema||'."'||spaceid||'"''::regclass) A';
         ELSE
-                    RETURN QUERY EXECUTE
-                    'SELECT	format(''{"value": %s, "estimated" : true}'', tablesize)::jsonb as tablesize,  '
-                    ||'	format(''{"value": %s, "estimated" : false}'', count)::jsonb as count,  '
-                    ||'	format(''{"value": %s, "estimated" : false}'', COALESCE(maxversion,0))::jsonb as maxversion, '
-                    ||'	format(''{"value": %s, "estimated" : false}'', COALESCE(minversion,0))::jsonb as minversion  '
-                    ||'	FROM ('
-                    ||'		SELECT pg_total_relation_size('''||schema||'."'||spaceid||'"'') AS tablesize, '
-                    ||'			(SELECT jsondata->''properties''->''@ns:com:here:xyz''->''version'' FROM "'||schema||'"."'||spaceid||'"'
-                    ||'				order by jsondata->''properties''->''@ns:com:here:xyz''->''version'' DESC limit 1 )::TEXT::INTEGER as maxversion,'
-                    ||'			(SELECT jsondata->''properties''->''@ns:com:here:xyz''->''version'' FROM "'||schema||'"."'||spaceid||'"'
-                    ||'			    WHERE jsondata->''properties''->''@ns:com:here:xyz''->''version'' > to_jsonb(0::numeric) '
-                    ||'			order by jsondata->''properties''->''@ns:com:here:xyz''->''version'' ASC limit 1 )::TEXT::INTEGER as minversion,'
-                    ||'		    (SELECT count(*) FROM "'||schema||'"."'||spaceid||'") AS count '
-                    ||'		FROM pg_class '
-                    ||'	WHERE oid='''||schema||'."'||spaceid||'"''::regclass) A';
+                RETURN QUERY EXECUTE
+                'SELECT    format(''{"value": %s, "estimated" : true}'', tablesize)::jsonb as tablesize,  '
+                ||'    format(''{"value": %s, "estimated" : false}'', count)::jsonb as count,  '
+                ||'    format(''{"value": %s, "estimated" : false}'', COALESCE(maxversion,0))::jsonb as maxversion, '
+                ||'    format(''{"value": %s, "estimated" : false}'', COALESCE(minversion,0))::jsonb as minversion  '
+                ||'    FROM ('
+                ||'        SELECT pg_total_relation_size('''||schema||'."'||spaceid||'"'') AS tablesize, '
+                ||'            (SELECT jsondata->''properties''->''@ns:com:here:xyz''->''version'' FROM "'||schema||'"."'||spaceid||'" where jsondata->''properties''->''@ns:com:here:xyz''->''version'' is not null'
+                ||'                order by jsondata->''properties''->''@ns:com:here:xyz''->''version'' DESC limit 1 )::TEXT::INTEGER as maxversion,'
+                ||'            (SELECT jsondata->''properties''->''@ns:com:here:xyz''->''version'' FROM "'||schema||'"."'||spaceid||'"'
+                ||'                WHERE jsondata->''properties''->''@ns:com:here:xyz''->''version'' > to_jsonb(0::numeric) '
+                ||'            order by jsondata->''properties''->''@ns:com:here:xyz''->''version'' ASC limit 1 )::TEXT::INTEGER as minversion,'
+                ||'            (SELECT count(*) FROM "'||schema||'"."'||spaceid||'") AS count '
+                ||'        FROM pg_class '
+                ||'    WHERE oid='''||schema||'."'||spaceid||'"''::regclass) A';
         END IF;
     END;
 $BODY$
@@ -1150,7 +1150,7 @@ $BODY$
 			EXECUTE FORMAT ('DROP INDEX IF EXISTS %s."%s" ', schema, xyz_needless_manual_idx.idx_name);
 		END LOOP;
 
-        /** Check if auto-indexing is turend off - if yes, delete auto-indices */
+        /** Check if auto-indexing is turned off - if yes, delete auto-indices */
         select auto_indexing from xyz_config.xyz_idxs_status into is_auto_indexing where spaceid = space;
 
         IF is_auto_indexing = false THEN

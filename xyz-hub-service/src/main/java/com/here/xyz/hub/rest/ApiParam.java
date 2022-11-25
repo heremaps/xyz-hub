@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.rest;
 
+import com.amazonaws.util.StringUtils;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQuery.QueryOperation;
@@ -26,13 +27,13 @@ import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.events.TagsQuery;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;
-import com.here.xyz.util.DhString;
-
 import io.vertx.ext.web.RoutingContext;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -106,6 +107,7 @@ public class ApiParam {
     public static final String FEATURE_ID = "featureId";
     public static final String TILE_ID = "tileId";
     public static final String TILE_TYPE = "type";
+    public static final String SUBSCRIPTION_ID = "subscriptionId";
   }
 
   public static class Query {
@@ -145,6 +147,7 @@ public class ApiParam {
     static final String REF_FEATURE_ID = "refFeatureId";
     static final String H3_INDEX = "h3Index";
     static final String CONTENT_UPDATED_AT = "contentUpdatedAt";
+    static final String CONTEXT = "context";
 
     static final String CLUSTERING_PARAM_RESOLUTION = "resolution";
     static final String CLUSTERING_PARAM_RESOLUTION_RELATIVE = "relativeResolution";
@@ -170,6 +173,10 @@ public class ApiParam {
     static final String START_VERSION = "startVersion";
     static final String END_VERSION = "endVersion";
     static final String PAGE_TOKEN = "pageToken";
+
+    static final String REVISION = "revision";
+    static final String AUTHOR = "author";
+    static final String SUBSCRIPTION_SOURCE = "source";
 
     private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{
       put("!=", QueryOperation.NOT_EQUALS);
@@ -358,6 +365,44 @@ public class ApiParam {
       return propertyQuery;
     }
 
+    /**
+     * Returns the first property found in the query string in the format of key-operator-value(s)
+     * @param query the query part in the url without the '?' symbol
+     * @param key the property to be searched
+     * @param multiValue when true, checks for comma separated values, otherwise return the first value found
+     * @return null in case none is found
+     */
+    static PropertyQuery getPropertyQuery(String query, String key, boolean multiValue) {
+      if (StringUtils.isNullOrEmpty(query) || StringUtils.isNullOrEmpty(key))
+        return null;
+
+      int startIndex;
+      if ((startIndex=query.indexOf(key)) != -1) {
+        String opValue = query.substring(startIndex + key.length()); // e.g. =eq=head
+        String operation = shortOperators
+            .stream()
+            .sorted(Comparator.comparingInt(k->k.length() * -1)) // reverse a sorted list because u want to get the longer ops first.
+            .filter(opValue::startsWith) // e.g. in case of key=eq=val, 2 ops will be filtered in: '=eq=' and '='.
+            .findFirst() // The reversed sort plus the findFirst makes sure the =eq= is the one you are looking for.
+            .orElse(null); // e.g. anything different from the allowed operators
+
+        if (operation == null)
+          return null;
+
+        String value = opValue.substring(operation.length()).split("&")[0];
+        List<Object> values = multiValue
+            ? Arrays.asList(value.split(","))
+            : Collections.singletonList(value.split(",")[0]);
+
+        return new PropertyQuery()
+            .withKey(key)
+            .withOperation(operators.get(operation))
+            .withValues(values);
+      }
+
+      return null;
+    }
+
     protected static PropertiesQuery parsePropertiesQuery(String query, String property, boolean spaceProperties) {
       if (query == null || query.length() == 0) {
         return null;
@@ -475,42 +520,42 @@ public class ApiParam {
     }
 
     private static void validateAdditionalParams(String type, String key, Object value) throws  Exception{
-      if(type.equals(CLUSTERING)){
-        switch (key){
-
+      if (type.equals(CLUSTERING)) {
+        String invalidKeyMessage = "Invalid clustering. " + key + " value. ";
+        switch (key) {
           case CLUSTERING_PARAM_RESOLUTION_ABSOLUTE:
           case CLUSTERING_PARAM_RESOLUTION_RELATIVE:
           case CLUSTERING_PARAM_RESOLUTION:
-            if(!(value instanceof Long))
-              throw new Exception(DhString.format("Invalid clustering.%s value. Expect Integer.",key));
+            if (!(value instanceof Long))
+              throw new Exception(invalidKeyMessage + "Expect Integer.");
 
-            if( CLUSTERING_PARAM_RESOLUTION_RELATIVE.equals(key) && ((long)value < -2 || (long)value > 4))
-             throw new Exception(DhString.format("Invalid clustering.%s value. Expect Integer hexbin:[-2,2], quadbin:[0-4].",key));
+            if (CLUSTERING_PARAM_RESOLUTION_RELATIVE.equals(key) && ((long)value < -2 || (long)value > 4))
+             throw new Exception(invalidKeyMessage + "Expect Integer hexbin:[-2,2], quadbin:[0-4].");
 
-            if(!CLUSTERING_PARAM_RESOLUTION_RELATIVE.equals(key) && ((long)value < 0 || (long)value > 18))
-              throw new Exception(DhString.format("Invalid clustering.%s value. Expect Integer hexbin:[0,13], quadbin:[0,18].",key));
+            if (!CLUSTERING_PARAM_RESOLUTION_RELATIVE.equals(key) && ((long)value < 0 || (long)value > 18))
+              throw new Exception(invalidKeyMessage + "Expect Integer hexbin:[0,13], quadbin:[0,18].");
             break;
 
           case CLUSTERING_PARAM_PROPERTY:
             if(!(value instanceof String))
-              throw new Exception(DhString.format("Invalid clustering.%s value. Expect String.",key));
+              throw new Exception(invalidKeyMessage + "Expect String.");
             break;
 
           case CLUSTERING_PARAM_POINTMODE:
           case CLUSTERING_PARAM_SINGLECOORD:
           case CLUSTERING_PARAM_NOBUFFER:
           if(!(value instanceof Boolean))
-              throw new Exception(DhString.format("Invalid clustering.%s value. Expect true or false.",key));
+              throw new Exception(invalidKeyMessage + "Expect true or false.");
             break;
 
           case CLUSTERING_PARAM_COUNTMODE:
             if(!(value instanceof String))
-              throw new Exception(DhString.format("Invalid clustering.%s value. Expect one of [real,estimated,mixed].",key));
+              throw new Exception(invalidKeyMessage + "Expect one of [real,estimated,mixed].");
             break;
 
           case CLUSTERING_PARAM_SAMPLING:
             if(!(value instanceof String))
-              throw new Exception(DhString.format("Invalid clustering.%s value. Expect one of [low,lowmed,med,medhigh,high].",key));
+              throw new Exception(invalidKeyMessage + "Expect one of [low,lowmed,med,medhigh,high].");
             break;
 
           default: throw new Exception("Invalid Clustering Parameter! Expect one of ["
@@ -549,7 +594,7 @@ public class ApiParam {
 
          case TWEAKS_PARAM_SAMPLINGTHRESHOLD : // testing, parameter evaluation
           if(!(value instanceof Long) || ((long) value < 10) || ((long) value > 100) )
-           throw new Exception(DhString.format("Invalid tweaks.%s. Expect Integer [10,100].",key));
+           throw new Exception("Invalid tweaks. " + key + ". Expect Integer [10,100].");
           break;
 
          default:

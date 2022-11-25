@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,13 +19,10 @@
 
 package com.here.xyz.events;
 
-import java.util.List;
-
-public abstract class QueryEvent<T extends QueryEvent> extends Event<T> {
+public abstract class QueryEvent<T extends QueryEvent> extends SelectiveEvent<T> {
 
   private TagsQuery tags;
   private PropertiesQuery propertiesQuery;
-  private List<String> selection;
 
   public TagsQuery getTags() {
     return this.tags;
@@ -54,22 +51,6 @@ public abstract class QueryEvent<T extends QueryEvent> extends Event<T> {
   @SuppressWarnings("unused")
   public T withPropertiesQuery(PropertiesQuery propertiesQuery) {
     setPropertiesQuery(propertiesQuery);
-    return (T)this;
-  }
-
-  @SuppressWarnings("unused")
-  public List<String> getSelection() {
-    return this.selection;
-  }
-
-  @SuppressWarnings("WeakerAccess")
-  public void setSelection(List<String> selection) {
-    this.selection = selection;
-  }
-
-  @SuppressWarnings("unused")
-  public T withSelection(List<String> selection) {
-    setSelection(selection);
     return (T)this;
   }
 }

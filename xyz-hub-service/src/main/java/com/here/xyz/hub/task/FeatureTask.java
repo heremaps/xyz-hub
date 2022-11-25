@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,8 +25,8 @@ import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERR
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
-import com.here.xyz.events.CountFeaturesEvent;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
@@ -41,6 +41,7 @@ import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
+import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.QueryEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.hub.Service;
@@ -82,6 +83,11 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
   public Space space;
 
   /**
+   * The spaces being extended by {@link #space} (if existing).
+   */
+  public List<Space> extendedSpaces;
+
+  /**
    * The storage connector to be used for this operation.
    */
   public Connector storage;
@@ -114,6 +120,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public static final String UUID = "uuid";
     public static final String PUUID = "puuid";
     public static final String MUUID = "muuid";
+    public static final String REVISION = "revision";
   }
 
   private FeatureTask(T event, RoutingContext context, ApiResponseType responseType, boolean skipCache) {
@@ -144,13 +151,15 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
     try {
       //noinspection UnstableApiUsage
-      cacheKey = Hashing.murmur3_128().newHasher()
+      Hasher hasher = Hashing.murmur3_128().newHasher()
           .putString(getEvent().getCacheString(), Charset.defaultCharset())
           .putString(responseType.toString(), Charset.defaultCharset())
-          .putLong(space.contentUpdatedAt)
-          .hash()
-          .toString();
-      return cacheKey;
+          .putLong(space.contentUpdatedAt);
+
+      if (space.getExtension() != null)
+        extendedSpaces.forEach(extendedSpace -> hasher.putLong(extendedSpace.getContentUpdatedAt()));
+
+      return cacheKey = hasher.hash().toString();
     } catch (JsonProcessingException e) {
       return null;
     }
@@ -438,6 +447,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
 
     public TaskPipeline<IdsQuery> createPipeline() {
       return TaskPipeline.create(this)
+          .then(FeatureTaskHandler::validateReadFeaturesParams)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::readCache)
@@ -523,23 +533,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
   }
 
-  //TODO: Remove that implementation finally
-  @Deprecated
-  public static class CountQuery extends ReadQuery<CountFeaturesEvent, CountQuery> {
-
-    public CountQuery(CountFeaturesEvent event, RoutingContext context, ApiResponseType apiResponseTypeType) {
-      super(event, context, apiResponseTypeType);
-    }
-
-    @Override
-    public TaskPipeline<CountQuery> createPipeline() {
-      return TaskPipeline.create(this)
-          .then(FeatureTaskHandler::resolveSpace)
-          .then(FeatureAuthorization::authorize)
-          .then(FeatureTaskHandler::invoke);
-    }
-  }
-
   public static class GetStatistics extends FeatureTask<GetStatisticsEvent, GetStatistics> {
 
     public GetStatistics(GetStatisticsEvent event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
@@ -614,6 +607,21 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureTaskHandler::invoke);
+    }
+  }
+
+  public static class ModifySubscriptionQuery extends FeatureTask<ModifySubscriptionEvent, ModifySubscriptionQuery> {
+
+    ModifySubscriptionQuery(ModifySubscriptionEvent event, RoutingContext context, ApiResponseType apiResponseTypeType) {
+      super(event, context, apiResponseTypeType, true);
+    }
+
+    @Override
+    public TaskPipeline<ModifySubscriptionQuery> createPipeline() {
+
+      return TaskPipeline.create(this)
+              .then(FeatureTaskHandler::resolveSpace)
+              .then(FeatureTaskHandler::invoke);
     }
   }
 

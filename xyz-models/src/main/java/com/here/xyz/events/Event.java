@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,9 @@
 
 package com.here.xyz.events;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Payload;
@@ -42,18 +45,17 @@ import java.util.Map;
  */
 @JsonSubTypes({
     @JsonSubTypes.Type(value = ModifySpaceEvent.class, name = "ModifySpaceEvent"),
+    @JsonSubTypes.Type(value = ModifySubscriptionEvent.class, name = "ModifySubscriptionEvent"),
     @JsonSubTypes.Type(value = ModifyFeaturesEvent.class, name = "ModifyFeaturesEvent"),
     @JsonSubTypes.Type(value = TransformEvent.class, name = "TransformEvent"),
     @JsonSubTypes.Type(value = RelocatedEvent.class, name = "RelocatedEvent"),
     @JsonSubTypes.Type(value = EventNotification.class, name = "EventNotification"),
     @JsonSubTypes.Type(value = DeleteFeaturesByTagEvent.class, name = "DeleteFeaturesByTagEvent"),
     @JsonSubTypes.Type(value = SearchForFeaturesEvent.class, name = "SearchForFeaturesEvent"),
-    @JsonSubTypes.Type(value = SearchForFeaturesOrderByEvent.class, name = "SearchForFeaturesOrderByEvent"),
     @JsonSubTypes.Type(value = IterateFeaturesEvent.class, name = "IterateFeaturesEvent"),
     @JsonSubTypes.Type(value = GetFeaturesByBBoxEvent.class, name = "GetFeaturesByBBoxEvent"),
     @JsonSubTypes.Type(value = GetFeaturesByGeometryEvent.class, name = "GetFeaturesByGeometryEvent"),
     @JsonSubTypes.Type(value = GetFeaturesByTileEvent.class, name = "GetFeaturesByTileEvent"),
-    @JsonSubTypes.Type(value = CountFeaturesEvent.class, name = "CountFeaturesEvent"),
     @JsonSubTypes.Type(value = GetStatisticsEvent.class, name = "GetStatisticsEvent"),
     @JsonSubTypes.Type(value = GetStorageStatisticsEvent.class, name = "GetStorageStatisticsEvent"),
     @JsonSubTypes.Type(value = GetHistoryStatisticsEvent.class, name = "GetHistoryStatisticsEvent"),
@@ -61,9 +63,10 @@ import java.util.Map;
     @JsonSubTypes.Type(value = GetFeaturesByIdEvent.class, name = "GetFeaturesByIdEvent"),
     @JsonSubTypes.Type(value = LoadFeaturesEvent.class, name = "LoadFeaturesEvent"),
     @JsonSubTypes.Type(value = IterateHistoryEvent.class, name = "IterateHistoryEvent"),
-    @JsonSubTypes.Type(value = ContentModifiedNotification.class, name = "ContentModifiedNotification")
+    @JsonSubTypes.Type(value = ContentModifiedNotification.class, name = "ContentModifiedNotification"),
+    @JsonSubTypes.Type(value = RevisionEvent.class, name = "RevisionEvent")
 })
-
+@JsonIgnoreProperties(ignoreUnknown = true)
 public abstract class Event<T extends Event> extends Payload {
 
   @JsonView(ExcludeFromHash.class)
@@ -86,6 +89,7 @@ public abstract class Event<T extends Event> extends Payload {
   @JsonView(ExcludeFromHash.class)
   private String aid;
   @JsonView(ExcludeFromHash.class)
+  @JsonInclude(Include.ALWAYS)
   private String version = VERSION;
 
   /**

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import com.here.xyz.psql.tools.ECPSTool;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.Promise;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.jackson.JacksonCodec;
 import java.io.BufferedReader;
@@ -75,6 +76,26 @@ public abstract class ConnectorConfigClient implements Initializable {
     }
   }
 
+  /**
+   * Returns a future which may or may not contain a Connector
+   * @param marker the marker for log
+   * @param connectorId the connector id
+   * @return the future containing the connector or an empty future when the connector is not found.
+   */
+  public Future<Connector> get(Marker marker, String connectorId) {
+    if (StringUtils.isEmpty(connectorId))
+      return Future.succeededFuture();
+
+    Promise<Connector> p = Promise.promise();
+    get(marker, connectorId, handler -> {
+      if (handler.succeeded()) {
+        p.complete(handler.result());
+      } else {
+        p.fail(handler.cause());
+      }
+    });
+    return p.future();
+  }
 
   public void get(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler) {
     final Connector connectorFromCache = cache.get(connectorId);

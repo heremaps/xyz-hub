@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,10 +23,13 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.annotation.JsonIncludeProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.here.xyz.XyzSerializable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -84,6 +87,13 @@ public class Space {
   private License license;
 
   /**
+   * The space extension configuration which allows the space's content to override another space's content.
+   */
+  @JsonView({Public.class, Static.class})
+  @JsonProperty("extends")
+  private Extension extension;
+
+  /**
    * The storage connector configuration.
    */
   @JsonView({WithConnectors.class, Static.class})
@@ -132,6 +142,7 @@ public class Space {
    */
   @JsonView({Public.class, Static.class})
   @JsonInclude(Include.NON_DEFAULT)
+  @Deprecated
   private boolean enableUUID = false;
 
   /**
@@ -139,6 +150,7 @@ public class Space {
    */
   @JsonView({Public.class, Static.class})
   @JsonInclude(Include.NON_DEFAULT)
+  @Deprecated
   private boolean enableHistory = false;
 
   /**
@@ -146,6 +158,7 @@ public class Space {
    */
   @JsonView({Public.class, Static.class})
   @JsonInclude(Include.NON_DEFAULT)
+  @Deprecated
   private boolean enableGlobalVersioning = false;
 
   /**
@@ -153,7 +166,16 @@ public class Space {
    */
   @JsonView({Public.class, Static.class})
   @JsonInclude(Include.NON_EMPTY)
+  @Deprecated
   private Integer maxVersionCount;
+
+  /**
+   * Defines how many revisions will be kept before the automatic purging of old revisions is starting.
+   * By default this value will be set to 1. That means there will be only one
+   * (HEAD) state of the space and no further revisions will be kept.
+   */
+  @JsonView({Public.class, Static.class})
+  private int revisionsToKeep = 0;
 
   /**
    * If false, auto-indexing gets disabled
@@ -232,7 +254,7 @@ public class Space {
   }
 
   public Space withId(final String id) {
-    this.id = id;
+    setId(id);
     return this;
   }
 
@@ -245,7 +267,7 @@ public class Space {
   }
 
   public Space withTitle(final String title) {
-    this.title = title;
+    setTitle(title);
     return this;
   }
 
@@ -258,7 +280,7 @@ public class Space {
   }
 
   public Space withDescription(final String description) {
-    this.description = description;
+    setDescription(description);
     return this;
   }
 
@@ -271,7 +293,7 @@ public class Space {
   }
 
   public Space withShared(final boolean shared) {
-    this.shared = shared;
+    setShared(shared);
     return this;
   }
 
@@ -284,7 +306,7 @@ public class Space {
   }
 
   public Space withCopyright(final List<Copyright> copyright) {
-    this.copyright = copyright;
+    setCopyright(copyright);
     return this;
   }
 
@@ -297,7 +319,20 @@ public class Space {
   }
 
   public Space withLicense(final License license) {
-    this.license = license;
+    setLicense(license);
+    return this;
+  }
+
+  public Extension getExtension() {
+    return extension;
+  }
+
+  public void setExtension(final Extension extension) {
+    this.extension = extension;
+  }
+
+  public Space withExtension(final Extension extension) {
+    setExtension(extension);
     return this;
   }
 
@@ -310,7 +345,7 @@ public class Space {
   }
 
   public Space withStorage(final ConnectorRef storage) {
-    this.storage = storage;
+    setStorage(storage);
     return this;
   }
 
@@ -323,7 +358,7 @@ public class Space {
   }
 
   public Space withListeners(final Map<String, List<ListenerConnectorRef>> listeners) {
-    this.listeners = listeners;
+    setListeners(listeners);
     return this;
   }
 
@@ -336,7 +371,7 @@ public class Space {
   }
 
   public Space withProcessors(final Map<String, List<ListenerConnectorRef>> processors) {
-    this.processors = processors;
+    setProcessors(processors);
     return this;
   }
 
@@ -349,7 +384,7 @@ public class Space {
   }
 
   public Space withOwner(final String owner) {
-    this.owner = owner;
+    setOwner(owner);
     return this;
   }
 
@@ -362,7 +397,7 @@ public class Space {
   }
 
   public Space withCacheTTL(final int cacheTTL) {
-    this.cacheTTL = cacheTTL;
+    setCacheTTL(cacheTTL);
     return this;
   }
 
@@ -375,59 +410,84 @@ public class Space {
   }
 
   public Space withClient(final Map<String, Object> client) {
-    this.client = client;
+    setClient(client);
     return this;
   }
 
+  @Deprecated
   public boolean isEnableUUID() {
     return enableUUID;
   }
 
+  @Deprecated
   public void setEnableUUID(final boolean enableUUID) {
     this.enableUUID = enableUUID;
   }
 
+  @Deprecated
   public Space withEnableUUID(final boolean enableUUID) {
-    this.enableUUID = enableUUID;
+    setEnableUUID(enableUUID);
     return this;
   }
 
+  @Deprecated
   public boolean isEnableHistory() {
     return enableHistory;
   }
 
+  @Deprecated
   public void setEnableHistory(final boolean enableHistory) {
     this.enableHistory = enableHistory;
   }
 
+  @Deprecated
   public Space withEnableHistory(final boolean enableHistory) {
-    this.enableHistory = enableHistory;
+    setEnableHistory(enableHistory);
     return this;
   }
 
+  @Deprecated
   public boolean isEnableGlobalVersioning() {
     return enableGlobalVersioning;
   }
 
+  @Deprecated
   public void setEnableGlobalVersioning(final boolean enableGlobalVersioning) {
     this.enableGlobalVersioning = enableGlobalVersioning;
   }
 
+  @Deprecated
   public Space withEnableGlobalVersioning(final boolean enableGlobalVersioning) {
-    this.enableGlobalVersioning = enableGlobalVersioning;
+    setEnableGlobalVersioning(enableGlobalVersioning);
     return this;
   }
 
+  @Deprecated
   public Integer getMaxVersionCount() {
     return maxVersionCount;
   }
 
+  @Deprecated
   public void setMaxVersionCount(final Integer maxVersionCount) {
     this.maxVersionCount = maxVersionCount;
   }
 
+  @Deprecated
   public Space withMaxVersionCount(final Integer maxVersionCount) {
-    this.maxVersionCount = maxVersionCount;
+    setMaxVersionCount(maxVersionCount);
+    return this;
+  }
+
+  public int getRevisionsToKeep() {
+    return revisionsToKeep;
+  }
+
+  public void setRevisionsToKeep(int revisionsToKeep) {
+    this.revisionsToKeep = revisionsToKeep;
+  }
+
+  public Space withRevisionsToKeep(int revisionsToKeep) {
+    setRevisionsToKeep(revisionsToKeep);
     return this;
   }
 
@@ -435,12 +495,12 @@ public class Space {
     return enableAutoSearchableProperties;
   }
 
-  public void enableAutoSearchableProperties(final Boolean enableAutoSearchableProperties) {
+  public void setEnableAutoSearchableProperties(final Boolean enableAutoSearchableProperties) {
     this.enableAutoSearchableProperties = enableAutoSearchableProperties;
   }
 
   public Space withEnableAutoSearchableProperties(final Boolean enableAutoSearchableProperties) {
-    this.enableAutoSearchableProperties = enableAutoSearchableProperties;
+    setEnableAutoSearchableProperties(enableAutoSearchableProperties);
     return this;
   }
 
@@ -453,7 +513,7 @@ public class Space {
   }
 
   public Space withPackages(final List<String> packages) {
-    this.packages = packages;
+    setPackages(packages);
     return this;
   }
 
@@ -466,7 +526,7 @@ public class Space {
   }
 
   public Space withCid(final String cid) {
-    this.cid = cid;
+    setCid(cid);
     return this;
   }
 
@@ -479,7 +539,7 @@ public class Space {
   }
 
   public Space withTags(final List<String> tags) {
-    this.tags = tags;
+    setTags(tags);
     return this;
   }
 
@@ -492,7 +552,7 @@ public class Space {
   }
 
   public Space withCreatedAt(final long createdAt) {
-    this.createdAt = createdAt;
+    setCreatedAt(createdAt);
     return this;
   }
 
@@ -505,7 +565,7 @@ public class Space {
   }
 
   public Space withUpdatedAt(final long updatedAt) {
-    this.updatedAt = updatedAt;
+    setUpdatedAt(updatedAt);
     return this;
   }
 
@@ -518,7 +578,7 @@ public class Space {
   }
 
   public Space withReadOnly(final boolean readOnly) {
-    this.readOnly = readOnly;
+    setReadOnly(readOnly);
     return this;
   }
 
@@ -531,7 +591,7 @@ public class Space {
   }
 
   public Space withSearchableProperties(final Map<String, Boolean> searchableProperties) {
-    this.searchableProperties = searchableProperties;
+    setSearchableProperties(searchableProperties);
     return this;
   }
 
@@ -544,7 +604,7 @@ public class Space {
   }
 
   public Space withSortableProperties(final List<List<Object>> sortableProperties) {
-    this.sortableProperties = sortableProperties;
+    setSortableProperties(sortableProperties);
     return this;
   }
 
@@ -557,7 +617,7 @@ public class Space {
   }
 
   public Space withAllowFeatureCreationWithUUID(final boolean allowFeatureCreationWithUUID) {
-    this.allowFeatureCreationWithUUID = allowFeatureCreationWithUUID;
+    setAllowFeatureCreationWithUUID(allowFeatureCreationWithUUID);
     return this;
   }
 
@@ -610,7 +670,7 @@ public class Space {
 
     @SuppressWarnings("WeakerAccess")
     public ConnectorRef withId(final String id) {
-      this.id = id;
+      setId(id);
       return this;
     }
 
@@ -624,7 +684,7 @@ public class Space {
 
     @SuppressWarnings("WeakerAccess")
     public ConnectorRef withParams(final Map<String, Object> params) {
-      this.params = params;
+      setParams(params);
       return this;
     }
   }
@@ -654,7 +714,7 @@ public class Space {
 
     @SuppressWarnings("WeakerAccess")
     public ListenerConnectorRef withEventTypes(final List<String> eventTypes) {
-      this.eventTypes = eventTypes;
+      setEventTypes(eventTypes);
       return this;
     }
 
@@ -669,7 +729,7 @@ public class Space {
 
     @SuppressWarnings("WeakerAccess")
     public ListenerConnectorRef withOrder(final Integer order) {
-      this.order = order;
+      setOrder(order);
       return this;
     }
   }
@@ -701,7 +761,7 @@ public class Space {
     }
 
     public Copyright withLabel(final String label) {
-      this.label = label;
+      setLabel(label);
       return this;
     }
 
@@ -714,7 +774,7 @@ public class Space {
     }
 
     public Copyright withAlt(final String alt) {
-      this.alt = alt;
+      setAlt(alt);
       return this;
     }
   }
@@ -769,7 +829,7 @@ public class Space {
     }
 
     public License withKeyword(final String keyword) {
-      this.keyword = keyword;
+      setKeyword(keyword);
       return this;
     }
 
@@ -782,6 +842,24 @@ public class Space {
       }
       l.keyword = keyword;
       return l;
+    }
+  }
+
+  public static class Extension implements XyzSerializable {
+
+    private String spaceId;
+
+    public String getSpaceId() {
+      return spaceId;
+    }
+
+    public void setSpaceId(final String spaceId) {
+      this.spaceId = spaceId;
+    }
+
+    public Extension withSpaceId(final String spaceId) {
+      setSpaceId(spaceId);
+      return this;
     }
   }
 }

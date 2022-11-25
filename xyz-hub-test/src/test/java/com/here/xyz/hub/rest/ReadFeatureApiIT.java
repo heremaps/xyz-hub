@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -352,6 +352,20 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         statusCode(OK.code()).
         body("id", equalTo("Q2838923")).
         body("properties.name", equalTo("Estadio Universidad San Marcos"));
+  }
+
+  @Test
+  public void testFeatureByIdWithSelection() {
+    given()
+        .accept(APPLICATION_GEO_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .get(getSpacesPath() + "/x-psql-test/features/Q2838923?selection=p.name").
+        then()
+        .statusCode(OK.code())
+        .body("id", equalTo("Q2838923"))
+        .body("properties.name", equalTo("Estadio Universidad San Marcos"))
+        .body("properties.sport", equalTo(null));
   }
 
   @Test

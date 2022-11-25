@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,41 +19,53 @@
 
 package com.here.xyz.psql;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.ModifySpaceEvent.Operation.CREATE;
+import static com.here.xyz.events.ModifySpaceEvent.Operation.DELETE;
+import static com.here.xyz.events.ModifySpaceEvent.Operation.UPDATE;
+import static com.here.xyz.psql.QueryRunner.SCHEMA;
+import static com.here.xyz.psql.QueryRunner.TABLE;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.connectors.SimulatedContext;
 import com.here.xyz.connectors.StorageConnector;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
-import com.here.xyz.events.GetStorageStatisticsEvent;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
-import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
+import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
-import com.here.xyz.events.SearchForFeaturesOrderByEvent;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.config.DatabaseSettings;
 import com.here.xyz.psql.config.PSQLConfig;
-import com.here.xyz.psql.query.StorageStatisticsQueryRunner;
+import com.here.xyz.psql.query.ExtendedSpace;
+import com.here.xyz.psql.query.ModifySpace;
+import com.here.xyz.psql.query.helpers.FetchExistingIds;
+import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
+import com.here.xyz.psql.tools.DhString;
 import com.here.xyz.responses.BinaryResponse;
-import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.HistoryStatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.responses.changesets.CompactChangeset;
-import com.here.xyz.util.DhString;
 import com.mchange.v2.c3p0.AbstractConnectionCustomizer;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
 import com.mchange.v2.c3p0.PooledDataSource;
@@ -86,7 +98,6 @@ public abstract class DatabaseHandler extends StorageConnector {
     private static final Logger logger = LogManager.getLogger();
 
     private static final Pattern pattern = Pattern.compile("^BOX\\(([-\\d\\.]*)\\s([-\\d\\.]*),([-\\d\\.]*)\\s([-\\d\\.]*)\\)$");
-    private static final int MAX_PRECISE_STATS_COUNT = 10_000;
     private static final String C3P0EXT_CONFIG_SCHEMA = "config.schema()";
     public static final String HISTORY_TABLE_SUFFIX = "_hst";
 
@@ -226,8 +237,9 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
 
         String table = config.readTableFromEvent(event);
-        String hstTable = config.readTableFromEvent(event)+HISTORY_TABLE_SUFFIX;
+        String hstTable = table+HISTORY_TABLE_SUFFIX;
 
+        replacements.put("idx_deleted", "idx_" + table + "_deleted");
         replacements.put("idx_serial", "idx_" + table + "_serial");
         replacements.put("idx_id", "idx_" + table + "_id");
         replacements.put("idx_tags", "idx_" + table + "_tags");
@@ -293,16 +305,24 @@ public abstract class DatabaseHandler extends StorageConnector {
         return executeQuery(query, handler, readDataSource);
     }
 
-    protected FeatureCollection executeQueryWithRetry(SQLQuery query) throws SQLException {
-        return executeQueryWithRetry(query, this::defaultFeatureResultSetHandler, true);
+    public FeatureCollection executeQueryWithRetry(SQLQuery query, boolean useReadReplica) throws SQLException {
+        return executeQueryWithRetry(query, this::defaultFeatureResultSetHandler, useReadReplica);
+    }
+
+    public FeatureCollection executeQueryWithRetry(SQLQuery query) throws SQLException {
+        return executeQueryWithRetry(query, true);
     }
 
     protected FeatureCollection executeQueryWithRetrySkipIfGeomIsNull(SQLQuery query) throws SQLException {
         return executeQueryWithRetry(query, this::defaultFeatureResultSetHandlerSkipIfGeomIsNull, true);
     }
 
+    protected BinaryResponse executeBinQueryWithRetry(SQLQuery query, boolean useReadReplica) throws SQLException {
+        return executeQueryWithRetry(query, this::defaultBinaryResultSetHandler, useReadReplica);
+    }
+
     protected BinaryResponse executeBinQueryWithRetry(SQLQuery query) throws SQLException {
-        return executeQueryWithRetry(query, this::defaultBinaryResultSetHandler, true);
+        return executeBinQueryWithRetry(query, true);
     }
 
     /**
@@ -311,17 +331,20 @@ public abstract class DatabaseHandler extends StorageConnector {
      */
     protected <T> T executeQueryWithRetry(SQLQuery query, ResultSetHandler<T> handler, boolean useReadReplica) throws SQLException {
         try {
+            query.replaceUnnamedParameters();
+            query.replaceFragments();
+            query.replaceNamedParameters();
             return executeQuery(query, handler, useReadReplica ? readDataSource : dataSource);
         } catch (Exception e) {
             try {
                 if (retryCausedOnServerlessDB(e) || canRetryAttempt()) {
                     logger.info("{} Retry Query permitted.", traceItem);
-                    return executeQuery(query, handler);
+                    return executeQuery(query, handler, useReadReplica ? readDataSource : dataSource);
                 }
             } catch (Exception e1) {
                 if(retryCausedOnServerlessDB(e1)) {
                     logger.info("{} Retry Query permitted.", traceItem);
-                    return executeQuery(query, handler);
+                    return executeQuery(query, handler, useReadReplica ? readDataSource : dataSource);
                 }
                 throw e;
             }
@@ -409,7 +432,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         try {
             final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null,calculateTimeout()));
 
-            query.setText(SQLQuery.replaceVars(query.text(),config.getDatabaseSettings().getSchema(), config.readTableFromEvent(event)));
+            query.setText(SQLQuery.replaceVars(query.text(), config.getDatabaseSettings().getSchema(), config.readTableFromEvent(event)));
             final String queryText = query.text();
             final List<Object> queryParameters = query.parameters();
             logger.debug("{} executeUpdate: {} - Parameter: {}", traceItem, queryText, queryParameters);
@@ -420,31 +443,65 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
-    protected XyzResponse executeLoadFeatures(LoadFeaturesEvent event) throws SQLException {
-        final Map<String, String> idMap = event.getIdsMap();
-        final Boolean enabledHistory = event.getEnableHistory() == Boolean.TRUE;
-        final Boolean enabledGlobalVersioning = event.getEnableGlobalVersioning() == Boolean.TRUE;
-        final Boolean compactHistory = enabledGlobalVersioning ? false : config.getConnectorParams().isCompactHistory();
+    protected XyzResponse executeModifySpace(ModifySpaceEvent event) throws SQLException, ErrorResponseException {
+        if (event.getSpaceDefinition() != null && event.getSpaceDefinition().isEnableHistory()) {
+            Integer maxVersionCount = event.getSpaceDefinition().getMaxVersionCount();
+            boolean isEnableGlobalVersioning = event.getSpaceDefinition().isEnableGlobalVersioning();
+            boolean compactHistory = config.getConnectorParams().isCompactHistory();
 
-        if (idMap == null || idMap.size() == 0) {
-            return new FeatureCollection();
+            if (event.getOperation() == CREATE)
+                //Create History Table
+                ensureHistorySpace(maxVersionCount, compactHistory, isEnableGlobalVersioning);
+            else if(event.getOperation() == UPDATE)
+                //Update HistoryTrigger to apply maxVersionCount.
+                updateHistoryTrigger(maxVersionCount, compactHistory, isEnableGlobalVersioning);
         }
-        return executeQueryWithRetry(SQLQueryBuilder.buildLoadFeaturesQuery(idMap, enabledHistory, compactHistory, dataSource));
+
+        new ModifySpace(event, this).write();
+        if (event.getOperation() != DELETE)
+            dbMaintainer.maintainSpace(traceItem, config.getDatabaseSettings().getSchema(), config.readTableFromEvent(event));
+
+        //If we reach this point we are okay!
+        return new SuccessResponse().withStatus("OK");
     }
+
+
+    protected XyzResponse executeModifySubscription(ModifySubscriptionEvent event) throws SQLException {
+    
+        String space = event.getSpace(),
+               tableName  = config.readTableFromEvent(event),
+               schemaName = config.getDatabaseSettings().getSchema();
+     
+        boolean bLastSubscriptionToDelete = event.getHasNoActiveSubscriptions();
+
+        switch(event.getOperation())
+        { case CREATE : 
+          case UPDATE : 
+            long rVal = (long) executeUpdateWithRetry( SQLQueryBuilder.buildAddSubscriptionQuery(space, schemaName, tableName ) );
+            setReplicaIdentity();
+            return new FeatureCollection().withCount(rVal);
+
+          case DELETE : 
+           if( !bLastSubscriptionToDelete )
+            return new FeatureCollection().withCount( 1l );
+           else  
+            return new FeatureCollection().withCount((long) executeUpdateWithRetry(SQLQueryBuilder.buildRemoveSubscriptionQuery(space, schemaName)));
+
+          default: break;
+        }
+     
+         return null;
+       }
 
     protected XyzResponse executeIterateHistory(IterateHistoryEvent event) throws SQLException {
         if(event.isCompact())
-            return executeQueryWithRetry(SQLQueryBuilder.buildSquashHistoryQuery(event), this::compactHistoryResultSetHandler, false);
-        return executeQueryWithRetry(SQLQueryBuilder.buildHistoryQuery(event), this::historyResultSetHandler, false);
+            return executeQueryWithRetry(SQLQueryBuilder.buildSquashHistoryQuery(event), this::compactHistoryResultSetHandler, true);
+        return executeQueryWithRetry(SQLQueryBuilder.buildHistoryQuery(event), this::historyResultSetHandler, true);
     }
 
     protected XyzResponse executeIterateVersions(IterateFeaturesEvent event) throws SQLException {
         SQLQuery query = SQLQueryBuilder.buildLatestHistoryQuery(event);
-        return executeQueryWithRetry(query, this::iterateVersionsHandler, false);
-    }
-
-    protected XyzResponse executeGetStorageStatistics(GetStorageStatisticsEvent event) throws SQLException {
-        return new StorageStatisticsQueryRunner(event, this).run();
+        return executeQueryWithRetry(query, this::iterateVersionsHandler, true);
     }
 
     /**
@@ -455,23 +512,13 @@ public abstract class DatabaseHandler extends StorageConnector {
      */
     protected List<Feature> fetchOldStates(String[] idsToFetch) throws Exception {
         List<Feature> oldFeatures = null;
-        FeatureCollection oldFeaturesCollection = executeQueryWithRetry(SQLQueryBuilder.generateLoadOldFeaturesQuery(idsToFetch, dataSource));
+        FeatureCollection oldFeaturesCollection = executeQueryWithRetry(SQLQueryBuilder.generateLoadOldFeaturesQuery(idsToFetch));
 
         if (oldFeaturesCollection != null) {
             oldFeatures = oldFeaturesCollection.getFeatures();
         }
 
         return oldFeatures;
-    }
-
-    /**
-     *
-     * @param idsToFetch Ids of objects which should get fetched
-     * @return List of Feature's id which could get fetched
-     * @throws Exception if any error occurred.
-     */
-    protected List<String> fetchExistingIds(String[] idsToFetch) throws Exception {
-      return executeQueryWithRetry(SQLQueryBuilder.generateLoadExistingIdsQuery(idsToFetch, dataSource), this::idsListResultSetHandler, true);
     }
 
     protected XyzResponse executeModifyFeatures(ModifyFeaturesEvent event) throws Exception {
@@ -491,6 +538,32 @@ public abstract class DatabaseHandler extends StorageConnector {
         List<Feature> upserts = Optional.ofNullable(event.getUpsertFeatures()).orElse(new ArrayList<>());
         Map<String, String> deletes = Optional.ofNullable(event.getDeleteFeatures()).orElse(new HashMap<>());
         List<FeatureCollection.ModificationFailure> fails = Optional.ofNullable(event.getFailed()).orElse(new ArrayList<>());
+        boolean forExtendingSpace = isForExtendingSpace(event);
+
+        List<String> originalUpdates = updates.stream().map(f -> f.getId()).collect(Collectors.toList());
+        List<String> originalDeletes = new ArrayList<>(deletes.keySet());
+        //Handle deletes / updates on extended spaces
+        if (forExtendingSpace && event.getContext() == DEFAULT) {
+            if (!deletes.isEmpty()) {
+                //Transform the incoming deletes into upserts with deleted flag for features which don't exist in the extended layer (base)
+                List<String> existingIdsInBase = new FetchExistingIds(
+                    new FetchIdsInput(ExtendedSpace.getExtendedTable(event, this), originalDeletes), this).run();
+
+                for (String featureId : originalDeletes) {
+                    if (existingIdsInBase.contains(featureId)) {
+                        upserts.add(new Feature()
+                            .withId(featureId)
+                            .withProperties(new Properties().withXyzNamespace(new XyzNamespace().withDeleted(true))));
+                        deletes.remove(featureId);
+                    }
+                }
+            }
+            if (!updates.isEmpty()) {
+                //Transform the incoming updates into upserts, because we don't know whether the object is existing in the extension already
+                upserts.addAll(updates);
+                updates.clear();
+            }
+        }
 
         try {
           /** Include Old states */
@@ -504,8 +577,9 @@ public abstract class DatabaseHandler extends StorageConnector {
 
           /** Include Upserts */
           if (!upserts.isEmpty()) {
-            String[] upsertIds = upserts.stream().map(Feature::getId).filter(Objects::nonNull).toArray(String[]::new);
-            List<String> existingIds = fetchExistingIds(upsertIds);
+            List<String> upsertIds = upserts.stream().map(Feature::getId).filter(Objects::nonNull).collect(Collectors.toList());
+            List<String> existingIds = new FetchExistingIds(new FetchIdsInput(config.readTableFromEvent(event),
+                upsertIds), this).run();
             upserts.forEach(f -> (existingIds.contains(f.getId()) ? updates : inserts).add(f));
           }
 
@@ -517,7 +591,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                         return rs.getInt(1);
                     }
                     return -1;
-                }, true);
+                }, false);   // false -> not use readreplica due to sequence 'update' statement: SELECT nextval("...._hst_seq"')
               collection.setVersion(version);
           }
         } catch (Exception e) {
@@ -529,21 +603,18 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         try (final Connection connection = dataSource.getConnection()) {
 
-            boolean cStateFlag = connection.getAutoCommit();
-            if (transactional)
-                connection.setAutoCommit(false);
-            else
-                connection.setAutoCommit(true);
+            boolean previousAutoCommitState = connection.getAutoCommit();
+            connection.setAutoCommit(!transactional);
 
             try {
                 if (deletes.size() > 0) {
                     DatabaseWriter.deleteFeatures(this, schema, table, traceItem, fails, deletes, connection, transactional, handleUUID, version);
                 }
                 if (inserts.size() > 0) {
-                    DatabaseWriter.insertFeatures(this, schema, table, traceItem, collection, fails, inserts, connection, transactional, version);
+                    DatabaseWriter.insertFeatures(this, schema, table, traceItem, collection, fails, inserts, connection, transactional, version, forExtendingSpace);
                 }
                 if (updates.size() > 0) {
-                    DatabaseWriter.updateFeatures(this, schema, table, traceItem, collection, fails, updates, connection, transactional, handleUUID, version);
+                    DatabaseWriter.updateFeatures(this, schema, table, traceItem, collection, fails, updates, connection, transactional, handleUUID, version, forExtendingSpace);
                 }
 
                 if (transactional) {
@@ -564,7 +635,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                     retryAttempted = true;
 
                     if(!connection.isClosed())
-                    { connection.setAutoCommit(cStateFlag);
+                    { connection.setAutoCommit(previousAutoCommitState);
                       connection.close();
                     }
 
@@ -602,7 +673,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
                 if (!retryAttempted) {
                     if(!connection.isClosed()) {
-                        connection.setAutoCommit(cStateFlag);
+                        connection.setAutoCommit(previousAutoCommitState);
                         connection.close();
                     }
                     /** Retry */
@@ -613,7 +684,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             finally
             {
                 if(!connection.isClosed()) {
-                    connection.setAutoCommit(cStateFlag);
+                    connection.setAutoCommit(previousAutoCommitState);
                     connection.close();
                 }
             }
@@ -626,10 +697,14 @@ public abstract class DatabaseHandler extends StorageConnector {
             }
 
             /** filter out failed ids */
-            final List<String> failedIds = fails.stream().map(FeatureCollection.ModificationFailure::getId).filter(Objects::nonNull).collect(Collectors.toList());
-            final List<String> insertIds = inserts.stream().map(Feature::getId).filter(x -> !failedIds.contains(x)).collect(Collectors.toList());
-            final List<String> updateIds = updates.stream().map(Feature::getId).filter(x -> !failedIds.contains(x)).collect(Collectors.toList());
-            final List<String> deleteIds = deletes.keySet().stream().filter(x -> !failedIds.contains(x)).collect(Collectors.toList());
+            final List<String> failedIds = fails.stream().map(FeatureCollection.ModificationFailure::getId)
+                .filter(Objects::nonNull).collect(Collectors.toList());
+            final List<String> insertIds = inserts.stream().map(Feature::getId)
+                .filter(x -> !failedIds.contains(x) && !originalUpdates.contains(x) && !originalDeletes.contains(x)).collect(Collectors.toList());
+            final List<String> updateIds = originalUpdates.stream()
+                .filter(x -> !failedIds.contains(x) && !originalDeletes.contains(x)).collect(Collectors.toList());
+            final List<String> deleteIds = originalDeletes.stream()
+                .filter(x -> !failedIds.contains(x)).collect(Collectors.toList());
 
             collection.setFailed(fails);
 
@@ -667,11 +742,12 @@ public abstract class DatabaseHandler extends StorageConnector {
       return ids;
     }
 
-    protected XyzResponse executeDeleteFeaturesByTag(DeleteFeaturesByTagEvent event) throws Exception {
+    @Deprecated
+    protected XyzResponse executeDeleteFeaturesByTag(DeleteFeaturesByTagEvent event) throws SQLException {
         boolean includeOldStates = event.getParams() != null
                 && event.getParams().get(INCLUDE_OLD_STATES) == Boolean.TRUE;
 
-        final SQLQuery searchQuery = SQLQueryBuilder.generateSearchQuery(event, dataSource);
+        final SQLQuery searchQuery = SQLQueryBuilder.generateSearchQuery(event);
         final SQLQuery query = SQLQueryBuilder.buildDeleteFeaturesByTagQuery(includeOldStates, searchQuery);
 
         //TODO: check in detail what we want to return
@@ -757,6 +833,10 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private static void advisoryUnlock(String tablename, Connection connection ) throws SQLException { _advisory(tablename,connection,false); }
 
+    private static boolean isForExtendingSpace(Event event) {
+        return event.getParams() != null && event.getParams().containsKey("extends");
+    }
+
     protected void ensureSpace() throws SQLException {
         // Note: We can assume that when the table exists, the postgis extensions are installed.
         if (hasTable()) return;
@@ -772,7 +852,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                   connection.setAutoCommit(false);
 
                 try (Statement stmt = connection.createStatement()) {
-                    createSpaceStatement(stmt,tableName);
+                    createSpaceStatement(stmt, tableName, isForExtendingSpace(event));
 
                     stmt.setQueryTimeout(calculateTimeout());
                     stmt.executeBatch();
@@ -786,7 +866,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 if (hasTable()) {
                     return;
                 }
-                throw new SQLException("Missing table " + SQLQuery.sqlQuote(tableName) + " and creation failed: " + e.getMessage(), e);
+                throw new SQLException("Missing table \"" + tableName + "\" and creation failed: " + e.getMessage(), e);
             } finally {
                 advisoryUnlock( tableName, connection );
                 if (cStateFlag)
@@ -796,10 +876,21 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     private void createSpaceStatement(Statement stmt, String tableName) throws SQLException {
-        String query = "CREATE TABLE IF NOT EXISTS ${schema}.${table} (jsondata jsonb, geo geometry(GeometryZ,4326), i BIGSERIAL)";
+        createSpaceStatement(stmt, tableName, false);
+    }
+
+    private void createSpaceStatement(Statement stmt, String tableName, boolean withDeletedColumn) throws SQLException {
+        String query = "CREATE TABLE IF NOT EXISTS ${schema}.${table} (jsondata jsonb, geo geometry(GeometryZ,4326), i BIGSERIAL"
+            + (withDeletedColumn ? ", deleted BOOLEAN DEFAULT FALSE" : "") + ")";
 
         query = SQLQuery.replaceVars(query, config.getDatabaseSettings().getSchema(), tableName);
         stmt.addBatch(query);
+
+        if (withDeletedColumn) {
+            query = "CREATE INDEX IF NOT EXISTS ${idx_deleted} ON ${schema}.${table} USING btree (deleted ASC NULLS LAST) WHERE deleted = TRUE";
+            query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
+            stmt.addBatch(query);
+        }
 
         query = "CREATE UNIQUE INDEX IF NOT EXISTS ${idx_id} ON ${schema}.${table} ((jsondata->>'id'))";
         query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
@@ -917,7 +1008,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
-    protected void updateTrigger(Integer maxVersionCount, boolean compactHistory, boolean isEnableGlobalVersioning) throws SQLException {
+    protected void updateHistoryTrigger(Integer maxVersionCount, boolean compactHistory, boolean isEnableGlobalVersioning) throws SQLException {
         final String tableName = config.readTableFromEvent(event);
 
         try (final Connection connection = dataSource.getConnection()) {
@@ -944,7 +1035,6 @@ public abstract class DatabaseHandler extends StorageConnector {
                     stmt.setQueryTimeout(calculateTimeout());
                     stmt.executeBatch();
                     connection.commit();
-                    logger.debug("{} Updated of trigger has failed: '{}'", traceItem, tableName);
                 }
             } catch (Exception e) {
                 throw new SQLException("Update of trigger has failed: "+tableName, e);
@@ -956,6 +1046,46 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
+    protected void setReplicaIdentity() throws SQLException {
+        final String tableName = config.readTableFromEvent(event);
+
+        try (final Connection connection = dataSource.getConnection()) {
+            advisoryLock( tableName, connection );
+            boolean cStateFlag = connection.getAutoCommit();
+            try {
+                if (cStateFlag)
+                    connection.setAutoCommit(false);
+
+                String infoSql = SQLQueryBuilder.getReplicaIdentity(config.getDatabaseSettings().getSchema(), tableName),
+                       setReplIdSql = SQLQueryBuilder.setReplicaIdentity(config.getDatabaseSettings().getSchema(), tableName);
+
+                try (Statement stmt = connection.createStatement();
+                     ResultSet rs = stmt.executeQuery(infoSql); ) 
+                {   
+                    if( !rs.next() )
+                    { createSpaceStatement(stmt, tableName); /** Create Space-Table */
+                      stmt.addBatch(setReplIdSql);
+                    } 
+                    else if(! "f".equals(rs.getString(1) ) ) /** Table exists, but wrong replic identity */
+                     stmt.addBatch(setReplIdSql);
+                    else
+                     return; /** Table exists with propper replic identity */
+
+                    stmt.setQueryTimeout(calculateTimeout());
+                    stmt.executeBatch();
+                    connection.commit();
+                }
+            } catch (Exception e) {
+                throw new SQLException("set replica identity to full failed: "+tableName, e);
+            } finally {
+                advisoryUnlock( tableName, connection );
+                if (cStateFlag)
+                    connection.setAutoCommit(true);
+            }
+        }
+    }
+
+
 /** #################################### Resultset Handlers #################################### */
     /**
      * The default handler for the most results.
@@ -966,12 +1096,10 @@ public abstract class DatabaseHandler extends StorageConnector {
      */
 
     private final long MAX_RESULT_CHARS = 100 * 1024 *1024;
-    private final int F_Iterate = 1,
-                      F_IterateOrderBy  = 2;
 
     protected FeatureCollection _defaultFeatureResultSetHandler(ResultSet rs, boolean skipNullGeom) throws SQLException {
-        int hint = ((event instanceof IterateFeaturesEvent) ? F_Iterate : ((event instanceof SearchForFeaturesOrderByEvent ) ? F_IterateOrderBy : 0) );
-        String nextHandle = "";
+        String nextIOffset = "";
+        String nextDataset = null;
 
         StringBuilder sb = new StringBuilder();
         String prefix = "[";
@@ -988,12 +1116,12 @@ public abstract class DatabaseHandler extends StorageConnector {
             sb.append("}");
             sb.append(",");
 
-            if ( hint > 0 ) numFeatures++;
-            switch( hint )
-            { case F_Iterate         : nextHandle = "" + rs.getLong(3); break;
-              case F_IterateOrderBy  : nextHandle = rs.getString(3); break;
+            if (event instanceof IterateFeaturesEvent) {
+                numFeatures++;
+                nextIOffset = rs.getString(3);
+                if (rs.getMetaData().getColumnCount() >= 4)
+                    nextDataset = rs.getString(4);
             }
-
         }
 
         if (sb.length() > prefix.length()) {
@@ -1006,7 +1134,8 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         if (sb.length() > MAX_RESULT_CHARS) throw new SQLException(DhString.format("Maxchar limit(%d) reached", MAX_RESULT_CHARS));
 
-        if( hint > 0 && numFeatures > 0 && numFeatures == ((SearchForFeaturesEvent) event).getLimit() ) {
+        if (event instanceof IterateFeaturesEvent && numFeatures > 0 && numFeatures == ((SearchForFeaturesEvent) event).getLimit() ) {
+          String nextHandle = (nextDataset != null ? nextDataset + "_" : "") + nextIOffset;
           featureCollection.setHandle(nextHandle);
           featureCollection.setNextPageToken(nextHandle);
         }
@@ -1014,7 +1143,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         return featureCollection;
     }
 
-    protected FeatureCollection defaultFeatureResultSetHandler(ResultSet rs) throws SQLException
+    public FeatureCollection defaultFeatureResultSetHandler(ResultSet rs) throws SQLException
     { return _defaultFeatureResultSetHandler(rs,false); }
 
     protected FeatureCollection defaultFeatureResultSetHandlerSkipIfGeomIsNull(ResultSet rs) throws SQLException
@@ -1249,36 +1378,6 @@ public abstract class DatabaseHandler extends StorageConnector {
         return featureCollection;
     }
 
-    /**
-     * handler for list of feature's id results.
-     *
-     * @param rs the result set.
-     * @return the generated feature collection from the result set.
-     * @throws SQLException when any unexpected error happened.
-     */
-    protected List<String> idsListResultSetHandler(ResultSet rs) throws SQLException {
-      final ArrayList<String> result = new ArrayList<>();
-
-      while (rs.next()) {
-        result.add(rs.getString("id"));
-      }
-
-      return result;
-    }
-
-    /**
-     * The result handler for a CountFeatures event.
-     *
-     * @param rs the result set.
-     * @return the feature collection generated from the result.
-     * @throws SQLException if any error occurred.
-     */
-    protected XyzResponse countResultSetHandler(ResultSet rs) throws SQLException {
-        rs.next();
-        long count = rs.getLong(1);
-        return new CountResponse().withCount(count).withEstimated(count > MAX_PRECISE_STATS_COUNT);
-    }
-
     protected int calculateTimeout() throws SQLException{
         int remainingSeconds = context.getRemainingTimeInMillis() / 1000;
 
@@ -1383,6 +1482,10 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     public PSQLConfig getConfig() {
         return config;
+    }
+
+    public DataSource getDataSource() {
+        return dataSource;
     }
 
     public String getStreamId() {

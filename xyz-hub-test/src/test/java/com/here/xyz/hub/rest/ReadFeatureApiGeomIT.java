@@ -27,10 +27,13 @@ import static org.hamcrest.Matchers.equalTo;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.geojson.implementation.Polygon;
+import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.XyzResponse;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.Point;
@@ -280,7 +283,7 @@ public class ReadFeatureApiGeomIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testClipping() throws JsonProcessingException {
+  public void testClipping() throws JsonProcessingException, ErrorResponseException {
     final GeometryFactory gf = new GeometryFactory();
     /** Clipping with h3Index */
     String body = given().
@@ -381,7 +384,10 @@ public class ReadFeatureApiGeomIT extends TestSpaceWithFeature {
             get(getSpacesPath() + "/x-psql-test/spatial?refSpaceId="+ getSpaceId() + "&refFeatureId=foo_polygon&clip=true").
             getBody().asString();
 
-    fc = XyzSerializable.deserialize(body);
+    XyzResponse resp = XyzSerializable.deserialize(body);
+    if (resp instanceof ErrorResponse)
+      throw new ErrorResponseException(((ErrorResponse) resp).getStreamId(), ((ErrorResponse) resp).getError(), ((ErrorResponse) resp).getErrorMessage());
+    fc = (FeatureCollection) resp;
     assertEquals(8,fc.getFeatures().size());
 
     //Take Polygon from mixedGeometryTypes.json

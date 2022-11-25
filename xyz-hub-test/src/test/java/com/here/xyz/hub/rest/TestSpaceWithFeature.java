@@ -22,6 +22,7 @@ package com.here.xyz.hub.rest;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.jayway.restassured.RestAssured.given;
+import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -83,7 +84,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
             .body("storage.id", equalTo((usedStorageId)));
   }
 
-  protected String createSpaceWithCustomStorage(String spaceId, String storageId, JsonObject storageParams) {
+  protected static String createSpaceWithCustomStorage(String spaceId, String storageId, JsonObject storageParams) {
     JsonObject storage = new JsonObject()
         .put("id", storageId);
     if (storageParams != null)
@@ -278,5 +279,35 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
   protected void validateXyzNs(JsonObject xyzNs) {
     String[] allowedFieldNames = {"space", "createdAt", "updatedAt", "tags"};
     assertThat(xyzNs.fieldNames(), everyItem(isIn(allowedFieldNames)));
+  }
+
+  protected void getFeature(String spaceId, String featureId) {
+    getFeature(spaceId, featureId, null);
+  }
+  protected void getFeature(String spaceId, String featureId, Integer statusCode) {
+    getFeature(spaceId, featureId, statusCode, null, null);
+  }
+
+  protected void getFeature(String spaceId, String featureId, Integer statusCode, String path, String value) {
+    ValidatableResponse response = given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .get("/spaces/" + spaceId + "/features/" + featureId)
+        .then();
+
+    if (statusCode != null)
+      response.statusCode(statusCode);
+
+    if (path != null && value != null)
+      response.body(path, equalTo(value));
+  }
+
+  protected void deleteFeature(String spaceId, String featureId) {
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .delete("/spaces/" + spaceId + "/features/" + featureId)
+        .then()
+        .statusCode(NO_CONTENT.code());
   }
 }

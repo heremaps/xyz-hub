@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ package com.here.xyz.psql.query;
 
 import static com.here.xyz.psql.DatabaseHandler.HISTORY_TABLE_SUFFIX;
 
+import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetStorageStatisticsEvent;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.QueryRunner;
@@ -37,7 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class StorageStatisticsQueryRunner extends QueryRunner<GetStorageStatisticsEvent, StorageStatistics> {
+public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEvent, StorageStatistics> {
 
   private static final String TABLE_NAME = "table_name";
   private static final String TABLE_BYTES = "table_bytes";
@@ -46,7 +47,8 @@ public class StorageStatisticsQueryRunner extends QueryRunner<GetStorageStatisti
   private final List<String> remainingSpaceIds;
   private Map<String, String> tableName2SpaceId;
 
-  public StorageStatisticsQueryRunner(GetStorageStatisticsEvent event, DatabaseHandler dbHandler) {
+  public GetStorageStatistics(GetStorageStatisticsEvent event, DatabaseHandler dbHandler)
+      throws SQLException, ErrorResponseException {
     super(event, dbHandler);
     setUseReadReplica(true);
     remainingSpaceIds = new LinkedList<>(event.getSpaceIds());
