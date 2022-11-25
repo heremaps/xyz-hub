@@ -58,7 +58,7 @@ public class SimulatedContext implements Context, LambdaLogger {
    * Returns the mocked environment variable.
    */
   public String getEnv(String name) {
-    return environmentVariables.get(name);
+    return environmentVariables != null ? environmentVariables.get(name) : System.getenv(name);
   }
 
   @Override
