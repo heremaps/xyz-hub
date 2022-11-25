@@ -768,6 +768,7 @@ public class SQLQueryBuilder {
   }
 
   protected static SQLQuery buildDeleteStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event, Integer version) {
+      //If versioning is enabled, perform an update instead of a deletion. The trigger will finally delete the row.
       SQLQuery query =
           version == null
           ? new SQLQuery("DELETE FROM ${schema}.${table} WHERE jsondata->>'id' = #{id} ${{uuidCheck}}")

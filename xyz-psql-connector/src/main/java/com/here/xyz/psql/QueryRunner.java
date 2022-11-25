@@ -34,9 +34,8 @@ import org.apache.commons.dbutils.ResultSetHandler;
  */
 public abstract class QueryRunner<E extends Object, R extends Object> implements ResultSetHandler<R> {
 
-  //TODO: Make protected again after refactoring is complete
-  public static final String SCHEMA = "schema";
-  public static final String TABLE = "table";
+  protected static final String SCHEMA = "schema";
+  protected static final String TABLE = "table";
 
   private final SQLQuery query;
   private boolean useReadReplica;

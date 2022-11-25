@@ -19,8 +19,10 @@
 
 package com.here.xyz.psql;
 
+import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
+import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -32,7 +34,6 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Map.Entry;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -40,9 +41,22 @@ import org.postgresql.util.PGobject;
 
 public class DatabaseWriter {
 
-    private static final int TYPE_INSERT = 1;
-    private static final int TYPE_UPDATE = 2;
-    private static final int TYPE_DELETE = 3;
+    public enum ModificationType {
+        INSERT("I"),
+        UPDATE("U"),
+        DELETE("D");
+
+        String shortValue;
+
+        ModificationType(String shortValue) {
+            this.shortValue = shortValue;
+        }
+
+        @Override
+        public String toString() {
+            return shortValue;
+        }
+    }
     private static final Logger logger = LogManager.getLogger();
 
     private static final String UPDATE_ERROR_GENERAL = "Update has failed";
@@ -58,10 +72,6 @@ public class DatabaseWriter {
     public static final String INSERT_ERROR_GENERAL = "Insert has failed";
 
     protected static final String TRANSACTION_ERROR_GENERAL = "Transaction has failed";
-
-    private static final String LOG_EXCEPTION_INSERT = "insert";
-    private static final String LOG_EXCEPTION_UPDATE = "update";
-    private static final String LOG_EXCEPTION_DELETE = "delete";
 
     private static PGobject featureToPGobject(final Feature feature, Integer version) throws SQLException {
         final Geometry geometry = feature.getGeometry();
@@ -126,33 +136,34 @@ public class DatabaseWriter {
             f.getProperties().getXyzNamespace().isDeleted();
     }
 
-    protected static FeatureCollection insertFeatures(DatabaseHandler dbh, ModifyFeaturesEvent event, TraceItem traceItem, FeatureCollection collection,
-                                                      List<FeatureCollection.ModificationFailure> fails,
-                                                      List<Feature> inserts, Connection connection, Integer version)
-            throws SQLException, JsonProcessingException {
+    protected static void modifyFeatures(DatabaseHandler dbh, ModifyFeaturesEvent event, ModificationType action,
+        FeatureCollection collection, List<FeatureCollection.ModificationFailure> fails, List inputData, Connection connection,
+        Integer version) throws SQLException, JsonProcessingException {
         boolean transactional = event.getTransaction();
         connection.setAutoCommit(!transactional);
-        SQLQuery insertQuery = SQLQueryBuilder.buildInsertStmtQuery(dbh, event);
+        SQLQuery modificationQuery = buildModificationStmtQuery(dbh, event, action, version);
 
-        List<String> insertIdList = transactional ? new ArrayList<>() : null;
+        List<String> idList = transactional ? new ArrayList<>() : null;
 
         try {
-            for (final Feature feature : inserts) {
+            for (final Object inputDatum : inputData) {
                 try {
-                    fillInsertQueryFromFeature(insertQuery, feature, version);
-                    PreparedStatement ps = insertQuery.prepareStatement(connection);
+                    fillModificationQueryFromInput(modificationQuery, event, action, inputDatum, version);
+                    PreparedStatement ps = modificationQuery.prepareStatement(connection);
 
                     if (transactional) {
                         ps.addBatch();
-                        insertIdList.add(feature.getId());
+                        idList.add(getIdFromInput(action, inputDatum));
                     }
                     else
                         ps.setQueryTimeout(dbh.calculateTimeout());
 
-                    if (transactional || ps.executeUpdate() != 0)
-                        collection.getFeatures().add(feature);
+                    if (transactional || ps.executeUpdate() != 0) {
+                        if (action != DELETE)
+                            collection.getFeatures().add((Feature) inputDatum);
+                    }
                     else
-                        throw new WriteFeatureException(INSERT_ERROR_GENERAL);
+                        throw new WriteFeatureException(getFailedRowErrorMsg(action, event));
                 }
                 catch (Exception e) {
                     if (transactional)
@@ -161,134 +172,88 @@ public class DatabaseWriter {
                     if (e instanceof SQLException && "42P01".equalsIgnoreCase(((SQLException) e).getSQLState()))
                         throw (SQLException) e;
 
-                    fails.add(new FeatureCollection.ModificationFailure().withId(feature.getId())
-                        .withMessage(e instanceof WriteFeatureException ? e.getMessage() : INSERT_ERROR_GENERAL));
-                    logException(e, traceItem, LOG_EXCEPTION_INSERT, dbh, event);
-                }
-            }
-
-            if (transactional)
-                executeBatchesAndCheckOnFailures(dbh, insertIdList, insertQuery.prepareStatement(connection), fails, false, TYPE_INSERT,
-                    traceItem);
-        }
-        finally {
-            insertQuery.closeStatement();
-        }
-
-        return collection;
-    }
-
-    protected static FeatureCollection updateFeatures(DatabaseHandler dbh, ModifyFeaturesEvent event, TraceItem traceItem, FeatureCollection collection,
-                                                      List<FeatureCollection.ModificationFailure> fails,
-                                                      List<Feature> updates, Connection connection, Integer version)
-            throws SQLException, JsonProcessingException {
-        boolean transactional = event.getTransaction();
-        connection.setAutoCommit(!transactional);
-        SQLQuery updateQuery = SQLQueryBuilder.buildUpdateStmtQuery(dbh, event);
-
-        List<String> updateIdList = new ArrayList<>();
-        boolean handleUUID = event.getEnableUUID();
-
-        try {
-            for (Feature feature : updates) {
-                try {
-                    fillUpdateQueryFromFeature(updateQuery, feature, handleUUID, version);
-                    PreparedStatement ps = updateQuery.prepareStatement(connection);
-
-                    if (transactional) {
-                        ps.addBatch();
-                        updateIdList.add(feature.getId());
-                    }
-                    else
-                        ps.setQueryTimeout(dbh.calculateTimeout());
-
-                    if (transactional || ps.executeUpdate() != 0)
-                        collection.getFeatures().add(feature);
-                    else
-                        throw new WriteFeatureException(handleUUID ? UPDATE_ERROR_UUID : UPDATE_ERROR_NOT_EXISTS);
-                }
-                catch (Exception e) {
-                    if (transactional)
-                        throw e;
-
-                    //TODO: Handle SQL state "42P01"? (see: #insertFeatures())
-
-                    fails.add(new FeatureCollection.ModificationFailure().withId(feature.getId())
-                        .withMessage(e instanceof WriteFeatureException ? e.getMessage() : UPDATE_ERROR_GENERAL));
-                    logException(e, traceItem, LOG_EXCEPTION_UPDATE, dbh, event);
+                    fails.add(new FeatureCollection.ModificationFailure().withId(getIdFromInput(action, inputDatum))
+                        .withMessage(e instanceof WriteFeatureException ? e.getMessage() : getGeneralErrorMsg(action)));
+                    logException(e, action, dbh, event);
                 }
             }
 
             if (transactional) {
-                executeBatchesAndCheckOnFailures(dbh, updateIdList, updateQuery.prepareStatement(connection), fails, handleUUID, TYPE_UPDATE,
-                    traceItem);
+                executeBatchesAndCheckOnFailures(dbh, idList, modificationQuery.prepareStatement(connection), fails, event, action);
 
-                if (fails.size() > 0) {
-                    logException(null, traceItem, LOG_EXCEPTION_UPDATE, dbh, event);
-                    throw new SQLException(UPDATE_ERROR_GENERAL);
+                if (action != INSERT && fails.size() > 0) { //Not necessary in INSERT case as no PUUID check is performed there
+                    logException(null, action, dbh, event);
+                    throw new SQLException(getGeneralErrorMsg(action));
                 }
             }
         }
         finally {
-            updateQuery.closeStatement();
+            modificationQuery.closeStatement();
         }
-
-        return collection;
     }
 
-    protected static void deleteFeatures(DatabaseHandler dbh, ModifyFeaturesEvent event, TraceItem traceItem,
-                                                      List<FeatureCollection.ModificationFailure> fails,
-                                                      Map<String, String> deletes, Connection connection, Integer version)
-            throws SQLException {
-        boolean transactional = event.getTransaction();
-        connection.setAutoCommit(!transactional);
-        //If versioning is enabled, perform an update instead of a deletion. The trigger will finally delete the row.
-        SQLQuery deleteQuery = SQLQueryBuilder.buildDeleteStmtQuery(dbh, event, version);
-
-        List<String> deleteIdList = new ArrayList<>();
-        boolean handleUUID = event.getEnableUUID();
-
-        try {
-            for (Entry<String, String> deletion : deletes.entrySet()) {
-                try {
-                    fillDeleteQueryFromDeletion(deleteQuery, deletion, handleUUID);
-                    PreparedStatement ps = deleteQuery.prepareStatement(connection);
-
-                    if (transactional) {
-                        ps.addBatch();
-                        deleteIdList.add(deletion.getKey());
-                    }
-                    else {
-                        ps.setQueryTimeout(dbh.calculateTimeout());
-                        if (ps.executeUpdate() == 0)
-                            throw new WriteFeatureException(handleUUID ? DELETE_ERROR_UUID : DELETE_ERROR_NOT_EXISTS);
-                    }
-
-                }
-                catch (Exception e) {
-                    if (transactional)
-                        throw e;
-
-                    //TODO: Handle SQL state "42P01"? (see: #insertFeatures())
-
-                    fails.add(new FeatureCollection.ModificationFailure().withId(deletion.getKey())
-                        .withMessage(e instanceof WriteFeatureException ? e.getMessage() : DELETE_ERROR_GENERAL));
-                    logException(e, traceItem, LOG_EXCEPTION_DELETE, dbh, event);
-                }
-            }
-
-            if (transactional) {
-                executeBatchesAndCheckOnFailures(dbh, deleteIdList, deleteQuery.prepareStatement(connection), fails, handleUUID, TYPE_DELETE,
-                    traceItem);
-
-                if (fails.size() > 0) {
-                    logException(null, traceItem, LOG_EXCEPTION_DELETE, dbh, event);
-                    throw new SQLException(DELETE_ERROR_GENERAL);
-                }
-            }
+    private static String getFailedRowErrorMsg(ModificationType action, ModifyFeaturesEvent event) {
+        switch (action) {
+            case INSERT:
+                return getGeneralErrorMsg(action);
+            case UPDATE:
+                return event.getEnableUUID() ? UPDATE_ERROR_UUID : UPDATE_ERROR_NOT_EXISTS;
+            case DELETE:
+                return event.getEnableUUID() ? DELETE_ERROR_UUID : DELETE_ERROR_NOT_EXISTS;
         }
-        finally {
-            deleteQuery.closeStatement();
+        return null;
+    }
+
+    private static String getGeneralErrorMsg(ModificationType action) {
+        switch (action) {
+            case INSERT:
+                return INSERT_ERROR_GENERAL;
+            case UPDATE:
+                return UPDATE_ERROR_GENERAL;
+            case DELETE:
+                return DELETE_ERROR_GENERAL;
+        }
+        return null;
+    }
+
+    private static String getIdFromInput(ModificationType action, Object inputDatum) {
+        switch (action) {
+            case INSERT:
+            case UPDATE:
+                return ((Feature) inputDatum).getId();
+            case DELETE:
+                return ((Entry<String, String>) inputDatum).getKey();
+        }
+        return null;
+    }
+
+    private static SQLQuery buildModificationStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event, ModificationType action,
+        Integer version) {
+        switch (action) {
+            case INSERT:
+                return SQLQueryBuilder.buildInsertStmtQuery(dbHandler, event);
+            case UPDATE:
+                return SQLQueryBuilder.buildUpdateStmtQuery(dbHandler, event);
+            case DELETE:
+                return SQLQueryBuilder.buildDeleteStmtQuery(dbHandler, event, version);
+        }
+        return null;
+    }
+
+    private static void fillModificationQueryFromInput(SQLQuery query, ModifyFeaturesEvent event, ModificationType action, Object inputDatum,
+        Integer version) throws SQLException {
+        switch (action) {
+            case INSERT: {
+                fillInsertQueryFromFeature(query, (Feature) inputDatum, version);
+                break;
+            }
+            case UPDATE: {
+                fillUpdateQueryFromFeature(query, (Feature) inputDatum, event.getEnableUUID(), version);
+                break;
+            }
+            case DELETE: {
+                fillDeleteQueryFromDeletion(query, (Entry<String, String>) inputDatum, event.getEnableUUID());
+            }
         }
     }
 
@@ -305,28 +270,27 @@ public class DatabaseWriter {
         }
     }
 
-    private static void logException(Exception e, TraceItem traceItem, String action, DatabaseHandler dbHandler, ModifyFeaturesEvent event){
+    private static void logException(Exception e, ModificationType action, DatabaseHandler dbHandler, ModifyFeaturesEvent event){
         String table = dbHandler.config.readTableFromEvent(event);
-        if(e != null && e.getMessage() != null && e.getMessage().contains("does not exist")) {
-            /* If table not yet exist */
-            logger.info("{} Failed to perform {} - table {} does not exists {}", traceItem, action, table, e);
-        }
-        else
-            logger.info("{} Failed to perform {} on table {} {}", traceItem, action, table, e);
+        String message = e != null && e.getMessage() != null && e.getMessage().contains("does not exist")
+            //If table doesn't exist yet
+            ? "{} Failed to perform {} - table {} does not exists {}"
+            : "{} Failed to perform {} on table {} {}";
+        logger.info(message, dbHandler.traceItem, action.name(), table, e);
     }
 
     private static void executeBatchesAndCheckOnFailures(DatabaseHandler dbh, List<String> idList, PreparedStatement batchStmt,
         List<FeatureCollection.ModificationFailure> fails,
-        boolean handleUUID, int type, TraceItem traceItem) throws SQLException {
+        ModifyFeaturesEvent event, ModificationType type) throws SQLException {
         int[] batchStmtResult;
 
         try {
             if (idList.size() > 0) {
-                logger.debug("{} batch execution [{}]: {} ", traceItem, type, batchStmt);
+                logger.debug("{} batch execution [{}]: {} ", dbh.traceItem, type, batchStmt);
 
                 batchStmt.setQueryTimeout(dbh.calculateTimeout());
                 batchStmtResult = batchStmt.executeBatch();
-                DatabaseWriter.fillFailList(batchStmtResult, fails, idList, handleUUID, type);
+                DatabaseWriter.fillFailList(batchStmtResult, fails, idList, event, type);
             }
         }
         finally {
@@ -335,24 +299,10 @@ public class DatabaseWriter {
         }
     }
 
-    private static void fillFailList(int[] batchResult, List<FeatureCollection.ModificationFailure> fails,  List<String> idList, boolean handleUUID, int type){
-        for (int i= 0; i < batchResult.length; i++) {
-            if(batchResult[i] == 0 ) {
-                String message = TRANSACTION_ERROR_GENERAL;
-                switch (type){
-                    case TYPE_INSERT:
-                        message = INSERT_ERROR_GENERAL;
-                        break;
-                    case TYPE_UPDATE:
-                        message = handleUUID ? UPDATE_ERROR_UUID : UPDATE_ERROR_NOT_EXISTS;
-                        break;
-                    case TYPE_DELETE:
-                        message = handleUUID ? DELETE_ERROR_UUID : DELETE_ERROR_NOT_EXISTS;
-                        break;
-                }
-
-                fails.add(new FeatureCollection.ModificationFailure().withId(idList.get(i)).withMessage(message));
-            }
-        }
+    private static void fillFailList(int[] batchResult, List<FeatureCollection.ModificationFailure> fails,  List<String> idList,
+        ModifyFeaturesEvent event, ModificationType action) {
+        for (int i = 0; i < batchResult.length; i++)
+            if (batchResult[i] == 0)
+                fails.add(new FeatureCollection.ModificationFailure().withId(idList.get(i)).withMessage(getFailedRowErrorMsg(action, event)));
     }
 }

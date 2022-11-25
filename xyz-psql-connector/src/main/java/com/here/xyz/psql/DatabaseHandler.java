@@ -20,11 +20,9 @@
 package com.here.xyz.psql;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
-import static com.here.xyz.events.ModifySpaceEvent.Operation.CREATE;
-import static com.here.xyz.events.ModifySpaceEvent.Operation.DELETE;
-import static com.here.xyz.events.ModifySpaceEvent.Operation.UPDATE;
-import static com.here.xyz.psql.QueryRunner.SCHEMA;
-import static com.here.xyz.psql.QueryRunner.TABLE;
+import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
+import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
+import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -40,6 +38,7 @@ import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.ModifySpaceEvent.Operation;
 import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.coordinates.BBox;
@@ -444,16 +443,16 @@ public abstract class DatabaseHandler extends StorageConnector {
             boolean isEnableGlobalVersioning = event.getSpaceDefinition().isEnableGlobalVersioning();
             boolean compactHistory = config.getConnectorParams().isCompactHistory();
 
-            if (event.getOperation() == CREATE)
+            if (event.getOperation() == Operation.CREATE)
                 //Create History Table
                 ensureHistorySpace(maxVersionCount, compactHistory, isEnableGlobalVersioning);
-            else if(event.getOperation() == UPDATE)
+            else if(event.getOperation() == Operation.UPDATE)
                 //Update HistoryTrigger to apply maxVersionCount.
                 updateHistoryTrigger(maxVersionCount, compactHistory, isEnableGlobalVersioning);
         }
 
         new ModifySpace(event, this).write();
-        if (event.getOperation() != DELETE)
+        if (event.getOperation() != Operation.DELETE)
             dbMaintainer.maintainSpace(traceItem, config.getDatabaseSettings().getSchema(), config.readTableFromEvent(event));
 
         //If we reach this point we are okay!
@@ -518,7 +517,6 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     protected XyzResponse executeModifyFeatures(ModifyFeaturesEvent event) throws Exception {
         final boolean includeOldStates = event.getParams() != null && event.getParams().get(INCLUDE_OLD_STATES) == Boolean.TRUE;
-        final boolean handleUUID = event.getEnableUUID();
 
         final String schema = config.getDatabaseSettings().getSchema();
         final String table = config.readTableFromEvent(event);
@@ -601,13 +599,13 @@ public abstract class DatabaseHandler extends StorageConnector {
 
             try {
                 if (deletes.size() > 0) {
-                    DatabaseWriter.deleteFeatures(this, event, traceItem, fails, deletes, connection, version);
+                    DatabaseWriter.modifyFeatures(this, event, DELETE, collection, fails, new ArrayList(deletes.entrySet()), connection, version);
                 }
                 if (inserts.size() > 0) {
-                    DatabaseWriter.insertFeatures(this, event, traceItem, collection, fails, inserts, connection, version);
+                    DatabaseWriter.modifyFeatures(this, event, INSERT, collection, fails, inserts, connection, version);
                 }
                 if (updates.size() > 0) {
-                    DatabaseWriter.updateFeatures(this, event, traceItem, collection, fails, updates, connection, version);
+                    DatabaseWriter.modifyFeatures(this, event, UPDATE, collection, fails, updates, connection, version);
                 }
 
                 if (event.getTransaction()) {
