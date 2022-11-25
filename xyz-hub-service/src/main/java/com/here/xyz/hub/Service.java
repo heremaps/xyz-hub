@@ -557,6 +557,30 @@ public class Service extends Core {
     /**
      * The default {@link Broker} to use. If not given, Redis is used.
      */
+    public String DEFAULT_MESSAGE_BROKER;
+
+    /**
+     * Returns the broker to be used.
+     *
+     * @return the broker to be used.
+     */
+    @Nonnull
+    public Broker getDefaultMessageBroker() {
+      final String brokerName = nullable(DEFAULT_MESSAGE_BROKER);
+      Broker broker = null;
+      if (brokerName != null) {
+        try {
+          broker = Broker.valueOf(brokerName);
+        } catch (Exception e) {
+          logger.error("Illegal value for DEFAULT_MESSAGE_BROKER: " + brokerName, e);
+        }
+      }
+      return broker == null ? Broker.Redis : broker;
+    }
+
+    /**
+     * The ARN of the subscriptions table in DynamoDB.
+     */
     public String SUBSCRIPTIONS_DYNAMODB_TABLE_ARN;
 
     /**
