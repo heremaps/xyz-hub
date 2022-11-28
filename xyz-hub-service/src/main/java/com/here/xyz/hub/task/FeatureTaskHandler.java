@@ -1280,6 +1280,9 @@ public class FeatureTaskHandler {
         }
       }
     }
+
+    // author
+    nsXyz.setAuthor(task.author);
   }
 
   static void updateTags(FeatureTask.ConditionalOperation task, Callback<FeatureTask.ConditionalOperation> callback) {
