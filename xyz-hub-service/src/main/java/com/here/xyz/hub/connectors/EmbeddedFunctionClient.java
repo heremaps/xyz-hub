@@ -25,20 +25,27 @@ import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 import com.here.xyz.connectors.AbstractConnectorHandler;
 import com.here.xyz.connectors.SimulatedContext;
 import com.here.xyz.hub.Core;
+import com.here.xyz.hub.Service;
+import com.here.xyz.hub.config.MaintenanceClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.util.LimitedOffHeapQueue.PayloadVanishedException;
+import com.here.xyz.psql.DatabaseMaintainer;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.sql.SQLException;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import javax.naming.NoPermissionException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -51,8 +58,31 @@ public class EmbeddedFunctionClient extends RemoteFunctionClient {
    */
   private ExecutorService embeddedExecutor;
 
+  private static final AtomicReference<MaintenanceClient> maintenanceClientRef = new AtomicReference<>();
+
   EmbeddedFunctionClient(Connector connectorConfig) {
     super(connectorConfig);
+    MaintenanceClient maintenanceClient = maintenanceClientRef.get();
+    if (maintenanceClient== null) {
+      maintenanceClient = new MaintenanceClient();
+      if (maintenanceClientRef.compareAndSet(null, maintenanceClient)) {
+        logger.info("Can we create indices please!!!!!!!!!!!!!!");
+        final Map<String, Object> params = connectorConfig.params;
+        final Object raw_ecps = params.get("ecps");
+        if (raw_ecps instanceof String) {
+          final String ecps = (String) raw_ecps;
+          final RemoteFunctionConfig raw_remoteFunction = connectorConfig.remoteFunctions.get(Service.configuration.ENVIRONMENT_NAME);
+          if (raw_remoteFunction instanceof RemoteFunctionConfig.Embedded) {
+            final RemoteFunctionConfig.Embedded remoteFunction =(RemoteFunctionConfig.Embedded) raw_remoteFunction;
+            try {
+              maintenanceClient.initializeOrUpdateDatabase(connectorConfig.id, ecps, remoteFunction.env.get("ECPS_PHASE"));
+            } catch (Exception e) {
+              logger.error(e);
+            }
+          }
+        }
+      }
+    }
   }
 
   @Override
