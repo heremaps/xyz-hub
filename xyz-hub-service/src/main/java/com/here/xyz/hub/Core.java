@@ -30,6 +30,7 @@ import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
 import io.vertx.core.json.JsonObject;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Paths;
@@ -102,24 +103,36 @@ public class Core {
     final String path = JsonConfigFile.nullable(System.getenv(pathEnvName));
     if (path != null) {
       configFilename = Paths.get(path, configFilename).toAbsolutePath().toString();
+    } else {
+      final String userHome = System.getProperty("user.home");
+      if (userHome != null) {
+        final File configFile = new File(userHome + File.separatorChar + ".xyz-hub" + File.separatorChar + configFilename);
+        if (configFile.exists() && configFile.isFile()) {
+          configFilename = configFile.toPath().toAbsolutePath().toString();
+          if (!configFile.canRead()) {
+            die(1, "Unable to access configuration file: " + configFilename);
+          }
+        }
+      }
     }
 
     Configurator.initialize("default", CONSOLE_LOG_CONFIG);
     final ConfigStoreOptions fileStore = new ConfigStoreOptions().setType("file").setConfig(new JsonObject().put("path", configFilename));
     final ConfigStoreOptions envConfig = new ConfigStoreOptions().setType("env");
     final ConfigStoreOptions sysConfig = new ConfigStoreOptions().setType("sys");
-    final ConfigRetrieverOptions options = new ConfigRetrieverOptions().addStore(fileStore).addStore(envConfig).addStore(sysConfig).setScanPeriod(24 * 60 * 1000);
+    final ConfigRetrieverOptions options = new ConfigRetrieverOptions().addStore(fileStore).addStore(envConfig).addStore(sysConfig)
+        .setScanPeriod(24 * 60 * 1000);
 
     vertxOptions = (vertxOptions != null ? vertxOptions : new VertxOptions())
-            .setWorkerPoolSize(NumberUtils.toInt(System.getenv(Core.VERTX_WORKER_POOL_SIZE), 128))
-            .setPreferNativeTransport(true);
+        .setWorkerPoolSize(NumberUtils.toInt(System.getenv(Core.VERTX_WORKER_POOL_SIZE), 128))
+        .setPreferNativeTransport(true);
 
     if (debug) {
       vertxOptions
-              .setBlockedThreadCheckInterval(TimeUnit.MINUTES.toMillis(1))
-              .setMaxEventLoopExecuteTime(TimeUnit.MINUTES.toMillis(1))
-              .setMaxWorkerExecuteTime(TimeUnit.MINUTES.toMillis(1))
-              .setWarningExceptionTime(TimeUnit.MINUTES.toMillis(1));
+          .setBlockedThreadCheckInterval(TimeUnit.MINUTES.toMillis(1))
+          .setMaxEventLoopExecuteTime(TimeUnit.MINUTES.toMillis(1))
+          .setMaxWorkerExecuteTime(TimeUnit.MINUTES.toMillis(1))
+          .setWarningExceptionTime(TimeUnit.MINUTES.toMillis(1));
     }
 
     vertx = Vertx.vertx(vertxOptions);
@@ -152,8 +165,9 @@ public class Core {
     if (!CONSOLE_LOG_CONFIG.equals(config.getString("LOG_CONFIG"))) {
       Configurator.reconfigure(NetUtils.toURI(config.getString("LOG_CONFIG")));
     }
-    if (debug)
+    if (debug) {
       changeLogLevel("DEBUG");
+    }
   }
 
   static void changeLogLevel(String level) {

@@ -70,7 +70,15 @@ java -DHTTP_PORT=8080 -jar xyz-hub-service/target/xyz-hub-service.jar
 ```
 
 ### Configuration options
-The service start parameters could be specified by editing the [default config file](./xyz-hub-service/src/main/resources/config.json), using environment variables or system properties. See the default list of  [configuration parameters](https://github.com/heremaps/xyz-hub/wiki/Configuration-parameters) and their default values.
+The service start parameters could be specified by editing the [default config file](./xyz-hub-service/src/main/resources/config.json), using environment variables or system properties. See the default list of [configuration parameters](https://github.com/heremaps/xyz-hub/wiki/Configuration-parameters) and their default values.
+
+Note: To override the configuration files from the JAR, place the configuration file (`config.json` and/or `connector-config.json`) into the home directory of the subdirectory `.xyz-hub` of the user running the service. Example in Linux:
+
+```bash
+mkdir ~/.xyz-hub
+cp xyz-hub-service/src/main/resources/config.json ~/.xyz-hub
+cp xyz-hub-service/src/main/resources/connector-config.json ~/.xyz-hub 
+```
 
 # Usage
 
