@@ -23,8 +23,6 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.CREATE;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.DELETE;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.UPDATE;
-import static com.here.xyz.psql.QueryRunner.SCHEMA;
-import static com.here.xyz.psql.QueryRunner.TABLE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -618,6 +616,8 @@ public abstract class DatabaseHandler extends StorageConnector {
                 }
 
                 if (transactional) {
+                    // TODO: Write Transaction Log into a special table.
+
                     /** Commit SQLS in one transaction */
                     connection.commit();
                 }
