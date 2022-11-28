@@ -94,6 +94,9 @@ public abstract class Api {
   public static final HttpResponseStatus CLIENT_CLOSED_REQUEST = new HttpResponseStatus(499, "Client closed request");
   private static final String DEFAULT_GATEWAY_TIMEOUT_MESSAGE = "The storage connector exceeded the maximum time";
   private static final String DEFAULT_BAD_GATEWAY_MESSAGE = "The storage connector failed to execute the request";
+  private static final String AUTHOR_HEADER = "Author";
+
+
 
   /**
    * Converts the given response into a {@link HttpException}.
@@ -655,6 +658,12 @@ public abstract class Api {
       }
       context.put(QUERY_PARAMS, map);
       return map;
+    }
+
+    public static String getAuthor(RoutingContext context) {
+      if (Service.configuration.USE_AUTHOR_FROM_HEADER)
+        return context.request().getHeader(AUTHOR_HEADER);
+      return getJWT(context).aid;
     }
   }
 }

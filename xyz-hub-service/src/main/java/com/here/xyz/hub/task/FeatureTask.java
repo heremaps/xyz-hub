@@ -641,6 +641,8 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public LoadFeaturesEvent loadFeaturesEvent;
     public boolean hasNonModified;
 
+    public String author;
+
     public ConditionalOperation(ModifyFeaturesEvent event, RoutingContext context, ApiResponseType apiResponseTypeType,
         ModifyFeatureOp modifyOp, boolean requireResourceExists, int requestBodySize) {
       super(event, context, apiResponseTypeType, true, requestBodySize);

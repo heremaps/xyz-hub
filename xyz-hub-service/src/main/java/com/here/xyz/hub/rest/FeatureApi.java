@@ -31,7 +31,6 @@ import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
-import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.TagsQuery;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
@@ -228,6 +227,7 @@ public class FeatureApi extends SpaceBasedApi {
     XyzNamespace.fixNormalizedTags(task.addTags);
     XyzNamespace.fixNormalizedTags(task.removeTags);
     task.prefixId = Query.getString(context, Query.PREFIX_ID, null);
+    task.author = Api.Context.getAuthor(context);
     task.execute(this::sendResponse, this::sendErrorResponse);
   }
 
