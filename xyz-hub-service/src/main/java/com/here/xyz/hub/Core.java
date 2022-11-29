@@ -35,6 +35,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -99,27 +100,43 @@ public class Core {
   public static final String BUILD_VERSION = getBuildProperty("xyzhub.version");
 
   /**
-   * Read a file either from "~/.xyz-hub" or from the resources.
-   * @param filename the filename of the file to read, e.g. "/jwt.key.pub".
+   * Read a file either from "~/.xyz-hub" or from the resources. The location of home can be overridden using the environment variable
+   * XYZ_CONFIG_PATH.
+   *
+   * @param filename the filename of the file to read, e.g. "auth/jwt.key".
    * @return the bytes of the file.
    * @throws IOException if the file does not exist or any other error occurred.
    */
   public static @Nonnull byte[] readFileFromHomeOrResource(@Nonnull String filename) throws IOException {
     //noinspection ConstantConditions
-    if (filename==null) throw new FileNotFoundException("null");
+    if (filename == null) {
+      throw new FileNotFoundException("null");
+    }
     final char first = filename.charAt(0);
-    if (first != '/' && first != '\\') {
-      filename = File.separatorChar + filename;
+    if (first == '/' || first == '\\') {
+      filename = filename.substring(1);
     }
 
-    final String userHome = System.getProperty("user.home");
-    if (userHome != null) {
-      final File file = new File(userHome + File.separatorChar + ".xyz-hub" + filename);
-      if (file.exists() && file.isFile() && file.canRead()) {
-        filename = file.toPath().toAbsolutePath().toString();
-        return Files.readAllBytes(Paths.get(filename));
+    final String pathEnvName = JsonConfigFile.configPathEnvName(Config.class);
+    final String path = JsonConfigFile.nullable(System.getenv(pathEnvName));
+    final Path filePath;
+    if (path != null) {
+      filePath = Paths.get(path, filename).toAbsolutePath();
+    } else {
+      final String userHome = System.getProperty("user.home");
+      if (userHome != null) {
+        filePath = Paths.get(userHome, ".xyz-hub", filename).toAbsolutePath();
+      } else {
+        filePath = null;
       }
     }
+    if (filePath != null) {
+      final File file = filePath.toFile();
+      if (file.exists() && file.isFile() && file.canRead()) {
+        return Files.readAllBytes(filePath);
+      }
+    }
+
     try (final InputStream is = Core.class.getClassLoader().getResourceAsStream(filename)) {
       if (is == null) {
         throw new FileNotFoundException(filename);
@@ -130,6 +147,7 @@ public class Core {
 
   private static final int DEFAULT_BUFFER_SIZE = 8192;
   private static final int MAX_BUFFER_SIZE = Integer.MAX_VALUE - 8;
+
   // Taken from JDK 9+
   private static byte[] readNBytes(final InputStream is, int len) throws IOException {
     if (len < 0) {

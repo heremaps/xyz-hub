@@ -65,7 +65,7 @@ public class JwtGenerator {
   */
 
   private static void setup() throws IOException {
-    final byte[] bytes = Core.readFileFromHomeOrResource("/auth/jwt.key");
+    final byte[] bytes = Core.readFileFromHomeOrResource("auth/jwt.key");
     JWTAuthOptions authConfig = new JWTAuthOptions()
         .setJWTOptions(jwtOptions)
         .addPubSecKey(new PubSecKeyOptions()

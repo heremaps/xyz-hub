@@ -63,7 +63,7 @@ public class ExtendedJWTAuthHandler extends JWTAuthHandlerImpl {
    */
   final boolean ALLOW_ANONYMOUS_ACCESS = Service.configuration.XYZ_HUB_AUTH == AuthorizationType.DUMMY;
 
-  private static final String ANONYMOUS_JWT_RESOURCE_FILE = "/auth/dummyJwt.json";
+  private static final String ANONYMOUS_JWT_RESOURCE_FILE = "auth/dummyJwt.json";
   private static final String ANONYMOUS_JWT = JwtGenerator.generateToken(ANONYMOUS_JWT_RESOURCE_FILE);
 
   public ExtendedJWTAuthHandler(JWTAuth authProvider, String realm) {

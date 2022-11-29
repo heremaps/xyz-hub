@@ -213,7 +213,7 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
   private AuthenticationHandler createJWTHandler() {
     String pubKey;
     try {
-      final byte[] bytes = Core.readFileFromHomeOrResource("/auth/jwt.pub");
+      final byte[] bytes = Core.readFileFromHomeOrResource("auth/jwt.pub");
       pubKey = new String(bytes, StandardCharsets.UTF_8);
     } catch (Exception e) {
       logger.error("Failed to load JWT public key from home or resources", e);
