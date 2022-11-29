@@ -748,9 +748,9 @@ public class Service extends Core {
     public boolean MONITOR_FEATURES_WITH_UUID = true;
 
     /**
-     * Global limit for the maximum amount of revisions to keep per space.
+     * Global limit for the maximum amount of versions to keep per space.
      */
-    public long MAX_REVISIONS_TO_KEEP = 1_000_000;
+    public long MAX_VERSIONS_TO_KEEP = 1_000_000;
   }
 
   /**

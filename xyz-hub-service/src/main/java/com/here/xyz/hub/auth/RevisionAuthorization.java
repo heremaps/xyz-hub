@@ -33,6 +33,7 @@ public class RevisionAuthorization extends Authorization {
     JWTPayload jwt = Api.Context.getJWT(context);
 
     final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
+    //TODO: Use manageSpaces instead
     requestRights.adminSpaces(XyzHubAttributeMap.forIdValues(space.getOwner(), space.getId()));
 
     try {

@@ -23,7 +23,7 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
-import static com.here.xyz.psql.query.helpers.GetNextRevision.REVISON_SEQUENCE_SUFFIX;
+import static com.here.xyz.psql.query.helpers.GetNextVersion.REVISON_SEQUENCE_SUFFIX;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -55,7 +55,7 @@ import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.helpers.FetchExistingIds;
 import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
 import com.here.xyz.psql.query.helpers.GetTablesWithColumn;
-import com.here.xyz.psql.query.helpers.GetNextRevision;
+import com.here.xyz.psql.query.helpers.GetNextVersion;
 import com.here.xyz.psql.query.helpers.GetTablesWithColumn.GetTablesWithColumnInput;
 import com.here.xyz.psql.tools.DhString;
 import com.here.xyz.responses.BinaryResponse;
@@ -870,13 +870,13 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
-    private int readRevisionsToKeep(Event event) {
-        if (event.getParams() == null || !event.getParams().containsKey("revisionsToKeep"))
+    private int readVersionsToKeep(Event event) {
+        if (event.getParams() == null || !event.getParams().containsKey("versionsToKeep"))
             return -1;
-        return (int) event.getParams().get("revisionsToKeep");
+        return (int) event.getParams().get("versionsToKeep");
     }
 
-    private void oneTimeActionRevisioningMigration(String phase) throws SQLException, ErrorResponseException {
+    private void oneTimeActionVersioningMigration(String phase) throws SQLException, ErrorResponseException {
         try (final Connection connection = dataSource.getConnection()) {
             if (_advisory(phase, connection, true, false))
                 switch (phase) {
@@ -884,7 +884,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                         List<String> tablesWithoutIdColumn =
                             new GetTablesWithColumn(new GetTablesWithColumnInput("id", false, 100), this).run();
                         if (tablesWithoutIdColumn.isEmpty())
-                            logger.info("oneTimeActionRevisioningMigration " + phase + ": Nothing to do.");
+                            logger.info("oneTimeActionVersioningMigration " + phase + ": Nothing to do.");
                         else
                             oneTimeAlterExistingTablesAddNewColumnsAndIndices(phase, tablesWithoutIdColumn, connection);
                         break;
@@ -902,7 +902,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                     }
                 }
             else
-                logger.info("oneTimeActionRevisioningMigration " + phase + ": Currently another process is already running.");
+                logger.info("oneTimeActionVersioningMigration " + phase + ": Currently another process is already running.");
             _advisory(phase, connection, false, false);
         }
     }
@@ -922,17 +922,16 @@ public abstract class DatabaseHandler extends StorageConnector {
 
                 try (Statement stmt = connection.createStatement()) {
                     //Alter existing tables: add new columns
-
                     SQLQuery alterQuery = new SQLQuery("ALTER TABLE ${schema}.${table} "
                         + "ADD COLUMN id TEXT, "
-                        + "ADD COLUMN revision BIGINT NOT NULL DEFAULT 0, "
-                        + "ADD COLUMN next_revision BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
+                        + "ADD COLUMN version BIGINT NOT NULL DEFAULT 0, "
+                        + "ADD COLUMN next_version BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
                         + "ADD COLUMN operation CHAR NOT NULL DEFAULT 'I'")
                         .withVariable("schema", schema)
                         .withVariable("table", tableName);
                     stmt.addBatch(alterQuery.substitute().text());
                     //Add new indices for existing tables
-                    createRevisioningIndices(stmt, schema, tableName);
+                    createVersioningIndices(stmt, schema, tableName);
                     //Add new sequence for existing tables
                     stmt.addBatch(buildCreateSequenceQuery(schema, tableName, REVISON_SEQUENCE_SUFFIX).substitute().text());
 
@@ -955,17 +954,17 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     private void createSpaceStatement(Statement stmt, Event event) throws SQLException {
-        boolean oldTableStyle = readRevisionsToKeep(event) < 1;
+        boolean oldTableStyle = readVersionsToKeep(event) < 1;
 
         String tableFields =
             (oldTableStyle ? "id TEXT, " : "id TEXT NOT NULL, ")
-            + (oldTableStyle ? "revision BIGINT NOT NULL DEFAULT 0, " : "revision BIGINT NOT NULL, ")
-            + "next_revision BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
+            + (oldTableStyle ? "version BIGINT NOT NULL DEFAULT 0, " : "version BIGINT NOT NULL, ")
+            + "next_version BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
             + (oldTableStyle ? "operation CHAR NOT NULL DEFAULT 'I', " : "operation CHAR NOT NULL, ")
             + "jsondata JSONB, "
             + "geo geometry(GeometryZ, 4326), "
             + "i BIGSERIAL"
-            + (oldTableStyle ? "" : ", CONSTRAINT ${constraintName} PRIMARY KEY (id, revision)");
+            + (oldTableStyle ? "" : ", CONSTRAINT ${constraintName} PRIMARY KEY (id, version)");
 
         String schema = config.getDatabaseSettings().getSchema();
         String table = config.readTableFromEvent(event);
@@ -980,7 +979,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         String query;
 
-        createRevisioningIndices(stmt, schema, table);
+        createVersioningIndices(stmt, schema, table);
 
         query = "CREATE UNIQUE INDEX IF NOT EXISTS ${idx_id} ON ${schema}.${table} ((jsondata->>'id'))";
         query = SQLQuery.replaceVars(query, replacements, schema, table);
@@ -1021,11 +1020,11 @@ public abstract class DatabaseHandler extends StorageConnector {
             .withVariable("sequence", table + sequenceNameSuffix);
     }
 
-    private static void createRevisioningIndices(Statement stmt, String schema, String table) throws SQLException {
+    private static void createVersioningIndices(Statement stmt, String schema, String table) throws SQLException {
         stmt.addBatch(buildCreateIndexQuery(schema, table, "id", "BTREE", "idx_" + table + "_idnew").substitute().text());
-        stmt.addBatch(buildCreateIndexQuery(schema, table, "revision", "BTREE").substitute().text());
-        stmt.addBatch(buildCreateIndexQuery(schema, table, Arrays.asList("id", "revision"), "BTREE").substitute().text());
-        stmt.addBatch(buildCreateIndexQuery(schema, table, Arrays.asList("id", "revision", "next_revision"), "BTREE").substitute().text());
+        stmt.addBatch(buildCreateIndexQuery(schema, table, "version", "BTREE").substitute().text());
+        stmt.addBatch(buildCreateIndexQuery(schema, table, Arrays.asList("id", "version"), "BTREE").substitute().text());
+        stmt.addBatch(buildCreateIndexQuery(schema, table, Arrays.asList("id", "version", "next_version"), "BTREE").substitute().text());
         stmt.addBatch(buildCreateIndexQuery(schema, table, "operation", "HASH").substitute().text());
     }
 

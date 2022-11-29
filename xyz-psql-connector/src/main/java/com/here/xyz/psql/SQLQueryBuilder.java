@@ -735,10 +735,10 @@ public class SQLQueryBuilder {
     }
 
   protected static SQLQuery buildInsertStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
-    return setWriteQueryComponents(new SQLQuery("${{geoWith}} INSERT INTO ${schema}.${table} (id, revision, operation, jsondata, geo) "
+    return setWriteQueryComponents(new SQLQuery("${{geoWith}} INSERT INTO ${schema}.${table} (id, version, operation, jsondata, geo) "
         + "VALUES("
         + "#{id}, "
-        + "#{revision}, "
+        + "#{version}, "
         + "#{operation}, "
         + "#{jsondata}::jsonb, "
         + "${{geo}})"), dbHandler, event);
@@ -746,7 +746,7 @@ public class SQLQueryBuilder {
 
   protected static SQLQuery buildUpdateStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
       return setWriteQueryComponents(new SQLQuery("${{geoWith}} UPDATE ${schema}.${table} SET "
-          + "revision = #{revision}, "
+          + "version = #{version}, "
           + "operation = #{operation}, "
           + "jsondata = #{jsondata}::jsonb, "
           + "geo = (${{geo}}) "

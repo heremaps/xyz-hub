@@ -347,11 +347,11 @@ public class CreateSpaceApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void createSpaceWithRevisionsToKeepNegativeNumber() {
+  public void createSpaceWithVersionsToKeepNegativeNumber() {
     final ValidatableResponse response = given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_NO_ADMIN))
-        .body("{\"title\":\"test\", \"revisionsToKeep\":-1}")
+        .body("{\"title\":\"test\", \"versionsToKeep\":-1}")
         .when()
         .post("/spaces")
         .then();
@@ -361,11 +361,11 @@ public class CreateSpaceApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void createSpaceWithRevisionsToKeepAsString() {
+  public void createSpaceWithVersionsToKeepAsString() {
     final ValidatableResponse response = given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_NO_ADMIN))
-        .body("{\"title\":\"test\", \"revisionsToKeep\":\"abc\"}")
+        .body("{\"title\":\"test\", \"versionsToKeep\":\"abc\"}")
         .when()
         .post("/spaces")
         .then();
@@ -375,11 +375,11 @@ public class CreateSpaceApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void createSpaceWithRevisionsToKeepPositive() {
+  public void createSpaceWithVersionsToKeepPositive() {
     final ValidatableResponse response = given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_NO_ADMIN))
-        .body("{\"title\":\"test\", \"revisionsToKeep\":0}")
+        .body("{\"title\":\"test\", \"versionsToKeep\":0}")
         .when()
         .post("/spaces")
         .then();
@@ -389,11 +389,11 @@ public class CreateSpaceApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void createSpaceWithRevisionsToKeepTooBig() {
+  public void createSpaceWithVersionsToKeepTooBig() {
     final ValidatableResponse response = given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_NO_ADMIN))
-        .body("{\"title\":\"test\", \"revisionsToKeep\":1000001}")
+        .body("{\"title\":\"test\", \"versionsToKeep\":1000001}")
         .when()
         .post("/spaces")
         .then();

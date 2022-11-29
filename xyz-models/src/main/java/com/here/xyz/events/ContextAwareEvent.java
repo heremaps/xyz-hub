@@ -20,7 +20,7 @@
 
 package com.here.xyz.events;
 
-import static com.here.xyz.models.hub.Space.DEFAULT_REVISIONS_TO_KEEP;
+import static com.here.xyz.models.hub.Space.DEFAULT_VERSIONS_TO_KEEP;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -29,7 +29,7 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 public abstract class ContextAwareEvent<T extends ContextAwareEvent> extends Event<T> {
 
   private SpaceContext context = SpaceContext.DEFAULT;
-  private int revisionsToKeep = DEFAULT_REVISIONS_TO_KEEP;
+  private int versionsToKeep = DEFAULT_VERSIONS_TO_KEEP;
 
   public enum SpaceContext {
     EXTENSION,
@@ -68,16 +68,16 @@ public abstract class ContextAwareEvent<T extends ContextAwareEvent> extends Eve
     return (T) this;
   }
 
-  public int getRevisionsToKeep() {
-    return revisionsToKeep;
+  public int getVersionsToKeep() {
+    return versionsToKeep;
   }
 
-  public void setRevisionsToKeep(int revisionsToKeep) {
-    this.revisionsToKeep = revisionsToKeep;
+  public void setVersionsToKeep(int versionsToKeep) {
+    this.versionsToKeep = versionsToKeep;
   }
 
-  public T withRevisionsToKeep(int revisionsToKeep) {
-    setRevisionsToKeep(revisionsToKeep);
+  public T withVersionsToKeep(int versionsToKeep) {
+    setVersionsToKeep(versionsToKeep);
     return (T) this;
   }
 }

@@ -27,11 +27,11 @@ import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-public class GetNextRevision<E extends Event> extends XyzEventBasedQueryRunner<E, Integer> {
+public class GetNextVersion<E extends Event> extends XyzEventBasedQueryRunner<E, Integer> {
 
   public static final String REVISON_SEQUENCE_SUFFIX = "_rev_seq";
 
-  public GetNextRevision(E input, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
+  public GetNextVersion(E input, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(input, dbHandler);
   }
 

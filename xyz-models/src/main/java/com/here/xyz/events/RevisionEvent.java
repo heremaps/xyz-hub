@@ -19,11 +19,6 @@
 
 package com.here.xyz.events;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonTypeName;
-
-@JsonIgnoreProperties(ignoreUnknown = true)
-@JsonTypeName(value = "RevisionEvent")
 public class RevisionEvent extends Event<RevisionEvent> {
   private Operation operation;
   private PropertyQuery revision;
@@ -49,7 +44,7 @@ public class RevisionEvent extends Event<RevisionEvent> {
     this.revision = revision;
   }
 
-  public RevisionEvent withRevision(PropertyQuery revision) {
+  public RevisionEvent withVersion(PropertyQuery revision) {
     setRevision(revision);
     return this;
   }

@@ -1021,7 +1021,7 @@ public class AuthTestsIT extends RestAssuredTest {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .delete("/spaces/" + cleanUpId + "/revisions?revision=10")
+        .delete("/spaces/" + cleanUpId + "/revisions?version=10")
         .then()
         .statusCode(NO_CONTENT.code());
   }
@@ -1038,7 +1038,7 @@ public class AuthTestsIT extends RestAssuredTest {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_NO_ADMIN))
         .when()
-        .delete("/spaces/" + cleanUpId + "/revisions?revision=10")
+        .delete("/spaces/" + cleanUpId + "/revisions?version=10")
         .then()
         .statusCode(FORBIDDEN.code());
   }

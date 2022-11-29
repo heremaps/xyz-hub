@@ -115,7 +115,7 @@ public class DatabaseWriter {
     private static void fillInsertQueryFromFeature(SQLQuery query, Feature feature, Integer version) throws SQLException {
         query
             .withNamedParameter("id", feature.getId())
-            .withNamedParameter("revision", feature.getProperties().getXyzNamespace().getRev())
+            .withNamedParameter("version", 0) //TODO: Set from sequence
             .withNamedParameter("operation", getDeletedFlagFromFeature(feature) ? 'D' : 'I')
             .withNamedParameter("jsondata", featureToPGobject(feature, version));
 
