@@ -933,6 +933,8 @@ public abstract class DatabaseHandler extends StorageConnector {
                     stmt.addBatch(alterQuery.substitute().text());
                     //Add new indices for existing tables
                     createRevisioningIndices(stmt, schema, tableName);
+                    //Add new sequence for existing tables
+                    stmt.addBatch(buildCreateSequenceQuery(schema, tableName, REVISON_SEQUENCE_SUFFIX).substitute().text());
 
                     stmt.setQueryTimeout(calculateTimeout());
                     stmt.executeBatch();
@@ -1008,12 +1010,15 @@ public abstract class DatabaseHandler extends StorageConnector {
         query = SQLQuery.replaceVars(query, replacements, schema, table);
         stmt.addBatch(query);
 
-        SQLQuery revSeqQuery = new SQLQuery("CREATE SEQUENCE IF NOT EXISTS ${schema}.${sequence}")
-            .withVariable("schema", schema)
-            .withVariable("sequence", table + REVISON_SEQUENCE_SUFFIX);
-        stmt.addBatch(revSeqQuery.substitute().text());
+        stmt.addBatch(buildCreateSequenceQuery(schema, table, REVISON_SEQUENCE_SUFFIX).substitute().text());
 
         stmt.setQueryTimeout(calculateTimeout());
+    }
+
+    private static SQLQuery buildCreateSequenceQuery(String schema, String table, String sequenceNameSuffix) {
+        return new SQLQuery("CREATE SEQUENCE IF NOT EXISTS ${schema}.${sequence}")
+            .withVariable("schema", schema)
+            .withVariable("sequence", table + sequenceNameSuffix);
     }
 
     private static void createRevisioningIndices(Statement stmt, String schema, String table) throws SQLException {
