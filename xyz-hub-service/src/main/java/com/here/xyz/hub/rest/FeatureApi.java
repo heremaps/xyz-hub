@@ -105,14 +105,14 @@ public class FeatureApi extends SpaceBasedApi {
     final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
     final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
     final SpaceContext spaceContext = getSpaceContext(context);
-    final String revision = Query.getString(context, Query.REVISION, null);
+    final String version = Query.getString(context, Query.VERSION, null);
     final String author = Query.getString(context, Query.AUTHOR, null);
 
     final GetFeaturesByIdEvent event = new GetFeaturesByIdEvent()
         .withIds(ids)
         .withSelection(Query.getSelection(context))
         .withForce2D(force2D)
-        .withRef(revision)
+        .withRef(version)
         .withContext(spaceContext)
         .withAuthor(author);
 

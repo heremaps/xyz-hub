@@ -23,7 +23,7 @@ import static com.here.xyz.hub.task.FeatureTask.FeatureKey.CREATED_AT;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.MUUID;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PUUID;
-import static com.here.xyz.hub.task.FeatureTask.FeatureKey.REVISION;
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.VERSION;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.SPACE;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.UPDATED_AT;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.UUID;
@@ -100,11 +100,11 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
 
   public static class FeatureEntry extends ModifyOp.Entry<Feature> {
 
-    public int inputRevision;
+    public int inputVersion;
 
     public FeatureEntry(Map<String, Object> input, IfNotExists ifNotExists, IfExists ifExists, ConflictResolution cr) {
       super(input, ifNotExists, ifExists, cr);
-      this.inputRevision = getRevision(input);
+      inputVersion = getVersion(input);
     }
 
     @Override
@@ -165,9 +165,9 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
                 .put(PUUID, true)
                 .put(MUUID, true))).mapTo(Map.class);
 
-    private int getRevision(Map<String, Object> input) {
+    private int getVersion(Map<String, Object> input) {
       try {
-        return new JsonObject(input).getJsonObject(PROPERTIES).getJsonObject(XyzNamespace.XYZ_NAMESPACE).getInteger(REVISION, 0);
+        return new JsonObject(input).getJsonObject(PROPERTIES).getJsonObject(XyzNamespace.XYZ_NAMESPACE).getInteger(VERSION, 0);
       } catch (Exception e) {
         return 0;
       }

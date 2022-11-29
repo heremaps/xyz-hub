@@ -89,8 +89,8 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
         if (config.isPresent()) {
           Map<String, Object> spaceData = Json.decodeValue(config.get(), Map.class);
           //NOTE: The following is a temporary implementation to keep backwards compatibility for non-versioned spaces
-          if (spaceData.get("revisionsToKeep") == null)
-            spaceData.put("revisionsToKeep", 0);
+          if (spaceData.get("versionsToKeep") == null)
+            spaceData.put("versionsToKeep", 0);
           final Space space = DatabindCodec.mapper().convertValue(spaceData, Space.class);
           p.complete(space);
         }

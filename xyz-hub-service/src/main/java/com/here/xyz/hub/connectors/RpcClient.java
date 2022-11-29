@@ -239,15 +239,15 @@ public class RpcClient {
   }
 
   /**
-   * The following is only a temporary implementation to forward the revisionsToKeep space property as param for all space-based events.
-   * @param event The event on which to set the revisionsToKeep property as param
-   * @param space The space from which to read the revisionsToKeep property
+   * The following is only a temporary implementation to forward the versionsToKeep space property as param for all space-based events.
+   * @param event The event on which to set the versionsToKeep property as param
+   * @param space The space from which to read the versionsToKeep property
    */
-  private void tmpFillRevisionsToKeepParam(Event event, Space space) {
+  private void tmpFillVersionsToKeepParam(Event event, Space space) {
     if (space != null) {
       if (event.getParams() == null)
         event.setParams(new HashMap<>());
-      event.getParams().put("revisionsToKeep", space.getRevisionsToKeep());
+      event.getParams().put("versionsToKeep", space.getVersionsToKeep());
     }
   }
 
@@ -262,7 +262,7 @@ public class RpcClient {
    */
   @SuppressWarnings("rawtypes")
   public RpcContext execute(final Marker marker, final Event event, final boolean hasPriority, final Handler<AsyncResult<XyzResponse>> callback, Space tmpSpace) {
-    tmpFillRevisionsToKeepParam(event, tmpSpace);
+    tmpFillVersionsToKeepParam(event, tmpSpace);
     final Connector connector = getConnector();
     event.setConnectorParams(connector.params);
     final boolean expectBinaryResponse = expectBinaryResponse(event);
@@ -527,7 +527,7 @@ public class RpcClient {
 
   /**
    * Tries to parse the stringResponse and checks for errorMessage. In case of found, it throws a new exception with the errorMessage.
-   * Additionally checks if the message is related to Time Out and throws a GATEWAY_TIMEOUT. Also, if the message is not parsable at all,
+   * Additionally, checks if the message is related to Time Out and throws a GATEWAY_TIMEOUT. Also, if the message is not parsable at all,
    * throws an exception informing "Invalid JSON string"
    *
    * @param stringResponse the original response

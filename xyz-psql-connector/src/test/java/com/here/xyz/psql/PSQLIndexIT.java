@@ -183,9 +183,9 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                 add("id");
                 add("viz");
                 add("idnew");
-                add("revision");
-                add("idrevision");
-                add("idrevisionnextrevision");
+                add("version");
+                add("idversion");
+                add("idversionnextversion");
                 add("operation");
             }};
 

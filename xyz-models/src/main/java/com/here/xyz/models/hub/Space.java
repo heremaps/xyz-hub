@@ -23,7 +23,6 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.fasterxml.jackson.annotation.JsonIncludeProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonValue;
@@ -42,7 +41,7 @@ import java.util.Map;
 @SuppressWarnings("unused")
 public class Space {
 
-  public static final int DEFAULT_REVISIONS_TO_KEEP = 0;
+  public static final int DEFAULT_VERSIONS_TO_KEEP = 0;
 
   /**
    * Beta release date: 2018-10-01T00:00Z[UTC]
@@ -172,12 +171,12 @@ public class Space {
   private Integer maxVersionCount;
 
   /**
-   * Defines how many revisions will be kept before the automatic purging of old revisions is starting.
-   * By default this value will be set to 1. That means there will be only one
-   * (HEAD) state of the space and no further revisions will be kept.
+   * Defines how many versions will be kept before the automatic purging of old versions is starting.
+   * By default, this value will be set to 1. That means there will be only one state (HEAD)
+   * of the space and no further versions will be kept.
    */
   @JsonView({Public.class, Static.class})
-  private int revisionsToKeep = DEFAULT_REVISIONS_TO_KEEP;
+  private int versionsToKeep = DEFAULT_VERSIONS_TO_KEEP;
 
   /**
    * If false, auto-indexing gets disabled
@@ -480,16 +479,16 @@ public class Space {
     return this;
   }
 
-  public int getRevisionsToKeep() {
-    return revisionsToKeep;
+  public int getVersionsToKeep() {
+    return versionsToKeep;
   }
 
-  public void setRevisionsToKeep(int revisionsToKeep) {
-    this.revisionsToKeep = revisionsToKeep;
+  public void setVersionsToKeep(int versionsToKeep) {
+    this.versionsToKeep = versionsToKeep;
   }
 
-  public Space withRevisionsToKeep(int revisionsToKeep) {
-    setRevisionsToKeep(revisionsToKeep);
+  public Space withVersionsToKeep(int versionsToKeep) {
+    setVersionsToKeep(versionsToKeep);
     return this;
   }
 

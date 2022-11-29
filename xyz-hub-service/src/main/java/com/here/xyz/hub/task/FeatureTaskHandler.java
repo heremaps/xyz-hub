@@ -1595,11 +1595,11 @@ public class FeatureTaskHandler {
     if (task.modifyOp.entries.size() == 0)
       return null;
 
-    final boolean useRevision = task.space.getRevisionsToKeep() > 0;
+    final boolean useVersion = task.space.getVersionsToKeep() > 0;
     final HashMap<String, String> idsMap = new HashMap<>();
     for (FeatureEntry entry : task.modifyOp.entries) {
       if (entry.input.get("id") instanceof String) {
-        idsMap.put((String) entry.input.get("id"), useRevision ? String.valueOf(entry.inputRevision) : entry.inputUUID);
+        idsMap.put((String) entry.input.get("id"), useVersion ? String.valueOf(entry.inputVersion) : entry.inputUUID);
       }
     }
     if (idsMap.size() == 0) {
@@ -1777,16 +1777,16 @@ public class FeatureTaskHandler {
 
     if (task.getEvent() instanceof SelectiveEvent) {
       String ref = ((SelectiveEvent) task.getEvent()).getRef();
-      if (ref != null && !isRevisionValid(ref))
-        callback.exception(new HttpException(BAD_REQUEST, "Invalid value for revision: " + ref));
+      if (ref != null && !isVersionValid(ref))
+        callback.exception(new HttpException(BAD_REQUEST, "Invalid value for version: " + ref));
     }
 
     callback.call(task);
   }
 
-  private static boolean isRevisionValid(String revision) {
+  private static boolean isVersionValid(String version) {
     try {
-      return "*".equals(revision) || Integer.parseInt(revision) > 0;
+      return "*".equals(version) || Integer.parseInt(version) > 0;
     } catch (NumberFormatException e) {
       return false;
     }
