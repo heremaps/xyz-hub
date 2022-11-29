@@ -104,6 +104,11 @@ public class Service extends Core {
   public static final String GLOBAL_ROUTER = "GLOBAL_ROUTER";
 
   /**
+   * The original JSON object of the configuration.
+   */
+  public static JsonObject rawConfiguration;
+
+  /**
    * The service configuration.
    */
   public static Config configuration;
@@ -164,6 +169,7 @@ public class Service extends Core {
    *
    */
   private static void onConfigLoaded(JsonObject jsonConfig) {
+    rawConfiguration = jsonConfig;
     configuration = jsonConfig.mapTo(Config.class);
 
     cacheClient = CacheClient.getInstance();

@@ -32,13 +32,16 @@ import io.vertx.ext.web.Router;
 import java.util.HashMap;
 import java.util.Map;
 import io.vertx.ext.web.openapi.RouterBuilder;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
 
   private static final Logger logger = LogManager.getLogger();
-  private static Map<String, String> envMap;
+  private static final ConcurrentHashMap<String, String> envMap = new ConcurrentHashMap<>();
+
   private AbstractConnectorHandler connector;
 
   private static String LOCATION = "openapi-http-connector.yaml";
@@ -78,9 +81,8 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
       if (ar.succeeded()) {
         try {
           final RouterBuilder rb = ar.result();
-          populateEnvMap();
 
-          new HttpConnectorApi(rb,connector);
+          new HttpConnectorApi(rb, connector);
 
           final Router router = rb.createRouter();
 
@@ -92,8 +94,7 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
             if (path.endsWith("openapi-http-connector.yaml")) {
               res.headers().add(CONTENT_LENGTH, String.valueOf(API.getBytes().length));
               res.write(API);
-            }
-            else {
+            } else {
               res.setStatusCode(HttpResponseStatus.NOT_FOUND.code());
             }
             res.end();
@@ -102,55 +103,57 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
           //Add default handlers
           addDefaultHandlers(router);
           createHttpServer(HTTP_PORT, router);
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
           logger.error("An error occurred, during the creation of the router from the Open API specification file.", e);
         }
-      }
-      else {
+      } else {
         logger.error("An error occurred, during the creation of the router from the Open API specification file.");
       }
     });
   }
 
+  private static final AtomicBoolean isInitialized = new AtomicBoolean();
+
   public static Map<String, String> getEnvMap() {
-    if (envMap != null)
+    if (isInitialized.get()) {
       return envMap;
-
-    try {
-      populateEnvMap();
-    }catch (Exception e){
-      logger.error("Cannot populate EnvMap");
     }
-
-    return envMap;
-  }
-
-  public static synchronized void populateEnvMap() throws Exception{
-    envMap = new HashMap<>();
-    HttpConnector.configuration.fieldNames().forEach(fieldName -> {
-      Object value = HttpConnector.configuration.getValue(fieldName);
-      if (value != null){
-        envMap.put(fieldName, value.toString());
+    synchronized (isInitialized) {
+      if (isInitialized.get()) {
+        return envMap;
       }
-    });
+      isInitialized.set(true);
 
-    ECPS_PASSPHRASE = (envMap.get("ECPS_PHRASE") == null ? "local" : envMap.get("ECPS_PHRASE")) ;
-    HTTP_PORT = Integer.parseInt((envMap.get("HTTP_PORT") == null ? "9090" : envMap.get("HTTP_PORT")));
+      assert Service.rawConfiguration != null;
+      Service.rawConfiguration.fieldNames().forEach(fieldName -> {
+        Object value = Service.rawConfiguration.getValue(fieldName);
+        if (value != null) {
+          envMap.put(fieldName, value.toString());
+        }
+      });
 
-    DB_INITIAL_POOL_SIZE = Integer.parseInt((envMap.get("DB_INITIAL_POOL_SIZE") == null ? "5" : envMap.get("DB_INITIAL_POOL_SIZE")));
-    DB_MIN_POOL_SIZE = Integer.parseInt((envMap.get("DB_MIN_POOL_SIZE") == null ? "1" : envMap.get("DB_MIN_POOL_SIZE")));
-    DB_MAX_POOL_SIZE = Integer.parseInt((envMap.get("DB_MAX_POOL_SIZE") == null ? "50" : envMap.get("DB_MAX_POOL_SIZE")));
+      ECPS_PASSPHRASE = (envMap.get("ECPS_PHRASE") == null ? "local" : envMap.get("ECPS_PHRASE"));
+      HTTP_PORT = Integer.parseInt((envMap.get("HTTP_PORT") == null ? "9090" : envMap.get("HTTP_PORT")));
 
-    DB_ACQUIRE_RETRY_ATTEMPTS = Integer.parseInt((envMap.get("DB_ACQUIRE_RETRY_ATTEMPTS") == null ? "10" : envMap.get("DB_ACQUIRE_RETRY_ATTEMPTS")));
-    DB_ACQUIRE_INCREMENT = Integer.parseInt((envMap.get("DB_ACQUIRE_INCREMENT") == null ? "1" : envMap.get("DB_ACQUIRE_INCREMENT")));
+      DB_INITIAL_POOL_SIZE = Integer.parseInt((envMap.get("DB_INITIAL_POOL_SIZE") == null ? "5" : envMap.get("DB_INITIAL_POOL_SIZE")));
+      DB_MIN_POOL_SIZE = Integer.parseInt((envMap.get("DB_MIN_POOL_SIZE") == null ? "1" : envMap.get("DB_MIN_POOL_SIZE")));
+      DB_MAX_POOL_SIZE = Integer.parseInt((envMap.get("DB_MAX_POOL_SIZE") == null ? "50" : envMap.get("DB_MAX_POOL_SIZE")));
 
-    DB_CHECKOUT_TIMEOUT = Integer.parseInt((envMap.get("DB_CHECKOUT_TIMEOUT") == null ? "10" : envMap.get("DB_CHECKOUT_TIMEOUT")) );
-    DB_TEST_CONNECTION_ON_CHECKOUT = Boolean.parseBoolean((envMap.get("DB_TEST_CONNECTION_ON_CHECKOUT")));
+      DB_ACQUIRE_RETRY_ATTEMPTS = Integer.parseInt(
+          (envMap.get("DB_ACQUIRE_RETRY_ATTEMPTS") == null ? "10" : envMap.get("DB_ACQUIRE_RETRY_ATTEMPTS")));
+      DB_ACQUIRE_INCREMENT = Integer.parseInt((envMap.get("DB_ACQUIRE_INCREMENT") == null ? "1" : envMap.get("DB_ACQUIRE_INCREMENT")));
 
-    DB_STATEMENT_TIMEOUT_IN_S = Integer.parseInt(envMap.get("DB_STATEMENT_TIMEOUT_IN_S") == null ? "10" : envMap.get("DB_STATEMENT_TIMEOUT_IN_S"));
+      DB_CHECKOUT_TIMEOUT = Integer.parseInt((envMap.get("DB_CHECKOUT_TIMEOUT") == null ? "10" : envMap.get("DB_CHECKOUT_TIMEOUT")));
+      DB_TEST_CONNECTION_ON_CHECKOUT = Boolean.parseBoolean((envMap.get("DB_TEST_CONNECTION_ON_CHECKOUT")));
 
-    MAX_CONCURRENT_MAINTENANCE_TASKS = Integer.parseInt((envMap.get("MAX_CONCURRENT_MAINTENANCE_TASKS") == null ? "1" : envMap.get("MAX_CONCURRENT_MAINTENANCE_TASKS")));
-    MISSING_MAINTENANCE_WARNING_IN_HR = Integer.parseInt((envMap.get("MISSING_MAINTENANCE_WARNING_IN_HR") == null ? "12" : envMap.get("MISSING_MAINTENANCE_WARNING_IN_HR")));
+      DB_STATEMENT_TIMEOUT_IN_S = Integer.parseInt(
+          envMap.get("DB_STATEMENT_TIMEOUT_IN_S") == null ? "10" : envMap.get("DB_STATEMENT_TIMEOUT_IN_S"));
+
+      MAX_CONCURRENT_MAINTENANCE_TASKS = Integer.parseInt(
+          (envMap.get("MAX_CONCURRENT_MAINTENANCE_TASKS") == null ? "1" : envMap.get("MAX_CONCURRENT_MAINTENANCE_TASKS")));
+      MISSING_MAINTENANCE_WARNING_IN_HR = Integer.parseInt(
+          (envMap.get("MISSING_MAINTENANCE_WARNING_IN_HR") == null ? "12" : envMap.get("MISSING_MAINTENANCE_WARNING_IN_HR")));
+      return envMap;
+    }
   }
 }

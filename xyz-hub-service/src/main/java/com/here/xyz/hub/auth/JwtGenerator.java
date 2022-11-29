@@ -92,7 +92,8 @@ public class JwtGenerator {
 
   public static JWTPayload readTokenPayload(String resourceFilename) {
     try {
-      return Json.decodeValue(readResourceFile(resourceFilename), JWTPayload.class);
+      final byte[] bytes = Service.readFileFromHomeOrResource(resourceFilename);
+      return Json.decodeValue(new String(bytes, StandardCharsets.UTF_8), JWTPayload.class);
     } catch (IOException e) {
       throw new RuntimeException("Error while reading token from resource file: " + resourceFilename, e);
     }
