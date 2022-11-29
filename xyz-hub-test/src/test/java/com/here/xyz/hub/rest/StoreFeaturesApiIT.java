@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -165,6 +165,20 @@ public class StoreFeaturesApiIT extends TestSpaceWithFeature {
         when().
         put(getSpacesPath() + "/x-psql-test/features").
         then().
+        statusCode(OK.code());
+  }
+
+  @Test
+  public void testHeaderInputSizeReporting() {
+    given().
+        contentType(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        body("{\"type\": \"FeatureCollection\",\"features\": [{\"type\": \"Feature\"}]}").
+        when().
+        put(getSpacesPath() + "/x-psql-test/features").
+        then().
+        header("X-Decompressed-Input-Size", "63").
+        header("X-Decompressed-Output-Size", "282").
         statusCode(OK.code());
   }
 }

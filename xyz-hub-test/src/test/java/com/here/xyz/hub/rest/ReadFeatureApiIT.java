@@ -860,4 +860,17 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         .then()
         .statusCode(200);
   }
+
+  @Test
+  public void testHeaderOutputSizeReporting() {
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        when().
+        get(getSpacesPath() + "/x-psql-test/tile/quadkey/2100300120310022").
+        then().
+        header("X-Decompressed-Input-Size", "0").
+        header("X-Decompressed-Output-Size", "479").
+        statusCode(OK.code());
+  }
 }

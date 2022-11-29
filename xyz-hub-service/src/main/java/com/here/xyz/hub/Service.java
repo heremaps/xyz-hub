@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -751,8 +751,24 @@ public class Service extends Core {
      * Global limit for the maximum amount of revisions to keep per space.
      */
     public long MAX_REVISIONS_TO_KEEP = 1_000_000;
-  }
 
+    /**
+     * If set to true, the service responses will include headers with information about the decompressed size of the request and response
+     * payloads.
+     */
+    public boolean INCLUDE_HEADERS_FOR_DECOMPRESSED_IO_SIZE = true;
+
+    /**
+     * The name of the header for reporting the decompressed size of the response payload.
+     */
+    public String DECOMPRESSED_INPUT_SIZE_HEADER_NAME = "X-Decompressed-Input-Size";
+
+    /**
+     * The name of the header for reporting the decompressed size of the response payload.
+     */
+    public String DECOMPRESSED_OUTPUT_SIZE_HEADER_NAME = "X-Decompressed-Output-Size";
+
+  }
   /**
    * That message can be used to change the log-level of one or more service-nodes. The specified level must be a valid log-level. As this
    * is a {@link RelayedMessage} it can be sent to a specific service-node or to all service-nodes regardless of the first service node by

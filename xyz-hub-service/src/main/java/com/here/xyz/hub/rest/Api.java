@@ -492,6 +492,15 @@ public abstract class Api {
       httpResponse.putHeader(HttpHeaders.CACHE_CONTROL, "private, max-age=" + (cacheProfile.browserTTL / 1000));
     }
 
+    if (Service.configuration.INCLUDE_HEADERS_FOR_DECOMPRESSED_IO_SIZE){
+      RoutingContext context = task.context;
+      // the body is discarded already, but the request size is stored in the access log object
+      long requestSize = Context.getAccessLog(context).reqInfo.size;
+      long responseSize = response == null ? 0 : response.length;
+      context.response().putHeader(Service.configuration.DECOMPRESSED_INPUT_SIZE_HEADER_NAME, String.valueOf(requestSize));
+      context.response().putHeader(Service.configuration.DECOMPRESSED_OUTPUT_SIZE_HEADER_NAME, String.valueOf(responseSize));
+    }
+
     if (response == null || response.length == 0) {
       if (contentType != null)
         httpResponse.putHeader(CONTENT_TYPE, contentType);
