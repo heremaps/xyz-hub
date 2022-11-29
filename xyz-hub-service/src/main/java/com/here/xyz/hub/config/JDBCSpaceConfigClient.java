@@ -33,9 +33,11 @@ import io.vertx.core.Promise;
 import io.vertx.core.json.EncodeException;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.sql.SQLClient;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
@@ -85,7 +87,11 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
       if (out.succeeded()) {
         Optional<String> config = out.result().getRows().stream().map(r -> r.getString("config")).findFirst();
         if (config.isPresent()) {
-          Space space = Json.decodeValue(config.get(), Space.class);
+          Map<String, Object> spaceData = Json.decodeValue(config.get(), Map.class);
+          //NOTE: The following is a temporary implementation to keep backwards compatibility for non-versioned spaces
+          if (spaceData.get("revisionsToKeep") == null)
+            spaceData.put("revisionsToKeep", 0);
+          final Space space = DatabindCodec.mapper().convertValue(spaceData, Space.class);
           p.complete(space);
         }
         else

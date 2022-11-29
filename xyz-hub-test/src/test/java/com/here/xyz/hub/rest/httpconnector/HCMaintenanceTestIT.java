@@ -280,7 +280,7 @@ public class HCMaintenanceTestIT {
                 .then()
                 .statusCode(OK.code())
                 .body("idxCreationFinished", equalTo(true))
-                .body("idxAvailable.size", equalTo(10))
+                .body("idxAvailable.size", equalTo(13))
                 .body("idxManual.searchableProperties.foo", equalTo(true))
                 .body("idxManual.sortableProperties", nullValue());
     }

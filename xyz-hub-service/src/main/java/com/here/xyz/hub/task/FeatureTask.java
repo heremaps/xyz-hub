@@ -341,7 +341,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           }});
 
       try {
-        getRpcClient(refConnector).execute(getMarker(), event, r -> processLoadEvent(c, event, r));
+        getRpcClient(refConnector).execute(getMarker(), event, r -> processLoadEvent(c, event, r), refSpace);
       }
       catch (Exception e) {
         logger.warn(gq.getMarker(), "Error trying to process LoadFeaturesEvent.", e);

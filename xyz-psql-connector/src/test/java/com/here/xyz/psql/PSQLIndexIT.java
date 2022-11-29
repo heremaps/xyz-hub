@@ -182,6 +182,10 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                 add("tags");
                 add("id");
                 add("viz");
+                add("idnew");
+                add("revision");
+                add("idrevision");
+                add("idrevisionnextrevision");
                 add("operation");
             }};
 
@@ -195,7 +199,8 @@ public class PSQLIndexIT extends PSQLAbstractIT {
             while(resultSet.next()){
                 String idxProperty = resultSet.getString("idx_property");
                 if(systemIndices.contains(idxProperty)) {
-                    systemIndices.remove(idxProperty);
+                    if (!idxProperty.equals("Key"))
+                        systemIndices.remove(idxProperty);
                     assertEquals("s",resultSet.getString("src"));
                 }
                 else {

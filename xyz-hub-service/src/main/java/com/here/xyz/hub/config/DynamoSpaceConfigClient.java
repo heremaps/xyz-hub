@@ -117,6 +117,9 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
         else {
           Map<String, Object> itemData = spaceItem.asMap();
           itemData.put("shared", ((Number) itemData.get("shared")).intValue() == 1);
+          //NOTE: The following is a temporary implementation to keep backwards compatibility for non-versioned spaces
+          if (itemData.get("revisionsToKeep") == null)
+            itemData.put("revisionsToKeep", 0);
           final Space space = DatabindCodec.mapper().convertValue(itemData, Space.class);
           if (space != null)
             logger.info(marker, "Space ID: {} with title: \"{}\" has been decoded", spaceId, space.getTitle());

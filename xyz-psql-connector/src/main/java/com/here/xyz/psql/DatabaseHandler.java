@@ -23,6 +23,7 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
+import static com.here.xyz.psql.query.helpers.GetNextRevision.REVISON_SEQUENCE_SUFFIX;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -53,7 +54,9 @@ import com.here.xyz.psql.query.ExtendedSpace;
 import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.helpers.FetchExistingIds;
 import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
+import com.here.xyz.psql.query.helpers.GetTablesWithColumn;
 import com.here.xyz.psql.query.helpers.GetNextRevision;
+import com.here.xyz.psql.query.helpers.GetTablesWithColumn.GetTablesWithColumnInput;
 import com.here.xyz.psql.tools.DhString;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.ErrorResponse;
@@ -75,7 +78,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -233,7 +238,6 @@ public abstract class DatabaseHandler extends StorageConnector {
         String table = config.readTableFromEvent(event);
         String hstTable = table+HISTORY_TABLE_SUFFIX;
 
-        replacements.put("idx_operation", "idx_" + table + "_operation");
         replacements.put("idx_serial", "idx_" + table + "_serial");
         replacements.put("idx_id", "idx_" + table + "_id");
         replacements.put("idx_tags", "idx_" + table + "_tags");
@@ -768,9 +772,15 @@ public abstract class DatabaseHandler extends StorageConnector {
      * @throws SQLException if the test fails due to any SQL error.
      */
     protected boolean hasTable() throws SQLException {
-        if (event instanceof HealthCheckEvent) {
+        return hasTable(null);
+    }
+
+    protected boolean hasTable(String tableName) throws SQLException {
+        if (tableName == null && event instanceof HealthCheckEvent)
             return true;
-        }
+
+        if (tableName == null)
+            tableName = config.readTableFromEvent(event);
 
         long start = System.currentTimeMillis();
 
@@ -778,7 +788,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             Statement stmt = connection.createStatement();
             String query = "SELECT to_regclass('${schema}.${table}')";
 
-            query = SQLQuery.replaceVars(query, config.getDatabaseSettings().getSchema(), config.readTableFromEvent(event));
+            query = SQLQuery.replaceVars(query, config.getDatabaseSettings().getSchema(), tableName);
             ResultSet rs;
 
             stmt.setQueryTimeout(calculateTimeout());
@@ -792,37 +802,31 @@ public abstract class DatabaseHandler extends StorageConnector {
             if(!retryAttempted) {
                 retryAttempted = true;
                 logger.info("{} Retry table check.", traceItem);
-                return hasTable();
+                return hasTable(tableName);
             }
             else
                 throw e;
         }
     }
 
-    /**
-     * A helper method that will ensure that the tables for the space of this event do exist and is up to date, if not it will alter the
-     * table.
-     *
-     * @throws SQLException if the table does not exist and can't be created or alter failed.
-     */
-
-    private static String lockSql   = "select pg_advisory_lock( ('x' || left(md5('%s'),15) )::bit(60)::bigint )",
-                          unlockSql = "select pg_advisory_unlock( ('x' || left(md5('%s'),15) )::bit(60)::bigint )";
-
-    private static void _advisory(String tablename, Connection connection,boolean lock ) throws SQLException
+    private static boolean _advisory(String key, Connection connection, boolean lock, boolean block) throws SQLException
     {
      boolean cStateFlag = connection.getAutoCommit();
      connection.setAutoCommit(true);
-
-     try(Statement stmt = connection.createStatement())
-     { stmt.executeQuery(DhString.format( lock? lockSql : unlockSql,tablename)); }
-
-     connection.setAutoCommit(cStateFlag);
+     try (Statement stmt = connection.createStatement()) {
+         ResultSet rs = stmt.executeQuery("SELECT pg_" + (lock && !block ? "try_" : "") + "advisory_" + (lock ? "" : "un") + "lock(('x' || left(md5('" + key + "'), 15))::bit(60)::bigint)");
+         if (!block && rs.next())
+             return rs.getBoolean(1);
+         return false;
+     }
+     finally {
+         connection.setAutoCommit(cStateFlag);
+     }
     }
 
-    private static void advisoryLock(String tablename, Connection connection ) throws SQLException { _advisory(tablename,connection,true); }
+    private static void advisoryLock(String key, Connection connection ) throws SQLException { _advisory(key,connection,true, true); }
 
-    private static void advisoryUnlock(String tablename, Connection connection ) throws SQLException { _advisory(tablename,connection,false); }
+    private static void advisoryUnlock(String key, Connection connection ) throws SQLException { _advisory(key,connection,false, true); }
 
     protected static boolean isForExtendingSpace(Event event) {
         return event.getParams() != null && event.getParams().containsKey("extends");
@@ -866,62 +870,180 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
+    private int readRevisionsToKeep(Event event) {
+        if (event.getParams() == null || !event.getParams().containsKey("revisionsToKeep"))
+            return -1;
+        return (int) event.getParams().get("revisionsToKeep");
+    }
+
+    private void oneTimeActionRevisioningMigration(String phase) throws SQLException, ErrorResponseException {
+        try (final Connection connection = dataSource.getConnection()) {
+            if (_advisory(phase, connection, true, false))
+                switch (phase) {
+                    case "phase0": {
+                        List<String> tablesWithoutIdColumn =
+                            new GetTablesWithColumn(new GetTablesWithColumnInput("id", false, 100), this).run();
+                        if (tablesWithoutIdColumn.isEmpty())
+                            logger.info("oneTimeActionRevisioningMigration " + phase + ": Nothing to do.");
+                        else
+                            oneTimeAlterExistingTablesAddNewColumnsAndIndices(phase, tablesWithoutIdColumn, connection);
+                        break;
+                    }
+                    case "phase1": {
+
+                        break;
+                    }
+                    case "phaseX": {
+
+                        break;
+                    }
+                    case "cleanup": {
+
+                    }
+                }
+            else
+                logger.info("oneTimeActionRevisioningMigration " + phase + ": Currently another process is already running.");
+            _advisory(phase, connection, false, false);
+        }
+    }
+
+    private void oneTimeAlterExistingTablesAddNewColumnsAndIndices(String phase, List<String> tableNames, Connection connection) throws SQLException {
+        final String schema = config.getDatabaseSettings().getSchema();
+        for (String tableName : tableNames) {
+            //Check if table exists, if not don't do anything for that table
+            if (!hasTable(tableName))
+                continue;
+
+            advisoryLock(tableName, connection);
+            boolean cStateFlag = connection.getAutoCommit();
+            try {
+                if (cStateFlag)
+                    connection.setAutoCommit(false);
+
+                try (Statement stmt = connection.createStatement()) {
+                    //Alter existing tables: add new columns
+
+                    SQLQuery alterQuery = new SQLQuery("ALTER TABLE ${schema}.${table} "
+                        + "ADD COLUMN id TEXT, "
+                        + "ADD COLUMN revision BIGINT NOT NULL DEFAULT 0, "
+                        + "ADD COLUMN next_revision BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
+                        + "ADD COLUMN operation CHAR NOT NULL DEFAULT 'I'")
+                        .withVariable("schema", schema)
+                        .withVariable("table", tableName);
+                    stmt.addBatch(alterQuery.substitute().text());
+                    //Add new indices for existing tables
+                    createRevisioningIndices(stmt, schema, tableName);
+
+                    stmt.setQueryTimeout(calculateTimeout());
+                    stmt.executeBatch();
+                    connection.commit();
+                    logger.info("{} Successfully altered table and created indices for table '{}'", traceItem, tableName);
+                }
+            }
+            catch (Exception e) {
+                logger.error("{} Failed to alter table / create indices on '{}' : {}", traceItem, tableName, e);
+                connection.rollback();
+            }
+            finally {
+                advisoryUnlock(tableName, connection);
+                if (cStateFlag)
+                    connection.setAutoCommit(true);
+            }
+        }
+    }
+
     private void createSpaceStatement(Statement stmt, Event event) throws SQLException {
-        String tableName = config.readTableFromEvent(event);
+        boolean oldTableStyle = readRevisionsToKeep(event) < 1;
 
         String tableFields =
-            "id TEXT NOT NULL, "
-            + "rev BIGINT NOT NULL, "
-            + "next_rev BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
-            + "operation CHAR DEFAULT 'I', "
+            (oldTableStyle ? "id TEXT, " : "id TEXT NOT NULL, ")
+            + (oldTableStyle ? "revision BIGINT NOT NULL DEFAULT 0, " : "revision BIGINT NOT NULL, ")
+            + "next_revision BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
+            + (oldTableStyle ? "operation CHAR NOT NULL DEFAULT 'I', " : "operation CHAR NOT NULL, ")
             + "jsondata JSONB, "
             + "geo geometry(GeometryZ, 4326), "
             + "i BIGSERIAL"
-            + ", CONSTRAINT ${constraintName} PRIMARY KEY (id, rev)";
+            + (oldTableStyle ? "" : ", CONSTRAINT ${constraintName} PRIMARY KEY (id, revision)");
+
+        String schema = config.getDatabaseSettings().getSchema();
+        String table = config.readTableFromEvent(event);
 
         SQLQuery q = new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}})")
             .withQueryFragment("tableFields", tableFields)
-            .withVariable("schema", config.getDatabaseSettings().getSchema())
-            .withVariable("table", tableName)
-            .withVariable("constraintName", tableName + "_primKey");
+            .withVariable("schema", schema)
+            .withVariable("table", table)
+            .withVariable("constraintName", table + "_primKey");
 
         stmt.addBatch(q.substitute().text());
 
         String query;
 
-        query = "CREATE INDEX IF NOT EXISTS ${idx_operation} ON ${schema}.${table} USING btree (operation ASC NULLS LAST)";
-        query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
-        stmt.addBatch(query);
+        createRevisioningIndices(stmt, schema, table);
 
         query = "CREATE UNIQUE INDEX IF NOT EXISTS ${idx_id} ON ${schema}.${table} ((jsondata->>'id'))";
-        query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
+        query = SQLQuery.replaceVars(query, replacements, schema, table);
         stmt.addBatch(query);
 
         query = "CREATE INDEX IF NOT EXISTS ${idx_tags} ON ${schema}.${table} USING gin ((jsondata->'properties'->'@ns:com:here:xyz'->'tags') jsonb_ops)";
-        query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
+        query = SQLQuery.replaceVars(query, replacements, schema, table);
         stmt.addBatch(query);
 
         query = "CREATE INDEX IF NOT EXISTS ${idx_geo} ON ${schema}.${table} USING gist ((geo))";
-        query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
+        query = SQLQuery.replaceVars(query, replacements, schema, table);
         stmt.addBatch(query);
 
         query = "CREATE INDEX IF NOT EXISTS ${idx_serial} ON ${schema}.${table}  USING btree ((i))";
-        query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
+        query = SQLQuery.replaceVars(query, replacements, schema, table);
         stmt.addBatch(query);
 
         query = "CREATE INDEX IF NOT EXISTS ${idx_updatedAt} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt'), (jsondata->>'id'))";
-        query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
+        query = SQLQuery.replaceVars(query, replacements, schema, table);
         stmt.addBatch(query);
 
         query = "CREATE INDEX IF NOT EXISTS ${idx_createdAt} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'createdAt'), (jsondata->>'id'))";
-        query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
+        query = SQLQuery.replaceVars(query, replacements, schema, table);
         stmt.addBatch(query);
 
         query = "CREATE INDEX IF NOT EXISTS ${idx_viz} ON ${schema}.${table} USING btree (left( md5(''||i),5))";
-        query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
+        query = SQLQuery.replaceVars(query, replacements, schema, table);
         stmt.addBatch(query);
 
+        SQLQuery revSeqQuery = new SQLQuery("CREATE SEQUENCE IF NOT EXISTS ${schema}.${sequence}")
+            .withVariable("schema", schema)
+            .withVariable("sequence", table + REVISON_SEQUENCE_SUFFIX);
+        stmt.addBatch(revSeqQuery.substitute().text());
+
         stmt.setQueryTimeout(calculateTimeout());
+    }
+
+    private static void createRevisioningIndices(Statement stmt, String schema, String table) throws SQLException {
+        stmt.addBatch(buildCreateIndexQuery(schema, table, "id", "BTREE", "idx_" + table + "_idnew").substitute().text());
+        stmt.addBatch(buildCreateIndexQuery(schema, table, "revision", "BTREE").substitute().text());
+        stmt.addBatch(buildCreateIndexQuery(schema, table, Arrays.asList("id", "revision"), "BTREE").substitute().text());
+        stmt.addBatch(buildCreateIndexQuery(schema, table, Arrays.asList("id", "revision", "next_revision"), "BTREE").substitute().text());
+        stmt.addBatch(buildCreateIndexQuery(schema, table, "operation", "HASH").substitute().text());
+    }
+
+    private static SQLQuery buildCreateIndexQuery(String schema, String table, String columnName, String method) {
+      return buildCreateIndexQuery(schema, table, Collections.singletonList(columnName), method);
+    }
+
+    private static SQLQuery buildCreateIndexQuery(String schema, String table, List<String> columnNames, String method) {
+        return buildCreateIndexQuery(schema, table, columnNames, method, "idx_" + table + "_"
+            + columnNames.stream().map(colName -> colName.replace("_", "")).collect(Collectors.joining()));
+    }
+
+    private static SQLQuery buildCreateIndexQuery(String schema, String table, String columnName, String method, String indexName) {
+        return buildCreateIndexQuery(schema, table, Arrays.asList(columnName), method, indexName);
+    }
+
+    private static SQLQuery buildCreateIndexQuery(String schema, String table, List<String> columnNamesOrExpressions, String method,
+        String indexName) {
+        return new SQLQuery("CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} USING " + method
+            + " (" + String.join(", ", columnNamesOrExpressions) + ")")
+            .withVariable("schema", schema)
+            .withVariable("table", table)
+            .withVariable("indexName", indexName);
     }
 
     protected void ensureHistorySpace(Integer maxVersionCount, boolean compactHistory, boolean isEnableGlobalVersioning) throws SQLException {
