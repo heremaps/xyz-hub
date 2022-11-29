@@ -66,7 +66,6 @@ public class EmbeddedFunctionClient extends RemoteFunctionClient {
     if (maintenanceClient== null) {
       maintenanceClient = new MaintenanceClient();
       if (maintenanceClientRef.compareAndSet(null, maintenanceClient)) {
-        logger.info("Can we create indices please!!!!!!!!!!!!!!");
         final Map<String, Object> params = connectorConfig.params;
         final Object raw_ecps = params.get("ecps");
         if (raw_ecps instanceof String) {
@@ -75,7 +74,7 @@ public class EmbeddedFunctionClient extends RemoteFunctionClient {
           if (raw_remoteFunction instanceof RemoteFunctionConfig.Embedded) {
             final RemoteFunctionConfig.Embedded remoteFunction =(RemoteFunctionConfig.Embedded) raw_remoteFunction;
             try {
-              maintenanceClient.initializeOrUpdateDatabase(connectorConfig.id, ecps, remoteFunction.env.get("ECPS_PHASE"));
+              maintenanceClient.initializeOrUpdateDatabase(connectorConfig.id, ecps, remoteFunction.env.get("ECPS_PHRASE"));
             } catch (Exception e) {
               logger.error(e);
             }
