@@ -52,6 +52,8 @@ import io.vertx.ext.web.handler.StaticHandler;
 import io.vertx.ext.web.openapi.RouterBuilder;
 import io.vertx.ext.web.openapi.RouterBuilderOptions;
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.nio.charset.StandardCharsets;
 import java.util.Hashtable;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
@@ -209,10 +211,17 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
    * Add the security handlers.
    */
   private AuthenticationHandler createJWTHandler() {
-    JWTAuthOptions authConfig = new JWTAuthOptions().addPubSecKey(
-        new PubSecKeyOptions().setAlgorithm("RS256")
-            .setBuffer(Service.configuration.getJwtPubKey()));
-
+    String pubKey;
+    try {
+      final byte[] bytes = Core.readFileFromHomeOrResource("/auth/jwt.pub");
+      pubKey = new String(bytes, StandardCharsets.UTF_8);
+    } catch (Exception e) {
+      logger.error("Failed to load JWT public key from home or resources", e);
+      // Fallback
+      pubKey = Service.configuration.getJwtPubKey();
+    }
+    assert pubKey != null;
+    final JWTAuthOptions authConfig = new JWTAuthOptions().addPubSecKey(new PubSecKeyOptions().setAlgorithm("RS256").setBuffer(pubKey));
     return new ExtendedJWTAuthHandler(new XyzAuthProvider(vertx, authConfig), null);
   }
 
