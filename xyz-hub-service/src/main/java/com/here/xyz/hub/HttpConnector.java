@@ -36,8 +36,6 @@ public class HttpConnector extends Core {
    */
   public static MaintenanceClient maintenanceClient;
 
-  public static JsonObject configuration;
-
   private static final Logger logger = LogManager.getLogger();
 
   public static void main(String[] args) {
@@ -49,7 +47,6 @@ public class HttpConnector extends Core {
   }
 
   private static void onConfigLoaded(JsonObject jsonConfig) {
-    configuration = jsonConfig;
     maintenanceClient = new MaintenanceClient();
 
     final DeploymentOptions options = new DeploymentOptions()

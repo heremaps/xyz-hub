@@ -325,6 +325,8 @@ public class MaintenanceClient {
     }
 
     private ComboPooledDataSource getComboPooledDataSource(DatabaseSettings dbSettings, String applicationName, boolean useReplica) {
+        // This will initialize the env-map. Theoretically we should use it, rather than the properties below.
+        PsqlHttpVerticle.getEnvMap();
         final ComboPooledDataSource cpds = new ComboPooledDataSource();
 
         cpds.setJdbcUrl("jdbc:postgresql://" + (useReplica ? dbSettings.getReplicaHost() : dbSettings.getHost()) + ":"

@@ -21,6 +21,7 @@ package com.here.xyz.hub.auth;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.io.CharStreams;
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
@@ -29,9 +30,13 @@ import io.vertx.ext.auth.JWTOptions;
 import io.vertx.ext.auth.PubSecKeyOptions;
 import io.vertx.ext.auth.jwt.JWTAuth;
 import io.vertx.ext.auth.jwt.JWTAuthOptions;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Map;
 
 public class JwtGenerator {
@@ -60,11 +65,12 @@ public class JwtGenerator {
   */
 
   private static void setup() throws IOException {
+    final byte[] bytes = Core.readFileFromHomeOrResource("auth/jwt.key");
     JWTAuthOptions authConfig = new JWTAuthOptions()
         .setJWTOptions(jwtOptions)
         .addPubSecKey(new PubSecKeyOptions()
             .setAlgorithm("RS256")
-            .setBuffer(readResourceFile("/auth/jwt.key")));
+            .setBuffer(new String(bytes, StandardCharsets.UTF_8)));
 
     authProvider = JWTAuth.create(Service.vertx, authConfig);
   }
@@ -86,7 +92,8 @@ public class JwtGenerator {
 
   public static JWTPayload readTokenPayload(String resourceFilename) {
     try {
-      return Json.decodeValue(readResourceFile(resourceFilename), JWTPayload.class);
+      final byte[] bytes = Service.readFileFromHomeOrResource(resourceFilename);
+      return Json.decodeValue(new String(bytes, StandardCharsets.UTF_8), JWTPayload.class);
     } catch (IOException e) {
       throw new RuntimeException("Error while reading token from resource file: " + resourceFilename, e);
     }
