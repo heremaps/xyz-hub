@@ -518,9 +518,8 @@ public abstract class DatabaseHandler extends StorageConnector {
     protected XyzResponse executeModifyFeatures(ModifyFeaturesEvent event) throws Exception {
         final boolean handleUUID = event.getEnableUUID() == Boolean.TRUE;
         final boolean transactional = event.getTransaction() == Boolean.TRUE;
-        // TODO : Discuss this handling
-        //final boolean includeOldStates = event.getParams() != null && event.getParams().get(INCLUDE_OLD_STATES) == Boolean.TRUE
-        final boolean includeOldStates = event.getParams() != null && event.getParams().get(INCLUDE_OLD_STATES) == Boolean.TRUE ? true : transactional;
+        final boolean includeOldStates = event.getParams() != null && event.getParams().get(INCLUDE_OLD_STATES) == Boolean.TRUE;
+        List<Feature> oldFeatures = null;
 
         final String schema = config.getDatabaseSettings().getSchema();
         final String table = config.readTableFromEvent(event);
@@ -563,10 +562,10 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         try {
           /** Include Old states */
-          if (includeOldStates) {
+          if (includeOldStates || transactional) {
             String[] idsToFetch = getAllIds(inserts, updates, upserts, deletes).stream().filter(Objects::nonNull).toArray(String[]::new);
-            List<Feature> oldFeatures = fetchOldStates(idsToFetch);
-            if (oldFeatures != null) {
+            oldFeatures = fetchOldStates(idsToFetch);
+            if (oldFeatures != null && includeOldStates) {
               collection.setOldFeatures(oldFeatures);
             }
           }
@@ -615,7 +614,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
                 // Write Transaction Log into separate tables (xyz_txn, xyz_txn_data)
                 if (transactional) {
-                    final TransactionLog txnLog = prepareTransactionDetails(inserts, updates, deletes, collection, table);
+                    final TransactionLog txnLog = prepareTransactionDetails(inserts, updates, deletes, oldFeatures, table);
                     DatabaseWriter.insertTransactionDetails(this, schema, traceItem, txnLog, connection);
 
                     /** Commit SQLS in one transaction */
@@ -737,7 +736,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     private TransactionLog prepareTransactionDetails(final List<Feature> inserts, final List<Feature> updates,
-                                                     final Map<String, String> deletes, final FeatureCollection collection, final String spaceId) {
+                                                     final Map<String, String> deletes, final List<Feature> oldFeatures, final String spaceId) {
         final List<String> uuidList = new ArrayList<>();
         final List<TransactionData> txnDataList = new ArrayList<>();
 
@@ -762,8 +761,8 @@ public abstract class DatabaseHandler extends StorageConnector {
             for (final String id : idsToDelete) {
                 boolean found = false;
                 // Find entry from oldFeatures which was deleted
-                if (collection.getOldFeatures() != null) {
-                    for (final Feature f : collection.getOldFeatures()) {
+                if (oldFeatures != null) {
+                    for (final Feature f : oldFeatures) {
                         if (id.equals(f.getId())) {
                             populateTransactionDataFromFeature(f, "DELETE", uuidList, txnDataList);
                             found = true;
