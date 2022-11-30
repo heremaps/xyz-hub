@@ -735,21 +735,32 @@ public class SQLQueryBuilder {
     }
 
   protected static SQLQuery buildInsertStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
-    return setWriteQueryComponents(new SQLQuery("${{geoWith}} INSERT INTO ${schema}.${table} (id, version, operation, jsondata, geo) "
+    //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
+    boolean oldTableStyle = DatabaseHandler.readVersionsToKeep(event) < 1;
+    boolean withDeletedColumn = oldTableStyle && DatabaseHandler.isForExtendingSpace(event);
+    return setWriteQueryComponents(new SQLQuery("${{geoWith}} INSERT INTO ${schema}.${table} (" + (oldTableStyle ? "" : "id, version, operation, ") + "jsondata, geo" + (withDeletedColumn ? ", deleted" : "") + ") "
         + "VALUES("
-        + "#{id}, "
+        + (oldTableStyle ? "" : "#{id}, "
         + "#{version}, "
-        + "#{operation}, "
+        + "#{operation}, ")
         + "#{jsondata}::jsonb, "
-        + "${{geo}})"), dbHandler, event);
+        + "${{geo}}"
+        //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
+        + (withDeletedColumn ? ", (#{operation} = 'D')" : "")
+        + ")"), dbHandler, event);
   }
 
   protected static SQLQuery buildUpdateStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
+    //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
+    boolean oldTableStyle = DatabaseHandler.readVersionsToKeep(event) < 1;
+    boolean withDeletedColumn = oldTableStyle && DatabaseHandler.isForExtendingSpace(event);
       return setWriteQueryComponents(new SQLQuery("${{geoWith}} UPDATE ${schema}.${table} SET "
-          + "version = #{version}, "
-          + "operation = #{operation}, "
+          + (oldTableStyle ? "" : "version = #{version}, "
+          + "operation = #{operation}, ")
           + "jsondata = #{jsondata}::jsonb, "
           + "geo = (${{geo}}) "
+          //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
+          + (withDeletedColumn ? ", deleted = (#{operation} = 'D') " : "")
           + "WHERE jsondata->>'id' = #{id} ${{uuidCheck}}"), dbHandler, event)
           .withQueryFragment("uuidCheck", buildUuidCheckFragment(event));
   }
@@ -767,10 +778,12 @@ public class SQLQueryBuilder {
         .withVariable("table", dbHandler.config.readTableFromEvent(event));
   }
 
-  protected static SQLQuery buildDeleteStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event, Integer version) {
+  protected static SQLQuery buildDeleteStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event, int version) {
       //If versioning is enabled, perform an update instead of a deletion. The trigger will finally delete the row.
+      //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
+      boolean oldTableStyle = DatabaseHandler.readVersionsToKeep(event) < 1;
       SQLQuery query =
-          version == null
+          version == -1 || !oldTableStyle
           ? new SQLQuery("DELETE FROM ${schema}.${table} WHERE jsondata->>'id' = #{id} ${{uuidCheck}}")
           //Use UPDATE instead of DELETE to inject a version and the deleted flag. The deletion gets performed afterwards by the trigger.
           : new SQLQuery("UPDATE ${schema}.${table} "

@@ -23,7 +23,7 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
-import static com.here.xyz.psql.query.helpers.GetNextVersion.REVISON_SEQUENCE_SUFFIX;
+import static com.here.xyz.psql.query.helpers.GetNextVersion.VERSION_SEQUENCE_SUFFIX;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -525,7 +525,6 @@ public abstract class DatabaseHandler extends StorageConnector {
         final String schema = config.getDatabaseSettings().getSchema();
         final String table = config.readTableFromEvent(event);
 
-        Integer version = null;
         final FeatureCollection collection = new FeatureCollection();
         collection.setFeatures(new ArrayList<>());
 
@@ -560,6 +559,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             }
         }
 
+        int version = -1;
         try {
           /** Include Old states */
           if (includeOldStates) {
@@ -589,6 +589,8 @@ public abstract class DatabaseHandler extends StorageConnector {
                 }, false);   // false -> not use readreplica due to sequence 'update' statement: SELECT nextval("...._hst_seq"') and to make sure the read sequence value is the correct (most recent) one
               collection.setVersion(version);
           }
+          else if (event.getVersionsToKeep() > 0) //Backwards compatibility check
+              version = new GetNextVersion<>(event, this).run();
         } catch (Exception e) {
           if (!retryAttempted) {
             canRetryAttempt();
@@ -870,7 +872,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
-    private int readVersionsToKeep(Event event) {
+    public static int readVersionsToKeep(Event event) {
         if (event.getParams() == null || !event.getParams().containsKey("versionsToKeep"))
             return -1;
         return (int) event.getParams().get("versionsToKeep");
@@ -933,7 +935,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                     //Add new indices for existing tables
                     createVersioningIndices(stmt, schema, tableName);
                     //Add new sequence for existing tables
-                    stmt.addBatch(buildCreateSequenceQuery(schema, tableName, REVISON_SEQUENCE_SUFFIX).substitute().text());
+                    stmt.addBatch(buildCreateSequenceQuery(schema, tableName, VERSION_SEQUENCE_SUFFIX).substitute().text());
 
                     stmt.setQueryTimeout(calculateTimeout());
                     stmt.executeBatch();
@@ -955,6 +957,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private void createSpaceStatement(Statement stmt, Event event) throws SQLException {
         boolean oldTableStyle = readVersionsToKeep(event) < 1;
+        boolean withDeletedColumn = oldTableStyle && isForExtendingSpace(event);
 
         String tableFields =
             (oldTableStyle ? "id TEXT, " : "id TEXT NOT NULL, ")
@@ -964,6 +967,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             + "jsondata JSONB, "
             + "geo geometry(GeometryZ, 4326), "
             + "i BIGSERIAL"
+            + (withDeletedColumn ? ", deleted BOOLEAN DEFAULT FALSE" : "")
             + (oldTableStyle ? "" : ", CONSTRAINT ${constraintName} PRIMARY KEY (id, version)");
 
         String schema = config.getDatabaseSettings().getSchema();
@@ -981,9 +985,14 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         createVersioningIndices(stmt, schema, table);
 
-        query = "CREATE UNIQUE INDEX IF NOT EXISTS ${idx_id} ON ${schema}.${table} ((jsondata->>'id'))";
-        query = SQLQuery.replaceVars(query, replacements, schema, table);
-        stmt.addBatch(query);
+        if (withDeletedColumn)
+            stmt.addBatch(buildCreateIndexQuery(schema, table, "deleted", "BTREE").substitute().text());
+
+        if (readVersionsToKeep(event) <= 1) {
+            query = "CREATE UNIQUE INDEX IF NOT EXISTS ${idx_id} ON ${schema}.${table} ((jsondata->>'id'))";
+            query = SQLQuery.replaceVars(query, replacements, schema, table);
+            stmt.addBatch(query);
+        }
 
         query = "CREATE INDEX IF NOT EXISTS ${idx_tags} ON ${schema}.${table} USING gin ((jsondata->'properties'->'@ns:com:here:xyz'->'tags') jsonb_ops)";
         query = SQLQuery.replaceVars(query, replacements, schema, table);
@@ -1009,13 +1018,13 @@ public abstract class DatabaseHandler extends StorageConnector {
         query = SQLQuery.replaceVars(query, replacements, schema, table);
         stmt.addBatch(query);
 
-        stmt.addBatch(buildCreateSequenceQuery(schema, table, REVISON_SEQUENCE_SUFFIX).substitute().text());
+        stmt.addBatch(buildCreateSequenceQuery(schema, table, VERSION_SEQUENCE_SUFFIX).substitute().text());
 
         stmt.setQueryTimeout(calculateTimeout());
     }
 
     private static SQLQuery buildCreateSequenceQuery(String schema, String table, String sequenceNameSuffix) {
-        return new SQLQuery("CREATE SEQUENCE IF NOT EXISTS ${schema}.${sequence}")
+        return new SQLQuery("CREATE SEQUENCE IF NOT EXISTS ${schema}.${sequence} MINVALUE 0")
             .withVariable("schema", schema)
             .withVariable("sequence", table + sequenceNameSuffix);
     }

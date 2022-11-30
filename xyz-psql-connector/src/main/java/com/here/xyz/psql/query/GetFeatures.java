@@ -51,13 +51,14 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
           "SELECT * FROM ("
           + "    (SELECT ${{selection}}, ${{geo}}${{iColumnExtension}}"
           + "        FROM ${schema}.${table}"
-          + "        WHERE ${{filterWhereClause}} AND operation != 'D' ${{iOffsetExtension}} ${{limit}})"
+          + "        WHERE ${{filterWhereClause}} AND ${{deletedCheck}} ${{iOffsetExtension}} ${{limit}})"
           + "    UNION ALL "
           + "        SELECT ${{selection}}, ${{geo}}${{iColumn}} FROM"
           + "            ("
           + "                ${{baseQuery}}"
           + "            ) a WHERE NOT exists(SELECT 1 FROM ${schema}.${table} b WHERE jsondata->>'id' = a.jsondata->>'id')"
-          + ") limitQuery ${{limit}}");
+          + ") limitQuery ${{limit}}")
+          .withQueryFragment("deletedCheck", buildDeletionCheckFragment(event));
     }
     else {
       query = new SQLQuery(
@@ -66,11 +67,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
               + "    WHERE ${{filterWhereClause}} ${{orderBy}} ${{limit}} ${{offset}}");
     }
 
-    if (event instanceof SelectiveEvent)
-      query.setQueryFragment("selection", buildSelectionFragment((SelectiveEvent) event));
-    else
-      query.setQueryFragment("selection", "jsondata");
-
+    query.setQueryFragment("selection", buildSelectionFragment(event));
     query.setQueryFragment("geo", buildGeoFragment(event));
     query.setQueryFragment("iColumn", ""); //NOTE: This can be overridden by implementing subclasses
     query.setQueryFragment("limit", ""); //NOTE: This can be overridden by implementing subclasses
@@ -83,8 +80,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
       query.setQueryFragment("iOffsetExtension", "");
 
       SQLQuery baseQuery = !is2LevelExtendedSpace(event)
-          ? build1LevelBaseQuery(getExtendedTable(event)) //1-level extension
-          : build2LevelBaseQuery(getIntermediateTable(event), getExtendedTable(event)); //2-level extension
+          ? build1LevelBaseQuery(event) //1-level extension
+          : build2LevelBaseQuery(event); //2-level extension
 
       query.setQueryFragment("baseQuery", baseQuery);
 
@@ -101,26 +98,31 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
     return query;
   }
 
-  private SQLQuery build1LevelBaseQuery(String extendedTable) {
+  private SQLQuery build1LevelBaseQuery(E event) {
     SQLQuery query = new SQLQuery("SELECT jsondata, geo${{iColumnBase}}"
         + "    FROM ${schema}.${extendedTable} m"
         + "    WHERE ${{filterWhereClause}} ${{iOffsetBase}} ${{limit}}"); //in the base table there is no need to check a deleted flag;
-    query.setVariable("extendedTable", extendedTable);
+    query.setVariable("extendedTable", getExtendedTable(event));
     return query;
   }
 
-  private SQLQuery build2LevelBaseQuery(String intermediateTable, String extendedTable) {
-    SQLQuery query = new SQLQuery("(SELECT jsondata, geo${{iColumnIntermediate}}"
+  private SQLQuery build2LevelBaseQuery(E event) {
+    return new SQLQuery("(SELECT jsondata, geo${{iColumnIntermediate}}"
         + "    FROM ${schema}.${intermediateExtensionTable}"
-        + "    WHERE ${{filterWhereClause}} AND operation != 'D' ${{iOffsetIntermediate}} ${{limit}})"
+        + "    WHERE ${{filterWhereClause}} AND ${{deletedCheck}} ${{iOffsetIntermediate}} ${{limit}})"
         + "UNION ALL"
         + "    SELECT jsondata, geo${{iColumn}} FROM"
         + "        ("
         + "            ${{innerBaseQuery}}"
-        + "        ) b WHERE NOT exists(SELECT 1 FROM ${schema}.${intermediateExtensionTable} WHERE jsondata->>'id' = b.jsondata->>'id')");
-    query.setVariable("intermediateExtensionTable", intermediateTable);
-    query.setQueryFragment("innerBaseQuery", build1LevelBaseQuery(extendedTable));
-    return query;
+        + "        ) b WHERE NOT exists(SELECT 1 FROM ${schema}.${intermediateExtensionTable} WHERE jsondata->>'id' = b.jsondata->>'id')")
+        .withVariable("intermediateExtensionTable", getIntermediateTable(event))
+        .withQueryFragment("deletedCheck", buildDeletionCheckFragment(event))
+        .withQueryFragment("innerBaseQuery", build1LevelBaseQuery(event));
+  }
+
+  private String buildDeletionCheckFragment(E event) {
+    //NOTE: The following check is a temporary backwards compatibility implementation for tables with old structure
+    return DatabaseHandler.readVersionsToKeep(event) > 0 ? "operation != 'D'" : "deleted = false";
   }
 
   @Override
@@ -128,11 +130,14 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
     return dbHandler.defaultFeatureResultSetHandler(rs);
   }
 
-  protected static SQLQuery buildSelectionFragment(SelectiveEvent event) {
-    if (event.getSelection() == null || event.getSelection().size() == 0)
-      return new SQLQuery("jsondata");
+  protected static SQLQuery buildSelectionFragment(ContextAwareEvent event) {
+    String jsonDataWithVersion = injectVersionIntoNS(event, "jsondata");
 
-    List<String> selection = event.getSelection();
+    if (!(event instanceof SelectiveEvent) || ((SelectiveEvent) event).getSelection() == null
+        || ((SelectiveEvent) event).getSelection().size() == 0)
+      return new SQLQuery(jsonDataWithVersion + " AS jsondata");
+
+    List<String> selection = ((SelectiveEvent) event).getSelection();
     if (!selection.contains("type")) {
       selection = new ArrayList<>(selection);
       selection.add("type");
@@ -140,10 +145,17 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
 
     return new SQLQuery("(SELECT "
         + "CASE WHEN prj_build ?? 'properties' THEN prj_build "
-        + "ELSE jsonb_set(prj_build,'{properties}','{}'::jsonb) "
+        + "ELSE jsonb_set(prj_build, '{properties}', '{}'::jsonb) "
         + "END "
-        + "FROM prj_build(#{selection}, jsondata)) AS jsondata")
+        + "FROM prj_build(#{selection}, " + jsonDataWithVersion + ")) AS jsondata")
         .withNamedParameter("selection", selection.toArray(new String[0]));
+  }
+
+  private static String injectVersionIntoNS(ContextAwareEvent event, String wrappedJsondata) {
+    //NOTE: The following is a temporary implementation for backwards compatibility for spaces without versioning
+    if (DatabaseHandler.readVersionsToKeep(event) > 1)
+      return "jsonb_set(" + wrappedJsondata + ", '{properties, @ns:com:here:xyz, version}', to_jsonb(version))";
+    return wrappedJsondata;
   }
 
   //TODO: Can be removed after completion of refactoring

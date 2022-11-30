@@ -1348,6 +1348,8 @@ public class FeatureTaskHandler {
         ((ModifyFeaturesEvent) task.getEvent()).setEnableGlobalVersioning(task.space.isEnableGlobalVersioning());
         ((ModifyFeaturesEvent) task.getEvent()).setEnableHistory(task.space.isEnableHistory());
       }
+      if (task.getEvent() instanceof ContextAwareEvent)
+        ((ContextAwareEvent) task.getEvent()).setVersionsToKeep(task.space.getVersionsToKeep());
       callback.call(task);
     } catch (Exception e) {
       callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition.", e));
