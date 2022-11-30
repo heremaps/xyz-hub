@@ -21,12 +21,15 @@ package com.here.xyz.psql;
 
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
+import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.io.WKBWriter;
 import java.sql.Connection;
@@ -73,14 +76,16 @@ public class DatabaseWriter {
 
     protected static final String TRANSACTION_ERROR_GENERAL = "Transaction has failed";
 
-    private static PGobject featureToPGobject(final Feature feature, Integer version) throws SQLException {
+    private static PGobject featureToPGobject(ModifyFeaturesEvent event, final Feature feature, int version) throws SQLException {
         final Geometry geometry = feature.getGeometry();
         feature.setGeometry(null); // Do not serialize the geometry in the JSON object
 
         final String json;
 
         try {
-            if(version != null)
+            //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
+            boolean oldTableStyle = DatabaseHandler.readVersionsToKeep(event) < 1;
+            if (oldTableStyle && version != -1)
                 feature.getProperties().getXyzNamespace().setVersion(version);
             json = feature.serialize();
         } finally {
@@ -93,31 +98,63 @@ public class DatabaseWriter {
         return jsonbObject;
     }
 
-    private static void fillDeleteQueryFromDeletion(SQLQuery query, Entry<String, String> deletion, boolean handleUUID) {
-        query.setNamedParameter("id", deletion.getKey());
-        if (handleUUID)
-            query.setNamedParameter("puuid", deletion.getValue());
+    private static void fillDeleteQueryFromDeletion(SQLQuery query, Entry<String, String> deletion, ModifyFeaturesEvent event, int version)
+        throws SQLException {
+        /*
+        NOTE: If versioning is activated for the space, always only inserts are performed,
+        but special parameters are necessary to handle conflicts in deletion case.
+        Also, the feature to be written during the insert operation has to be "mocked" to only contain the necessary information.
+         */
+        if (event.getVersionsToKeep() > 1) {
+            Feature deletedFeature = new Feature()
+                .withId(deletion.getKey())
+                .withProperties(new Properties().withXyzNamespace(new XyzNamespace().withDeleted(true)));
+            fillInsertQueryFromFeature(query, DELETE, deletedFeature, event, version);
+        }
+        else {
+            query.setNamedParameter("id", deletion.getKey());
+            if (event.getEnableUUID())
+                query.setNamedParameter("puuid", deletion.getValue());
+        }
     }
 
-    private static void fillUpdateQueryFromFeature(SQLQuery query, Feature feature, boolean handleUUID, Integer version) throws SQLException {
+    private static void fillUpdateQueryFromFeature(SQLQuery query, Feature feature, ModifyFeaturesEvent event, int version) throws SQLException {
         if (feature.getId() == null)
             throw new WriteFeatureException(UPDATE_ERROR_ID_MISSING);
 
         final String puuid = feature.getProperties().getXyzNamespace().getPuuid();
-        if (handleUUID && puuid == null)
+        if (event.getEnableUUID() && puuid == null)
             throw new WriteFeatureException(UPDATE_ERROR_PUUID_MISSING);
 
-        fillInsertQueryFromFeature(query, feature, version);
-        if (handleUUID)
+        /*
+        NOTE: If versioning is activated for the space, always only inserts are performed,
+        but special parameters are necessary to handle conflicts in update case.
+         */
+
+        fillInsertQueryFromFeature(query, UPDATE, feature, event, version);
+
+        //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
+        query
+            .withNamedParameter("id", feature.getId());
+
+        if (event.getEnableUUID())
             query.setNamedParameter("puuid", puuid);
     }
 
-    private static void fillInsertQueryFromFeature(SQLQuery query, Feature feature, Integer version) throws SQLException {
+    private static void fillInsertQueryFromFeature(SQLQuery query, ModificationType action, Feature feature, ModifyFeaturesEvent event, int version) throws SQLException {
+        //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
+        boolean oldTableStyle = DatabaseHandler.readVersionsToKeep(event) < 1;
+        boolean withDeletedColumn = oldTableStyle && DatabaseHandler.isForExtendingSpace(event);
+        if (!oldTableStyle)
+            query
+                .withNamedParameter("id", feature.getId())
+                .withNamedParameter("version", version);
+        if (withDeletedColumn || !oldTableStyle)
+            query
+                .withNamedParameter("operation", getDeletedFlagFromFeature(feature) ? 'D' : action.shortValue);
+
         query
-            .withNamedParameter("id", feature.getId())
-            .withNamedParameter("version", 0) //TODO: Set from sequence
-            .withNamedParameter("operation", getDeletedFlagFromFeature(feature) ? 'D' : 'I')
-            .withNamedParameter("jsondata", featureToPGobject(feature, version));
+            .withNamedParameter("jsondata", featureToPGobject(event, feature, version));
 
         Geometry geo = feature.getGeometry();
         if (geo != null) {
@@ -127,7 +164,6 @@ public class DatabaseWriter {
         }
         else
             query.setNamedParameter("geo", null);
-
     }
 
     private static boolean getDeletedFlagFromFeature(Feature f) {
@@ -138,7 +174,7 @@ public class DatabaseWriter {
 
     protected static void modifyFeatures(DatabaseHandler dbh, ModifyFeaturesEvent event, ModificationType action,
         FeatureCollection collection, List<FeatureCollection.ModificationFailure> fails, List inputData, Connection connection,
-        Integer version) throws SQLException, JsonProcessingException {
+        int version) throws SQLException, JsonProcessingException {
         boolean transactional = event.getTransaction();
         connection.setAutoCommit(!transactional);
         SQLQuery modificationQuery = buildModificationStmtQuery(dbh, event, action, version);
@@ -228,7 +264,10 @@ public class DatabaseWriter {
     }
 
     private static SQLQuery buildModificationStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event, ModificationType action,
-        Integer version) {
+        int version) {
+        //If versioning is activated for the space, always only perform inserts
+        if (event.getVersionsToKeep() > 1)
+            return SQLQueryBuilder.buildInsertStmtQuery(dbHandler, event);
         switch (action) {
             case INSERT:
                 return SQLQueryBuilder.buildInsertStmtQuery(dbHandler, event);
@@ -241,18 +280,18 @@ public class DatabaseWriter {
     }
 
     private static void fillModificationQueryFromInput(SQLQuery query, ModifyFeaturesEvent event, ModificationType action, Object inputDatum,
-        Integer version) throws SQLException {
+        int version) throws SQLException {
         switch (action) {
             case INSERT: {
-                fillInsertQueryFromFeature(query, (Feature) inputDatum, version);
+                fillInsertQueryFromFeature(query, action, (Feature) inputDatum, event, version);
                 break;
             }
             case UPDATE: {
-                fillUpdateQueryFromFeature(query, (Feature) inputDatum, event.getEnableUUID(), version);
+                fillUpdateQueryFromFeature(query, (Feature) inputDatum, event, version);
                 break;
             }
             case DELETE: {
-                fillDeleteQueryFromDeletion(query, (Entry<String, String>) inputDatum, event.getEnableUUID());
+                fillDeleteQueryFromDeletion(query, (Entry<String, String>) inputDatum, event, version);
             }
         }
     }

@@ -29,7 +29,7 @@ import java.sql.SQLException;
 
 public class GetNextVersion<E extends Event> extends XyzEventBasedQueryRunner<E, Integer> {
 
-  public static final String REVISON_SEQUENCE_SUFFIX = "_rev_seq";
+  public static final String VERSION_SEQUENCE_SUFFIX = "_version_seq";
 
   public GetNextVersion(E input, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(input, dbHandler);
@@ -39,13 +39,13 @@ public class GetNextVersion<E extends Event> extends XyzEventBasedQueryRunner<E,
   protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
     return new SQLQuery("SELECT nextval('${schema}.${sequence}')")
         .withVariable(SCHEMA, getSchema())
-        .withVariable("sequence", getDefaultTable(event) + REVISON_SEQUENCE_SUFFIX);
+        .withVariable("sequence", getDefaultTable(event) + VERSION_SEQUENCE_SUFFIX);
   }
 
   @Override
   public Integer handle(ResultSet rs) throws SQLException {
     if (rs.next())
       return rs.getInt(1);
-    return -1;
+    throw new SQLException("Unable to increase version sequence.");
   }
 }
