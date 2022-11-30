@@ -24,6 +24,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.xyz.models.txn.TransactionLog;
 import com.vividsolutions.jts.geom.Coordinate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -55,6 +56,10 @@ public class DatabaseWriter {
     public static final String LOG_EXCEPTION_INSERT = "insert";
     public static final String LOG_EXCEPTION_UPDATE = "update";
     public static final String LOG_EXCEPTION_DELETE = "delete";
+
+    public static final String DB_TABLE_XYZ_TXN = "xyz_txn";
+
+    public static final String DB_TABLE_XYZ_TXN_DATA = "xyz_txn_data";
 
     protected static PGobject featureToPGobject(final Feature feature, Integer version) throws SQLException {
         final Geometry geometry = feature.getGeometry();
@@ -117,8 +122,27 @@ public class DatabaseWriter {
         return createStatement(connection, SQLQueryBuilder.versionedDeleteStmtSQL(schema,table,handleUUID));
     }
 
+    protected static PreparedStatement createInsertStatementForTxnLog(Connection connection, String schema, String table)
+            throws SQLException {
+        return createStatement(connection, SQLQueryBuilder.insertStmtSQLForTxnLog(schema, table));
+    }
+
+    protected static PreparedStatement createInsertStatementForTxnData(Connection connection, String schema, String table)
+            throws SQLException {
+        return createStatement(connection, SQLQueryBuilder.insertStmtSQLForTxnData(schema, table));
+    }
+
     protected  static void setAutocommit(Connection connection, boolean isActive) throws SQLException {
         connection.setAutoCommit(isActive);
+    }
+
+    protected static void insertTransactionDetails(DatabaseHandler dbh, String schema, TraceItem traceItem,
+                               TransactionLog txnLog, Connection connection) throws SQLException, JsonProcessingException {
+        if (txnLog.getTxnDataList().isEmpty())
+            return;
+        setAutocommit(connection,false);
+        DatabaseTransactionalWriter.insertTransactionLog(dbh, schema, DB_TABLE_XYZ_TXN, traceItem, txnLog, connection);
+        DatabaseTransactionalWriter.insertTransactionData(dbh, schema, DB_TABLE_XYZ_TXN_DATA, traceItem, txnLog, connection);
     }
 
     protected static FeatureCollection insertFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem, FeatureCollection collection,

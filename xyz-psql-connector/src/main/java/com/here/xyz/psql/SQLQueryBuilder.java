@@ -739,6 +739,17 @@ public class SQLQueryBuilder {
         return SQLQuery.replaceVars(insertStmtSQL, schema, table);
     }
 
+    protected static String insertStmtSQLForTxnLog(final String schema, final String table) {
+        String insertStmtSQL ="INSERT INTO ${schema}.${table} (space_id, uuids) VALUES(?, ?)";
+        return SQLQuery.replaceVars(insertStmtSQL, schema, table);
+    }
+
+    protected static String insertStmtSQLForTxnData(final String schema, final String table) {
+        String insertStmtSQL ="INSERT INTO ${schema}.${table} (uuid, operation, jsondata)" +
+                " VALUES(?, ?, ?::jsonb)";
+        return SQLQuery.replaceVars(insertStmtSQL, schema, table);
+    }
+
     protected static String insertWithoutGeometryStmtSQL(final String schema, final String table, boolean withDeletedColumn) {
         String insertWithoutGeometryStmtSQL = "INSERT INTO ${schema}.${table} (jsondata, geo" + (withDeletedColumn ? ", deleted" : "")
             + ") VALUES(?::jsonb, NULL" + (withDeletedColumn ? ", ?" : "") + ")";

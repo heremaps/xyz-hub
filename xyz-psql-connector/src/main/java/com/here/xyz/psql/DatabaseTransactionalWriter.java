@@ -23,12 +23,15 @@ import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.txn.TransactionData;
+import com.here.xyz.models.txn.TransactionLog;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.io.WKBWriter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.postgresql.util.PGobject;
 
+import java.sql.Array;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -215,6 +218,62 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         if(fails.size() > 0) {
             logException(null, traceItem, LOG_EXCEPTION_DELETE, table);
             throw new SQLException(DELETE_ERROR_GENERAL);
+        }
+    }
+
+    public static void insertTransactionLog(DatabaseHandler dbh, String schema, String table,
+                                             TraceItem traceItem, TransactionLog txnLog, Connection connection) throws SQLException, JsonProcessingException {
+
+        final PreparedStatement insertStmt = createInsertStatementForTxnLog(connection, schema, table);
+
+        if (txnLog.getUuids() == null || txnLog.getUuids().isEmpty())
+            return;
+
+        // Bind prepared statement and add to batch
+        insertStmt.setString(1, txnLog.getSpace_id());
+        insertStmt.setArray(2, connection.createArrayOf("text", txnLog.getUuids().toArray()));
+        insertStmt.addBatch();
+
+        executeBatchForTransactionDetails(dbh, insertStmt, TYPE_INSERT, traceItem);
+    }
+
+    public static void insertTransactionData(DatabaseHandler dbh, String schema, String table,
+                      TraceItem traceItem, TransactionLog txnLog, Connection connection) throws SQLException, JsonProcessingException {
+
+        final PreparedStatement insertStmt = createInsertStatementForTxnData(connection, schema, table);
+
+        if (txnLog.getTxnDataList() == null || txnLog.getTxnDataList().isEmpty())
+            return;
+
+        for (final TransactionData txnData : txnLog.getTxnDataList()) {
+            final PGobject jsonObject = new PGobject();
+            jsonObject.setType("jsonb");
+            jsonObject.setValue(txnData.getJsondata());
+            // Bind prepared statement and add to batch
+            insertStmt.setString(1, txnData.getUuid());
+            insertStmt.setString(2, txnData.getOperation());
+            insertStmt.setObject(3, jsonObject);
+            insertStmt.addBatch();
+        }
+
+        executeBatchForTransactionDetails(dbh, insertStmt, TYPE_INSERT, traceItem);
+    }
+
+    private static void executeBatchForTransactionDetails(DatabaseHandler dbh, PreparedStatement batchStmt,
+                               int type, TraceItem traceItem) throws SQLException {
+
+        logger.debug("{} batch execution [{}]: {} ", traceItem, type, batchStmt);
+
+        try {
+            batchStmt.setQueryTimeout(dbh.calculateTimeout());
+            final int[] batchStmtResult = batchStmt.executeBatch();
+            for (int i= 0; i < batchStmtResult.length; i++) {
+                if(batchStmtResult[i] == 0 ) {
+                    throw new SQLException("Exception populating transaction log entries");
+                }
+            }
+        }finally {
+            batchStmt.close();
         }
     }
 

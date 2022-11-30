@@ -45,6 +45,8 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.models.txn.TransactionLog;
+import com.here.xyz.models.txn.TransactionData;
 import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.config.DatabaseSettings;
 import com.here.xyz.psql.config.PSQLConfig;
@@ -72,13 +74,7 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -520,9 +516,11 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     protected XyzResponse executeModifyFeatures(ModifyFeaturesEvent event) throws Exception {
-        final boolean includeOldStates = event.getParams() != null && event.getParams().get(INCLUDE_OLD_STATES) == Boolean.TRUE;
         final boolean handleUUID = event.getEnableUUID() == Boolean.TRUE;
         final boolean transactional = event.getTransaction() == Boolean.TRUE;
+        // TODO : Discuss this handling
+        //final boolean includeOldStates = event.getParams() != null && event.getParams().get(INCLUDE_OLD_STATES) == Boolean.TRUE
+        final boolean includeOldStates = event.getParams() != null && event.getParams().get(INCLUDE_OLD_STATES) == Boolean.TRUE ? true : transactional;
 
         final String schema = config.getDatabaseSettings().getSchema();
         final String table = config.readTableFromEvent(event);
@@ -615,12 +613,15 @@ public abstract class DatabaseHandler extends StorageConnector {
                     DatabaseWriter.updateFeatures(this, schema, table, traceItem, collection, fails, updates, connection, transactional, handleUUID, version, forExtendingSpace);
                 }
 
+                // Write Transaction Log into separate tables (xyz_txn, xyz_txn_data)
                 if (transactional) {
-                    // TODO: Write Transaction Log into a special table.
+                    final TransactionLog txnLog = prepareTransactionDetails(inserts, updates, deletes, collection, table);
+                    DatabaseWriter.insertTransactionDetails(this, schema, traceItem, txnLog, connection);
 
                     /** Commit SQLS in one transaction */
                     connection.commit();
                 }
+
             } catch (Exception e) {
                 /** No time left for processing */
                 if(e instanceof SQLException && ((SQLException)e).getSQLState() !=null
@@ -733,6 +734,70 @@ public abstract class DatabaseHandler extends StorageConnector {
 
             return collection;
         }
+    }
+
+    private TransactionLog prepareTransactionDetails(final List<Feature> inserts, final List<Feature> updates,
+                                                     final Map<String, String> deletes, final FeatureCollection collection, final String spaceId) {
+        final List<String> uuidList = new ArrayList<>();
+        final List<TransactionData> txnDataList = new ArrayList<>();
+
+        // Add inserts to transaction list
+        if (inserts.size() > 0) {
+            for (final Feature f : inserts) {
+                populateTransactionDataFromFeature(f, "SAVE", uuidList, txnDataList);
+            }
+        }
+
+        // Add updates to transaction list
+        if (updates.size() > 0) {
+            for (final Feature f : updates) {
+                populateTransactionDataFromFeature(f, "UPDATE", uuidList, txnDataList);
+            }
+        }
+
+        // Add deletes to transaction list
+        if (deletes.size() > 0) {
+            final Set<String> idsToDelete = deletes.keySet();
+            // for each deleted ID
+            for (final String id : idsToDelete) {
+                boolean found = false;
+                // Find entry from oldFeatures which was deleted
+                if (collection.getOldFeatures() != null) {
+                    for (final Feature f : collection.getOldFeatures()) {
+                        if (id.equals(f.getId())) {
+                            populateTransactionDataFromFeature(f, "DELETE", uuidList, txnDataList);
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+                // Put defaults if oldFeature entry not found
+                if (!found) {
+                    populateTransactionDataFromFeature(null, "DELETE", uuidList, txnDataList);
+                }
+            }
+        }
+
+        // prepare and return Transaction object
+        final TransactionLog txnLog = new TransactionLog();
+        txnLog.setSpace_id(spaceId);
+        txnLog.setUuids(uuidList);
+        txnLog.setTxnDataList(txnDataList);
+        return txnLog;
+    }
+
+    private void populateTransactionDataFromFeature(final Feature f, final String operation,
+                        final List<String> uuidList, final List<TransactionData> txnDataList) {
+        final String uuid_suffix = operation.equals("DELETE") ? "_deleted" : "";
+        final String uuid = (f == null) ? UUID.randomUUID().toString() : f.getProperties().getXyzNamespace().getUuid();
+        final String jsondata = (f == null) ? null : f.serialize();
+        final TransactionData txnData = TransactionData
+                .build()
+                .withUuid(uuid + uuid_suffix)
+                .withOperation(operation)
+                .withJsondata(jsondata);
+        uuidList.add(txnData.getUuid());
+        txnDataList.add(txnData);
     }
 
     private List<String> getAllIds(List<Feature> inserts, List<Feature> updates, List<Feature> upserts, Map<String, ?> deletes) {
