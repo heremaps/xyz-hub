@@ -206,6 +206,8 @@ public class SQLQuery {
         for (int pos : paramPositions)
           preparedStatement.setObject(pos + 1, namedParam.getValue());
     }
+    //Clear all named parameters
+    this.namedParameters = null;
     return preparedStatement;
   }
 

@@ -42,6 +42,7 @@ import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
 import com.here.xyz.events.ModifySubscriptionEvent;
+import com.here.xyz.events.OneTimeActionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -147,6 +148,21 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private boolean retryAttempted;
 
+    @Override
+    protected XyzResponse processOneTimeActionEvent(OneTimeActionEvent event) throws Exception {
+        try {
+            if (oneTimeActionVersioningMigration(event.getPhase()))
+                return new SuccessResponse().withStatus("EXECUTED");
+            return new SuccessResponse().withStatus("ALREADY RUNNING");
+        }
+        catch (Exception e) {
+            logger.error("OTA: Error during one time action execution:", e);
+            return new ErrorResponse()
+                .withErrorMessage(e.getMessage())
+                .withError(XyzError.EXCEPTION);
+        }
+    }
+
     protected XyzResponse processHealthCheckEventImpl(HealthCheckEvent event) throws SQLException {
         String connectorId = traceItem.getConnectorId();
 
@@ -173,7 +189,17 @@ public abstract class DatabaseHandler extends StorageConnector {
             executeQuery(query, (rs) -> null, readDataSource);
         }
 
-        return ((HealthStatus) super.processHealthCheckEvent(event)).withStatus("OK");
+        HealthStatus status = ((HealthStatus) super.processHealthCheckEvent(event)).withStatus("OK");
+
+        try {
+            if (System.getenv("OTA_PHASE") != null)
+                oneTimeActionVersioningMigration(System.getenv("OTA_PHASE"));
+        }
+        catch (Exception e) {
+            logger.error("OTA: Error during one time action execution:", e);
+        }
+
+        return status;
     }
 
     void reset() {
@@ -879,34 +905,44 @@ public abstract class DatabaseHandler extends StorageConnector {
         return (int) event.getParams().get("versionsToKeep");
     }
 
-    private void oneTimeActionVersioningMigration(String phase) throws SQLException, ErrorResponseException {
+    private boolean oneTimeActionVersioningMigration(String phase) throws SQLException, ErrorResponseException {
         try (final Connection connection = dataSource.getConnection()) {
-            if (_advisory(phase, connection, true, false))
-                switch (phase) {
-                    case "phase0": {
-                        List<String> tablesWithoutIdColumn =
-                            new GetTablesWithColumn(new GetTablesWithColumnInput("id", false, 100), this).run();
-                        if (tablesWithoutIdColumn.isEmpty())
-                            logger.info("oneTimeActionVersioningMigration " + phase + ": Nothing to do.");
-                        else
-                            oneTimeAlterExistingTablesAddNewColumnsAndIndices(phase, tablesWithoutIdColumn, connection);
-                        break;
-                    }
-                    case "phase1": {
+            if (_advisory(phase, connection, true, false)) {
+                try {
+                    switch (phase) {
+                        case "phase0": {
+                            List<String> tablesWithoutIdColumn =
+                                new GetTablesWithColumn(new GetTablesWithColumnInput("id", false, 100), this).run();
+                            if (tablesWithoutIdColumn.isEmpty())
+                                logger.info("oneTimeActionVersioningMigration " + phase + ": Nothing to do.");
+                            else
+                                oneTimeAlterExistingTablesAddNewColumnsAndIndices(phase, tablesWithoutIdColumn, connection);
+                            break;
+                        }
+                        case "phase1": {
 
-                        break;
-                    }
-                    case "phaseX": {
+                            break;
+                        }
+                        case "phaseX": {
 
-                        break;
-                    }
-                    case "cleanup": {
+                            break;
+                        }
+                        case "cleanup": {
 
+                        }
+                        default:
+                            throw new IllegalArgumentException("Illegal OTA phase.");
                     }
                 }
-            else
+                finally {
+                    _advisory(phase, connection, false, false);
+                }
+                return true;
+            }
+            else {
                 logger.info("oneTimeActionVersioningMigration " + phase + ": Currently another process is already running.");
-            _advisory(phase, connection, false, false);
+                return false;
+            }
         }
     }
 
