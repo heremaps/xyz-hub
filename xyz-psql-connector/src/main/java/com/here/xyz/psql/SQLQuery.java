@@ -201,9 +201,10 @@ public class SQLQuery {
       return preparedStatement;
     //Assign named parameters to according positions in the prepared statement
     for (Entry<String, Object> namedParam : namedParameters.entrySet()) {
-      Object paramValue = namedParameters.get(namedParam.getKey());
-      for (int pos : namedParams2Positions.get(namedParam.getKey()))
-        preparedStatement.setObject(pos + 1, paramValue);
+      List<Integer> paramPositions = namedParams2Positions.get(namedParam.getKey());
+      if (paramPositions != null)
+        for (int pos : paramPositions)
+          preparedStatement.setObject(pos + 1, namedParam.getValue());
     }
     return preparedStatement;
   }
