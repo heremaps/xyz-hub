@@ -783,7 +783,7 @@ public class SQLQueryBuilder {
       //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
       boolean oldTableStyle = DatabaseHandler.readVersionsToKeep(event) < 1;
       SQLQuery query =
-          version == -1 || !oldTableStyle
+          version == -1 || !oldTableStyle && !event.isEnableGlobalVersioning()
           ? new SQLQuery("DELETE FROM ${schema}.${table} WHERE jsondata->>'id' = #{id} ${{uuidCheck}}")
           //Use UPDATE instead of DELETE to inject a version and the deleted flag. The deletion gets performed afterwards by the trigger.
           : new SQLQuery("UPDATE ${schema}.${table} "

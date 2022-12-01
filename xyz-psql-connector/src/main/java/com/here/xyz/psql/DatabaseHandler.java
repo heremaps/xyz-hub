@@ -20,6 +20,7 @@
 package com.here.xyz.psql;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.models.hub.Space.DEFAULT_VERSIONS_TO_KEEP;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
@@ -874,7 +875,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     public static int readVersionsToKeep(Event event) {
         if (event.getParams() == null || !event.getParams().containsKey("versionsToKeep"))
-            return -1;
+            return DEFAULT_VERSIONS_TO_KEEP;
         return (int) event.getParams().get("versionsToKeep");
     }
 
