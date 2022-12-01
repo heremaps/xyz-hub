@@ -34,6 +34,7 @@ import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySubscriptionEvent;
+import com.here.xyz.events.OneTimeActionEvent;
 import com.here.xyz.events.RevisionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
@@ -107,6 +108,8 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
     if (event instanceof RevisionEvent) {
       return new SuccessResponse();
     }
+    if (event instanceof OneTimeActionEvent)
+      return processOneTimeActionEvent((OneTimeActionEvent) event);
 
     return new ErrorResponse()
         .withStreamId(streamId)
@@ -200,4 +203,9 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
   protected abstract XyzResponse processIterateHistoryEvent(IterateHistoryEvent event) throws Exception;
 
   protected abstract XyzResponse processGetStorageStatisticsEvent(GetStorageStatisticsEvent event) throws Exception;
+
+  protected XyzResponse processOneTimeActionEvent(OneTimeActionEvent event) throws Exception {
+    //Default implementation does nothing but may be overridden
+    return new SuccessResponse();
+  }
 }

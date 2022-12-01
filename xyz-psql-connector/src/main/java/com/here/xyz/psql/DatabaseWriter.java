@@ -123,8 +123,11 @@ public class DatabaseWriter {
             throw new WriteFeatureException(UPDATE_ERROR_ID_MISSING);
 
         final String puuid = feature.getProperties().getXyzNamespace().getPuuid();
-        if (event.getEnableUUID() && puuid == null)
-            throw new WriteFeatureException(UPDATE_ERROR_PUUID_MISSING);
+        if (event.getEnableUUID())
+            if (puuid == null)
+                throw new WriteFeatureException(UPDATE_ERROR_PUUID_MISSING);
+            else
+                query.setNamedParameter("puuid", puuid);
 
         /*
         NOTE: If versioning is activated for the space, always only inserts are performed,
@@ -132,28 +135,13 @@ public class DatabaseWriter {
          */
 
         fillInsertQueryFromFeature(query, UPDATE, feature, event, version);
-
-        //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
-        query
-            .withNamedParameter("id", feature.getId());
-
-        if (event.getEnableUUID())
-            query.setNamedParameter("puuid", puuid);
     }
 
     private static void fillInsertQueryFromFeature(SQLQuery query, ModificationType action, Feature feature, ModifyFeaturesEvent event, int version) throws SQLException {
-        //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
-        boolean oldTableStyle = DatabaseHandler.readVersionsToKeep(event) < 1;
-        boolean withDeletedColumn = oldTableStyle && DatabaseHandler.isForExtendingSpace(event);
-        if (!oldTableStyle)
-            query
-                .withNamedParameter("id", feature.getId())
-                .withNamedParameter("version", version);
-        if (withDeletedColumn || !oldTableStyle)
-            query
-                .withNamedParameter("operation", getDeletedFlagFromFeature(feature) ? 'D' : action.shortValue);
-
         query
+            .withNamedParameter("id", feature.getId())
+            .withNamedParameter("version", version)
+            .withNamedParameter("operation", getDeletedFlagFromFeature(feature) ? 'D' : action.shortValue)
             .withNamedParameter("jsondata", featureToPGobject(event, feature, version));
 
         Geometry geo = feature.getGeometry();
