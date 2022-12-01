@@ -41,7 +41,7 @@ import java.util.Map;
 @SuppressWarnings("unused")
 public class Space {
 
-  public static final int DEFAULT_VERSIONS_TO_KEEP = 0;
+  public static final int DEFAULT_VERSIONS_TO_KEEP = 1;
 
   /**
    * Beta release date: 2018-10-01T00:00Z[UTC]
@@ -176,6 +176,7 @@ public class Space {
    * of the space and no further versions will be kept.
    */
   @JsonView({Public.class, Static.class})
+  @JsonInclude(Include.ALWAYS) //NOTE: This is only needed temporary to keep backwards compatibility for non-versioned spaces (see: DynamoSpaceConfigClient#getSpace() and JDBCSpaceConfigClient#getSpace())
   private int versionsToKeep = DEFAULT_VERSIONS_TO_KEEP;
 
   /**

@@ -202,6 +202,12 @@ public class SpaceTaskHandler {
         task.modifyOp.entries.get(0).input.put("maxVersionCount" , spaceHead.getMaxVersionCount());
       else if(spaceHead != null && spaceHead.isEnableGlobalVersioning() && task.modifyOp.entries.get(0).input.get("maxVersionCount") != null )
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'maxVersionCount' can only get set, in combination of enableGlobalVersioning, on space creation!");
+
+      //NOTE: The following is a temporary implementation for during the migration phase for versioning.
+      if (spaceHead != null && task.modifyOp.entries.get(0).input.get("versionsToKeep") != null &&
+          !Objects.equals(spaceHead.getVersionsToKeep(), task.modifyOp.entries.get(0).input.get("versionsToKeep")))
+        throw new HttpException(BAD_REQUEST, "Validation failed. The property \"versionsToKeep\" can only be set during initial "
+            + "creation of the space.");
     }
 
     if (task.isCreate()) {
@@ -219,6 +225,11 @@ public class SpaceTaskHandler {
       if(space.getMaxVersionCount() < -1)
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'maxVersionCount' must be greater or equal to -1.");
     }
+
+    //NOTE: The following is a temporary implementation for backwards compatibility for the legacy history implementation
+    if ((space.isEnableGlobalVersioning() || space.isEnableHistory()) && space.getVersionsToKeep() > 1)
+      throw new HttpException(BAD_REQUEST, "Validation failed. Versioning can not be activated in combination with legacy history. "
+          + "Either set property \"enableGlobalVersioning\" or \"versionsToKeep\" to a value greater than 1 but not both.");
 
     if (space.getId() == null) {
       throw new HttpException(BAD_REQUEST, "Validation failed. The property 'id' cannot be empty.");
@@ -247,6 +258,10 @@ public class SpaceTaskHandler {
     if (space.getExtension() != null && space.getSearchableProperties() != null) {
       throw new HttpException(BAD_REQUEST, "Validation failed. The properties 'searchableProperties' and 'extends' cannot be set together.");
     }
+
+    if (space.getExtension() != null && space.getVersionsToKeep() > 1)
+      throw new HttpException(BAD_REQUEST, "Validation failed. Versioning can not be activated for composite spaces. "
+          + "Either set property \"extends\" or set \"versionsToKeep\" to a value greater than 1 but not both.");
 
     if (task.modifyOp.entries.get(0).result.getExtension() != null) {
       // in case of create, the storage must be not set from the user (or set exactly as if the storage property in space template)
