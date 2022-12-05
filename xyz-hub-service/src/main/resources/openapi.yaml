@@ -191,28 +191,28 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
-  '/spaces/{spaceId}/revisions':
+  '/spaces/{spaceId}/changesets':
     delete:
       tags:
         - Manage Spaces
-      summary: Delete revisions
+      summary: Delete Changesets
       description: >-
-        Deletes one or more revisions where the revision number can be specified by the query parameter 'revision', where
+        Deletes one or more changesets where the version number can be specified by the query parameter 'version', where
         the value must be an integer, bigger than 0 and the comparator should be one of the below list:
           - <
           - =lt=
         
         
-        Example: To remove revisions older than the 10th revision,
-        a DELETE /spaces/{spaceId}/revisions?revision=lt=10 could be executed.
+        Example: To remove changesets older than version number 10,
+        a DELETE /spaces/{spaceId}/changesets?version=lt=10 could be executed.
 
 
-        The service will begin the process to remove the revisions from 9th revision until the 1st revision.
-        During the deletion process, newer revisions can be created and won't be affected.
-      operationId: deleteRevisions
+        The service will begin the process to remove the versions from version 9 until the version 0.
+        During the deletion process, newer versions can be created and won't be affected.
+      operationId: deleteChangesets
       parameters:
         - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/RevisionLowerThan'
+        - $ref: '#/components/parameters/VersionLowerThan'
       responses:
         '204':
           $ref: '#/components/responses/EmptyResponse'
@@ -238,7 +238,7 @@ paths:
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
-        - $ref: '#/components/parameters/Revision'
+        - $ref: '#/components/parameters/Version'
         - $ref: '#/components/parameters/Author'
       responses:
         '200':
@@ -455,7 +455,7 @@ paths:
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
-        - $ref: '#/components/parameters/Revision'
+        - $ref: '#/components/parameters/Version'
         - $ref: '#/components/parameters/Author'
       responses:
         '200':
@@ -1443,7 +1443,7 @@ components:
 
 
         Properties initiated with 'f.' are used to access values which are added by default in the
-        stored feature. The possible values are: 'f.id', 'f.createdAt', 'f.updatedAt', 'f.revision' and 'f.author'
+        stored feature. The possible values are: 'f.id', 'f.createdAt', 'f.updatedAt', 'f.version' and 'f.author'
 
 
         Properties initiated with 'p.' are used to access values in the stored feature which are
@@ -1558,22 +1558,22 @@ components:
         type: array
         items:
           type: string
-    Revision:
-      name: revision
+    Changeset:
+      name: version
       in: query
       description: >-
-        The query parameter used to specify one specific revision or all revisions when '*' is used.
+        The query parameter used to specify one specific version or all versions when '*' is used.
         The supported values for this field are:
-          - the char '*', e.g. ?revision=*
-          - an integer e.g. ?revision=5
+          - the char '*', e.g. ?version=*
+          - an integer e.g. ?versions=5
       required: false
       schema:
         type: string
-    RevisionLowerThan:
-      name: revision
+    VersionLowerThan:
+      name: version
       in: query
       description: >-
-        The query parameter used to specify the revisions to be deleted.
+        The query parameter used to specify the versions to be deleted.
         The value must be an integer, bigger than 1, and the comparator should be one of the below list:
           - <
           - =lt=
@@ -2933,9 +2933,9 @@ components:
           format: int64
           readOnly: true
           type: integer
-        revision:
+        version:
           description: >-
-            The revision number groups the feature modifications in the space history in which
+            The version number groups the feature modification transactions in the space history
             this feature is part of.
           example: 1
           format: int64
@@ -2943,8 +2943,8 @@ components:
           type: integer
         author:
           description: >-
-            The author who performed the modification in the Feature's revision pointed
-            by 'revision'.
+            The author who performed the modification in the Feature's version pointed
+            by 'version'.
           example: anonymous
           readOnly: true
           type: string
@@ -3208,14 +3208,14 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Connector'
-        revisionsToKeep:
+        versionsToKeep:
           default: 1
           description: >-
-            Defines how many revisions will be kept, while older revisions may be purged. By default
+            Defines how many versions will be kept, while older versions may be purged. By default
             this value will be set to 1. That means there will be only one (HEAD) state of the space
-            and no further revisions will be kept. If the value is bigger than 1, then older
-            revisions, up to the "revisionsToKeep" revision, can be retrieved by
-            e.g. ?revision=revision_number
+            and no further versions will be kept. If the value is bigger than 1, then older
+            versions, up to the "versionsToKeep" version, can be retrieved by
+            e.g. ?version=<version_number>
           example: 2
           type: integer
       example:

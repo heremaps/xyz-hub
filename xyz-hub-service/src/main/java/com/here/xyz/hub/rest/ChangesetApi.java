@@ -19,10 +19,10 @@
 
 package com.here.xyz.hub.rest;
 
+import com.here.xyz.events.ChangesetEvent;
+import com.here.xyz.events.ChangesetEvent.Operation;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQuery.QueryOperation;
-import com.here.xyz.events.RevisionEvent;
-import com.here.xyz.events.RevisionEvent.Operation;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.SpaceConnectorBasedHandler;
@@ -31,16 +31,16 @@ import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
 
-public class RevisionApi extends SpaceBasedApi {
+public class ChangesetApi extends SpaceBasedApi {
 
-  public RevisionApi(RouterBuilder rb) {
-    rb.operation("deleteRevisions").handler(this::deleteRevisions);
+  public ChangesetApi(RouterBuilder rb) {
+    rb.operation("deleteChangesets").handler(this::deleteChangesets);
   }
 
   /**
-   * Delete revisions by revision number
+   * Delete changesets by version number
    */
-  private void deleteRevisions(final RoutingContext context) {
+  private void deleteChangesets(final RoutingContext context) {
     final String space = context.pathParam(Path.SPACE_ID);
     final PropertyQuery version = Query.getPropertyQuery(context.request().query(), Query.VERSION, false);
     final QueryOperation supportedOp = QueryOperation.LESS_THAN;
@@ -53,9 +53,9 @@ public class RevisionApi extends SpaceBasedApi {
         .map(v -> supportedOp.equals(v.getOperation())
             ? Future.succeededFuture()
             : Future.failedFuture(new HttpException(HttpResponseStatus.BAD_REQUEST, "Unsupported operator used in the field version")))
-        .flatMap(nothing -> SpaceConnectorBasedHandler.execute(context, new RevisionEvent()
+        .flatMap(nothing -> SpaceConnectorBasedHandler.execute(context, new ChangesetEvent()
           .withSpace(space)
-          .withVersion(version)
+          .withHistoryVersion(version)
           .withOperation(Operation.DELETE)))
         .onSuccess(result -> this.sendResponse(context, HttpResponseStatus.NO_CONTENT, null))
         .onFailure((ex) -> this.sendErrorResponse(context, ex));

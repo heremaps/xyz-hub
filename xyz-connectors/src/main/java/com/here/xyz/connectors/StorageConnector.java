@@ -34,8 +34,8 @@ import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySubscriptionEvent;
+import com.here.xyz.events.ChangesetEvent;
 import com.here.xyz.events.OneTimeActionEvent;
-import com.here.xyz.events.RevisionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.responses.ErrorResponse;
@@ -105,7 +105,7 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
     if (event instanceof GetStorageStatisticsEvent) {
       return processGetStorageStatisticsEvent((GetStorageStatisticsEvent) event);
     }
-    if (event instanceof RevisionEvent) {
+    if (event instanceof ChangesetEvent) {
       return new SuccessResponse();
     }
     if (event instanceof OneTimeActionEvent)

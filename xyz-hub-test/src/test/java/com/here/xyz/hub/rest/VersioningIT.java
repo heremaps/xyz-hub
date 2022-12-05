@@ -55,7 +55,7 @@ public class VersioningIT extends TestSpaceWithFeature {
   @Before
   public void setup() {
     remove();
-    createSpaceWithRevisionsToKeep(5);
+    createSpaceWithVersionsToKeep(5);
     addFeatures();
     updateFeature();
   }
@@ -65,11 +65,11 @@ public class VersioningIT extends TestSpaceWithFeature {
     postFeature(SPACE_ID, new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("name", "updated name")));
   }
 
-  public void createSpaceWithRevisionsToKeep(int revisionsToKeep) {
+  public void createSpaceWithVersionsToKeep(int versionsToKeep) {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body("{\"id\":\""+SPACE_ID+"\",\"title\":\"x-psql-test\",\"revisionsToKeep\":"+revisionsToKeep+"}")
+        .body("{\"id\":\""+SPACE_ID+"\",\"title\":\"x-psql-test\",\"versionsToKeep\":"+versionsToKeep+"}")
         .when()
         .post(getCreateSpacePath())
         .then()
@@ -82,60 +82,60 @@ public class VersioningIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void getFeatureInvalidRevisionOperator() {
+  public void getFeatureInvalidVersionOperator() {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features/"+ FEATURE_ID_1 +"?revision=xx=1")
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features/"+ FEATURE_ID_1 +"?version=xx=1")
         .then()
         .statusCode(BAD_REQUEST.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features/"+ FEATURE_ID_1 +"?revision=gt=1")
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features/"+ FEATURE_ID_1 +"?version=gt=1")
         .then()
         .statusCode(BAD_REQUEST.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features/"+ FEATURE_ID_1 +"?revision>1")
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features/"+ FEATURE_ID_1 +"?version>1")
         .then()
         .statusCode(BAD_REQUEST.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features/"+ FEATURE_ID_1 +"?revision=gte=1")
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features/"+ FEATURE_ID_1 +"?version=gte=1")
         .then()
         .statusCode(BAD_REQUEST.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features/"+ FEATURE_ID_1 +"?revision>=1")
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features/"+ FEATURE_ID_1 +"?version>=1")
         .then()
         .statusCode(BAD_REQUEST.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features/"+ FEATURE_ID_1 +"?revision!=1")
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features/"+ FEATURE_ID_1 +"?version!=1")
         .then()
         .statusCode(BAD_REQUEST.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features/"+ FEATURE_ID_1 +"?revision=cs=1")
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features/"+ FEATURE_ID_1 +"?version=cs=1")
         .then()
         .statusCode(BAD_REQUEST.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features/"+ FEATURE_ID_1 +"?revision@>1")
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features/"+ FEATURE_ID_1 +"?version@>1")
         .then()
         .statusCode(BAD_REQUEST.code());
   }
@@ -146,7 +146,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .delete(getSpacesPath() + "/"+SPACE_ID+"/revisions?revision=lt=2")
+        .delete(getSpacesPath() + "/"+SPACE_ID+"/changesets?version=lt=2")
         .then()
         .statusCode(OK.code());
 
@@ -154,7 +154,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features/"+ FEATURE_ID_1 +"?revision=1")
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features/"+ FEATURE_ID_1 +"?version=1")
         .then()
         .statusCode(NOT_FOUND.code());
   }
@@ -162,15 +162,15 @@ public class VersioningIT extends TestSpaceWithFeature {
   @Test
   public void getFeatureExpectVersionIncrease() {
     // get a feature, expect version increased
-    getFeature(SPACE_ID, FEATURE_ID_1, OK.code(), "properties.@ns:com:here:xyz.revision", "2");
+    getFeature(SPACE_ID, FEATURE_ID_1, OK.code(), "properties.@ns:com:here:xyz.version", "2");
   }
 
   @Test
-  public void getFeatureEqualsToRevision() {
+  public void getFeatureEqualsToVersion() {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features/"+ FEATURE_ID_1 +"?revision=eq=1")
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features/"+ FEATURE_ID_1 +"?version=eq=1")
         .then()
         .statusCode(OK.code())
         .body("properties.name", equalTo("Stade Tata Raphaël"));
@@ -178,7 +178,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features/"+ FEATURE_ID_1 +"?revision=2")
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features/"+ FEATURE_ID_1 +"?version=2")
         .then()
         .statusCode(OK.code())
         .body("properties.name", equalTo("updated name"));
@@ -186,17 +186,17 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features/"+ FEATURE_ID_1 +"?revision=222")
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features/"+ FEATURE_ID_1 +"?version=222")
         .then()
         .statusCode(NOT_FOUND.code());
   }
 
   @Test
-  public void getFeaturesEqualsToRevision() {
+  public void getFeaturesEqualsToVersion() {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&revision=eq=1")
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&version=eq=1")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(2))
@@ -206,7 +206,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&revision=2")
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&version=2")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
@@ -215,18 +215,18 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&revision=eq=222")
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&version=eq=222")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(0));
   }
 
   @Test
-  public void getFeaturesUpToRevision() {
+  public void getFeaturesUpToVersion() {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&revision=lt=2")
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&version=lt=2")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(2))
@@ -236,7 +236,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&revision<3")
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&version<3")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(3));
@@ -244,7 +244,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&revision=lt=3")
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&version=lt=3")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(2))
@@ -325,13 +325,13 @@ public class VersioningIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void getFeaturesEqualsToRevisionAndAuthor() {
+  public void getFeaturesEqualsToVersionAndAuthor() {
     postFeature(SPACE_ID, new Feature().withId(FEATURE_ID_2).withProperties(new Properties().with("name", "second feature")), AuthProfile.ACCESS_OWNER_2_ALL);
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&revision=1&author="+USER_1)
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=1&author="+USER_1)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(3))
@@ -345,7 +345,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&revision=2&author="+USER_1)
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=2&author="+USER_1)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(2))
@@ -357,7 +357,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&revision=1&author="+USER_2)
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=1&author="+USER_2)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(0));
@@ -365,7 +365,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&revision=555&author="+USER_1)
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=555&author="+USER_1)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(0));
@@ -373,7 +373,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&revision=2&author="+USER_2)
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=2&author="+USER_2)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(0));
@@ -381,7 +381,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&revision=3&author="+USER_2)
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=3&author="+USER_2)
         .then()
         .statusCode(OK.code())
         .statusCode(OK.code())
@@ -391,13 +391,13 @@ public class VersioningIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void getFeaturesUpToRevisionAndAuthor() {
+  public void getFeaturesUpToVersionAndAuthor() {
     postFeature(SPACE_ID, new Feature().withId(FEATURE_ID_2).withProperties(new Properties().with("name", "second feature")), AuthProfile.ACCESS_OWNER_2_ALL);
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&revision<999&author="+USER_1)
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version<999&author="+USER_1)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(5));
@@ -405,7 +405,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&revision<999&author="+USER_2)
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version<999&author="+USER_2)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
@@ -415,7 +415,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&revision<3&author="+USER_1)
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version<3&author="+USER_1)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(4));
@@ -423,7 +423,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&revision<3&author="+USER_2)
+        .get(getSpacesPath() + "/"+SPACE_ID+"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version<3&author="+USER_2)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(0));
@@ -436,7 +436,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/search?f.revision=1&f.author="+USER_1+"&p.capacity=58500")
+        .get(getSpacesPath() + "/"+SPACE_ID+"/search?f.version=1&f.author="+USER_1+"&p.capacity=58500")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
@@ -445,7 +445,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/search?f.revision=2&f.author="+USER_1+"&p.capacity=58500")
+        .get(getSpacesPath() + "/"+SPACE_ID+"/search?f.version=2&f.author="+USER_1+"&p.capacity=58500")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(0));
@@ -453,7 +453,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/search?f.revision=2&f.author="+USER_2+"&p.capacity>58500")
+        .get(getSpacesPath() + "/"+SPACE_ID+"/search?f.version=2&f.author="+USER_2+"&p.capacity>58500")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
@@ -463,7 +463,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/search?f.revision=lt=10&f.author="+USER_2+"&p.capacity=58505")
+        .get(getSpacesPath() + "/"+SPACE_ID+"/search?f.version=lt=10&f.author="+USER_2+"&p.capacity=58505")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
@@ -473,15 +473,15 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+SPACE_ID+"/search?f.id="+FEATURE_ID_2+"&f.revision=lt=10&f.author="+USER_1+"&f.author="+USER_2+"&p.capacity<=58505")
+        .get(getSpacesPath() + "/"+SPACE_ID+"/search?f.id="+FEATURE_ID_2+"&f.version=lt=10&f.author="+USER_1+"&f.author="+USER_2+"&p.capacity<=58505")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(2))
         .body("features[0].id", equalTo(FEATURE_ID_2))
         .body("features[0].properties.capacity", equalTo(58500))
-        .body("features[0].properties.@ns:com:here:xyz.revision", equalTo(1))
+        .body("features[0].properties.@ns:com:here:xyz.version", equalTo(1))
         .body("features[0].id", equalTo(FEATURE_ID_2))
         .body("features[0].properties.capacity", equalTo(58505))
-        .body("features[0].properties.@ns:com:here:xyz.revision", equalTo(2));
+        .body("features[0].properties.@ns:com:here:xyz.version", equalTo(2));
   }
 }
