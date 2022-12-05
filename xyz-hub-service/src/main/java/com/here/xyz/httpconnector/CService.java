@@ -107,16 +107,17 @@ public class CService extends Core {
 
     maintenanceClient = new MaintenanceClient();
     jobConfigClient = JobConfigClient.getInstance();
-    jdbcImporter = new JDBCImporter();
-    jobS3Client = new JobS3Client();
-    jobCWClient = new AwsCWClient();
-    importQueue = new ImportQueue();
-
-    /** Start Job-Scheduler */
-    importQueue.commence();
 
     jobConfigClient.init(spaceConfigReady -> {
-
+      if(spaceConfigReady.succeeded()) {
+        jdbcImporter = new JDBCImporter();
+        jobS3Client = new JobS3Client();
+        jobCWClient = new AwsCWClient();
+        importQueue = new ImportQueue();
+        /** Start Job-Scheduler */
+        importQueue.commence();
+      }else
+        logger.error("Cant reach dynamoDB - JOB-API deactivated!");
     });
 
     final DeploymentOptions options = new DeploymentOptions()

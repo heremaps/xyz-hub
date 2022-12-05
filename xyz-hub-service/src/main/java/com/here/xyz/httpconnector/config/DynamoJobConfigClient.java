@@ -66,7 +66,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
             try {
                 dynamoClient.createTable(jobs.getTableName(), "id:S,type:S,status:S", "id", "type,status", null);
             }
-            catch (AmazonDynamoDBException e) {
+            catch (Exception e) {
                 logger.error("Failure during creating tables on DynamoSpaceConfigClient init", e);
                 onReady.handle(Future.failedFuture(e));
                 return;
