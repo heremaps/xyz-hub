@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,15 +17,15 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.rest;
+package com.here.xyz.httpconnector.rest;
 
 import com.here.xyz.connectors.AbstractConnectorHandler;
+import com.here.xyz.httpconnector.PsqlHttpConnectorVerticle;
+import com.here.xyz.httpconnector.rest.HApiParam.HQuery;
+import com.here.xyz.httpconnector.task.MaintenanceHandler;
 import com.here.xyz.hub.Core;
-import com.here.xyz.hub.HttpConnector;
-import com.here.xyz.hub.PsqlHttpVerticle;
 import com.here.xyz.hub.connectors.EmbeddedFunctionClient;
-import com.here.xyz.hub.rest.ApiParam.Query;
-import com.here.xyz.hub.task.HttpConnectorTaskHandler;
+import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.util.health.MainHealthCheck;
 import com.here.xyz.hub.util.health.schema.Reporter;
 import com.here.xyz.hub.util.health.schema.Response;
@@ -37,10 +37,8 @@ import org.apache.logging.log4j.Logger;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import java.util.HashMap;
 
-import static com.here.xyz.hub.AbstractHttpServerVerticle.STREAM_INFO_CTX_KEY;
-import static io.netty.handler.codec.http.HttpResponseStatus.*;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
 public class HttpConnectorApi extends Api {
 
@@ -82,17 +80,17 @@ public class HttpConnectorApi extends Api {
     InputStream inputStream = new ByteArrayInputStream(inputBytes);
     ByteArrayOutputStream os = new ByteArrayOutputStream();
     EmbeddedFunctionClient.EmbeddedContext embeddedContext
-            = new EmbeddedFunctionClient.EmbeddedContext(Context.getMarker(context), "psql", PsqlHttpVerticle.getEnvMap());
+            = new EmbeddedFunctionClient.EmbeddedContext(Context.getMarker(context), "psql", PsqlHttpConnectorVerticle.getEnvMap());
     connector.handleRequest(inputStream, os, embeddedContext, streamId);
     this.sendResponse(context, OK, os);
   }
 
   private void postDatabaseInitialization(final RoutingContext context) {
-    String[] params = parseMainParams(context);
-    final boolean force = Query.getBoolean(context, "force", false);
+    String[] params = HApiParam.HQuery.parseMainParams(context);
+    final boolean force = HQuery.getBoolean(context, "force", false);
 
     try {
-      HttpConnectorTaskHandler.initializeDatabase(params[0],params[1], params[2], force, ar -> {
+      MaintenanceHandler.initializeDatabase(params[0],params[1], params[2], force, ar -> {
         if (ar.failed()) {
           this.sendErrorResponse(context, ar.cause());
         }
@@ -107,11 +105,11 @@ public class HttpConnectorApi extends Api {
   }
 
   private void postMaintainIndices(final RoutingContext context) {
-    String[] params = parseMainParams(context);
-    final boolean autoIndexing = Query.getBoolean(context, "autoIndexing", false);
+    String[] params = HApiParam.HQuery.parseMainParams(context);
+    final boolean autoIndexing = HQuery.getBoolean(context, "autoIndexing", false);
 
     try {
-      HttpConnectorTaskHandler.maintainIndices(params[0],params[1], params[2], autoIndexing, ar -> {
+      MaintenanceHandler.maintainIndices(params[0],params[1], params[2], autoIndexing, ar -> {
         if (ar.failed()) {
           this.sendErrorResponse(context, ar.cause());
         }
@@ -126,10 +124,10 @@ public class HttpConnectorApi extends Api {
   }
 
   private void getConnectorStatus(final RoutingContext context) {
-    String[] params = parseMainParams(context);
+    String[] params = HApiParam.HQuery.parseMainParams(context);
 
     try {
-      HttpConnectorTaskHandler.getConnectorStatus(params[0],params[1], params[2], ar -> {
+      MaintenanceHandler.getConnectorStatus(params[0],params[1], params[2], ar -> {
         if (ar.failed()) {
           this.sendErrorResponse(context, ar.cause());
         }
@@ -144,16 +142,16 @@ public class HttpConnectorApi extends Api {
   }
 
   private void postMaintainSpace(final RoutingContext context) {
-    String[] params = parseMainParams(context);
+    String[] params = HApiParam.HQuery.parseMainParams(context);
 
     String spaceId = null;
-    if (context.pathParam(ApiParam.Path.SPACE_ID) != null) {
-      spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
+    if (context.pathParam(HApiParam.Path.SPACE_ID) != null) {
+      spaceId = context.pathParam(HApiParam.Path.SPACE_ID);
     }
-    final boolean force = Query.getBoolean(context, "force", false);
+    final boolean force = HQuery.getBoolean(context, "force", false);
 
     try {
-      HttpConnectorTaskHandler.maintainSpace(params[0],params[1], params[2],  spaceId, force, ar -> {
+      MaintenanceHandler.maintainSpace(params[0],params[1], params[2],  spaceId, force, ar -> {
         if (ar.failed()) {
           this.sendErrorResponse(context, ar.cause());
         }
@@ -168,15 +166,15 @@ public class HttpConnectorApi extends Api {
   }
 
   private void getMaintenanceStatusSpace(final RoutingContext context) {
-    String[] params = parseMainParams(context);
+    String[] params = HApiParam.HQuery.parseMainParams(context);
 
     String spaceId = null;
-    if (context.pathParam(ApiParam.Path.SPACE_ID) != null) {
-      spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
+    if (context.pathParam(HApiParam.Path.SPACE_ID) != null) {
+      spaceId = context.pathParam(HApiParam.Path.SPACE_ID);
     }
 
     try {
-      HttpConnectorTaskHandler.getMaintenanceStatusOfSpace(params[0],params[1], params[2],  spaceId, ar -> {
+      MaintenanceHandler.getMaintenanceStatusOfSpace(params[0],params[1], params[2],  spaceId, ar -> {
         if (ar.failed()) {
           this.sendErrorResponse(context, ar.cause());
         }
@@ -191,17 +189,17 @@ public class HttpConnectorApi extends Api {
   }
 
   private void postMaintainHistory(final RoutingContext context) {
-    String[] params = parseMainParams(context);
-    final int maxVersionCount = Query.getInteger(context, "maxVersionCount", -1);
-    final int currentVersion = Query.getInteger(context, "currentVersion", -1);
+    String[] params = HApiParam.HQuery.parseMainParams(context);
+    final int maxVersionCount = HQuery.getInteger(context, "maxVersionCount", -1);
+    final int currentVersion = HQuery.getInteger(context, "currentVersion", -1);
 
     String spaceId = null;
-    if (context.pathParam(ApiParam.Path.SPACE_ID) != null) {
-      spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
+    if (context.pathParam(HApiParam.Path.SPACE_ID) != null) {
+      spaceId = context.pathParam(HApiParam.Path.SPACE_ID);
     }
 
     try {
-      HttpConnectorTaskHandler.maintainHistory(params[0],params[1], params[2], spaceId, currentVersion, maxVersionCount, ar -> {
+      MaintenanceHandler.maintainHistory(params[0],params[1], params[2], spaceId, currentVersion, maxVersionCount, ar -> {
         if (ar.failed()) {
           sendErrorResponse(context, ar.cause());
         }
@@ -215,18 +213,5 @@ public class HttpConnectorApi extends Api {
     }
   }
 
-  private String[] parseMainParams(RoutingContext context) {
-    String connectorId = Query.getString(context, "connectorId", null);
-    addStreamInfo(context, "SID", connectorId);
 
-    return new String[]{
-            connectorId,
-            Query.getString(context, "ecps", null),
-            Query.getString(context, "passphrase", HttpConnector.configuration.ECPS_PHRASE)
-    };
-  }
-
-  private static void addStreamInfo(final RoutingContext context, String key, Object value){
-    context.put(STREAM_INFO_CTX_KEY, new HashMap<String, Object>(){{put(key, value);}});
-  }
 }

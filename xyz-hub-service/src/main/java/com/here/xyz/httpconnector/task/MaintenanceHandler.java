@@ -17,11 +17,10 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.task;
+package com.here.xyz.httpconnector.task;
 
 import com.here.xyz.hub.Core;
-import com.here.xyz.hub.HttpConnector;
-import com.here.xyz.hub.PsqlHttpVerticle;
+import com.here.xyz.httpconnector.CService;
 import com.here.xyz.hub.rest.HttpException;
 
 import com.here.xyz.psql.DatabaseMaintainer;
@@ -42,14 +41,14 @@ import java.sql.SQLException;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
 
-public class HttpConnectorTaskHandler {
+public class MaintenanceHandler {
   private static final Logger logger = LogManager.getLogger();
 
   public static void getConnectorStatus(String connectorId, String ecps, String passphrase, Handler<AsyncResult<XyzResponse>> handler) {
     ConnectorStatus connectorStatus;
 
     try {
-      connectorStatus = HttpConnector.maintenanceClient.getConnectorStatus(connectorId, ecps, passphrase);
+      connectorStatus = CService.maintenanceClient.getConnectorStatus(connectorId, ecps, passphrase);
       if(connectorStatus == null){
         handler.handle(Future.failedFuture(new HttpException(NOT_FOUND, "Cant get status for connector: "+connectorId)));
         return;
@@ -62,13 +61,13 @@ public class HttpConnectorTaskHandler {
 
   public static void initializeDatabase(String connectorId, String ecps, String passphrase, boolean force, Handler<AsyncResult<XyzResponse>> handler) {
     try {
-      ConnectorStatus dbStatus = force ? null : HttpConnector.maintenanceClient.getConnectorStatus(connectorId, ecps, passphrase);
+      ConnectorStatus dbStatus = force ? null : CService.maintenanceClient.getConnectorStatus(connectorId, ecps, passphrase);
       if(dbStatus != null && dbStatus.isInitialized()) {
         /** Nothing more to do */
         logger.info("Database is already initialized for connector: {}",connectorId);
       } else {
         logger.info("Start database initialization for connector: {} ",connectorId);
-        HttpConnector.maintenanceClient.initializeOrUpdateDatabase(connectorId, ecps, passphrase);
+        CService.maintenanceClient.initializeOrUpdateDatabase(connectorId, ecps, passphrase);
       }
       handler.handle(Future.succeededFuture(new SuccessResponse().withStatus("Ok")));
     }catch (Exception e) {
@@ -79,12 +78,12 @@ public class HttpConnectorTaskHandler {
   public static void maintainIndices(String connectorId, String ecps, String passphrase, boolean autoIndexing, Handler<AsyncResult<XyzResponse>> handler) {
     try {
       boolean force = false;
-      ConnectorStatus connectorStatus = HttpConnector.maintenanceClient.getConnectorStatus(connectorId, ecps, passphrase);
+      ConnectorStatus connectorStatus = CService.maintenanceClient.getConnectorStatus(connectorId, ecps, passphrase);
 
       if(connectorStatus != null && connectorStatus.isInitialized()) {
         if( DatabaseMaintainer.XYZ_EXT_VERSION > connectorStatus.getScriptVersions().get("ext") || DatabaseMaintainer.H3_CORE_VERSION > connectorStatus.getScriptVersions().get("h3") ){
           logger.warn("Database needs an update: {}",connectorId);
-          HttpConnector.maintenanceClient.initializeOrUpdateDatabase(connectorId, ecps, passphrase);
+          CService.maintenanceClient.initializeOrUpdateDatabase(connectorId, ecps, passphrase);
         }
 
         if(connectorStatus.getMaintenanceStatus() != null && connectorStatus.getMaintenanceStatus().get(ConnectorStatus.AUTO_INDEXING) !=  null) {
@@ -92,12 +91,12 @@ public class HttpConnectorTaskHandler {
 
           if(autoIndexingStatus.getMaintenanceRunning().size() > 0 ){
             Long timeSinceLastRunInHr = (Core.currentTimeMillis() - autoIndexingStatus.getMaintainedAt()) / 1000 / 60 / 60;
-            if(timeSinceLastRunInHr > HttpConnector.configuration.MISSING_MAINTENANCE_WARNING_IN_HR) {
+            if(timeSinceLastRunInHr > CService.configuration.MISSING_MAINTENANCE_WARNING_IN_HR) {
               logger.warn("Last MaintenanceRun is older than {}h - connector: {}", timeSinceLastRunInHr, connectorId);
               //clean potential orphan maintenance jobIds
               force = true;
             }else{
-              if(autoIndexingStatus.getMaintenanceRunning().size() >= HttpConnector.configuration.MAX_CONCURRENT_MAINTENANCE_TASKS) {
+              if(autoIndexingStatus.getMaintenanceRunning().size() >= CService.configuration.MAX_CONCURRENT_MAINTENANCE_TASKS) {
                 handler.handle(Future.failedFuture(new HttpException(CONFLICT, "Maximal concurrent Indexing tasks are running!")));
                 return;
               }
@@ -106,7 +105,7 @@ public class HttpConnectorTaskHandler {
         }
 
         logger.info("Start maintain indices for connector: {}", connectorId);
-        HttpConnector.maintenanceClient.maintainIndices(connectorId, ecps, passphrase, autoIndexing, force);
+        CService.maintenanceClient.maintainIndices(connectorId, ecps, passphrase, autoIndexing, force);
         handler.handle(Future.succeededFuture(new SuccessResponse().withStatus("Ok")));
       } else {
         logger.warn("Database not initialized for connector: {}",connectorId);
@@ -123,7 +122,7 @@ public class HttpConnectorTaskHandler {
     try {
 
       if(!force) {
-        SpaceStatus maintenanceStatusOfSpace = HttpConnector.maintenanceClient.getMaintenanceStatusOfSpace(connectorId, ecps, passphrase, spaceId);
+        SpaceStatus maintenanceStatusOfSpace = CService.maintenanceClient.getMaintenanceStatusOfSpace(connectorId, ecps, passphrase, spaceId);
         if (maintenanceStatusOfSpace != null && maintenanceStatusOfSpace.isIdxCreationFinished() != null && !maintenanceStatusOfSpace.isIdxCreationFinished()) {
           logger.warn("Index creation is currently running on {}/{}", spaceId, connectorId);
           handler.handle(Future.failedFuture(new HttpException(CONFLICT, "Index creation is currently running!")));
@@ -131,7 +130,7 @@ public class HttpConnectorTaskHandler {
         }
       }
 
-      HttpConnector.maintenanceClient.maintainSpace(connectorId, ecps, passphrase, spaceId);
+      CService.maintenanceClient.maintainSpace(connectorId, ecps, passphrase, spaceId);
       /** If the space does not exists we return also OK */
       handler.handle(Future.succeededFuture(new SuccessResponse().withStatus("Ok")));
     }catch (SQLException e){
@@ -150,7 +149,7 @@ public class HttpConnectorTaskHandler {
                                    Handler<AsyncResult<XyzResponse>> handler) {
 
     try {
-      HttpConnector.maintenanceClient.maintainHistory(connectorId, ecps, passphrase, spaceId, currentVersion, maxVersionCount);
+      CService.maintenanceClient.maintainHistory(connectorId, ecps, passphrase, spaceId, currentVersion, maxVersionCount);
       handler.handle(Future.succeededFuture(new SuccessResponse().withStatus("Ok")));
     }catch (SQLException e){
       if(e.getSQLState() != null && e.getSQLState().equals("42P01")){
@@ -167,7 +166,7 @@ public class HttpConnectorTaskHandler {
   public static void getMaintenanceStatusOfSpace(String connectorId, String ecps, String passphrase, String spaceId,
                                                  Handler<AsyncResult<XyzResponse>> handler) {
     try {
-      SpaceStatus maintenanceStatusOfSpace = HttpConnector.maintenanceClient.getMaintenanceStatusOfSpace(connectorId, ecps, passphrase, spaceId);
+      SpaceStatus maintenanceStatusOfSpace = CService.maintenanceClient.getMaintenanceStatusOfSpace(connectorId, ecps, passphrase, spaceId);
       if(maintenanceStatusOfSpace == null) {
         handler.handle(Future.failedFuture(new HttpException(NOT_FOUND, "Can not find entry in idx-table: "+spaceId)));
         return;

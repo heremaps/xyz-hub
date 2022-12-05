@@ -202,7 +202,7 @@ public class ApiParam {
     /**
      * Returns the first value for a query parameter, if such exists, or the provided alternative value otherwise.
      */
-    static String getString(RoutingContext context, String param, String alt) {
+    public static String getString(RoutingContext context, String param, String alt) {
       queryParam(param, context);
       if (queryParam(param, context).size() == 0) {
         return alt;
@@ -219,7 +219,7 @@ public class ApiParam {
      * Returns the first value for a query parameter, if such exists and can be parsed as an integer, or the provided alternative value
      * otherwise.
      */
-    static Integer getInteger(RoutingContext context, String param, Integer alt) {
+    public static Integer getInteger(RoutingContext context, String param, Integer alt) {
       try {
         return Integer.parseInt(getString(context, param, null));
       }
@@ -263,7 +263,7 @@ public class ApiParam {
      * Returns the first value for a query parameter, if such exists and matches either the string 'true' or 'false', or the provided
      * alternative value otherwise.
      */
-    static boolean getBoolean(RoutingContext context, String param, boolean alt) {
+    public static boolean getBoolean(RoutingContext context, String param, boolean alt) {
       queryParam(param, context);
       if (queryParam(param, context).size() == 0) {
         return alt;

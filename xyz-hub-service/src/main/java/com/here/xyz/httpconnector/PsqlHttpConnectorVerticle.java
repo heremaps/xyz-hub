@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,26 +17,38 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub;
-
-import static io.vertx.core.http.HttpHeaders.CONTENT_LENGTH;
+package com.here.xyz.httpconnector;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.io.ByteStreams;
 import com.here.xyz.connectors.AbstractConnectorHandler;
-import com.here.xyz.hub.rest.HttpConnectorApi;
+import com.here.xyz.httpconnector.rest.HttpConnectorApi;
+import com.here.xyz.httpconnector.rest.JobApi;
+import com.here.xyz.httpconnector.rest.JobStatusApi;
+import com.here.xyz.hub.AbstractHttpServerVerticle;
+import com.here.xyz.hub.XYZHubRESTVerticle;
 import com.here.xyz.psql.PSQLXyzConnector;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Promise;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.ext.web.Router;
-import java.util.HashMap;
-import java.util.Map;
 import io.vertx.ext.web.openapi.RouterBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
+import java.util.HashMap;
+import java.util.Map;
+
+import static io.vertx.core.http.HttpHeaders.CONTENT_LENGTH;
+
+/**
+ * Verticle for HTTP-Connector. Includes three API tribes for :
+ * - event Processing
+ * - maintenance Tasks
+ * - job execution
+ */
+
+public class PsqlHttpConnectorVerticle extends AbstractHttpServerVerticle {
 
   private static final Logger logger = LogManager.getLogger();
   private static Map<String, String> envMap;
@@ -65,8 +77,11 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
           populateEnvMap();
 
           new HttpConnectorApi(rb, connector);
+          new JobApi(rb);
 
           final Router router = rb.createRouter();
+
+          new JobStatusApi(router);
 
           //OpenAPI resources
           router.route("/psql/static/openapi/*").handler(createCorsHandler()).handler((routingContext -> {
@@ -85,7 +100,7 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
 
           //Add default handlers
           addDefaultHandlers(router);
-          createHttpServer(HttpConnector.configuration.HTTP_PORT, router);
+          createHttpServer(CService.configuration.HTTP_PORT, router);
         }
         catch (Exception e) {
           logger.error("An error occurred, during the creation of the router from the Open API specification file.", e);
@@ -101,17 +116,16 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
     if (envMap != null)
       return envMap;
 
-    try {
-      populateEnvMap();
-    }catch (Exception e){
-      logger.error("Cannot populate EnvMap");
-    }
+    populateEnvMap();
 
     return envMap;
   }
 
-  public static synchronized void populateEnvMap() throws Exception{
-    envMap =
-      new ObjectMapper().convertValue(HttpConnector.configuration, HashMap.class);
+  public static synchronized void populateEnvMap(){
+    try {
+      envMap = new ObjectMapper().convertValue(CService.configuration, HashMap.class);
+    }catch (Exception e){
+      logger.error("Cannot populate EnvMap");
+    }
   }
 }
