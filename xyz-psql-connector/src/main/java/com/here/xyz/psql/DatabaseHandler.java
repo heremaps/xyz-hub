@@ -954,11 +954,15 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     private void oneTimeAlterExistingTablesAddNewColumnsAndIndices(String phase, List<String> tableNames, Connection connection) throws SQLException {
+        logger.info("Executing " + phase + " for tables: " + String.join(", ", tableNames));
         final String schema = config.getDatabaseSettings().getSchema();
         for (String tableName : tableNames) {
+            logger.info(phase + ": process table" + tableName);
             //Check if table exists, if not don't do anything for that table
-            if (!hasTable(tableName))
+            if (!hasTable(tableName)) {
+                logger.info(phase + ": table not found: " + tableName);
                 continue;
+            }
 
             advisoryLock(tableName, connection);
             boolean cStateFlag = connection.getAutoCommit();
