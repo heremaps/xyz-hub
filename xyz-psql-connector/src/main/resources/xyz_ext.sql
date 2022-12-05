@@ -169,7 +169,7 @@ $$;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_import_trigger()
- RETURNS trigger AS
+ RETURNS trigger
 AS $BODY$
 	DECLARE
         spaceId text := TG_ARGV[0];
@@ -210,7 +210,7 @@ AS $BODY$
         END IF;
         RETURN NEW;
     END;
-$BODY$;
+$BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
