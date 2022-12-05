@@ -592,7 +592,7 @@ begin
    rowy = i;
    colx = (j % numrowscols);
    saveCounter = saveCounter + 1;
-   
+
    if( saveCounter < 10000 ) then
     return next;
    else
@@ -795,7 +795,7 @@ $BODY$
 			   SELECT indexname, substring(indexname from char_length(spaceid) + 6) as idx_on, COALESCE((SELECT source from xyz_index_name_dissolve_to_property(indexname,spaceid)),'s') as source
 				FROM pg_indexes
 					WHERE
-				schemaname = ''||schema||'' AND tablename = ''||spaceid||''
+				schemaname = ''||schema||'' AND tablename = ''||spaceid||'' AND starts_with(indexname, 'idx_')
 		LOOP
 			src := av_idx_list.source;
 			idx_name := av_idx_list.indexname;
@@ -938,7 +938,7 @@ $BODY$
 		idx_type text := 'btree';
 	BEGIN
 		source = lower(source);
-		prop_path := '''' || replace( regexp_replace( xyz_index_get_plain_propkey(propkey),'^f\.',''),'.','''->''') || ''''; 
+		prop_path := '''' || replace( regexp_replace( xyz_index_get_plain_propkey(propkey),'^f\.',''),'.','''->''') || '''';
 
         /** root level property detected */
         IF (lower(SUBSTRING(propkey from 0 for 3)) = 'f.') THEN
@@ -2784,13 +2784,13 @@ language plpgsql immutable;
 CREATE OR REPLACE FUNCTION _prj_flatten(jdoc jsonb, depth integer )
 RETURNS TABLE(level integer, jkey text, jval jsonb) AS
 $body$
-with 
+with
  indata1  as ( select jdoc as jdata ),
  indata2  as ( select coalesce( depth, 100 )::integer as depth ), -- if unset, restrict leveldepth to 100, safetyreason
  outdata as
  ( with recursive searchobj( level, jkey, jval ) as
   (
-    select 0::integer as level, key as jkey, value as jval 
+    select 0::integer as level, key as jkey, value as jval
     from jsonb_each( jsonb_set('{}','{s}', (select jdata from indata1) ))
    union all
     select i.level + 1 as level, i.jkey || coalesce( '.' || key, '[' || ((row_number() over ( partition by i.jkey ) ) - 1)::text || ']' ), i.value as jval
@@ -2804,7 +2804,7 @@ with
   )
   select level, nullif( regexp_replace(jkey,'^s\.?','' ),'') as jkey, jval from searchobj, indata2 i2
   where 1 = 1
-    and 
+    and
     ( ( level = i2.depth ) or ( jsonb_typeof( jval ) in ( 'string', 'number', 'boolean', 'null' ) and level < i2.depth ) )
  )
  select level, jkey, jval from outdata
@@ -2825,25 +2825,25 @@ $body$
 with
  inleft  as ( select level, jkey, jval from _prj_flatten( left_jdoc , 1 ) ),
  inright as ( select level, jkey, jval from _prj_flatten( right_jdoc, 1 ) ),
- outdiff as 
+ outdiff as
  ( with recursive diffobj( level, jkey, jval_l, jval_r ) as
    (
      select coalesce( r.level, l.level ) as level, coalesce( l.jkey, r.jkey ) as jkey, l.jval as jval_l, r.jval as jval_r
      from inleft l full outer join inright r on ( r.jkey = l.jkey  )
      where (l.jkey isnull) or (r.jkey isnull) or ( l.jval != r.jval )
 	union all
-	 select ( i.level + nxt.level ) as level , 
-		    case nxt.jkey ~ '^\[\d+\]$' 
-	         when false then  i.jkey || '.' || nxt.jkey 
-			 else i.jkey || nxt.jkey 
-		    end as jkey,  /*i.jval_l, i.jval_r,*/ 
+	 select ( i.level + nxt.level ) as level ,
+		    case nxt.jkey ~ '^\[\d+\]$'
+	         when false then  i.jkey || '.' || nxt.jkey
+			 else i.jkey || nxt.jkey
+		    end as jkey,  /*i.jval_l, i.jval_r,*/
 		   nxt.jval_l, nxt.jval_r
-	 from diffobj i, 
+	 from diffobj i,
 		  lateral
 		  ( select coalesce( r.level, l.level ) as level, coalesce( l.jkey, r.jkey ) as jkey, l.jval as jval_l, r.jval as jval_r
 		    from _prj_flatten( i.jval_l,1) l full outer join _prj_flatten(i.jval_r,1) r on ( r.jkey = l.jkey  )
 		    where (l.jkey isnull) or (r.jkey isnull) or ( l.jval != r.jval )
-		  ) nxt   
+		  ) nxt
 	 where 1 = 1
 	   and jsonb_typeof( i.jval_l ) in ( 'object', 'array' )
 	   and jsonb_typeof( i.jval_l ) = jsonb_typeof( i.jval_r )

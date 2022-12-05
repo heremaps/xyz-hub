@@ -26,7 +26,7 @@ public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<
   private List<String> selection;
   private boolean force2D;
 
-  private long revision = Long.MAX_VALUE; //Default is HEAD revision
+  private String ref;
 
   private String author;
 
@@ -46,16 +46,16 @@ public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<
     return (T) this;
   }
 
-  public long getRevision() {
-    return revision;
+  public String getRef() {
+    return ref;
   }
 
-  public void setRevision(long revision) {
-    this.revision = revision;
+  public void setRef(String ref) {
+    this.ref = ref;
   }
 
-  public T withRevision(long revision) {
-    setRevision(revision);
+  public T withRef(String ref) {
+    setRef(ref);
     return (T) this;
   }
 
@@ -67,7 +67,7 @@ public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<
     this.author = author;
   }
 
-  public T withRevision(String author) {
+  public T withAuthor(String author) {
     setAuthor(author);
     return (T) this;
   }

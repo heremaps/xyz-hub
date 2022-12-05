@@ -70,7 +70,7 @@ public class SpaceAuthorization extends Authorization {
 
   public static List<String> basicEdit = Arrays
       .asList("id", "title", "description", "client", "copyright", "license", "shared", "enableUUID", "enableHistory", "maxVersionCount",
-          "cacheTTL", "readOnly", "extends", STORAGE, LISTENERS, PROCESSORS, SEARCHABLE_PROPERTIES, SORTABLE_PROPERTIES );
+          "cacheTTL", "readOnly", "extends", "versionsToKeep", STORAGE, LISTENERS, PROCESSORS, SEARCHABLE_PROPERTIES, SORTABLE_PROPERTIES );
 
   public static List<String> packageEdit = Collections.singletonList(PACKAGES);
 

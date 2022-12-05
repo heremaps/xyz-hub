@@ -23,6 +23,7 @@ import static com.here.xyz.hub.task.FeatureTask.FeatureKey.CREATED_AT;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.MUUID;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PUUID;
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.VERSION;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.SPACE;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.UPDATED_AT;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.UUID;
@@ -99,8 +100,11 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
 
   public static class FeatureEntry extends ModifyOp.Entry<Feature> {
 
+    public int inputVersion;
+
     public FeatureEntry(Map<String, Object> input, IfNotExists ifNotExists, IfExists ifExists, ConflictResolution cr) {
       super(input, ifNotExists, ifExists, cr);
+      inputVersion = getVersion(input);
     }
 
     @Override
@@ -160,6 +164,14 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
                 .put(UUID, true)
                 .put(PUUID, true)
                 .put(MUUID, true))).mapTo(Map.class);
+
+    private int getVersion(Map<String, Object> input) {
+      try {
+        return new JsonObject(input).getJsonObject(PROPERTIES).getJsonObject(XyzNamespace.XYZ_NAMESPACE).getInteger(VERSION, 0);
+      } catch (Exception e) {
+        return 0;
+      }
+    }
   }
 
   /**
@@ -170,8 +182,7 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
    * @throws ModifyOpError
    */
   @Override
-  @SuppressWarnings("unchecked")
-  public void validateCreate(Entry entry) throws ModifyOpError {
+  public void validateCreate(Entry<Feature> entry) throws ModifyOpError {
     if (!allowFeatureCreationWithUUID && entry.inputUUID != null)
       throw new ModifyOpError(
           "The feature with id " + entry.input.get("id") + " cannot be created. Property UUID should not be provided as input.");

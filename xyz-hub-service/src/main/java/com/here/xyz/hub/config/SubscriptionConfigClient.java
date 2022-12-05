@@ -22,9 +22,7 @@ package com.here.xyz.hub.config;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.models.hub.Subscription;
-import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
-import io.vertx.core.Handler;
 import io.vertx.core.Promise;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
@@ -73,9 +71,10 @@ public abstract class SubscriptionConfigClient implements Initializable {
                 if(subscription == null) {
                     logger.warn(marker, "subscriptionId [{}]: Subscription not found", subscriptionId);
                     p.fail(new RuntimeException("The subscription config was not found for subscription ID: " + subscriptionId));
+                } else {
+                    cache.put(subscriptionId, subscription);
+                    p.complete(subscription);
                 }
-                cache.put(subscriptionId, subscription);
-                p.complete(subscription);
             }
             else {
                 logger.warn(marker, "subscriptionId [{}]: Subscription not found", subscriptionId);
@@ -98,6 +97,7 @@ public abstract class SubscriptionConfigClient implements Initializable {
         getSubscriptionsBySource(marker, source).onComplete( ar -> {
             if (ar.succeeded()) {
                 final List<Subscription> subscriptions = ar.result();
+                cacheBySource.put(source, subscriptions);
                 subscriptions.forEach(s -> {
                     cache.put(s.getId(), s);
                 });
@@ -129,22 +129,22 @@ public abstract class SubscriptionConfigClient implements Initializable {
     }
 
     public Future<Void> store(Marker marker, Subscription subscription) {
-        Promise<Void> p = Promise.promise();
+
         if (subscription.getId() == null) {
             subscription.setId(RandomStringUtils.randomAlphanumeric(10));
         }
 
         return storeSubscription(marker, subscription)
                 .onSuccess(ar -> {
-                    invalidateCache(subscription.getId());
+                    invalidateCache(subscription);
                 }).onFailure(t -> logger.error(marker, "subscriptionId[{}]: Failed to store subscription configuration, reason: ", subscription.getId(), t));
     }
 
-    public Future<Subscription> delete(Marker marker, String subscriptionId) {
-        return deleteSubscription(marker, subscriptionId)
+    public Future<Subscription> delete(Marker marker, Subscription subscription) {
+        return deleteSubscription(marker, subscription.getId())
                 .onSuccess(ar -> {
-                    invalidateCache(subscriptionId);
-                }).onFailure(t -> logger.error(marker, "subscriptionId[{}]: Failed to delete subscription configuration, reason: ", subscriptionId, t));
+                    invalidateCache(subscription);
+                }).onFailure(t -> logger.error(marker, "subscriptionId[{}]: Failed to delete subscription configuration, reason: ", subscription.getId(), t));
     }
 
     protected abstract Future<Subscription> getSubscription(Marker marker, String subscriptionId);
@@ -157,31 +157,33 @@ public abstract class SubscriptionConfigClient implements Initializable {
 
     protected abstract Future<List<Subscription>> getAllSubscriptions(Marker marker);
 
-    public void invalidateCache(String subscriptionId) {
-        cache.remove(subscriptionId);
-        new SubscriptionConfigClient.InvalidateSpaceCacheMessage().withId(subscriptionId).withGlobalRelay(true).broadcast();
+    public void invalidateCache(Subscription subscription) {
+        cache.remove(subscription.getId());
+        cacheBySource.remove(subscription.getSource());
+        new InvalidateSubscriptionCacheMessage().withSubscription(subscription).withGlobalRelay(true).broadcast();
     }
 
-    public static class InvalidateSpaceCacheMessage extends RelayedMessage {
+    public static class InvalidateSubscriptionCacheMessage extends RelayedMessage {
 
-        private String id;
+        private Subscription subscription;
 
-        public String getId() {
-            return id;
+        public Subscription getSubscription() {
+            return subscription;
         }
 
-        public void setId(String id) {
-            this.id = id;
+        public void setSubscription(Subscription subscription) {
+            this.subscription = subscription;
         }
 
-        public SubscriptionConfigClient.InvalidateSpaceCacheMessage withId(String id) {
-            this.id = id;
+        public InvalidateSubscriptionCacheMessage withSubscription(Subscription subscription) {
+            this.subscription = subscription;
             return this;
         }
 
         @Override
         protected void handleAtDestination() {
-            cache.remove(id);
+            cache.remove(subscription.getId());
+            cacheBySource.remove(subscription.getSource());
         }
     }
 }

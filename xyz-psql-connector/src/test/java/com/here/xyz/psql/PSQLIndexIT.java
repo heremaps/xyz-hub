@@ -182,6 +182,11 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                 add("tags");
                 add("id");
                 add("viz");
+                add("idnew");
+                add("version");
+                add("idversion");
+                add("idversionnextversion");
+                add("operation");
             }};
 
             String sqlSpaceSchema = "(select schema_name::text from information_schema.schemata where schema_name in ('xyz','public') order by 1 desc limit 1)";
@@ -194,7 +199,8 @@ public class PSQLIndexIT extends PSQLAbstractIT {
             while(resultSet.next()){
                 String idxProperty = resultSet.getString("idx_property");
                 if(systemIndices.contains(idxProperty)) {
-                    systemIndices.remove(idxProperty);
+                    if (!idxProperty.equals("Key"))
+                        systemIndices.remove(idxProperty);
                     assertEquals("s",resultSet.getString("src"));
                 }
                 else {

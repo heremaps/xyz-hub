@@ -21,14 +21,11 @@ package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.jayway.restassured.RestAssured.given;
-import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 public class TestCompositeSpace extends TestSpaceWithFeature {
 
@@ -36,14 +33,22 @@ public class TestCompositeSpace extends TestSpaceWithFeature {
   public void setup() {
     tearDown();
     createSpace();
+    createSpaceWithCustomStorage("x-psql-test-2", "psql", null);
     createSpaceWithExtension("x-psql-test");
     createSpaceWithExtension("x-psql-test-ext");
+
+    //FIXME: in order to get the extending space to be created, a read or write operation must be executed, otherwise a 504 is returned
+    getFeature("x-psql-test", "F1");
+    getFeature("x-psql-test-2", "F1");
+    getFeature("x-psql-test-ext", "F1");
+    getFeature("x-psql-test-ext-ext", "F1");
   }
 
   @After
   public void tearDown() {
     removeSpace("x-psql-test-ext-ext");
     removeSpace("x-psql-test-ext");
+    removeSpace("x-psql-test-2");
     removeSpace("x-psql-test");
   }
 
@@ -59,5 +64,16 @@ public class TestCompositeSpace extends TestSpaceWithFeature {
         .statusCode(OK.code())
         .body("id", equalTo(extensionId))
         .body("extends.spaceId", equalTo(extendingSpaceId));
+  }
+
+  protected void modifyComposite(String spaceId, String newExtendingId) {
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body("{\"extends\":{\"spaceId\":\"" + newExtendingId + "\"}}")
+        .when()
+        .patch("/spaces/" + spaceId)
+        .then()
+        .statusCode(OK.code());
   }
 }

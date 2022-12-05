@@ -83,18 +83,11 @@ import org.apache.logging.log4j.Logger;
 
 public class PSQLXyzConnector extends DatabaseHandler {
 
-  /**
-   * Real live counts via count(*)
-   */
-  public static final String COUNTMODE_REAL = "real";
-  /**
-   * Estimated counts, determined with _postgis_selectivity() or EXPLAIN Plan analyze
-   */
-  public static final String COUNTMODE_ESTIMATED = "estimated";
-  /**
-   * Combination of real and estimated.
-   */
-  public static final String COUNTMODE_MIXED = "mixed";
+  public static final String COUNTMODE_REAL      = "real";  // Real live counts via count(*)
+  public static final String COUNTMODE_ESTIMATED = "estimated"; // Estimated counts, determined with _postgis_selectivity() or EXPLAIN Plan analyze
+  public static final String COUNTMODE_MIXED     = "mixed"; // Combination of real and estimated.
+  public static final String COUNTMODE_BOOL      = "bool"; // no counts but test [0|1] if data exists int tile.
+
   private static final Logger logger = LogManager.getLogger();
   /**
    * The context for this request.
@@ -369,7 +362,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
         //Check if Properties are indexed
         checkCanSearchFor(event);
 
-      if (event.getParams() != null && event.getParams().containsKey("extends") && event.getContext() == DEFAULT)
+      if (isForExtendingSpace(event) && event.getContext() == DEFAULT)
         return new GetFeaturesByBBox<>(event, this).run();
 
       if( !bMvtRequested )
@@ -389,11 +382,14 @@ public class PSQLXyzConnector extends DatabaseHandler {
    */
   private void checkQuadbinInput(String countMode, int relResolution, GetFeaturesByBBoxEvent event, String streamId) throws ErrorResponseException
   {
-    if(countMode != null && (!countMode.equalsIgnoreCase(COUNTMODE_REAL) && !countMode.equalsIgnoreCase(COUNTMODE_ESTIMATED) && !countMode.equalsIgnoreCase(
-        COUNTMODE_MIXED)) )
-      throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-          "Invalid request parameters. Unknown clustering.countmode="+countMode+". Available are: ["+ COUNTMODE_REAL
-              +","+ COUNTMODE_ESTIMATED +","+ COUNTMODE_MIXED +"]!");
+    if( countMode != null )
+     switch( countMode.toLowerCase() )
+     { case COUNTMODE_REAL : case COUNTMODE_ESTIMATED: case COUNTMODE_MIXED: case COUNTMODE_BOOL : break;
+       default:
+        throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
+             "Invalid request parameters. Unknown clustering.countmode="+countMode+". Available are: ["+ COUNTMODE_REAL
+            +","+ COUNTMODE_ESTIMATED +","+ COUNTMODE_MIXED +","+ COUNTMODE_BOOL +"]!");
+     }
 
     if(relResolution > 5)
       throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
@@ -568,7 +564,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   }
 
   private void validateModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception {
-    
+
    switch(event.getOperation())
    { case CREATE : case UPDATE : case DELETE : break;
      default:

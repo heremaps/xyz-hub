@@ -191,13 +191,44 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
+  '/spaces/{spaceId}/revisions':
+    delete:
+      tags:
+        - Manage Spaces
+      summary: Delete revisions
+      description: >-
+        Deletes one or more revisions where the revision number can be specified by the query parameter 'revision', where
+        the value must be an integer, bigger than 0 and the comparator should be one of the below list:
+          - <
+          - =lt=
+        
+        
+        Example: To remove revisions older than the 10th revision,
+        a DELETE /spaces/{spaceId}/revisions?revision=lt=10 could be executed.
+
+
+        The service will begin the process to remove the revisions from 9th revision until the 1st revision.
+        During the deletion process, newer revisions can be created and won't be affected.
+      operationId: deleteRevisions
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/RevisionLowerThan'
+      responses:
+        '204':
+          $ref: '#/components/responses/EmptyResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
   '/spaces/{spaceId}/features':
     get:
       tags:
         - Read Features
       summary: Get features by ID
       description: >-
-        Returns all of the features found for the provided list of IDs.
+        Returns all the features found for the provided list of IDs.
         The response is always a FeatureCollection,
         even if there are no features with the provided IDs.
       operationId: getFeatures
@@ -207,6 +238,8 @@ paths:
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
+        - $ref: '#/components/parameters/Revision'
+        - $ref: '#/components/parameters/Author'
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionResponse'
@@ -422,6 +455,8 @@ paths:
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
+        - $ref: '#/components/parameters/Revision'
+        - $ref: '#/components/parameters/Author'
       responses:
         '200':
           $ref: '#/components/responses/FeatureResponse'
@@ -983,6 +1018,28 @@ paths:
         '403':
           $ref: '#/components/responses/ErrorResponse403'
   '/spaces/{spaceId}/subscriptions/{subscriptionId}':
+    put:
+      tags:
+        - Manage Subscriptions
+      summary: Create or replace a subscription
+      description: Creates or replaces a subscription to a space.
+      operationId: putSubscription
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/SubscriptionId'
+      requestBody:
+        $ref: '#/components/requestBodies/SubscriptionRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/SubscriptionResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
     get:
       tags:
         - Manage Subscriptions
@@ -1044,6 +1101,14 @@ components:
         type: array
         items:
           type: string
+    Author:
+      name: author
+      in: query
+      description: >-
+        Filter the results per author.
+      required: false
+      schema:
+        type: string
     Clip:
       name: clip
       in: query
@@ -1124,7 +1189,7 @@ components:
         | relativeResolution | Number  | NO        | integer, The quad resolution [0,4]                                             |
         | noBuffer    | Boolean | NO        | do not place a buffer around quad polygons, default: false            |
         | resolution  | Number  | NO        | deprecated, renamed to resolutionRelative             |
-        | countmode   | String  | NO        | [real, estimated, mixed]                                    |
+        | countmode   | String  | NO        | [real, estimated, mixed, bool]                                    |
         |             |         |           | real = real feature counts. Best accuracy, but slow.                  |
         |             |         |           |     Not recommended for big result sets                       |
         |             |         |           |                                                                       |
@@ -1134,6 +1199,9 @@ components:
         |             |         |           | mixed (default) = estimated feature counts combined with real ones.   |
         |             |         |           |     If the estimation is low a real count gets applied. Fits to the |
         |             |         |           |     most use cases                                        |
+        |             |         |           |                                                                       |
+        |             |         |           | bool = test if data exists in tile but does not count features  |
+        |             |         |           |     The returned count property set to 1, for non empty tiles |
       style: form
       explode: true
       schema:
@@ -1171,18 +1239,23 @@ components:
       name: context
       in: query
       description: |
-        The context where the operation will be performed when the space extends
-        another space. If not specified, the operation occurs based on the extension
-        rules. For additional information, see Space.extends.
+        The context where the operation will be performed on a composite space.
+        If not specified, the operation occurs based on the extension rules.
+        For additional information, see Space.extends.
 
         Available context are:
         |Context|Description|
         |-------|-----------|
-        |extension|The operation will be executed only in the space which extends another and no operation will be performed in the extended space.
+        |default|The default value if none is given. For composite spaces the operation occurs based on the extension rules. For normal spaces this is the only valid context.|
+        |extension|The operation will be executed only in the extension and no operation will be performed in the extended space.|
+        |super|Only applicable for read-operations. The operation will be executed only in the space being extended (super space).|
       schema:
         type: string
         enum:
+          - default
           - extension
+          - super
+        default: default
 
     East:
       name: east
@@ -1370,7 +1443,7 @@ components:
 
 
         Properties initiated with 'f.' are used to access values which are added by default in the
-        stored feature. The possible values are: 'f.id', 'f.createdAt' and 'f.updatedAt'.
+        stored feature. The possible values are: 'f.id', 'f.createdAt', 'f.updatedAt', 'f.revision' and 'f.author'
 
 
         Properties initiated with 'p.' are used to access values in the stored feature which are
@@ -1485,6 +1558,28 @@ components:
         type: array
         items:
           type: string
+    Revision:
+      name: revision
+      in: query
+      description: >-
+        The query parameter used to specify one specific revision or all revisions when '*' is used.
+        The supported values for this field are:
+          - the char '*', e.g. ?revision=*
+          - an integer e.g. ?revision=5
+      required: false
+      schema:
+        type: string
+    RevisionLowerThan:
+      name: revision
+      in: query
+      description: >-
+        The query parameter used to specify the revisions to be deleted.
+        The value must be an integer, bigger than 1, and the comparator should be one of the below list:
+          - <
+          - =lt=
+      required: false
+      schema:
+        type: string
     SkipCache:
       name: skipCache
       in: query
@@ -2838,6 +2933,21 @@ components:
           format: int64
           readOnly: true
           type: integer
+        revision:
+          description: >-
+            The revision number groups the feature modifications in the space history in which
+            this feature is part of.
+          example: 1
+          format: int64
+          readOnly: true
+          type: integer
+        author:
+          description: >-
+            The author who performed the modification in the Feature's revision pointed
+            by 'revision'.
+          example: anonymous
+          readOnly: true
+          type: string
     OnFeatureExists:
       type: string
       enum:
@@ -2995,18 +3105,21 @@ components:
         client:
           $ref: '#/components/schemas/SpaceClient'
         enableUUID:
+          deprecated: true
           default: false
           description: >-
             Whether the uuid should be added to the response or not.
           example: true
           type: boolean
         enableHistory:
+          deprecated: true
           default: false
           description: >-
             Whether the feature's modification history should be saved.
           example: true
           type: boolean
         maxVersionCount:
+          deprecated: true
           default: 0
           description: >-
             Used to control how many versions should be kept in the history. -1 means infinite.
@@ -3095,6 +3208,16 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Connector'
+        revisionsToKeep:
+          default: 1
+          description: >-
+            Defines how many revisions will be kept, while older revisions may be purged. By default
+            this value will be set to 1. That means there will be only one (HEAD) state of the space
+            and no further revisions will be kept. If the value is bigger than 1, then older
+            revisions, up to the "revisionsToKeep" revision, can be retrieved by
+            e.g. ?revision=revision_number
+          example: 2
+          type: integer
       example:
         title: My Demo Space
         description: Description as markdown
@@ -3351,6 +3474,7 @@ components:
           enum:
             - PER_FEATURE
             - PER_TRANSACTION
+            - CONTENT_CHANGE
         params:
           type: "object"
           description: "The additional parameters of the subscription config"

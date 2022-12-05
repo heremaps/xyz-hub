@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 import org.junit.Test;
 
-public class ModifyExtensionSpaceIT extends TestCompositeSpace {
+public class ModifyCompositeSpaceIT extends TestCompositeSpace {
 
   @Test
   public void updateMutableSpaceProperties() {
@@ -87,5 +87,29 @@ public class ModifyExtensionSpaceIT extends TestCompositeSpace {
         .then()
         .statusCode(BAD_REQUEST.code())
         .body("errorMessage", equalTo("Validation failed. The properties 'storage' and 'extends' cannot be set together."));
+  }
+
+  @Test
+  public void updateExtendsProperty() {
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body("{\"extends\":{\"spaceId\":\"non-existing-space\"}}")
+        .when()
+        .patch("/spaces/x-psql-test-ext-ext")
+        .then()
+        .statusCode(BAD_REQUEST.code())
+        .body("errorMessage", equalTo("The space x-psql-test-ext-ext cannot extend the space non-existing-space because it does not exist."));
+
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body("{\"extends\":{\"spaceId\":\"x-psql-test\"}}")
+        .when()
+        .patch("/spaces/x-psql-test-ext-ext")
+        .then()
+        .statusCode(OK.code())
+        .body("id", equalTo("x-psql-test-ext-ext"))
+        .body("extends.spaceId", equalTo("x-psql-test"));
   }
 }

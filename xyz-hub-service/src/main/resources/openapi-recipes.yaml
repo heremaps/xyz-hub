@@ -171,6 +171,9 @@ recipes:
         path: paths.'/spaces/{spaceId}/subscriptions/{subscriptionId}'
         replace: paths.'/hub/spaces/{spaceId}/subscriptions/{subscriptionId}'
       - type: key
+        path: paths.'/spaces/{spaceId}/revisions'
+        replace: paths.'/hub/spaces/{spaceId}/revisions'
+      - type: key
         path: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/geo+json'.schema
         replace: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/geo+json'.x-schema
       - type: key

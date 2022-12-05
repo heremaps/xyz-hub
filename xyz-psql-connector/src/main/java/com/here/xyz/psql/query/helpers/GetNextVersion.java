@@ -17,29 +17,35 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.psql.query;
+package com.here.xyz.psql.query.helpers;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
-import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-/**
- * This class provides the utility to run a single database query which is described by an XYZ {@link Event}
- * and which returns an {@link XyzResponse}.
- * It has the internal capability to build & run the necessary {@link SQLQuery} and translate
- * the resulting {@link ResultSet} into an {@link XyzResponse}.
- * @param <E> The event type
- * @param <R> The response type
- */
-public abstract class XyzQueryRunner<E extends Event, R extends XyzResponse> extends XyzEventBasedQueryRunner<E, R> {
+public class GetNextVersion<E extends Event> extends XyzEventBasedQueryRunner<E, Integer> {
 
-  public XyzQueryRunner(E event, DatabaseHandler dbHandler)
-      throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+  public static final String VERSION_SEQUENCE_SUFFIX = "_version_seq";
+
+  public GetNextVersion(E input, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
+    super(input, dbHandler);
   }
 
+  @Override
+  protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
+    return new SQLQuery("SELECT nextval('${schema}.${sequence}')")
+        .withVariable(SCHEMA, getSchema())
+        .withVariable("sequence", getDefaultTable(event) + VERSION_SEQUENCE_SUFFIX);
+  }
+
+  @Override
+  public Integer handle(ResultSet rs) throws SQLException {
+    if (rs.next())
+      return rs.getInt(1);
+    throw new SQLException("Unable to increase version sequence.");
+  }
 }

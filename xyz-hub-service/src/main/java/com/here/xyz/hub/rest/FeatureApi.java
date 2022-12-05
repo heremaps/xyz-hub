@@ -20,6 +20,7 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.here.xyz.hub.rest.ApiParam.Query.FORCE_2D;
@@ -30,6 +31,7 @@ import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
+import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.TagsQuery;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
@@ -85,35 +87,36 @@ public class FeatureApi extends SpaceBasedApi {
    * Retrieves a feature.
    */
   private void getFeature(final RoutingContext context) {
-    final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
-    final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
-    final SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, DEFAULT.toString()).toUpperCase());
-
-    final GetFeaturesByIdEvent event = new GetFeaturesByIdEvent()
-        .withIds(Collections.singletonList(context.pathParam(Path.FEATURE_ID)))
-        .withSelection(Query.getSelection(context))
-        .withForce2D(force2D)
-        .withContext(spaceContext);
-
-    new IdsQuery(event, context, ApiResponseType.FEATURE, skipCache)
-        .execute(this::sendResponse, this::sendErrorResponse);
+    getFeatures(context, ApiResponseType.FEATURE);
   }
 
   /**
    * Retrieves multiple features by ID.
    */
   private void getFeatures(final RoutingContext context) {
+    getFeatures(context, ApiResponseType.FEATURE_COLLECTION);
+  }
+
+  private void getFeatures(final RoutingContext context, ApiResponseType apiResponseType) {
+    final List<String> ids = apiResponseType == ApiResponseType.FEATURE_COLLECTION
+        ? Query.queryParam(Query.FEATURE_ID, context)
+        : Collections.singletonList(context.pathParam(Path.FEATURE_ID));
+
     final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
     final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
-    final SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, DEFAULT.toString()).toUpperCase());
+    final SpaceContext spaceContext = getSpaceContext(context);
+    final String version = Query.getString(context, Query.VERSION, null);
+    final String author = Query.getString(context, Query.AUTHOR, null);
 
     final GetFeaturesByIdEvent event = new GetFeaturesByIdEvent()
-        .withIds(Query.queryParam(Query.FEATURE_ID, context))
+        .withIds(ids)
         .withSelection(Query.getSelection(context))
         .withForce2D(force2D)
-        .withContext(spaceContext);
+        .withRef(version)
+        .withContext(spaceContext)
+        .withAuthor(author);
 
-    new IdsQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache)
+    new IdsQuery(event, context, apiResponseType, skipCache)
         .execute(this::sendResponse, this::sendErrorResponse);
   }
 
@@ -159,7 +162,7 @@ public class FeatureApi extends SpaceBasedApi {
   private void deleteFeature(final RoutingContext context) {
     Map<String, Object> featureModification = Collections.singletonMap("featureIds",
         Collections.singletonList(context.pathParam(Path.FEATURE_ID)));
-    final SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, DEFAULT.toString()).toUpperCase());
+    final SpaceContext spaceContext = getSpaceContext(context);
     executeConditionalOperationChain(true, context, ApiResponseType.EMPTY, IfExists.DELETE, IfNotExists.RETAIN, true, ConflictResolution.ERROR,
         Collections.singletonList(featureModification), spaceContext);
   }
@@ -173,7 +176,7 @@ public class FeatureApi extends SpaceBasedApi {
     final String accept = context.request().getHeader(ACCEPT);
     final ApiResponseType responseType = APPLICATION_GEO_JSON.equals(accept) || APPLICATION_JSON.equals(accept)
         ? ApiResponseType.FEATURE_COLLECTION : ApiResponseType.EMPTY;
-    final SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, DEFAULT.toString()).toUpperCase());
+    final SpaceContext spaceContext = getSpaceContext(context);
 
     //Delete features by IDs
     if (featureIds != null && !featureIds.isEmpty()) {
@@ -185,6 +188,8 @@ public class FeatureApi extends SpaceBasedApi {
 
     //Delete features by tags
     else if (!tags.isEmpty()) {
+      if (checkModificationOnSuper(context, spaceContext))
+        return;
       DeleteFeaturesByTagEvent event = new DeleteFeaturesByTagEvent();
       if (!tags.containsWildcard()) {
         event.setTags(tags);
@@ -202,12 +207,17 @@ public class FeatureApi extends SpaceBasedApi {
    */
   private void executeConditionalOperationChain(boolean requireResourceExists, final RoutingContext context,
       ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional, ConflictResolution cr) {
+    if (checkModificationOnSuper(context, getSpaceContext(context)))
+      return;
     executeConditionalOperationChain(requireResourceExists, context, apiResponseTypeType, ifExists, ifNotExists, transactional, cr, null, DEFAULT);
   }
 
   private void executeConditionalOperationChain(boolean requireResourceExists, final RoutingContext context,
       ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional, ConflictResolution cr,
       List<Map<String, Object>> featureModifications, SpaceContext spaceContext) {
+    if (checkModificationOnSuper(context, spaceContext))
+      return;
+
     ModifyFeaturesEvent event = new ModifyFeaturesEvent().withTransaction(transactional).withContext(spaceContext);
     int bodySize = context.getBody() != null ? context.getBody().length() : 0;
     ConditionalOperation task = buildConditionalOperation(event, context, apiResponseTypeType, featureModifications, ifNotExists, ifExists, transactional, cr, requireResourceExists, bodySize);
@@ -219,6 +229,15 @@ public class FeatureApi extends SpaceBasedApi {
     XyzNamespace.fixNormalizedTags(task.removeTags);
     task.prefixId = Query.getString(context, Query.PREFIX_ID, null);
     task.execute(this::sendResponse, this::sendErrorResponse);
+  }
+
+  private static boolean checkModificationOnSuper(RoutingContext context, SpaceContext spaceContext) {
+    if (spaceContext != null && spaceContext.equals(SUPER)) {
+      context.fail(
+          new HttpException(HttpResponseStatus.FORBIDDEN, "It's not permitted to perform modifications through context " + SUPER + "."));
+      return true;
+    }
+    return false;
   }
 
   private ConditionalOperation buildConditionalOperation(
