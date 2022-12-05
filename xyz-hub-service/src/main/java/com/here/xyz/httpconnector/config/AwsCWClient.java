@@ -19,6 +19,7 @@
 
 package com.here.xyz.httpconnector.config;
 
+import com.amazonaws.regions.Regions;
 import com.amazonaws.services.cloudwatch.AmazonCloudWatch;
 import com.amazonaws.services.cloudwatch.AmazonCloudWatchClientBuilder;
 import com.amazonaws.services.cloudwatch.model.*;
@@ -45,7 +46,8 @@ public class AwsCWClient {
     }};
 
     public AwsCWClient(){
-       this.client = AmazonCloudWatchClientBuilder.defaultClient();
+        //TODO: Support Multiregion
+        this.client = AmazonCloudWatchClientBuilder.standard().withRegion(Regions.EU_WEST_1).build();
     }
 
     public JSONObject getAvg5MinRDSMetrics(String dbInstanceIdentifier){
