@@ -151,7 +151,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     @Override
     protected XyzResponse processOneTimeActionEvent(OneTimeActionEvent event) throws Exception {
         try {
-            if (oneTimeActionVersioningMigration(event.getPhase()))
+            if (oneTimeActionVersioningMigration(event.getPhase(), event.getInputData()))
                 return new SuccessResponse().withStatus("EXECUTED");
             return new SuccessResponse().withStatus("ALREADY RUNNING");
         }
@@ -905,18 +905,25 @@ public abstract class DatabaseHandler extends StorageConnector {
         return (int) event.getParams().get("versionsToKeep");
     }
 
+
     private boolean oneTimeActionVersioningMigration(String phase) throws SQLException, ErrorResponseException {
+        return oneTimeActionVersioningMigration(phase, null);
+    }
+
+    private boolean oneTimeActionVersioningMigration(String phase, Map<String, Object> inputData) throws SQLException, ErrorResponseException {
         try (final Connection connection = dataSource.getConnection()) {
             if (_advisory(phase, connection, true, false)) {
                 try {
                     switch (phase) {
                         case "phase0": {
-                            List<String> tablesWithoutIdColumn =
-                                new GetTablesWithColumn(new GetTablesWithColumnInput("id", false, 100), this).run();
-                            if (tablesWithoutIdColumn.isEmpty())
+                            List<String> tableNames =
+                                inputData != null && !inputData.containsKey("tableNames") && inputData.get("tableNames") instanceof List
+                                ? (List) inputData.get("tableNames")
+                                : new GetTablesWithColumn(new GetTablesWithColumnInput("id", false, 100), this).run();
+                            if (tableNames.isEmpty())
                                 logger.info("oneTimeActionVersioningMigration " + phase + ": Nothing to do.");
                             else
-                                oneTimeAlterExistingTablesAddNewColumnsAndIndices(phase, tablesWithoutIdColumn, connection);
+                                oneTimeAlterExistingTablesAddNewColumnsAndIndices(phase, tableNames, connection);
                             break;
                         }
                         case "phase1": {

@@ -19,8 +19,11 @@
 
 package com.here.xyz.events;
 
+import java.util.Map;
+
 public class OneTimeActionEvent extends Event<OneTimeActionEvent> {
-  String phase;
+  private String phase;
+  private Map<String, Object> inputData;
 
   public String getPhase() {
     return phase;
@@ -32,6 +35,19 @@ public class OneTimeActionEvent extends Event<OneTimeActionEvent> {
 
   public OneTimeActionEvent withPhase(String phase) {
     setPhase(phase);
+    return this;
+  }
+
+  public Map<String, Object> getInputData() {
+    return inputData;
+  }
+
+  public void setInputData(Map<String, Object> inputData) {
+    this.inputData = inputData;
+  }
+
+  public OneTimeActionEvent withInputData(Map<String, Object> inputData) {
+    setInputData(inputData);
     return this;
   }
 }
