@@ -1189,7 +1189,7 @@ components:
         | relativeResolution | Number  | NO        | integer, The quad resolution [0,4]                                             |
         | noBuffer    | Boolean | NO        | do not place a buffer around quad polygons, default: false            |
         | resolution  | Number  | NO        | deprecated, renamed to resolutionRelative             |
-        | countmode   | String  | NO        | [real, estimated, mixed]                                    |
+        | countmode   | String  | NO        | [real, estimated, mixed, bool]                                    |
         |             |         |           | real = real feature counts. Best accuracy, but slow.                  |
         |             |         |           |     Not recommended for big result sets                       |
         |             |         |           |                                                                       |
@@ -1199,6 +1199,9 @@ components:
         |             |         |           | mixed (default) = estimated feature counts combined with real ones.   |
         |             |         |           |     If the estimation is low a real count gets applied. Fits to the |
         |             |         |           |     most use cases                                        |
+        |             |         |           |                                                                       |
+        |             |         |           | bool = test if data exists in tile but does not count features  |
+        |             |         |           |     The returned count property set to 1, for non empty tiles |
       style: form
       explode: true
       schema:
