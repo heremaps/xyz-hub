@@ -37,16 +37,15 @@ public class GetTablesWithColumn extends QueryRunner<GetTablesWithColumnInput, L
 
   @Override
   protected SQLQuery buildQuery(GetTablesWithColumnInput input) throws SQLException, ErrorResponseException {
-    return new SQLQuery("SELECT t.table_name FROM information_schema.tables t "
+    return new SQLQuery("SELECT DISTINCT t.table_name FROM information_schema.tables t "
         + "INNER JOIN information_schema.columns c ON "
           + "c.table_name = t.table_name AND c.table_schema = t.table_schema "
         + "WHERE "
-        + "c.column_name = #{column} AND "
+        + (input.exists ? "c.column_name = #{column}" : "NOT exists(SELECT 1 FROM information_schema.columns WHERE table_name = t.table_name AND column_name = #{column})") + " AND "
         + "t.table_schema = #{schema} AND "
         + "t.table_type = 'BASE TABLE' AND "
         + "t.table_name != 'spatial_ref_sys' AND "
         + "t.table_name NOT LIKE '%_hst' "
-        + (input.exists ? "" : "AND NOT exists(SELECT 1 FROM information_schema.columns WHERE table_name = t.table_name AND column_name = #{column}) ")
         + "LIMIT #{limit}")
         .withNamedParameter("column", input.columnName)
         .withNamedParameter("schema", getSchema())
