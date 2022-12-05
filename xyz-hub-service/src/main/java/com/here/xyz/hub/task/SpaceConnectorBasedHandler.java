@@ -22,7 +22,7 @@ package com.here.xyz.hub.task;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 
 import com.here.xyz.events.Event;
-import com.here.xyz.hub.auth.RevisionAuthorization;
+import com.here.xyz.hub.auth.ChangesetAuthorization;
 import com.here.xyz.hub.config.ConnectorConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.RpcClient;
@@ -46,7 +46,7 @@ public class SpaceConnectorBasedHandler {
       .flatMap(space -> space == null
           ? Future.failedFuture(new HttpException(BAD_REQUEST, "The resource ID '" + e.getSpace() + "' does not exist!"))
           : Future.succeededFuture(space))
-      .flatMap(space -> RevisionAuthorization.authorize(context, space).map(space))
+      .flatMap(space -> ChangesetAuthorization.authorize(context, space).map(space))
       .flatMap(space -> ConnectorConfigClient.getInstance().get(marker, space.getStorage().getId()))
       .map(RpcClient::getInstanceFor)
       .recover(t -> t instanceof HttpException

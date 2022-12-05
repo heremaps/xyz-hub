@@ -19,9 +19,12 @@
 
 package com.here.xyz.events;
 
-public class RevisionEvent extends Event<RevisionEvent> {
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class ChangesetEvent extends Event<ChangesetEvent> {
   private Operation operation;
-  private PropertyQuery revision;
+  private PropertyQuery historyVersion;
 
   public Operation getOperation() {
     return operation;
@@ -31,21 +34,21 @@ public class RevisionEvent extends Event<RevisionEvent> {
     this.operation = operation;
   }
 
-  public RevisionEvent withOperation(Operation operation) {
+  public ChangesetEvent withOperation(Operation operation) {
     setOperation(operation);
     return this;
   }
 
-  public PropertyQuery getRevision() {
-    return revision;
+  public PropertyQuery getHistoryVersion() {
+    return historyVersion;
   }
 
-  public void setRevision(PropertyQuery revision) {
-    this.revision = revision;
+  public void setHistoryVersion(PropertyQuery historyVersion) {
+    this.historyVersion = historyVersion;
   }
 
-  public RevisionEvent withVersion(PropertyQuery revision) {
-    setRevision(revision);
+  public ChangesetEvent withHistoryVersion(PropertyQuery historyVersion) {
+    setHistoryVersion(historyVersion);
     return this;
   }
 
