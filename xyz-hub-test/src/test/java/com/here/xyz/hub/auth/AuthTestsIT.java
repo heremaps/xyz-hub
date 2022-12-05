@@ -1010,7 +1010,7 @@ public class AuthTestsIT extends RestAssuredTest {
   }
 
   @Test
-  public void deleteRevisionsPositive() {
+  public void deleteChangesetsPositive() {
     createSpaceWithFeatures(
         "/xyz/hub/auth/createDefaultSpace.json",
         "/xyz/hub/processedData.json",
@@ -1021,13 +1021,13 @@ public class AuthTestsIT extends RestAssuredTest {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .delete("/spaces/" + cleanUpId + "/revisions?version=10")
+        .delete("/spaces/" + cleanUpId + "/changesets?version=10")
         .then()
         .statusCode(NO_CONTENT.code());
   }
 
   @Test
-  public void deleteRevisionsNegative() {
+  public void deleteChangesetsNegative() {
     createSpaceWithFeatures(
         "/xyz/hub/auth/createDefaultSpace.json",
         "/xyz/hub/processedData.json",
@@ -1038,7 +1038,7 @@ public class AuthTestsIT extends RestAssuredTest {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_NO_ADMIN))
         .when()
-        .delete("/spaces/" + cleanUpId + "/revisions?version=10")
+        .delete("/spaces/" + cleanUpId + "/changesets?version=10")
         .then()
         .statusCode(FORBIDDEN.code());
   }
