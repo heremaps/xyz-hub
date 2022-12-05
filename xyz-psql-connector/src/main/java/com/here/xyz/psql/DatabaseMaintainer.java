@@ -122,7 +122,7 @@ public class DatabaseMaintainer {
                 if (!rs.getBoolean("all_ext_av")) {
                     /** Create Missing IDX_Maintenance Table */
                     if (userHasCreatePermissions) {
-                        stmt.execute(MaintenanceSQL.generateMandatoryExtensionSQL(hasPropertySearch));
+                        stmt.execute(MaintenanceSQL.generateMandatoryExtensionSQL(config.getDatabaseSettings().getHost().indexOf("localhost") != -1));
                     } else {
                         logger.error("{} User permissions missing! Not able to create missing Extensions on database: {}@{} / {}. Installed Extension are: {}",
                                 traceItem, config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getDb(), rs.getString("ext_av"));

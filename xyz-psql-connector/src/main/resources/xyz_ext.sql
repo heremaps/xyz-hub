@@ -153,7 +153,7 @@ DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 149
+ select 150
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -166,6 +166,52 @@ EXCEPTION
 	    WHEN duplicate_column THEN RAISE NOTICE 'column <auto_indexing> already exists in <xyz_idxs_status>.';
 END;
 $$;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_import_trigger()
+ RETURNS trigger AS
+AS $BODY$
+	DECLARE
+        spaceId text := TG_ARGV[0];
+		addSpaceId boolean := TG_ARGV[1];
+		addUUID boolean := TG_ARGV[2];
+
+		fid text := NEW.jsondata->>'id';
+		createdAt BIGINT := FLOOR(EXTRACT(epoch FROM NOW())*1000);
+		meta jsonb := format(
+			'{
+                 "createdAt": %s,
+                 "updatedAt": %s
+			}', createdAt, createdAt
+        );
+        BEGIN
+		-- Inject id if not available
+		IF fid IS NULL THEN
+			NEW.jsondata := (NEW.jsondata|| format('{"id" : "%s"}', random_string(10))::jsonb);
+        END IF;
+
+		IF addSpaceId THEN
+			meta := jsonb_set(meta,'{space}',to_jsonb(spaceId));
+        END IF;
+
+		IF addUUID THEN
+			meta := jsonb_set(meta,'{uuid}',to_jsonb(gen_random_uuid()));
+        END IF;
+
+		-- Inject meta
+		NEW.jsondata := jsonb_set(NEW.jsondata,'{properties,@ns:com:here:xyz}', meta);
+
+		IF NEW.jsondata->'geometry' IS NOT NULL AND NEW.geo IS NULL THEN
+		--GeoJson Feature Import
+			NEW.geo := ST_Force3D(ST_GeomFromGeoJSON(NEW.jsondata->'geometry'));
+			NEW.jsondata := NEW.jsondata - 'geometry';
+        ELSE
+			NEW.geo := ST_Force3D(NEW.geo);
+        END IF;
+        RETURN NEW;
+    END;
+$BODY$;
+LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR  REPLACE FUNCTION xyz_random_string(length integer)
