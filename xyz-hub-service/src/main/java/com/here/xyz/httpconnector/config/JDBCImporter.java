@@ -98,9 +98,8 @@ public class JDBCImporter extends JDBCClients{
             q.append("DROP INDEX IF EXISTS ${schema}.\""+idx+"\";");
         }
         q.setVariable("schema", schema);
-        q.substitute();
 
-        return getClient(clientID).query(q.text())
+        return getClient(clientID).query(q.substitute().text())
                 .execute()
                 .map(f->null);
     }
@@ -126,11 +125,10 @@ public class JDBCImporter extends JDBCClients{
         q.setVariable("schema", schema);
         q.setVariable("tablename", tablename);
         q.setVariable("hrn", "TBD");
-        q.substitute();
 
         logger.info("Create view and trigger for {}", tablename);
 
-        return getClient(clientID).query(q.text())
+        return getClient(clientID).query(q.substitute().text())
                 .execute()
                 .map(viewName);
     }
@@ -153,9 +151,8 @@ public class JDBCImporter extends JDBCClients{
         q.setVariable("schema", schema);
         q.setVariable("tablename", tablename);
         q.setVariable("hrn", "TBD");
-        q.substitute();
 
-        return getClient(clientID).query(q.text())
+        return getClient(clientID).query(q.substitute().text())
                 .execute()
                 .map(tablename);
     }
@@ -164,9 +161,8 @@ public class JDBCImporter extends JDBCClients{
         SQLQuery q = new SQLQuery("SELECT 1 FROM ${schema}.${table} limit 1;");
         q.setVariable("schema", schema);
         q.setVariable("table", tablename);
-        q.substitute();
 
-        return getClient(clientID).query(q.text())
+        return getClient(clientID).query(q.substitute().text())
                 .execute()
                 .map(f->null);
     }
@@ -175,9 +171,8 @@ public class JDBCImporter extends JDBCClients{
         SQLQuery q = new SQLQuery("SELECT count(1) FROM ${schema}.${table};");
         q.setVariable("schema", schema);
         q.setVariable("table", tablename);
-        q.substitute();
 
-        return getClient(clientID).query(q.text())
+        return getClient(clientID).query(q.substitute().text())
                 .execute()
                 .map(row -> row.iterator().next().getLong(0));
     }
@@ -261,11 +256,10 @@ public class JDBCImporter extends JDBCClients{
 
         q.setVariable("schema",schema);
         q.setVariable("viewname", getViewName(tableName));
-        q.substitute();
 
         logger.info("Delete view {}",getViewName(tableName));
 
-        return getClient(clientID).query(q.text())
+        return getClient(clientID).query(q.substitute().text())
                 .execute()
                 .map(f -> null);
     }
@@ -274,9 +268,8 @@ public class JDBCImporter extends JDBCClients{
         SQLQuery q = new SQLQuery("DROP TRIGGER IF EXISTS insertTrigger ON ${schema}.${tablename};");
         q.setVariable("schema", schema);
         q.setVariable("tablename", tableName);
-        q.substitute();
 
-        return getClient(clientID).query(q.text())
+        return getClient(clientID).query(q.substitute().text())
                 .execute()
                 .map(f -> null);
     }
@@ -350,9 +343,7 @@ public class JDBCImporter extends JDBCClients{
                         +"AND POSITION('!ignore!' in query) = 0"
         );
 
-        q.substitute();
-
-        return getClient(clientID).query(q.text())
+        return getClient(clientID).query(q.substitute().text())
                 .execute()
                 .onFailure(f -> logger.warn(f))
                 .map(rows -> {
