@@ -153,11 +153,10 @@ DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 148
+ select 150
 $BODY$
   LANGUAGE sql IMMUTABLE;
-------------------------------------------------
-------------------------------------------------
+----------
 -- ADD NEW COLUMN TO IDX_STATUS TABLE
 DO $$
 BEGIN
@@ -167,6 +166,73 @@ EXCEPTION
 	    WHEN duplicate_column THEN RAISE NOTICE 'column <auto_indexing> already exists in <xyz_idxs_status>.';
 END;
 $$;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_import_trigger()
+ RETURNS trigger
+AS $BODY$
+	DECLARE
+        spaceId text := TG_ARGV[0];
+		addSpaceId boolean := TG_ARGV[1];
+		addUUID boolean := TG_ARGV[2];
+
+		fid text := NEW.jsondata->>'id';
+		createdAt BIGINT := FLOOR(EXTRACT(epoch FROM NOW())*1000);
+		meta jsonb := format(
+			'{
+                 "createdAt": %s,
+                 "updatedAt": %s
+			}', createdAt, createdAt
+        );
+        BEGIN
+		-- Inject id if not available
+		IF fid IS NULL THEN
+			NEW.jsondata := (NEW.jsondata|| format('{"id" : "%s"}', random_string(10))::jsonb);
+        END IF;
+
+		IF addSpaceId THEN
+			meta := jsonb_set(meta,'{space}',to_jsonb(spaceId));
+        END IF;
+
+		IF addUUID THEN
+			meta := jsonb_set(meta,'{uuid}',to_jsonb(gen_random_uuid()));
+        END IF;
+
+		-- Inject meta
+		NEW.jsondata := jsonb_set(NEW.jsondata,'{properties,@ns:com:here:xyz}', meta);
+
+		IF NEW.jsondata->'geometry' IS NOT NULL AND NEW.geo IS NULL THEN
+		--GeoJson Feature Import
+			NEW.geo := ST_Force3D(ST_GeomFromGeoJSON(NEW.jsondata->'geometry'));
+			NEW.jsondata := NEW.jsondata - 'geometry';
+        ELSE
+			NEW.geo := ST_Force3D(NEW.geo);
+        END IF;
+        RETURN NEW;
+    END;
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR  REPLACE FUNCTION xyz_random_string(length integer)
+    RETURNS text AS
+$BODY$
+    DECLARE
+        chars text[] := '{0,1,2,3,4,5,6,7,8,9,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z}';
+        result text := '';
+        i integer := 0;
+    BEGIN
+            IF length < 0 THEN
+                RAISE EXCEPTION 'Given length cannot be less than 0';
+        END IF;
+        FOR i IN 1..length LOOP
+            result := result || chars[1+random()*(array_length(chars, 1)-1)];
+        END LOOP;
+
+        RETURN result;
+    END;
+$BODY$
+LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 -- Function: xyz_index_dissolve_datatype(text)

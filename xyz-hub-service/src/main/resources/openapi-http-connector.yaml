@@ -2,7 +2,7 @@ openapi: 3.0.2
 info:
   title: HERE HTTP-PSQL Connector
   description: |-
-    HERE HTTP-PSQL Connector is a PSQL-Connector which provides a REST API to access data and maintain database related stuff.
+    HERE HTTP-PSQL Connector is a PSQL-Connector which provides a REST API to access data and maintain database related stuff. With the included Job API it is possible to perfrom Jobs (import/export..) on datasets.
   contact: {}
   version: 1.0.0
 servers:
@@ -185,13 +185,102 @@ paths:
           schema:
             type: integer
             #default: false
-        - name: passphrase
-          in: query
-          description: >-
-            Provide ECPS Passphrase
-          required: false
-          schema:
-            type: string
+      responses:
+        '200':
+          description : OK
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+  '/psql/jobs':
+    post:
+      tags:
+        - Jobs
+      summary: Create Job
+      operationId: postJob
+      requestBody:
+        description: Creates a new job.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Job'
+      responses:
+        '200':
+          description : OK
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+    get:
+      tags:
+        - Jobs
+      summary: Get jobs
+      description: Reteive jobs
+      operationId: getJobs
+      parameters:
+        - $ref: '#/components/parameters/JopType'
+        - $ref: '#/components/parameters/JopStatus'
+      responses:
+        '200':
+          description : OK
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+  '/psql/jobs/{jobId}':
+    get:
+      tags:
+        - Jobs
+      summary: Get job
+      description: Reteive job
+      operationId: getJob
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      responses:
+        '200':
+          description : OK
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+    patch:
+      tags:
+        - Jobs
+      summary: Update Job
+      operationId: patchJob
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      requestBody:
+        description: Update a existing job.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Job'
+      responses:
+        '200':
+          description : OK
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+    delete:
+      tags:
+        - Jobs
+      summary: Delete job
+      description: Delete job
+      operationId: deleteJob
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      responses:
+        '200':
+          description : OK
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+  '/psql/jobs/{jobId}/execute':
+    post:
+      tags:
+        - Jobs
+      summary: Run Command
+      description: Run Command on Job
+      operationId: postExecute
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+        - $ref: '#/components/parameters/ConnectorId'
+        - $ref: '#/components/parameters/ECPS'
+        - $ref: '#/components/parameters/EnableHashedSpaceId'
+        - $ref: '#/components/parameters/Command'
       responses:
         '200':
           description : OK
@@ -199,6 +288,46 @@ paths:
           $ref: '#/components/responses/ErrorResponse400'
 components:
   parameters:
+    JobId:
+      name: jobId
+      in: path
+      description: The unique identifier of the job.
+      required: true
+      schema:
+        type: string
+    JopType:
+      name: type
+      in: query
+      description: Type of Job
+      required: false
+      schema:
+        type: string
+        enum:
+          - import
+    JopStatus:
+      name: status
+      in: query
+      description: Job Status
+      required: false
+      schema:
+        type: string
+        enum:
+          - waiting
+          - queued
+          - running
+          - aborted
+          - failed
+    Command:
+      name: command
+      in: query
+      description: Command
+      required: true
+      schema:
+        type: string
+        enum:
+          - start
+          - retry
+          - createUploadUrl
     SpaceId:
       name: spaceId
       in: path
@@ -214,6 +343,15 @@ components:
       required: true
       schema:
         type: string
+    EnableHashedSpaceId:
+      name: enableHashedSpaceId
+      in: query
+      description: >-
+        Do we hava a hashedSpaceId?
+      required: true
+      schema:
+        type: boolean
+        default: true
     ECPS:
       name: ecps
       in: query
@@ -335,6 +473,46 @@ components:
         connectorParams:
           connectorId: test
           propertySearch: true
+    Job:
+      type: object
+      description: Job
+      properties:
+        type:
+          description: >-
+            The unique identifier of the import type
+          example: "Import"
+          type: string
+        id:
+          description: >-
+            id
+          example: "ZMlfeaN8B8"
+          type: string
+        targetSpaceId:
+          description: >-
+            targetSpaceId
+          example: "importtest"
+          type: string
+        description:
+          description: >-
+            description
+          example: 1234
+          type: string
+        csvFormat:
+          description: >-
+            csvFormat
+          example: JSONWKB
+          type: string
+        injectUUID:
+          description: >-
+            define uuid injection
+          example: true
+          type: boolean
+      example:
+        type: "Import"
+        targetSpaceId: "12s4G4cw"
+        description: "Job Description"
+        csvFormat: "JSON_WKT"
+        injectUUID: true
     ConnectorStatus:
       type: object
       description: A data holder for the status of a Connector

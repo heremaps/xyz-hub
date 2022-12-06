@@ -38,13 +38,13 @@ public class MaintenanceSQL {
      * Check if all required database extensions are installed
      */
     public static String generateCheckExtensionsSQL(boolean hasPropertySearch, String user, String db){
-        return "SELECT COALESCE(array_agg(extname) @> '{postgis,postgis_topology,tsm_system_rows"
+        return "SELECT COALESCE(array_agg(extname) @> '{postgis,postgis_topology,tsm_system_rows,aws_s3"
                 + (hasPropertySearch ? ",dblink" : "") + "}', false) as all_ext_av,"
                 + "COALESCE(array_agg(extname)) as ext_av, "
                 + "(select has_database_privilege('"+user+"', '"+db+"', 'CREATE')) as has_create_permissions "
                 + "FROM ("
                 + "	SELECT extname FROM pg_extension"
-                + "		WHERE extname in('postgis','postgis_topology','tsm_system_rows','dblink')"
+                + "		WHERE extname in('postgis','postgis_topology','tsm_system_rows','dblink','aws_s3')"
                 + "	order by extname"
                 + ") A";
     }
@@ -84,20 +84,11 @@ public class MaintenanceSQL {
     /**
      * Install all required database extensions
      */
-    public static String generateMandatoryExtensionSQL(boolean isPropertySearchSupported){
+    public static String generateMandatoryExtensionSQL(boolean runsLocal){
         return "CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;"+
                 "CREATE EXTENSION IF NOT EXISTS postgis_topology;"+
                 "CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;"+
-                (isPropertySearchSupported ? "CREATE EXTENSION IF NOT EXISTS dblink SCHEMA public;" : "");
-    }
-
-    /**
-     * Install all required database extensions
-     */
-    public static String generateMandatoryExtensionSQLv2(){
-        return "CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;"+
-                "CREATE EXTENSION IF NOT EXISTS postgis_topology;"+
-                "CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;"+
+                (!runsLocal ? "CREATE EXTENSION IF NOT EXISTS aws_s3 CASCADE;" : "")+
                 "CREATE EXTENSION IF NOT EXISTS dblink SCHEMA public;";
     }
 
