@@ -26,7 +26,6 @@ import jdk.nashorn.internal.ir.annotations.Ignore;
 import java.net.URL;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-@JsonTypeName(value = "ImportObject")
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
 public class ImportObject {
     private String s3Key;

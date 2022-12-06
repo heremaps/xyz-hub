@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-@JsonTypeName(value = "Import")
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class Import extends Job {
     public static String ERROR_TYPE_VALIDATION_FAILED = "validation_failed";
@@ -51,6 +50,7 @@ public class Import extends Job {
 
     @JsonInclude
     private Map<String,ImportObject> importObjects;
+    @JsonInclude
     private String type = "Import";
     private List<String> idxList;
     protected boolean enabledUUID;
