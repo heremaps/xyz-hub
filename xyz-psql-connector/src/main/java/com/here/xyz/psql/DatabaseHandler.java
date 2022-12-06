@@ -964,6 +964,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     private void oneTimeActionForVersioning(String phase, List<String> tableNames, Connection connection) throws SQLException {
         logger.info("Executing " + phase + " for tables: " + String.join(", ", tableNames));
         final String schema = config.getDatabaseSettings().getSchema();
+        int processedCount = 0;
         for (String tableName : tableNames) {
             logger.info(phase + ": process table: " + tableName);
             //Check if table exists, if not don't do anything for that table
@@ -990,10 +991,19 @@ public abstract class DatabaseHandler extends StorageConnector {
                             }
                         }
                     }
+                    processedCount++;
                 }
                 catch (Exception e) {
-                    logger.error("{} Failed to alter table / create indices on '{}' : {}", traceItem, tableName, e);
-                    connection.rollback();
+                    if (e instanceof SQLException && "54000".equals(((SQLException) e).getSQLState())) {
+                        //No time left for processing of further tables
+                        logger.info("{} Table '{}' could not be processed anymore. No time left. Processed {} tables : {}", traceItem, tableName, processedCount, e);
+                        connection.rollback();
+                        break;
+                    }
+                    else {
+                        logger.error("{} Failed to alter table / create indices on '{}' : {}", traceItem, tableName, e);
+                        connection.rollback();
+                    }
                 }
                 finally {
                     _advisory(tableName, connection, false, false);
@@ -1004,6 +1014,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             else
                 logger.info(phase + ": lock on table" + tableName + " could not be acquired. Continuing with next one.");
         }
+        logger.info(phase + ": processed {} tables.", processedCount);
     }
 
     private void oneTimeAlterExistingTablesAddNewColumnsAndIndices(Connection connection, String schema, String tableName, Statement stmt) throws SQLException {
