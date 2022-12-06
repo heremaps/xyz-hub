@@ -918,7 +918,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                     switch (phase) {
                         case "phase0": {
                             List<String> tableNames =
-                                inputData != null && !inputData.containsKey("tableNames") && inputData.get("tableNames") instanceof List
+                                inputData != null && inputData.containsKey("tableNames") && inputData.get("tableNames") instanceof List
                                 ? (List) inputData.get("tableNames")
                                 : new GetTablesWithColumn(new GetTablesWithColumnInput("id", false, 100), this).run();
                             if (tableNames.isEmpty())
@@ -965,12 +965,12 @@ public abstract class DatabaseHandler extends StorageConnector {
         logger.info("Executing " + phase + " for tables: " + String.join(", ", tableNames));
         final String schema = config.getDatabaseSettings().getSchema();
         for (String tableName : tableNames) {
-            logger.info(phase + ": process table" + tableName);
+            logger.info(phase + ": process table: " + tableName);
             //Check if table exists, if not don't do anything for that table
-            if (!hasTable(tableName)) {
-                logger.info(phase + ": table not found: " + tableName);
-                continue;
-            }
+//            if (!hasTable(tableName)) {
+//                logger.info(phase + ": table not found: " + tableName);
+//                continue;
+//            }
 
             if (_advisory(tableName, connection, true, false)) {
                 boolean cStateFlag = connection.getAutoCommit();
