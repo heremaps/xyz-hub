@@ -168,6 +168,9 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
   private void storeSpaceSync(Space space, Promise p) {
     final Map<String, Object> itemData = XyzSerializable.STATIC_MAPPER.get().convertValue(space, new TypeReference<Map<String, Object>>() {});
     itemData.put("shared", space.isShared() ? 1 : 0); //Shared value must be a number because it's also used as index
+    //NOTE: The following is a temporary implementation to keep backwards compatibility for non-versioned spaces
+    if (itemData.get("versionsToKeep") != null && itemData.get("versionsToKeep") instanceof Integer && ((int) itemData.get("versionsToKeep")) == 0)
+      itemData.remove("versionsToKeep");
     sanitize(itemData);
     spaces.putItem(Item.fromMap(itemData));
     p.complete();
