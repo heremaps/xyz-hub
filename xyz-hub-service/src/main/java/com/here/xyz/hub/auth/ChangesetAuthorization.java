@@ -33,7 +33,8 @@ public class ChangesetAuthorization extends Authorization {
     JWTPayload jwt = Api.Context.getJWT(context);
 
     final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
-    requestRights.manageSpaces(XyzHubAttributeMap.forIdValues(space.getOwner(), space.getId()));
+    //TODO: Use manageSpaces instead
+    requestRights.adminSpaces(XyzHubAttributeMap.forIdValues(space.getOwner(), space.getId()));
 
     try {
       evaluateRights(Api.Context.getMarker(context), requestRights, jwt.getXyzHubMatrix());
