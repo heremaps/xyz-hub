@@ -70,7 +70,7 @@ public class DynamoClient {
       final String endpoint = "http://" + arn.getRegion() + ":" + Integer.parseInt(arn.getAccountId());
       builder.setEndpointConfiguration(new EndpointConfiguration(endpoint, "US-WEST-1"));
     }
-    else if (Service.configuration.USE_AWS_INSTANCE_CREDENTIALS_WITH_REFRESH) {
+    else if (Service.configuration != null && Service.configuration.USE_AWS_INSTANCE_CREDENTIALS_WITH_REFRESH) {
       synchronized(DynamoClient.class) {
         if (customCredentialsProvider == null) {
           customCredentialsProvider = InstanceProfileCredentialsProvider.createAsyncRefreshingProvider(true);
