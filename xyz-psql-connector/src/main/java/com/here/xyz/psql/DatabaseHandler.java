@@ -912,6 +912,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private boolean oneTimeActionVersioningMigration(String phase, Map<String, Object> inputData) throws SQLException, ErrorResponseException {
         try (final Connection connection = dataSource.getConnection()) {
+            logger.info("oneTimeAction " + phase + ": Starting execution ...");
             if (_advisory(phase, connection, true, false)) {
                 try {
                     switch (phase) {
@@ -936,6 +937,12 @@ public abstract class DatabaseHandler extends StorageConnector {
                         }
                         case "cleanup": {
 
+                            break;
+                        }
+                        case "test": {
+                            logger.info("oneTimeAction " + phase + ": inputData" + inputData);
+                            logger.info("oneTimeAction " + phase + ": Test succeeded.");
+                            break;
                         }
                         default:
                             throw new IllegalArgumentException("Illegal OTA phase.");
