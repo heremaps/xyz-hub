@@ -151,7 +151,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     @Override
     protected XyzResponse processOneTimeActionEvent(OneTimeActionEvent event) throws Exception {
         try {
-            if (oneTimeActionVersioningMigration(event.getPhase(), event.getInputData()))
+            if (executeOneTimeAction(event.getPhase(), event.getInputData()))
                 return new SuccessResponse().withStatus("EXECUTED");
             return new SuccessResponse().withStatus("ALREADY RUNNING");
         }
@@ -193,7 +193,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         try {
             if (System.getenv("OTA_PHASE") != null)
-                oneTimeActionVersioningMigration(System.getenv("OTA_PHASE"));
+                executeOneTimeAction(System.getenv("OTA_PHASE"));
         }
         catch (Exception e) {
             logger.error("OTA: Error during one time action execution:", e);
@@ -906,11 +906,11 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
 
-    private boolean oneTimeActionVersioningMigration(String phase) throws SQLException, ErrorResponseException {
-        return oneTimeActionVersioningMigration(phase, null);
+    private boolean executeOneTimeAction(String phase) throws SQLException, ErrorResponseException {
+        return executeOneTimeAction(phase, null);
     }
 
-    private boolean oneTimeActionVersioningMigration(String phase, Map<String, Object> inputData) throws SQLException, ErrorResponseException {
+    private boolean executeOneTimeAction(String phase, Map<String, Object> inputData) throws SQLException, ErrorResponseException {
         try (final Connection connection = dataSource.getConnection()) {
             logger.info("oneTimeAction " + phase + ": Starting execution ...");
             if (_advisory(phase, connection, true, false)) {
@@ -924,7 +924,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                             if (tableNames.isEmpty())
                                 logger.info("oneTimeActionVersioningMigration " + phase + ": Nothing to do.");
                             else
-                                oneTimeAlterExistingTablesAddNewColumnsAndIndices(phase, tableNames, connection);
+                                oneTimeActionForVersioning(phase, tableNames, connection);
                             break;
                         }
                         case "phase1": {
@@ -960,7 +960,8 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
-    private void oneTimeAlterExistingTablesAddNewColumnsAndIndices(String phase, List<String> tableNames, Connection connection) throws SQLException {
+
+    private void oneTimeActionForVersioning(String phase, List<String> tableNames, Connection connection) throws SQLException {
         logger.info("Executing " + phase + " for tables: " + String.join(", ", tableNames));
         final String schema = config.getDatabaseSettings().getSchema();
         for (String tableName : tableNames) {
@@ -971,43 +972,69 @@ public abstract class DatabaseHandler extends StorageConnector {
                 continue;
             }
 
-            advisoryLock(tableName, connection);
-            boolean cStateFlag = connection.getAutoCommit();
-            try {
-                if (cStateFlag)
-                    connection.setAutoCommit(false);
+            if (_advisory(tableName, connection, true, false)) {
+                boolean cStateFlag = connection.getAutoCommit();
+                try {
+                    if (cStateFlag)
+                        connection.setAutoCommit(false);
 
-                try (Statement stmt = connection.createStatement()) {
-                    //Alter existing tables: add new columns
-                    SQLQuery alterQuery = new SQLQuery("ALTER TABLE ${schema}.${table} "
-                        + "ADD COLUMN id TEXT, "
-                        + "ADD COLUMN version BIGINT NOT NULL DEFAULT 0, "
-                        + "ADD COLUMN next_version BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
-                        + "ADD COLUMN operation CHAR NOT NULL DEFAULT 'I'")
-                        .withVariable("schema", schema)
-                        .withVariable("table", tableName);
-                    stmt.addBatch(alterQuery.substitute().text());
-                    //Add new indices for existing tables
-                    createVersioningIndices(stmt, schema, tableName);
-                    //Add new sequence for existing tables
-                    stmt.addBatch(buildCreateSequenceQuery(schema, tableName, VERSION_SEQUENCE_SUFFIX).substitute().text());
-
-                    stmt.setQueryTimeout(calculateTimeout());
-                    stmt.executeBatch();
-                    connection.commit();
-                    logger.info("{} Successfully altered table and created indices for table '{}'", traceItem, tableName);
+                    try (Statement stmt = connection.createStatement()) {
+                        switch (phase) {
+                            case "phase0": {
+                                oneTimeAlterExistingTablesAddNewColumnsAndIndices(connection, schema, tableName, stmt);
+                                break;
+                            }
+                            case "phase1": {
+                                oneTimeFillNewColumns(connection, schema, tableName, stmt);
+                                break;
+                            }
+                        }
+                    }
+                }
+                catch (Exception e) {
+                    logger.error("{} Failed to alter table / create indices on '{}' : {}", traceItem, tableName, e);
+                    connection.rollback();
+                }
+                finally {
+                    _advisory(tableName, connection, false, false);
+                    if (cStateFlag)
+                        connection.setAutoCommit(true);
                 }
             }
-            catch (Exception e) {
-                logger.error("{} Failed to alter table / create indices on '{}' : {}", traceItem, tableName, e);
-                connection.rollback();
-            }
-            finally {
-                advisoryUnlock(tableName, connection);
-                if (cStateFlag)
-                    connection.setAutoCommit(true);
-            }
+            else
+                logger.info(phase + ": lock on table" + tableName + " could not be acquired. Continuing with next one.");
         }
+    }
+
+    private void oneTimeAlterExistingTablesAddNewColumnsAndIndices(Connection connection, String schema, String tableName, Statement stmt) throws SQLException {
+        //Alter existing tables: add new columns
+        SQLQuery alterQuery = new SQLQuery("ALTER TABLE ${schema}.${table} "
+            + "ADD COLUMN id TEXT, "
+            + "ADD COLUMN version BIGINT NOT NULL DEFAULT 0, "
+            + "ADD COLUMN next_version BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
+            + "ADD COLUMN operation CHAR NOT NULL DEFAULT 'I'")
+            .withVariable("schema", schema)
+            .withVariable("table", tableName);
+        stmt.addBatch(alterQuery.substitute().text());
+        //Add new indices for existing tables
+        createVersioningIndices(stmt, schema, tableName);
+        //Add new sequence for existing tables
+        stmt.addBatch(buildCreateSequenceQuery(schema, tableName, VERSION_SEQUENCE_SUFFIX).substitute().text());
+
+        stmt.setQueryTimeout(calculateTimeout());
+        stmt.executeBatch();
+        connection.commit();
+        logger.info("{} Successfully altered table and created indices for table '{}'", traceItem, tableName);
+    }
+
+    private void oneTimeFillNewColumns(Connection connection, String schema, String tableName, Statement stmt) throws SQLException {
+        //Fill id column
+        SQLQuery fillIdColumnQuery = new SQLQuery("WITH rows_to_update AS (SELECT jsondata->>'id' as id FROM ${schema}.${table} WHERE id IS NULL LIMIT 10000) "
+            + "UPDATE ${schema}.${table} t "
+            + "SET id = jsondata->>'id' "
+            + "FROM rows_to_update "
+            + "WHERE t.jsondata->>'id' = rows_to_update.id");
+
     }
 
     private void createSpaceStatement(Statement stmt, Event event) throws SQLException {
