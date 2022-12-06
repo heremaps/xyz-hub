@@ -22,6 +22,7 @@ package com.here.xyz.hub.config;
 import static com.here.xyz.hub.config.JDBCConfig.SPACE_TABLE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.connectors.models.Space;
@@ -107,9 +108,13 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
   protected Future<Void> storeSpace(Marker marker, Space space) {
     SQLQuery query = null;
     try {
+      //NOTE: The following is a temporary implementation to keep backwards compatibility for non-versioned spaces
+      final Map<String, Object> itemData = XyzSerializable.STATIC_MAPPER.get().convertValue(space, new TypeReference<Map<String, Object>>() {});
+      if (itemData.get("versionsToKeep") != null && itemData.get("versionsToKeep") instanceof Integer && ((int) itemData.get("versionsToKeep")) == 0)
+        itemData.remove("versionsToKeep");
       query = new SQLQuery(
           "INSERT INTO " + SPACE_TABLE + " (id, owner, cid, config) VALUES (?, ?, ?, cast(? as JSONB)) ON CONFLICT (id) DO UPDATE SET owner = excluded.owner, cid = excluded.cid, config = excluded.config",
-          space.getId(), space.getOwner(), space.getCid(), XyzSerializable.STATIC_MAPPER.get().writeValueAsString(space));
+          space.getId(), space.getOwner(), space.getCid(), XyzSerializable.STATIC_MAPPER.get().writeValueAsString(itemData));
       return updateWithParams(space, query).mapEmpty();
     }
     catch (JsonProcessingException e) {
