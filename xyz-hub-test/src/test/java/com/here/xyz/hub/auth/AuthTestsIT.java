@@ -1036,7 +1036,7 @@ public class AuthTestsIT extends RestAssuredTest {
         .body("features.size()", equalTo(252));
 
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_NO_ADMIN))
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_FEATURES_ONLY))
         .when()
         .delete("/spaces/" + cleanUpId + "/changesets?version=10")
         .then()
