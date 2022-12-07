@@ -26,6 +26,7 @@ import static com.here.xyz.responses.XyzError.EXCEPTION;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.events.ChangesetEvent;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
@@ -51,6 +52,7 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.factory.H3SQL;
 import com.here.xyz.psql.factory.QuadbinSQL;
 import com.here.xyz.psql.factory.TweaksSQL;
+import com.here.xyz.psql.query.DeleteChangesets;
 import com.here.xyz.psql.query.GetFeaturesByBBox;
 import com.here.xyz.psql.query.GetFeaturesByGeometry;
 import com.here.xyz.psql.query.GetFeaturesById;
@@ -596,6 +598,22 @@ public class PSQLXyzConnector extends DatabaseHandler {
     finally {
       logger.info("{} Finished " + event.getClass().getSimpleName(), traceItem);
     }
+  }
+
+  @Override
+  protected XyzResponse processChangesetEvent(ChangesetEvent event) throws Exception {
+    try {
+      logger.info("{} Received " + event.getClass().getSimpleName(), traceItem);
+      new DeleteChangesets(event, this).write();
+      return new SuccessResponse().withStatus("OK");
+    }
+    catch (SQLException e) {
+      return checkSQLException(e, config.readTableFromEvent(event));
+    }
+    finally {
+      logger.info("{} Finished " + event.getClass().getSimpleName(), traceItem);
+    }
+
   }
 
   protected XyzResponse iterateVersions(IterateFeaturesEvent event) throws SQLException {

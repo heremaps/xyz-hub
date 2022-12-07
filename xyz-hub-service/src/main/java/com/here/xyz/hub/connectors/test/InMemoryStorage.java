@@ -21,6 +21,7 @@ package com.here.xyz.hub.connectors.test;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.connectors.StorageConnector;
+import com.here.xyz.events.ChangesetEvent;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
@@ -137,6 +138,11 @@ public class InMemoryStorage extends StorageConnector {
   protected XyzResponse processGetStorageStatisticsEvent(GetStorageStatisticsEvent event) throws Exception {
     return new StatisticsResponse()
         .withCount(new Value<>((long) storage.size()).withEstimated(false));
+  }
+
+  @Override
+  protected XyzResponse processChangesetEvent(ChangesetEvent event) throws Exception {
+    throw new UnsupportedOperationException(event.getClass().getSimpleName() + " not implemented.");
   }
 
   @Override

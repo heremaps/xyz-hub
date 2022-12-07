@@ -106,7 +106,7 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
       return processGetStorageStatisticsEvent((GetStorageStatisticsEvent) event);
     }
     if (event instanceof ChangesetEvent) {
-      return new SuccessResponse();
+      return processChangesetEvent((ChangesetEvent) event);
     }
     if (event instanceof OneTimeActionEvent)
       return processOneTimeActionEvent((OneTimeActionEvent) event);
@@ -208,4 +208,6 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
     //Default implementation does nothing but may be overridden
     return new SuccessResponse();
   }
+
+  protected abstract XyzResponse processChangesetEvent(ChangesetEvent event) throws Exception;
 }
