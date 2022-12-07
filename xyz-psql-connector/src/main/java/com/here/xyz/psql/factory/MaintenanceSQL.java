@@ -91,9 +91,11 @@ public class MaintenanceSQL {
                 "CREATE EXTENSION IF NOT EXISTS postgis_topology; " +
                 "CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public; " +
                 "CREATE EXTENSION IF NOT EXISTS dblink SCHEMA public; " +
-                "CREATE EXTENSION IF NOT EXISTS aws_s3 CASCADE; " +
-                "EXCEPTION WHEN OTHERS THEN " +
-                "RAISE NOTICE 'Not able to install all extensions'; " +
+                "BEGIN" +
+                "   CREATE EXTENSION IF NOT EXISTS aws_s3 CASCADE; " +
+                "   EXCEPTION WHEN OTHERS THEN " +
+                "       RAISE NOTICE 'Not able to install aws_s3 extension'; " +
+                "   END;" +
                 "END; " +
                 "$$;";
     }
