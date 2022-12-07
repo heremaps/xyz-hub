@@ -1127,7 +1127,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         stmt.addBatch(buildCreateIndexQuery(schema, table, "version", "BTREE").substitute().text());
         stmt.addBatch(buildCreateIndexQuery(schema, table, Arrays.asList("id", "version"), "BTREE").substitute().text());
         stmt.addBatch(buildCreateIndexQuery(schema, table, Arrays.asList("id", "version", "next_version"), "BTREE").substitute().text());
-        stmt.addBatch(buildCreateIndexQuery(schema, table, "operation", "HASH").substitute().text());
+        stmt.addBatch(buildCreateIndexQuery(schema, table, "operation", "BTREE").substitute().text());
     }
 
     private static SQLQuery buildCreateIndexQuery(String schema, String table, String columnName, String method) {
