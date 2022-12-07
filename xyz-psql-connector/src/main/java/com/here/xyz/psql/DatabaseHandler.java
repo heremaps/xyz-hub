@@ -998,12 +998,12 @@ public abstract class DatabaseHandler extends StorageConnector {
                 catch (Exception e) {
                     if (e instanceof SQLException && "54000".equals(((SQLException) e).getSQLState())) {
                         //No time left for processing of further tables
-                        logger.info("{} Table '{}' could not be processed anymore. No time left. Processed {} tables : {}", traceItem, tableName, processedCount, e);
+                        logger.info(phase + ": {} Table '{}' could not be processed anymore. No time left. Processed {} tables : {}", traceItem, tableName, processedCount, e);
                         connection.rollback();
                         break;
                     }
                     else {
-                        logger.error("{} Failed to alter table / create indices on '{}' : {}", traceItem, tableName, e);
+                        logger.error(phase + ": {} Failed to alter table / create indices on '{}' : {}", traceItem, tableName, e);
                         connection.rollback();
                     }
                 }
@@ -1040,7 +1040,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         stmt.setQueryTimeout(calculateTimeout());
         stmt.executeBatch();
         connection.commit();
-        logger.info("{} Successfully altered table and created indices for table '{}'", traceItem, tableName);
+        logger.info("phase0: {} Successfully altered table and created indices for table '{}'", traceItem, tableName);
     }
 
     private void oneTimeFillNewColumns(Connection connection, String schema, String tableName, Statement stmt) throws SQLException {
