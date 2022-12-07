@@ -149,7 +149,7 @@ public class MaintenanceClient {
         DataSource source = dbInstance.getSource();
 
         SQLQuery hasPermissionsQuery = new SQLQuery("select has_database_privilege(?, ?, 'CREATE')", dbSettings.getUser(), dbSettings.getDb() );
-        SQLQuery installExtensionsQuery = new SQLQuery(MaintenanceSQL.generateMandatoryExtensionSQL(dbSettings.getHost().equalsIgnoreCase("localhost") || dbSettings.getHost().equalsIgnoreCase("postgres")));
+        SQLQuery installExtensionsQuery = new SQLQuery(MaintenanceSQL.generateMandatoryExtensionSQL());
 
         SQLQuery setSearchpath = new SQLQuery(MaintenanceSQL.generateSearchPathSQL(dbSettings.getSchema()));
         SQLQuery addInitializationEntry = new SQLQuery(MaintenanceSQL.generateInitializationEntry, dbSettings.getSchema(), dbInstance.getConnectorId(), true, extensionList,

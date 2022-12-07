@@ -485,7 +485,7 @@ components:
         id:
           description: >-
             id
-          example: "ZMlfeaN8B8"
+          example: "ZMlfea"
           type: string
         targetSpaceId:
           description: >-
@@ -495,12 +495,12 @@ components:
         description:
           description: >-
             description
-          example: 1234
+          example: "description"
           type: string
         csvFormat:
           description: >-
             csvFormat
-          example: JSONWKB
+          example: "JSON_WKB"
           type: string
         injectUUID:
           description: >-
@@ -511,7 +511,7 @@ components:
         type: "Import"
         targetSpaceId: "12s4G4cw"
         description: "Job Description"
-        csvFormat: "JSON_WKT"
+        csvFormat: "JSON_WKB"
         injectUUID: true
     ConnectorStatus:
       type: object
