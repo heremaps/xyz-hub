@@ -965,8 +965,10 @@ public abstract class DatabaseHandler extends StorageConnector {
         logger.info("Executing " + phase + " for tables: " + String.join(", ", tableNames));
         final String schema = config.getDatabaseSettings().getSchema();
         int processedCount = 0;
+        long overallDuration = 0;
         for (String tableName : tableNames) {
             logger.info(phase + ": process table: " + tableName);
+            long tableStartTime = System.currentTimeMillis();
             //Check if table exists, if not don't do anything for that table
 //            if (!hasTable(tableName)) {
 //                logger.info(phase + ": table not found: " + tableName);
@@ -1013,8 +1015,11 @@ public abstract class DatabaseHandler extends StorageConnector {
             }
             else
                 logger.info(phase + ": lock on table" + tableName + " could not be acquired. Continuing with next one.");
+            long tableDuration = System.currentTimeMillis() - tableStartTime;
+            overallDuration += tableDuration;
+            logger.info(phase + ": table: " + tableName + " done. took: " + tableDuration + "ms");
         }
-        logger.info(phase + ": processed {} tables.", processedCount);
+        logger.info(phase + ": processed {} tables. Took: {}ms", processedCount, overallDuration);
     }
 
     private void oneTimeAlterExistingTablesAddNewColumnsAndIndices(Connection connection, String schema, String tableName, Statement stmt) throws SQLException {
