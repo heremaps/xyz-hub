@@ -84,12 +84,18 @@ public class MaintenanceSQL {
     /**
      * Install all required database extensions
      */
-    public static String generateMandatoryExtensionSQL(boolean runsLocal){
-        return "CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;"+
-                "CREATE EXTENSION IF NOT EXISTS postgis_topology;"+
-                "CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;"+
-                (!runsLocal ? "CREATE EXTENSION IF NOT EXISTS aws_s3 CASCADE;" : "")+
-                "CREATE EXTENSION IF NOT EXISTS dblink SCHEMA public;";
+    public static String generateMandatoryExtensionSQL(){
+        return "DO $$ " +
+                "BEGIN " +
+                "CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public; " +
+                "CREATE EXTENSION IF NOT EXISTS postgis_topology; " +
+                "CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public; " +
+                "CREATE EXTENSION IF NOT EXISTS dblink SCHEMA public; " +
+                "CREATE EXTENSION IF NOT EXISTS aws_s3 CASCADE; " +
+                "EXCEPTION WHEN OTHERS THEN " +
+                "RAISE NOTICE 'Not able to install all extensions'; " +
+                "END; " +
+                "$$;";
     }
 
     /**
