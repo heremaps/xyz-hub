@@ -24,7 +24,7 @@ import com.here.xyz.events.ChangesetEvent.Operation;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.hub.rest.ApiParam.Path;
-import com.here.xyz.hub.rest.ApiParam.Query;
+import static com.here.xyz.hub.rest.ApiParam.Query.getPropertyQuery;
 import com.here.xyz.hub.task.SpaceConnectorBasedHandler;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
@@ -42,7 +42,7 @@ public class ChangesetApi extends SpaceBasedApi {
    */
   private void deleteChangesets(final RoutingContext context) {
     final String space = context.pathParam(Path.SPACE_ID);
-    final PropertyQuery version = Query.getPropertyQuery(context.request().query(), Query.VERSION, false);
+    final PropertyQuery version = getPropertyQuery(context.request().query(), "version", false);
     final QueryOperation supportedOp = QueryOperation.LESS_THAN;
 
     Future<PropertyQuery> future = version != null
