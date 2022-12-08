@@ -20,9 +20,9 @@ package com.here.xyz.httpconnector.util.jobs;
 
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
-import com.fasterxml.jackson.annotation.*;
-import jdk.nashorn.internal.ir.annotations.Ignore;
-
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.net.URL;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -68,7 +68,7 @@ public class ImportObject {
                 this.compressed = true;
     }
 
-    @Ignore
+    @JsonIgnore
     public String getFilename() {
         if(s3Key == null)
             return null;
