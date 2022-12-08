@@ -193,7 +193,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         try {
             if (System.getenv("OTA_PHASE") != null)
-                executeOneTimeAction(System.getenv("OTA_PHASE"));
+                executeOneTimeAction(System.getenv("OTA_PHASE"), getDefaultInputDataForOneTimeAction(System.getenv("OTA_PHASE")));
         }
         catch (Exception e) {
             logger.error("OTA: Error during one time action execution:", e);
@@ -905,26 +905,14 @@ public abstract class DatabaseHandler extends StorageConnector {
         return (int) event.getParams().get("versionsToKeep");
     }
 
-
-    private boolean executeOneTimeAction(String phase) throws SQLException, ErrorResponseException {
-        return executeOneTimeAction(phase, null);
-    }
-
-    private boolean executeOneTimeAction(String phase, Map<String, Object> inputData) throws SQLException, ErrorResponseException {
+    private boolean executeOneTimeAction(String phase, Map<String, Object> inputData) throws SQLException {
         try (final Connection connection = dataSource.getConnection()) {
             logger.info("oneTimeAction " + phase + ": Starting execution ...");
             if (_advisory(phase, connection, true, false)) {
                 try {
                     switch (phase) {
                         case "phase0": {
-                            List<String> tableNames =
-                                inputData != null && inputData.containsKey("tableNames") && inputData.get("tableNames") instanceof List
-                                ? (List) inputData.get("tableNames")
-                                : new GetTablesWithColumn(new GetTablesWithColumnInput("id", false, 100), this).run();
-                            if (tableNames.isEmpty())
-                                logger.info("oneTimeActionVersioningMigration " + phase + ": Nothing to do.");
-                            else
-                                oneTimeActionForVersioning(phase, tableNames, connection);
+                            oneTimeActionForVersioning(phase, inputData, connection);
                             break;
                         }
                         case "phase1": {
@@ -960,8 +948,25 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
+    private Map<String, Object> getDefaultInputDataForOneTimeAction(String phase) throws SQLException, ErrorResponseException {
+        switch (phase) {
+            case "phase0": {
+                return Collections.singletonMap("tableNames",
+                    new GetTablesWithColumn(new GetTablesWithColumnInput("id", false, 100), this).run());
+            }
+        }
+        return Collections.emptyMap();
+    }
 
-    private void oneTimeActionForVersioning(String phase, List<String> tableNames, Connection connection) throws SQLException {
+    private void oneTimeActionForVersioning(String phase, Map<String, Object> inputData, Connection connection) throws SQLException {
+        if (inputData == null || !inputData.containsKey("tableNames") || !(inputData.get("tableNames") instanceof List))
+            throw new IllegalArgumentException("Table names have to be defined for OTA phase: " + phase);
+        List<String> tableNames = (List) inputData.get("tableNames");
+        if (tableNames.isEmpty()) {
+            logger.info("oneTimeActionVersioningMigration " + phase + ": Nothing to do.");
+            return;
+        }
+
         logger.info("Executing " + phase + " for tables: " + String.join(", ", tableNames));
         final String schema = config.getDatabaseSettings().getSchema();
         int processedCount = 0;
