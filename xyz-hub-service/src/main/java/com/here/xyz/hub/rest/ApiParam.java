@@ -376,6 +376,12 @@ public class ApiParam {
       if (StringUtils.isNullOrEmpty(query) || StringUtils.isNullOrEmpty(key))
         return null;
 
+      try {
+        query = URLDecoder.decode(query, "utf-8");
+      } catch (UnsupportedEncodingException e) {
+        return null;
+      }
+
       int startIndex;
       if ((startIndex=query.indexOf(key)) != -1) {
         String opValue = query.substring(startIndex + key.length()); // e.g. =eq=head

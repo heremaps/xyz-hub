@@ -38,7 +38,7 @@ public class DeleteChangesets extends XyzQueryRunner<ChangesetEvent, SuccessResp
     return new SQLQuery("DELETE FROM ${schema}.${table} where version < #{version} and next_version <> #{max_version};")
         .withVariable(SCHEMA, getSchema())
         .withVariable(TABLE, getDefaultTable(event))
-        .withNamedParameter("version", event.getHistoryVersion())
+        .withNamedParameter("version", Long.parseLong((String) event.getHistoryVersion().getValues().get(0)))
         .withNamedParameter("max_version", Long.MAX_VALUE);
   }
 

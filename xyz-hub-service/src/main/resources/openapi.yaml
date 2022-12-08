@@ -772,7 +772,7 @@ paths:
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/Sort'
         - $ref: '#/components/parameters/Part'
-        - $ref: '#/components/parameters/Version'
+        - $ref: '#/components/parameters/VersionIterate'
         - $ref: '#/components/parameters/SkipCache'
         - $ref: '#/components/parameters/Handle'
         - $ref: '#/components/parameters/Force2D'
@@ -1665,17 +1665,6 @@ components:
         type: array
         items:
           type: string
-    Changeset:
-      name: version
-      in: query
-      description: >-
-        The query parameter used to specify one specific version or all versions when '*' is used.
-        The supported values for this field are:
-          - the char '*', e.g. ?version=*
-          - an integer e.g. ?versions=5
-      required: false
-      schema:
-        type: string
     VersionLowerThan:
       name: version
       in: query
@@ -1841,6 +1830,17 @@ components:
         additionalProperties:
           type: string
     Version:
+      name: version
+      in: query
+      description: >-
+        The query parameter used to specify one specific version or all versions when '*' is used.
+        The supported values for this field are:
+          - the char '*', e.g. ?version=*
+          - an integer e.g. ?versions=5
+      required: false
+      schema:
+        type: string
+    VersionIterate:
       name: version
       in: query
       description: Define a version [feature version <= query version].
