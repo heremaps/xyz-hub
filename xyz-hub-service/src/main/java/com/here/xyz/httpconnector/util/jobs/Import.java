@@ -53,7 +53,7 @@ public class Import extends Job {
     @JsonInclude
     private String type = "Import";
     private List<String> idxList;
-    protected boolean enabledUUID;
+    protected Boolean enabledUUID;
 
     public Import(){ }
 
@@ -70,15 +70,15 @@ public class Import extends Job {
         return type;
     }
 
-    public boolean isEnabledUUID() {
+    public Boolean isEnabledUUID() {
         return enabledUUID;
     }
 
-    public void setEnabledUUID(boolean enabledUUID) {
+    public void setEnabledUUID(Boolean enabledUUID) {
         this.enabledUUID = enabledUUID;
     }
 
-    public Job withEnabledUUID(boolean enabledUUID) {
+    public Job withEnabledUUID(Boolean enabledUUID) {
         setEnabledUUID(enabledUUID);
         return this;
     }

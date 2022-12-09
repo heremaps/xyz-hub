@@ -197,11 +197,6 @@ public abstract class Job {
         this.status = status;
     }
 
-    public Job withEnabledUUID(Job.Status status) {
-        setStatus(status);
-        return this;
-    }
-
     public CSVFormat getCsvFormat() {
         return csvFormat;
     }
