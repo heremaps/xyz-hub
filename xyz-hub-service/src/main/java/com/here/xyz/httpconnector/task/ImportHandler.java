@@ -216,7 +216,7 @@ public class ImportHandler {
                             p.complete(importJob);
                             return;
                         } catch (IOException e) {
-                            e.printStackTrace();
+                            logger.error("Can`t create S3 URL ",e);
                             p.fail(new HttpException(BAD_GATEWAY, e.getMessage()));
                             return;
                         }

@@ -182,7 +182,7 @@ public class JobProxyApi extends Api{
 
                                         if(connector != null && connector.params != null){
                                             String ecps = (String) connector.params.get("ecps");
-                                            Boolean enableHashedSpaceId = (Boolean) connector.params.get("enableHashedSpaceId");
+                                            Boolean enableHashedSpaceId = connector.params.get("enableHashedSpaceId") == null ? false : (Boolean) connector.params.get("enableHashedSpaceId");
 
                                             String postUrl = (Service.configuration.HTTP_CONNECTOR_ENDPOINT
                                                     +"/jobs/{jobId}/execute?"
@@ -197,7 +197,6 @@ public class JobProxyApi extends Api{
                                                         /**deprecated */
                                                         .replace("{enableUUID}","false")
                                                         .replace("{command}",command);
-                                            logger.info("URL "+postUrl);
 
                                             Service.webClient
                                                     .postAbs(postUrl)
