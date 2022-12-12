@@ -60,8 +60,8 @@ public abstract class JobConfigClient implements Initializable {
                 .onFailure(t -> logger.error(marker, "job[{}]: failed to load!", jobId, t));
     }
 
-    public Future<List<Job>> getList(Marker marker, Job.Type type, Job.Status status) {
-        return getJobs(marker, type, status)
+    public Future<List<Job>> getList(Marker marker, Job.Type type, Job.Status status, String targetSpaceId) {
+        return getJobs(marker, type, status, targetSpaceId)
                 .onSuccess(jobList -> {
                     logger.info(marker, "Successfully loaded '{}' jobs!", jobList.size());
                 })
@@ -105,7 +105,7 @@ public abstract class JobConfigClient implements Initializable {
 
     protected abstract Future<Job> getJob(Marker marker, String jobId);
 
-    protected abstract Future<List<Job>> getJobs( Marker marker, Job.Type type, Job.Status status);
+    protected abstract Future<List<Job>> getJobs( Marker marker, Job.Type type, Job.Status status, String targetSpaceId);
 
     protected abstract Future<Job> storeJob(Marker marker, Job job);
 

@@ -47,7 +47,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.*;
 
 public class ImportHandler {
     private static final Logger logger = LogManager.getLogger();
-    private static ArrayList<String> MODIFICATION_WHITELIST = new ArrayList<String>(){{  add("targetSpaceId"); add("description"); add("enabledUUID"); add("csvFormat"); add("importObjects"); }};
+    private static ArrayList<String> MODIFICATION_WHITELIST = new ArrayList<String>(){{  add("description"); add("enabledUUID"); add("csvFormat"); add("importObjects"); }};
     private static Map<String,String> MODIFICATION_IGNORE_MAP = new HashMap<String,String>(){{put("createdAt","createdAt");put("updatedAt","updatedAt");}};
 
     public static Future<Job> postJob(Job job, Marker marker){
@@ -84,7 +84,7 @@ public class ImportHandler {
         return p.future();
     }
 
-    public static Future<Job> putJob(Job job, Marker marker){
+    public static Future<Job> patchJob(Job job, Marker marker){
         Promise<Job> p = Promise.promise();
 
         CService.jobConfigClient.get(marker, job.getId())
@@ -125,10 +125,10 @@ public class ImportHandler {
         return p.future();
     }
 
-    public static Future<List<Job>> getJobs(Marker marker, Type type, Job.Status status){
+    public static Future<List<Job>> getJobs(Marker marker, Type type, Job.Status status, String targetSpaceId){
         Promise<List<Job>> p = Promise.promise();
 
-        CService.jobConfigClient.getList(marker, type, status).onSuccess(
+        CService.jobConfigClient.getList(marker, type, status, targetSpaceId).onSuccess(
                 j -> p.complete(j)
         ).onFailure(t -> p.fail(new HttpException(BAD_GATEWAY, t.getMessage())));
 
@@ -174,7 +174,8 @@ public class ImportHandler {
         job.addImportObject(CService.jobS3Client.generateUploadURL(job));
     }
 
-    public static Future<Job> postExecute(String jobId, String connectorId, String ecps, String passphrase, HApiParam.HQuery.Command command, boolean enableHashedSpaceId, Marker marker){
+    public static Future<Job> postExecute(String jobId, String connectorId, String ecps, String passphrase, HApiParam.HQuery.Command command,
+                                          boolean enableHashedSpaceId, boolean enableUUID, Marker marker){
 
         Promise<Job> p = Promise.promise();
 
@@ -190,18 +191,19 @@ public class ImportHandler {
                 }
 
                 if(command.equals(HApiParam.HQuery.Command.START) || command.equals(HApiParam.HQuery.Command.RETRY)){
-                    /** Add Client if Missing */
-                    if(JDBCImporter.getClient(connectorId) == null){
-                        try {
-                            JDBCImporter.addClient(connectorId, ecps, passphrase);
-                        }catch (CannotDecodeException e){
-                            p.fail(new HttpException(PRECONDITION_FAILED, "Can not decode ECPS!"));
-                            return;
-                        }
+                    /** Add Client if missing or reload client if config has changed */
+
+                    try {
+                        JDBCImporter.addClientIfRequired(connectorId, ecps, passphrase);
+                    }catch (CannotDecodeException e){
+                        p.fail(new HttpException(PRECONDITION_FAILED, "Can not decode ECPS!"));
+                        return;
                     }
+
 
                     /** Need connectorId as JDBC-clientID for scheduled processing in ImportQueue */
                     importJob.setTargetConnector(connectorId);
+                    importJob.setEnabledUUID(enableUUID);
                 }
 
                 switch (command){
@@ -324,6 +326,8 @@ public class ImportHandler {
                     case preparing:
                         job.setStatus(Job.Status.validated);
                         job.setErrorType(null);
+                        return true;
+                    case executed:
                         return true;
                     case executing: //to allow this we need to check potentially the running exports first
                     case finalizing://to allow this we need to check potentially the idx creations first

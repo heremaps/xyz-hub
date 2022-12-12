@@ -19,23 +19,31 @@
 package com.here.xyz.httpconnector.rest;
 
 import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.rest.ApiParam;
+import com.here.xyz.hub.rest.HttpException;
+import io.vertx.core.json.DecodeException;
+import io.vertx.core.json.Json;
 import io.vertx.ext.web.RoutingContext;
 
 import java.util.HashMap;
 
 import static com.here.xyz.hub.AbstractHttpServerVerticle.STREAM_INFO_CTX_KEY;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
 
 public class HApiParam extends ApiParam {
 
-    public static class Path {
-        public static final String SPACE_ID = "spaceId";
+    public static class Path extends ApiParam.Path {
         public static final String JOB_ID = "jobId";
     }
 
     public static class HQuery extends Query{
         static final String ENABLED_HASHED_SPACE_ID = "enableHashedSpaceId";
+        static final String ENABLED_UUID = "enableUUID";
+        static final String TARGET_SPACEID = "targetSpaceId";
+        public static final String H_COMMAND = "command";
 
         public enum Command {
             START,RETRY,ABORT,CREATEUPLOADURL;
@@ -51,7 +59,7 @@ public class HApiParam extends ApiParam {
             }
         }
 
-        protected static Command getCommand(RoutingContext context) {
+        public static Command getCommand(RoutingContext context) {
             Command command = Command.of(getString(context, "command", null));
 
             if(command == null)
@@ -98,6 +106,21 @@ public class HApiParam extends ApiParam {
                     return type;
                 default:
                     return null;
+            }
+        }
+
+        public static Job getJobInput(final RoutingContext context) throws HttpException{
+            try {
+                Job job = Json.decodeValue(context.getBodyAsString(), Job.class);
+
+                /** Remove if Export is implemented */
+                if(!(job instanceof Import))
+                   throw new HttpException(NOT_IMPLEMENTED, null);
+
+                return job;
+            }
+            catch (DecodeException e) {
+                throw new HttpException(BAD_REQUEST, e.getMessage());
             }
         }
 

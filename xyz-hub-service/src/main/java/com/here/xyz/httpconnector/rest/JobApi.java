@@ -23,12 +23,9 @@ import com.here.xyz.httpconnector.rest.HApiParam.HQuery;
 import com.here.xyz.httpconnector.rest.HApiParam.HQuery.Command;
 import com.here.xyz.httpconnector.rest.HApiParam.Path;
 import com.here.xyz.httpconnector.task.ImportHandler;
-import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.HttpException;
-import io.vertx.core.json.DecodeException;
-import io.vertx.core.json.Json;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
 
@@ -46,31 +43,29 @@ public class JobApi extends Api {
   }
 
   private void postJob(final RoutingContext context) {
-    Job job = getJobInput(context);
-    /** Error is already send */
-    if (job == null)
-      return;
-
-    ImportHandler.postJob(job, Api.Context.getMarker(context))
-            .onFailure(t -> this.sendErrorResponse(context, t))
-            .onSuccess(j -> this.sendResponse(context, OK, j));
+    try {
+      Job job = HApiParam.HQuery.getJobInput(context);
+      ImportHandler.postJob(job, Api.Context.getMarker(context))
+              .onFailure(t -> this.sendErrorResponse(context, t))
+              .onSuccess(j -> this.sendResponse(context, OK, j));
+    }catch (HttpException e){
+      this.sendErrorResponse(context, e);
+    }
   }
 
   private void patchJob(final RoutingContext context) {
     String jobId = context.pathParam(Path.JOB_ID);
-    Job job = getJobInput(context);
-    job.setId(jobId);
 
-    /** Error is already send */
-    if(job == null)
-      return;
+    try {
+      Job job = HApiParam.HQuery.getJobInput(context);
+      job.setId(jobId);
 
-    if(!(job instanceof Import))
-      this.sendErrorResponse(context, new HttpException(NOT_IMPLEMENTED, null));
-
-    ImportHandler.putJob(job, Api.Context.getMarker(context))
-            .onFailure(t -> this.sendErrorResponse(context, t))
-            .onSuccess(j -> this.sendResponse(context, OK, j));
+      ImportHandler.patchJob(job, Api.Context.getMarker(context))
+              .onFailure(t -> this.sendErrorResponse(context, t))
+              .onSuccess(j -> this.sendResponse(context, OK, j));
+    }catch (HttpException e){
+      this.sendErrorResponse(context, e);
+    }
   }
 
   private void getJob(final RoutingContext context) {
@@ -84,8 +79,9 @@ public class JobApi extends Api {
   private void getJobs(final RoutingContext context) {
     Job.Type jobType = HQuery.getJobType(context);
     Job.Status jobStatus = HQuery.getJobStatus(context);
+    String targetSpaceId = HQuery.getString(context, HQuery.TARGET_SPACEID , null);
 
-    ImportHandler.getJobs( Api.Context.getMarker(context), jobType, jobStatus)
+    ImportHandler.getJobs( Api.Context.getMarker(context), jobType, jobStatus, targetSpaceId)
             .onFailure(t -> this.sendErrorResponse(context, t))
             .onSuccess(jobs -> this.sendResponse(context, OK, jobs));
   }
@@ -101,6 +97,7 @@ public class JobApi extends Api {
   private void postExecute(final RoutingContext context) {
     Command command = HQuery.getCommand(context);
     boolean enableHashedSpaceId = HQuery.getBoolean(context, HApiParam.HQuery.ENABLED_HASHED_SPACE_ID , true);
+    boolean enableUUID = HQuery.getBoolean(context, HQuery.ENABLED_UUID , true);
     String[] params = HApiParam.HQuery.parseMainParams(context);
 
     if(command == null) {
@@ -110,7 +107,7 @@ public class JobApi extends Api {
 
     String jobId = context.pathParam(Path.JOB_ID);
 
-    ImportHandler.postExecute(jobId, params[0], params[1], params[2], command, enableHashedSpaceId, Api.Context.getMarker(context))
+    ImportHandler.postExecute(jobId, params[0], params[1], params[2], command, enableHashedSpaceId, enableUUID, Api.Context.getMarker(context))
             .onFailure(t -> this.sendErrorResponse(context, t))
             .onSuccess(job -> {
 
@@ -124,20 +121,5 @@ public class JobApi extends Api {
                   context.response().setStatusCode(NO_CONTENT.code()).end();
               }
             });
-  }
-
-  private Job getJobInput(final RoutingContext context) {
-    Job job = null;
-    try {
-      job = Json.decodeValue(context.getBodyAsString(), Job.class);
-
-      /** Remove if Export is implemented */
-      if(!(job instanceof Import))
-        this.sendErrorResponse(context, new HttpException(NOT_IMPLEMENTED, null));
-    }
-    catch (DecodeException e) {
-      this.sendErrorResponse(context, new HttpException(BAD_REQUEST, e.getMessage()));
-    }
-    return job;
   }
 }

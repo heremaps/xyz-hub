@@ -103,7 +103,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
     }
 
     @Override
-    protected Future<List<Job>> getJobs(Marker marker, Type type, Status status) {
+    protected Future<List<Job>> getJobs(Marker marker, Type type, Status status, String targetSpaceId) {
         return DynamoClient.dynamoWorkers.executeBlocking(p -> {
             try {
                 final List<Job> result = new ArrayList<>();
@@ -113,6 +113,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
                     filterList.add(new ScanFilter("type").eq(type.toString()));
                 if(status != null)
                     filterList.add(new ScanFilter("status").eq(status.toString()));
+                if(targetSpaceId != null)
+                    filterList.add(new ScanFilter("targetSpaceId").eq(targetSpaceId));
 
                 jobs.scan(filterList.toArray(new ScanFilter[0])).pages().forEach(j -> j.forEach(i -> {
                     try{

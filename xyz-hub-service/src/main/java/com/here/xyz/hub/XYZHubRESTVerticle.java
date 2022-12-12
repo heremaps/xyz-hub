@@ -36,6 +36,7 @@ import com.here.xyz.hub.rest.HistoryQueryApi;
 import com.here.xyz.hub.rest.ChangesetApi;
 import com.here.xyz.hub.rest.SpaceApi;
 import com.here.xyz.hub.rest.SubscriptionApi;
+import com.here.xyz.hub.rest.JobProxyApi;
 import com.here.xyz.hub.rest.health.HealthApi;
 import com.here.xyz.hub.task.Task;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -113,6 +114,7 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
           new ConnectorApi(rb);
           new SubscriptionApi(rb);
           new ChangesetApi(rb);
+          new JobProxyApi(rb);
 
           final AuthenticationHandler jwtHandler = createJWTHandler();
           rb.securityHandler("Bearer", jwtHandler);
