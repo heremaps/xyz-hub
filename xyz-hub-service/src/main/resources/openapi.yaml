@@ -1089,12 +1089,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/SpaceId'
       requestBody:
-        description: Creates a new job.
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Job'
+        $ref: '#/components/requestBodies/JobRequest'
       responses:
         '200':
           $ref: '#/components/responses/JobResponse'
@@ -1130,12 +1125,7 @@ paths:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/JobId'
       requestBody:
-        description: Update a existing job.
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Job'
+        $ref: '#/components/requestBodies/JobRequest'
       responses:
         '200':
           $ref: '#/components/responses/JobResponse'
@@ -2215,6 +2205,12 @@ components:
             destination: string
             config:
               type: PER_FEATURE
+    JobRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Job'
   schemas:
     # TODO add Typed and Iterable schemas
     AWSLambda:
