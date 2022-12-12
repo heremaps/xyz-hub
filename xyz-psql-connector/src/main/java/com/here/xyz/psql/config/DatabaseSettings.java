@@ -20,6 +20,7 @@
 package com.here.xyz.psql.config;
 
 import com.amazonaws.services.lambda.runtime.Context;
+import com.here.xyz.util.Hasher;
 
 public class DatabaseSettings {
 
@@ -207,5 +208,9 @@ public class DatabaseSettings {
 
     public String getConfigValuesAsString() {
         return host+replicaHost+db+user+schema+port+password;
+    }
+
+    public String getCacheKey(String id) {
+        return Hasher.getHash(id+getConfigValuesAsString());
     }
 }
