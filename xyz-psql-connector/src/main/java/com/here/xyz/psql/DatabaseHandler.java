@@ -59,6 +59,10 @@ import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
 import com.here.xyz.psql.query.helpers.GetTablesWithColumn;
 import com.here.xyz.psql.query.helpers.GetNextVersion;
 import com.here.xyz.psql.query.helpers.GetTablesWithColumn.GetTablesWithColumnInput;
+import com.here.xyz.psql.query.helpers.GetTablesWithComment;
+import com.here.xyz.psql.query.helpers.GetTablesWithComment.GetTablesWithCommentInput;
+import com.here.xyz.psql.query.helpers.SetVersion;
+import com.here.xyz.psql.query.helpers.SetVersion.SetVersionInput;
 import com.here.xyz.psql.tools.DhString;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.ErrorResponse;
@@ -115,6 +119,8 @@ public abstract class DatabaseHandler extends StorageConnector {
      **/
     private static final int MIN_REMAINING_TIME_FOR_RETRY_SECONDS = 3;
     protected static final int STATEMENT_TIMEOUT_SECONDS = 23;
+    public static final String OTA_PHASE_1_COMPLETE = "phase1_complete";
+    public static final String OTA_PHASE_1_STARTED = "phase1_started";
 
     private static String INCLUDE_OLD_STATES = "includeOldStates"; // read from event params
 
@@ -151,7 +157,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     @Override
     protected XyzResponse processOneTimeActionEvent(OneTimeActionEvent event) throws Exception {
         try {
-            if (executeOneTimeAction(event.getPhase(), event.getInputData()))
+            if (executeOneTimeAction(event.getPhase(), event.getInputData() != null ? event.getInputData() : getDefaultInputDataForOneTimeAction(event.getPhase())))
                 return new SuccessResponse().withStatus("EXECUTED");
             return new SuccessResponse().withStatus("ALREADY RUNNING");
         }
@@ -615,6 +621,8 @@ public abstract class DatabaseHandler extends StorageConnector {
                     return -1;
                 }, false);   // false -> not use readreplica due to sequence 'update' statement: SELECT nextval("...._hst_seq"') and to make sure the read sequence value is the correct (most recent) one
               collection.setVersion(version);
+              //NOTE: The following is a temporary implementation for backwards compatibility for old spaces with globalVersioning
+              new SetVersion(new SetVersionInput(event, version), this).run();
           }
           else if (event.getVersionsToKeep() > 0) //Backwards compatibility check
               version = new GetNextVersion<>(event, this).run();
@@ -912,11 +920,12 @@ public abstract class DatabaseHandler extends StorageConnector {
                 try {
                     switch (phase) {
                         case "phase0": {
-                            oneTimeActionForVersioning(phase, inputData, connection);
+                            oneTimeActionForVersioning(phase, inputData, connection, true);
                             break;
                         }
                         case "phase1": {
-
+                            setupOneTimeActionFillNewColumns(phase, connection);
+                            oneTimeActionForVersioning(phase, inputData, connection, false);
                             break;
                         }
                         case "phaseX": {
@@ -954,11 +963,15 @@ public abstract class DatabaseHandler extends StorageConnector {
                 return Collections.singletonMap("tableNames",
                     new GetTablesWithColumn(new GetTablesWithColumnInput("id", false, 100), this).run());
             }
+            case "phase1": {
+                return Collections.singletonMap("tableNames",
+                    new GetTablesWithComment(new GetTablesWithCommentInput(OTA_PHASE_1_COMPLETE, false, 100_000, 100), this).run());
+            }
         }
         return Collections.emptyMap();
     }
 
-    private void oneTimeActionForVersioning(String phase, Map<String, Object> inputData, Connection connection) throws SQLException {
+    private void oneTimeActionForVersioning(String phase, Map<String, Object> inputData, Connection connection, boolean phaseLock) throws SQLException {
         if (inputData == null || !inputData.containsKey("tableNames") || !(inputData.get("tableNames") instanceof List))
             throw new IllegalArgumentException("Table names have to be defined for OTA phase: " + phase);
         List<String> tableNames = (List) inputData.get("tableNames");
@@ -972,15 +985,11 @@ public abstract class DatabaseHandler extends StorageConnector {
         int processedCount = 0;
         long overallDuration = 0;
         for (String tableName : tableNames) {
+            boolean tableCompleted = false;
             logger.info(phase + ": process table: " + tableName);
-            long tableStartTime = System.currentTimeMillis();
-            //Check if table exists, if not don't do anything for that table
-//            if (!hasTable(tableName)) {
-//                logger.info(phase + ": table not found: " + tableName);
-//                continue;
-//            }
 
-            if (_advisory(tableName, connection, true, false)) {
+            if (!phaseLock || _advisory(tableName, connection, true, false)) {
+                long tableStartTime = System.currentTimeMillis();
                 boolean cStateFlag = connection.getAutoCommit();
                 try {
                     if (cStateFlag)
@@ -990,10 +999,11 @@ public abstract class DatabaseHandler extends StorageConnector {
                         switch (phase) {
                             case "phase0": {
                                 oneTimeAlterExistingTablesAddNewColumnsAndIndices(connection, schema, tableName, stmt);
+                                tableCompleted = true;
                                 break;
                             }
                             case "phase1": {
-                                oneTimeFillNewColumns(connection, schema, tableName, stmt);
+                                tableCompleted = oneTimeFillNewColumns(connection, schema, tableName, stmt, inputData);
                                 break;
                             }
                         }
@@ -1017,12 +1027,12 @@ public abstract class DatabaseHandler extends StorageConnector {
                     if (cStateFlag)
                         connection.setAutoCommit(true);
                 }
+                long tableDuration = System.currentTimeMillis() - tableStartTime;
+                overallDuration += tableDuration;
+                logger.info(phase + ": table: " + tableName + (tableCompleted ? " done" : " partially processed") + ". took: " + tableDuration + "ms");
             }
             else
                 logger.info(phase + ": lock on table" + tableName + " could not be acquired. Continuing with next one.");
-            long tableDuration = System.currentTimeMillis() - tableStartTime;
-            overallDuration += tableDuration;
-            logger.info(phase + ": table: " + tableName + " done. took: " + tableDuration + "ms");
         }
         logger.info(phase + ": processed {} tables. Took: {}ms", processedCount, overallDuration);
     }
@@ -1048,14 +1058,77 @@ public abstract class DatabaseHandler extends StorageConnector {
         logger.info("phase0: {} Successfully altered table and created indices for table '{}'", traceItem, tableName);
     }
 
-    private void oneTimeFillNewColumns(Connection connection, String schema, String tableName, Statement stmt) throws SQLException {
-        //Fill id column
-        SQLQuery fillIdColumnQuery = new SQLQuery("WITH rows_to_update AS (SELECT jsondata->>'id' as id FROM ${schema}.${table} WHERE id IS NULL LIMIT 10000) "
-            + "UPDATE ${schema}.${table} t "
-            + "SET id = jsondata->>'id' "
-            + "FROM rows_to_update "
-            + "WHERE t.jsondata->>'id' = rows_to_update.id");
+    private static void setupOneTimeActionFillNewColumns(String phase, Connection connection) throws SQLException {
+        logger.info("oneTimeAction " + phase + ": Setting up PSQL function ...");
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("CREATE OR REPLACE FUNCTION fill_versioning_fields(schema_name TEXT, space_table_name TEXT, row_limit INTEGER) RETURNS INTEGER AS $$ "
+                + "DECLARE "
+                + "    operation_column_result INTEGER; "
+                + "    update_sql TEXT; "
+                + "    updated_rows INTEGER; "
+                + "BEGIN "
+                + "    operation_column_result := (SELECT 1 WHERE EXISTS (SELECT column_name "
+                + "                                                       FROM information_schema.columns "
+                + "                                                       WHERE table_name = space_table_name and column_name = 'deleted')); "
+                + " "
+                + "    update_sql = 'WITH rows_to_update AS (SELECT jsondata->>''id'' as id FROM \"' || schema_name || '\".\"' || space_table_name || '\" WHERE id IS NULL LIMIT ' || row_limit || ') ' || "
+                + "                 'UPDATE \"' || schema_name || '\".\"' || space_table_name || '\" t ' || "
+                + "                 'SET id = jsondata->>''id'', ' || "
+                + "                 'version = (CASE WHEN version > 0 THEN version ELSE (CASE WHEN (jsondata->''properties''->''@ns:com:here:xyz''->''version'')::BIGINT IS NULL THEN 0::BIGINT ELSE (jsondata->''properties''->''@ns:com:here:xyz''->''version'')::BIGINT END) END)'; "
+                + " "
+                + "    IF operation_column_result = 1 THEN "
+                + "        update_sql = update_sql || ', operation = (CASE WHEN deleted = TRUE THEN ''D'' ELSE operation END)'; "
+                + "    END IF; "
+                + " "
+                + "    EXECUTE update_sql || ' FROM rows_to_update WHERE t.jsondata->>''id'' = rows_to_update.id'; "
+                + "    GET DIAGNOSTICS updated_rows = ROW_COUNT; "
+                + " "
+                + "    IF (updated_rows < row_limit) THEN "
+                + "        EXECUTE 'COMMENT ON TABLE \"' || schema_name || '\".\"' || space_table_name || '\" IS ''" + OTA_PHASE_1_COMPLETE + "'''; "
+                + "    ELSE "
+                + "        EXECUTE 'COMMENT ON TABLE \"' || schema_name || '\".\"' || space_table_name || '\" IS ''" + OTA_PHASE_1_STARTED + "'''; "
+                + "    END IF; "
+                + " "
+                + "    return updated_rows; "
+                + "END; "
+                + "$$ LANGUAGE plpgsql;");
+        }
+    }
 
+    /**
+     * Fill id, version & operation columns
+     * @param connection
+     * @param schema
+     * @param tableName
+     * @param stmt
+     * @return
+     * @throws SQLException
+     */
+    private boolean oneTimeFillNewColumns(Connection connection, String schema, String tableName, Statement stmt, Map<String, Object> inputData) throws SQLException {
+        int limit = inputData.containsKey("rowProcessingLimit") ? (int) inputData.get("rowProcessingLimit") : 3_000;
+        //NOTE: If table processing has been fully done a comment "phase1_complete" will be added to the table
+        SQLQuery fillNewColumnsQuery = new SQLQuery("SELECT fill_versioning_fields(#{schema}, #{table}, #{limit})")
+            .withNamedParameter("schema", schema)
+            .withNamedParameter("table", tableName)
+            .withNamedParameter("limit", limit);
+
+        stmt.addBatch(fillNewColumnsQuery.substitute().text());
+        stmt.setQueryTimeout(calculateTimeout());
+        stmt.executeBatch();
+        connection.commit();
+
+        ResultSet rs = stmt.getResultSet();
+        int updatedRows;
+        if (rs.next())
+            updatedRows = rs.getInt(1);
+        else
+            throw new SQLException("Error while calling function fill_versioning_fields()");
+
+        boolean tableCompleted = updatedRows < limit;
+        logger.info("phase1: {} Successfully filled columns for " + updatedRows + " rows "
+            + (tableCompleted ? "and set comment '" + OTA_PHASE_1_COMPLETE + "' " : "and set comment '" + OTA_PHASE_1_STARTED + "' ") + "for table '{}'",
+            traceItem, tableName);
+        return tableCompleted;
     }
 
     private void createSpaceStatement(Statement stmt, Event event) throws SQLException {

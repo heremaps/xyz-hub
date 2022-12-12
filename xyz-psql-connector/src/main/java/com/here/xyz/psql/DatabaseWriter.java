@@ -84,8 +84,7 @@ public class DatabaseWriter {
 
         try {
             //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
-            boolean oldTableStyle = DatabaseHandler.readVersionsToKeep(event) < 1;
-            if ((oldTableStyle || event.isEnableGlobalVersioning()) && version != -1)
+            if (event.isEnableGlobalVersioning() && version != -1)
                 feature.getProperties().getXyzNamespace().setVersion(version);
             json = feature.serialize();
         } finally {
