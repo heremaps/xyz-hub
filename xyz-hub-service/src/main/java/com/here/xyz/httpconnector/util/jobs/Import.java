@@ -20,10 +20,8 @@ package com.here.xyz.httpconnector.util.jobs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.here.xyz.hub.Core;
+import com.fasterxml.jackson.annotation.JsonView;
 
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -49,10 +47,16 @@ public class Import extends Job {
     public static String ERROR_DESCRIPTION_TABLE_CLEANUP_FAILED = "TABLE_CLEANUP_FAILED";
 
     @JsonInclude
+    @JsonView({Public.class})
     private Map<String,ImportObject> importObjects;
+
     @JsonInclude
     private String type = "Import";
+
+    @JsonView({Internal.class})
     private List<String> idxList;
+
+    @JsonView({Internal.class})
     protected Boolean enabledUUID;
 
     public Import(){ }

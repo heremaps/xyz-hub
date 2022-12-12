@@ -11,6 +11,7 @@ import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.Json;
+import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.client.HttpResponse;
 import io.vertx.ext.web.openapi.RouterBuilder;
@@ -221,6 +222,12 @@ public class JobProxyApi extends Api{
                     return;
                 }
             }catch (DecodeException e) {}
+
+            try{
+                this.sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()),
+                        Json.decodeValue(DatabindCodec.mapper().writerWithView(Job.Public.class).writeValueAsString(res.bodyAsJson(Job.class))));
+                return;
+            }catch (Exception e){}
 
             this.sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()), res.bodyAsJsonObject());
         }
