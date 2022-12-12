@@ -37,8 +37,7 @@ import java.util.Date;
  * A client for reading and writing from and to S3
  */
 public class AwsS3Client {
-    //TODO: Check Expiration
-    protected static final int PRESIGNED_URL_EXPIRATION_SECONDS = 100;//7 * 24 * 60 * 60;
+    protected static final int PRESIGNED_URL_EXPIRATION_SECONDS = 14 * 24 * 60 * 60;
     protected static AWSCredentialsProvider customCredentialsProvider;
 
     protected final AmazonS3 client;
