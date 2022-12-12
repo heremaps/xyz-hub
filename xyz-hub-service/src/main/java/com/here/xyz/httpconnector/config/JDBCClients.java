@@ -30,15 +30,28 @@ import io.vertx.sqlclient.PoolOptions;
 import io.vertx.sqlclient.SqlClient;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import java.util.Map;
-import java.util.Set;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 public class JDBCClients {
     private static final Logger logger = LogManager.getLogger();
     private static final String APPLICATION_NAME_PREFIX = "job_engine_";
     private static Map<String, DBClient> clients = new HashMap<>();
+
+    public static void addClientIfRequired(String id, String ecps, String passphrase) throws CannotDecodeException {
+        DatabaseSettings settings = ECPSTool.readDBSettingsFromECPS(ecps, passphrase);
+
+        if(JDBCImporter.getClient(id) == null){
+            addClient(id, settings);
+        }else{
+            if(!clients.get(id).cacheKey().equals(settings.getCacheKey(id))) {
+                removeClient(id);
+                addClient(id, settings);
+            }
+        }
+    }
 
     public static void addClient(String id, String ecps, String passphrase) throws CannotDecodeException {
         DatabaseSettings settings = ECPSTool.readDBSettingsFromECPS(ecps, passphrase);
@@ -69,13 +82,13 @@ public class JDBCClients {
 
         SqlClient client = PgPool.client(CService.vertx, connectOptions, poolOptions);
         logger.info("Add new SQL-Client [{}]",id);
-        clients.put(id, new DBClient(client,settings));
+        clients.put(id, new DBClient(client,settings,id));
     }
 
     public static DatabaseSettings getDBSettings(String id){
         if(clients == null || clients.get(id) == null)
             return null;
-        return clients.get(id).getDbSetting();
+        return clients.get(id).getDbSettings();
     }
 
     public static String getDefaultSchema(String id){
@@ -93,6 +106,7 @@ public class JDBCClients {
     public static void removeClient(String id){
         if(clients == null || clients.get(id) == null)
             return;
+        logger.info("Remove new SQL-Client [{}]",id);
         clients.get(id).getClient().close();
         clients.remove(id);
     }
@@ -116,13 +130,14 @@ public class JDBCClients {
 
     /** Vertex SQL-Client */
     public static class DBClient{
-
+        private String connectorId;
         private SqlClient client;
-        private DatabaseSettings dbSetting;
+        private DatabaseSettings dbSettings;
 
-        public DBClient(SqlClient client, DatabaseSettings dbSetting) {
+        public DBClient(SqlClient client, DatabaseSettings dbSettings, String connectorId) {
             this.client = client;
-            this.dbSetting = dbSetting;
+            this.dbSettings = dbSettings;
+            this.connectorId = connectorId;
         }
 
         public SqlClient getClient() {
@@ -133,12 +148,14 @@ public class JDBCClients {
             this.client = client;
         }
 
-        public DatabaseSettings getDbSetting() {
-            return this.dbSetting;
+        public DatabaseSettings getDbSettings() {
+            return this.dbSettings;
         }
 
-        public void setDbSetting(DatabaseSettings dbSetting) {
-            this.dbSetting = dbSetting;
+        public void setDbSettings(DatabaseSettings dbSettings) {
+            this.dbSettings = dbSettings;
         }
+
+        public String cacheKey(){ return dbSettings.getCacheKey(connectorId);}
     }
 }
