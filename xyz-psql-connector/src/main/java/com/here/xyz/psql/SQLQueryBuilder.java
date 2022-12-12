@@ -738,11 +738,11 @@ public class SQLQueryBuilder {
     //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
     boolean oldTableStyle = DatabaseHandler.readVersionsToKeep(event) < 1;
     boolean withDeletedColumn = oldTableStyle && DatabaseHandler.isForExtendingSpace(event);
-    return setWriteQueryComponents(new SQLQuery("${{geoWith}} INSERT INTO ${schema}.${table} (" + (oldTableStyle ? "" : "id, version, operation, ") + "jsondata, geo" + (withDeletedColumn ? ", deleted" : "") + ") "
+    return setWriteQueryComponents(new SQLQuery("${{geoWith}} INSERT INTO ${schema}.${table} (id, version, operation, jsondata, geo" + (withDeletedColumn ? ", deleted" : "") + ") "
         + "VALUES("
-        + (oldTableStyle ? "" : "#{id}, "
+        + "#{id}, "
         + "#{version}, "
-        + "#{operation}, ")
+        + "#{operation}, "
         + "#{jsondata}::jsonb, "
         + "${{geo}}"
         //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
@@ -755,8 +755,8 @@ public class SQLQueryBuilder {
     boolean oldTableStyle = DatabaseHandler.readVersionsToKeep(event) < 1;
     boolean withDeletedColumn = oldTableStyle && DatabaseHandler.isForExtendingSpace(event);
       return setWriteQueryComponents(new SQLQuery("${{geoWith}} UPDATE ${schema}.${table} SET "
-          + (oldTableStyle ? "" : "version = #{version}, "
-          + "operation = #{operation}, ")
+          + "version = #{version}, "
+          + "operation = #{operation}, "
           + "jsondata = #{jsondata}::jsonb, "
           + "geo = (${{geo}}) "
           //NOTE: The following is a temporary implementation for backwards compatibility for old table structures

@@ -1,5 +1,5 @@
 --
--- Copyright (C) 2017-2020 HERE Europe B.V.
+-- Copyright (C) 2017-2022 HERE Europe B.V.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -153,7 +153,7 @@ DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 150
+ select 151
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -373,34 +373,38 @@ $BODY$
 CREATE OR REPLACE FUNCTION xyz_trigger_historywriter_versioned()
   RETURNS trigger AS
 $BODY$
-	DECLARE v text := (NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'version');
-
+	DECLARE
+	    v text := (NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'version');
 	BEGIN
-		IF TG_OP = 'INSERT' THEN
-			EXECUTE
-				format('INSERT INTO'
-					||' %s."%s_hst" (uuid,jsondata,geo,vid)'
-					||' VALUES( %L,%L,%L, %L)',TG_TABLE_SCHEMA, TG_TABLE_NAME, NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo,
-						substring('0000000000'::text, 0, 10 - length(v)) ||
-						v || '_' || (NEW.jsondata->>'id'));
-			RETURN NEW;
-		END IF;
+	    IF TG_OP = 'DELETE' OR TG_OP = 'TRUNCATE' THEN
+	        -- Ignore.
+            RETURN NEW;
+        END IF;
+
+	    IF TG_OP = 'UPDATE' THEN
+	        IF NEW.jsondata = OLD.jsondata AND NEW.geo = OLD.geo THEN
+                -- NOTE: no user data has been changed in the record.
+                -- The UPDATE was performed as part of a migration or only the next_version field was changed.
+                -- Ignoring trigger call.
+                RETURN NEW;
+            END IF;
+        END IF;
+
+        EXECUTE
+            format('INSERT INTO'
+                       || ' %s."%s_hst" (uuid, jsondata, geo, vid)'
+                       || ' VALUES(%L, %L, %L, %L)', TG_TABLE_SCHEMA, TG_TABLE_NAME, NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo,
+                substring('0000000000'::text, 0, 10 - length(v))
+                       || v || '_' || (NEW.jsondata->>'id'));
 
 		IF TG_OP = 'UPDATE' THEN
-			EXECUTE
-				format('INSERT INTO'
-					||' %s."%s_hst" (uuid,jsondata,geo,vid)'
-					||' VALUES( %L,%L,%L, %L)',TG_TABLE_SCHEMA, TG_TABLE_NAME, NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo,
-						substring('0000000000'::text, 0, 10 - length(v)) ||
-						v || '_' || (NEW.jsondata->>'id'));
-
+		    -- NOTE: Kept for backwards compatibility. For TG_OP == 'INSERT' AND op == 'D' we don't want to delete any row from the main table anymore!
 			IF NEW.jsondata->'properties'->'@ns:com:here:xyz'->'deleted' IS NOT null AND NEW.jsondata->'properties'->'@ns:com:here:xyz'->'deleted' = 'true'::jsonb THEN
 				EXECUTE
 					format('DELETE FROM %s."%s" WHERE jsondata->>''id'' = %L',TG_TABLE_SCHEMA, TG_TABLE_NAME, NEW.jsondata->>'id');
 			END IF;
-
-			RETURN NEW;
 		END IF;
+        RETURN NEW;
 	END;
 $BODY$
   LANGUAGE plpgsql VOLATILE;
