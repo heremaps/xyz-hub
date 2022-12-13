@@ -80,6 +80,7 @@ import com.mchange.v2.c3p0.ComboPooledDataSource;
 import com.mchange.v2.c3p0.PooledDataSource;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -1007,6 +1008,9 @@ public abstract class DatabaseHandler extends StorageConnector {
                         }
                     }
                     processedCount++;
+                    long tableDuration = System.currentTimeMillis() - tableStartTime;
+                    overallDuration += tableDuration;
+                    logger.info(phase + ": table: " + tableName + (tableCompleted ? " done" : " partially processed") + ". took: " + tableDuration + "ms");
                 }
                 catch (Exception e) {
                     if (e instanceof SQLException && "54000".equals(((SQLException) e).getSQLState())) {
@@ -1025,9 +1029,6 @@ public abstract class DatabaseHandler extends StorageConnector {
                     if (cStateFlag)
                         connection.setAutoCommit(true);
                 }
-                long tableDuration = System.currentTimeMillis() - tableStartTime;
-                overallDuration += tableDuration;
-                logger.info(phase + ": table: " + tableName + (tableCompleted ? " done" : " partially processed") + ". took: " + tableDuration + "ms");
             }
             else
                 logger.info(phase + ": lock on table" + tableName + " could not be acquired. Continuing with next one.");
@@ -1111,8 +1112,8 @@ public abstract class DatabaseHandler extends StorageConnector {
             .withNamedParameter("table", tableName)
             .withNamedParameter("limit", limit);
 
-        try (Statement stmt = fillNewColumnsQuery.prepareStatement(connection)) {
-            stmt.addBatch(fillNewColumnsQuery.substitute().text());
+        try (PreparedStatement stmt = fillNewColumnsQuery.prepareStatement(connection)) {
+            stmt.addBatch();
             stmt.setQueryTimeout(calculateTimeout());
             stmt.executeBatch();
             connection.commit();
