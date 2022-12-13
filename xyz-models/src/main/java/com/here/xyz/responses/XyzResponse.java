@@ -23,9 +23,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.xyz.Payload;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.responses.changesets.Changeset;
-import com.here.xyz.responses.changesets.ChangesetCollection;
-import com.here.xyz.responses.changesets.CompactChangeset;
+import com.here.xyz.responses.changesets.*;
 import com.here.xyz.responses.maintenance.ConnectorStatus;
 import com.here.xyz.responses.maintenance.SpaceStatus;
 import com.here.xyz.util.Hasher;
@@ -49,6 +47,8 @@ import com.here.xyz.util.Hasher;
     @JsonSubTypes.Type(value = Changeset.class, name = "Changeset"),
     @JsonSubTypes.Type(value = CompactChangeset.class, name = "CompactChangeset"),
     @JsonSubTypes.Type(value = ChangesetCollection.class, name = "ChangesetCollection"),
+    @JsonSubTypes.Type(value = ChangeNotification.class, name = "ChangeNotification"),
+    @JsonSubTypes.Type(value = FeatureChange.class, name = "FeatureChange"),
     @JsonSubTypes.Type(value = ConnectorStatus.class, name = "ConnectorStatus"),
     @JsonSubTypes.Type(value = SpaceStatus.class, name = "SpaceStatus")
 })
