@@ -1112,7 +1112,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             .withNamedParameter("table", tableName)
             .withNamedParameter("limit", limit);
 
-        final QueryRunner run = new QueryRunner();
+        final QueryRunner run = new QueryRunner(new StatementConfiguration(null,null,null,null, calculateTimeout()));
         int updatedRows = run.query(connection, fillNewColumnsQuery.substitute().text(), rs -> {
             if (rs.next())
                 return rs.getInt(1);
