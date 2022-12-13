@@ -995,17 +995,15 @@ public abstract class DatabaseHandler extends StorageConnector {
                     if (cStateFlag)
                         connection.setAutoCommit(false);
 
-                    try (Statement stmt = connection.createStatement()) {
-                        switch (phase) {
-                            case "phase0": {
-                                oneTimeAlterExistingTablesAddNewColumnsAndIndices(connection, schema, tableName, stmt);
-                                tableCompleted = true;
-                                break;
-                            }
-                            case "phase1": {
-                                tableCompleted = oneTimeFillNewColumns(connection, schema, tableName, stmt, inputData);
-                                break;
-                            }
+                    switch (phase) {
+                        case "phase0": {
+                            oneTimeAlterExistingTablesAddNewColumnsAndIndices(connection, schema, tableName);
+                            tableCompleted = true;
+                            break;
+                        }
+                        case "phase1": {
+                            tableCompleted = oneTimeFillNewColumns(connection, schema, tableName, inputData);
+                            break;
                         }
                     }
                     processedCount++;
@@ -1018,7 +1016,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                         break;
                     }
                     else {
-                        logger.error(phase + ": {} Failed to alter table / create indices on '{}' : {}", traceItem, tableName, e);
+                        logger.error(phase + ": {} Failed process table '{}' : {}", traceItem, tableName, e);
                         connection.rollback();
                     }
                 }
@@ -1037,25 +1035,27 @@ public abstract class DatabaseHandler extends StorageConnector {
         logger.info(phase + ": processed {} tables. Took: {}ms", processedCount, overallDuration);
     }
 
-    private void oneTimeAlterExistingTablesAddNewColumnsAndIndices(Connection connection, String schema, String tableName, Statement stmt) throws SQLException {
-        //Alter existing tables: add new columns
-        SQLQuery alterQuery = new SQLQuery("ALTER TABLE ${schema}.${table} "
-            + "ADD COLUMN id TEXT, "
-            + "ADD COLUMN version BIGINT NOT NULL DEFAULT 0, "
-            + "ADD COLUMN next_version BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
-            + "ADD COLUMN operation CHAR NOT NULL DEFAULT 'I'")
-            .withVariable("schema", schema)
-            .withVariable("table", tableName);
-        stmt.addBatch(alterQuery.substitute().text());
-        //Add new indices for existing tables
-        createVersioningIndices(stmt, schema, tableName);
-        //Add new sequence for existing tables
-        stmt.addBatch(buildCreateSequenceQuery(schema, tableName, VERSION_SEQUENCE_SUFFIX).substitute().text());
+    private void oneTimeAlterExistingTablesAddNewColumnsAndIndices(Connection connection, String schema, String tableName) throws SQLException {
+        try (Statement stmt = connection.createStatement()) {
+            //Alter existing tables: add new columns
+            SQLQuery alterQuery = new SQLQuery("ALTER TABLE ${schema}.${table} "
+                + "ADD COLUMN id TEXT, "
+                + "ADD COLUMN version BIGINT NOT NULL DEFAULT 0, "
+                + "ADD COLUMN next_version BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
+                + "ADD COLUMN operation CHAR NOT NULL DEFAULT 'I'")
+                .withVariable("schema", schema)
+                .withVariable("table", tableName);
+            stmt.addBatch(alterQuery.substitute().text());
+            //Add new indices for existing tables
+            createVersioningIndices(stmt, schema, tableName);
+            //Add new sequence for existing tables
+            stmt.addBatch(buildCreateSequenceQuery(schema, tableName, VERSION_SEQUENCE_SUFFIX).substitute().text());
 
-        stmt.setQueryTimeout(calculateTimeout());
-        stmt.executeBatch();
-        connection.commit();
-        logger.info("phase0: {} Successfully altered table and created indices for table '{}'", traceItem, tableName);
+            stmt.setQueryTimeout(calculateTimeout());
+            stmt.executeBatch();
+            connection.commit();
+            logger.info("phase0: {} Successfully altered table and created indices for table '{}'", traceItem, tableName);
+        }
     }
 
     private static void setupOneTimeActionFillNewColumns(String phase, Connection connection) throws SQLException {
@@ -1100,11 +1100,10 @@ public abstract class DatabaseHandler extends StorageConnector {
      * @param connection
      * @param schema
      * @param tableName
-     * @param stmt
      * @return
      * @throws SQLException
      */
-    private boolean oneTimeFillNewColumns(Connection connection, String schema, String tableName, Statement stmt, Map<String, Object> inputData) throws SQLException {
+    private boolean oneTimeFillNewColumns(Connection connection, String schema, String tableName, Map<String, Object> inputData) throws SQLException {
         int limit = inputData.containsKey("rowProcessingLimit") ? (int) inputData.get("rowProcessingLimit") : 3_000;
         //NOTE: If table processing has been fully done a comment "phase1_complete" will be added to the table
         SQLQuery fillNewColumnsQuery = new SQLQuery("SELECT fill_versioning_fields(#{schema}, #{table}, #{limit})")
@@ -1112,23 +1111,25 @@ public abstract class DatabaseHandler extends StorageConnector {
             .withNamedParameter("table", tableName)
             .withNamedParameter("limit", limit);
 
-        stmt.addBatch(fillNewColumnsQuery.substitute().text());
-        stmt.setQueryTimeout(calculateTimeout());
-        stmt.executeBatch();
-        connection.commit();
+        try (Statement stmt = fillNewColumnsQuery.prepareStatement(connection)) {
+            stmt.addBatch(fillNewColumnsQuery.substitute().text());
+            stmt.setQueryTimeout(calculateTimeout());
+            stmt.executeBatch();
+            connection.commit();
 
-        ResultSet rs = stmt.getResultSet();
-        int updatedRows;
-        if (rs.next())
-            updatedRows = rs.getInt(1);
-        else
-            throw new SQLException("Error while calling function fill_versioning_fields()");
+            ResultSet rs = stmt.getResultSet();
+            int updatedRows;
+            if (rs.next())
+                updatedRows = rs.getInt(1);
+            else
+                throw new SQLException("Error while calling function fill_versioning_fields()");
 
-        boolean tableCompleted = updatedRows < limit;
-        logger.info("phase1: {} Successfully filled columns for " + updatedRows + " rows "
-            + (tableCompleted ? "and set comment '" + OTA_PHASE_1_COMPLETE + "' " : "and set comment '" + OTA_PHASE_1_STARTED + "' ") + "for table '{}'",
-            traceItem, tableName);
-        return tableCompleted;
+            boolean tableCompleted = updatedRows < limit;
+            logger.info("phase1: {} Successfully filled columns for " + updatedRows + " rows "
+                + (tableCompleted ? "and set comment '" + OTA_PHASE_1_COMPLETE + "' " : "and set comment '" + OTA_PHASE_1_STARTED + "' ") + "for table '{}'",
+                traceItem, tableName);
+            return tableCompleted;
+        }
     }
 
     private void createSpaceStatement(Statement stmt, Event event) throws SQLException {
