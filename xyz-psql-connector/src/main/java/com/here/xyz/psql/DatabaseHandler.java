@@ -915,18 +915,19 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     private boolean executeOneTimeAction(String phase, Map<String, Object> inputData) throws SQLException {
+        boolean phaseLock = "phase1".equals(phase) ? false : true;
         try (final Connection connection = dataSource.getConnection()) {
             logger.info("oneTimeAction " + phase + ": Starting execution ...");
-            if (_advisory(phase, connection, true, false)) {
+            if (!phaseLock || _advisory(phase, connection, true, false)) {
                 try {
                     switch (phase) {
                         case "phase0": {
-                            oneTimeActionForVersioning(phase, inputData, connection, true);
+                            oneTimeActionForVersioning(phase, inputData, connection);
                             break;
                         }
                         case "phase1": {
                             setupOneTimeActionFillNewColumns(phase, connection);
-                            oneTimeActionForVersioning(phase, inputData, connection, false);
+                            oneTimeActionForVersioning(phase, inputData, connection);
                             break;
                         }
                         case "phaseX": {
@@ -947,7 +948,8 @@ public abstract class DatabaseHandler extends StorageConnector {
                     }
                 }
                 finally {
-                    _advisory(phase, connection, false, false);
+                    if (phaseLock)
+                        _advisory(phase, connection, false, false);
                 }
                 return true;
             }
@@ -972,7 +974,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         return Collections.emptyMap();
     }
 
-    private void oneTimeActionForVersioning(String phase, Map<String, Object> inputData, Connection connection, boolean phaseLock) throws SQLException {
+    private void oneTimeActionForVersioning(String phase, Map<String, Object> inputData, Connection connection) throws SQLException {
         if (inputData == null || !inputData.containsKey("tableNames") || !(inputData.get("tableNames") instanceof List))
             throw new IllegalArgumentException("Table names have to be defined for OTA phase: " + phase);
         List<String> tableNames = (List) inputData.get("tableNames");
@@ -989,7 +991,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             boolean tableCompleted = false;
             logger.info(phase + ": process table: " + tableName);
 
-            if (!phaseLock || _advisory(tableName, connection, true, false)) {
+            if (_advisory(tableName, connection, true, false)) {
                 long tableStartTime = System.currentTimeMillis();
                 boolean cStateFlag = connection.getAutoCommit();
                 try {
