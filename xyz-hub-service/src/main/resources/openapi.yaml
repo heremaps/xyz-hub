@@ -201,8 +201,8 @@ paths:
         the value must be an integer, bigger than 0 and the comparator should be one of the below list:
           - <
           - =lt=
-        
-        
+
+
         Example: To remove changesets older than version number 10,
         a DELETE /spaces/{spaceId}/changesets?version=lt=10 could be executed.
 
@@ -1080,6 +1080,105 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
+  '/spaces/{spaceId}/jobs':
+    post:
+      tags:
+        - Manage Jobs
+      summary: Create Job
+      operationId: postJob
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+      requestBody:
+        $ref: '#/components/requestBodies/JobRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/JobResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+  '/spaces/{spaceId}/job/{jobId}':
+    get:
+      tags:
+        - Manage Jobs
+      summary: Get job
+      description: Reteive job
+      operationId: getJob
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/JobId'
+      responses:
+        '200':
+          $ref: '#/components/responses/JobResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+    patch:
+      tags:
+        - Manage Jobs
+      summary: Update Job
+      operationId: patchJob
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/JobId'
+      requestBody:
+        $ref: '#/components/requestBodies/JobRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/JobResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+    delete:
+      tags:
+        - Manage Jobs
+      summary: Delete job
+      description: Delete job
+      operationId: deleteJob
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/JobId'
+      responses:
+        '200':
+          $ref: '#/components/responses/JobResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+  '/spaces/{spaceId}/job/{jobId}/execute':
+    post:
+      tags:
+        - Manage Jobs
+      summary: Run Command
+      description: Run Command on Job
+      operationId: postExecute
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/JobId'
+        - $ref: '#/components/parameters/Command'
+      responses:
+        '204':
+          $ref: '#/components/responses/JobResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
 components:
   securitySchemes:
     AccessToken:
@@ -1774,6 +1873,46 @@ components:
       required: true
       schema:
         type: string
+    JobId:
+      name: jobId
+      in: path
+      description: The unique identifier of the job.
+      required: true
+      schema:
+        type: string
+    JopType:
+      name: type
+      in: query
+      description: Type of Job
+      required: false
+      schema:
+        type: string
+        enum:
+          - import
+    JopStatus:
+      name: status
+      in: query
+      description: Job Status
+      required: false
+      schema:
+        type: string
+        enum:
+          - waiting
+          - queued
+          - running
+          - aborted
+          - failed
+    Command:
+      name: command
+      in: query
+      description: Command
+      required: true
+      schema:
+        type: string
+        enum:
+          - start
+          - retry
+          - createUploadUrl
   responses:
     ConnectorResponse:
       description: The connector
@@ -2006,6 +2145,12 @@ components:
           schema:
             items:
               $ref: '#/components/schemas/Subscription'
+    JobResponse:
+      description: The Job
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Job'
   requestBodies:
     ConnectorConfig:
       required: true
@@ -2060,6 +2205,12 @@ components:
             destination: string
             config:
               type: PER_FEATURE
+    JobRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Job'
   schemas:
     # TODO add Typed and Iterable schemas
     AWSLambda:
@@ -3436,7 +3587,7 @@ components:
       description: A subscription object that contains notification information.
       properties:
         id:
-          description: >- 
+          description: >-
             The uniques identifier for the subscription.
           type: string
           example: my-subscription-id
@@ -3468,7 +3619,7 @@ components:
       description: The subscription configuration.
       properties:
         type:
-          description: >- 
+          description: >-
             The type of subscribed notification.
           type: string
           enum:
@@ -3478,3 +3629,36 @@ components:
         params:
           type: "object"
           description: "The additional parameters of the subscription config"
+    Job:
+      type: object
+      description: Job
+      properties:
+        type:
+          description: >-
+            The unique identifier of the import type
+          example: "Import"
+          type: string
+        id:
+          description: >-
+            id
+          example: "ZMlfeaN8B8"
+          type: string
+        targetSpaceId:
+          description: >-
+            targetSpaceId
+          example: "importtest"
+          type: string
+        description:
+          description: >-
+            description
+          example: 1234
+          type: string
+        csvFormat:
+          description: >-
+            csvFormat
+          example: JSON_WKB
+          type: string
+      example:
+        type: "Import"
+        description: "Job Description"
+        csvFormat: "JSON_WKB"

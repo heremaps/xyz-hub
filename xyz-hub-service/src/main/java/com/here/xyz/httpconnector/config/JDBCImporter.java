@@ -59,7 +59,7 @@ public class JDBCImporter extends JDBCClients{
     /**
      * Prepare Table for Import
      */
-    public static Future<Void> prepareImport(String clientID, String schema, String tablename, boolean enableUUID, CSVFormat csvFormat){
+    public static Future<Void> prepareImport(String clientID, String schema, String tablename, Boolean enableUUID, CSVFormat csvFormat){
 
        return doesTableExists(clientID, schema, tablename)
                .compose( f1 -> {
@@ -133,15 +133,16 @@ public class JDBCImporter extends JDBCClients{
                 .map(viewName);
     }
 
-    public static Future<String> createTriggerOnTargetTable(String clientID, String schema, String tablename, boolean enableUUID, CSVFormat csvFormat){
+    public static Future<String> createTriggerOnTargetTable(String clientID, String schema, String tablename, Boolean enableUUID, CSVFormat csvFormat){
         boolean addTablenameToXYZNs = false;
+        boolean _enableUUID  = enableUUID == null ? false : enableUUID;
 
         SQLQuery q = new SQLQuery("${{drop_trigger}} ${{create_trigger}}");
         SQLQuery q1 = new SQLQuery("DROP TRIGGER IF EXISTS insertTrigger ON ${schema}.${tablename};");
         SQLQuery q2 = new SQLQuery("CREATE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${tablename} \n"
                 + "FOR EACH ROW EXECUTE PROCEDURE ${schema}.xyz_import_trigger('{trigger_hrn}',{addTableName},{enableUUID});"
                 .replace("{trigger_hrn}","TBD")
-                .replace("{enableUUID}", Boolean.toString(enableUUID))
+                .replace("{enableUUID}", Boolean.toString(_enableUUID))
                 .replace("{addTableName}", Boolean.toString(addTablenameToXYZNs))
         );
 

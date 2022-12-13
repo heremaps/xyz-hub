@@ -36,6 +36,7 @@ recipes:
     exclude:
       - tags.name=Manage Connectors
       - tags.name=Manage Subscriptions
+      - tags.name=Manage Jobs
       - paths.'/spaces'.get.parameters.name=includeConnectors
       - paths.'/spaces'.get.parameters.name=contentUpdatedAt
       - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*Transactional$
@@ -53,6 +54,9 @@ recipes:
       - paths.'/spaces/{spaceId}/iterate'.get.parameters.$ref~=^.*Part$
       - paths.'/spaces/{spaceId}/subscriptions'
       - paths.'/spaces/{spaceId}/subscriptions/{subscriptionId}'
+      - paths.'/spaces/{spaceId}/jobs'
+      - paths.'/spaces/{spaceId}/job/{jobId}'
+      - paths.'/spaces/{spaceId}/job/{jobId}/execute'
       - paths.'/connectors'
       - paths.'/connectors/{connectorId}'
       - components.parameters.ConnectorId
@@ -71,6 +75,7 @@ recipes:
       - components.responses.HistoryResponse
       - components.responses.SubscriptionResponse
       - components.responses.SubscriptionsResponse
+      - components.responses.JobResponse
       - components.requestBodies.ConnectorConfig
       - components.requestBodies.SubscriptionRequest
       - components.schemas.AWSLambda
@@ -101,6 +106,7 @@ recipes:
       - components.schemas.Connector
       - components.schemas.Subscription
       - components.schemas.SubscriptionConfig
+      - components.schemas.Job
     replace:
       - type: value
         path: paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.description
@@ -173,6 +179,15 @@ recipes:
       - type: key
         path: paths.'/spaces/{spaceId}/changesets'
         replace: paths.'/hub/spaces/{spaceId}/changesets'
+      - type: key
+        path: paths.'/spaces/{spaceId}/jobs'
+        replace: paths.'/hub/spaces/{spaceId}/jobs'
+      - type: key
+        path: paths.'/spaces/{spaceId}/job/{jobId}'
+        replace: paths.'/hub/spaces/{spaceId}/job/{jobId}'
+      - type: key
+        path: paths.'/spaces/{spaceId}/job/{jobId}/execute'
+        replace: paths.'/hub/spaces/{spaceId}/job/{jobId}/execute'
       - type: key
         path: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/geo+json'.schema
         replace: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/geo+json'.x-schema

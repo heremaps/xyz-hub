@@ -40,11 +40,6 @@ public abstract class JobConfigClient implements Initializable {
 
     private static final Logger logger = LogManager.getLogger();
 
-    public static final ExpiringMap<String, Job> cache = ExpiringMap.builder()
-            .expirationPolicy(ExpirationPolicy.CREATED)
-            .expiration(10, TimeUnit.MINUTES)
-            .build();
-
     public static JobConfigClient getInstance() {
         if (CService.configuration.JOBS_DYNAMODB_TABLE_ARN != null) {
             return new DynamoJobConfigClient(CService.configuration.JOBS_DYNAMODB_TABLE_ARN);
@@ -54,30 +49,20 @@ public abstract class JobConfigClient implements Initializable {
     }
 
     public Future<Job> get(Marker marker, String jobId) {
-        Job cached = cache.get(jobId);
-        if (cached != null) {
-            logger.info(marker, "space[{}]: loaded from cache", jobId);
-            return Future.succeededFuture(cached);
-        }
-
         return getJob(marker, jobId)
                 .onSuccess(job -> {
                     if (job == null) {
                         logger.info(marker, "Get - job[{}]: not found!", jobId);
                     }else {
                         logger.info(marker, "job[{}]: successfully loaded!", jobId);
-                        cache.put(jobId, job);
                     }
                 })
                 .onFailure(t -> logger.error(marker, "job[{}]: failed to load!", jobId, t));
     }
 
-    public Future<List<Job>> getList(Marker marker, Job.Type type, Job.Status status) {
-        return getJobs(marker, type, status)
+    public Future<List<Job>> getList(Marker marker, Job.Type type, Job.Status status, String targetSpaceId) {
+        return getJobs(marker, type, status, targetSpaceId)
                 .onSuccess(jobList -> {
-                    for (Job job: jobList) {
-                        cache.put(job.getId(), job);
-                    }
                     logger.info(marker, "Successfully loaded '{}' jobs!", jobList.size());
                 })
                 .onFailure(t -> logger.error(marker, "Failed to load jobList!", t));
@@ -90,7 +75,6 @@ public abstract class JobConfigClient implements Initializable {
         return storeJob(marker, job)
                 .onSuccess(v -> {
                     logger.info(marker, "job[{}] / status[{}]: successfully updated!", job.getId(), job.getStatus());
-                    cache.remove(job.getId());
                 })
                 .onFailure(t -> {
                     logger.error(marker, "job[{}]: failed to update!", job.getId(), t);
@@ -101,7 +85,6 @@ public abstract class JobConfigClient implements Initializable {
         return storeJob(marker, job)
                 .onSuccess(v -> {
                     logger.info(marker, "job[{}]: successfully stored!", job.getId());
-                    cache.remove(job.getId());
                 })
                 .onFailure(t -> {
                     logger.error(marker, "job[{}]: failed to store!", job.getId(), t);
@@ -115,7 +98,6 @@ public abstract class JobConfigClient implements Initializable {
                         logger.info(marker, "jobId[{}]: not found. Nothing to delete!", jobId);
                     }else {
                         logger.info(marker, "job[{}]: successfully deleted!", jobId);
-                        cache.remove(jobId);
                     }
                 })
                 .onFailure(t -> logger.error(marker, "job[{}]: Failed delete job:", jobId, t));
@@ -123,7 +105,7 @@ public abstract class JobConfigClient implements Initializable {
 
     protected abstract Future<Job> getJob(Marker marker, String jobId);
 
-    protected abstract Future<List<Job>> getJobs( Marker marker, Job.Type type, Job.Status status);
+    protected abstract Future<List<Job>> getJobs( Marker marker, Job.Type type, Job.Status status, String targetSpaceId);
 
     protected abstract Future<Job> storeJob(Marker marker, Job job);
 

@@ -88,7 +88,6 @@ public class AwsCWClient {
                         if(res.getId().equalsIgnoreCase("freemem")) {
                             /** to GB */
                             r = r / 1024 / 1024 / 1024;
-                            rdsStatistic.put("freememPercentage", (r/90));
                         }if(res.getId().equalsIgnoreCase("networkReceiveThroughput")
                             || res.getId().equalsIgnoreCase("writeThroughput")) {
                             /** to MB */

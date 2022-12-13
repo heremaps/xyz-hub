@@ -756,6 +756,11 @@ public class Service extends Core {
      * Flag indicating whether the author should be retrieved from the custom header Author.
      */
     public boolean USE_AUTHOR_FROM_HEADER = false;
+
+    /**
+     * Endpoint which includes Maintenance and JOB-API.
+     */
+    public String HTTP_CONNECTOR_ENDPOINT;
   }
 
   /**

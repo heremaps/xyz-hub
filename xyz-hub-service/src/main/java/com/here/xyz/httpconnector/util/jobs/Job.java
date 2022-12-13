@@ -19,7 +19,12 @@
 package com.here.xyz.httpconnector.util.jobs;
 
 import com.fasterxml.jackson.annotation.*;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.models.hub.Space;
+import io.vertx.core.json.Json;
+import io.vertx.core.json.jackson.DatabindCodec;
 
+import java.util.Map;
 import java.util.Objects;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -33,7 +38,7 @@ import java.util.Objects;
 })
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
 public abstract class Job {
-
+    @JsonView({Public.class})
     public enum Type {
         Import, Export;
         public static Type of(String value) {
@@ -48,6 +53,7 @@ public abstract class Job {
         }
     }
 
+    @JsonView({Public.class})
     public enum Status {
         waiting, queued, validating, validated, preparing, prepared, executing, executed, finalizing, finalized, aborted, partially_failed, failed;
         public static Status of(String value) {
@@ -62,6 +68,7 @@ public abstract class Job {
         }
     }
 
+    @JsonView({Public.class})
     public enum CSVFormat {
         GEOJSON,JSON_WKT,JSON_WKB;
 
@@ -77,6 +84,7 @@ public abstract class Job {
         }
     }
 
+    @JsonView({Public.class})
     public enum Strategy {
         LASTWINS,SKIPEXISTING,ERROR;
 
@@ -101,26 +109,46 @@ public abstract class Job {
     /**
      * The creation timestamp.
      */
+    @JsonView({Public.class})
     public long createdAt = DEFAULT_TIMESTAMP;
 
     /**
      * The last update timestamp.
      */
+    @JsonView({Public.class})
     public long updatedAt = DEFAULT_TIMESTAMP;
 
     /**
      * The job ID
      */
+    @JsonView({Public.class})
     public String id;
+
+    @JsonView({Public.class})
     public String description;
+
+    @JsonView({Internal.class})
     public String targetSpaceId;
+
+    @JsonView({Internal.class})
     public String targetTable;
+
+    @JsonView({Public.class})
     public String errorDescription;
+
+    @JsonView({Public.class})
     public String errorType;
 
+    @JsonView({Public.class})
     public Status status;
+
+    @JsonView({Public.class})
     public CSVFormat csvFormat;
+
+    @JsonView({Public.class})
     public Strategy strategy;
+
+    @JsonView({Internal.class})
     private String targetConnector;
 
     public String getId(){
@@ -197,11 +225,6 @@ public abstract class Job {
         this.status = status;
     }
 
-    public Job withEnabledUUID(Job.Status status) {
-        setStatus(status);
-        return this;
-    }
-
     public CSVFormat getCsvFormat() {
         return csvFormat;
     }
@@ -275,9 +298,15 @@ public abstract class Job {
         return errorType;
     }
 
-    public Job(){
+    public static class Public {
 
     }
+
+    public static class Internal extends Space.Internal {
+
+    }
+
+    public Job(){ }
 
     @Override
     public boolean equals(Object o) {
