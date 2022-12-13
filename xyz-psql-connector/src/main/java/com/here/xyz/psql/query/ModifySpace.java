@@ -203,6 +203,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, XyzResponse> {
         q.append("DROP TABLE IF EXISTS ${schema}.${hsttable};");
         q.append("DROP SEQUENCE IF EXISTS ${schema}.${hsttable_seq};");
         q.append("DROP SEQUENCE IF EXISTS ${schema}.${table_seq};");
+        q.append("DROP SEQUENCE IF EXISTS ${schema}.${version_seq};");
 
         q.setNamedParameter("table", getDefaultTable(event));
         q.setNamedParameter("schema", getSchema());
