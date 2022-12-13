@@ -17,12 +17,11 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.responses.changesets;
+package com.here.xyz;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.XyzResponse;
 
 /**
@@ -30,7 +29,7 @@ import com.here.xyz.responses.XyzResponse;
  * which can contain multiple operations like insertions, deletions and updates.
  */
 @JsonInclude(Include.NON_DEFAULT)
-public class FeatureChange extends XyzResponse<FeatureChange> {
+public class FeatureChange extends Payload {
 
     private Operation operation;
     private Feature feature;
