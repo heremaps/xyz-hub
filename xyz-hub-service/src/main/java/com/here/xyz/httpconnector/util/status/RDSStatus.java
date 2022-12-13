@@ -23,11 +23,16 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.xyz.httpconnector.CService;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.json.JSONObject;
 
+import java.text.DecimalFormat;
 import java.util.List;
 
 public class RDSStatus {
+    private static final Logger logger = LogManager.getLogger();
+
     @JsonProperty("CURRENT_METRICS")
     private CurrentMetrics currentMetrics;
     @JsonProperty("LIMITS")
@@ -37,13 +42,15 @@ public class RDSStatus {
     @JsonIgnore
     private String clientId;
 
+    private static final DecimalFormat DF = new DecimalFormat("0.0000");
+
     public RDSStatus(){}
 
     public RDSStatus(String clientId, JSONObject currentMetrics, RunningQueryStatistics runningQueryStatistics ){
         this.clientId = clientId;
-        this.currentMetrics = new CurrentMetrics(currentMetrics, runningQueryStatistics);
-        this.runningQueries = new RunningQueries(runningQueryStatistics.getRunningQueries());
         this.limits = new Limits(CService.rdsLookupCapacity.get(clientId));
+        this.currentMetrics = new CurrentMetrics(currentMetrics, runningQueryStatistics, this.limits.maxMemInGB);
+        this.runningQueries = new RunningQueries(runningQueryStatistics.getRunningQueries());
     }
 
     public String getClientId(){
@@ -75,15 +82,15 @@ public class RDSStatus {
         int totalRunningImportQueries;
         long totalInflightImportBytes;
 
-        public CurrentMetrics(JSONObject currentMetrics, RunningQueryStatistics runningQueryStatistics){
+        public CurrentMetrics(JSONObject currentMetrics, RunningQueryStatistics runningQueryStatistics, double maxMemInGB){
             try {
                 this.cpuLoad = (Double) currentMetrics.get("cpuLoad");
                 this.dbConnections = (Double) currentMetrics.get("dbConnections");
                 this.writeThroughput = (Double) currentMetrics.get("writeThroughput");
                 this.freeMem = (Double) currentMetrics.get("freemem");
-                this.freeMemPercentage = (Double) currentMetrics.get("freememPercentage");
+                this.freeMemPercentage = Double.parseDouble(DF.format((this.freeMem / maxMemInGB) * 100));
                 this.capacityUnits = (Double) currentMetrics.get("capacity");
-            }catch (Exception e){ /**Ignore*/ }
+            }catch (Exception e){ logger.warn("Can't pars currentMetrics from CW!",e); }
 
             this.totalRunningIDXQueries = runningQueryStatistics.getRunningIndexQueries();
             this.totalRunningImportQueries = runningQueryStatistics.getRunningImports();
@@ -133,8 +140,8 @@ public class RDSStatus {
             else
                 this.maxCapacityUnits = maxCapacityUnits;
 
-            /** 2GB per ACU / 8GB reserved */
-            this.maxMemInGB =  this.maxCapacityUnits * 2 -8;
+            /** 2GB per ACU / 6GB reserved */
+            this.maxMemInGB =  this.maxCapacityUnits * 2 - 6;
         }
 
         public int getMaxCapacityUnits() {
