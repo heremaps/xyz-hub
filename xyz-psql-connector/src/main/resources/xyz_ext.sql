@@ -382,7 +382,7 @@ $BODY$
         END IF;
 
 	    IF TG_OP = 'UPDATE' THEN
-	        IF NEW.jsondata = OLD.jsondata AND NEW.geo = OLD.geo THEN
+	        IF NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = OLD.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' THEN
                 -- NOTE: no user data has been changed in the record.
                 -- The UPDATE was performed as part of a migration or only the next_version field was changed.
                 -- Ignoring trigger call.
