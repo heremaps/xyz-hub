@@ -1112,25 +1112,19 @@ public abstract class DatabaseHandler extends StorageConnector {
             .withNamedParameter("table", tableName)
             .withNamedParameter("limit", limit);
 
-        try (PreparedStatement stmt = fillNewColumnsQuery.prepareStatement(connection)) {
-            stmt.addBatch();
-            stmt.setQueryTimeout(calculateTimeout());
-            stmt.executeBatch();
-            connection.commit();
-
-            ResultSet rs = stmt.getResultSet();
-            int updatedRows;
+        final QueryRunner run = new QueryRunner();
+        int updatedRows = run.query(connection, fillNewColumnsQuery.substitute().text(), rs -> {
             if (rs.next())
-                updatedRows = rs.getInt(1);
+                return rs.getInt(1);
             else
                 throw new SQLException("Error while calling function fill_versioning_fields()");
+        }, fillNewColumnsQuery.parameters().toArray());
 
-            boolean tableCompleted = updatedRows < limit;
-            logger.info("phase1: {} Successfully filled columns for " + updatedRows + " rows "
+        boolean tableCompleted = updatedRows < limit;
+        logger.info("phase1: {} Successfully filled columns for " + updatedRows + " rows "
                 + (tableCompleted ? "and set comment '" + OTA_PHASE_1_COMPLETE + "' " : "and set comment '" + OTA_PHASE_1_STARTED + "' ") + "for table '{}'",
-                traceItem, tableName);
-            return tableCompleted;
-        }
+            traceItem, tableName);
+        return tableCompleted;
     }
 
     private void createSpaceStatement(Statement stmt, Event event) throws SQLException {
