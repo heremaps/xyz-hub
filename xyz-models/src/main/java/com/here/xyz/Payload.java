@@ -38,7 +38,9 @@ import java.util.zip.ZipException;
 
 @JsonSubTypes({
     @JsonSubTypes.Type(value = Event.class),
-    @JsonSubTypes.Type(value = XyzResponse.class)
+    @JsonSubTypes.Type(value = XyzResponse.class),
+    @JsonSubTypes.Type(value = ChangeNotification.class),
+    @JsonSubTypes.Type(value = FeatureChange.class)
 })
 public class Payload implements Typed {
 
