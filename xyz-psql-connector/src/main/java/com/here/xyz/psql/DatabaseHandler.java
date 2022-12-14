@@ -103,6 +103,7 @@ import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.commons.dbutils.StatementConfiguration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.json.JSONObject;
 
 public abstract class DatabaseHandler extends StorageConnector {
     private static final Logger logger = LogManager.getLogger();
@@ -199,8 +200,12 @@ public abstract class DatabaseHandler extends StorageConnector {
         HealthStatus status = ((HealthStatus) super.processHealthCheckEvent(event)).withStatus("OK");
 
         try {
-            if (System.getenv("OTA_PHASE") != null)
-                executeOneTimeAction(System.getenv("OTA_PHASE"), null);
+            if (System.getenv("OTA_PHASE") != null) {
+                Map<String, Object> inputData = null;
+                if (System.getenv("OTA_INPUT_DATA") != null)
+                    inputData = new JSONObject(System.getenv("OTA_INPUT_DATA")).toMap();
+                executeOneTimeAction(System.getenv("OTA_PHASE"), inputData);
+            }
         }
         catch (Exception e) {
             logger.error("OTA: Error during one time action execution:", e);
