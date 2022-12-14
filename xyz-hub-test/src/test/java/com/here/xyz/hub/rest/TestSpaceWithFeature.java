@@ -277,7 +277,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
   }
 
   protected void validateXyzNs(JsonObject xyzNs) {
-    String[] allowedFieldNames = {"space", "createdAt", "updatedAt", "tags", "author"};
+    String[] allowedFieldNames = {"space", "createdAt", "updatedAt", "tags", "author", "version"};
     assertThat(xyzNs.fieldNames(), everyItem(isIn(allowedFieldNames)));
   }
 

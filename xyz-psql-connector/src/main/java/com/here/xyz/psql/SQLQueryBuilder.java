@@ -20,6 +20,7 @@ package com.here.xyz.psql;
 
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.GEO_JSON;
 
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
@@ -196,11 +197,9 @@ public class SQLQueryBuilder {
 
         SQLQuery propQuery;
         String propQuerySQL = null;
-        final PropertiesQuery propertiesQuery = event.getPropertiesQuery();
 
-
-        if (propertiesQuery != null) {
-            propQuery = generatePropertiesQuery(propertiesQuery);
+        if (event.getPropertiesQuery() != null) {
+            propQuery = generatePropertiesQuery(event);
 
             if (propQuery != null) {
                 propQuerySQL = propQuery.text();
@@ -682,8 +681,8 @@ public class SQLQueryBuilder {
 
   /** ###################################################################################### */
 
-    private static SQLQuery generatePropertiesQuery(PropertiesQuery properties) {
-      return SearchForFeatures.generatePropertiesQueryBWC(properties);
+    private static SQLQuery generatePropertiesQuery(QueryEvent event) {
+      return SearchForFeatures.generatePropertiesQueryBWC(event);
     }
 
     private static SQLQuery generateCombinedQueryTweaks(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery, String tweaksgeo, boolean bTestTweaksGeoIfNull, float sampleRatio, boolean bSortByHashedValue)
@@ -726,8 +725,12 @@ public class SQLQueryBuilder {
       return SearchForFeatures.generateSearchQueryBWC(event);
   }
 
-    protected static SQLQuery generateLoadOldFeaturesQuery(final String[] idsToFetch) {
-        return new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(?)", (Object) idsToFetch);
+    protected static SQLQuery generateLoadOldFeaturesQuery(ModifyFeaturesEvent event, final String[] idsToFetch) {
+        return new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE " + buildIdFragment(event) + " = ANY(?)", (Object) idsToFetch);
+    }
+
+    private static String buildIdFragment(ContextAwareEvent event) {
+      return DatabaseHandler.readVersionsToKeep(event) < 1 ? "jsondata->>'id'" : "id";
     }
 
     protected static SQLQuery generateIDXStatusQuery(final String space){
@@ -761,8 +764,9 @@ public class SQLQueryBuilder {
           + "geo = (${{geo}}) "
           //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
           + (withDeletedColumn ? ", deleted = (#{operation} = 'D') " : "")
-          + "WHERE jsondata->>'id' = #{id} ${{uuidCheck}}"), dbHandler, event)
-          .withQueryFragment("uuidCheck", buildUuidCheckFragment(event));
+          + "WHERE ${{idColumn}} = #{id} ${{uuidCheck}}"), dbHandler, event)
+          .withQueryFragment("uuidCheck", buildUuidCheckFragment(event))
+          .withQueryFragment("idColumn", buildIdFragment(event));
   }
 
   private static SQLQuery setWriteQueryComponents(SQLQuery writeQuery, DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
@@ -784,7 +788,8 @@ public class SQLQueryBuilder {
       boolean oldTableStyle = DatabaseHandler.readVersionsToKeep(event) < 1;
       SQLQuery query =
           version == -1 || !oldTableStyle && !event.isEnableGlobalVersioning()
-          ? new SQLQuery("DELETE FROM ${schema}.${table} WHERE jsondata->>'id' = #{id} ${{uuidCheck}}")
+          ? new SQLQuery("DELETE FROM ${schema}.${table} WHERE ${{idColumn}} = #{id} ${{uuidCheck}}")
+              .withQueryFragment("idColumn", buildIdFragment(event))
           //Use UPDATE instead of DELETE to inject a version and the deleted flag. The deletion gets performed afterwards by the trigger.
           : new SQLQuery("UPDATE ${schema}.${table} "
               + "SET jsondata = jsonb_set(jsondata, '{properties,@ns:com:here:xyz}', "
@@ -793,8 +798,9 @@ public class SQLQueryBuilder {
               + "|| format('{\"version\": %s}', #{version})::JSONB "
               + "|| format('{\"updatedAt\": %s}', (extract(epoch from now()) * 1000)::BIGINT)::JSONB "
               + "|| '{\"deleted\": true}'::JSONB) "
-              + "WHERE jsondata->>'id' = #{id} ${{uuidCheck}}")
-              .withNamedParameter("version", version);
+              + "WHERE ${{idColumn}} = #{id} ${{uuidCheck}}")
+              .withNamedParameter("version", version)
+              .withQueryFragment("idColumn", buildIdFragment(event));
 
       return setTableVariables(
           query.withQueryFragment("uuidCheck", buildUuidCheckFragment(event)),
