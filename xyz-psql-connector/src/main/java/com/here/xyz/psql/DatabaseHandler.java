@@ -124,6 +124,8 @@ public abstract class DatabaseHandler extends StorageConnector {
     public static final String OTA_PHASE_1_COMPLETE = "phase1_complete";
     public static final String OTA_PHASE_1_STARTED = "phase1_started";
 
+    public static final String OTA_PHASE_X_COMPLETE = "phaseX_complete";
+
     private static String INCLUDE_OLD_STATES = "includeOldStates"; // read from event params
 
     /**
@@ -547,9 +549,9 @@ public abstract class DatabaseHandler extends StorageConnector {
      * @return List of Features which could get fetched
      * @throws Exception if any error occurred.
      */
-    protected List<Feature> fetchOldStates(String[] idsToFetch) throws Exception {
+    protected List<Feature> fetchOldStates(ModifyFeaturesEvent event, String[] idsToFetch) throws Exception {
         List<Feature> oldFeatures = null;
-        FeatureCollection oldFeaturesCollection = executeQueryWithRetry(SQLQueryBuilder.generateLoadOldFeaturesQuery(idsToFetch));
+        FeatureCollection oldFeaturesCollection = executeQueryWithRetry(SQLQueryBuilder.generateLoadOldFeaturesQuery(event, idsToFetch));
 
         if (oldFeaturesCollection != null) {
             oldFeatures = oldFeaturesCollection.getFeatures();
@@ -580,7 +582,8 @@ public abstract class DatabaseHandler extends StorageConnector {
             if (!deletes.isEmpty()) {
                 //Transform the incoming deletes into upserts with deleted flag for features which don't exist in the extended layer (base)
                 List<String> existingIdsInBase = new FetchExistingIds(
-                    new FetchIdsInput(ExtendedSpace.getExtendedTable(event, this), originalDeletes), this).run();
+                    //NOTE: The following is a temporary implementation for backwards compatibility for old base spaces which have no id column filled yet
+                    new FetchIdsInput(ExtendedSpace.getExtendedTable(event, this), originalDeletes, true), this).run();
 
                 for (String featureId : originalDeletes) {
                     if (existingIdsInBase.contains(featureId)) {
@@ -603,7 +606,7 @@ public abstract class DatabaseHandler extends StorageConnector {
           /** Include Old states */
           if (includeOldStates) {
             String[] idsToFetch = getAllIds(inserts, updates, upserts, deletes).stream().filter(Objects::nonNull).toArray(String[]::new);
-            List<Feature> oldFeatures = fetchOldStates(idsToFetch);
+            List<Feature> oldFeatures = fetchOldStates(event, idsToFetch);
             if (oldFeatures != null) {
               collection.setOldFeatures(oldFeatures);
             }
@@ -613,7 +616,8 @@ public abstract class DatabaseHandler extends StorageConnector {
           if (!upserts.isEmpty()) {
             List<String> upsertIds = upserts.stream().map(Feature::getId).filter(Objects::nonNull).collect(Collectors.toList());
             List<String> existingIds = new FetchExistingIds(new FetchIdsInput(config.readTableFromEvent(event),
-                upsertIds), this).run();
+                //NOTE: The following is a temporary implementation for backwards compatibility for old spaces which have no id column filled yet
+                upsertIds, readVersionsToKeep(event) < 1), this).run();
             upserts.forEach(f -> (existingIds.contains(f.getId()) ? updates : inserts).add(f));
           }
 
@@ -937,7 +941,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                             break;
                         }
                         case "phaseX": {
-
+                            oneTimeActionForVersioning(phase, inputData, connection);
                             break;
                         }
                         case "cleanup": {
@@ -985,6 +989,14 @@ public abstract class DatabaseHandler extends StorageConnector {
                         false, (int) inputData.get("tableSizeLimit"), 100), this).run());
                 break;
             }
+            case "phaseX": {
+                if (!inputData.containsKey("tableSizeLimit"))
+                    inputData.put("tableSizeLimit", 1_000_000_000);
+                if (!inputData.containsKey("tableNames"))
+                    inputData.put("tableNames", new GetTablesWithComment(new GetTablesWithCommentInput(OTA_PHASE_1_COMPLETE,
+                        true, (int) inputData.get("tableSizeLimit"), 100), this).run());
+                break;
+            }
         }
         return inputData;
     }
@@ -1021,6 +1033,11 @@ public abstract class DatabaseHandler extends StorageConnector {
                         }
                         case "phase1": {
                             tableCompleted = oneTimeFillNewColumns(connection, schema, tableName, inputData);
+                            break;
+                        }
+                        case "phaseX": {
+                            oneTimeAddConstraintsToOldTables(connection, schema, tableName);
+                            tableCompleted = true;
                             break;
                         }
                     }
@@ -1144,20 +1161,46 @@ public abstract class DatabaseHandler extends StorageConnector {
         return tableCompleted;
     }
 
-    private void createSpaceStatement(Statement stmt, Event event) throws SQLException {
-        boolean oldTableStyle = readVersionsToKeep(event) < 1;
-        boolean withDeletedColumn = oldTableStyle && isForExtendingSpace(event);
+    private void oneTimeAddConstraintsToOldTables(Connection connection, String schema, String tableName) throws SQLException {
+        try (Statement stmt = connection.createStatement()) {
+            //Alter existing tables: add new columns
+            SQLQuery alterQuery = new SQLQuery("ALTER TABLE ${schema}.${table} "
+                + "ALTER COLUMN version DROP DEFAULT, "
+                + "ALTER COLUMN id SET NOT NULL, "
+                + "ALTER COLUMN operation DROP DEFAULT, "
+                + "ADD CONSTRAINT ${constraintName} PRIMARY KEY (id, version)")
+                .withVariable("schema", schema)
+                .withVariable("table", tableName)
+                .withVariable("constraintName", tableName + "_primKey");
+            stmt.addBatch(alterQuery.substitute().text());
 
+            //TODO: Add author column and index?
+            //TODO: What about deleting the jsondata->>id index?
+
+            //Add comment "phaseX_complete"
+            SQLQuery setPhaseXCOmment = new SQLQuery("COMMENT ON TABLE ${schema}.${table} IS '" + OTA_PHASE_X_COMPLETE + "'")
+                .withVariable("schema", schema)
+                .withVariable("table", tableName);
+            stmt.addBatch(setPhaseXCOmment.substitute().text());
+
+
+            stmt.setQueryTimeout(calculateTimeout());
+            stmt.executeBatch();
+            connection.commit();
+            logger.info("phase0: {} Successfully altered table and created indices for table '{}'", traceItem, tableName);
+        }
+    }
+
+    private void createSpaceStatement(Statement stmt, Event event) throws SQLException {
         String tableFields =
-            (oldTableStyle ? "id TEXT, " : "id TEXT NOT NULL, ")
-            + (oldTableStyle ? "version BIGINT NOT NULL DEFAULT 0, " : "version BIGINT NOT NULL, ")
+            "id TEXT NOT NULL, "
+            + "version BIGINT NOT NULL, "
             + "next_version BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
-            + (oldTableStyle ? "operation CHAR NOT NULL DEFAULT 'I', " : "operation CHAR NOT NULL, ")
+            + "operation CHAR NOT NULL, "
             + "jsondata JSONB, "
             + "geo geometry(GeometryZ, 4326), "
             + "i BIGSERIAL"
-            + (withDeletedColumn ? ", deleted BOOLEAN DEFAULT FALSE" : "")
-            + (oldTableStyle ? "" : ", CONSTRAINT ${constraintName} PRIMARY KEY (id, version)");
+            + ", CONSTRAINT ${constraintName} PRIMARY KEY (id, version)";
 
         String schema = config.getDatabaseSettings().getSchema();
         String table = config.readTableFromEvent(event);
@@ -1174,11 +1217,8 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         createVersioningIndices(stmt, schema, table);
 
-        if (withDeletedColumn)
-            stmt.addBatch(buildCreateIndexQuery(schema, table, "deleted", "BTREE").substitute().text());
-
         if (readVersionsToKeep(event) <= 1) {
-            query = "CREATE UNIQUE INDEX IF NOT EXISTS ${idx_id} ON ${schema}.${table} ((jsondata->>'id'))";
+            query = "CREATE INDEX IF NOT EXISTS ${idx_id} ON ${schema}.${table} ((jsondata->>'id'))";
             query = SQLQuery.replaceVars(query, replacements, schema, table);
             stmt.addBatch(query);
         }

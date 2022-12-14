@@ -52,7 +52,7 @@ public class GetTablesWithComment extends QueryRunner<GetTablesWithCommentInput,
         + "LIMIT #{limit}")
         .withQueryFragment("comment", "pg_catalog.obj_description(pgc.oid, 'pg_class')")
         .withQueryFragment("commentComparison",
-            input.comment == null ? "IS " + (input.exists ? "" : "NOT ") + "NULL" : (input.exists ? "= " : "IS NULL OR ${{comment}} != #{comment}"))
+            input.comment == null ? "IS " + (input.exists ? "" : "NOT ") + "NULL" : (input.exists ? "= #{comment}" : "IS NULL OR ${{comment}} != #{comment}"))
         .withNamedParameter("limit", input.limit)
         .withNamedParameter("comment", input.comment)
         .withNamedParameter("tableSizeLimit", input.tableSizeLimit);

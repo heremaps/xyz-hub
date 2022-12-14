@@ -34,11 +34,11 @@ public class GetFeaturesById extends GetFeatures<GetFeaturesByIdEvent> {
   @Override
   protected SQLQuery buildQuery(GetFeaturesByIdEvent event) throws SQLException {
     String[] idArray = event.getIds().toArray(new String[0]);
-    String filterWhereClause = "jsondata->>'id' = ANY(#{ids})";
+    String filterWhereClause = "${{idColumn}} = ANY(#{ids})";
 
-    SQLQuery query = super.buildQuery(event);
-    query.setQueryFragment("filterWhereClause", filterWhereClause);
-    query.setNamedParameter("ids", idArray);
-    return query;
+    return super.buildQuery(event)
+        .withQueryFragment("filterWhereClause", filterWhereClause)
+        .withQueryFragment("idColumn", buildIdFragment(event))
+        .withNamedParameter("ids", idArray);
   }
 }

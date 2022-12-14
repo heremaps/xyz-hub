@@ -372,32 +372,31 @@ public class PSQLUuidIT extends PSQLAbstractIT {
         else
             assertEquals(DatabaseWriter.DELETE_ERROR_NOT_EXISTS, failure1.get("message"));
 
-        // =========== INSERT EXISTING FEATURE ==========
-        //Stream
         Feature existing = insertRequestCollection.getFeatures().get(0);
         existing.getProperties().getXyzNamespace().setPuuid(existing.getProperties().getXyzNamespace().getUuid());
-
-        mfevent.setInsertFeatures(new ArrayList<Feature>(){{add(existing);}});
         mfevent.setDeleteFeatures(new HashMap<>());
-        mfevent.setTransaction(false);
-        response = invokeLambda(mfevent.serialize());
-        responseCollection = XyzSerializable.deserialize(response);
-        assertEquals(existing.getId(), responseCollection.getFailed().get(0).getId());
-        assertEquals(DatabaseWriter.INSERT_ERROR_GENERAL, responseCollection.getFailed().get(0).getMessage());
-        assertEquals(0,responseCollection.getFeatures().size());
-        assertNull(responseCollection.getUpdated());
-        assertNull(responseCollection.getInserted());
-        assertNull(responseCollection.getDeleted());
-
-        //Transactional
-        mfevent.setTransaction(true);
-        response = invokeLambda(mfevent.serialize());
-
-        errorResponse = XyzSerializable.deserialize(response);
-        assertEquals(XyzError.CONFLICT, errorResponse.getError());
-        failedList = ((ArrayList)errorResponse.getErrorDetails().get("FailedList"));
-        assertEquals(0, failedList.size());
-        assertEquals(DatabaseWriter.TRANSACTION_ERROR_GENERAL, errorResponse.getErrorMessage());
+//        // =========== INSERT EXISTING FEATURE ==========
+//        //Stream
+//        mfevent.setInsertFeatures(new ArrayList<Feature>(){{add(existing);}});
+//        mfevent.setTransaction(false);
+//        response = invokeLambda(mfevent.serialize());
+//        responseCollection = XyzSerializable.deserialize(response);
+//        assertEquals(existing.getId(), responseCollection.getFailed().get(0).getId());
+//        assertEquals(DatabaseWriter.INSERT_ERROR_GENERAL, responseCollection.getFailed().get(0).getMessage());
+//        assertEquals(0,responseCollection.getFeatures().size());
+//        assertNull(responseCollection.getUpdated());
+//        assertNull(responseCollection.getInserted());
+//        assertNull(responseCollection.getDeleted());
+//
+//        //Transactional
+//        mfevent.setTransaction(true);
+//        response = invokeLambda(mfevent.serialize());
+//
+//        errorResponse = XyzSerializable.deserialize(response);
+//        assertEquals(XyzError.CONFLICT, errorResponse.getError());
+//        failedList = ((ArrayList)errorResponse.getErrorDetails().get("FailedList"));
+//        assertEquals(0, failedList.size());
+//        assertEquals(DatabaseWriter.TRANSACTION_ERROR_GENERAL, errorResponse.getErrorMessage());
 
         // =========== UPDATE NOT EXISTING FEATURE ==========
         //Stream

@@ -73,8 +73,8 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
 
   //TODO: Can be removed after completion of refactoring
   @Deprecated
-  public static SQLQuery generatePropertiesQueryBWC(PropertiesQuery properties) {
-    SQLQuery query = generatePropertiesQuery(properties);
+  public static SQLQuery generatePropertiesQueryBWC(QueryEvent event) {
+    SQLQuery query = generatePropertiesQuery(event);
     if (query != null)
       query.replaceNamedParameters();
     return query;
@@ -86,7 +86,8 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
     return "userValue_" + key + (counter == null ? "" : "" + counter);
   }
 
-  private static SQLQuery generatePropertiesQuery(PropertiesQuery properties) {
+  private static SQLQuery generatePropertiesQuery(QueryEvent event) {
+    PropertiesQuery properties = event.getPropertiesQuery();
     if (properties == null || properties.size() == 0) {
       return null;
     }
@@ -117,7 +118,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
           String  key = propertyQuery.getKey(),
               paramName = getParamNameForValue(countingMap, key),
               value = getValue(v, op, key, paramName);
-          SQLQuery q = createKey(key);
+          SQLQuery q = createKey(event, key);
           namedParams.putAll(q.getNamedParameters());
 
           if(v == null){
@@ -172,7 +173,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
   }
 
   protected static SQLQuery generateSearchQuery(final QueryEvent event) { //TODO: Make private again
-    final SQLQuery propertiesQuery = generatePropertiesQuery(event.getPropertiesQuery());
+    final SQLQuery propertiesQuery = generatePropertiesQuery(event);
     final SQLQuery tagsQuery = generateTagsQuery(event.getTags());
 
     SQLQuery query = new SQLQuery("");
@@ -191,12 +192,12 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
     return query;
   }
 
-  private static SQLQuery createKey(String key) {
+  private static SQLQuery createKey(QueryEvent event, String key) {
     String[] keySegments = key.split("\\.");
 
     /** ID is indexed as text */
     if(keySegments.length == 1 && keySegments[0].equalsIgnoreCase("id")) {
-      return new SQLQuery( "jsondata->>'id'");
+      return new SQLQuery( buildIdFragment(event));
     }
 
     /** special handling on geometry column */

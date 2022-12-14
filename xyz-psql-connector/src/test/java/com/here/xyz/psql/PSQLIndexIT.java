@@ -287,7 +287,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                         assertEquals("CREATE INDEX "+idx_name+" ON public.foo USING btree (geometrytype(geo))",indexdef);
                         break;
                     case "id" :
-                        assertEquals("CREATE UNIQUE INDEX idx_foo_id ON public.foo USING btree (((jsondata ->> 'id'::text)))",indexdef);
+                        assertEquals("CREATE INDEX idx_foo_id ON public.foo USING btree (((jsondata ->> 'id'::text)))",indexdef);
                         break;
                     case "geo" :
                         assertEquals("CREATE INDEX idx_foo_geo ON public.foo USING gist (geo)",indexdef);

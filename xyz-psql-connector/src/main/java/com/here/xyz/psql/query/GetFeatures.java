@@ -56,7 +56,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
           + "        SELECT ${{selection}}, ${{geo}}${{iColumn}} FROM"
           + "            ("
           + "                ${{baseQuery}}"
-          + "            ) a WHERE NOT exists(SELECT 1 FROM ${schema}.${table} b WHERE jsondata->>'id' = a.jsondata->>'id')"
+          + "            ) a WHERE NOT exists(SELECT 1 FROM ${schema}.${table} b WHERE " + buildIdComparisonFragment(event, "a.") + ")"
           + ") limitQuery ${{limit}}")
           .withQueryFragment("deletedCheck", buildDeletionCheckFragment(event));
     }
@@ -99,7 +99,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
   }
 
   private SQLQuery build1LevelBaseQuery(E event) {
-    SQLQuery query = new SQLQuery("SELECT jsondata, geo${{iColumnBase}}"
+    SQLQuery query = new SQLQuery("SELECT id, version, operation, jsondata, geo${{iColumnBase}}"
         + "    FROM ${schema}.${extendedTable} m"
         + "    WHERE ${{filterWhereClause}} ${{iOffsetBase}} ${{limit}}"); //in the base table there is no need to check a deleted flag;
     query.setVariable("extendedTable", getExtendedTable(event));
@@ -107,17 +107,22 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
   }
 
   private SQLQuery build2LevelBaseQuery(E event) {
-    return new SQLQuery("(SELECT jsondata, geo${{iColumnIntermediate}}"
+    return new SQLQuery("(SELECT id, version, operation, jsondata, geo${{iColumnIntermediate}}"
         + "    FROM ${schema}.${intermediateExtensionTable}"
         + "    WHERE ${{filterWhereClause}} AND ${{deletedCheck}} ${{iOffsetIntermediate}} ${{limit}})"
         + "UNION ALL"
-        + "    SELECT jsondata, geo${{iColumn}} FROM"
+        + "    SELECT id, version, operation, jsondata, geo${{iColumn}} FROM"
         + "        ("
         + "            ${{innerBaseQuery}}"
-        + "        ) b WHERE NOT exists(SELECT 1 FROM ${schema}.${intermediateExtensionTable} WHERE jsondata->>'id' = b.jsondata->>'id')")
+        + "        ) b WHERE NOT exists(SELECT 1 FROM ${schema}.${intermediateExtensionTable} WHERE ${{idComparison}})")
         .withVariable("intermediateExtensionTable", getIntermediateTable(event))
         .withQueryFragment("deletedCheck", buildDeletionCheckFragment(event))
-        .withQueryFragment("innerBaseQuery", build1LevelBaseQuery(event));
+        .withQueryFragment("innerBaseQuery", build1LevelBaseQuery(event))
+        .withQueryFragment("idComparison", buildIdComparisonFragment(event, "b."));
+  }
+
+  private String buildIdComparisonFragment(E event, String prefix) {
+    return DatabaseHandler.readVersionsToKeep(event) > 0 ? "id = " + prefix + "id" : "jsondata->>'id' = " + prefix + "jsondata->>'id'";
   }
 
   private String buildDeletionCheckFragment(E event) {
@@ -153,7 +158,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
 
   private static String injectVersionIntoNS(ContextAwareEvent event, String wrappedJsondata) {
     //NOTE: The following is a temporary implementation for backwards compatibility for spaces without versioning
-    if (DatabaseHandler.readVersionsToKeep(event) > 1)
+    if (DatabaseHandler.readVersionsToKeep(event) > 0)
       return "jsonb_set(" + wrappedJsondata + ", '{properties, @ns:com:here:xyz, version}', to_jsonb(version))";
     return wrappedJsondata;
   }
@@ -190,5 +195,9 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
       geoFragment.setQueryFragment("geoOverride", geoOverride);
 
     return geoFragment;
+  }
+
+  protected static String buildIdFragment(ContextAwareEvent event) {
+    return DatabaseHandler.readVersionsToKeep(event) < 1 ? "jsondata->>'id'" : "id";
   }
 }
