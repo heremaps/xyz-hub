@@ -158,7 +158,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     @Override
     protected XyzResponse processOneTimeActionEvent(OneTimeActionEvent event) throws Exception {
         try {
-            if (executeOneTimeAction(event.getPhase(), event.getInputData() != null ? event.getInputData() : getDefaultInputDataForOneTimeAction(event.getPhase())))
+            if (executeOneTimeAction(event.getPhase(), event.getInputData()))
                 return new SuccessResponse().withStatus("EXECUTED");
             return new SuccessResponse().withStatus("ALREADY RUNNING");
         }
@@ -200,7 +200,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         try {
             if (System.getenv("OTA_PHASE") != null)
-                executeOneTimeAction(System.getenv("OTA_PHASE"), getDefaultInputDataForOneTimeAction(System.getenv("OTA_PHASE")));
+                executeOneTimeAction(System.getenv("OTA_PHASE"), null);
         }
         catch (Exception e) {
             logger.error("OTA: Error during one time action execution:", e);
@@ -914,7 +914,8 @@ public abstract class DatabaseHandler extends StorageConnector {
         return (int) event.getParams().get("versionsToKeep");
     }
 
-    private boolean executeOneTimeAction(String phase, Map<String, Object> inputData) throws SQLException {
+    private boolean executeOneTimeAction(String phase, Map<String, Object> inputData) throws SQLException, ErrorResponseException {
+        inputData =  getDefaultInputDataForOneTimeAction(phase, inputData);
         boolean phaseLock = "phase1".equals(phase) ? false : true;
         try (final Connection connection = dataSource.getConnection()) {
             logger.info("oneTimeAction " + phase + ": Starting execution ...");
@@ -960,18 +961,27 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
-    private Map<String, Object> getDefaultInputDataForOneTimeAction(String phase) throws SQLException, ErrorResponseException {
+    private Map<String, Object> getDefaultInputDataForOneTimeAction(String phase, Map<String, Object> inputData) throws SQLException, ErrorResponseException {
+        inputData = inputData == null ? new HashMap<>() : new HashMap<>(inputData);
         switch (phase) {
             case "phase0": {
-                return Collections.singletonMap("tableNames",
-                    new GetTablesWithColumn(new GetTablesWithColumnInput("id", false, 100), this).run());
+                if (!inputData.containsKey("tableNames"))
+                    inputData.put("tableNames",
+                        new GetTablesWithColumn(new GetTablesWithColumnInput("id", false, 100), this).run());
+                break;
             }
             case "phase1": {
-                return Collections.singletonMap("tableNames",
-                    new GetTablesWithComment(new GetTablesWithCommentInput(OTA_PHASE_1_COMPLETE, false, 100_000, 100), this).run());
+                if (!inputData.containsKey("tableSizeLimit"))
+                    inputData.put("tableSizeLimit", 100_000);
+                if (!inputData.containsKey("rowProcessingLimit"))
+                    inputData.put("rowProcessingLimit", 3_000);
+                if (!inputData.containsKey("tableNames"))
+                    inputData.put("tableNames", new GetTablesWithComment(new GetTablesWithCommentInput(OTA_PHASE_1_COMPLETE,
+                        false, (int) inputData.get("tableSizeLimit"), 100), this).run());
+                break;
             }
         }
-        return Collections.emptyMap();
+        return inputData;
     }
 
     private void oneTimeActionForVersioning(String phase, Map<String, Object> inputData, Connection connection) throws SQLException {
@@ -1107,7 +1117,7 @@ public abstract class DatabaseHandler extends StorageConnector {
      * @throws SQLException
      */
     private boolean oneTimeFillNewColumns(Connection connection, String schema, String tableName, Map<String, Object> inputData) throws SQLException {
-        int limit = inputData.containsKey("rowProcessingLimit") ? (int) inputData.get("rowProcessingLimit") : 3_000;
+        int limit = (int) inputData.get("rowProcessingLimit");
         //NOTE: If table processing has been fully done a comment "phase1_complete" will be added to the table
         SQLQuery fillNewColumnsQuery = new SQLQuery("SELECT fill_versioning_fields(#{schema}, #{table}, #{limit})")
             .withNamedParameter("schema", schema)
