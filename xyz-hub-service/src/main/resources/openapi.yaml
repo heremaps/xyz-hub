@@ -1091,10 +1091,14 @@ paths:
       requestBody:
         $ref: '#/components/requestBodies/JobRequest'
       responses:
-        '200':
+        '201':
           $ref: '#/components/responses/JobResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
   '/spaces/{spaceId}/job/{jobId}':
     get:
       tags:
@@ -1179,6 +1183,10 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
+        '409':
+          $ref: '#/components/responses/ErrorResponse409'
+        '412':
+          $ref: '#/components/responses/ErrorResponse412'
 components:
   securitySchemes:
     AccessToken:
@@ -1992,6 +2000,17 @@ components:
             streamId: 7480e28a-e273-11e8-9af8-7508bbe361d9
             error: Exception
             errorMessage: The record exists.
+    ErrorResponse412:
+      description: An error response which indicates a failed precondition.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            type: ErrorResponse
+            streamId: 7480e28a-e273-11e8-9af8-7508bbe361d9
+            error: Exception
+            errorMessage: Precondition Failed.
     ErrorResponse413:
       description: Request entity too large.
       content:

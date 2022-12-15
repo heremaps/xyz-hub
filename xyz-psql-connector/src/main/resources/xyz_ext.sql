@@ -153,7 +153,7 @@ DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 151
+ select 152
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -175,6 +175,7 @@ AS $BODY$
         spaceId text := TG_ARGV[0];
 		addSpaceId boolean := TG_ARGV[1];
 		addUUID boolean := TG_ARGV[2];
+        oldLayout boolean := TG_ARGV[3];
 
 		fid text := NEW.jsondata->>'id';
 		createdAt BIGINT := FLOOR(EXTRACT(epoch FROM NOW())*1000);
@@ -187,7 +188,7 @@ AS $BODY$
         BEGIN
 		-- Inject id if not available
 		IF fid IS NULL THEN
-			NEW.jsondata := (NEW.jsondata|| format('{"id" : "%s"}', random_string(10))::jsonb);
+			NEW.jsondata := (NEW.jsondata|| format('{"id" : "%s"}', xyz_random_string(10))::jsonb);
         END IF;
 
 		IF addSpaceId THEN
@@ -208,6 +209,17 @@ AS $BODY$
         ELSE
 			NEW.geo := ST_Force3D(NEW.geo);
         END IF;
+
+        -- Only needed during migration phase
+        IF oldLayout THEN
+             RETURN NEW;
+        END IF;
+
+        --TEMP VERSION FIX
+        NEW.operation := 'I';
+        NEW.version := 0;
+        NEW.id := NEW.jsondata->>'id';
+
         RETURN NEW;
     END;
 $BODY$

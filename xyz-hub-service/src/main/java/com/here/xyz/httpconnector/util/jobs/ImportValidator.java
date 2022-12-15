@@ -38,6 +38,12 @@ public class ImportValidator {
     private static final Logger logger = LogManager.getLogger();
 
     public static void validateCSVLine(String csvLine, Import.CSVFormat csvFormat) throws UnsupportedEncodingException {
+
+        if(csvLine != null && csvLine.endsWith("\r\n"))
+            csvLine = csvLine.substring(0,csvLine.length()-4);
+        else if(csvLine != null && (csvLine.endsWith("\n") || csvLine.endsWith("\r")))
+            csvLine = csvLine.substring(0,csvLine.length()-2);
+
         switch (csvFormat){
             case GEOJSON:
                  validateGEOJSON(csvLine);
@@ -69,6 +75,7 @@ public class ImportValidator {
             try {
                 String json = csvLine.substring(1,csvLine.lastIndexOf(",")-1).replaceAll("'\"","\"");
                 String wkb = csvLine.substring(csvLine.lastIndexOf(",")+1);
+
                 byte[] aux = WKBReader.hexToBytes(wkb);
                 /** Try to read WKB */
                 new WKBReader().read(aux);

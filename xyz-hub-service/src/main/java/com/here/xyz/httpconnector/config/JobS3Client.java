@@ -146,7 +146,7 @@ public class JobS3Client extends AwsS3Client{
             char c = (char)val;
             line += c;
 
-            if(c == '\n'){
+            if(c == '\n' || c == '\r'){
                 ImportValidator.validateCSVLine(line, csvFormat);
                 return;
             }
@@ -184,7 +184,7 @@ public class JobS3Client extends AwsS3Client{
             while ((val = reader.read()) != -1) {
                 char c = (char) val;
                 line += c;
-                if (c == '\n') {
+                if (c == '\n' || c == '\r') {
                     /** Found complete line */
                     ImportValidator.validateCSVLine(line, csvFormat);
                     return;

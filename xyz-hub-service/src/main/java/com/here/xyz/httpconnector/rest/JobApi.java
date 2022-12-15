@@ -47,7 +47,7 @@ public class JobApi extends Api {
       Job job = HApiParam.HQuery.getJobInput(context);
       ImportHandler.postJob(job, Api.Context.getMarker(context))
               .onFailure(t -> this.sendErrorResponse(context, t))
-              .onSuccess(j -> this.sendResponse(context, OK, j));
+              .onSuccess(j -> this.sendResponse(context, CREATED, j));
     }catch (HttpException e){
       this.sendErrorResponse(context, e);
     }

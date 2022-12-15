@@ -131,6 +131,41 @@ public class DynamoJobConfigClient extends JobConfigClient {
         });
     }
 
+    protected Future<String> getImportJobsOnTargetSpace(Marker marker, String targetSpaceId) {
+        return DynamoClient.dynamoWorkers.executeBlocking(p -> {
+            try {
+                List<ScanFilter> filterList = new ArrayList<>();
+
+                filterList.add(new ScanFilter("type").eq(Type.Import.toString()));
+                filterList.add(new ScanFilter("status").ne(Status.finalized.toString()));
+                filterList.add(new ScanFilter("targetSpaceId").eq(targetSpaceId));
+
+                jobs.scan(filterList.toArray(new ScanFilter[0])).pages().forEach(j -> j.forEach(i -> {
+                    try{
+                        final Job job = Json.decodeValue(i.toJSON(), Job.class);
+                        System.out.println(job.getId()+" "+job.getTargetTable()+" "+job.getStatus());
+                        switch (job.getStatus()){
+                            case waiting:
+                            case failed:
+                                break;
+                            default: {
+                                logger.info("{} is blocked!",targetSpaceId);
+                                p.complete(job.getId());
+                                return;
+                            }
+                        }
+                    }catch (DecodeException e){
+                        logger.warn("Cant decode Job-Item - skip",e);
+                    }
+                }));
+
+                p.complete(null);
+            } catch (Exception e) {
+                p.fail(e);
+            }
+        });
+    }
+
     @Override
     protected Future<Job> deleteJob(Marker marker, String jobId) {
         return DynamoClient.dynamoWorkers.executeBlocking(p -> {

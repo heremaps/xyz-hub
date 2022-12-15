@@ -136,7 +136,6 @@ public class ImportQueue extends JobQueue{
                                     logger.info("JOB[{}] is finalized!",importJob.id);
                                     removeJob(importJob);
                                     break;
-                                case partially_failed:
                                 case failed:
                                     logger.info("JOB[{}] has failed!",importJob.id);
                                     /** Remove Job from Queue - in some cases the user is able to retry */
@@ -168,9 +167,6 @@ public class ImportQueue extends JobQueue{
                         })
                         .onFailure(e -> logger.info(e.getMessage()));
             }
-
-        }else{
-            logger.info("--- ImportQueue is empty -----------------");
         }
     }
 
@@ -277,17 +273,13 @@ public class ImportQueue extends JobQueue{
                                 }
                             }
 
-                            if(cntInvalid == 0)
-                                j.setStatus(Job.Status.executed);
-                            else if(cntInvalid == importObjects.size()) {
-                                j.setErrorType(Import.ERROR_TYPE_EXECUTION_FAILED);
+                            j.setStatus(Job.Status.executed);
+
+                            if(cntInvalid == importObjects.size()) {
                                 j.setErrorDescription(Import.ERROR_DESCRIPTION_ALL_IMPORTS_FAILED);
-                                j.setStatus(Job.Status.failed);
                             }
-                            else if(cntInvalid < importObjects.size()) {
-                                //TODO: Partially failed - How to deal with finalization?
+                            else if(cntInvalid > 0 && cntInvalid < importObjects.size()) {
                                 j.setErrorDescription(Import.ERROR_DESCRIPTION_IMPORTS_PARTIALLY_FAILED);
-                                j.setStatus(Job.Status.partially_failed);
                             }
 
                             CService.jobConfigClient.update(null, j);

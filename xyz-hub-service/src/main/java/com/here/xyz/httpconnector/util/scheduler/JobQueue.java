@@ -36,7 +36,7 @@ public abstract class JobQueue implements Runnable {
     protected boolean commenced = false;
     protected ScheduledFuture<?> executionHandle;
 
-    public static int CORE_POOL_SIZE = 10;
+    public static int CORE_POOL_SIZE = 30;
 
     protected static ScheduledThreadPoolExecutor executorService = new ScheduledThreadPoolExecutor(CORE_POOL_SIZE, Core.newThreadFactory("jobqueue"));
 
@@ -57,9 +57,19 @@ public abstract class JobQueue implements Runnable {
         JOB_QUEUE.add(job);
     }
 
-    protected static void removeJob(Job job){
+    public static void removeJob(Job job){
         logger.info("[{}] removed from JobQueue!", job.getId());
         JOB_QUEUE.remove(job);
+    }
+
+    public static boolean checkRunningImportJobsOnSpace(String targetSpaceId){
+        for (Job j : JOB_QUEUE ) {
+            if(targetSpaceId != null  && targetSpaceId != null
+                && targetSpaceId.equalsIgnoreCase(j.getTargetSpaceId())){
+                return true;
+            }
+        }
+        return false;
     }
 
     public static HashSet<Job> getQueue(){
@@ -81,6 +91,7 @@ public abstract class JobQueue implements Runnable {
      */
     public JobQueue commence() {
         if (!commenced) {
+            logger.info("Start!");
             commenced = true;
             executionHandle = executorService.scheduleWithFixedDelay(this, 0, CService.configuration.JOB_CHECK_QUEUE_INTERVAL_SECONDS, TimeUnit.SECONDS);
         }

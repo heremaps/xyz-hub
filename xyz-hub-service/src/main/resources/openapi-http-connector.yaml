@@ -204,8 +204,8 @@ paths:
             schema:
               $ref: '#/components/schemas/Job'
       responses:
-        '204':
-          description : OK
+        '201':
+          $ref: '#/components/responses/JobResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse400'
     get:
@@ -237,6 +237,8 @@ paths:
           description : OK
         '400':
           $ref: '#/components/responses/ErrorResponse400'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
     patch:
       tags:
         - Jobs
@@ -253,9 +255,11 @@ paths:
               $ref: '#/components/schemas/Job'
       responses:
         '200':
-          description : OK
+          $ref: '#/components/responses/JobResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse400'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
     delete:
       tags:
         - Jobs
@@ -269,6 +273,8 @@ paths:
           description : OK
         '400':
           $ref: '#/components/responses/ErrorResponse400'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
   '/psql/jobs/{jobId}/execute':
     post:
       tags:
@@ -288,6 +294,12 @@ paths:
           description : OK
         '400':
           $ref: '#/components/responses/ErrorResponse400'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+        '409':
+          $ref: '#/components/responses/ErrorResponse409'
+        '412':
+          $ref: '#/components/responses/ErrorResponse412'
 components:
   parameters:
     JobId:
@@ -438,6 +450,23 @@ components:
             streamId: 7480e28a-e273-11e8-9af8-7508bbe361d9
             error: Exception
             errorMessage: The record exists.
+    ErrorResponse412:
+      description: An error response which indicates a failed precondition.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            type: ErrorResponse
+            streamId: 7480e28a-e273-11e8-9af8-7508bbe361d9
+            error: Exception
+            errorMessage: Precondition Failed.
+    JobResponse:
+      description: The Job
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Job'
     HealthResponse:
       description: HealhCheck Response
       content:
