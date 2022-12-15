@@ -126,7 +126,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
   }
 
   private SQLQuery buildMinVersionFragment(SelectiveEvent event) {
-    return new SQLQuery("AND version >= (select max(version) - #{versionsToKeep} from ${schema}.${table}) ")
+    return new SQLQuery("AND version > (select max(version) - #{versionsToKeep} from ${schema}.${table}) ")
         .withNamedParameter("versionsToKeep", event.getVersionsToKeep());
   }
 
