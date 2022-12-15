@@ -231,7 +231,7 @@ public class ImportHandler {
                     case START:
                         if(!importJob.getStatus().equals(Job.Status.waiting)) {
                             p.fail(new HttpException(PRECONDITION_FAILED, "Job cant get started. Invalid Job Status '" + importJob.getStatus() + "' !"));
-                        }else if(CService.importQueue.checkRunningImportJobsOnSpace(importJob.getTargetTable())){
+                        }else if(CService.importQueue.checkRunningImportJobsOnSpace(importJob.getTargetSpaceId())){
                             /** Check in node memory */
                             p.fail(new HttpException(CONFLICT, "Other job is already running on target!"));
                         }else{
