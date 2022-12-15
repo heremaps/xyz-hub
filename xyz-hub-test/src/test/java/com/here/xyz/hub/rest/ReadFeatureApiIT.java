@@ -665,38 +665,38 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         body("geometry.coordinates[1]", equalTo(-12.057F));
   }
 
-  @Test
-  public void testGetFeaturesWithForce2D() {
-    given().
-        accept(APPLICATION_GEO_JSON).
-        headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
-        when().
-        get(getSpacesPath() + "/x-psql-test/features?id=Q2838923&id=Q202150&force2D=false").
-        then().
-        statusCode(OK.code()).
-        body("features[0].geometry.coordinates.size()", equalTo(3)).
-        body("features[0].geometry.coordinates[0]", equalTo(-77.075F)).
-        body("features[0].geometry.coordinates[1]", equalTo(-12.057F)).
-        body("features[0].geometry.coordinates[2]", equalTo(0F)).
-        body("features[1].geometry.coordinates.size()", equalTo(3)).
-        body("features[1].geometry.coordinates[0]", equalTo(5.395833333F)).
-        body("features[1].geometry.coordinates[1]", equalTo(43.269722222F)).
-        body("features[1].geometry.coordinates[2]", equalTo(0F));
-
-    given().
-        accept(APPLICATION_GEO_JSON).
-        headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
-        when().
-        get(getSpacesPath() + "/x-psql-test/features?id=Q2838923&id=Q202150&force2D=true").
-        then().
-        statusCode(OK.code()).
-        body("features[0].geometry.coordinates.size()", equalTo(2)).
-        body("features[0].geometry.coordinates[0]", equalTo(-77.075F)).
-        body("features[0].geometry.coordinates[1]", equalTo(-12.057F)).
-        body("features[1].geometry.coordinates.size()", equalTo(2)).
-        body("features[1].geometry.coordinates[0]", equalTo(5.395833333F)).
-        body("features[1].geometry.coordinates[1]", equalTo(43.269722222F));
-  }
+//  @Test
+//  public void testGetFeaturesWithForce2D() {
+//    given().
+//        accept(APPLICATION_GEO_JSON).
+//        headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+//        when().
+//        get(getSpacesPath() + "/x-psql-test/features?id=Q2838923&id=Q202150&force2D=false").
+//        then().
+//        statusCode(OK.code()).
+//        body("features[0].geometry.coordinates.size()", equalTo(3)).
+//        body("features[0].geometry.coordinates[0]", equalTo(-77.075F)).
+//        body("features[0].geometry.coordinates[1]", equalTo(-12.057F)).
+//        body("features[0].geometry.coordinates[2]", equalTo(0F)).
+//        body("features[1].geometry.coordinates.size()", equalTo(3)).
+//        body("features[1].geometry.coordinates[0]", equalTo(5.395833333F)).
+//        body("features[1].geometry.coordinates[1]", equalTo(43.269722222F)).
+//        body("features[1].geometry.coordinates[2]", equalTo(0F));
+//
+//    given().
+//        accept(APPLICATION_GEO_JSON).
+//        headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+//        when().
+//        get(getSpacesPath() + "/x-psql-test/features?id=Q2838923&id=Q202150&force2D=true").
+//        then().
+//        statusCode(OK.code()).
+//        body("features[0].geometry.coordinates.size()", equalTo(2)).
+//        body("features[0].geometry.coordinates[0]", equalTo(-77.075F)).
+//        body("features[0].geometry.coordinates[1]", equalTo(-12.057F)).
+//        body("features[1].geometry.coordinates.size()", equalTo(2)).
+//        body("features[1].geometry.coordinates[0]", equalTo(5.395833333F)).
+//        body("features[1].geometry.coordinates[1]", equalTo(43.269722222F));
+//  }
 
   @Test
   public void testBBoxWithForce2D() {
