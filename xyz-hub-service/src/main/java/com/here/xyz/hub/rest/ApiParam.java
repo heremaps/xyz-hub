@@ -176,6 +176,8 @@ public class ApiParam {
     static final String AUTHOR = "author";
     static final String SUBSCRIPTION_SOURCE = "source";
 
+    static final String F_PREFIX = "f.";
+
     private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{
       put("!=", QueryOperation.NOT_EQUALS);
       put(">=", QueryOperation.GREATER_THAN_OR_EQUALS);

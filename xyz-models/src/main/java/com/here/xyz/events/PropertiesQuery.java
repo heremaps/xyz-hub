@@ -21,7 +21,22 @@ package com.here.xyz.events;
 
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
 
 public class PropertiesQuery extends ArrayList<PropertyQueryList> {
 
+  public PropertiesQuery filterOutNamedProperty(String... propertyNames) {
+    if (propertyNames == null || propertyNames.length == 0) return this;
+    final List<String> keys = Arrays.asList(propertyNames);
+
+    for (Iterator<PropertyQueryList> outerIt = this.iterator(); outerIt.hasNext();) {
+      final PropertyQueryList list = outerIt.next();
+      list.removeIf(prop -> keys.contains(prop.getKey()));
+      if (list.isEmpty()) outerIt.remove();
+    }
+
+    return this;
+  }
 }
