@@ -47,7 +47,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.*;
 
 public class ImportHandler {
     private static final Logger logger = LogManager.getLogger();
-    private static ArrayList<String> MODIFICATION_WHITELIST = new ArrayList<String>(){{  add("description"); add("enabledUUID"); add("csvFormat"); add("importObjects"); }};
+    private static ArrayList<String> MODIFICATION_WHITELIST = new ArrayList<String>(){{  add("description"); add("enabledUUID"); add("csvFormat"); }};
     private static Map<String,String> MODIFICATION_IGNORE_MAP = new HashMap<String,String>(){{put("createdAt","createdAt");put("updatedAt","updatedAt");}};
 
     public static Future<Job> postJob(Job job, Marker marker){
@@ -95,7 +95,7 @@ public class ImportHandler {
                         Difference.DiffMap diffMap = (Difference.DiffMap) Patcher.calculateDifferenceOfPartialUpdate(oldJobMap, asMap(job), MODIFICATION_IGNORE_MAP, true);
 
                         if (diffMap == null) {
-                            return Future.succeededFuture(job);
+                            return Future.succeededFuture(loadedJob);
                         } else {
                             try {
                                 validateChanges(diffMap);
