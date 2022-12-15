@@ -237,6 +237,8 @@ paths:
           description : OK
         '400':
           $ref: '#/components/responses/ErrorResponse400'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
     patch:
       tags:
         - Jobs
@@ -256,6 +258,8 @@ paths:
           description : OK
         '400':
           $ref: '#/components/responses/ErrorResponse400'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
     delete:
       tags:
         - Jobs
@@ -269,6 +273,8 @@ paths:
           description : OK
         '400':
           $ref: '#/components/responses/ErrorResponse400'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
   '/psql/jobs/{jobId}/execute':
     post:
       tags:
@@ -288,6 +294,12 @@ paths:
           description : OK
         '400':
           $ref: '#/components/responses/ErrorResponse400'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+        '409':
+          $ref: '#/components/responses/ErrorResponse409'
+        '412':
+          $ref: '#/components/responses/ErrorResponse412'
 components:
   parameters:
     JobId:
@@ -438,6 +450,17 @@ components:
             streamId: 7480e28a-e273-11e8-9af8-7508bbe361d9
             error: Exception
             errorMessage: The record exists.
+    ErrorResponse412:
+      description: An error response which indicates a failed precondition.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            type: ErrorResponse
+            streamId: 7480e28a-e273-11e8-9af8-7508bbe361d9
+            error: Exception
+            errorMessage: Precondition Failed.
     HealthResponse:
       description: HealhCheck Response
       content:
