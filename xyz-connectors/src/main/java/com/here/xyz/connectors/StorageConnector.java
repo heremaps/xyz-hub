@@ -19,6 +19,7 @@
 
 package com.here.xyz.connectors;
 
+import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
@@ -34,7 +35,6 @@ import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySubscriptionEvent;
-import com.here.xyz.events.ChangesetEvent;
 import com.here.xyz.events.OneTimeActionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
@@ -105,8 +105,8 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
     if (event instanceof GetStorageStatisticsEvent) {
       return processGetStorageStatisticsEvent((GetStorageStatisticsEvent) event);
     }
-    if (event instanceof ChangesetEvent) {
-      return processChangesetEvent((ChangesetEvent) event);
+    if (event instanceof DeleteChangesetsEvent) {
+      return processChangesetEvent((DeleteChangesetsEvent) event);
     }
     if (event instanceof OneTimeActionEvent)
       return processOneTimeActionEvent((OneTimeActionEvent) event);
@@ -209,5 +209,5 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
     return new SuccessResponse();
   }
 
-  protected abstract XyzResponse processChangesetEvent(ChangesetEvent event) throws Exception;
+  protected abstract XyzResponse processChangesetEvent(DeleteChangesetsEvent event) throws Exception;
 }

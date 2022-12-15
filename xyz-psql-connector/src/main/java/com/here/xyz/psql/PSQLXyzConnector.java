@@ -26,7 +26,7 @@ import static com.here.xyz.responses.XyzError.EXCEPTION;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.events.ChangesetEvent;
+import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
@@ -601,7 +601,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   }
 
   @Override
-  protected XyzResponse processChangesetEvent(ChangesetEvent event) throws Exception {
+  protected XyzResponse processChangesetEvent(DeleteChangesetsEvent event) throws Exception {
     try {
       logger.info("{} Received " + event.getClass().getSimpleName(), traceItem);
       new DeleteChangesets(event, this).write();
@@ -613,7 +613,6 @@ public class PSQLXyzConnector extends DatabaseHandler {
     finally {
       logger.info("{} Finished " + event.getClass().getSimpleName(), traceItem);
     }
-
   }
 
   protected XyzResponse iterateVersions(IterateFeaturesEvent event) throws SQLException {
