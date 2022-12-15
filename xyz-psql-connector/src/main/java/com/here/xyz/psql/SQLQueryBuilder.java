@@ -737,6 +737,14 @@ public class SQLQueryBuilder {
         return new SQLQuery("SELECT idx_available FROM "+ ModifySpace.IDX_STATUS_TABLE+" WHERE spaceid=? AND count >=?", space, BIG_SPACE_THRESHOLD);
     }
 
+  protected static SQLQuery buildMultiModalInsertStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
+      return new SQLQuery("SELECT xyz_write_versioned_modification_operation(#{id}, #{version}, #{operation}, #{jsondata}, #{geo}, "
+          + "#{schema}, #{table}, #{concurrencyCheck})")
+          .withNamedParameter("schema", dbHandler.config.getDatabaseSettings().getSchema())
+          .withNamedParameter("table", dbHandler.config.readTableFromEvent(event))
+          .withNamedParameter("concurrencyCheck", event.getEnableUUID());
+  }
+
   protected static SQLQuery buildInsertStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
     //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
     boolean oldTableStyle = DatabaseHandler.readVersionsToKeep(event) < 1;

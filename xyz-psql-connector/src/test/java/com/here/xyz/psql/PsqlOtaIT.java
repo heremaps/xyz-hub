@@ -8,18 +8,21 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.OneTimeActionEvent;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzResponse;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import org.json.JSONObject;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class PsqlOtaIT extends PSQLAbstractIT {
 
-  /*@BeforeClass
+  //@BeforeClass
   public static void init() throws Exception {
     initEnv(null);
   }
 
-  @Test
+  //@Test
   public void testOtaEvent() throws Exception {
     OneTimeActionEvent ota = new OneTimeActionEvent()
         .withPhase("test")
@@ -28,6 +31,6 @@ public class PsqlOtaIT extends PSQLAbstractIT {
     assertNotNull(response);
     assertNoErrorInResponse(response);
     assertTrue(response instanceof SuccessResponse);
-  }*/
+  }
 
 }

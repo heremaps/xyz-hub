@@ -393,7 +393,7 @@ public class CreateSpaceApiIT extends TestSpaceWithFeature {
     final ValidatableResponse response = given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_NO_ADMIN))
-        .body("{\"title\":\"test\", \"versionsToKeep\":1000001}")
+        .body("{\"title\":\"test\", \"versionsToKeep\":1000000001}")
         .when()
         .post("/spaces")
         .then();

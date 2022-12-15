@@ -254,7 +254,7 @@ public class DatabaseWriter {
         int version) {
         //If versioning is activated for the space, always only perform inserts
         if (event.getVersionsToKeep() > 1)
-            return SQLQueryBuilder.buildInsertStmtQuery(dbHandler, event);
+            return SQLQueryBuilder.buildMultiModalInsertStmtQuery(dbHandler, event);
         switch (action) {
             case INSERT:
                 return SQLQueryBuilder.buildInsertStmtQuery(dbHandler, event);
