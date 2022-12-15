@@ -137,7 +137,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
     long v2k = DatabaseHandler.readVersionsToKeep(event);
     boolean emptyAuthor = selectiveEvent.getAuthor() == null;
 
-    if (v2k < 0 || emptyAuthor) return new SQLQuery("");
+    if (v2k < 1 || emptyAuthor) return new SQLQuery("");
 
     return new SQLQuery(" AND author = #{author}")
         .withNamedParameter("author", selectiveEvent.getAuthor());
