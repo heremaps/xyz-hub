@@ -57,8 +57,9 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
           + "        SELECT ${{selection}}, ${{geo}}${{iColumn}} FROM"
           + "            ("
           + "                ${{baseQuery}}"
-          + "            ) a WHERE NOT exists(SELECT 1 FROM ${schema}.${table} b WHERE " + buildIdComparisonFragment(event, "a.") + ")"
-          + ") limitQuery ${{limit}}");
+          + "            ) a WHERE NOT exists(SELECT 1 FROM ${schema}.${table} b WHERE ${{notExistsIdComparison}})"
+          + ") limitQuery ${{limit}}")
+          .withQueryFragment("notExistsIdComparison", buildIdComparisonFragment(event, "a."));
     }
     else {
       query = new SQLQuery(
@@ -107,15 +108,18 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
 
     SelectiveEvent selectiveEvent = (SelectiveEvent) event;
     int versionsToKeep = DatabaseHandler.readVersionsToKeep(event);
-    long version = loadVersionFromRef(selectiveEvent);
+    boolean versionIsStar = "*".equals(selectiveEvent.getRef());
+    boolean versionIsNotPresent = selectiveEvent.getRef() == null;
 
-    final SQLQuery defaultClause = new SQLQuery(" AND next_version = max_bigint() ${{minVersion}}")
-        .withQueryFragment("minVersion", buildMinVersionFragment(selectiveEvent));
+    final SQLQuery defaultClause = new SQLQuery(" ${{minVersion}} ${{nextVersion}} ")
+        .withQueryFragment("minVersion", buildMinVersionFragment(selectiveEvent))
+        .withQueryFragment("nextVersion", versionIsStar ? "" : " AND next_version = max_bigint() ");
 
     if (versionsToKeep == 0) return new SQLQuery("");
-    if (versionsToKeep == 1 || selectiveEvent.getRef() == null) return defaultClause;
+    if (versionsToKeep == 1 || versionIsNotPresent || versionIsStar) return defaultClause;
 
-    // versionsToKeep > 1 AND contains a reference to a version
+    // versionsToKeep > 1 AND contains a reference to a version or version is a valid version
+    long version = loadVersionFromRef(selectiveEvent);
     return new SQLQuery(" AND version <= #{version} AND next_version > #{version} ${{minVersion}}")
         .withQueryFragment("minVersion", buildMinVersionFragment(selectiveEvent))
         .withNamedParameter("version", version);
