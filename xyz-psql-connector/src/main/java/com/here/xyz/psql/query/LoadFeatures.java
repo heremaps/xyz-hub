@@ -44,8 +44,7 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
         .withQueryFragment("idColumn", buildIdFragment(event));
 
     SQLQuery headQuery = super.buildQuery(event)
-        .withQueryFragment("filterWhereClause", filterWhereClause)
-        .withQueryFragment("minVersion", "");
+        .withQueryFragment("filterWhereClause", filterWhereClause);
 
     SQLQuery query = headQuery;
     if (event.getEnableHistory() && (!isExtendedSpace(event) || event.getContext() != DEFAULT)) {
