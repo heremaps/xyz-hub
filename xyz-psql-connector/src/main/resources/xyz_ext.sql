@@ -3137,3 +3137,66 @@ end;
 $body$;
 ------------------------------------------------
 ------------------------------------------------
+CREATE OR REPLACE FUNCTION max_bigint() RETURNS BIGINT AS
+$BODY$
+BEGIN
+    RETURN 9223372036854775807::BIGINT;
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION operation_2_human_readable(operation CHAR) RETURNS TEXT AS
+$BODY$
+BEGIN
+    RETURN CASE WHEN operation = 'I' THEN 'insert' ELSE (CASE WHEN operation = 'U' THEN 'update' ELSE 'delete' END) END;
+END
+$BODY$
+    LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_write_versioned_modification_operation(id TEXT, version BIGINT, operation CHAR, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN)
+    RETURNS VOID AS
+$BODY$
+    DECLARE
+        base_version BIGINT := (jsondata->'properties'->'@ns:com:here:xyz'->>'version')::BIGINT;
+        updated_rows INTEGER;
+    BEGIN
+        EXECUTE
+           format('INSERT INTO %s.%s (id, version, operation, jsondata, geo) VALUES (%L, %L, %L, %L, %L)',
+               schema, tableName, id, version, operation, jsondata, CASE WHEN geo::geometry IS NULL THEN NULL ELSE ST_Force3D(ST_GeomFromWKB(geo::BYTEA, 4326)) END);
+
+        IF operation != 'I' THEN
+            IF concurrencyCheck THEN
+                IF base_version IS NULL THEN
+                    RAISE EXCEPTION 'Error while trying to % feature with ID % in version %.', operation_2_human_readable(operation), id, version
+                        USING HINT = 'Base version is missing. Concurrency check can not be performed.';
+                END IF;
+
+                EXECUTE
+                    format('UPDATE %s.%s SET next_version = %L WHERE id = %L AND next_version = %L AND version = %L',
+                           schema, tableName, version, id, max_bigint(), base_version);
+
+                GET DIAGNOSTICS updated_rows = ROW_COUNT;
+                IF updated_rows != 1 THEN
+                    RAISE EXCEPTION 'Conflict while trying to % feature with ID % in version %.', operation_2_human_readable(operation), id, version
+                        USING HINT = 'Base version ' || base_version::TEXT || ' is not matching the current HEAD version.';
+                END IF;
+            ELSE
+                EXECUTE
+                    format('UPDATE %s.%s SET next_version = %L WHERE id = %L AND next_version = %L AND version < %L',
+                           schema, tableName, version, id, max_bigint(), version);
+
+                GET DIAGNOSTICS updated_rows = ROW_COUNT;
+                IF updated_rows != 1 THEN
+                    -- This can only happen if the HEAD version of the feature was deleted in the table for some reason
+                    RAISE EXCEPTION 'Unexpected error while trying to % feature with ID % in version %.', operation_2_human_readable(operation), id, version
+                        USING HINT = 'Previous (HEAD) version of the feature is missing.';
+                END IF;
+            END IF;
+        END IF;
+    END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------

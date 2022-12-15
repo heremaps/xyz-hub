@@ -1165,6 +1165,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         try (Statement stmt = connection.createStatement()) {
             //Alter existing tables: add new columns
             SQLQuery alterQuery = new SQLQuery("ALTER TABLE ${schema}.${table} "
+                + "ADD COLUMN author TEXT, "
                 + "ALTER COLUMN version DROP DEFAULT, "
                 + "ALTER COLUMN id SET NOT NULL, "
                 + "ALTER COLUMN operation DROP DEFAULT, "
@@ -1174,8 +1175,8 @@ public abstract class DatabaseHandler extends StorageConnector {
                 .withVariable("constraintName", tableName + "_primKey");
             stmt.addBatch(alterQuery.substitute().text());
 
-            //TODO: Add author column and index?
-            //TODO: What about deleting the jsondata->>id index?
+            //Add index for new author column
+            stmt.addBatch(buildCreateIndexQuery(schema, tableName, "author", "BTREE").substitute().text());
 
             //Add comment "phaseX_complete"
             SQLQuery setPhaseXCOmment = new SQLQuery("COMMENT ON TABLE ${schema}.${table} IS '" + OTA_PHASE_X_COMPLETE + "'")
@@ -1197,6 +1198,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             + "version BIGINT NOT NULL, "
             + "next_version BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
             + "operation CHAR NOT NULL, "
+            + "author TEXT, "
             + "jsondata JSONB, "
             + "geo geometry(GeometryZ, 4326), "
             + "i BIGSERIAL"
@@ -1218,7 +1220,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         createVersioningIndices(stmt, schema, table);
 
         if (readVersionsToKeep(event) <= 1) {
-            query = "CREATE INDEX IF NOT EXISTS ${idx_id} ON ${schema}.${table} ((jsondata->>'id'))";
+            query = "CREATE " + (readVersionsToKeep(event) < 1 ? "UNIQUE" : "") + " INDEX IF NOT EXISTS ${idx_id} ON ${schema}.${table} ((jsondata->>'id'))";
             query = SQLQuery.replaceVars(query, replacements, schema, table);
             stmt.addBatch(query);
         }
@@ -1266,16 +1268,16 @@ public abstract class DatabaseHandler extends StorageConnector {
         stmt.addBatch(buildCreateIndexQuery(schema, table, "operation", "BTREE").substitute().text());
     }
 
-    private static SQLQuery buildCreateIndexQuery(String schema, String table, String columnName, String method) {
+    static SQLQuery buildCreateIndexQuery(String schema, String table, String columnName, String method) {
       return buildCreateIndexQuery(schema, table, Collections.singletonList(columnName), method);
     }
 
-    private static SQLQuery buildCreateIndexQuery(String schema, String table, List<String> columnNames, String method) {
+    static SQLQuery buildCreateIndexQuery(String schema, String table, List<String> columnNames, String method) {
         return buildCreateIndexQuery(schema, table, columnNames, method, "idx_" + table + "_"
             + columnNames.stream().map(colName -> colName.replace("_", "")).collect(Collectors.joining()));
     }
 
-    private static SQLQuery buildCreateIndexQuery(String schema, String table, String columnName, String method, String indexName) {
+    static SQLQuery buildCreateIndexQuery(String schema, String table, String columnName, String method, String indexName) {
         return buildCreateIndexQuery(schema, table, Arrays.asList(columnName), method, indexName);
     }
 
