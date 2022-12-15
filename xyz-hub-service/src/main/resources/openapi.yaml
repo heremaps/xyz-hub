@@ -1091,10 +1091,14 @@ paths:
       requestBody:
         $ref: '#/components/requestBodies/JobRequest'
       responses:
-        '200':
+        '201':
           $ref: '#/components/responses/JobResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
   '/spaces/{spaceId}/job/{jobId}':
     get:
       tags:
