@@ -20,9 +20,11 @@
 package com.here.xyz.psql.query;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
+import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.QueryEvent;
 import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -50,22 +52,24 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
           "SELECT * FROM ("
           + "    (SELECT ${{selection}}, ${{geo}}${{iColumnExtension}}"
           + "        FROM ${schema}.${table}"
-          + "        WHERE ${{filterWhereClause}} AND ${{deletedCheck}} ${{iOffsetExtension}} ${{limit}})"
+          + "        WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{authorCheck}} ${{iOffsetExtension}} ${{limit}})"
           + "    UNION ALL "
           + "        SELECT ${{selection}}, ${{geo}}${{iColumn}} FROM"
           + "            ("
           + "                ${{baseQuery}}"
           + "            ) a WHERE NOT exists(SELECT 1 FROM ${schema}.${table} b WHERE " + buildIdComparisonFragment(event, "a.") + ")"
-          + ") limitQuery ${{limit}}")
-          .withQueryFragment("deletedCheck", buildDeletionCheckFragment(event));
+          + ") limitQuery ${{limit}}");
     }
     else {
       query = new SQLQuery(
           "SELECT ${{selection}}, ${{geo}}${{iColumn}}"
               + "    FROM ${schema}.${table}"
-              + "    WHERE ${{filterWhereClause}} ${{orderBy}} ${{limit}} ${{offset}}");
+              + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{authorCheck}} ${{orderBy}} ${{limit}} ${{offset}}");
     }
 
+    query.setQueryFragment("deletedCheck", buildDeletionCheckFragment(event));
+    query.withQueryFragment("versionCheck", buildVersionCheckFragment(event));
+    query.withQueryFragment("authorCheck", buildAuthorCheckFragment(event));
     query.setQueryFragment("selection", buildSelectionFragment(event));
     query.setQueryFragment("geo", buildGeoFragment(event));
     query.setQueryFragment("iColumn", ""); //NOTE: This can be overridden by implementing subclasses
@@ -97,6 +101,52 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
     return query;
   }
 
+  // TODO things to keep in mind: versionsToKeep, enableUUID, isExtended
+  private SQLQuery buildVersionCheckFragment(E event) {
+    if (!(event instanceof SelectiveEvent)) return new SQLQuery("");
+
+    SelectiveEvent selectiveEvent = (SelectiveEvent) event;
+    int versionsToKeep = DatabaseHandler.readVersionsToKeep(event);
+    long version = loadVersionFromRef(selectiveEvent);
+
+    final SQLQuery defaultClause = new SQLQuery(" AND next_version = max_bigint() ${{minVersion}}")
+        .withQueryFragment("minVersion", buildMinVersionFragment(selectiveEvent));
+
+    if (versionsToKeep == 0) return new SQLQuery("");
+    if (versionsToKeep == 1 || selectiveEvent.getRef() == null) return defaultClause;
+
+    // versionsToKeep > 1 AND contains a reference to a version
+    return new SQLQuery(" AND version <= #{version} AND next_version > #{version} ${{minVersion}}")
+        .withQueryFragment("minVersion", buildMinVersionFragment(selectiveEvent))
+        .withNamedParameter("version", version);
+  }
+
+  private SQLQuery buildMinVersionFragment(SelectiveEvent event) {
+    return new SQLQuery("AND version >= (select max(version) - #{versionsToKeep} from ${schema}.${table}) ")
+        .withNamedParameter("versionsToKeep", event.getVersionsToKeep());
+  }
+
+  private SQLQuery buildAuthorCheckFragment(E event) {
+    if (!(event instanceof SelectiveEvent)) return new SQLQuery("");
+
+    SelectiveEvent selectiveEvent = (SelectiveEvent) event;
+    long v2k = DatabaseHandler.readVersionsToKeep(event);
+    boolean emptyAuthor = selectiveEvent.getAuthor() == null;
+
+    if (v2k < 0 || emptyAuthor) return new SQLQuery("");
+
+    return new SQLQuery(" AND author = #{author}")
+        .withNamedParameter("author", selectiveEvent.getAuthor());
+  }
+
+  private long loadVersionFromRef(SelectiveEvent event) {
+    try {
+      return Integer.parseInt(event.getRef());
+    } catch (NumberFormatException e) {
+      return Long.MAX_VALUE;
+    }
+  }
+
   private SQLQuery build1LevelBaseQuery(E event) {
     SQLQuery query = new SQLQuery("SELECT id, version, operation, jsondata, geo${{iColumnBase}}"
         + "    FROM ${schema}.${extendedTable} m"
@@ -108,7 +158,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
   private SQLQuery build2LevelBaseQuery(E event) {
     return new SQLQuery("(SELECT id, version, operation, jsondata, geo${{iColumnIntermediate}}"
         + "    FROM ${schema}.${intermediateExtensionTable}"
-        + "    WHERE ${{filterWhereClause}} AND ${{deletedCheck}} ${{iOffsetIntermediate}} ${{limit}})"
+        + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{iOffsetIntermediate}} ${{limit}})"
         + "UNION ALL"
         + "    SELECT id, version, operation, jsondata, geo${{iColumn}} FROM"
         + "        ("
@@ -125,7 +175,10 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
   }
 
   private String buildDeletionCheckFragment(E event) {
-    return "operation != 'D'";
+    // queries on the EXTENSION layer to avoid the deletion check and simply return the row
+    if (event.getContext() == EXTENSION) return "";
+
+    return " AND operation != 'D'";
   }
 
   @Override
