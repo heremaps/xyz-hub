@@ -25,8 +25,8 @@ public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<
 
   private List<String> selection;
   private boolean force2D;
-
   private String ref;
+  private long minVersion;
 
   private String author;
 
@@ -56,6 +56,19 @@ public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<
 
   public T withRef(String ref) {
     setRef(ref);
+    return (T) this;
+  }
+
+  public long getMinVersion() {
+    return minVersion;
+  }
+
+  public void setMinVersion(long minVersion) {
+    this.minVersion = minVersion;
+  }
+
+  public T withMinVersion(long minVersion) {
+    setMinVersion(minVersion);
     return (T) this;
   }
 

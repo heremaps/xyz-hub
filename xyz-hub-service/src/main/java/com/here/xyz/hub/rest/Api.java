@@ -84,7 +84,7 @@ import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 
 public abstract class Api {
 
-  private static final Logger logger = LogManager.getLogger();
+  protected static final Logger logger = LogManager.getLogger();
 
   public static final int MAX_SERVICE_RESPONSE_SIZE = (Service.configuration == null ? 0 :  Service.configuration.MAX_SERVICE_RESPONSE_SIZE);
   public static final int MAX_HTTP_RESPONSE_SIZE = (Service.configuration == null ? 0 :Service.configuration.MAX_HTTP_RESPONSE_SIZE);

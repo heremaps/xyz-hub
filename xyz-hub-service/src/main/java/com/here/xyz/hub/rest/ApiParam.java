@@ -30,6 +30,7 @@ import com.here.xyz.models.geojson.implementation.Point;
 import io.vertx.ext.web.RoutingContext;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -377,8 +378,9 @@ public class ApiParam {
         return null;
 
       try {
-        query = URLDecoder.decode(query, "utf-8");
-      } catch (UnsupportedEncodingException e) {
+        query = URLDecoder.decode(query, Charset.defaultCharset().name());
+      }
+      catch (UnsupportedEncodingException e) {
         return null;
       }
 

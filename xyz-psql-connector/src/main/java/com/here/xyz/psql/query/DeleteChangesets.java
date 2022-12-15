@@ -20,26 +20,25 @@
 package com.here.xyz.psql.query;
 
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.events.ChangesetEvent;
+import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.responses.SuccessResponse;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-public class DeleteChangesets extends XyzQueryRunner<ChangesetEvent, SuccessResponse> {
+public class DeleteChangesets extends XyzQueryRunner<DeleteChangesetsEvent, SuccessResponse> {
 
-  public DeleteChangesets(ChangesetEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
+  public DeleteChangesets(DeleteChangesetsEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(event, dbHandler);
   }
 
   @Override
-  protected SQLQuery buildQuery(ChangesetEvent event) throws SQLException {
-    return new SQLQuery("DELETE FROM ${schema}.${table} where version < #{version} and next_version <> #{max_version};")
+  protected SQLQuery buildQuery(DeleteChangesetsEvent event) throws SQLException {
+    return new SQLQuery("DELETE FROM ${schema}.${table} WHERE next_version <= #{minVersion}")
         .withVariable(SCHEMA, getSchema())
         .withVariable(TABLE, getDefaultTable(event))
-        .withNamedParameter("version", Long.parseLong((String) event.getHistoryVersion().getValues().get(0)))
-        .withNamedParameter("max_version", Long.MAX_VALUE);
+        .withNamedParameter("minVersion", event.getMinVersion());
   }
 
   @Override

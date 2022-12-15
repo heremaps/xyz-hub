@@ -789,6 +789,12 @@ public class FeatureTaskHandler {
                     storageParams.putAll(resolvedExtensions);
 
                     task.getEvent().setParams(storageParams);
+
+                    if (task.getEvent() instanceof SelectiveEvent) {
+                      //Inject the minVersion from the space config
+                      ((SelectiveEvent<?>) task.getEvent()).setMinVersion(space.getMinVersion());
+                    }
+
                     return Future.succeededFuture(space);
                   });
                 }

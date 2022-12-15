@@ -179,6 +179,9 @@ public class Space {
   @JsonInclude(Include.ALWAYS) //NOTE: This is only needed temporary to keep backwards compatibility for non-versioned spaces (see: DynamoSpaceConfigClient#getSpace() and JDBCSpaceConfigClient#getSpace())
   private int versionsToKeep = DEFAULT_VERSIONS_TO_KEEP;
 
+  @JsonView({Internal.class, Static.class})
+  private long minVersion = 0;
+
   /**
    * If false, auto-indexing gets disabled
    */
@@ -491,6 +494,19 @@ public class Space {
   public Space withVersionsToKeep(int versionsToKeep) {
     setVersionsToKeep(versionsToKeep);
     return this;
+  }
+
+  public long getMinVersion() {
+    return minVersion;
+  }
+
+  public void setMinVersion(long minVersion) {
+    this.minVersion = minVersion;
+  }
+
+  public <T extends Space> T withMinVersion(long minVersion) {
+    setMinVersion(minVersion);
+    return (T) this;
   }
 
   public Boolean isEnableAutoSearchableProperties() {

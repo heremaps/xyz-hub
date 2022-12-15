@@ -64,7 +64,7 @@ import java.util.Map;
     @JsonSubTypes.Type(value = LoadFeaturesEvent.class, name = "LoadFeaturesEvent"),
     @JsonSubTypes.Type(value = IterateHistoryEvent.class, name = "IterateHistoryEvent"),
     @JsonSubTypes.Type(value = ContentModifiedNotification.class, name = "ContentModifiedNotification"),
-    @JsonSubTypes.Type(value = ChangesetEvent.class, name = "ChangesetEvent"),
+    @JsonSubTypes.Type(value = DeleteChangesetsEvent.class, name = "DeleteChangesetsEvent"),
     @JsonSubTypes.Type(value = OneTimeActionEvent.class, name = "OneTimeActionEvent")
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
