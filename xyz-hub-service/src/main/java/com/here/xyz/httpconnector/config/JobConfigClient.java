@@ -68,6 +68,13 @@ public abstract class JobConfigClient implements Initializable {
                 .onFailure(t -> logger.error(marker, "Failed to load jobList!", t));
     }
 
+    public Future<String> getRunningImportJobsOnSpace(Marker marker, String targetSpaceId) {
+        return getImportJobsOnTargetSpace(marker, targetSpaceId)
+                .onSuccess(jobList -> {
+                    logger.info(marker, "Successfully loaded '{}' jobs!");
+                })
+                .onFailure(t -> logger.error(marker, "Failed to load jobList!", t));
+    }
 
     public Future<Job> update(Marker marker, Job job) {
         job.updatedAt = Core.currentTimeMillis();
@@ -106,6 +113,8 @@ public abstract class JobConfigClient implements Initializable {
     protected abstract Future<Job> getJob(Marker marker, String jobId);
 
     protected abstract Future<List<Job>> getJobs( Marker marker, Job.Type type, Job.Status status, String targetSpaceId);
+
+    protected abstract Future<String> getImportJobsOnTargetSpace(Marker marker, String targetSpaceId);
 
     protected abstract Future<Job> storeJob(Marker marker, Job job);
 
