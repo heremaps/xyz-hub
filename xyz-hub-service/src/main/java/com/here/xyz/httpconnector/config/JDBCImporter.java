@@ -53,8 +53,22 @@ public class JDBCImporter extends JDBCClients{
     private static final String IDX_NAME_TAGS = "tags";
     private static final String IDX_NAME_VIZ = "viz";
 
-    /** List of Default Indices */
-    public static final String[] DEFAULT_IDX_LIST = {IDX_NAME_ID,IDX_NAME_GEO,IDX_NAME_CREATEDAT,IDX_NAME_UPDATEDAT,IDX_NAME_SERIAL,IDX_NAME_TAGS,IDX_NAME_VIZ};
+    private static final String IDX_NAME_ID_NEW = "idnew";
+    private static final String IDX_NAME_VERSION = "version";
+    private static final String IDX_NAME_ID_VERSION = "idversion";
+    private static final String IDX_NAME_ID_VERSION_NXT_VERSION = "idversionnextversion";
+    private static final String IDX_NAME_OPERATION = "operation";
+
+    /** Temporally used during migration phase */
+    private static final Boolean OLD_DATABASE_LAYOUT =  (CService.configuration !=null && CService.configuration.JOB_OLD_DATABASE_LAYOUT != null)
+            ? CService.configuration.JOB_OLD_DATABASE_LAYOUT : false;
+
+    /** List of default Indices */
+    public static final String[] DEFAULT_IDX_LIST = { IDX_NAME_ID,IDX_NAME_GEO,IDX_NAME_CREATEDAT,IDX_NAME_UPDATEDAT,IDX_NAME_SERIAL,IDX_NAME_TAGS,IDX_NAME_VIZ };
+
+    /** List of version related default Indices */
+    public static final String[] DEFAULT_IDX_LIST_EXTENDED = { IDX_NAME_ID,IDX_NAME_GEO,IDX_NAME_CREATEDAT,IDX_NAME_UPDATEDAT,IDX_NAME_SERIAL,IDX_NAME_TAGS,IDX_NAME_VIZ,
+            IDX_NAME_ID_NEW,IDX_NAME_VERSION,IDX_NAME_ID_VERSION,IDX_NAME_ID_VERSION_NXT_VERSION,IDX_NAME_OPERATION };
 
     /**
      * Prepare Table for Import
@@ -137,17 +151,13 @@ public class JDBCImporter extends JDBCClients{
         boolean addTablenameToXYZNs = false;
         boolean _enableUUID  = enableUUID == null ? false : enableUUID;
 
-        SQLQuery q = new SQLQuery("${{drop_trigger}} ${{create_trigger}}");
-        SQLQuery q1 = new SQLQuery("DROP TRIGGER IF EXISTS insertTrigger ON ${schema}.${tablename};");
-        SQLQuery q2 = new SQLQuery("CREATE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${tablename} \n"
-                + "FOR EACH ROW EXECUTE PROCEDURE ${schema}.xyz_import_trigger('{trigger_hrn}',{addTableName},{enableUUID});"
+        SQLQuery q = new SQLQuery("CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${tablename} \n"
+                + "FOR EACH ROW EXECUTE PROCEDURE ${schema}.xyz_import_trigger('{trigger_hrn}',{addTableName},{enableUUID},{oldLayout});"
                 .replace("{trigger_hrn}","TBD")
                 .replace("{enableUUID}", Boolean.toString(_enableUUID))
                 .replace("{addTableName}", Boolean.toString(addTablenameToXYZNs))
+                .replace("{oldLayout}", Boolean.toString(OLD_DATABASE_LAYOUT))
         );
-
-        q.setQueryFragment("drop_trigger",q1);
-        q.setQueryFragment("create_trigger",q2);
 
         q.setVariable("schema", schema);
         q.setVariable("tablename", tablename);
@@ -225,7 +235,7 @@ public class JDBCImporter extends JDBCClients{
 
         List<Future> indicesFutures = new ArrayList<>();
 
-        for (String idxName: DEFAULT_IDX_LIST) {
+        for (String idxName:  (OLD_DATABASE_LAYOUT ? DEFAULT_IDX_LIST : DEFAULT_IDX_LIST_EXTENDED)) {
             SQLQuery q = createIdxQuery(idxName, schema, tableName);
             indicesFutures.add(createIndex(clientId, q, idxName)
                     .onSuccess(idx -> {
@@ -307,6 +317,27 @@ public class JDBCImporter extends JDBCClients{
                 q = new SQLQuery("CREATE INDEX IF NOT EXISTS ${idx_name} ON ${schema}.${table} USING btree (left( md5(''||i),5));");
                 q.setVariable("idx_name", "idx_"+tablename+"_"+IDX_NAME_VIZ);
                 break;
+
+            case IDX_NAME_ID_NEW:
+                q = new SQLQuery("CREATE INDEX IF NOT EXISTS ${idx_name} ON ${schema}.${table} USING btree (id);");
+                q.setVariable("idx_name", "idx_"+tablename+"_"+IDX_NAME_ID_NEW);
+                break;
+            case IDX_NAME_VERSION:
+                q = new SQLQuery("CREATE INDEX IF NOT EXISTS ${idx_name} ON ${schema}.${table} USING btree (version);");
+                q.setVariable("idx_name", "idx_"+tablename+"_"+IDX_NAME_VERSION);
+                break;
+            case IDX_NAME_ID_VERSION:
+                q = new SQLQuery("CREATE INDEX IF NOT EXISTS ${idx_name} ON ${schema}.${table} USING btree (id,version);");
+                q.setVariable("idx_name", "idx_"+tablename+"_"+IDX_NAME_ID_VERSION);
+                break;
+            case IDX_NAME_ID_VERSION_NXT_VERSION:
+                q = new SQLQuery("CREATE INDEX IF NOT EXISTS ${idx_name} ON ${schema}.${table} USING btree (id, version, next_version);");
+                q.setVariable("idx_name", "idx_"+tablename+"_"+IDX_NAME_ID_VERSION_NXT_VERSION);
+                break;
+            case IDX_NAME_OPERATION:
+                q = new SQLQuery("CREATE INDEX IF NOT EXISTS ${idx_name} ON ${schema}.${table} USING btree (id, version, operation);");
+                q.setVariable("idx_name", "idx_"+tablename+"_"+IDX_NAME_OPERATION);
+                break;
         }
 
         if(q != null){
@@ -326,10 +357,11 @@ public class JDBCImporter extends JDBCClients{
     public static List<Future> createIndices(String clientID, String schema, String tablename){
         List<Future> futures = new ArrayList<>();
 
-        for (String idxName: DEFAULT_IDX_LIST) {
+        for (String idxName: (OLD_DATABASE_LAYOUT ? DEFAULT_IDX_LIST :DEFAULT_IDX_LIST_EXTENDED)) {
             SQLQuery q = createIdxQuery(idxName, schema, tablename);
             futures.add(createIndex(clientID, q, idxName));
         }
+
         return futures;
     }
 

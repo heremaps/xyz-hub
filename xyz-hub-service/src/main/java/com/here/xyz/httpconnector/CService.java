@@ -204,6 +204,10 @@ public class CService extends Core {
      * RDS maximum allowed imports in parallel
      */
     public int JOB_MAX_RDS_MAX_RUNNING_IMPORTS;
+    /**
+     * Temporary needed for migration phase
+     */
+    public Boolean JOB_OLD_DATABASE_LAYOUT;
 
     /** ############## Database related ##################### */
     /**

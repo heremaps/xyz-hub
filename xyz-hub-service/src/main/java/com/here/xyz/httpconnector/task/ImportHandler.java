@@ -229,14 +229,25 @@ public class ImportHandler {
                         p.complete(importJob);
                         return;
                     case START:
-                        if(importJob.getStatus().equals(Job.Status.waiting)){
-                            /** Actively push job to local JOB-Queue */
-                            CService.importQueue.addJob(importJob);
-                            p.complete(importJob);
-                        }else
-                           p.fail(new HttpException(PRECONDITION_FAILED, "Job cant get started. Invalid Job Status '"+importJob.getStatus()+"' !"));
-
-                        return;
+                        if(!importJob.getStatus().equals(Job.Status.waiting)) {
+                            p.fail(new HttpException(PRECONDITION_FAILED, "Job cant get started. Invalid Job Status '" + importJob.getStatus() + "' !"));
+                        }else if(CService.importQueue.checkRunningImportJobsOnSpace(importJob.getTargetTable())){
+                            /** Check in node memory */
+                            p.fail(new HttpException(CONFLICT, "Other job is already running on target!"));
+                        }else{
+                            CService.jobConfigClient.getRunningImportJobsOnSpace(marker, importJob.getTargetSpaceId())
+                                 .onSuccess(alreadyRunningOn -> {
+                                     /** Check on dynamo level */
+                                     if(alreadyRunningOn != null) {
+                                         p.fail(new HttpException(CONFLICT, "Job '"+alreadyRunningOn+"' is already running on target!"));
+                                         return;
+                                     }else{
+                                         /** Actively push job to local JOB-Queue */
+                                         CService.importQueue.addJob(importJob);
+                                         p.complete(importJob);
+                                     }
+                                 }).onFailure(f-> p.fail(new HttpException(BAD_GATEWAY, "Unexpected error!")));
+                        }
                 }
             }
         }).compose(
@@ -306,11 +317,11 @@ public class ImportHandler {
                 }
             case RETRY:
                 switch (job.getStatus()){
-                    case partially_failed:
                     case failed:
-                        if(job.getErrorDescription() != null && job.getErrorDescription().equals(Import.ERROR_DESCRIPTION_UPLOAD_MISSING)) {
+                        if(job.getErrorType() != null && job.getErrorType().equals(Import.ERROR_TYPE_VALIDATION_FAILED)) {
                             /** Reset due to creation of upload URL */
                             job.setStatus(Job.Status.waiting);
+                            job.setErrorDescription(null);
                             job.setErrorType(null);
                             return true;
                         }
@@ -344,7 +355,6 @@ public class ImportHandler {
                     case finalized:
                         p.fail(new HttpException(PRECONDITION_FAILED, "Job is already finalized !"));
                         return false;
-                    case partially_failed:
                     case failed:
                         if(!command.equals(HApiParam.HQuery.Command.RETRY))
                             p.fail(new HttpException(PRECONDITION_FAILED, "Failed - check error and retry!"));

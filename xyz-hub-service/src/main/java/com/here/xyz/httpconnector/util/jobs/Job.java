@@ -55,7 +55,7 @@ public abstract class Job {
 
     @JsonView({Public.class})
     public enum Status {
-        waiting, queued, validating, validated, preparing, prepared, executing, executed, finalizing, finalized, aborted, partially_failed, failed;
+        waiting, queued, validating, validated, preparing, prepared, executing, executed, finalizing, finalized, aborted, failed;
         public static Status of(String value) {
             if (value == null) {
                 return null;
