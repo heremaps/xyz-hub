@@ -18,12 +18,18 @@
  */
 package com.here.xyz.psql;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.XyzResponse;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -73,7 +79,13 @@ public class PSQLLoadFeatures extends PSQLAbstractIT {
           put("F2", "0");
         }});
 
-    String result = invokeLambda(event.serialize());
-    System.out.println(result);
+    XyzResponse response = XyzSerializable.deserialize(invokeLambda(event.serialize()));
+    if (response instanceof ErrorResponse)
+      throw new RuntimeException(((ErrorResponse) response).getErrorMessage());
+    FeatureCollection loadedFeatures = (FeatureCollection) response;
+    assertEquals(2, loadedFeatures.getFeatures().size());
+    assertTrue(loadedFeatures.getFeatures().stream().anyMatch(f -> "F1".equals(f.getId())));
+    assertTrue(loadedFeatures.getFeatures().stream().anyMatch(f -> "F2".equals(f.getId())));
+    assertTrue(loadedFeatures.getFeatures().stream().allMatch(f -> f.getProperties().getXyzNamespace().getVersion() == 0));
   }
 }

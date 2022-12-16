@@ -3152,7 +3152,7 @@ BEGIN
     RETURN CASE WHEN operation = 'I' THEN 'insert' ELSE (CASE WHEN operation = 'U' THEN 'update' ELSE 'delete' END) END;
 END
 $BODY$
-    LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_write_versioned_modification_operation(id TEXT, version BIGINT, operation CHAR, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN)
@@ -3200,5 +3200,36 @@ $BODY$
     END
 $BODY$
 LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'load_feature_version_input') THEN
+    CREATE TYPE load_feature_version_input AS (
+        id          TEXT,
+        version     BIGINT
+    );
+    END IF;
+    --more types here...
+END$$;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION transform_load_features_input(ids TEXT[], versions BIGINT[])
+    RETURNS LOAD_FEATURE_VERSION_INPUT[] AS
+$BODY$
+DECLARE
+    output LOAD_FEATURE_VERSION_INPUT[];
+    item LOAD_FEATURE_VERSION_INPUT;
+BEGIN
+    FOR i IN 1 .. array_upper(ids, 1)
+        LOOP
+            item := ROW(ids[i], versions[i]);
+            SELECT array_append(output, item) into output;
+
+        END LOOP;
+    RETURN output;
+END
+$BODY$
+    LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
