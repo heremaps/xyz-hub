@@ -27,11 +27,14 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 
+import com.google.common.collect.Maps;
+import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Properties;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -177,16 +180,45 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + cleanUpSpaceId + "/features/F1?version=0")
+        .then()
+        .statusCode(NOT_FOUND.code());
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .get("/spaces/" + cleanUpSpaceId + "/features/F2?version=0")
         .then()
         .statusCode(NOT_FOUND.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + cleanUpSpaceId + "/features/F1")
+        .contentType(APPLICATION_JSON)
+        .body(new LoadFeaturesEvent().withSpace(cleanUpSpaceId).withIdsMap(Collections.singletonMap("F2", "0")))
+        .post("/admin/events")
+        .then()
+        .statusCode(OK.code())
+        .body("features.size()", equalTo(1))
+        .body("features[0].properties.name", equalTo("2a"));
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + cleanUpSpaceId + "/features/F2?version=1")
+        .then()
+        .statusCode(OK.code())
+        .body("properties.name", equalTo("2a"));
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + cleanUpSpaceId + "/features/F1?version=1")
         .then()
         .statusCode(OK.code())
         .body("properties.name", equalTo("1b"));
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + cleanUpSpaceId + "/features/F1")
+        .then()
+        .statusCode(NOT_FOUND.code());
   }
 
   @Test
@@ -238,6 +270,7 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .get("/spaces/" + cleanUpSpaceId + "/features?id=F1,F2&version=2")
         .then()
-        .statusCode(NOT_FOUND.code());
+        .statusCode(OK.code())
+        .body("features.size()", equalTo(0));
   }
 }
