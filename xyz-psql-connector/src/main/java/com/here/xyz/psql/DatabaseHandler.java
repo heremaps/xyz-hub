@@ -1177,6 +1177,8 @@ public abstract class DatabaseHandler extends StorageConnector {
 
             //Add index for new author column
             stmt.addBatch(buildCreateIndexQuery(schema, tableName, "author", "BTREE").substitute().text());
+            //Add insex for next_version column
+            stmt.addBatch(buildCreateIndexQuery(schema, tableName, "next_version", "BTREE").substitute().text());
 
             //Add comment "phaseX_complete"
             SQLQuery setPhaseXCOmment = new SQLQuery("COMMENT ON TABLE ${schema}.${table} IS '" + OTA_PHASE_X_COMPLETE + "'")
@@ -1263,9 +1265,11 @@ public abstract class DatabaseHandler extends StorageConnector {
     private static void createVersioningIndices(Statement stmt, String schema, String table) throws SQLException {
         stmt.addBatch(buildCreateIndexQuery(schema, table, "id", "BTREE", "idx_" + table + "_idnew").substitute().text());
         stmt.addBatch(buildCreateIndexQuery(schema, table, "version", "BTREE").substitute().text());
+        stmt.addBatch(buildCreateIndexQuery(schema, table, "next_version", "BTREE").substitute().text());
         stmt.addBatch(buildCreateIndexQuery(schema, table, Arrays.asList("id", "version"), "BTREE").substitute().text());
         stmt.addBatch(buildCreateIndexQuery(schema, table, Arrays.asList("id", "version", "next_version"), "BTREE").substitute().text());
         stmt.addBatch(buildCreateIndexQuery(schema, table, "operation", "BTREE").substitute().text());
+        stmt.addBatch(buildCreateIndexQuery(schema, table, "author", "BTREE").substitute().text());
     }
 
     static SQLQuery buildCreateIndexQuery(String schema, String table, String columnName, String method) {
