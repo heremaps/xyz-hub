@@ -3156,14 +3156,14 @@ $BODY$
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_write_versioned_modification_operation(id TEXT, version BIGINT, operation CHAR, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN)
-    RETURNS VOID AS
+    RETURNS INTEGER AS
 $BODY$
     DECLARE
         base_version BIGINT := (jsondata->'properties'->'@ns:com:here:xyz'->>'version')::BIGINT;
         updated_rows INTEGER;
     BEGIN
         EXECUTE
-           format('INSERT INTO %s.%s (id, version, operation, jsondata, geo) VALUES (%L, %L, %L, %L, %L)',
+           format('INSERT INTO %I.%I (id, version, operation, jsondata, geo) VALUES (%L, %L, %L, %L, %L)',
                schema, tableName, id, version, operation, jsondata, CASE WHEN geo::geometry IS NULL THEN NULL ELSE ST_Force3D(ST_GeomFromWKB(geo::BYTEA, 4326)) END);
 
         IF operation != 'I' THEN
@@ -3174,7 +3174,7 @@ $BODY$
                 END IF;
 
                 EXECUTE
-                    format('UPDATE %s.%s SET next_version = %L WHERE id = %L AND next_version = %L AND version = %L',
+                    format('UPDATE %I.%I SET next_version = %L WHERE id = %L AND next_version = %L AND version = %L',
                            schema, tableName, version, id, max_bigint(), base_version);
 
                 GET DIAGNOSTICS updated_rows = ROW_COUNT;
@@ -3184,7 +3184,7 @@ $BODY$
                 END IF;
             ELSE
                 EXECUTE
-                    format('UPDATE %s.%s SET next_version = %L WHERE id = %L AND next_version = %L AND version < %L',
+                    format('UPDATE %I.%I SET next_version = %L WHERE id = %L AND next_version = %L AND version < %L',
                            schema, tableName, version, id, max_bigint(), version);
 
                 GET DIAGNOSTICS updated_rows = ROW_COUNT;
@@ -3195,6 +3195,8 @@ $BODY$
                 END IF;
             END IF;
         END IF;
+
+        RETURN 1;
     END
 $BODY$
 LANGUAGE plpgsql VOLATILE;
