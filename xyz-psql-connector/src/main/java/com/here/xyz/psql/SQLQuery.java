@@ -319,9 +319,10 @@ public class SQLQuery {
     if (queryFragments != null)
       queryFragments.forEach((key, fragment) -> {
         fragment.replaceAllSubFragments(fragmentLookup);
-        if (isClashing(namedParameters, fragment.namedParameters))
+        final String clashing = getClashing(namedParameters, fragment.namedParameters);
+        if (clashing != null)
           throw new RuntimeException("Can not add substitute fragment ${{" + key + "}} into this query. "
-              + "This query contains at least one named parameter which clashes with a named parameter of the fragment.");
+              + "This query contains at least one named parameter (here: " + clashing + ") which clashes with a named parameter of the fragment.");
         setNamedParameters(fragment.namedParameters);
       });
     //Now replace all direct child fragments
@@ -528,12 +529,12 @@ public class SQLQuery {
     return this;
   }
 
-  private static boolean isClashing(Map<String, ?> map1, Map<String, ?> map2) {
+  private static String getClashing(Map<String, ?> map1, Map<String, ?> map2) {
     if (map1 == null || map2 == null)
-      return false;
+      return null;
     for (String key : map1.keySet())
-      if (map2.containsKey(key) && !Objects.equals(map1.get(key), map2.get(key)))
-        return true;
-    return false;
+      if (map2.containsKey(key) && !Objects.deepEquals(map1.get(key), map2.get(key)))
+        return key;
+    return null;
   }
 }

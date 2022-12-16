@@ -20,21 +20,25 @@
 package com.here.xyz.psql.query;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
+import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
+import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT_HIDE_COMPOSITE;
+import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE_HIDE_COMPOSITE;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
-import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.QueryEvent;
 import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.DatabaseHandler;
+import com.here.xyz.psql.DatabaseWriter.ModificationType;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.SQLQueryBuilder;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedSpace<E, FeatureCollection> {
 
@@ -178,11 +182,12 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
     return DatabaseHandler.readVersionsToKeep(event) > 0 ? "id = " + prefix + "id" : "jsondata->>'id' = " + prefix + "jsondata->>'id'";
   }
 
-  private String buildDeletionCheckFragment(E event) {
-    // queries on the EXTENSION layer to avoid the deletion check and simply return the row
-    if (event.getContext() == EXTENSION) return "";
-
-    return " AND operation != 'D'";
+  private SQLQuery buildDeletionCheckFragment(E event) {
+    boolean isExtended = isExtendedSpace(event) && event.getContext() == DEFAULT;
+    return new SQLQuery(" AND operation NOT IN (SELECT unnest(#{operationsToFilterOut}::CHAR[]))")
+        .withNamedParameter("operationsToFilterOut", Arrays.stream(isExtended
+            ? new ModificationType[]{DELETE, INSERT_HIDE_COMPOSITE, UPDATE_HIDE_COMPOSITE}
+            : new ModificationType[]{DELETE}).map(ModificationType::toString).toArray(String[]::new));
   }
 
   @Override

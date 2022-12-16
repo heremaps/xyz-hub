@@ -21,7 +21,9 @@ package com.here.xyz.psql;
 
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
+import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT_HIDE_COMPOSITE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
+import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE_HIDE_COMPOSITE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.events.ModifyFeaturesEvent;
@@ -46,7 +48,11 @@ public class DatabaseWriter {
 
     public enum ModificationType {
         INSERT("I"),
+        INSERT_HIDE_COMPOSITE("H"),
+
         UPDATE("U"),
+        UPDATE_HIDE_COMPOSITE("J"),
+
         DELETE("D");
 
         String shortValue;
@@ -140,7 +146,8 @@ public class DatabaseWriter {
         query
             .withNamedParameter("id", feature.getId())
             .withNamedParameter("version", version)
-            .withNamedParameter("operation", getDeletedFlagFromFeature(feature) ? 'D' : action.shortValue)
+            .withNamedParameter("operation", (action == DELETE || !getDeletedFlagFromFeature(feature) ? action
+                : action == INSERT ? INSERT_HIDE_COMPOSITE : UPDATE_HIDE_COMPOSITE).shortValue)
             .withNamedParameter("jsondata", featureToPGobject(event, feature, version));
 
         Geometry geo = feature.getGeometry();
