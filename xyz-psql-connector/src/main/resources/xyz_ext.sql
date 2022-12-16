@@ -3149,7 +3149,7 @@ LANGUAGE plpgsql VOLATILE;
 CREATE OR REPLACE FUNCTION operation_2_human_readable(operation CHAR) RETURNS TEXT AS
 $BODY$
 BEGIN
-    RETURN CASE WHEN operation = 'I' THEN 'insert' ELSE (CASE WHEN operation = 'U' THEN 'update' ELSE 'delete' END) END;
+    RETURN CASE WHEN operation = 'I' OR operation = 'H' THEN 'insert' ELSE (CASE WHEN operation = 'U' OR operation = 'J' THEN 'update' ELSE 'delete' END) END;
 END
 $BODY$
 LANGUAGE plpgsql VOLATILE;
@@ -3166,7 +3166,7 @@ $BODY$
            format('INSERT INTO %I.%I (id, version, operation, jsondata, geo) VALUES (%L, %L, %L, %L, %L)',
                schema, tableName, id, version, operation, jsondata, CASE WHEN geo::geometry IS NULL THEN NULL ELSE ST_Force3D(ST_GeomFromWKB(geo::BYTEA, 4326)) END);
 
-        IF operation != 'I' THEN
+        IF operation != 'I' AND operation != 'H' THEN
             IF concurrencyCheck THEN
                 IF base_version IS NULL THEN
                     RAISE EXCEPTION 'Error while trying to % feature with ID % in version %.', operation_2_human_readable(operation), id, version
