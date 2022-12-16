@@ -28,6 +28,7 @@ import com.here.xyz.psql.SQLQuery;
 import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
 
@@ -43,27 +44,36 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
         .withNamedParameter("ids", idMap.keySet().toArray(new String[0]))
         .withQueryFragment("idColumn", buildIdFragment(event));
 
+    if (event.getVersionsToKeep() > 1) {
+      filterWhereClause = new SQLQuery("(id, version) IN (#{tuples})")
+          .withNamedParameter("tuples", idMap.entrySet().stream().map(entry -> new Object[] {entry.getKey(), entry.getValue() == null ? Long.MAX_VALUE : Long.parseLong(entry.getValue())}).collect(
+              Collectors.toList()).toArray(new Object[0]));
+    }
+
     SQLQuery headQuery = super.buildQuery(event)
         .withQueryFragment("filterWhereClause", filterWhereClause);
 
-    SQLQuery query = headQuery;
-    if (event.getEnableHistory() && (!isExtendedSpace(event) || event.getContext() != DEFAULT)) {
-      final boolean compactHistory = !event.getEnableGlobalVersioning() && dbHandler.getConfig().getConnectorParams().isCompactHistory();
-      if (compactHistory)
-        //History does not contain Inserts
-        query = new SQLQuery("${{headQuery}} UNION ${{historyQuery}}");
-      else
-        //History does contain Inserts
-        query = new SQLQuery("SELECT DISTINCT ON(jsondata->'properties'->'@ns:com:here:xyz'->'uuid') * FROM("
-            + "    ${{headQuery}} UNION ${{historyQuery}}"
-            + ")A");
+    if (event.getVersionsToKeep() <= 1) {
+      SQLQuery query = headQuery;
 
-      query
-          .withQueryFragment("headQuery", headQuery)
-          .withQueryFragment("historyQuery", buildHistoryQuery(event, idMap.values()));
+      if (event.getEnableHistory() && (!isExtendedSpace(event) || event.getContext() != DEFAULT)) {
+        final boolean compactHistory = !event.getEnableGlobalVersioning() && dbHandler.getConfig().getConnectorParams().isCompactHistory();
+        if (compactHistory)
+          //History does not contain Inserts
+          query = new SQLQuery("${{headQuery}} UNION ${{historyQuery}}");
+        else
+          //History does contain Inserts
+          query = new SQLQuery("SELECT DISTINCT ON(jsondata->'properties'->'@ns:com:here:xyz'->'uuid') * FROM("
+              + "    ${{headQuery}} UNION ${{historyQuery}}"
+              + ")A");
+
+        return query
+            .withQueryFragment("headQuery", headQuery)
+            .withQueryFragment("historyQuery", buildHistoryQuery(event, idMap.values()));
+      }
     }
 
-    return query;
+    return headQuery;
   }
 
   private SQLQuery buildHistoryQuery(LoadFeaturesEvent event, Collection<String> uuids) {
