@@ -45,9 +45,11 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
         .withQueryFragment("idColumn", buildIdFragment(event));
 
     if (event.getVersionsToKeep() > 1) {
-      filterWhereClause = new SQLQuery("(id, version) IN (#{tuples})")
-          .withNamedParameter("tuples", idMap.entrySet().stream().map(entry -> new Object[] {entry.getKey(), entry.getValue() == null ? Long.MAX_VALUE : Long.parseLong(entry.getValue())}).collect(
-              Collectors.toList()).toArray(new Object[0]));
+      filterWhereClause = new SQLQuery("(id, version) IN (${{loadFeaturesInput}})")
+          .withQueryFragment("loadFeaturesInput", buildLoadFeaturesInputFragment())
+          .withNamedParameter("ids", idMap.keySet().toArray(new String[0]))
+          .withNamedParameter("versions", idMap.values().stream().map(v -> v == null ? Long.MAX_VALUE : Long.parseLong(v)).collect(
+              Collectors.toList()).toArray(new Long[0]));
     }
 
     SQLQuery headQuery = super.buildQuery(event)
@@ -74,6 +76,16 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
     }
 
     return headQuery;
+  }
+
+  private static String buildLoadFeaturesInputFragment() {
+    return "WITH "
+        + "  recs AS ( "
+        + "    SELECT unnest(transform_load_features_input(#{ids}, #{versions})) as rec) "
+        + "SELECT "
+        + "  (rec).id, "
+        + "  (rec).version "
+        + "FROM recs";
   }
 
   private SQLQuery buildHistoryQuery(LoadFeaturesEvent event, Collection<String> uuids) {
