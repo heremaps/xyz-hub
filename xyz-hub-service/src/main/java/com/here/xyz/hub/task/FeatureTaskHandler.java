@@ -794,6 +794,10 @@ public class FeatureTaskHandler {
                       //Inject the minVersion from the space config
                       ((SelectiveEvent<?>) task.getEvent()).setMinVersion(space.getMinVersion());
                     }
+                    if (task.getEvent() instanceof ContextAwareEvent) {
+                      //Inject the versionsToKeep from the space config
+                      ((ContextAwareEvent<?>) task.getEvent()).setVersionsToKeep(space.getVersionsToKeep());
+                    }
 
                     return Future.succeededFuture(space);
                   });
@@ -1606,7 +1610,7 @@ public class FeatureTaskHandler {
     if (task.modifyOp.entries.size() == 0)
       return null;
 
-    final boolean useVersion = false; // task.space.getVersionsToKeep() > 0;
+    final boolean useVersion = task.space.getVersionsToKeep() > 0;
     final HashMap<String, String> idsMap = new HashMap<>();
     for (FeatureEntry entry : task.modifyOp.entries) {
       if (entry.input.get("id") instanceof String) {
@@ -1785,7 +1789,6 @@ public class FeatureTaskHandler {
   }
 
   static <X extends FeatureTask> void validateReadFeaturesParams(final X task, final Callback<X> callback) {
-
     if (task.getEvent() instanceof SelectiveEvent) {
       String ref = ((SelectiveEvent) task.getEvent()).getRef();
       if (ref != null && !isVersionValid(ref))
@@ -1797,8 +1800,9 @@ public class FeatureTaskHandler {
 
   private static boolean isVersionValid(String version) {
     try {
-      return "*".equals(version) || Integer.parseInt(version) > 0;
-    } catch (NumberFormatException e) {
+      return "*".equals(version) || Integer.parseInt(version) >= 0;
+    }
+    catch (NumberFormatException e) {
       return false;
     }
   }

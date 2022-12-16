@@ -39,7 +39,7 @@ import org.junit.Test;
 
 public class ChangesetApiIT extends TestSpaceWithFeature {
 
-  private static String cleanUpSpaceId = "space-1";
+  private static String cleanUpSpaceId = "space1";
 
   @BeforeClass
   public static void setupClass() {
@@ -52,7 +52,7 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
 
   @Before
   public void setup() {
-    createSpaceWithCustomStorage(cleanUpSpaceId, "psql", null);
+    createSpaceWithCustomStorage(cleanUpSpaceId, "psql", null, 10);
     addChangesets();
   }
 
@@ -62,27 +62,33 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
   }
 
   private void addChangesets() {
-    FeatureCollection changeset1 = new FeatureCollection().withFeatures(
+    //Version 0
+    FeatureCollection changeset0 = new FeatureCollection().withFeatures(
         Arrays.asList(
             new Feature().withId("F1").withProperties(new Properties().with("name", "1a")),
             new Feature().withId("F2").withProperties(new Properties().with("name", "2a"))
         )
     );
 
-    FeatureCollection changeset2 = new FeatureCollection().withFeatures(
+    //Version 1
+    FeatureCollection changeset1 = new FeatureCollection().withFeatures(
         Arrays.asList(
             new Feature().withId("F1").withProperties(new Properties().with("name", "1b")),
             new Feature().withId("F3").withProperties(new Properties().with("name", "3a"))
         )
     );
 
-    FeatureCollection changeset4 = new FeatureCollection().withFeatures(
+    //Version 2 is a deletion (see below)
+
+    //Version 3
+    FeatureCollection changeset3 = new FeatureCollection().withFeatures(
         Arrays.asList(
             new Feature().withId("F4").withProperties(new Properties().with("name", "4a"))
         )
     );
 
-    FeatureCollection changeset5 = new FeatureCollection().withFeatures(
+    //Version 4
+    FeatureCollection changeset4 = new FeatureCollection().withFeatures(
         Arrays.asList(
             new Feature().withId("F2").withProperties(new Properties().with("name", "2b")),
             new Feature().withId("F4").withProperties(new Properties().with("name", "4b"))
@@ -92,7 +98,7 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(changeset1.toString())
+        .body(changeset0.toString())
         .post("/spaces/" + cleanUpSpaceId + "/features")
         .then()
         .statusCode(OK.code());
@@ -100,7 +106,7 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(changeset2.toString())
+        .body(changeset1.toString())
         .post("/spaces/" + cleanUpSpaceId + "/features")
         .then()
         .statusCode(OK.code());
@@ -114,7 +120,7 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(changeset4.toString())
+        .body(changeset3.toString())
         .post("/spaces/" + cleanUpSpaceId + "/features")
         .then()
         .statusCode(OK.code());
@@ -122,7 +128,7 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(changeset5.toString())
+        .body(changeset4.toString())
         .post("/spaces/" + cleanUpSpaceId + "/features")
         .then()
         .statusCode(OK.code());
@@ -153,13 +159,25 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
   public void deleteChangesets() {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .delete("/spaces/" + cleanUpSpaceId + "/changesets?version<2")
+        .get("/spaces/" + cleanUpSpaceId + "/features/F2?version=0")
+        .then()
+        .statusCode(OK.code());
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + cleanUpSpaceId + "/features/F2")
+        .then()
+        .statusCode(OK.code());
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .delete("/spaces/" + cleanUpSpaceId + "/changesets?version<1")
         .then()
         .statusCode(NO_CONTENT.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + cleanUpSpaceId + "/features/F1?version=2")
+        .get("/spaces/" + cleanUpSpaceId + "/features/F2?version=0")
         .then()
         .statusCode(NOT_FOUND.code());
 
