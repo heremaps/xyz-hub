@@ -746,32 +746,22 @@ public class SQLQueryBuilder {
   }
 
   protected static SQLQuery buildInsertStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
-    //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
-    boolean oldTableStyle = DatabaseHandler.readVersionsToKeep(event) < 1;
-    boolean withDeletedColumn = oldTableStyle && DatabaseHandler.isForExtendingSpace(event);
-    return setWriteQueryComponents(new SQLQuery("${{geoWith}} INSERT INTO ${schema}.${table} (id, version, operation, jsondata, geo" + (withDeletedColumn ? ", deleted" : "") + ") "
+    return setWriteQueryComponents(new SQLQuery("${{geoWith}} INSERT INTO ${schema}.${table} (id, version, operation, jsondata, geo) "
         + "VALUES("
         + "#{id}, "
         + "#{version}, "
         + "#{operation}, "
         + "#{jsondata}::jsonb, "
         + "${{geo}}"
-        //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
-        + (withDeletedColumn ? ", (#{operation} = 'D')" : "")
         + ")"), dbHandler, event);
   }
 
   protected static SQLQuery buildUpdateStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
-    //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
-    boolean oldTableStyle = DatabaseHandler.readVersionsToKeep(event) < 1;
-    boolean withDeletedColumn = oldTableStyle && DatabaseHandler.isForExtendingSpace(event);
       return setWriteQueryComponents(new SQLQuery("${{geoWith}} UPDATE ${schema}.${table} SET "
           + "version = #{version}, "
           + "operation = #{operation}, "
           + "jsondata = #{jsondata}::jsonb, "
           + "geo = (${{geo}}) "
-          //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
-          + (withDeletedColumn ? ", deleted = (#{operation} = 'D') " : "")
           + "WHERE ${{idColumn}} = #{id} ${{uuidCheck}}"), dbHandler, event)
           .withQueryFragment("uuidCheck", buildUuidCheckFragment(event))
           .withQueryFragment("idColumn", buildIdFragment(event));

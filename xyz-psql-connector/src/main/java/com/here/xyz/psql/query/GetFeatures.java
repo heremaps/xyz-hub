@@ -32,7 +32,6 @@ import com.here.xyz.psql.SQLQueryBuilder;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedSpace<E, FeatureCollection> {
@@ -126,8 +125,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
   }
 
   private String buildDeletionCheckFragment(E event) {
-    //NOTE: The following check is a temporary backwards compatibility implementation for tables with old structure
-    return DatabaseHandler.readVersionsToKeep(event) > 0 ? "operation != 'D'" : "deleted = false";
+    return "operation != 'D'";
   }
 
   @Override
