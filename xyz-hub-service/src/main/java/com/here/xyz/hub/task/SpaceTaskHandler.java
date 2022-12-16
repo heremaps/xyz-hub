@@ -76,7 +76,6 @@ import org.apache.logging.log4j.Logger;
 public class SpaceTaskHandler {
 
   private static final Logger logger = LogManager.getLogger();
-
   private static final int CLIENT_VALUE_MAX_SIZE = 1024;
 
   static <X extends ReadQuery<?>> void readSpaces(final X task, final Callback<X> callback) {
@@ -173,7 +172,7 @@ public class SpaceTaskHandler {
     Space space = task.modifyOp.entries.get(0).result;
 
     if (task.isUpdate()) {
-      /**
+      /*
        * Validate immutable settings which are only can get set during the space creation:
        * enableUUID, enableHistory, enableGlobalVersioning, maxVersionCount, extension
        * */
@@ -184,30 +183,24 @@ public class SpaceTaskHandler {
       else if(spaceHead != null && task.modifyOp.entries.get(0).input.get("enableUUID") != null )
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'enableUUID' can only get set on space creation!");
 
-      /** enableHistory is immutable and it is only allowed to set it during the space creation */
+      // enableHistory is immutable and it is only allowed to set it during the space creation
       if(spaceHead != null && spaceHead.isEnableHistory() == Boolean.TRUE && task.modifyOp.entries.get(0).input.get("enableHistory") == Boolean.TRUE )
         task.modifyOp.entries.get(0).input.put("enableHistory",true);
       else if(spaceHead != null && task.modifyOp.entries.get(0).input.get("enableHistory") != null )
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'enableHistory' can only get set on space creation!");
 
-      /** enableGlobalVersioning is immutable and it is only allowed to set it during the space creation */
+      // enableGlobalVersioning is immutable and it is only allowed to set it during the space creation
       if(spaceHead != null && spaceHead.isEnableGlobalVersioning() == Boolean.TRUE && task.modifyOp.entries.get(0).input.get("enableGlobalVersioning") == Boolean.TRUE )
         task.modifyOp.entries.get(0).input.put("enableGlobalVersioning",true);
       else if(spaceHead != null && task.modifyOp.entries.get(0).input.get("enableGlobalVersioning") != null )
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'enableGlobalVersioning' can only get set on space creation!");
 
-      /** getMaxVersionCount is immutable and it is only allowed to set it during the space creation */
+      // getMaxVersionCount is immutable and it is only allowed to set it during the space creation
       if(spaceHead != null && spaceHead.isEnableGlobalVersioning() && spaceHead.getMaxVersionCount() != null && task.modifyOp.entries.get(0).input.get("maxVersionCount") != null
               && (spaceHead.getMaxVersionCount().compareTo((Integer)task.modifyOp.entries.get(0).input.get("maxVersionCount")) == 0))
         task.modifyOp.entries.get(0).input.put("maxVersionCount" , spaceHead.getMaxVersionCount());
       else if(spaceHead != null && spaceHead.isEnableGlobalVersioning() && task.modifyOp.entries.get(0).input.get("maxVersionCount") != null )
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'maxVersionCount' can only get set, in combination of enableGlobalVersioning, on space creation!");
-
-      //NOTE: The following is a temporary implementation for during the migration phase for versioning.
-      if (spaceHead != null && task.modifyOp.entries.get(0).input.get("versionsToKeep") != null &&
-          !Objects.equals(spaceHead.getVersionsToKeep(), task.modifyOp.entries.get(0).input.get("versionsToKeep")))
-        throw new HttpException(BAD_REQUEST, "Validation failed. The property \"versionsToKeep\" can only be set during initial "
-            + "creation of the space.");
     }
 
     if (task.isCreate()) {
@@ -219,17 +212,17 @@ public class SpaceTaskHandler {
         task.modifyOp.entries.get(0).result.setEnableUUID(true);
     }
 
+    //versionsToKeep does not allow zero as value
+    if (task.modifyOp.entries.get(0).input.get("versionsToKeep") != null &&
+        Objects.equals(0, task.modifyOp.entries.get(0).input.get("versionsToKeep")))
+      throw new HttpException(BAD_REQUEST, "Validation failed. The property \"versionsToKeep\" cannot be set to zero");
+
     if(space.getMaxVersionCount() != null){
       if(!space.isEnableHistory() && !space.isEnableGlobalVersioning())
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'maxVersionCount' can only get set if 'enableHistory' is set.");
       if(space.getMaxVersionCount() < -1)
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'maxVersionCount' must be greater or equal to -1.");
     }
-
-    //NOTE: The following is a temporary implementation for backwards compatibility for the legacy history implementation
-//    if ((space.isEnableGlobalVersioning() || space.isEnableHistory()) && space.getVersionsToKeep() > 1)
-//      throw new HttpException(BAD_REQUEST, "Validation failed. Versioning can not be activated in combination with legacy history. "
-//          + "Either set property \"enableGlobalVersioning\" or \"versionsToKeep\" to a value greater than 1 but not both.");
 
     if (space.getId() == null) {
       throw new HttpException(BAD_REQUEST, "Validation failed. The property 'id' cannot be empty.");
@@ -578,6 +571,11 @@ public class SpaceTaskHandler {
         // Do not allow removing the cid property
         if (entry.result.getCid() == null) {
           entry.result.setCid(entry.head.getCid());
+        }
+
+        // TODO ignore updates on versionsToKeep when the head version contains zero, should be removed in the future when moving from 0 to >=1 is allowed
+        if (entry.head.getVersionsToKeep() == 0 && entry.result.getVersionsToKeep() > 0) {
+          entry.result.setVersionsToKeep(0);
         }
       }
     }

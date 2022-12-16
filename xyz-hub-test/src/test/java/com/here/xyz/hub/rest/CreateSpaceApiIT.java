@@ -379,13 +379,27 @@ public class CreateSpaceApiIT extends TestSpaceWithFeature {
     final ValidatableResponse response = given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_NO_ADMIN))
-        .body("{\"title\":\"test\", \"versionsToKeep\":0}")
+        .body("{\"title\":\"test\", \"versionsToKeep\":10}")
         .when()
         .post("/spaces")
         .then();
     cleanUpId = response.extract().path("id");
 
     response.statusCode(OK.code());
+  }
+
+  @Test
+  public void createSpaceWithVersionsToKeepZero() {
+    final ValidatableResponse response = given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_NO_ADMIN))
+        .body("{\"title\":\"test\", \"versionsToKeep\":0}")
+        .when()
+        .post("/spaces")
+        .then();
+    cleanUpId = response.extract().path("id");
+
+    response.statusCode(BAD_REQUEST.code());
   }
 
   @Test
