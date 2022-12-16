@@ -85,6 +85,10 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
   }
 
   protected static String createSpaceWithCustomStorage(String spaceId, String storageId, JsonObject storageParams) {
+    return createSpaceWithCustomStorage(spaceId, storageId, storageParams, 1);
+  }
+
+  protected static String createSpaceWithCustomStorage(String spaceId, String storageId, JsonObject storageParams, int versionsToKeep) {
     JsonObject storage = new JsonObject()
         .put("id", storageId);
     if (storageParams != null)
@@ -92,7 +96,8 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
     JsonObject space = new JsonObject()
         .put("id", spaceId)
         .put("title", "Demo Space with storage " + storageId)
-        .put("storage", storage);
+        .put("storage", storage)
+        .put("versionsToKeep", versionsToKeep);
 
     return given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))

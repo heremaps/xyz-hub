@@ -57,7 +57,6 @@ public class SQLQuery {
   private static final String VAR_HST_TABLE = "hsttable";
   private static final String VAR_TABLE_SEQ = "table_seq";
   private static final String VAR_HST_TABLE_SEQ = "hsttable_seq";
-  private static final String VAR_VERSION_SEQ = "version_seq";
 
   private HashMap<String, List<Integer>> namedParams2Positions = new HashMap<>();
 
@@ -238,8 +237,7 @@ public class SQLQuery {
         .withVariable(VAR_TABLE, table)
         .withVariable(VAR_HST_TABLE, table + HISTORY_TABLE_SUFFIX)
         .withVariable(VAR_TABLE_SEQ, table != null ? table.replaceAll("-", "_") + "_i_seq\";" : "")
-        .withVariable(VAR_HST_TABLE_SEQ, table != null ? (table + HISTORY_TABLE_SUFFIX + "_seq").replaceAll("-", "_") : " ")
-        .withVariable(VAR_VERSION_SEQ, table != null ? (table + GetNextVersion.VERSION_SEQUENCE_SUFFIX).replaceAll("-", "_") : " ");
+        .withVariable(VAR_HST_TABLE_SEQ, table != null ? (table + HISTORY_TABLE_SUFFIX + "_seq").replaceAll("-", "_") : " ");
     q.substitute();
     return q.text();
   }

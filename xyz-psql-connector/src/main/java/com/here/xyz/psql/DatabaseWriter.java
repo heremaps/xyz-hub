@@ -38,6 +38,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map.Entry;
 import org.apache.logging.log4j.LogManager;
@@ -188,7 +189,7 @@ public class DatabaseWriter {
                     else
                         ps.setQueryTimeout(dbh.calculateTimeout());
 
-                    if (transactional || ps.executeUpdate() != 0) {
+                    if (transactional || ps.execute() || ps.getUpdateCount() != 0) {
                         if (action != DELETE)
                             collection.getFeatures().add((Feature) inputDatum);
                     }
@@ -326,6 +327,11 @@ public class DatabaseWriter {
                 DatabaseWriter.fillFailList(batchStmtResult, fails, idList, event, type);
             }
         }
+        catch (Exception e) {
+            int[] res = new int[idList.size()];
+            Arrays.fill(res, 0);
+            DatabaseWriter.fillFailList(res, fails, idList, event, type);
+        }
         finally {
             if (batchStmt != null)
                 batchStmt.close();
@@ -334,8 +340,9 @@ public class DatabaseWriter {
 
     private static void fillFailList(int[] batchResult, List<FeatureCollection.ModificationFailure> fails,  List<String> idList,
         ModifyFeaturesEvent event, ModificationType action) {
-        for (int i = 0; i < batchResult.length; i++)
-            if (batchResult[i] == 0)
-                fails.add(new FeatureCollection.ModificationFailure().withId(idList.get(i)).withMessage(getFailedRowErrorMsg(action, event)));
+        if (event.getVersionsToKeep() <= 1)
+            for (int i = 0; i < batchResult.length; i++)
+                if (batchResult[i] == 0)
+                    fails.add(new FeatureCollection.ModificationFailure().withId(idList.get(i)).withMessage(getFailedRowErrorMsg(action, event)));
     }
 }

@@ -56,7 +56,7 @@ public class ChangesetApi extends SpaceBasedApi {
 
     try {
       long minVersion = Long.parseLong((String) version.getValues().get(0));
-      if (minVersion <= 0)
+      if (minVersion < 1)
         throw new NumberFormatException();
 
       SpaceConnectorBasedHandler.execute(context,

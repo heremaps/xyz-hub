@@ -22,6 +22,7 @@ package com.here.xyz.psql.query;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.CREATE;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.DELETE;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.UPDATE;
+import static com.here.xyz.psql.query.helpers.GetNextVersion.VERSION_SEQUENCE_SUFFIX;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -203,10 +204,11 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, XyzResponse> {
         q.append("DROP TABLE IF EXISTS ${schema}.${hsttable};");
         q.append("DROP SEQUENCE IF EXISTS ${schema}.${hsttable_seq};");
         q.append("DROP SEQUENCE IF EXISTS ${schema}.${table_seq};");
-        q.append("DROP SEQUENCE IF EXISTS ${schema}.${version_seq};");
+        q.append("DROP SEQUENCE IF EXISTS ${schema}.${versionSequence};");
 
-        q.setNamedParameter("table", getDefaultTable(event));
-        q.setNamedParameter("schema", getSchema());
+        q.withNamedParameter("table", getDefaultTable(event))
+            .withNamedParameter("schema", getSchema())
+            .withVariable("versionSequence", getDefaultTable(event) + VERSION_SEQUENCE_SUFFIX);
         return q;
     }
 
