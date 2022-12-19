@@ -38,7 +38,6 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedSpace<E, FeatureCollection> {
 
@@ -106,7 +105,6 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
     return query;
   }
 
-  // TODO things to keep in mind: versionsToKeep, enableUUID, isExtended
   private SQLQuery buildVersionCheckFragment(E event) {
     if (!(event instanceof SelectiveEvent)) return new SQLQuery("");
 
@@ -116,8 +114,11 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
     boolean versionIsNotPresent = selectiveEvent.getRef() == null;
 
     final SQLQuery defaultClause = new SQLQuery(" ${{minVersion}} ${{nextVersion}} ")
-        .withQueryFragment("minVersion", buildMinVersionFragment(selectiveEvent))
-        .withQueryFragment("nextVersion", versionIsStar ? "" : " AND next_version = max_bigint() ");
+        .withQueryFragment("nextVersion", versionIsStar || versionsToKeep <= 1 ? "" : " AND next_version = max_bigint() ");
+    if (versionsToKeep > 1)
+      defaultClause.withQueryFragment("minVersion", buildMinVersionFragment(selectiveEvent));
+    else
+      defaultClause.withQueryFragment("minVersion", "");
 
     if (versionsToKeep == 0) return new SQLQuery("");
     if (versionsToKeep == 1 || versionIsNotPresent || versionIsStar) return defaultClause;
