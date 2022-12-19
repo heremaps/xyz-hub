@@ -1610,7 +1610,7 @@ public class FeatureTaskHandler {
     if (task.modifyOp.entries.size() == 0)
       return null;
 
-    final boolean useVersion = task.space.getVersionsToKeep() > 0;
+    final boolean useVersion = task.space.getVersionsToKeep() > 1;
     final HashMap<String, String> idsMap = new HashMap<>();
     for (FeatureEntry entry : task.modifyOp.entries) {
       if (entry.input.get("id") instanceof String) {

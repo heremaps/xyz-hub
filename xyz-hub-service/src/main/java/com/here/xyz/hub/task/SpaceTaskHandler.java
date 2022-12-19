@@ -224,6 +224,11 @@ public class SpaceTaskHandler {
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'maxVersionCount' must be greater or equal to -1.");
     }
 
+    //NOTE: The following is a temporary implementation for backwards compatibility for the legacy history implementation
+    if ((space.isEnableGlobalVersioning() || space.isEnableHistory()) && space.getVersionsToKeep() > 1)
+      throw new HttpException(BAD_REQUEST, "Validation failed. Versioning can not be activated in combination with legacy history. "
+          + "Either set property \"enableGlobalVersioning\" or \"versionsToKeep\" to a value greater than 1 but not both.");
+
     if (space.getId() == null) {
       throw new HttpException(BAD_REQUEST, "Validation failed. The property 'id' cannot be empty.");
     }

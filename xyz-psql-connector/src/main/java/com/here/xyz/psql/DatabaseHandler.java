@@ -687,8 +687,8 @@ public abstract class DatabaseHandler extends StorageConnector {
                 if (event.getTransaction()) {
                     connection.rollback();
 
-                    if ((e instanceof SQLException && ((SQLException)e).getSQLState() != null
-                            && ((SQLException)e).getSQLState().equalsIgnoreCase("42P01")))
+                    if (e instanceof SQLException && ((SQLException)e).getSQLState() != null
+                            && ((SQLException)e).getSQLState().equalsIgnoreCase("42P01"))
                         ;//Table does not exist yet - create it!
                     else {
 

@@ -131,7 +131,10 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
     protected String getUuid(Map<String, Object> feature) {
       try {
         return new JsonObject(feature).getJsonObject(PROPERTIES).getJsonObject(XyzNamespace.XYZ_NAMESPACE).getString(UUID);
-      } catch (Exception e) {
+        //NOTE: The following is a temporary implementation for backwards compatibility for legacy spaces with versionsToKeep = 0
+        //return uuid == null ? "" + getVersion(feature) : uuid;
+      }
+      catch (Exception e) {
         return null;
       }
     }
@@ -168,8 +171,9 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
     private int getVersion(Map<String, Object> input) {
       try {
         return new JsonObject(input).getJsonObject(PROPERTIES).getJsonObject(XyzNamespace.XYZ_NAMESPACE).getInteger(VERSION, 0);
-      } catch (Exception e) {
-        return 0;
+      }
+      catch (Exception e) {
+        return -1;
       }
     }
   }
