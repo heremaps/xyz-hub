@@ -333,7 +333,8 @@ public class DatabaseWriter {
 
                 batchStmt.setQueryTimeout(dbh.calculateTimeout());
                 batchStmtResult = batchStmt.executeBatch();
-                DatabaseWriter.fillFailList(batchStmtResult, fails, idList, event, type);
+                if (event.getVersionsToKeep() <= 1)
+                    DatabaseWriter.fillFailList(batchStmtResult, fails, idList, event, type);
             }
         }
         catch (Exception e) {
