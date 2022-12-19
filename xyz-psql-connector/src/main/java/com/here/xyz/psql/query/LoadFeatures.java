@@ -27,7 +27,10 @@ import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import java.sql.SQLException;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
@@ -45,11 +48,23 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
         .withQueryFragment("idColumn", buildIdFragment(event));
 
     if (event.getVersionsToKeep() > 1) {
-      filterWhereClause = new SQLQuery("(id, version) IN (${{loadFeaturesInput}})")
-          .withQueryFragment("loadFeaturesInput", buildLoadFeaturesInputFragment())
-          .withNamedParameter("ids", idMap.keySet().toArray(new String[0]))
-          .withNamedParameter("versions", idMap.values().stream().map(v -> v == null ? Long.MAX_VALUE : Long.parseLong(v)).collect(
-              Collectors.toList()).toArray(new Long[0]));
+      Set<String> ids = new HashSet<>();
+      Map<String, String> idMapWithVersions = new HashMap<>();
+
+      idMap.forEach((k,v) -> {
+        if (v == null) {
+          ids.add(k);
+        } else {
+          idMapWithVersions.put(k, v);
+        }
+      });
+
+      filterWhereClause = new SQLQuery("((id, version) IN (${{loadFeaturesInput}}) OR (id, next_version) IN (${{loadFeaturesInputNextVersion}}))")
+          .withQueryFragment("loadFeaturesInput", buildLoadFeaturesInputFragment(
+              idMapWithVersions.keySet().toArray(new String[0]),
+              idMapWithVersions.values().stream().map(Long::parseLong).toArray(Long[]::new)
+          ))
+          .withQueryFragment("loadFeaturesInputNextVersion", buildLoadFeaturesInputFragment(ids.toArray(new String[0])));
     }
 
     SQLQuery headQuery = super.buildQuery(event)
@@ -78,14 +93,21 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
     return headQuery;
   }
 
-  private static String buildLoadFeaturesInputFragment() {
-    return "WITH "
+  private static SQLQuery buildLoadFeaturesInputFragment(String[] ids) {
+    return buildLoadFeaturesInputFragment(ids, null);
+  }
+
+  private static SQLQuery buildLoadFeaturesInputFragment(String[] ids, Long[] versions) {
+    return new SQLQuery("WITH "
         + "  recs AS ( "
-        + "    SELECT unnest(transform_load_features_input(#{ids}, #{versions})) as rec) "
+        + "    SELECT unnest(transform_load_features_input(#{ids} ${{versions}})) as rec) "
         + "SELECT "
         + "  (rec).id, "
         + "  (rec).version "
-        + "FROM recs";
+        + "FROM recs")
+        .withNamedParameter("ids", ids)
+        .withQueryFragment("versions", versions == null ? "" : ", #{versions}")
+        .withNamedParameter("versions", versions);
   }
 
   private SQLQuery buildHistoryQuery(LoadFeaturesEvent event, Collection<String> uuids) {
