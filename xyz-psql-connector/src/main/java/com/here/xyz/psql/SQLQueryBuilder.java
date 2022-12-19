@@ -807,7 +807,9 @@ public class SQLQueryBuilder {
   }
 
   private static String buildUuidCheckFragment(ModifyFeaturesEvent event) {
+    //NOTE: The following is a temporary implementation for backwards compatibility for old spaces
     return event.getEnableUUID() ? " AND (#{puuid}::TEXT IS NULL OR jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = #{puuid})" : "";
+    //return event.getEnableUUID() ? (DatabaseHandler.readVersionsToKeep(event) > 0 ? " AND (CASE WHEN #{baseVersion}::BIGINT IS NULL THEN next_version = max_bigint() ELSE version = #{baseVersion} END)" : " AND (#{puuid}::TEXT IS NULL OR jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = #{puuid})") : "";
   }
 
   public static String deleteOldHistoryEntries(final String schema, final String table, long maxAllowedVersion){

@@ -44,7 +44,7 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
         .withNamedParameter("ids", idMap.keySet().toArray(new String[0]))
         .withQueryFragment("idColumn", buildIdFragment(event));
 
-    if (event.getVersionsToKeep() > 0) {
+    if (event.getVersionsToKeep() > 1) {
       filterWhereClause = new SQLQuery("(id, version) IN (${{loadFeaturesInput}})")
           .withQueryFragment("loadFeaturesInput", buildLoadFeaturesInputFragment())
           .withNamedParameter("ids", idMap.keySet().toArray(new String[0]))

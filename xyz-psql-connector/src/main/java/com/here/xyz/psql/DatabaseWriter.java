@@ -118,9 +118,14 @@ public class DatabaseWriter {
             fillInsertQueryFromFeature(query, DELETE, deletedFeature, event, version);
         }
         else {
+            //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
+            boolean oldTableStyle = true; //DatabaseHandler.readVersionsToKeep(event) < 1;
             query.setNamedParameter("id", deletion.getKey());
             if (event.getEnableUUID())
-                query.setNamedParameter("puuid", deletion.getValue());
+                if (oldTableStyle)
+                    query.setNamedParameter("puuid", deletion.getValue());
+                else //TODO: Check if we should not throw an exception in that case
+                    query.setNamedParameter("baseVersion", deletion.getValue() != null ? Long.parseLong(deletion.getValue()) : null);
         }
     }
 
@@ -128,12 +133,16 @@ public class DatabaseWriter {
         if (feature.getId() == null)
             throw new WriteFeatureException(UPDATE_ERROR_ID_MISSING);
 
+        //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
+        boolean oldTableStyle = true; //DatabaseHandler.readVersionsToKeep(event) < 1;
         final String puuid = feature.getProperties().getXyzNamespace().getPuuid();
         if (event.getEnableUUID())
-            if (puuid == null)
+            if (puuid == null && oldTableStyle)
                 throw new WriteFeatureException(UPDATE_ERROR_PUUID_MISSING);
-            else
+            else if (oldTableStyle)
                 query.setNamedParameter("puuid", puuid);
+            else
+                query.setNamedParameter("baseVersion", feature.getProperties().getXyzNamespace().getVersion());
 
         /*
         NOTE: If versioning is activated for the space, always only inserts are performed,
@@ -328,6 +337,12 @@ public class DatabaseWriter {
             }
         }
         catch (Exception e) {
+            if (e instanceof SQLException && ((SQLException)e).getSQLState() != null
+                && ((SQLException)e).getSQLState().equalsIgnoreCase("42P01"))
+                //Re-throw, as a missing table will be handled by DatabaseHandler.
+                throw e;
+
+            //If there was some error inside the multimodal insert query, fail the transaction
             int[] res = new int[idList.size()];
             Arrays.fill(res, 0);
             DatabaseWriter.fillFailList(res, fails, idList, event, type);
@@ -340,9 +355,8 @@ public class DatabaseWriter {
 
     private static void fillFailList(int[] batchResult, List<FeatureCollection.ModificationFailure> fails,  List<String> idList,
         ModifyFeaturesEvent event, ModificationType action) {
-        if (event.getVersionsToKeep() <= 1)
-            for (int i = 0; i < batchResult.length; i++)
-                if (batchResult[i] == 0)
-                    fails.add(new FeatureCollection.ModificationFailure().withId(idList.get(i)).withMessage(getFailedRowErrorMsg(action, event)));
+        for (int i = 0; i < batchResult.length; i++)
+            if (batchResult[i] == 0)
+                fails.add(new FeatureCollection.ModificationFailure().withId(idList.get(i)).withMessage(getFailedRowErrorMsg(action, event)));
     }
 }
