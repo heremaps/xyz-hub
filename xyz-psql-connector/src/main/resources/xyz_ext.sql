@@ -3233,3 +3233,19 @@ $BODY$
     LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
+CREATE OR REPLACE FUNCTION transform_load_features_input(ids TEXT[])
+    RETURNS LOAD_FEATURE_VERSION_INPUT[] AS
+$BODY$
+DECLARE
+    versions BIGINT[];
+BEGIN
+    FOR i IN 1 .. array_upper(ids, 1)
+    LOOP
+        versions := array_append(versions, max_bigint());
+    END LOOP;
+    RETURN transform_load_features_input(ids, versions);
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------

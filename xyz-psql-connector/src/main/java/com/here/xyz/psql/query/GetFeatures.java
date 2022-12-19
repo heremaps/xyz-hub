@@ -124,10 +124,9 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
     if (versionsToKeep == 1 || versionIsNotPresent || versionIsStar) return defaultClause;
 
     // versionsToKeep > 1 AND contains a reference to a version or version is a valid version
-    long version = loadVersionFromRef(selectiveEvent);
     return new SQLQuery(" AND version <= #{version} AND next_version > #{version} ${{minVersion}}")
         .withQueryFragment("minVersion", buildMinVersionFragment(selectiveEvent))
-        .withNamedParameter("version", version);
+        .withNamedParameter("version", loadVersionFromRef(selectiveEvent));
   }
 
   private SQLQuery buildMinVersionFragment(SelectiveEvent event) {
