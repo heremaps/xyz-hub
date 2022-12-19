@@ -31,7 +31,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
 
@@ -48,23 +47,22 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
         .withQueryFragment("idColumn", buildIdFragment(event));
 
     if (event.getVersionsToKeep() > 1) {
-      Set<String> ids = new HashSet<>();
-      Map<String, String> idMapWithVersions = new HashMap<>();
+      Set<String> idsOnly = new HashSet<>();
+      Map<String, String> idsWithVersions = new HashMap<>();
 
       idMap.forEach((k,v) -> {
-        if (v == null) {
-          ids.add(k);
-        } else {
-          idMapWithVersions.put(k, v);
-        }
+        if (v == null)
+          idsOnly.add(k);
+        else
+          idsWithVersions.put(k, v);
       });
 
-      filterWhereClause = new SQLQuery("((id, version) IN (${{loadFeaturesInput}}) OR (id, next_version) IN (${{loadFeaturesInputNextVersion}}))")
+      filterWhereClause = new SQLQuery("((id, version) IN (${{loadFeaturesInput}}) OR (id, next_version) IN (${{loadFeaturesInputIdsOnly}}))")
           .withQueryFragment("loadFeaturesInput", buildLoadFeaturesInputFragment(
-              idMapWithVersions.keySet().toArray(new String[0]),
-              idMapWithVersions.values().stream().map(Long::parseLong).toArray(Long[]::new)
+              idsWithVersions.keySet().toArray(new String[0]),
+              idsWithVersions.values().stream().map(Long::parseLong).toArray(Long[]::new)
           ))
-          .withQueryFragment("loadFeaturesInputNextVersion", buildLoadFeaturesInputFragment(ids.toArray(new String[0])));
+          .withQueryFragment("loadFeaturesInputIdsOnly", buildLoadFeaturesInputFragment(idsOnly.toArray(new String[0])));
     }
 
     SQLQuery headQuery = super.buildQuery(event)
@@ -98,16 +96,19 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
   }
 
   private static SQLQuery buildLoadFeaturesInputFragment(String[] ids, Long[] versions) {
-    return new SQLQuery("WITH "
+    String idsParamName = "ids" + (versions != null ? "WithVersions" : ""); //TODO: That's a workaround for a minor bug in SQLQuery
+    SQLQuery inputFragment = new SQLQuery("WITH "
         + "  recs AS ( "
-        + "    SELECT unnest(transform_load_features_input(#{ids} ${{versions}})) as rec) "
+        + "    SELECT unnest(transform_load_features_input(#{" + idsParamName + "}${{versions}})) as rec) "
         + "SELECT "
         + "  (rec).id, "
         + "  (rec).version "
         + "FROM recs")
-        .withNamedParameter("ids", ids)
-        .withQueryFragment("versions", versions == null ? "" : ", #{versions}")
-        .withNamedParameter("versions", versions);
+        .withNamedParameter(idsParamName, ids)
+        .withQueryFragment("versions", versions == null ? "" : ", #{versions}");
+     if (versions != null)
+        inputFragment.setNamedParameter("versions", versions);
+     return inputFragment;
   }
 
   private SQLQuery buildHistoryQuery(LoadFeaturesEvent event, Collection<String> uuids) {
