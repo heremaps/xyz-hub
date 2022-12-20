@@ -39,6 +39,8 @@ public class JobStatusApi {
 
         this.system.put("SUPPORTED_CONNECTORS", CService.supportedConnectors);
         this.system.put("JOB_QUEUE_INTERVAL", CService.configuration.JOB_CHECK_QUEUE_INTERVAL_SECONDS);
+        this.system.put("JOB_DYNAMO_EXP_IN_DAYS", CService.configuration.JOB_DYNAMO_EXP_IN_DAYS);
+        this.system.put("HOST_ID", CService.HOST_ID);
 
         router.route(HttpMethod.GET, JOB_QUEUE_STATUS_ENDPOINT)
                 .handler(this::getSystemStatus);

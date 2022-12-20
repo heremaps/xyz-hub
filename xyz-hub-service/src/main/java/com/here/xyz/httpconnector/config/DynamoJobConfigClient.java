@@ -24,8 +24,8 @@ import com.amazonaws.services.dynamodbv2.document.ScanFilter;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.spec.DeleteItemSpec;
 import com.amazonaws.services.dynamodbv2.document.spec.GetItemSpec;
-import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException;
 import com.amazonaws.services.dynamodbv2.model.ReturnValue;
+import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.Status;
 import com.here.xyz.httpconnector.util.jobs.Job.Type;
@@ -51,11 +51,14 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
     private final Table jobs;
     private final DynamoClient dynamoClient;
+    private Long expiration;
 
     public DynamoJobConfigClient(String tableArn) {
         dynamoClient = new DynamoClient(tableArn);
         logger.debug("Instantiating a reference to Dynamo Table {}", dynamoClient.tableName);
         jobs = dynamoClient.db.getTable(dynamoClient.tableName);
+        if(CService.configuration != null && CService.configuration.JOB_DYNAMO_EXP_IN_DAYS != null)
+            expiration = CService.configuration.JOB_DYNAMO_EXP_IN_DAYS;
     }
 
     @Override
@@ -64,7 +67,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
             logger.info("DynamoDB running locally, initializing tables.");
 
             try {
-                dynamoClient.createTable(jobs.getTableName(), "id:S,type:S,status:S", "id", "type,status", null);
+                dynamoClient.createTable(jobs.getTableName(), "id:S,type:S,status:S", "id", "type,status", "exp");
             }
             catch (Exception e) {
                 logger.error("Failure during creating tables on DynamoSpaceConfigClient init", e);
@@ -182,13 +185,16 @@ public class DynamoJobConfigClient extends JobConfigClient {
     }
 
     @Override
-    protected Future<Job> storeJob(Marker marker, Job job) {
+    protected Future<Job> storeJob(Marker marker, Job job, boolean isUpdate) {
+        if(!isUpdate && this.expiration != null){
+            job.setExp(System.currentTimeMillis() / 1000L + expiration * 24 * 60 * 60);
+        }
         return DynamoClient.dynamoWorkers.executeBlocking(p -> storeJobSync(job, p));
     }
 
     private void storeJobSync(Job job, Promise p){
         /** A newly created Job waits for an execution */
-        if(job.status == null)
+        if(job.getStatus() == null)
             job.setStatus(Status.waiting);
 
         jobs.putItem(Item.fromJSON(Json.encode(job)));

@@ -77,7 +77,7 @@ public abstract class JobQueue implements Runnable {
     }
 
     public static void printQueue(){
-        JOB_QUEUE.forEach(job -> logger.info(job.id));
+        JOB_QUEUE.forEach(job -> logger.info(job.getId()));
     }
 
     protected static int queueSize(){

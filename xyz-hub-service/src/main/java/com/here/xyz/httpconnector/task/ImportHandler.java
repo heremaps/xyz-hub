@@ -53,8 +53,8 @@ public class ImportHandler {
     public static Future<Job> postJob(Job job, Marker marker){
         Promise<Job> p = Promise.promise();
 
-        if (job.id == null) {
-            job.id = RandomStringUtils.randomAlphanumeric(6);
+        if (job.getId() == null) {
+            job.setId(RandomStringUtils.randomAlphanumeric(6));
         }
 
         if(job instanceof Import){

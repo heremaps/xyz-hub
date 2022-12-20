@@ -28,6 +28,7 @@ import java.net.URL;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
 public class ImportObject {
+    @JsonIgnore
     private String s3Key;
     private URL uploadUrl;
     private boolean compressed;

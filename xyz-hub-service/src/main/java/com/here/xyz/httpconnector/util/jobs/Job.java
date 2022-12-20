@@ -19,12 +19,8 @@
 package com.here.xyz.httpconnector.util.jobs;
 
 import com.fasterxml.jackson.annotation.*;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.models.hub.Space;
-import io.vertx.core.json.Json;
-import io.vertx.core.json.jackson.DatabindCodec;
 
-import java.util.Map;
 import java.util.Objects;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -110,43 +106,50 @@ public abstract class Job {
      * The creation timestamp.
      */
     @JsonView({Public.class})
-    public long createdAt = DEFAULT_TIMESTAMP;
+    private long createdAt = DEFAULT_TIMESTAMP;
 
     /**
      * The last update timestamp.
      */
     @JsonView({Public.class})
-    public long updatedAt = DEFAULT_TIMESTAMP;
+    private long updatedAt = DEFAULT_TIMESTAMP;
+
+    /**
+     * The expiration timestamp.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonView({Public.class})
+    private Long exp;
 
     /**
      * The job ID
      */
     @JsonView({Public.class})
-    public String id;
+    private String id;
 
     @JsonView({Public.class})
-    public String description;
+    protected String description;
 
     @JsonView({Internal.class})
-    public String targetSpaceId;
+    protected String targetSpaceId;
 
     @JsonView({Internal.class})
-    public String targetTable;
+    protected String targetTable;
 
     @JsonView({Public.class})
-    public String errorDescription;
+    private String errorDescription;
 
     @JsonView({Public.class})
-    public String errorType;
+    private String errorType;
 
     @JsonView({Public.class})
-    public Status status;
+    private Status status;
 
     @JsonView({Public.class})
-    public CSVFormat csvFormat;
+    protected CSVFormat csvFormat;
 
     @JsonView({Public.class})
-    public Strategy strategy;
+    protected Strategy strategy;
 
     @JsonView({Internal.class})
     private String targetConnector;
@@ -274,6 +277,19 @@ public abstract class Job {
 
     public Job withUpdatedAt(final long updatedAt) {
         setUpdatedAt(updatedAt);
+        return this;
+    }
+
+    public Long getExp() {
+        return exp;
+    }
+
+    public void setExp(final Long exp) {
+        this.exp = exp;
+    }
+
+    public Job withExp(final Long exp) {
+        setExp(exp);
         return this;
     }
 
