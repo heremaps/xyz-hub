@@ -71,7 +71,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
               + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{authorCheck}} ${{orderBy}} ${{limit}} ${{offset}}");
     }
 
-    query.setQueryFragment("deletedCheck", buildDeletionCheckFragment(event));
+    query.setQueryFragment("deletedCheck", buildDeletionCheckFragment(isExtended));
     query.withQueryFragment("versionCheck", buildVersionCheckFragment(event));
     query.withQueryFragment("authorCheck", buildAuthorCheckFragment(event));
     query.setQueryFragment("selection", buildSelectionFragment(event));
@@ -129,6 +129,10 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
         .withNamedParameter("version", loadVersionFromRef(selectiveEvent));
   }
 
+  private String buildBaseVersionCheckFragment() {
+    return " AND next_version = max_bigint()"; //Always assume HEAD version for base spaces
+  }
+
   private SQLQuery buildMinVersionFragment(SelectiveEvent event) {
     return new SQLQuery("AND greatest(#{minVersion}, (select max(version) - #{versionsToKeep} from ${schema}.${table})) <= #{version} ")
         .withNamedParameter("versionsToKeep", event.getVersionsToKeep())
@@ -158,24 +162,26 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
   }
 
   private SQLQuery build1LevelBaseQuery(E event) {
-    SQLQuery query = new SQLQuery("SELECT id, version, operation, jsondata, geo${{iColumnBase}}"
+    return new SQLQuery("SELECT id, version, operation, jsondata, geo${{iColumnBase}}"
         + "    FROM ${schema}.${extendedTable} m"
-        + "    WHERE ${{filterWhereClause}} ${{iOffsetBase}} ${{limit}}"); //in the base table there is no need to check a deleted flag;
-    query.setVariable("extendedTable", getExtendedTable(event));
-    return query;
+        + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{iOffsetBase}} ${{limit}}")
+        .withVariable("extendedTable", getExtendedTable(event))
+        .withQueryFragment("deletedCheck", buildDeletionCheckFragment(false)) //NOTE: We know that the base space is not an extended one
+        .withQueryFragment("versionCheck", buildBaseVersionCheckFragment());
   }
 
   private SQLQuery build2LevelBaseQuery(E event) {
     return new SQLQuery("(SELECT id, version, operation, jsondata, geo${{iColumnIntermediate}}"
         + "    FROM ${schema}.${intermediateExtensionTable}"
-        + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{iOffsetIntermediate}} ${{limit}})"
+        + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{iOffsetIntermediate}} ${{limit}})"
         + "UNION ALL"
         + "    SELECT id, version, operation, jsondata, geo${{iColumn}} FROM"
         + "        ("
         + "            ${{innerBaseQuery}}"
         + "        ) b WHERE NOT exists(SELECT 1 FROM ${schema}.${intermediateExtensionTable} WHERE ${{idComparison}})")
         .withVariable("intermediateExtensionTable", getIntermediateTable(event))
-        .withQueryFragment("deletedCheck", buildDeletionCheckFragment(event))
+        .withQueryFragment("deletedCheck", buildDeletionCheckFragment(true)) //NOTE: We know that the intermediate space is an extended one
+        .withQueryFragment("versionCheck", buildBaseVersionCheckFragment())
         .withQueryFragment("innerBaseQuery", build1LevelBaseQuery(event))
         .withQueryFragment("idComparison", buildIdComparisonFragment(event, "b."));
   }
@@ -184,10 +190,10 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
     return DatabaseHandler.readVersionsToKeep(event) > 0 ? "id = " + prefix + "id" : "jsondata->>'id' = " + prefix + "jsondata->>'id'";
   }
 
-  private SQLQuery buildDeletionCheckFragment(E event) {
-    boolean isExtended = isExtendedSpace(event) && event.getContext() == DEFAULT;
-    return new SQLQuery(" AND operation NOT IN (SELECT unnest(#{operationsToFilterOut}::CHAR[]))")
-        .withNamedParameter("operationsToFilterOut", Arrays.stream(isExtended
+  private SQLQuery buildDeletionCheckFragment(boolean isExtended) {
+    String operationsParamName = "operationsToFilterOut" + (isExtended ? "Extended" : ""); //TODO: That's a workaround for a minor bug in SQLQuery
+    return new SQLQuery(" AND operation NOT IN (SELECT unnest(#{" + operationsParamName + "}::CHAR[]))")
+        .withNamedParameter(operationsParamName, Arrays.stream(isExtended
             ? new ModificationType[]{DELETE, INSERT_HIDE_COMPOSITE, UPDATE_HIDE_COMPOSITE}
             : new ModificationType[]{DELETE}).map(ModificationType::toString).toArray(String[]::new));
   }
