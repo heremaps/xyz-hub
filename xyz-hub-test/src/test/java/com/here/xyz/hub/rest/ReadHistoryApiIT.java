@@ -650,7 +650,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
 
   private void checkCompactChangesetVersionIntegrity(List<Feature> fList) {
     for (Feature f : fList) {
-      int v = f.getProperties().getXyzNamespace().getVersion();
+      long v = f.getProperties().getXyzNamespace().getVersion();
       if(v < 11) {
         assertEquals(true, f.getProperties().get("free"));
       }if(v == 11 || v == 12){

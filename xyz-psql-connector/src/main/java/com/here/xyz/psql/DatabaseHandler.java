@@ -600,7 +600,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             }
         }
 
-        int version = -1;
+        long version = -1;
         try {
           /** Include Old states */
           if (includeOldStates) {
@@ -625,9 +625,9 @@ public abstract class DatabaseHandler extends StorageConnector {
               SQLQuery query = SQLQueryBuilder.buildGetNextVersionQuery(table);
               version = executeQueryWithRetry(query, rs -> {
                     if (rs.next()) {
-                        return rs.getInt(1);
+                        return rs.getLong(1);
                     }
-                    return -1;
+                    return -1L;
                 }, false);   // false -> not use readreplica due to sequence 'update' statement: SELECT nextval("...._hst_seq"') and to make sure the read sequence value is the correct (most recent) one
               collection.setVersion(version);
               //NOTE: The following is a temporary implementation for backwards compatibility for old spaces with globalVersioning

@@ -83,7 +83,7 @@ public class DatabaseWriter {
 
     protected static final String TRANSACTION_ERROR_GENERAL = "Transaction has failed";
 
-    private static PGobject featureToPGobject(ModifyFeaturesEvent event, final Feature feature, int version) throws SQLException {
+    private static PGobject featureToPGobject(ModifyFeaturesEvent event, final Feature feature, long version) throws SQLException {
         final Geometry geometry = feature.getGeometry();
         feature.setGeometry(null); // Do not serialize the geometry in the JSON object
 
@@ -104,7 +104,7 @@ public class DatabaseWriter {
         return jsonbObject;
     }
 
-    private static void fillDeleteQueryFromDeletion(SQLQuery query, Entry<String, String> deletion, ModifyFeaturesEvent event, int version)
+    private static void fillDeleteQueryFromDeletion(SQLQuery query, Entry<String, String> deletion, ModifyFeaturesEvent event, long version)
         throws SQLException {
         /*
         NOTE: If versioning is activated for the space, always only inserts are performed,
@@ -129,7 +129,7 @@ public class DatabaseWriter {
         }
     }
 
-    private static void fillUpdateQueryFromFeature(SQLQuery query, Feature feature, ModifyFeaturesEvent event, int version) throws SQLException {
+    private static void fillUpdateQueryFromFeature(SQLQuery query, Feature feature, ModifyFeaturesEvent event, long version) throws SQLException {
         if (feature.getId() == null)
             throw new WriteFeatureException(UPDATE_ERROR_ID_MISSING);
 
@@ -152,7 +152,7 @@ public class DatabaseWriter {
         fillInsertQueryFromFeature(query, UPDATE, feature, event, version);
     }
 
-    private static void fillInsertQueryFromFeature(SQLQuery query, ModificationType action, Feature feature, ModifyFeaturesEvent event, int version) throws SQLException {
+    private static void fillInsertQueryFromFeature(SQLQuery query, ModificationType action, Feature feature, ModifyFeaturesEvent event, long version) throws SQLException {
         query
             .withNamedParameter("id", feature.getId())
             .withNamedParameter("version", version)
@@ -178,7 +178,7 @@ public class DatabaseWriter {
 
     protected static void modifyFeatures(DatabaseHandler dbh, ModifyFeaturesEvent event, ModificationType action,
         FeatureCollection collection, List<FeatureCollection.ModificationFailure> fails, List inputData, Connection connection,
-        int version) throws SQLException, JsonProcessingException {
+        long version) throws SQLException, JsonProcessingException {
         boolean transactional = event.getTransaction();
         connection.setAutoCommit(!transactional);
         SQLQuery modificationQuery = buildModificationStmtQuery(dbh, event, action, version);
@@ -268,7 +268,7 @@ public class DatabaseWriter {
     }
 
     private static SQLQuery buildModificationStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event, ModificationType action,
-        int version) {
+        long version) {
         //If versioning is activated for the space, always only perform inserts
         if (event.getVersionsToKeep() > 1)
             return SQLQueryBuilder.buildMultiModalInsertStmtQuery(dbHandler, event);
@@ -284,7 +284,7 @@ public class DatabaseWriter {
     }
 
     private static void fillModificationQueryFromInput(SQLQuery query, ModifyFeaturesEvent event, ModificationType action, Object inputDatum,
-        int version) throws SQLException {
+        long version) throws SQLException {
         switch (action) {
             case INSERT: {
                 fillInsertQueryFromFeature(query, action, (Feature) inputDatum, event, version);
