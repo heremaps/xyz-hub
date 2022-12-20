@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.AUTHOR;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.CREATED_AT;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.MUUID;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
@@ -160,13 +161,17 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
     @SuppressWarnings("unchecked")
     public static Map<String, Object> metadataFilter = new JsonObject()
         .put(PROPERTIES, new JsonObject()
-            .put(XyzNamespace.XYZ_NAMESPACE, new JsonObject()
-                .put(SPACE, true)
-                .put(CREATED_AT, true)
-                .put(UPDATED_AT, true)
-                .put(UUID, true)
-                .put(PUUID, true)
-                .put(MUUID, true))).mapTo(Map.class);
+            .put(XyzNamespace.XYZ_NAMESPACE,
+                new JsonObject()
+                    .put(SPACE, true)
+                    .put(CREATED_AT, true)
+                    .put(UPDATED_AT, true)
+                    .put(UUID, true)
+                    .put(PUUID, true)
+                    .put(MUUID, true)
+                    .put(VERSION, true)
+                    .put(AUTHOR, true))
+        ).mapTo(Map.class);
 
     private int getVersion(Map<String, Object> input) {
       try {

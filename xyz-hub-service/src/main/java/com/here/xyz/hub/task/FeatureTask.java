@@ -121,6 +121,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public static final String PUUID = "puuid";
     public static final String MUUID = "muuid";
     public static final String VERSION = "version";
+    public static final String AUTHOR = "author";
   }
 
   private FeatureTask(T event, RoutingContext context, ApiResponseType responseType, boolean skipCache) {

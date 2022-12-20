@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -332,9 +332,9 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
     public abstract Map<String, Object> toMap(T record) throws ModifyOpError, HttpException;
 
     /**
-     * Checks, if the result of the operation is different than the head state.
+     * Checks, if the result of the operation is different from the head state.
      *
-     * @return true, if the result of the operation is different than the head state.
+     * @return true, if the result of the operation is different from the head state.
      */
     boolean isModified() throws HttpException, ModifyOpError {
       if (Objects.equals(head, result)) {
