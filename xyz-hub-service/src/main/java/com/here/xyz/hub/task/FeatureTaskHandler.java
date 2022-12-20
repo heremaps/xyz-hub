@@ -162,7 +162,7 @@ public class FeatureTaskHandler {
    * If the value exists for a space and it points to a value > 0, that is the version of the latest write to that space as it has been
    * performed by this service-node.
    */
-  private static ConcurrentHashMap<String, Integer> latestSeenContentVersions = new ConcurrentHashMap<>();
+  private static ConcurrentHashMap<String, Long> latestSeenContentVersions = new ConcurrentHashMap<>();
 
   /**
    * Contains the amount of all in-flight requests for each storage ID.
@@ -512,9 +512,9 @@ public class FeatureTaskHandler {
     }
   }
 
-  static void setLatestSeenContentVersion(Space space, int version) {
+  static void setLatestSeenContentVersion(Space space, long version) {
     if ((space.isEnableHistory() || space.isEnableGlobalVersioning()) && version > 0)
-      latestSeenContentVersions.compute(space.getId(), (spaceId, currentVersion) -> Math.max(currentVersion != null ? currentVersion : 0,
+      latestSeenContentVersions.compute(space.getId(), (spaceId, currentVersion) -> Math.max(currentVersion != null ? currentVersion : 0L,
           version));
   }
 
@@ -538,7 +538,7 @@ public class FeatureTaskHandler {
       long timerId = Service.vertx.setTimer(interval, tId -> {
         timerMap.remove(nc.space.getId());
         ContentModifiedNotification cmn = new ContentModifiedNotification().withSpace(nc.space.getId());
-        Integer spaceVersion = latestSeenContentVersions.get(nc.space.getId());
+        Long spaceVersion = latestSeenContentVersions.get(nc.space.getId());
         if (spaceVersion != null) cmn.setSpaceVersion(spaceVersion);
         if (adminNotification) {
           //Send it to the modification SNS topic

@@ -27,25 +27,23 @@ import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-public class GetNextVersion<E extends Event> extends XyzEventBasedQueryRunner<E, Long> {
+public class GetHeadVersion<E extends Event> extends XyzEventBasedQueryRunner<E, Long> {
 
-  public static final String VERSION_SEQUENCE_SUFFIX = "_version_seq";
-
-  public GetNextVersion(E input, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
+  public GetHeadVersion(E input, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(input, dbHandler);
   }
 
   @Override
   protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
-    return new SQLQuery("SELECT nextval('${schema}.${sequence}')")
+    return new SQLQuery("SELECT max(version) FROM ${schema}.${table}")
         .withVariable(SCHEMA, getSchema())
-        .withVariable("sequence", getDefaultTable(event) + VERSION_SEQUENCE_SUFFIX);
+        .withVariable(TABLE, getDefaultTable(event));
   }
 
   @Override
   public Long handle(ResultSet rs) throws SQLException {
     if (rs.next())
       return rs.getLong(1);
-    throw new SQLException("Unable to increase version sequence.");
+    throw new SQLException("Unable to retrieve HEAD version from space.");
   }
 }

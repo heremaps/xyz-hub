@@ -193,7 +193,7 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
   public void deleteChangesetsMaxValue() {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .delete("/spaces/" + cleanUpSpaceId + "/changesets?version<" + Long.MAX_VALUE)
+        .delete("/spaces/" + cleanUpSpaceId + "/changesets?version<4")
         .then()
         .statusCode(NO_CONTENT.code());
 
@@ -218,6 +218,21 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
         .delete("/spaces/" + cleanUpSpaceId + "/changesets?version<-1")
         .then()
         .statusCode(BAD_REQUEST.code());
+  }
+
+  @Test
+  public void deleteChangesetsLargerThanHeadValue() {
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .delete("/spaces/" + cleanUpSpaceId + "/changesets?version<5")
+        .then()
+        .statusCode(BAD_REQUEST.code());
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .delete("/spaces/" + cleanUpSpaceId + "/changesets?version<4")
+        .then()
+        .statusCode(NO_CONTENT.code());
   }
 
   @Test

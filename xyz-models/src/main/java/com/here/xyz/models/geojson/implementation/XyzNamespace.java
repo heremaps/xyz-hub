@@ -81,7 +81,7 @@ public class XyzNamespace implements XyzSerializable {
    * The space-version of the feature within the space's versions.
    * Multiple features share the same space-version if they have been edited in one transaction.
    */
-  private int version = -1;
+  private long version = -1;
 
   /**
    * The author that changed the feature in the current version.
@@ -366,16 +366,16 @@ public class XyzNamespace implements XyzSerializable {
     return this;
   }
 
-  public int getVersion() {
+  public long getVersion() {
     return version;
   }
 
-  public void setVersion(int version) {
+  public void setVersion(long version) {
     this.version = version;
   }
 
   @SuppressWarnings("unused")
-  public XyzNamespace withVersion(int version) {
+  public XyzNamespace withVersion(long version) {
     setVersion(version);
     return this;
   }

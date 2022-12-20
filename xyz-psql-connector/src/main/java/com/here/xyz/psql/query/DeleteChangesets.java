@@ -19,18 +19,34 @@
 
 package com.here.xyz.psql.query;
 
+import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
+
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.psql.query.helpers.GetHeadVersion;
 import com.here.xyz.responses.SuccessResponse;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
 public class DeleteChangesets extends XyzQueryRunner<DeleteChangesetsEvent, SuccessResponse> {
 
+  private DeleteChangesetsEvent event;
+
   public DeleteChangesets(DeleteChangesetsEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(event, dbHandler);
+    this.event = event;
+  }
+
+  @Override
+  public void write() throws SQLException, ErrorResponseException {
+    long headVersion = new GetHeadVersion<>(event, dbHandler).run();
+    if (event.getMinVersion() > headVersion)
+      throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Can not delete all changesets older than version " + event.getMinVersion()
+          + " as it would also delete the HEAD (" + headVersion
+          + ") version. Minimum version which may specified as new minimum version is HEAD.");
+    super.write();
   }
 
   @Override

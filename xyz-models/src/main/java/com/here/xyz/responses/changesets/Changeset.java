@@ -31,22 +31,22 @@ import com.here.xyz.responses.XyzResponse;
 @JsonInclude(Include.NON_DEFAULT)
 public class Changeset extends XyzResponse<Changeset> {
 
-    int version = -1;
+    long version = -1;
     String author;
     long createdAt;
     private FeatureCollection inserted;
     private FeatureCollection updated;
     private FeatureCollection deleted;
 
-    public int getVersion() {
+    public long getVersion() {
         return version;
     }
 
-    public void setVersion(int version) {
+    public void setVersion(long version) {
         this.version = version;
     }
 
-    public Changeset withVersion(int version) {
+    public Changeset withVersion(long version) {
         setVersion(version);
         return this;
     }

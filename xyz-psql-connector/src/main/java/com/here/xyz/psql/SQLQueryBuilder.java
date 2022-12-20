@@ -780,7 +780,7 @@ public class SQLQueryBuilder {
         .withVariable("table", dbHandler.config.readTableFromEvent(event));
   }
 
-  protected static SQLQuery buildDeleteStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event, int version) {
+  protected static SQLQuery buildDeleteStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event, long version) {
       //If versioning is enabled, perform an update instead of a deletion. The trigger will finally delete the row.
       //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
       boolean oldTableStyle = DatabaseHandler.readVersionsToKeep(event) < 1;

@@ -276,7 +276,7 @@ public class DatabaseMaintainer {
         }
     }
 
-    public SQLQuery maintainHistory(TraceItem traceItem, String schema, String table, int currentVersion, int maxVersionCount){
+    public SQLQuery maintainHistory(TraceItem traceItem, String schema, String table, long currentVersion, int maxVersionCount){
         long maxAllowedVersion = currentVersion - maxVersionCount;
 
         if(maxAllowedVersion <= 0)

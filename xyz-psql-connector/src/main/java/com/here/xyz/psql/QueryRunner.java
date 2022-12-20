@@ -46,12 +46,12 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
     query = buildQuery(input);
   }
 
-  public R run() throws SQLException {
+  public R run() throws SQLException, ErrorResponseException {
     prepareQuery();
     return dbHandler.executeQueryWithRetry(query, this, useReadReplica);
   }
 
-  public void write() throws SQLException {
+  public void write() throws SQLException, ErrorResponseException {
     prepareQuery();
     dbHandler.executeUpdateWithRetry(query);
   }
