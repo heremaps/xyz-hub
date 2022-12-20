@@ -46,3 +46,10 @@ services:
         ports:
             - "8000:8000"
         command: ["-jar", "DynamoDBLocal.jar", "-sharedDb"]
+    swagger-ui:
+        image: "swaggerapi/swagger-ui"
+        container_name: "swagger-ui"
+        ports:
+            - "8888:8080"
+        environment:
+            - SWAGGER_JSON_URL=http://localhost:8080/hub/static/openapi/stable.yaml

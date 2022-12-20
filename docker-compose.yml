@@ -32,3 +32,10 @@ services:
         container_name: "redis"
         ports:
             - "6379:6379"
+    swagger-ui:
+        image: "swaggerapi/swagger-ui"
+        container_name: "swagger-ui"
+        ports:
+            - "8888:8080"
+        environment:
+            - SWAGGER_JSON_URL=http://localhost:8080/hub/static/openapi/stable.yaml
