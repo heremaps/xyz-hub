@@ -35,7 +35,11 @@ import static org.hamcrest.core.CombinableMatcher.either;
 
 import com.here.xyz.hub.rest.RestAssuredTest;
 import com.here.xyz.hub.util.Compression;
+import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.geojson.implementation.Properties;
 import com.jayway.restassured.response.ValidatableResponse;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.zip.DataFormatException;
 import org.junit.After;
@@ -1018,10 +1022,25 @@ public class AuthTestsIT extends RestAssuredTest {
         .statusCode(OK.code())
         .body("features.size()", equalTo(252));
 
+    //Write version 1
+    FeatureCollection changeset1 = new FeatureCollection().withFeatures(
+        Arrays.asList(
+            new Feature().withId("F1").withProperties(new Properties().with("name", "1b")),
+            new Feature().withId("F3").withProperties(new Properties().with("name", "3a"))
+        )
+    );
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(changeset1.toString())
+        .post("/spaces/x-auth-test-space/features")
+        .then()
+        .statusCode(OK.code());
+
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .delete("/spaces/" + cleanUpId + "/changesets?version<10")
+        .delete("/spaces/" + cleanUpId + "/changesets?version<1")
         .then()
         .statusCode(NO_CONTENT.code());
   }
