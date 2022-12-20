@@ -56,8 +56,8 @@ import com.here.xyz.psql.query.ExtendedSpace;
 import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.helpers.FetchExistingIds;
 import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
-import com.here.xyz.psql.query.helpers.GetTablesWithColumn;
 import com.here.xyz.psql.query.helpers.GetNextVersion;
+import com.here.xyz.psql.query.helpers.GetTablesWithColumn;
 import com.here.xyz.psql.query.helpers.GetTablesWithColumn.GetTablesWithColumnInput;
 import com.here.xyz.psql.query.helpers.GetTablesWithComment;
 import com.here.xyz.psql.query.helpers.GetTablesWithComment.GetTablesWithCommentInput;
@@ -80,7 +80,6 @@ import com.mchange.v2.c3p0.ComboPooledDataSource;
 import com.mchange.v2.c3p0.PooledDataSource;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -1112,7 +1111,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 + "                 'version = (CASE WHEN version > 0 THEN version ELSE (CASE WHEN (jsondata->''properties''->''@ns:com:here:xyz''->''version'')::BIGINT IS NULL THEN 0::BIGINT ELSE (jsondata->''properties''->''@ns:com:here:xyz''->''version'')::BIGINT END) END)'; "
                 + " "
                 + "    IF operation_column_result = 1 THEN "
-                + "        update_sql = update_sql || ', operation = (CASE WHEN deleted = TRUE THEN ''D'' ELSE operation END)'; "
+                + "        update_sql = update_sql || ', operation = (CASE WHEN deleted = TRUE THEN ''H'' ELSE operation END)'; "
                 + "    END IF; "
                 + " "
                 + "    EXECUTE update_sql || ' FROM rows_to_update WHERE t.jsondata->>''id'' = rows_to_update.id'; "
@@ -1177,7 +1176,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
             //Add index for new author column
             stmt.addBatch(buildCreateIndexQuery(schema, tableName, "author", "BTREE").substitute().text());
-            //Add insex for next_version column
+            //Add index for next_version column
             stmt.addBatch(buildCreateIndexQuery(schema, tableName, "next_version", "BTREE").substitute().text());
 
             //Add comment "phaseX_complete"
