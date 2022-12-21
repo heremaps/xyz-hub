@@ -115,14 +115,17 @@ public class ImportValidator {
                         if (scannedObjects.get(key) != null) {
                             /** S3 Object is found - update job with file metadata */
                             ImportObject scannedFile = scannedObjects.get(key);
-                            job.addImportObject(scannedFile);
 
                             if (!scannedFile.isValid()) {
+                                /** Keep Upload-URL for retry */
+                                scannedFile.setUploadUrl(job.getImportObjects().get(key).getUploadUrl());
                                 /** If file is invalid fail validation */
                                 job.setErrorDescription(Import.ERROR_DESCRIPTION_INVALID_FILE);
                                 job.setErrorType(Import.ERROR_TYPE_VALIDATION_FAILED);
                             } else
                                 foundOneValid = true;
+                            /** Add meta-data */
+                            job.addImportObject(scannedFile);
                         } else {
                             job.getImportObjects().get(key).setFilesize(-1);
                         }
