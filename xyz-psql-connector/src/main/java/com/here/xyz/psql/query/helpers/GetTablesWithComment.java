@@ -45,6 +45,8 @@ public class GetTablesWithComment extends QueryRunner<GetTablesWithCommentInput,
         + "WHERE "
         + "  t.table_name != 'spatial_ref_sys' "
         + "  AND t.table_name NOT LIKE '%_hst' "
+        + "  AND t.table_name NOT LIKE '%_head' "
+        + "  AND t.table_name NOT LIKE '%_p%' "
         + "  AND t.table_type = 'BASE TABLE' "
         + "  AND t.table_schema = 'public' "
         + "  AND reltuples < #{tableSizeLimit} "

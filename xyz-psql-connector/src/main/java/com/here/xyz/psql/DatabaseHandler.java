@@ -24,6 +24,7 @@ import static com.here.xyz.models.hub.Space.DEFAULT_VERSIONS_TO_KEEP;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
+import static com.here.xyz.psql.QueryRunner.SCHEMA;
 import static com.here.xyz.psql.query.helpers.GetNextVersion.VERSION_SEQUENCE_SUFFIX;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -127,6 +128,8 @@ public abstract class DatabaseHandler extends StorageConnector {
     public static final String OTA_PHASE_X_COMPLETE = "phaseX_complete";
 
     private static String INCLUDE_OLD_STATES = "includeOldStates"; // read from event params
+
+    private static final long PARTITION_SIZE = 100_000;
 
     /**
      * The data source connections factory.
@@ -1044,7 +1047,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                             break;
                         }
                         case "phaseX": {
-                            oneTimeAddConstraintsToOldTables(connection, schema, tableName);
+                            oneTimeAddConstraintsAndPartitioningToOldTables(connection, schema, tableName);
                             tableCompleted = true;
                             break;
                         }
@@ -1169,31 +1172,46 @@ public abstract class DatabaseHandler extends StorageConnector {
         return tableCompleted;
     }
 
-    private void oneTimeAddConstraintsToOldTables(Connection connection, String schema, String tableName) throws SQLException {
+    private void oneTimeAddConstraintsAndPartitioningToOldTables(Connection connection, String schema, String tableName) throws SQLException {
         try (Statement stmt = connection.createStatement()) {
-            //Alter existing tables: add new columns
+            //Alter existing table: add new author column and some constraints
             SQLQuery alterQuery = new SQLQuery("ALTER TABLE ${schema}.${table} "
                 + "ADD COLUMN author TEXT, "
                 + "ALTER COLUMN version DROP DEFAULT, "
                 + "ALTER COLUMN id SET NOT NULL, "
                 + "ALTER COLUMN operation DROP DEFAULT, "
-                + "ADD CONSTRAINT ${constraintName} PRIMARY KEY (id, version)")
+                + "ADD CONSTRAINT ${constraintName} PRIMARY KEY (id, version, next_version)")
                 .withVariable("schema", schema)
                 .withVariable("table", tableName)
                 .withVariable("constraintName", tableName + "_primKey");
             stmt.addBatch(alterQuery.substitute().text());
-
             //Add index for new author column
             stmt.addBatch(buildCreateIndexQuery(schema, tableName, "author", "BTREE").substitute().text());
             //Add index for next_version column
             stmt.addBatch(buildCreateIndexQuery(schema, tableName, "next_version", "BTREE").substitute().text());
+            //Delete obsolete index for (id, version, next_version) as that's' the new primary key anyways
+            deleteIndex(stmt, "idx_" + tableName + "_idversionnextversion");
+
+            //Rename old table to become the head partition
+            String headPartitionTable = tableName + "_head";
+            SQLQuery renameQuery = new SQLQuery("ALTER TABLE ${schema}.${table} RENAME TO ${newTableName}")
+                .withVariable("schema", schema)
+                .withVariable("table", tableName)
+                .withVariable("newTableName", headPartitionTable);
+
+            //Create new root table using the old name
+            createSpaceTableStatement(stmt, schema, tableName, 0);
+
+            //Attach the HEAD partition
+            attachHeadPartition(stmt, schema, tableName, headPartitionTable);
+            //Create the first history partition
+            createHistoryPartition(stmt, schema, tableName, 0L);
 
             //Add comment "phaseX_complete"
-            SQLQuery setPhaseXCOmment = new SQLQuery("COMMENT ON TABLE ${schema}.${table} IS '" + OTA_PHASE_X_COMPLETE + "'")
+            SQLQuery setPhaseXComment = new SQLQuery("COMMENT ON TABLE ${schema}.${table} IS '" + OTA_PHASE_X_COMPLETE + "'")
                 .withVariable("schema", schema)
                 .withVariable("table", tableName);
-            stmt.addBatch(setPhaseXCOmment.substitute().text());
-
+            stmt.addBatch(setPhaseXComment.substitute().text());
 
             stmt.setQueryTimeout(calculateTimeout());
             stmt.executeBatch();
@@ -1202,22 +1220,50 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
-    private void createSpaceStatement(Statement stmt, Event event) throws SQLException {
+    private void attachHeadPartition(Statement stmt, String schema, String rootTable, String partitionTable) throws SQLException {
+        SQLQuery q = new SQLQuery("ALTER TABLE ${schema}.${rootTable} "
+            + "ATTACH PARTITION ${schema}.${partitionTable} FOR FOR VALUES FROM (max_bigint()) TO (MAXVALUE)")
+            .withVariable(SCHEMA, schema)
+            .withVariable("rootTable", rootTable)
+            .withVariable("partitionTable", partitionTable);
+
+        stmt.addBatch(q.substitute().text());
+    }
+
+    private void createHeadPartition(Statement stmt, String schema, String rootTable) throws SQLException {
+        SQLQuery q = new SQLQuery("CREATE TABLE ${schema}.${partitionTable} "
+            + "PARTITION OF ${schema}.${rootTable} FOR VALUES FROM (max_bigint()) TO (MAXVALUE)")
+            .withVariable(SCHEMA, schema)
+            .withVariable("rootTable", rootTable)
+            .withVariable("partitionTable", rootTable + "_head");
+
+        stmt.addBatch(q.substitute().text());
+    }
+
+    private void createHistoryPartition(Statement stmt, String schema, String rootTable, long partitionNo) throws SQLException {
+        SQLQuery q = new SQLQuery("SELECT xyz_create_history_partition('" + schema + "', '" + rootTable + "', " + partitionNo + ", " + PARTITION_SIZE + ")");
+        stmt.addBatch(q.substitute().text());
+    }
+
+    private void deleteIndex(Statement stmt, String indexName) throws SQLException {
+        SQLQuery q = new SQLQuery("DROP INDEX IF EXISTS ${indexName}")
+            .withVariable("indexName", indexName);
+        stmt.addBatch(q.substitute().text());
+    }
+
+    private void createSpaceTableStatement(Statement stmt, String schema, String table, long versionsToKeep) throws SQLException {
         String tableFields =
             "id TEXT NOT NULL, "
-            + "version BIGINT NOT NULL, "
-            + "next_version BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
-            + "operation CHAR NOT NULL, "
-            + "author TEXT, "
-            + "jsondata JSONB, "
-            + "geo geometry(GeometryZ, 4326), "
-            + "i BIGSERIAL"
-            + ", CONSTRAINT ${constraintName} PRIMARY KEY (id, version)";
+                + "version BIGINT NOT NULL, "
+                + "next_version BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
+                + "operation CHAR NOT NULL, "
+                + "author TEXT, "
+                + "jsondata JSONB, "
+                + "geo geometry(GeometryZ, 4326), "
+                + "i BIGSERIAL"
+                + ", CONSTRAINT ${constraintName} PRIMARY KEY (id, version, next_version)";
 
-        String schema = config.getDatabaseSettings().getSchema();
-        String table = config.readTableFromEvent(event);
-
-        SQLQuery q = new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}})")
+        SQLQuery q = new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}}) PARTITION BY RANGE (next_version)")
             .withQueryFragment("tableFields", tableFields)
             .withVariable("schema", schema)
             .withVariable("table", table)
@@ -1229,8 +1275,8 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         createVersioningIndices(stmt, schema, table);
 
-        if (readVersionsToKeep(event) <= 1) {
-            query = "CREATE " + (readVersionsToKeep(event) < 1 ? "UNIQUE" : "") + " INDEX IF NOT EXISTS ${idx_id} ON ${schema}.${table} ((jsondata->>'id'))";
+        if (versionsToKeep <= 1) {
+            query = "CREATE " + (versionsToKeep < 1 ? "UNIQUE" : "") + " INDEX IF NOT EXISTS ${idx_id} ON ${schema}.${table} ((jsondata->>'id'))";
             query = SQLQuery.replaceVars(query, replacements, schema, table);
             stmt.addBatch(query);
         }
@@ -1258,6 +1304,15 @@ public abstract class DatabaseHandler extends StorageConnector {
         query = "CREATE INDEX IF NOT EXISTS ${idx_viz} ON ${schema}.${table} USING btree (left( md5(''||i),5))";
         query = SQLQuery.replaceVars(query, replacements, schema, table);
         stmt.addBatch(query);
+    }
+
+    private void createSpaceStatement(Statement stmt, Event event) throws SQLException {
+        String schema = config.getDatabaseSettings().getSchema();
+        String table = config.readTableFromEvent(event);
+
+        createSpaceTableStatement(stmt, schema, table, readVersionsToKeep(event));
+        createHeadPartition(stmt, schema, table);
+        createHistoryPartition(stmt, schema, table, 0L);
 
         stmt.addBatch(buildCreateSequenceQuery(schema, table, VERSION_SEQUENCE_SUFFIX).substitute().text());
 
@@ -1275,7 +1330,6 @@ public abstract class DatabaseHandler extends StorageConnector {
         stmt.addBatch(buildCreateIndexQuery(schema, table, "version", "BTREE").substitute().text());
         stmt.addBatch(buildCreateIndexQuery(schema, table, "next_version", "BTREE").substitute().text());
         stmt.addBatch(buildCreateIndexQuery(schema, table, Arrays.asList("id", "version"), "BTREE").substitute().text());
-        stmt.addBatch(buildCreateIndexQuery(schema, table, Arrays.asList("id", "version", "next_version"), "BTREE").substitute().text());
         stmt.addBatch(buildCreateIndexQuery(schema, table, "operation", "BTREE").substitute().text());
         stmt.addBatch(buildCreateIndexQuery(schema, table, "author", "BTREE").substitute().text());
     }
