@@ -427,10 +427,15 @@ public class Service extends Core {
     public String XYZ_HUB_REDIS_AUTH_TOKEN;
 
     /**
-     * The list of defaultStorageIds
+     * The list of default storage IDs.
      */
     public List<String> defaultStorageIds;
 
+    /**
+     * Return a default storage ID.
+     *
+     * @return the ID of one of the default storage connectors
+     */
     public String getDefaultStorageId(){
       return defaultStorageIds.get( (int)(Math.random()*defaultStorageIds.size()) );
     }
