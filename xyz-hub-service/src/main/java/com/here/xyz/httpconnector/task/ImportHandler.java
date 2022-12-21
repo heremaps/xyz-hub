@@ -198,8 +198,10 @@ public class ImportHandler {
                     }catch (CannotDecodeException e){
                         p.fail(new HttpException(PRECONDITION_FAILED, "Can not decode ECPS!"));
                         return;
+                    }catch (UnsupportedOperationException e){
+                        p.fail(new HttpException(BAD_REQUEST, "Connector is not supported!"));
+                        return;
                     }
-
 
                     /** Need connectorId as JDBC-clientID for scheduled processing in ImportQueue */
                     importJob.setTargetConnector(connectorId);

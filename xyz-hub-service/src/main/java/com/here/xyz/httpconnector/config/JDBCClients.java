@@ -40,8 +40,11 @@ public class JDBCClients {
     private static final String APPLICATION_NAME_PREFIX = "job_engine_";
     private static Map<String, DBClient> clients = new HashMap<>();
 
-    public static void addClientIfRequired(String id, String ecps, String passphrase) throws CannotDecodeException {
+    public static void addClientIfRequired(String id, String ecps, String passphrase) throws CannotDecodeException, UnsupportedOperationException {
         DatabaseSettings settings = ECPSTool.readDBSettingsFromECPS(ecps, passphrase);
+
+        if(CService.supportedConnectors != null && CService.supportedConnectors.indexOf(id) == -1)
+            throw new UnsupportedOperationException();
 
         if(JDBCImporter.getClient(id) == null){
             addClient(id, settings);
