@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -99,7 +99,7 @@ public class BurstAndUpdateThread extends Thread {
 
       Connector newConnector = connectorMap.get(oldConnector.id);
       if (Service.configuration.ENABLE_CONNECTOR_HEALTH_CHECKS && newConnector != null && !newConnector.skipAutoDisable
-          && !Service.configuration.DEFAULT_STORAGE_ID.equals(oldConnector.id)) {
+          && !Service.configuration.defaultStorageIds.contains(oldConnector.id)) {
         RemoteFunctionHealthCheck rfcHc = HealthApi.rfcHcAggregator.getRfcHealthCheck(oldConnector.id);
         if (rfcHc != null) {
           //When the connector is responding with unhealthy status, disable it momentarily, until next BurstAndUpdateThread round.
