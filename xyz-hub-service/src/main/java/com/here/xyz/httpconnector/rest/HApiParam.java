@@ -76,7 +76,7 @@ public class HApiParam extends ApiParam {
             }
         }
 
-        protected static Job.Status getJobStatus(RoutingContext context) {
+        public static Job.Status getJobStatus(RoutingContext context) {
             Job.Status status = Job.Status.of(getString(context, "status", null));
 
             if(status == null)

@@ -1099,6 +1099,26 @@ paths:
           $ref: '#/components/responses/ErrorResponse401'
         '403':
           $ref: '#/components/responses/ErrorResponse403'
+    get:
+      tags:
+        - Manage Jobs
+      summary: Get jobs
+      description: Reteive jobs
+      operationId: getJobs
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/JobStatus'
+      responses:
+        '200':
+          $ref: '#/components/responses/JobsResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
   '/spaces/{spaceId}/job/{jobId}':
     get:
       tags:
@@ -1888,7 +1908,7 @@ components:
       required: true
       schema:
         type: string
-    JopType:
+    JobType:
       name: type
       in: query
       description: Type of Job
@@ -1897,7 +1917,7 @@ components:
         type: string
         enum:
           - import
-    JopStatus:
+    JobStatus:
       name: status
       in: query
       description: Job Status
@@ -1907,7 +1927,13 @@ components:
         enum:
           - waiting
           - queued
-          - running
+          - validating
+          - preparing
+          - prepared
+          - executing
+          - executed
+          - finalizing
+          - finalized
           - aborted
           - failed
     Command:
@@ -2170,6 +2196,13 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Job'
+    JobsResponse:
+      description: Job List
+      content:
+        application/json:
+          schema:
+            items:
+              $ref: '#/components/schemas/Job'
   requestBodies:
     ConnectorConfig:
       required: true
@@ -3661,11 +3694,6 @@ components:
           description: >-
             id
           example: "ZMlfeaN8B8"
-          type: string
-        targetSpaceId:
-          description: >-
-            targetSpaceId
-          example: "importtest"
           type: string
         description:
           description: >-
