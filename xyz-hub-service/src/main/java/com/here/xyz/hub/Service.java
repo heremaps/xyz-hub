@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -68,6 +68,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -160,6 +162,9 @@ public class Service extends Core {
    */
   private static void onConfigLoaded(JsonObject jsonConfig) {
     configuration = jsonConfig.mapTo(Config.class);
+
+    configuration.defaultStorageIds = Stream.of(configuration.DEFAULT_STORAGE_ID.split(","))
+        .map(String::trim).collect(Collectors.toList());
 
     cacheClient = CacheClient.getInstance();
     MessageBroker.getInstance().onSuccess(mb -> {
@@ -422,6 +427,15 @@ public class Service extends Core {
     public String XYZ_HUB_REDIS_AUTH_TOKEN;
 
     /**
+     * The list of defaultStorageIds
+     */
+    public List<String> defaultStorageIds;
+
+    public String getDefaultStorageId(){
+      return defaultStorageIds.get( (int)(Math.random()*defaultStorageIds.size()) );
+    }
+
+    /**
      * Adds backward-compatibility for the deprecated environment variables XYZ_HUB_REDIS_HOST & XYZ_HUB_REDIS_PORT.
      * @return
      */
@@ -493,7 +507,7 @@ public class Service extends Core {
     public boolean USE_BASE_4_H_TILES;
 
     /**
-     * The ID of the default storage connector.
+     * A comma separate list of IDs of the default storage connectors.
      */
     public String DEFAULT_STORAGE_ID;
 
@@ -690,7 +704,6 @@ public class Service extends Core {
      * If uncompressed response size is bigger than MAX_UNCOMPRESSED_RESPONSE_SIZE, an error with status code 513 will be sent.
      */
     public long MAX_UNCOMPRESSED_RESPONSE_SIZE;
-
 
     /**
      * The maximum http response size in bytes supported on API calls.
