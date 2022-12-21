@@ -54,7 +54,7 @@ public class ImportQueue extends JobQueue{
         }
 
         /** Those statuses are always possible to process */
-        switch (job.status){
+        switch (job.getStatus()){
 
             case queued:
             case prepared:
@@ -131,13 +131,13 @@ public class ImportQueue extends JobQueue{
                                 return;
                             }
 
-                            switch (importJob.status){
+                            switch (importJob.getStatus()){
                                 case finalized:
-                                    logger.info("JOB[{}] is finalized!",importJob.id);
+                                    logger.info("JOB[{}] is finalized!", importJob.getId());
                                     removeJob(importJob);
                                     break;
                                 case failed:
-                                    logger.info("JOB[{}] has failed!",importJob.id);
+                                    logger.info("JOB[{}] has failed!",importJob.getId());
                                     /** Remove Job from Queue - in some cases the user is able to retry */
                                     removeJob(importJob);
                                     break;
@@ -161,7 +161,7 @@ public class ImportQueue extends JobQueue{
                                             .onSuccess(f -> finalizeJob(importJob));
                                     break;
                                 default: {
-                                    logger.info("JOB[{}] is currently '{}' - current Queue-size: {}",importJob.id, importJob.status, queueSize());
+                                    logger.info("JOB[{}] is currently '{}' - current Queue-size: {}",importJob.getId(), importJob.getStatus(), queueSize());
                                 }
                             }
                         })

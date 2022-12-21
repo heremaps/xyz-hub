@@ -77,9 +77,9 @@ public abstract class JobConfigClient implements Initializable {
     }
 
     public Future<Job> update(Marker marker, Job job) {
-        job.updatedAt = Core.currentTimeMillis();
+        job.setUpdatedAt(Core.currentTimeMillis() / 1000L);
 
-        return storeJob(marker, job)
+        return storeJob(marker, job, true)
                 .onSuccess(v -> {
                     logger.info(marker, "job[{}] / status[{}]: successfully updated!", job.getId(), job.getStatus());
                 })
@@ -89,7 +89,7 @@ public abstract class JobConfigClient implements Initializable {
     }
 
     public Future<Job> store(Marker marker, Job job) {
-        return storeJob(marker, job)
+        return storeJob(marker, job, false)
                 .onSuccess(v -> {
                     logger.info(marker, "job[{}]: successfully stored!", job.getId());
                 })
@@ -116,7 +116,7 @@ public abstract class JobConfigClient implements Initializable {
 
     protected abstract Future<String> getImportJobsOnTargetSpace(Marker marker, String targetSpaceId);
 
-    protected abstract Future<Job> storeJob(Marker marker, Job job);
+    protected abstract Future<Job> storeJob(Marker marker, Job job, boolean isUpdate);
 
     protected abstract Future<Job> deleteJob(Marker marker, String jobId);
 }

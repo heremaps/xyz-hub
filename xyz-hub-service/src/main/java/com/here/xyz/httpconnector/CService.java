@@ -33,12 +33,17 @@ import org.apache.logging.log4j.Logger;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
  * Vertex deployment of HTTP-Connector.
  */
 public class CService extends Core {
+  /**
+   * The host ID.
+   */
+  public static final String HOST_ID = UUID.randomUUID().toString();
 
   /**
    * The client to access databases for maintenanceTasks
@@ -204,6 +209,11 @@ public class CService extends Core {
      * RDS maximum allowed imports in parallel
      */
     public int JOB_MAX_RDS_MAX_RUNNING_IMPORTS;
+    /**
+     * RDS maximum allowed imports in parallel
+     */
+    public Long JOB_DYNAMO_EXP_IN_DAYS;
+
     /**
      * Temporary needed for migration phase
      */

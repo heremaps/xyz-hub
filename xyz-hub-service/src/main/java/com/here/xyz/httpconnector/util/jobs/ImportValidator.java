@@ -105,7 +105,7 @@ public class ImportValidator {
         }else {
             try {
                 /** scan S3 Path for existing Uploads and validate first line of CSV */
-                Map<String, ImportObject> scannedObjects = CService.jobS3Client.scanImportPath(job, job.csvFormat);
+                Map<String, ImportObject> scannedObjects = CService.jobS3Client.scanImportPath(job, job.getCsvFormat());
                 if (scannedObjects.size() == 0) {
                     job.setErrorDescription(Import.ERROR_DESCRIPTION_UPLOAD_MISSING);
                     job.setErrorType(Import.ERROR_TYPE_VALIDATION_FAILED);
@@ -149,8 +149,8 @@ public class ImportValidator {
     }
 
     private static void setJobDefaults(Job job){
-        job.createdAt = Core.currentTimeMillis();
-        job.updatedAt = Core.currentTimeMillis();
+        job.setCreatedAt(Core.currentTimeMillis() / 1000L);
+        job.setUpdatedAt(Core.currentTimeMillis() / 1000L);
 
         if(job.getErrorType() != null){
             job.setErrorType(null);
