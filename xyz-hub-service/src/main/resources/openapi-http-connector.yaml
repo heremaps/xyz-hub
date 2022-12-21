@@ -220,7 +220,7 @@ paths:
         - $ref: '#/components/parameters/TargetSpaceId'
       responses:
         '200':
-          description : OK
+          $ref: '#/components/responses/JobsResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse400'
   '/psql/jobs/{jobId}':
@@ -270,7 +270,7 @@ paths:
         - $ref: '#/components/parameters/JobId'
       responses:
         '200':
-          description : OK
+          $ref: '#/components/responses/JobResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse400'
         '404':
@@ -328,7 +328,13 @@ components:
         enum:
           - waiting
           - queued
-          - running
+          - validating
+          - preparing
+          - prepared
+          - executing
+          - executed
+          - finalizing
+          - finalized
           - aborted
           - failed
     TargetSpaceId:
@@ -467,6 +473,13 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Job'
+    JobsResponse:
+      description: Job List
+      content:
+        application/json:
+          schema:
+            items:
+              $ref: '#/components/schemas/Job'
     HealthResponse:
       description: HealhCheck Response
       content:
