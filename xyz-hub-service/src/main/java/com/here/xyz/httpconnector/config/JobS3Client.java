@@ -76,10 +76,14 @@ public class JobS3Client extends AwsS3Client{
 
     public Map<String, ImportObject> scanImportPath(Import job, Job.CSVFormat csvFormat){
         /** if we cant find a upload url read from IMPORT_MANUAL_UPLOAD_FOLDER */
-        ImportObject io = (ImportObject) job.getImportObjects().values().toArray()[0];
-        if(io.getUploadUrl() == null)
-           return scanImportPath(IMPORT_MANUAL_UPLOAD_FOLDER +"/"+ IMPORT_UPLOAD_FOLDER +"/"+ job.getId(), CService.configuration.JOBS_S3_BUCKET, csvFormat);
-        return scanImportPath(IMPORT_UPLOAD_FOLDER +"/"+ job.getId(), CService.configuration.JOBS_S3_BUCKET, csvFormat);
+        String firstKey = (String) job.getImportObjects().keySet().toArray()[0];
+        String path = IMPORT_UPLOAD_FOLDER +"/"+ job.getId();
+
+        /** manual uploaded files are not allowed to be named as part_*.csv */
+        if(!firstKey.matches("part_\\d*.csv"))
+            path = IMPORT_MANUAL_UPLOAD_FOLDER +"/"+ path;
+
+        return scanImportPath(path, CService.configuration.JOBS_S3_BUCKET, csvFormat);
     }
 
     public Map<String,ImportObject> scanImportPath(String prefix, String bucketName, Job.CSVFormat csvFormat){
