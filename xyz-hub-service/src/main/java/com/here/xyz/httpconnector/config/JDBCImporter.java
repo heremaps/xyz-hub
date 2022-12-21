@@ -27,6 +27,7 @@ import com.here.xyz.httpconnector.util.status.RDSStatus;
 import com.here.xyz.httpconnector.util.status.RunningQueryStatistic;
 import com.here.xyz.httpconnector.util.status.RunningQueryStatistics;
 import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.psql.query.ModifySpace;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -250,8 +251,13 @@ public class JDBCImporter extends JDBCClients{
 
         CompositeFuture.join(indicesFutures).onComplete(
                 t-> {
-                    deleteImportTrigger(clientId, schema, tableName);
-                    p.complete();
+                    deleteImportTrigger(clientId, schema, tableName)
+                            .onComplete(
+                                    f-> {
+                                        markMaintenance(clientId, schema, tableName);
+                                        p.complete();
+                                    }
+                            );
                 }
         ).onFailure(e -> {
             logger.warn("Table cleanup has failed",e);
@@ -280,6 +286,20 @@ public class JDBCImporter extends JDBCClients{
         q.setVariable("schema", schema);
         q.setVariable("tablename", tableName);
 
+        return getClient(clientID).query(q.substitute().text())
+                .execute()
+                .map(f -> null);
+    }
+
+    public static Future<Void> markMaintenance(String clientID, String schema, String spaceId){
+
+        SQLQuery q = new SQLQuery("UPDATE "+ModifySpace.IDX_STATUS_TABLE
+                + " SET idx_creation_finished = false "
+                + " WHERE spaceid='{spaceId}' AND schem='{schema}';"
+                .replace("{schema}",schema)
+                .replace("{spaceId}",spaceId));
+
+        logger.info("Mark maintenance for {}",spaceId);
         return getClient(clientID).query(q.substitute().text())
                 .execute()
                 .map(f -> null);
