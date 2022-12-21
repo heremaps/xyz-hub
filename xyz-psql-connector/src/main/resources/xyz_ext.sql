@@ -3155,7 +3155,7 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_write_versioned_modification_operation(id TEXT, version BIGINT, operation CHAR, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN)
+CREATE OR REPLACE FUNCTION xyz_write_versioned_modification_operation(id TEXT, version BIGINT, operation CHAR, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN, partitionSize BIGINT)
     RETURNS INTEGER AS
 $BODY$
     DECLARE
@@ -3194,6 +3194,11 @@ $BODY$
                     RAISE EXCEPTION 'Unexpected error while trying to % feature with ID % in version %.', operation_2_human_readable(operation), id, version
                         USING HINT = 'Previous (HEAD) version of the feature is missing.';
                 END IF;
+            END IF;
+
+            -- If the current history partition is filled half-way, create the next one already
+            IF version % partitionSize = partitionSize / 2 THEN
+                EXECUTE xyz_create_history_partition(schema, tableName, floor(version / partitionSize) + 1, partitionSize);
             END IF;
         END IF;
 
@@ -3252,6 +3257,19 @@ BEGIN
         END LOOP;
         RETURN transform_load_features_input(ids, versions);
     END IF;
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_create_history_partition(schema TEXT, rootTable TEXT, partitionNo BIGINT, partitionSize BIGINT)
+    RETURNS VOID AS
+$BODY$
+BEGIN
+    EXECUTE
+        format('CREATE TABLE %I.%I PARTITION OF %I.%I FOR VALUES FROM (%L) TO (%L)',
+            schema, (rootTable || '_p' || partitionNo), schema, rootTable,
+            partitionSize * partitionNo, partitionSize * (partitionNo + 1));
 END
 $BODY$
 LANGUAGE plpgsql VOLATILE;
