@@ -32,7 +32,6 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.DatabaseWriter.ModificationType;
 import com.here.xyz.psql.SQLQuery;
-import com.here.xyz.psql.SQLQueryBuilder;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -256,7 +255,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
     String geo = geoOverride != null ? "${{geoOverride}}" : ((isForce2D ? "ST_Force2D" : "ST_Force3D") + "(geo)");
 
     if (convertToGeoJson)
-      geo = "replace(ST_AsGeojson(" + geo + ", " + SQLQueryBuilder.GEOMETRY_DECIMAL_DIGITS + "), 'nan', '0')";
+      geo = "replace(ST_AsGeojson(" + geo + ", " + GetFeaturesByBBox.GEOMETRY_DECIMAL_DIGITS + "), 'nan', '0')";
 
     SQLQuery geoFragment = new SQLQuery(geo + " as geo");
     if (geoOverride != null)
