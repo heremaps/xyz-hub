@@ -19,6 +19,7 @@
 
 package com.here.xyz.psql;
 
+import static com.here.xyz.psql.query.ModifySpace.IDX_STATUS_TABLE_FQN;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -32,7 +33,12 @@ import com.here.xyz.util.Hasher;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.junit.After;
@@ -100,7 +106,7 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
     /** Needed to trigger update on pg_stat */
     try (final Connection connection = LAMBDA.dataSource.getConnection()) {
       Statement stmt = connection.createStatement();
-      stmt.execute("DELETE FROM xyz_config.xyz_idxs_status WHERE spaceid='" + hashedSpaceId + "';");
+      stmt.execute("DELETE FROM " + IDX_STATUS_TABLE_FQN + " WHERE spaceid='" + hashedSpaceId + "';");
       stmt.execute("ANALYZE \"" + hashedSpaceId + "\";");
     }
 
@@ -110,7 +116,7 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
     try (final Connection connection = LAMBDA.dataSource.getConnection()) {
       Statement stmt = connection.createStatement();
       // check for the index status
-      try (ResultSet rs = stmt.executeQuery("SELECT * FROM xyz_config.xyz_idxs_status where spaceid = '" + hashedSpaceId + "';")) {
+      try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + IDX_STATUS_TABLE_FQN + " where spaceid = '" + hashedSpaceId + "';")) {
         assertTrue(rs.next());
         assertTrue(rs.getBoolean("idx_creation_finished"));
         assertEquals(11_000L, rs.getInt("count"));
@@ -143,7 +149,7 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
       }
 
       /* Clean-up maintenance entry */
-      stmt.execute("DELETE FROM xyz_config.xyz_idxs_status WHERE spaceid='" + hashedSpaceId + "';");
+      stmt.execute("DELETE FROM " + IDX_STATUS_TABLE_FQN + " WHERE spaceid='" + hashedSpaceId + "';");
     }
   }
 }

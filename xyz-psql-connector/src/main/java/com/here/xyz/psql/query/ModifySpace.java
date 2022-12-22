@@ -42,7 +42,14 @@ import org.json.JSONObject;
 
 public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, XyzResponse> {
 
-    public static final String IDX_STATUS_TABLE = "xyz_config.xyz_idxs_status";
+    /**
+     * Main schema for xyz-relevant configurations.
+     */
+    public static final String XYZ_CONFIG_SCHEMA = "xyz_config";
+
+    public static final String IDX_STATUS_TABLE = "xyz_idxs_status";
+
+    public static final String IDX_STATUS_TABLE_FQN = XYZ_CONFIG_SCHEMA + "." + IDX_STATUS_TABLE;
     private static final String SPACE_META_TABLE = "xyz_config.space_meta";
     public ModifySpace(ModifySpaceEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
         super(event, dbHandler);
@@ -148,14 +155,14 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, XyzResponse> {
                         "            )A"+
                         "        ),"+
                         "        true) "+
-                        "FROM "+IDX_STATUS_TABLE+
+                        "FROM "+ IDX_STATUS_TABLE_FQN +
                         "    WHERE spaceid=#{extended_table} ");
 
         idx_ext_q.setNamedParameter("extended_table", sourceTable);
 
 
         /* update xyz_idx_status table with searchableProperties information */
-        SQLQuery upsertIDX = new SQLQuery("INSERT INTO  "+IDX_STATUS_TABLE+" as x_s (spaceid, schem, idx_creation_finished, idx_manual, auto_indexing) "
+        SQLQuery upsertIDX = new SQLQuery("INSERT INTO  "+ IDX_STATUS_TABLE_FQN +" as x_s (spaceid, schem, idx_creation_finished, idx_manual, auto_indexing) "
                 + "		VALUES (#{table}, #{schema} , false, (${{idx_manual_sub}}), #{auto_indexing} ) "
                 + "ON CONFLICT (spaceid) DO "
                 + "		UPDATE SET schem=#{schema}, "
@@ -172,7 +179,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, XyzResponse> {
         SQLQuery updateReferencedTables = new SQLQuery();
         if (event.getOperation() == UPDATE) {
             /* update possible existing delta tables */
-            updateReferencedTables = new SQLQuery("UPDATE " + IDX_STATUS_TABLE + " "
+            updateReferencedTables = new SQLQuery("UPDATE " + IDX_STATUS_TABLE_FQN + " "
                     + "             SET schem=#{schema}, "
                     + "    			idx_manual = (${{idx_manual_sub2}}), "
                     + "				idx_creation_finished = false"
@@ -199,7 +206,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, XyzResponse> {
     public SQLQuery buildCleanUpQuery(ModifySpaceEvent event)
     {
         SQLQuery q = new SQLQuery("DELETE FROM "+SPACE_META_TABLE+" WHERE h_id=#{table} AND schem=#{schema};");
-        q.append("DELETE FROM "+IDX_STATUS_TABLE+" WHERE spaceid=#{table} AND schem=#{schema};");
+        q.append("DELETE FROM "+ IDX_STATUS_TABLE_FQN +" WHERE spaceid=#{table} AND schem=#{schema};");
         q.append("DROP TABLE IF EXISTS ${schema}.${table};");
         q.append("DROP TABLE IF EXISTS ${schema}.${hsttable};");
         q.append("DROP SEQUENCE IF EXISTS ${schema}.${hsttable_seq};");

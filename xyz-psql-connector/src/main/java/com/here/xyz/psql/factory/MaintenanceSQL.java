@@ -19,18 +19,17 @@
 
 package com.here.xyz.psql.factory;
 
+import static com.here.xyz.psql.query.ModifySpace.IDX_STATUS_TABLE;
+import static com.here.xyz.psql.query.ModifySpace.IDX_STATUS_TABLE_FQN;
+import static com.here.xyz.psql.query.ModifySpace.XYZ_CONFIG_SCHEMA;
+
 public class MaintenanceSQL {
-    /**
-     * Main schema for xyz-relevant configurations.
-     */
-    public static final String XYZ_CONFIG_SCHEMA = "xyz_config";
 
     /**
      * Tables for database wide configurations, which belong to XYZ_CONFIG_SCHEMA
      */
     private static String XYZ_CONFIG_DB_STATUS = "db_status";
     private static String XYZ_CONFIG_SPACE_META_TABLE = "space_meta";
-    public static String XYZ_CONFIG_IDX_TABLE = "xyz_idxs_status";
     private static String XYZ_CONFIG_STORAGE_TABLE = "xyz_storage";
     private static String XYZ_CONFIG_SPACE_TABLE = "xyz_space";
 
@@ -55,7 +54,7 @@ public class MaintenanceSQL {
     public static String generateCheckSchemasAndIdxTableSQL(String schema){
         return "SELECT array_agg(nspname) @> ARRAY['" + schema + "'] as main_schema, "
                 + " array_agg(nspname) @> ARRAY['xyz_config'] as config_schema, "
-                + "(SELECT (to_regclass('" + XYZ_CONFIG_SCHEMA + "."+XYZ_CONFIG_IDX_TABLE+"') IS NOT NULL) as idx_table), "
+                + "(SELECT (to_regclass('" + IDX_STATUS_TABLE_FQN + "') IS NOT NULL) as idx_table), "
                 + "(SELECT (to_regclass('" + XYZ_CONFIG_SCHEMA + "."+XYZ_CONFIG_DB_STATUS+"') IS NOT NULL) as db_status_table), "
                 + "(SELECT (to_regclass('" + XYZ_CONFIG_SCHEMA + "."+XYZ_CONFIG_SPACE_META_TABLE+"') IS NOT NULL) as space_meta_table) "
                 + "FROM( "
@@ -173,9 +172,13 @@ public class MaintenanceSQL {
                     "CREATE TABLE IF NOT EXISTS  "+ XYZ_CONFIG_SCHEMA + "."+XYZ_CONFIG_STORAGE_TABLE+" (id VARCHAR(50) primary key, owner VARCHAR (50), config JSONB);"+
                     "CREATE TABLE IF NOT EXISTS  " + XYZ_CONFIG_SCHEMA + "."+XYZ_CONFIG_SPACE_TABLE+" (id VARCHAR(50) primary key, owner VARCHAR (50), cid VARCHAR (50), config JSONB);";
 
+    public static String createIDXInitEntry =  "INSERT INTO " + IDX_STATUS_TABLE_FQN + " (spaceid,count) " +
+        "   VALUES ('idx_in_progress','0') " +
+        "ON CONFLICT DO NOTHING; ";
+
     /** Create XYZ_CONFIG_IDX_TABLE in XYZ_CONFIG_SCHEMA. */
     public static String createIDXTableSQL =
-        "CREATE TABLE IF NOT EXISTS " + XYZ_CONFIG_SCHEMA + "."+XYZ_CONFIG_IDX_TABLE+
+        "CREATE TABLE IF NOT EXISTS " + IDX_STATUS_TABLE_FQN +
             "( " +
             "  runts timestamp with time zone, " +
             "  spaceid text NOT NULL, " +
@@ -187,15 +190,13 @@ public class MaintenanceSQL {
             "  prop_stat jsonb, " +
             "  idx_manual jsonb, " +
             "  auto_indexing boolean, "+
-            "  CONSTRAINT "+XYZ_CONFIG_IDX_TABLE+"_pkey PRIMARY KEY (spaceid) " +
+            "  CONSTRAINT " + IDX_STATUS_TABLE + "_pkey PRIMARY KEY (spaceid) " +
             "); " +
-            "INSERT INTO xyz_config."+XYZ_CONFIG_IDX_TABLE+" (spaceid,count) " +
-            "   VALUES ('idx_in_progress','0') " +
-            "ON CONFLICT DO NOTHING; ";
+            createIDXInitEntry;
 
     /** Create XYZ_CONFIG_IDX_TABLE in XYZ_CONFIG_SCHEMA. */
     public static String createIDXTable =
-            "CREATE TABLE IF NOT EXISTS " + XYZ_CONFIG_SCHEMA + "."+XYZ_CONFIG_IDX_TABLE+
+            "CREATE TABLE IF NOT EXISTS " + IDX_STATUS_TABLE_FQN +
                     "( " +
                     "  runts timestamp with time zone, " +
                     "  spaceid text NOT NULL, " +
@@ -206,12 +207,8 @@ public class MaintenanceSQL {
                     "  count bigint, " +
                     "  prop_stat jsonb, " +
                     "  idx_manual jsonb, " +
-                    "  CONSTRAINT "+XYZ_CONFIG_IDX_TABLE+"_pkey PRIMARY KEY (spaceid) " +
+                    "  CONSTRAINT " + IDX_STATUS_TABLE + "_pkey PRIMARY KEY (spaceid) " +
                     "); ";
-
-    public static String createIDXInitEntry =  "INSERT INTO xyz_config."+XYZ_CONFIG_IDX_TABLE+" (spaceid,count) " +
-            "   VALUES ('idx_in_progress','0') " +
-            "ON CONFLICT DO NOTHING; ";
 
 
     public static String createDbStatusTable =
@@ -251,7 +248,7 @@ public class MaintenanceSQL {
                     "            idx_proposals as \"idxProposals\"," +
                     "            prop_stat as \"propStats\"" +
                     "   ) status " +
-                    ") from "+(MaintenanceSQL.XYZ_CONFIG_SCHEMA + "."+MaintenanceSQL.XYZ_CONFIG_IDX_TABLE)
+                    ") from "+ IDX_STATUS_TABLE_FQN
                     +" where schem=? and spaceid=?;";
 
     public static String maintainIDXOfSpace =
@@ -266,7 +263,7 @@ public class MaintenanceSQL {
             "SELECT xyz_create_idxs(?, ?, ?, ?, ?)";
 
     public static String updateIDXEntry =
-            "UPDATE "+MaintenanceSQL.XYZ_CONFIG_SCHEMA + "."+MaintenanceSQL.XYZ_CONFIG_IDX_TABLE
+            "UPDATE "+ IDX_STATUS_TABLE_FQN
             +"  SET idx_creation_finished = null "
             +"		WHERE schem=? AND spaceid=?";
 }

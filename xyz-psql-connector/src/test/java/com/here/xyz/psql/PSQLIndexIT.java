@@ -19,6 +19,7 @@
 package com.here.xyz.psql;
 
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
@@ -40,6 +41,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.here.xyz.psql.query.ModifySpace.IDX_STATUS_TABLE_FQN;
 import static org.junit.Assert.*;
 import static org.junit.Assert.assertEquals;
 
@@ -324,7 +326,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
         /** Needed to trigger update on pg_stat */
         try (final Connection connection = LAMBDA.dataSource.getConnection()) {
             Statement stmt = connection.createStatement();
-            stmt.execute("DELETE FROM xyz_config.xyz_idxs_status WHERE spaceid='foo';");
+            stmt.execute("DELETE FROM " + IDX_STATUS_TABLE_FQN + " WHERE spaceid='foo';");
             stmt.execute("ANALYZE \"foo\";");
         }
 
@@ -336,7 +338,12 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                 .withConnectorParams(connectorParams);
         // =========== Invoke GetStatisticsEvent ==========
         String stringResponse = invokeLambda(statisticsEvent.serialize());
-        StatisticsResponse response = XyzSerializable.deserialize(stringResponse);
+        StatisticsResponse response;
+        XyzResponse rawResp = XyzSerializable.deserialize(stringResponse);
+        if (rawResp instanceof ErrorResponse)
+            throw new ErrorResponseException(((ErrorResponse) rawResp).getError(), ((ErrorResponse) rawResp).getErrorMessage());
+        else
+            response = XyzSerializable.deserialize(stringResponse);
 
         assertNotNull(response);
         assertEquals(new Long(11000), response.getCount().getValue());

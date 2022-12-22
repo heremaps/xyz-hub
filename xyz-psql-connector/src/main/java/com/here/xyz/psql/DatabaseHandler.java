@@ -1252,6 +1252,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     private void createSpaceTableStatement(Statement stmt, String schema, String table, long versionsToKeep) throws SQLException {
+        boolean withPartitioning = true;
         String tableFields =
             "id TEXT NOT NULL, "
                 + "version BIGINT NOT NULL, "
@@ -1263,7 +1264,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 + "i BIGSERIAL"
                 + ", CONSTRAINT ${constraintName} PRIMARY KEY (id, version, next_version)";
 
-        SQLQuery q = new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}}) PARTITION BY RANGE (next_version)")
+        SQLQuery q = new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}})" + (withPartitioning ? " PARTITION BY RANGE (next_version)" : ""))
             .withQueryFragment("tableFields", tableFields)
             .withVariable("schema", schema)
             .withVariable("table", table)
