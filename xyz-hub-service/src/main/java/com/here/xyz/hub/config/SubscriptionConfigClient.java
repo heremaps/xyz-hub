@@ -45,7 +45,7 @@ public abstract class SubscriptionConfigClient implements Initializable {
 
     public static final ExpiringMap<String, List<Subscription>> cacheBySource = ExpiringMap.builder()
             .expirationPolicy(ExpirationPolicy.CREATED)
-            .expiration(1, TimeUnit.MINUTES)
+            .expiration(10, TimeUnit.MINUTES)
             .build();
 
     public static SubscriptionConfigClient getInstance() {
