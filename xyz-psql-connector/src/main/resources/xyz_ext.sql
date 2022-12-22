@@ -20,49 +20,6 @@
 -- CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;
 -- CREATE EXTENSION IF NOT EXISTS postgis_topology;
 -- CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;
-
--- DROP FUNCTION xyz_index_status();
--- DROP FUNCTION xyz_create_idxs_over_dblink(text, integer, integer, integer, text[], text, text, text,text, integer, text);
--- DROP FUNCTION xyz_space_bbox(text, text, integer);
--- DROP FUNCTION xyz_update_dummy_v5();
--- DROP FUNCTION xyz_index_check_comments(text, text);
--- DROP FUNCTION xyz_index_creation_on_property_object(text, text, text, text, text, character);
--- DROP FUNCTION xyz_maintain_idxs_for_space(text, text);
--- DROP FUNCTION xyz_create_idxs(text, integer, integer, integer, text[]);
--- DROP FUNCTION xyz_property_path_to_array(text);
--- DROP FUNCTION xyz_property_path(text);
--- DROP FUNCTION xyz_property_datatype(text, text, text, integer);
--- DROP FUNCTION xyz_property_statistic(text, text, integer);
--- DROP FUNCTION xyz_statistic_newest_spaces_changes(text, text[], integer);
--- DROP FUNCTION xyz_write_newest_idx_analyses(text);
--- DROP FUNCTION xyz_write_newest_statistics(text, text[], integer);
--- DROP FUNCTION xyz_statistic_all_spaces(text, text[], integer);
--- DROP FUNCTION xyz_property_evaluation(text, text, text, integer);
--- DROP FUNCTION xyz_index_proposals_on_properties(text, text);
--- DROP FUNCTION xyz_index_creation_on_property(text, text, text, character);
--- DROP FUNCTION xyz_geotype(geometry);
--- DROP FUNCTION xyz_index_name_for_property(text, text, character);
--- DROP FUNCTION xyz_index_list_all_available(text, text);
--- DROP FUNCTION xyz_index_name_dissolve_to_property(text,text);
--- DROP FUNCTION xyz_index_property_available(text, text, text);
--- DROP FUNCTION xyz_property_statistic_v2(text, text, integer);
--- DROP FUNCTION xyz_tag_statistic(text, text, integer);
--- DROP FUNCTION xyz_statistic_searchable(jsonb);
--- DROP FUNCTION xyz_statistic_xl_space(text, text, integer);
--- DROP FUNCTION xyz_statistic_space(text, text);
--- DROP FUNCTION xyz_statistic_xs_space(text, text);
--- DROP FUNCTION xyz_create_idxs_for_space(text, text);
--- DROP FUNCTION xyz_remove_unnecessary_idx(text, integer);
--- DROP FUNCTION xyz_index_dissolve_datatype(text);
--- DROP FUNCTION xyz_index_get_plain_propkey(text);
--- DROP FUNCTION IF EXISTS xyz_qk_point2lrc(geometry, integer);
--- DROP FUNCTION IF EXISTS xyz_qk_lrc2qk(integer,integer,integer);
--- DROP FUNCTION IF EXISTS xyz_qk_qk2lrc(text );
--- DROP FUNCTION IF EXISTS xyz_qk_lrc2bbox(integer,integer,integer);
--- DROP FUNCTION IF EXISTS xyz_qk_qk2bbox(text );
--- DROP FUNCTION IF EXISTS xyz_qk_point2qk(geometry,integer );
--- DROP FUNCTION IF EXISTS xyz_qk_bbox2zooml(geometry);
--- DROP FUNCTION IF EXISTS xyz_qk_envelope2lrc(geometry, integer);
 DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
 --
 ------ SAMPLE QUERIES ----
@@ -247,8 +204,6 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_index_dissolve_datatype(text)
--- DROP FUNCTION xyz_index_dissolve_datatype(text);
 CREATE OR REPLACE FUNCTION xyz_index_dissolve_datatype(propkey text)
   RETURNS text AS
 $BODY$
@@ -278,8 +233,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_statistic_history(text, text)
--- DROP FUNCTION xyz_statistic_history(text, text);
 CREATE OR REPLACE FUNCTION xyz_statistic_history(
     IN schema text,
     IN spaceid text)
@@ -349,8 +302,6 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_index_get_plain_propkey(text)
--- DROP FUNCTION xyz_index_get_plain_propkey(text);
 CREATE OR REPLACE FUNCTION xyz_index_get_plain_propkey(propkey text)
   RETURNS text AS
 $BODY$
@@ -380,8 +331,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_trigger_historywriter_versioned()
--- DROP FUNCTION xyz_trigger_historywriter_versioned();
 CREATE OR REPLACE FUNCTION xyz_trigger_historywriter_versioned()
   RETURNS trigger AS
 $BODY$
@@ -623,8 +572,6 @@ $body$
 language plpgsql immutable;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_index_status()
--- DROP FUNCTION xyz_index_status();
 CREATE OR REPLACE FUNCTION xyz_index_status()
   RETURNS INTEGER AS
 $BODY$
@@ -682,8 +629,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_create_idxs_over_dblink(text, integer, integer, integer, text[], text, text, text, text, integer, text)
--- DROP FUNCTION xyz_create_idxs_over_dblink(text, integer, integer, integer, text[], text, text, text, text, integer, text);
 CREATE OR REPLACE FUNCTION xyz_create_idxs_over_dblink(
 	schema text,
 	lim integer,
@@ -726,8 +671,6 @@ CREATE OR REPLACE FUNCTION xyz_create_idxs_over_dblink(
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_space_bbox(text, text, integer)
--- DROP FUNCTION xyz_space_bbox(text, text, integer);
 CREATE OR REPLACE FUNCTION xyz_space_bbox(
     schema text,
     space_id text,
@@ -781,8 +724,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_index_list_all_available(text, text)
--- DROP FUNCTION xyz_index_list_all_available(text, text);
 CREATE OR REPLACE FUNCTION xyz_index_list_all_available(
     IN schema text,
     IN spaceid text)
@@ -841,8 +782,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
  ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_index_check_comments(text, text)
--- DROP FUNCTION xyz_index_check_comments(text, text);
 CREATE OR REPLACE FUNCTION xyz_index_check_comments(
     schema text,
     space_id text)
@@ -918,8 +857,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_index_creation_on_property_object(text, text, text, text, text, character);
--- DROP FUNCTION xyz_index_creation_on_property_object(text, text, text, text, text, character);
 CREATE OR REPLACE FUNCTION xyz_index_creation_on_property_object(
     schema text,
     spaceid text,
@@ -1085,8 +1022,7 @@ $body$
 $body$
 language sql immutable;
 
--- Function: xyz_maintain_o_idxs_for_space(text, text)
--- DROP FUNCTION xyz_maintain_o_idxs_for_space(text, text);
+
 create or replace function xyz_maintain_o_idxs_for_space( schema text, space text)
   returns void as
 $body$
@@ -1121,8 +1057,6 @@ language plpgsql volatile;
 
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_maintain_idxs_for_space(text, text)
--- DROP FUNCTION xyz_maintain_idxs_for_space(text, text);
 CREATE OR REPLACE FUNCTION xyz_maintain_idxs_for_space(
     schema text,
     space text)
@@ -1302,8 +1236,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_create_idxs(text, integer, integer, integer, text[])
--- DROP FUNCTION xyz_create_idxs(text, integer, integer, integer, text[]);
 CREATE OR REPLACE FUNCTION xyz_create_idxs(
     schema text,
     lim integer,
@@ -1355,8 +1287,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_property_path_to_array(text)
--- DROP FUNCTION xyz_property_path_to_array(text);
 CREATE OR REPLACE FUNCTION xyz_property_path_to_array(propertypath text)
   RETURNS text[] AS
 $BODY$
@@ -1386,8 +1316,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_property_path(text)
--- DROP FUNCTION xyz_property_path(text);
 CREATE OR REPLACE FUNCTION xyz_property_path(propertypath TEXT)
   RETURNS TEXT AS
 $BODY$
@@ -1419,8 +1347,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_property_datatype(text, text, text, integer)
--- DROP FUNCTION xyz_property_datatype(text, text, text, integer);
 CREATE OR REPLACE FUNCTION xyz_property_datatype(
 	schema text,
     spaceid text,
@@ -1469,8 +1395,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_property_statistic(text, text, integer)
--- DROP FUNCTION xyz_property_statistic(text, text, integer);
 CREATE OR REPLACE FUNCTION xyz_property_statistic_v2(
     IN schema text,
     IN spaceid text,
@@ -1562,8 +1486,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_statistic_newest_spaces_changes(text, text[], integer)
--- DROP FUNCTION xyz_statistic_newest_spaces_changes(text, text[], integer);
 CREATE OR REPLACE FUNCTION xyz_statistic_newest_spaces_changes(
     IN schema text,
     IN owner_list text[],
@@ -1615,7 +1537,7 @@ $BODY$
 			spaceid := xyz_spaces.spaceid;
 
             --skip history tables
-            IF substring(spaceid,length(spaceid)-3) = '_hst' THEN
+            IF NOT xyz_is_space_table(schema, spaceid) THEN
                 CONTINUE;
             END IF;
 
@@ -1631,8 +1553,22 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_write_newest_idx_analyses(text)
--- DROP FUNCTION xyz_write_newest_idx_analyses(text);
+CREATE OR REPLACE FUNCTION xyz_is_space_table(schema TEXT, tableName TEXT) RETURNS BOOLEAN AS
+$BODY$
+BEGIN
+    -- TODO: Improve this function to not rely on the table's name anymore
+    IF length(tableName) < 5 THEN
+        RETURN TRUE;
+    END IF;
+    RETURN tableName != 'spatial_ref_sys' AND -- It's the spatial reference system table fro postGIS (system table)
+           substring(tableName, length(tableName) - 3) != '_hst' AND -- It's a legacy history table
+           substring(tableName, length(tableName) - 4) != '_head' AND -- It's a HEAD partition
+           tableName  !~ '.+\_p[0-9]'; -- It's a history partition
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_write_newest_idx_analyses(schema text)
   RETURNS void AS
 $BODY$
@@ -1684,8 +1620,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_write_newest_statistics(text, text[], integer)
--- DROP FUNCTION xyz_write_newest_statistics(text, text[], integer);
 CREATE OR REPLACE FUNCTION xyz_write_newest_statistics(
     schema text,
     owner_list text[],
@@ -1781,8 +1715,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_statistic_all_spaces(text, text[], integer)
--- DROP FUNCTION xyz_statistic_all_spaces(text, text[], integer);
 CREATE OR REPLACE FUNCTION xyz_statistic_all_spaces(
     IN schema text,
     IN owner_list text[],
@@ -1838,8 +1770,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_property_evaluation(text, text, text, integer)
--- DROP FUNCTION xyz_property_evaluation(text, text, text, integer);
 CREATE OR REPLACE FUNCTION xyz_property_evaluation(
     IN schema text,
     IN spaceid text,
@@ -1915,8 +1845,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_index_proposals_on_properties(text, text)
--- DROP FUNCTION xyz_index_proposals_on_properties(text, text);
 CREATE OR REPLACE FUNCTION xyz_index_proposals_on_properties(
     IN schema text,
     IN _spaceid text)
@@ -2071,8 +1999,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_index_creation_on_property(text, text, text, character
--- DROP FUNCTION xyz_index_creation_on_property(text, text, text, character);
 CREATE OR REPLACE FUNCTION xyz_index_creation_on_property(
     schema text,
     spaceid text,
@@ -2126,8 +2052,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_geotype(geometry)
--- DROP FUNCTION xyz_geotype(geometry);
 CREATE OR REPLACE FUNCTION xyz_geotype(geo geometry)
   RETURNS text AS
 $BODY$
@@ -2160,8 +2084,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_index_name_for_property(text, text, character)
--- DROP FUNCTION xyz_index_name_for_property(text, text, character);
 CREATE OR REPLACE FUNCTION xyz_index_name_for_property(
     spaceid text,
     propkey text,
@@ -2205,8 +2127,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_index_find_missing_system_indexes(text, text[])
--- DROP FUNCTION xyz_index_find_missing_system_indexes(text, text[]);
 CREATE OR REPLACE FUNCTION xyz_index_find_missing_system_indexes(
     IN schema text,
     IN owner_list text[])
@@ -2249,8 +2169,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_index_name_dissolve_to_property(text,text)
--- DROP FUNCTION xyz_index_name_dissolve_to_property(text,text);
 CREATE OR REPLACE FUNCTION xyz_index_name_dissolve_to_property(IN idx_name text, space_id text)
   RETURNS TABLE(spaceid text, propkey text, source character) AS
 $BODY$
@@ -2288,8 +2206,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_index_property_available(text, text, text)
--- DROP FUNCTION xyz_index_property_available(text, text, text);
 CREATE OR REPLACE FUNCTION xyz_index_property_available(
     schema text,
     spaceid text,
@@ -2330,8 +2246,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_property_statistic(text, text, integer)
--- DROP FUNCTION xyz_property_statistic(text, text, integer);
 CREATE OR REPLACE FUNCTION xyz_property_statistic(
     IN schema text,
     IN spaceid text,
@@ -2395,8 +2309,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_tag_statistic(text, text, integer)
--- DROP FUNCTION xyz_tag_statistic(text, text, integer);
 CREATE OR REPLACE FUNCTION xyz_tag_statistic(
     IN schema text,
     IN spaceid text,
@@ -2448,8 +2360,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_statistic_searchable(jsonb)
--- DROP FUNCTION xyz_statistic_searchable(jsonb);
 CREATE OR REPLACE FUNCTION xyz_statistic_searchable(prop_stat jsonb)
   RETURNS text AS
 $BODY$
@@ -2490,8 +2400,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_statistic_xl_space(text, text, integer)
--- DROP FUNCTION xyz_statistic_xl_space(text, text, integer);
 CREATE OR REPLACE FUNCTION xyz_statistic_xl_space(
     IN schema text,
     IN spaceid text,
@@ -2565,8 +2473,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_statistic_space(text, text)
--- DROP FUNCTION xyz_statistic_space(text, text);
 CREATE OR REPLACE FUNCTION xyz_statistic_space(
     IN schema text,
     IN spaceid text)
@@ -2602,17 +2508,15 @@ $BODY$
 		SELECT reltuples into estimate_cnt FROM pg_class WHERE oid = concat('"',$1, '"."', $2, '"')::regclass;
 
 		IF estimate_cnt > big_space_threshold THEN
-			RETURN QUERY EXECUTE 'select * from xyz_statistic_xl_space('''||schema||''', '''||spaceid||''' , '||tablesamplecnt||')';
+			RETURN QUERY EXECUTE 'select * from xyz_statistic_xl_space('''||schema||''', ''' || xyz_get_head_table(schema, spaceid) || ''' , '||tablesamplecnt||')';
 		ELSE
-			RETURN QUERY EXECUTE 'select * from xyz_statistic_xs_space('''||schema||''','''||spaceid||''')';
+			RETURN QUERY EXECUTE 'select * from xyz_statistic_xs_space('''||schema||''',''' || xyz_get_head_table(schema, spaceid) || ''')';
 		END IF;
         END;
 $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_statistic_xs_space(text, text)
--- DROP FUNCTION xyz_statistic_xs_space(text, text);
 CREATE OR REPLACE FUNCTION xyz_statistic_xs_space(
     IN schema text,
     IN spaceid text)
@@ -2671,8 +2575,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_create_idxs_for_space(text, text)
--- DROP FUNCTION xyz_create_idxs_for_space(text, text);
 CREATE OR REPLACE FUNCTION xyz_create_idxs_for_space(
     schema text,
     space text)
@@ -2733,8 +2635,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
--- Function: xyz_remove_unnecessary_idx(text, integer)
--- DROP FUNCTION xyz_remove_unnecessary_idx(text, integer);
 CREATE OR REPLACE FUNCTION xyz_remove_unnecessary_idx(
     schema text,
     min_table_count integer)
@@ -3270,6 +3170,32 @@ BEGIN
         format('CREATE TABLE %I.%I PARTITION OF %I.%I FOR VALUES FROM (%L) TO (%L)',
             schema, (rootTable || '_p' || partitionNo), schema, rootTable,
             partitionSize * partitionNo, partitionSize * (partitionNo + 1));
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_get_head_table(schema TEXT, tableName TEXT) RETURNS TEXT AS
+$BODY$
+BEGIN
+    IF xyz_table_exists(schema, tableName || '_head') THEN
+        RETURN tableName || '_head';
+    ELSE
+        RETURN tableName;
+    END IF;
+END
+$BODY$
+    LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_table_exists(schema TEXT, tableName TEXT) RETURNS BOOLEAN AS
+$BODY$
+DECLARE
+    existsResult RECORD;
+BEGIN
+    EXECUTE
+        format('SELECT EXISTS (SELECT FROM pg_tables WHERE schemaname = %L AND tablename = %L) AS tableExists', schema, tableName) INTO existsResult;
+    RETURN existsResult.tableExists;
 END
 $BODY$
 LANGUAGE plpgsql VOLATILE;

@@ -19,6 +19,8 @@
 
 package com.here.xyz.psql;
 
+import static com.here.xyz.psql.query.ModifySpace.XYZ_CONFIG_SCHEMA;
+
 import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
 import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.factory.MaintenanceSQL;
@@ -155,7 +157,7 @@ public class DatabaseMaintainer {
                     }
 
                     if (!configSchema && hasPropertySearch) {
-                        logger.debug("{} Create missing Schema {} on database: {} / {}@{}", traceItem, MaintenanceSQL.XYZ_CONFIG_SCHEMA, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost());
+                        logger.debug("{} Create missing Schema {} on database: {} / {}@{}", traceItem, XYZ_CONFIG_SCHEMA, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost());
                         stmt.execute(MaintenanceSQL.configSchemaAndSystemTablesSQL);
                     }
 

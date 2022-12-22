@@ -171,7 +171,7 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
     }
 
     protected static void checkIDXTable(int szenario, boolean baselayerSwitch) throws Exception{
-        String q = "SELECT * FROM "+ ModifySpace.IDX_STATUS_TABLE+" WHERE spaceid IN ('"+ BASE1 +"','"+BASE2+"','"+DELTA1+"','"+DELTA2+"');";
+        String q = "SELECT * FROM "+ ModifySpace.IDX_STATUS_TABLE_FQN +" WHERE spaceid IN ('"+ BASE1 +"','"+BASE2+"','"+DELTA1+"','"+DELTA2+"');";
         JSONObject base1_ref = null;
         JSONObject base2_ref = new JSONObject("{\"searchableProperties\": {\"search_test_base2\": true}}");;
         JSONObject delta1_ref = null;

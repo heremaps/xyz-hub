@@ -193,7 +193,7 @@ public class SQLQueryBuilder {
     }
 
     protected static SQLQuery generateIDXStatusQuery(final String space){
-        return new SQLQuery("SELECT idx_available FROM "+ ModifySpace.IDX_STATUS_TABLE+" WHERE spaceid=? AND count >=?", space, BIG_SPACE_THRESHOLD);
+        return new SQLQuery("SELECT idx_available FROM "+ ModifySpace.IDX_STATUS_TABLE_FQN +" WHERE spaceid=? AND count >=?", space, BIG_SPACE_THRESHOLD);
     }
 
   protected static SQLQuery buildMultiModalInsertStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
