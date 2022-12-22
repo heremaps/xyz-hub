@@ -73,7 +73,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
 
   //TODO: Can be removed after completion of refactoring
   @Deprecated
-  public static SQLQuery generatePropertiesQueryBWC(QueryEvent event) {
+  protected static SQLQuery generatePropertiesQueryBWC(QueryEvent event) {
     SQLQuery query = generatePropertiesQuery(event);
     if (query != null)
       query.replaceNamedParameters();

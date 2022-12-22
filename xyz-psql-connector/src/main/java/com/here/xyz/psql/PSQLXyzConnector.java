@@ -198,7 +198,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
               bSelectionStar = false,
               bClustering = (event.getClusteringType() != null);
 
-      ResponseType responseType = SQLQueryBuilder.getResponseType(event);
+      ResponseType responseType = GetFeaturesByBBox.getResponseType(event);
       int mvtMargin = 0;
       boolean bMvtRequested = responseType == MVT || responseType == MVT_FLATTENED,
               bMvtFlattend  = responseType == MVT_FLATTENED;
@@ -270,7 +270,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
              ttime = new TupleTime();
 
             String rTuples = TupleTime.rTuplesMap.get(event.getSpace());
-            Feature estimateFtr = executeQueryWithRetry(SQLQueryBuilder.buildEstimateSamplingStrengthQuery(event, bbox, rTuples )).getFeatures().get(0);
+            Feature estimateFtr = executeQueryWithRetry(GetFeaturesByBBox.buildEstimateSamplingStrengthQuery(event, bbox, rTuples )).getFeatures().get(0);
             int rCount = estimateFtr.get("rcount");
 
             if( rTuples == null )
@@ -298,13 +298,14 @@ public class PSQLXyzConnector extends DatabaseHandler {
             if( bTweaks || !bVizSamplingOff )
             {
               if( !bMvtRequested )
-              { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, bSortByHashedValue));
+              { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(
+                  GetFeaturesByBBox.buildSamplingTweaksQuery(event, bbox, tweakParams, bSortByHashedValue));
                 if( distStrength > 0 ) collection.setPartial(true); // either ensure mode or explicit tweaks:sampling request where strenght in [1..100]
                 return collection;
               }
               else
                return executeBinQueryWithRetry(
-                         SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, bSortByHashedValue) , mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
+                         SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), GetFeaturesByBBox.buildSamplingTweaksQuery(event, bbox, tweakParams, bSortByHashedValue) , mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
             }
             else
             { // fall thru tweaks=simplification e.g. mode=viz and vizSampling=off
@@ -314,12 +315,13 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
           case TweaksSQL.SIMPLIFICATION: {
             if( !bMvtRequested )
-            { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams));
+            { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(
+                GetFeaturesByBBox.buildSimplificationTweaksQuery(event, bbox, tweakParams));
               return collection;
             }
             else
              return executeBinQueryWithRetry(
-               SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams) , mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
+               SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), GetFeaturesByBBox.buildSimplificationTweaksQuery(event, bbox, tweakParams) , mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
           }
 
           default: break; // fall back to non-tweaks usage.
@@ -333,10 +335,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
         {
           case H3SQL.HEXBIN :
            if( !bMvtRequested )
-            return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams),false);
+            return executeQueryWithRetry(GetFeaturesByBBox.buildHexbinClusteringQuery(event, bbox, clusteringParams),false);
            else
             return executeBinQueryWithRetry(
-             SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams), mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ),false );
+             SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), GetFeaturesByBBox.buildHexbinClusteringQuery(event, bbox, clusteringParams), mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ),false );
 
           case QuadbinSQL.QUAD :
            final int relResolution = ( clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) != null ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) :
@@ -348,10 +350,11 @@ public class PSQLXyzConnector extends DatabaseHandler {
            checkQuadbinInput(countMode, relResolution, event, streamId);
 
             if( !bMvtRequested )
-              return executeQueryWithRetry(SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config, noBuffer));
+              return executeQueryWithRetry(
+                  GetFeaturesByBBox.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config, noBuffer));
             else
               return executeBinQueryWithRetry(
-                      SQLQueryBuilder.buildMvtEncapsuledQuery(config.readTableFromEvent(event), SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config, noBuffer), mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
+                      SQLQueryBuilder.buildMvtEncapsuledQuery(config.readTableFromEvent(event), GetFeaturesByBBox.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config, noBuffer), mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
 
           default: break; // fall back to non-tweaks usage.
        }
@@ -367,9 +370,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
         return new GetFeaturesByBBox<>(event, this).run();
 
       if( !bMvtRequested )
-       return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event));
+       return executeQueryWithRetry(GetFeaturesByBBox.buildGetFeaturesByBBoxQuery(event));
       else
-       return executeBinQueryWithRetry( SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event), mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
+       return executeBinQueryWithRetry( SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), GetFeaturesByBBox.buildGetFeaturesByBBoxQuery(event), mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
 
     }catch (SQLException e){
       return checkSQLException(e, config.readTableFromEvent(event));
