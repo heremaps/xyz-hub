@@ -24,14 +24,9 @@ import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
-import com.here.xyz.models.geojson.HQuad;
-import com.here.xyz.models.geojson.WebMercatorTile;
-import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.psql.config.PSQLConfig;
-import com.here.xyz.psql.factory.TweaksSQL;
 import com.here.xyz.psql.query.GetFeaturesByBBox;
 import com.here.xyz.psql.query.ModifySpace;
-import com.here.xyz.psql.tools.DhString;
 
 public class SQLQueryBuilder {
 
@@ -52,31 +47,6 @@ public class SQLQueryBuilder {
     public static SQLQuery buildGetNextVersionQuery(String table) {
         return new SQLQuery("SELECT nextval('${schema}.\"" + table.replaceAll("-","_") + "_hst_seq\"')");
     }
-
-  /***************************************** CLUSTERING END **************************************************/
-
-
-  public static SQLQuery buildMvtEncapsuledQuery( String spaceId, SQLQuery dataQry, WebMercatorTile mvtTile, HQuad hereTile, BBox eventBbox, int mvtMargin, boolean bFlattend )
-    {
-      //TODO: The following is a workaround for backwards-compatibility and can be removed after completion of refactoring
-      dataQry.replaceUnnamedParameters();
-      dataQry.replaceFragments();
-      dataQry.replaceNamedParameters();
-      int extend = 4096, buffer = (extend / WebMercatorTile.TileSizeInPixel) * mvtMargin;
-      BBox b = ( mvtTile != null ? mvtTile.getBBox(false) : ( hereTile != null ? hereTile.getBoundingBox() : eventBbox) ); // pg ST_AsMVTGeom expects tiles bbox without buffer.
-
-      SQLQuery r = new SQLQuery( DhString.format( hereTile == null ? TweaksSQL.mvtBeginSql : TweaksSQL.hrtBeginSql ,
-                                   DhString.format( TweaksSQL.requestedTileBoundsSql , b.minLon(), b.minLat(), b.maxLon(), b.maxLat() ),
-                                   (!bFlattend) ? TweaksSQL.mvtPropertiesSql : TweaksSQL.mvtPropertiesFlattenSql,
-                                   extend,
-                                   buffer )
-                               );
-      r.append(dataQry);
-      r.append( DhString.format( TweaksSQL.mvtEndSql, spaceId ));
-      return r;
-    }
-
-    /***************************************** TWEAKS END **************************************************/
 
   public static SQLQuery buildDeleteFeaturesByTagQuery(boolean includeOldStates, SQLQuery searchQuery) {
 

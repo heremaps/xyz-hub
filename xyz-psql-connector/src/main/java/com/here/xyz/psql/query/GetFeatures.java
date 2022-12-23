@@ -28,17 +28,17 @@ import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.QueryEvent;
 import com.here.xyz.events.SelectiveEvent;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.DatabaseWriter.ModificationType;
 import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.responses.XyzResponse;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedSpace<E, FeatureCollection> {
+public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResponse> extends ExtendedSpace<E, R> {
 
   public GetFeatures(E event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(event, dbHandler);
@@ -46,7 +46,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
   }
 
   @Override
-  protected SQLQuery buildQuery(E event) throws SQLException {
+  protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
     boolean isExtended = isExtendedSpace(event) && event.getContext() == DEFAULT;
     SQLQuery query;
     if (isExtended) {
@@ -198,8 +198,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
   }
 
   @Override
-  public FeatureCollection handle(ResultSet rs) throws SQLException {
-    return dbHandler.defaultFeatureResultSetHandler(rs);
+  public R handle(ResultSet rs) throws SQLException {
+    return (R) dbHandler.defaultFeatureResultSetHandler(rs);
   }
 
   protected static SQLQuery buildSelectionFragment(ContextAwareEvent event) {

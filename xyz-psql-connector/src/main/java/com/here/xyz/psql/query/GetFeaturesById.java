@@ -21,18 +21,19 @@ package com.here.xyz.psql.query;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByIdEvent;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import java.sql.SQLException;
 
-public class GetFeaturesById extends GetFeatures<GetFeaturesByIdEvent> {
+public class GetFeaturesById extends GetFeatures<GetFeaturesByIdEvent, FeatureCollection> {
 
   public GetFeaturesById(GetFeaturesByIdEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(event, dbHandler);
   }
 
   @Override
-  protected SQLQuery buildQuery(GetFeaturesByIdEvent event) throws SQLException {
+  protected SQLQuery buildQuery(GetFeaturesByIdEvent event) throws SQLException, ErrorResponseException {
     String[] idArray = event.getIds().toArray(new String[0]);
     String filterWhereClause = "${{idColumn}} = ANY(#{ids})";
 

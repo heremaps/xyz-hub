@@ -23,9 +23,10 @@ import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.SpatialQueryEvent;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.responses.XyzResponse;
 import java.sql.SQLException;
 
-public abstract class Spatial<E extends SpatialQueryEvent> extends SearchForFeatures<E> {
+public abstract class Spatial<E extends SpatialQueryEvent, R extends XyzResponse> extends SearchForFeatures<E, R> {
 
   public Spatial(E event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(event, dbHandler);

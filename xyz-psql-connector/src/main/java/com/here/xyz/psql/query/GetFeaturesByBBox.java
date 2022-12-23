@@ -21,33 +21,182 @@ package com.here.xyz.psql.query;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.GEO_JSON;
+import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
+import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent.ResponseType;
-import com.here.xyz.events.QueryEvent;
+import com.here.xyz.models.geojson.HQuad;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
-import com.here.xyz.psql.config.PSQLConfig;
-import com.here.xyz.psql.factory.H3SQL;
-import com.here.xyz.psql.factory.QuadbinSQL;
 import com.here.xyz.psql.factory.TweaksSQL;
 import com.here.xyz.psql.tools.DhString;
+import com.here.xyz.responses.XyzResponse;
+import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Map;
 
-public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent> extends Spatial<E> {
+public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzResponse> extends Spatial<E, R> {
 
   public static final long GEOMETRY_DECIMAL_DIGITS = 8;
+  private boolean isMvtRequested;
 
   public GetFeaturesByBBox(E event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(event, dbHandler);
   }
+
+  @Override
+  protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
+    if (event.getBbox().widthInDegree(false) >= (360d / 4d) || event.getBbox().heightInDegree() >= (180d / 4d)) //Is it a "big" query?
+      //Check if Properties are indexed
+      checkCanSearchFor(event, dbHandler);
+
+    if (isExtendedSpace(event) && event.getContext() == DEFAULT) {
+      SQLQuery query = super.buildQuery(event);
+
+      final BBox bbox = event.getBbox();
+      SQLQuery geoQuery = new SQLQuery("ST_Intersects(geo, ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326))")
+          .withNamedParameter("minLon", bbox.minLon())
+          .withNamedParameter("minLat", bbox.minLat())
+          .withNamedParameter("maxLon", bbox.maxLon())
+          .withNamedParameter("maxLat", bbox.maxLat());
+
+      SQLQuery filterWhereClause = new SQLQuery("${{geoQuery}} AND ${{searchQuery}}")
+          .withQueryFragment("geoQuery", geoQuery)
+          .withQueryFragment("searchQuery", query.getQueryFragment("filterWhereClause"));
+
+      return query.withQueryFragment("filterWhereClause", filterWhereClause);
+    }
+
+    SQLQuery query = GetFeaturesByBBox.buildGetFeaturesByBBoxQuery(event);
+    if (isMvtRequested = isMvtRequested(event))
+      return buildMvtEncapsuledQuery((GetFeaturesByTileEvent) event, query);
+    return query;
+  }
+
+  @Override
+  public R handle(ResultSet rs) throws SQLException {
+    return isMvtRequested ? (R) dbHandler.defaultBinaryResultSetHandler(rs) : super.handle(rs);
+  }
+
+  public static SQLQuery buildMvtEncapsuledQuery(GetFeaturesByTileEvent event, SQLQuery dataQry) {
+    return buildMvtEncapsuledQuery(null, event, dataQry);
+  }
+
+  public static SQLQuery buildMvtEncapsuledQuery( String tableName, GetFeaturesByTileEvent event, SQLQuery dataQry) {
+    WebMercatorTile mvtTile = !event.getHereTileFlag() ? WebMercatorTile.forWeb(event.getLevel(), event.getX(), event.getY()) : null;
+    HQuad hereTile = event.getHereTileFlag() ? new HQuad(event.getX(), event.getY(), event.getLevel()) : null;
+    int mvtMargin = event.getMargin();
+    boolean isFlattend = event.getResponseType() == MVT_FLATTENED;
+    String spaceIdOrTableName = tableName != null ? tableName : event.getSpace(); //TODO: Streamline function ST_AsMVT() so it only takes one or the other
+    BBox eventBbox = event.getBbox();
+
+      //TODO: The following is a workaround for backwards-compatibility and can be removed after completion of refactoring
+      dataQry.replaceUnnamedParameters();
+      dataQry.replaceFragments();
+      dataQry.replaceNamedParameters();
+      int extend = 4096, buffer = (extend / WebMercatorTile.TileSizeInPixel) * mvtMargin;
+      BBox b = ( mvtTile != null ? mvtTile.getBBox(false) : ( hereTile != null ? hereTile.getBoundingBox() : eventBbox) ); // pg ST_AsMVTGeom expects tiles bbox without buffer.
+
+      SQLQuery r = new SQLQuery( DhString.format( hereTile == null ? TweaksSQL.mvtBeginSql : TweaksSQL.hrtBeginSql ,
+                                   DhString.format( TweaksSQL.requestedTileBoundsSql , b.minLon(), b.minLat(), b.maxLon(), b.maxLat() ),
+                                   (!isFlattend) ? TweaksSQL.mvtPropertiesSql : TweaksSQL.mvtPropertiesFlattenSql,
+                                   extend,
+                                   buffer )
+                               );
+      r.append(dataQry);
+      r.append( DhString.format( TweaksSQL.mvtEndSql, spaceIdOrTableName ));
+      return r;
+    }
+
+
+
+  //##############################################################################
+
+//  private SQLQuery buildLegacyQueries(E event) throws ErrorResponseException {
+//
+//  }
+
+
+
+
+
+
+
+
+
+
+  //###############################################################################
+
+
+
+  //TODO: Can be removed after completion of refactoring
+  @Deprecated
+  private static SQLQuery generateCombinedQueryBWC(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery) {
+    indexedQuery.replaceUnnamedParameters();
+    SQLQuery query = generateCombinedQuery(event, indexedQuery);
+    if (query != null)
+      query.replaceNamedParameters();
+    return query;
+  }
+
+  private static SQLQuery generateCombinedQuery(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery) {
+    final SQLQuery query = new SQLQuery(
+        "SELECT ${{selection}}, ${{geo}}"
+            + "    FROM ${schema}.${table} ${{tableSample}}"
+            + "    WHERE ${{filterWhereClause}} ${{orderBy}} ${{limit}}"
+    );
+
+    query.setQueryFragment("selection", buildSelectionFragment(event));
+    query.setQueryFragment("geo", buildClippedGeoFragment(event));
+    query.setQueryFragment("tableSample", ""); //Can be overridden by caller
+
+    SQLQuery filterWhereClause = new SQLQuery("${{indexedQuery}} AND ${{searchQuery}}");
+
+    filterWhereClause.setQueryFragment("indexedQuery", indexedQuery);
+    SQLQuery searchQuery = generateSearchQuery(event);
+    if (searchQuery == null)
+      filterWhereClause.setQueryFragment("searchQuery", "TRUE");
+    else
+      filterWhereClause.setQueryFragment("searchQuery", searchQuery);
+
+    query.setQueryFragment("filterWhereClause", filterWhereClause);
+    query.setQueryFragment("orderBy", ""); //Can be overridden by caller
+    query.setQueryFragment("limit", buildLimitFragment(event.getLimit()));
+
+    return query;
+  }
+
+  @Override
+  protected SQLQuery buildClippedGeoFragment(E event, SQLQuery geoFilter) {
+    return null;
+    //TODO: Move code from static method here after refactoring
+  }
+
+  private static SQLQuery buildClippedGeoFragment(final GetFeaturesByBBoxEvent event) {
+    boolean convertToGeoJson = getResponseType(event) == GEO_JSON;
+    if (!event.getClip())
+      return buildGeoFragment(event, convertToGeoJson);
+
+    //TODO: Refactor by re-using geoFilter for clippedGeo (see: GetFeaturesByGeometry#buildClippedGeoFragment())
+
+    final BBox bbox = event.getBbox();
+
+    SQLQuery clippedGeo = new SQLQuery("ST_Intersection(ST_MakeValid(geo), ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326))")
+        .withNamedParameter("minLon", bbox.minLon())
+        .withNamedParameter("minLat", bbox.minLat())
+        .withNamedParameter("maxLon", bbox.maxLon())
+        .withNamedParameter("maxLat", bbox.maxLat());
+
+    return buildGeoFragment(event, convertToGeoJson, clippedGeo);
+  }
+
+  //---------------------------
+
 
   public static SQLQuery buildGetFeaturesByBBoxQuery(final GetFeaturesByBBoxEvent event)
         throws SQLException{
@@ -59,104 +208,7 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent> extends Spatial
         return generateCombinedQueryBWC(event, geoQuery);
     }
 
-  /***************************************** CLUSTERING ******************************************************/
-
-    private static int evalH3Resolution( Map<String, Object> clusteringParams, int defaultResForLevel )
-    {
-     int h3res = defaultResForLevel, overzoomingRes = 2; // restrict to "defaultResForLevel + 2" as maximum resolution per level
-
-     if( clusteringParams == null ) return h3res;
-/** deprecated */
-     if( clusteringParams.get(H3SQL.HEXBIN_RESOLUTION) != null )
-      h3res = Math.min((Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION), defaultResForLevel + overzoomingRes);
-/***/
-     if( clusteringParams.get(H3SQL.HEXBIN_RESOLUTION_ABSOLUTE) != null )
-      h3res = Math.min((Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION_ABSOLUTE), defaultResForLevel + overzoomingRes);
-
-     if( clusteringParams.get(H3SQL.HEXBIN_RESOLUTION_RELATIVE) != null )
-      h3res += Math.max(-2, Math.min( 2, (Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION_RELATIVE)));
-
-     return Math.min( Math.min( h3res, defaultResForLevel + overzoomingRes ) , 13 ); // cut to maximum res
-    }
-
-  public static SQLQuery buildHexbinClusteringQuery(
-            GetFeaturesByBBoxEvent event, BBox bbox,
-            Map<String, Object> clusteringParams) {
-
-        int zLevel = (event instanceof GetFeaturesByTileEvent ? ((GetFeaturesByTileEvent) event).getLevel() : H3SQL.bbox2zoom(bbox)),
-            defaultResForLevel = H3SQL.zoom2resolution(zLevel),
-            h3res = evalH3Resolution( clusteringParams, defaultResForLevel );
-
-        if( zLevel == 1)  // prevent ERROR:  Antipodal (180 degrees long) edge detected!
-         if( bbox.minLon() == 0.0 )
-          bbox.setEast( bbox.maxLon() - 0.0001 );
-         else
-          bbox.setWest( bbox.minLon() + 0.0001);
-
-        String statisticalProperty = (String) clusteringParams.get(H3SQL.HEXBIN_PROPERTY);
-        boolean statisticalPropertyProvided = (statisticalProperty != null && statisticalProperty.length() > 0),
-                h3cflip = (clusteringParams.get(H3SQL.HEXBIN_POINTMODE) == Boolean.TRUE);
-               /** todo: replace format %.14f with parameterized version*/
-        final String expBboxSql = String
-                .format("st_envelope( st_buffer( ST_MakeEnvelope(%.14f,%.14f,%.14f,%.14f, 4326)::geography, ( 2.5 * edgeLengthM( %d )) )::geometry )",
-                        bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat(), h3res);
-
-        /*clippedGeo - passed bbox is extended by "margin" on service level */
-        String clippedGeo = (!event.getClip() ? "geo" : String
-                .format("ST_Intersection(st_makevalid(geo),ST_MakeEnvelope(%.14f,%.14f,%.14f,%.14f,4326) )", bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat())),
-                fid = (!event.getClip() ? "h3" : DhString.format("h3 || %f || %f", bbox.minLon(), bbox.minLat())),
-                filterEmptyGeo = (!event.getClip() ? "" : DhString.format(" and not st_isempty( %s ) ", clippedGeo));
-
-        final SQLQuery searchQuery = generateSearchQueryBWC(event);
-
-        String aggField = (statisticalPropertyProvided ? "jsonb_set('{}'::jsonb, ? , agg::jsonb)::json" : "agg");
-
-        final SQLQuery query = new SQLQuery(DhString.format(H3SQL.h3sqlBegin, h3res,
-                !h3cflip ? "st_centroid(geo)" : "geo",
-                DhString.format( (getResponseType(event) == GEO_JSON ? "st_asgeojson( %1$s, 7 )::json" : "(%1$s)" ), (h3cflip ? "st_centroid(geo)" : clippedGeo) ),
-                statisticalPropertyProvided ? ", min, max, sum, avg, median" : "",
-                zLevel,
-                !h3cflip ? "centroid" : "hexagon",
-                aggField,
-                fid,
-                expBboxSql));
-
-        if (statisticalPropertyProvided) {
-            ArrayList<String> jpath = new ArrayList<>();
-            jpath.add(statisticalProperty);
-            query.addParameter(jpath.toArray(new String[]{}));
-        }
-
-        int pxSize = H3SQL.adjPixelSize( h3res, defaultResForLevel );
-
-        String h3sqlMid = H3SQL.h3sqlMid( clusteringParams.get(H3SQL.HEXBIN_SINGLECOORD) == Boolean.TRUE );
-
-        int samplingStrength = samplingStrengthFromText((String) clusteringParams.getOrDefault(H3SQL.HEXBIN_SAMPLING, "off"),false);
-        String samplingCondition =  ( samplingStrength <= 0 ? "1 = 1" : TweaksSQL.strengthSql( samplingStrength, true) );
-
-        if (!statisticalPropertyProvided) {
-            query.append(new SQLQuery(DhString.format(h3sqlMid, h3res, "(0.0)::numeric", zLevel, pxSize,expBboxSql,samplingCondition)));
-        } else {
-            ArrayList<String> jpath = new ArrayList<>();
-            jpath.add("properties");
-            jpath.addAll(Arrays.asList(statisticalProperty.split("\\.")));
-
-            query.append(new SQLQuery(DhString.format(h3sqlMid, h3res, "(jsondata#>> ?)::numeric", zLevel, pxSize,expBboxSql,samplingCondition)));
-            query.addParameter(jpath.toArray(new String[]{}));
-        }
-
-        if (searchQuery != null) {
-            query.append(" and ");
-            query.append(searchQuery);
-        }
-
-        query.append(DhString.format(H3SQL.h3sqlEnd, filterEmptyGeo));
-        query.append("LIMIT ?", event.getLimit());
-
-        return query;
-    }
-
-  private static WebMercatorTile getTileFromBbox(BBox bbox)
+  public static WebMercatorTile getTileFromBbox(BBox bbox)
     {
      /* Quadkey calc */
      final int lev = WebMercatorTile.getZoomFromBBOX(bbox);
@@ -166,32 +218,6 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent> extends Spatial
      return WebMercatorTile.getTileFromLatLonLev(lat2, lon2, lev);
     }
 
-  public static SQLQuery buildQuadbinClusteringQuery(GetFeaturesByBBoxEvent event,
-                                                          BBox bbox, int relResolution, int absResolution, String countMode,
-                                                          PSQLConfig config, boolean noBuffer) {
-        boolean isTileRequest = (event instanceof GetFeaturesByTileEvent) && ((GetFeaturesByTileEvent) event).getMargin() == 0,
-                clippedOnBbox = (!isTileRequest && event.getClip());
-
-        final WebMercatorTile tile = getTileFromBbox(bbox);
-
-        if( (absResolution - tile.level) >= 0 )  // case of valid absResolution convert it to a relative resolution and add both resolutions
-         relResolution = Math.min( relResolution + (absResolution - tile.level), 5);
-
-        SQLQuery propQuery;
-        String propQuerySQL = null;
-
-        if (event.getPropertiesQuery() != null) {
-            propQuery = generatePropertiesQueryBWC(event);
-
-            if (propQuery != null) {
-                propQuerySQL = propQuery.text();
-                for (Object param : propQuery.parameters()) {
-                    propQuerySQL = propQuerySQL.replaceFirst("\\?", "'" + param + "'");
-                }
-            }
-        }
-        return QuadbinSQL.generateQuadbinClusteringSQL(config.getDatabaseSettings().getSchema(), config.readTableFromEvent(event), relResolution, countMode, propQuerySQL, tile, bbox, isTileRequest, clippedOnBbox, noBuffer, getResponseType(event) == GEO_JSON);
-    }
 
   /***************************************** TWEAKS **************************************************/
 
@@ -199,6 +225,11 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent> extends Spatial
     if (event instanceof GetFeaturesByTileEvent)
       return ((GetFeaturesByTileEvent) event).getResponseType();
     return GEO_JSON;
+  }
+
+  protected static boolean isMvtRequested(GetFeaturesByBBoxEvent event) {
+    ResponseType responseType = getResponseType(event);
+    return responseType == MVT || responseType == MVT_FLATTENED;
   }
 
   private static String map2MvtGeom( GetFeaturesByBBoxEvent event, BBox bbox, String tweaksGeoSql )
@@ -274,7 +305,7 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent> extends Spatial
    return DhString.format( fmt, tweaksGeoSql, bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
   }
 
-  private static int samplingStrengthFromText( String sampling, boolean fiftyOnUnset )
+  protected static int samplingStrengthFromText(String sampling, boolean fiftyOnUnset)
   {
    int strength = 0;
    switch( sampling.toLowerCase() )
@@ -290,8 +321,10 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent> extends Spatial
 
   }
 
-  public static SQLQuery buildSamplingTweaksQuery(GetFeaturesByBBoxEvent event, BBox bbox, Map tweakParams, boolean bSortByHashedValue) throws SQLException
+  public static SQLQuery buildSamplingTweaksQuery(GetFeaturesByBBoxEvent event, Map tweakParams) throws SQLException
   {
+    BBox bbox = event.getBbox();
+    boolean bSortByHashedValue = (boolean) tweakParams.get("sortByHashedValue");
    int strength = 0;
    boolean bDistribution  = true,
            bDistribution2 = false,
@@ -354,8 +387,9 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent> extends Spatial
    return tolerance;
   }
 
-  public static SQLQuery buildSimplificationTweaksQuery(GetFeaturesByBBoxEvent event, BBox bbox, Map tweakParams) throws SQLException
+  public static SQLQuery buildSimplificationTweaksQuery(GetFeaturesByBBoxEvent event, Map tweakParams) throws SQLException
   {
+    BBox bbox = event.getBbox();
    int strength = 0,
        iMerge = 0;
    String tweaksGeoSql = "geo";
@@ -461,43 +495,6 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent> extends Spatial
      return query;
 }
 
-  public static SQLQuery buildEstimateSamplingStrengthQuery( GetFeaturesByBBoxEvent event, BBox bbox, String relTuples )
-  {
-   int level, tileX, tileY, margin = 0;
-
-   if( event instanceof GetFeaturesByTileEvent )
-   { GetFeaturesByTileEvent tevnt = (GetFeaturesByTileEvent) event;
-     level = tevnt.getLevel();
-     tileX = tevnt.getX();
-     tileY = tevnt.getY();
-     margin = tevnt.getMargin();
-   }
-   else
-   { final WebMercatorTile tile = getTileFromBbox(bbox);
-     level = tile.level;
-     tileX = tile.x;
-     tileY = tile.y;
-   }
-
-   ArrayList<BBox> listOfBBoxes = new ArrayList<BBox>();
-   int nrTilesXY = 1 << level;
-
-   for( int dy = -1; dy < 2; dy++ )
-    for( int dx = -1; dx < 2; dx++ )
-     if( (dy == 0) && (dx == 0) ) listOfBBoxes.add(bbox);  // centerbox, this is already extended by margin
-     else if( ((tileY + dy) > 0) && ((tileY + dy) < nrTilesXY) )
-      listOfBBoxes.add( WebMercatorTile.forWeb(level, ((nrTilesXY +(tileX + dx)) % nrTilesXY) , (tileY + dy)).getExtendedBBox(margin) );
-
-   int flag = 0;
-   StringBuilder sb = new StringBuilder();
-   for (BBox b : listOfBBoxes)
-    sb.append(DhString.format("%s%s",( flag++ > 0 ? "," : ""),DhString.format( TweaksSQL.requestedTileBoundsSql , b.minLon(), b.minLat(), b.maxLon(), b.maxLat() )));
-
-   String estimateSubSql = ( relTuples == null ? TweaksSQL.estWithPgClass : DhString.format( TweaksSQL.estWithoutPgClass, relTuples ) );
-
-   return new SQLQuery( DhString.format( TweaksSQL.estimateCountByBboxesSql, sb.toString(), estimateSubSql ) );
-  }
-
   /** ###################################################################################### */
 
   private static SQLQuery generateCombinedQueryTweaks(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery, String tweaksgeo, boolean bTestTweaksGeoIfNull, float sampleRatio, boolean bSortByHashedValue)
@@ -531,90 +528,7 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent> extends Spatial
   private static SQLQuery generateCombinedQueryTweaks(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery, String tweaksgeo, boolean bTestTweaksGeoIfNull)
     { return generateCombinedQueryTweaks(event, indexedQuery, tweaksgeo, bTestTweaksGeoIfNull, -1.0f, false );  }
 
-  public static String getForceMode(boolean isForce2D) {
+  private static String getForceMode(boolean isForce2D) {
     return isForce2D ? "ST_Force2D" : "ST_Force3D";
-  }
-
-  @Override
-  protected SQLQuery buildQuery(E event) throws SQLException {
-    //NOTE: So far this query runner only handles queries regarding extended spaces
-    if (isExtendedSpace(event) && event.getContext() == DEFAULT) {
-      SQLQuery query = super.buildQuery(event);
-
-      final BBox bbox = event.getBbox();
-      SQLQuery geoQuery = new SQLQuery("ST_Intersects(geo, ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326))")
-          .withNamedParameter("minLon", bbox.minLon())
-          .withNamedParameter("minLat", bbox.minLat())
-          .withNamedParameter("maxLon", bbox.maxLon())
-          .withNamedParameter("maxLat", bbox.maxLat());
-
-      SQLQuery filterWhereClause = new SQLQuery("${{geoQuery}} AND ${{searchQuery}}")
-          .withQueryFragment("geoQuery", geoQuery)
-          .withQueryFragment("searchQuery", query.getQueryFragment("filterWhereClause"));
-
-      return query.withQueryFragment("filterWhereClause", filterWhereClause);
-    }
-    return null;
-  }
-
-  //TODO: Can be removed after completion of refactoring
-  @Deprecated
-  public static SQLQuery generateCombinedQueryBWC(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery) {
-    indexedQuery.replaceUnnamedParameters();
-    SQLQuery query = generateCombinedQuery(event, indexedQuery);
-    if (query != null)
-      query.replaceNamedParameters();
-    return query;
-  }
-
-  private static SQLQuery generateCombinedQuery(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery) {
-    final SQLQuery query = new SQLQuery(
-        "SELECT ${{selection}}, ${{geo}}"
-        + "    FROM ${schema}.${table} ${{tableSample}}"
-        + "    WHERE ${{filterWhereClause}} ${{orderBy}} ${{limit}}"
-    );
-
-    query.setQueryFragment("selection", buildSelectionFragment(event));
-    query.setQueryFragment("geo", buildClippedGeoFragment(event));
-    query.setQueryFragment("tableSample", ""); //Can be overridden by caller
-
-    SQLQuery filterWhereClause = new SQLQuery("${{indexedQuery}} AND ${{searchQuery}}");
-
-    filterWhereClause.setQueryFragment("indexedQuery", indexedQuery);
-    SQLQuery searchQuery = generateSearchQuery(event);
-    if (searchQuery == null)
-      filterWhereClause.setQueryFragment("searchQuery", "TRUE");
-    else
-      filterWhereClause.setQueryFragment("searchQuery", searchQuery);
-
-    query.setQueryFragment("filterWhereClause", filterWhereClause);
-    query.setQueryFragment("orderBy", ""); //Can be overridden by caller
-    query.setQueryFragment("limit", buildLimitFragment(event.getLimit()));
-
-    return query;
-  }
-
-  @Override
-  protected SQLQuery buildClippedGeoFragment(E event, SQLQuery geoFilter) {
-    return null;
-    //TODO: Move code from static method here after refactoring
-  }
-
-  static SQLQuery buildClippedGeoFragment(final GetFeaturesByBBoxEvent event) {
-    boolean convertToGeoJson = getResponseType(event) == GEO_JSON;
-    if (!event.getClip())
-      return buildGeoFragment(event, convertToGeoJson);
-
-    //TODO: Refactor by re-using geoFilter for clippedGeo (see: GetFeaturesByGeometry#buildClippedGeoFragment())
-
-    final BBox bbox = event.getBbox();
-
-    SQLQuery clippedGeo = new SQLQuery("ST_Intersection(ST_MakeValid(geo), ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326))")
-        .withNamedParameter("minLon", bbox.minLon())
-        .withNamedParameter("minLat", bbox.minLat())
-        .withNamedParameter("maxLon", bbox.maxLon())
-        .withNamedParameter("maxLat", bbox.maxLat());
-
-    return buildGeoFragment(event, convertToGeoJson, clippedGeo);
   }
 }
