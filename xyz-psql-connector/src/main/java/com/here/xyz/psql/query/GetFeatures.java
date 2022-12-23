@@ -66,7 +66,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     else {
       query = new SQLQuery(
           "SELECT ${{selection}}, ${{geo}}${{iColumn}}"
-              + "    FROM ${schema}.${table}"
+              + "    FROM ${schema}.${table} ${{tableSample}}"
               + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{authorCheck}} ${{orderBy}} ${{limit}} ${{offset}}");
     }
 
@@ -76,6 +76,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     query.setQueryFragment("selection", buildSelectionFragment(event));
     query.setQueryFragment("geo", buildGeoFragment(event));
     query.setQueryFragment("iColumn", ""); //NOTE: This can be overridden by implementing subclasses
+    query.setQueryFragment("tableSample", ""); //NOTE: This can be overridden by implementing subclasses
     query.setQueryFragment("limit", ""); //NOTE: This can be overridden by implementing subclasses
 
     query.setVariable(SCHEMA, getSchema());
