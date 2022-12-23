@@ -54,26 +54,7 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
       //Check if Properties are indexed
       checkCanSearchFor(event, dbHandler);
 
-    final BBox bbox = event.getBbox();
-    SQLQuery geoFilter = new SQLQuery("ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326)")
-        .withNamedParameter("minLon", bbox.minLon())
-        .withNamedParameter("minLat", bbox.minLat())
-        .withNamedParameter("maxLon", bbox.maxLon())
-        .withNamedParameter("maxLat", bbox.maxLat());
-
     SQLQuery query = super.buildQuery(event);
-    SQLQuery geoQuery = new SQLQuery("ST_Intersects(geo, ${{geoFilter}})")
-        .withQueryFragment("geoFilter", geoFilter);
-
-    SQLQuery filterWhereClause = new SQLQuery("${{geoQuery}} AND ${{searchQuery}}")
-        .withQueryFragment("geoQuery", geoQuery)
-        //Use the existing clause as searchQuery (from the base query)
-        .withQueryFragment("searchQuery", query.getQueryFragment("filterWhereClause"));
-
-    query
-        .withQueryFragment("filterWhereClause", filterWhereClause)
-        //Override the geo fragment by a clipped version
-        .withQueryFragment("geo", buildClippedGeoFragment(event, geoFilter));
 
     if (isMvtRequested = isMvtRequested(event))
       return buildMvtEncapsuledQuery((GetFeaturesByTileEvent) event, query);
@@ -83,6 +64,17 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
   @Override
   public R handle(ResultSet rs) throws SQLException {
     return isMvtRequested ? (R) dbHandler.defaultBinaryResultSetHandler(rs) : super.handle(rs);
+  }
+
+  @Override
+  protected SQLQuery buildGeoFilter(GetFeaturesByBBoxEvent event) {
+    final BBox bbox = event.getBbox();
+    SQLQuery geoFilter = new SQLQuery("ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326)")
+        .withNamedParameter("minLon", bbox.minLon())
+        .withNamedParameter("minLat", bbox.minLat())
+        .withNamedParameter("maxLon", bbox.maxLon())
+        .withNamedParameter("maxLat", bbox.maxLat());
+    return geoFilter;
   }
 
   private SQLQuery generateCombinedQuery(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery) {
@@ -166,14 +158,7 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
 
   @Deprecated
   private SQLQuery buildClippedGeoFragment(final GetFeaturesByBBoxEvent event) {
-    final BBox bbox = event.getBbox();
-    SQLQuery geoFilter = new SQLQuery("ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326)")
-        .withNamedParameter("minLon", bbox.minLon())
-        .withNamedParameter("minLat", bbox.minLat())
-        .withNamedParameter("maxLon", bbox.maxLon())
-        .withNamedParameter("maxLat", bbox.maxLat());
-
-    return buildClippedGeoFragment((E) event, geoFilter);
+    return buildClippedGeoFragment((E) event, buildGeoFilter(event));
   }
 
   //---------------------------

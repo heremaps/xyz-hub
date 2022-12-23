@@ -34,7 +34,7 @@ public class GetFeaturesByGeometry extends Spatial<GetFeaturesByGeometryEvent, F
   }
 
   @Override
-  protected SQLQuery buildQuery(GetFeaturesByGeometryEvent event) throws SQLException, ErrorResponseException {
+  protected SQLQuery buildGeoFilter(GetFeaturesByGeometryEvent event) {
     final int radius = event.getRadius();
 
     SQLQuery geoFilter = event.getH3Index() != null
@@ -47,22 +47,7 @@ public class GetFeaturesByGeometry extends Spatial<GetFeaturesByGeometryEvent, F
       geoFilter = new SQLQuery("ST_Buffer(${{wrappedGeoFilter}}::geography, #{radius})::geometry")
           .withQueryFragment("wrappedGeoFilter", geoFilter)
           .withNamedParameter("radius", radius);
-
-    SQLQuery query = super.buildQuery(event);
-    SQLQuery geoQuery = new SQLQuery("ST_Intersects(geo, ${{geoFilter}})")
-        .withQueryFragment("geoFilter", geoFilter);
-
-    SQLQuery filterWhereClause = new SQLQuery("${{geoQuery}} AND ${{searchQuery}}")
-        .withQueryFragment("geoQuery", geoQuery)
-        //Use the existing clause as searchQuery (from the base query)
-        .withQueryFragment("searchQuery", query.getQueryFragment("filterWhereClause"));
-
-    query
-        .withQueryFragment("filterWhereClause", filterWhereClause)
-        //Override the geo fragment by a clipped version
-        .withQueryFragment("geo", buildClippedGeoFragment(event, geoFilter));
-
-    return query;
+    return geoFilter;
   }
 
   @Override

@@ -32,6 +32,29 @@ public abstract class Spatial<E extends SpatialQueryEvent, R extends XyzResponse
     super(event, dbHandler);
   }
 
+  @Override
+  protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
+    SQLQuery geoFilter = buildGeoFilter(event);
+
+    SQLQuery query = super.buildQuery(event);
+    SQLQuery geoQuery = new SQLQuery("ST_Intersects(geo, ${{geoFilter}})")
+        .withQueryFragment("geoFilter", geoFilter);
+
+    SQLQuery filterWhereClause = new SQLQuery("${{geoQuery}} AND ${{searchQuery}}")
+        .withQueryFragment("geoQuery", geoQuery)
+        //Use the existing clause as searchQuery (from the base query)
+        .withQueryFragment("searchQuery", query.getQueryFragment("filterWhereClause"));
+
+    query
+        .withQueryFragment("filterWhereClause", filterWhereClause)
+        //Override the geo fragment by a clipped version
+        .withQueryFragment("geo", buildClippedGeoFragment(event, geoFilter));
+
+    return query;
+  }
+
+  protected abstract SQLQuery buildGeoFilter(E event);
+
   /**
    * Returns a geo-fragment, which will return the geometry objects clipped by the provided geoFilter
    * depending on whether clipping is active or not.
