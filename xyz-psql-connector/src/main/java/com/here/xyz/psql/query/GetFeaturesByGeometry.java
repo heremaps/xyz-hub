@@ -49,7 +49,8 @@ public class GetFeaturesByGeometry extends Spatial<GetFeaturesByGeometryEvent, F
           .withNamedParameter("radius", radius);
 
     SQLQuery query = super.buildQuery(event);
-    SQLQuery geoQuery = new SQLQuery("ST_Intersects(geo, ${{geoFilter}})").withQueryFragment("geoFilter", geoFilter);
+    SQLQuery geoQuery = new SQLQuery("ST_Intersects(geo, ${{geoFilter}})")
+        .withQueryFragment("geoFilter", geoFilter);
 
     SQLQuery filterWhereClause = new SQLQuery("${{geoQuery}} AND ${{searchQuery}}")
         .withQueryFragment("geoQuery", geoQuery)

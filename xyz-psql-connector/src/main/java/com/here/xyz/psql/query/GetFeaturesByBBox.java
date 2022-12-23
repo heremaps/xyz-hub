@@ -19,7 +19,6 @@
 
 package com.here.xyz.psql.query;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.GEO_JSON;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
@@ -55,24 +54,27 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
       //Check if Properties are indexed
       checkCanSearchFor(event, dbHandler);
 
-    if (isExtendedSpace(event) && event.getContext() == DEFAULT) {
-      SQLQuery query = super.buildQuery(event);
+    final BBox bbox = event.getBbox();
+    SQLQuery geoFilter = new SQLQuery("ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326)")
+        .withNamedParameter("minLon", bbox.minLon())
+        .withNamedParameter("minLat", bbox.minLat())
+        .withNamedParameter("maxLon", bbox.maxLon())
+        .withNamedParameter("maxLat", bbox.maxLat());
 
-      final BBox bbox = event.getBbox();
-      SQLQuery geoQuery = new SQLQuery("ST_Intersects(geo, ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326))")
-          .withNamedParameter("minLon", bbox.minLon())
-          .withNamedParameter("minLat", bbox.minLat())
-          .withNamedParameter("maxLon", bbox.maxLon())
-          .withNamedParameter("maxLat", bbox.maxLat());
+    SQLQuery query = super.buildQuery(event);
+    SQLQuery geoQuery = new SQLQuery("ST_Intersects(geo, ${{geoFilter}})")
+        .withQueryFragment("geoFilter", geoFilter);
 
-      SQLQuery filterWhereClause = new SQLQuery("${{geoQuery}} AND ${{searchQuery}}")
-          .withQueryFragment("geoQuery", geoQuery)
-          .withQueryFragment("searchQuery", query.getQueryFragment("filterWhereClause"));
+    SQLQuery filterWhereClause = new SQLQuery("${{geoQuery}} AND ${{searchQuery}}")
+        .withQueryFragment("geoQuery", geoQuery)
+        //Use the existing clause as searchQuery (from the base query)
+        .withQueryFragment("searchQuery", query.getQueryFragment("filterWhereClause"));
 
-      return query.withQueryFragment("filterWhereClause", filterWhereClause);
-    }
+    query
+        .withQueryFragment("filterWhereClause", filterWhereClause)
+        //Override the geo fragment by a clipped version
+        .withQueryFragment("geo", buildClippedGeoFragment(event, geoFilter));
 
-    SQLQuery query = GetFeaturesByBBox.buildGetFeaturesByBBoxQuery(event);
     if (isMvtRequested = isMvtRequested(event))
       return buildMvtEncapsuledQuery((GetFeaturesByTileEvent) event, query);
     return query;
@@ -81,6 +83,33 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
   @Override
   public R handle(ResultSet rs) throws SQLException {
     return isMvtRequested ? (R) dbHandler.defaultBinaryResultSetHandler(rs) : super.handle(rs);
+  }
+
+  private SQLQuery generateCombinedQuery(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery) {
+    final SQLQuery query = new SQLQuery(
+        "SELECT ${{selection}}, ${{geo}}"
+            + "    FROM ${schema}.${table} ${{tableSample}}"
+            + "    WHERE ${{filterWhereClause}} ${{orderBy}} ${{limit}}"
+    );
+
+    query.setQueryFragment("selection", buildSelectionFragment(event));
+    query.setQueryFragment("geo", buildClippedGeoFragment(event));
+    query.setQueryFragment("tableSample", ""); //Can be overridden by caller
+
+    SQLQuery filterWhereClause = new SQLQuery("${{indexedQuery}} AND ${{searchQuery}}");
+
+    filterWhereClause.setQueryFragment("indexedQuery", indexedQuery);
+    SQLQuery searchQuery = generateSearchQuery(event);
+    if (searchQuery == null)
+      filterWhereClause.setQueryFragment("searchQuery", "TRUE");
+    else
+      filterWhereClause.setQueryFragment("searchQuery", searchQuery);
+
+    query.setQueryFragment("filterWhereClause", filterWhereClause);
+    query.setQueryFragment("orderBy", ""); //Can be overridden by caller
+    query.setQueryFragment("limit", buildLimitFragment(event.getLimit()));
+
+    return query;
   }
 
   public static SQLQuery buildMvtEncapsuledQuery(GetFeaturesByTileEvent event, SQLQuery dataQry) {
@@ -113,30 +142,9 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
       return r;
     }
 
-
-
-  //##############################################################################
-
-//  private SQLQuery buildLegacyQueries(E event) throws ErrorResponseException {
-//
-//  }
-
-
-
-
-
-
-
-
-
-
-  //###############################################################################
-
-
-
   //TODO: Can be removed after completion of refactoring
   @Deprecated
-  private static SQLQuery generateCombinedQueryBWC(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery) {
+  private SQLQuery generateCombinedQueryBWC(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery) {
     indexedQuery.replaceUnnamedParameters();
     SQLQuery query = generateCombinedQuery(event, indexedQuery);
     if (query != null)
@@ -144,69 +152,31 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
     return query;
   }
 
-  private static SQLQuery generateCombinedQuery(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery) {
-    final SQLQuery query = new SQLQuery(
-        "SELECT ${{selection}}, ${{geo}}"
-            + "    FROM ${schema}.${table} ${{tableSample}}"
-            + "    WHERE ${{filterWhereClause}} ${{orderBy}} ${{limit}}"
-    );
-
-    query.setQueryFragment("selection", buildSelectionFragment(event));
-    query.setQueryFragment("geo", buildClippedGeoFragment(event));
-    query.setQueryFragment("tableSample", ""); //Can be overridden by caller
-
-    SQLQuery filterWhereClause = new SQLQuery("${{indexedQuery}} AND ${{searchQuery}}");
-
-    filterWhereClause.setQueryFragment("indexedQuery", indexedQuery);
-    SQLQuery searchQuery = generateSearchQuery(event);
-    if (searchQuery == null)
-      filterWhereClause.setQueryFragment("searchQuery", "TRUE");
-    else
-      filterWhereClause.setQueryFragment("searchQuery", searchQuery);
-
-    query.setQueryFragment("filterWhereClause", filterWhereClause);
-    query.setQueryFragment("orderBy", ""); //Can be overridden by caller
-    query.setQueryFragment("limit", buildLimitFragment(event.getLimit()));
-
-    return query;
-  }
-
   @Override
   protected SQLQuery buildClippedGeoFragment(E event, SQLQuery geoFilter) {
-    return null;
-    //TODO: Move code from static method here after refactoring
-  }
-
-  private static SQLQuery buildClippedGeoFragment(final GetFeaturesByBBoxEvent event) {
     boolean convertToGeoJson = getResponseType(event) == GEO_JSON;
     if (!event.getClip())
       return buildGeoFragment(event, convertToGeoJson);
 
-    //TODO: Refactor by re-using geoFilter for clippedGeo (see: GetFeaturesByGeometry#buildClippedGeoFragment())
+    SQLQuery clippedGeo = new SQLQuery("ST_Intersection(ST_MakeValid(geo), ${{geoFilter}})")
+        .withQueryFragment("geoFilter", geoFilter);
 
+    return super.buildGeoFragment(event, convertToGeoJson, clippedGeo);
+  }
+
+  @Deprecated
+  private SQLQuery buildClippedGeoFragment(final GetFeaturesByBBoxEvent event) {
     final BBox bbox = event.getBbox();
-
-    SQLQuery clippedGeo = new SQLQuery("ST_Intersection(ST_MakeValid(geo), ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326))")
+    SQLQuery geoFilter = new SQLQuery("ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326)")
         .withNamedParameter("minLon", bbox.minLon())
         .withNamedParameter("minLat", bbox.minLat())
         .withNamedParameter("maxLon", bbox.maxLon())
         .withNamedParameter("maxLat", bbox.maxLat());
 
-    return buildGeoFragment(event, convertToGeoJson, clippedGeo);
+    return buildClippedGeoFragment((E) event, geoFilter);
   }
 
   //---------------------------
-
-
-  public static SQLQuery buildGetFeaturesByBBoxQuery(final GetFeaturesByBBoxEvent event)
-        throws SQLException{
-        final BBox bbox = event.getBbox();
-
-        final SQLQuery geoQuery = new SQLQuery("ST_Intersects(geo, ST_MakeEnvelope(?, ?, ?, ?, 4326))",
-                bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
-
-        return generateCombinedQueryBWC(event, geoQuery);
-    }
 
   public static WebMercatorTile getTileFromBbox(BBox bbox)
     {
@@ -321,8 +291,7 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
 
   }
 
-  public static SQLQuery buildSamplingTweaksQuery(GetFeaturesByBBoxEvent event, Map tweakParams) throws SQLException
-  {
+  public SQLQuery buildSamplingTweaksQuery(GetFeaturesByBBoxEvent event, Map tweakParams) {
     BBox bbox = event.getBbox();
     boolean bSortByHashedValue = (boolean) tweakParams.get("sortByHashedValue");
    int strength = 0;
