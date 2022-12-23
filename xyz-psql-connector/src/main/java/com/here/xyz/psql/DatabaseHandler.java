@@ -1525,10 +1525,10 @@ public abstract class DatabaseHandler extends StorageConnector {
     public FeatureCollection defaultFeatureResultSetHandler(ResultSet rs) throws SQLException
     { return _defaultFeatureResultSetHandler(rs,false); }
 
-    protected FeatureCollection defaultFeatureResultSetHandlerSkipIfGeomIsNull(ResultSet rs) throws SQLException
+    public FeatureCollection defaultFeatureResultSetHandlerSkipIfGeomIsNull(ResultSet rs) throws SQLException
     { return _defaultFeatureResultSetHandler(rs,true); }
 
-    protected BinaryResponse defaultBinaryResultSetHandler(ResultSet rs) throws SQLException {
+    public BinaryResponse defaultBinaryResultSetHandler(ResultSet rs) throws SQLException {
         BinaryResponse br = new BinaryResponse()
             .withMimeType(APPLICATION_VND_MAPBOX_VECTOR_TILE);
 

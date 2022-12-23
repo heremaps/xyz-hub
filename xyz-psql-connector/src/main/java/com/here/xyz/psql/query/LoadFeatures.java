@@ -23,6 +23,7 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.LoadFeaturesEvent;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import java.sql.SQLException;
@@ -32,14 +33,14 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
+public class LoadFeatures extends GetFeatures<LoadFeaturesEvent, FeatureCollection> {
 
   public LoadFeatures(LoadFeaturesEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(event, dbHandler);
   }
 
   @Override
-  protected SQLQuery buildQuery(LoadFeaturesEvent event) throws SQLException {
+  protected SQLQuery buildQuery(LoadFeaturesEvent event) throws SQLException, ErrorResponseException {
     final Map<String, String> idMap = event.getIdsMap();
 
     SQLQuery filterWhereClause = new SQLQuery("${{idColumn}} = ANY(#{ids})")

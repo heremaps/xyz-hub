@@ -19,10 +19,10 @@
 
 package com.here.xyz.psql.factory;
 
-import static com.here.xyz.psql.PSQLXyzConnector.COUNTMODE_ESTIMATED;
-import static com.here.xyz.psql.PSQLXyzConnector.COUNTMODE_MIXED;
-import static com.here.xyz.psql.PSQLXyzConnector.COUNTMODE_REAL;
-import static com.here.xyz.psql.PSQLXyzConnector.COUNTMODE_BOOL;
+import static com.here.xyz.psql.query.GetFeaturesByBBoxClustered.COUNTMODE_ESTIMATED;
+import static com.here.xyz.psql.query.GetFeaturesByBBoxClustered.COUNTMODE_MIXED;
+import static com.here.xyz.psql.query.GetFeaturesByBBoxClustered.COUNTMODE_REAL;
+import static com.here.xyz.psql.query.GetFeaturesByBBoxClustered.COUNTMODE_BOOL;
 
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
