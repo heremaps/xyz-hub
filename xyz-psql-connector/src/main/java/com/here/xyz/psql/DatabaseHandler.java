@@ -770,6 +770,14 @@ public abstract class DatabaseHandler extends StorageConnector {
                 }
                 collection.getDeleted().addAll(deleteIds);
             }
+
+            // set the version in the returning elements
+            if (event.getVersionsToKeep() > 1) {
+              for (Feature f : collection.getFeatures()) {
+                f.getProperties().getXyzNamespace().setVersion(version);
+              }
+            }
+
             connection.close();
 
             return collection;
