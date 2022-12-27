@@ -1291,8 +1291,11 @@ public class FeatureTaskHandler {
       }
     }
 
-    // version
-    nsXyz.setVersion(entry.inputVersion);
+    // update version for spaces where versioning is enabled
+    if (task.getEvent().getVersionsToKeep() > 1) {
+      // if version is not provided when updating the feature, use version from head
+      nsXyz.setVersion(entry.inputVersion == -1 && !isInsert ? entry.head.getProperties().getXyzNamespace().getVersion() : entry.inputVersion);
+    }
 
     // author
     nsXyz.setAuthor(task.author);
