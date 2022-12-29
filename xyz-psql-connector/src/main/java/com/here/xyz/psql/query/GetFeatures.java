@@ -98,7 +98,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
       query.setQueryFragment("iOffsetIntermediate", ""); //NOTE: This can be overridden by implementing subclasses
     }
     else {
-      query.setQueryFragment("orderBy", ""); //NOTE: This can be overridden by implementing subclasses
+      query.setQueryFragment("orderBy", buildOrderByFragment(event)); //NOTE: This can be overridden by implementing subclasses
       query.setQueryFragment("offset", ""); //NOTE: This can be overridden by implementing subclasses
     }
 
@@ -229,6 +229,13 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
     if (DatabaseHandler.readVersionsToKeep(event) > 0)
       return "jsonb_set(" + wrappedJsondata + ", '{properties, @ns:com:here:xyz, version}', to_jsonb(version))";
     return wrappedJsondata;
+  }
+
+  private static String buildOrderByFragment(ContextAwareEvent event) {
+    if (!(event instanceof SelectiveEvent)) return "";
+
+    SelectiveEvent selectiveEvent = (SelectiveEvent) event;
+    return "*".equals(selectiveEvent.getRef()) ? "ORDER BY version" : "";
   }
 
   //TODO: Can be removed after completion of refactoring
