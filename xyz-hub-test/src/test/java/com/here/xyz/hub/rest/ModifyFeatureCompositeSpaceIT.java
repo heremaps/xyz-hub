@@ -42,7 +42,7 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
         .withId(RandomStringUtils.randomAlphanumeric(3));
   }
 
-  private void postFeature(String spaceId, Feature feature) {
+  public void postFeature(String spaceId, Feature feature) {
     given()
       .contentType(APPLICATION_GEO_JSON)
       .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))

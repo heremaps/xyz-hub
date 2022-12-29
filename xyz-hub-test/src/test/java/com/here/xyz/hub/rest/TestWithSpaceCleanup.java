@@ -30,7 +30,7 @@ public class TestWithSpaceCleanup extends RestAssuredTest {
 
   static String cleanUpId;
 
-  static void removeSpace(String spaceId) {
+  protected static void removeSpace(String spaceId) {
     given().
         accept(APPLICATION_JSON).
         headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL)).
