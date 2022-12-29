@@ -153,7 +153,7 @@ DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 152
+ select 153
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -3160,11 +3160,12 @@ CREATE OR REPLACE FUNCTION xyz_write_versioned_modification_operation(id TEXT, v
 $BODY$
     DECLARE
         base_version BIGINT := (jsondata->'properties'->'@ns:com:here:xyz'->>'version')::BIGINT;
+        author TEXT := (jsondata->'properties'->'@ns:com:here:xyz'->>'author')::TEXT;
         updated_rows INTEGER;
     BEGIN
         EXECUTE
-           format('INSERT INTO %I.%I (id, version, operation, jsondata, geo) VALUES (%L, %L, %L, %L, %L)',
-               schema, tableName, id, version, operation, jsondata, CASE WHEN geo::geometry IS NULL THEN NULL ELSE ST_Force3D(ST_GeomFromWKB(geo::BYTEA, 4326)) END);
+           format('INSERT INTO %I.%I (id, version, operation, author, jsondata, geo) VALUES (%L, %L, %L, %L, %L, %L)',
+               schema, tableName, id, version, operation, author, jsondata, CASE WHEN geo::geometry IS NULL THEN NULL ELSE ST_Force3D(ST_GeomFromWKB(geo::BYTEA, 4326)) END);
 
         IF operation != 'I' AND operation != 'H' THEN
             IF concurrencyCheck THEN
