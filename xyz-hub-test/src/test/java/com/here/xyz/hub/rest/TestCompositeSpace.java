@@ -37,6 +37,10 @@ public class TestCompositeSpace extends TestSpaceWithFeature {
     createSpaceWithExtension("x-psql-test");
     createSpaceWithExtension("x-psql-test-ext");
 
+    touchSpaces();
+  }
+
+  public void touchSpaces() {
     //FIXME: in order to get the extending space to be created, a read or write operation must be executed, otherwise a 504 is returned
     getFeature("x-psql-test", "F1");
     getFeature("x-psql-test-2", "F1");
@@ -52,7 +56,7 @@ public class TestCompositeSpace extends TestSpaceWithFeature {
     removeSpace("x-psql-test");
   }
 
-  private static void createSpaceWithExtension(String extendingSpaceId) {
+  protected static void createSpaceWithExtension(String extendingSpaceId) {
     String extensionId = extendingSpaceId + "-ext";
     given()
         .contentType(APPLICATION_JSON)
