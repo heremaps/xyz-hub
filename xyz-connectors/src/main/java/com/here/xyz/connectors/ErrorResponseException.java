@@ -33,16 +33,33 @@ public class ErrorResponseException extends Exception {
     this(null, xyzError, errorMessage);
   }
 
+  /**
+   * @deprecated Please use constructor without stream ID (see above).
+   *  The stream ID will be attached just before the ErrorResponse is being sent.
+   * @param streamId
+   * @param xyzError
+   * @param errorMessage
+   */
+  @Deprecated
   public ErrorResponseException(String streamId, XyzError xyzError, String errorMessage) {
     super(errorMessage);
     createErrorResponse(streamId, xyzError, errorMessage);
   }
 
+  /**
+   * @deprecated Please use constructor without stream ID (see above).
+   *  The stream ID will be attached just before the ErrorResponse is being sent.
+   * @param streamId
+   * @param xyzError
+   * @param e
+   */
+  @Deprecated
   public ErrorResponseException(String streamId, XyzError xyzError, Exception e) {
     super(e);
     createErrorResponse(streamId, xyzError, e.getMessage());
   }
 
+  @Deprecated
   private void createErrorResponse(String streamId, XyzError xyzError, String errorMessage) {
     this.errorResponse = new ErrorResponse()
         .withStreamId(streamId)

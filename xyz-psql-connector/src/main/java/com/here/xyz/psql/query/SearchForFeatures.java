@@ -25,8 +25,12 @@ import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.QueryEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.TagsQuery;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.psql.Capabilities;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.responses.XyzError;
+import com.here.xyz.responses.XyzResponse;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -38,7 +42,7 @@ NOTE: All subclasses of QueryEvent are deprecated except SearchForFeaturesEvent.
 Once refactoring is complete, all members of SearchForFeaturesEvent can be pulled up to QueryEvent and QueryEvent
 can be renamed to SearchForFeaturesEvent again.
  */
-public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeatures<E> {
+public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzResponse> extends GetFeatures<E, R> {
 
   protected boolean hasSearch;
 
@@ -46,8 +50,14 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
     super(event, dbHandler);
   }
 
+  public static void checkCanSearchFor(SearchForFeaturesEvent event, DatabaseHandler dbHandler) throws ErrorResponseException {
+    if (!Capabilities.canSearchFor(dbHandler.getConfig().readTableFromEvent(event), event.getPropertiesQuery(), dbHandler))
+      throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT,
+          "Invalid request parameters. Search for the provided properties is not supported for this space.");
+  }
+
   @Override
-  protected SQLQuery buildQuery(E event) throws SQLException {
+  protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
     SQLQuery query = super.buildQuery(event);
 
     SQLQuery searchQuery = buildSearchFragment(event);
@@ -73,7 +83,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
 
   //TODO: Can be removed after completion of refactoring
   @Deprecated
-  public static SQLQuery generatePropertiesQueryBWC(QueryEvent event) {
+  protected static SQLQuery generatePropertiesQueryBWC(QueryEvent event) {
     SQLQuery query = generatePropertiesQuery(event);
     if (query != null)
       query.replaceNamedParameters();

@@ -51,7 +51,7 @@ import java.util.stream.Collectors;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
+public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, FeatureCollection> {
 
   public static final String HPREFIX = "h07~";
   private static final String HANDLE_ENCRYPTION_PHRASE = "findFeaturesSort";
@@ -72,7 +72,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
   }
 
   @Override
-  protected SQLQuery buildQuery(IterateFeaturesEvent event) throws SQLException {
+  protected SQLQuery buildQuery(IterateFeaturesEvent event) throws SQLException, ErrorResponseException {
     if (isExtendedSpace(event) && event.getContext() == SpaceContext.DEFAULT) {
 
       SQLQuery extensionQuery = super.buildQuery(event);

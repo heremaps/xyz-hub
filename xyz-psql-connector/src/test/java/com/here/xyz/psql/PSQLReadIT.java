@@ -74,7 +74,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
         String queryResponse = invokeLambda(getFeaturesByBBoxEvent.serialize());
         assertNotNull(queryResponse);
-        FeatureCollection featureCollection = XyzSerializable.deserialize(queryResponse);
+        FeatureCollection featureCollection = (FeatureCollection) deserializeResponse(queryResponse);
         assertNotNull(featureCollection);
         List<Feature> features = featureCollection.getFeatures();
         assertNotNull(features);

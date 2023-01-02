@@ -20,14 +20,18 @@
 package com.here.xyz.psql;
 
 import com.amazonaws.util.IOUtils;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.tools.GSContext;
 import com.here.xyz.psql.tools.Helper;
+import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.SuccessResponse;
+import com.here.xyz.responses.XyzResponse;
 import com.jayway.jsonpath.JsonPath;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -140,6 +144,13 @@ public abstract class PSQLAbstractIT extends Helper {
     String response = IOUtils.toString(
             Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
     LOGGER.info("Response from lambda - {}", response);
+    return response;
+  }
+
+  protected XyzResponse deserializeResponse(String jsonResponse) throws JsonProcessingException, ErrorResponseException {
+    XyzResponse response = XyzSerializable.deserialize(jsonResponse);
+    if (response instanceof ErrorResponse)
+      throw new ErrorResponseException(((ErrorResponse) response).getError(), ((ErrorResponse) response).getErrorMessage());
     return response;
   }
 }

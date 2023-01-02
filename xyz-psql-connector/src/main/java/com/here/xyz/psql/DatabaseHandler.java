@@ -53,6 +53,7 @@ import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.config.DatabaseSettings;
 import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.query.ExtendedSpace;
+import com.here.xyz.psql.query.GetFeaturesByBBox;
 import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.helpers.FetchExistingIds;
 import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
@@ -796,7 +797,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         boolean includeOldStates = event.getParams() != null
                 && event.getParams().get(INCLUDE_OLD_STATES) == Boolean.TRUE;
 
-        final SQLQuery searchQuery = SQLQueryBuilder.generateSearchQuery(event);
+        final SQLQuery searchQuery = GetFeaturesByBBox.generateSearchQueryBWC(event);
         final SQLQuery query = SQLQueryBuilder.buildDeleteFeaturesByTagQuery(includeOldStates, searchQuery);
 
         //TODO: check in detail what we want to return
@@ -1524,10 +1525,10 @@ public abstract class DatabaseHandler extends StorageConnector {
     public FeatureCollection defaultFeatureResultSetHandler(ResultSet rs) throws SQLException
     { return _defaultFeatureResultSetHandler(rs,false); }
 
-    protected FeatureCollection defaultFeatureResultSetHandlerSkipIfGeomIsNull(ResultSet rs) throws SQLException
+    public FeatureCollection defaultFeatureResultSetHandlerSkipIfGeomIsNull(ResultSet rs) throws SQLException
     { return _defaultFeatureResultSetHandler(rs,true); }
 
-    protected BinaryResponse defaultBinaryResultSetHandler(ResultSet rs) throws SQLException {
+    public BinaryResponse defaultBinaryResultSetHandler(ResultSet rs) throws SQLException {
         BinaryResponse br = new BinaryResponse()
             .withMimeType(APPLICATION_VND_MAPBOX_VECTOR_TILE);
 
