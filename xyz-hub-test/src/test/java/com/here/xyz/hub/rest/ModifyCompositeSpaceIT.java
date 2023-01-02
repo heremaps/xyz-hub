@@ -131,9 +131,9 @@ public class ModifyCompositeSpaceIT extends TestCompositeSpace {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"extends\":{\"spaceId\":\"x-psql-test-2\"}}")
+        .body("{\"extends\":{\"spaceId\":\"x-psql-test-ext-ext\"}}")
         .when()
-        .patch("/spaces/x-psql-test")
+        .patch("/spaces/x-psql-test-2")
         .then()
         .statusCode(BAD_REQUEST.code());
   }
