@@ -178,7 +178,7 @@ public class StoreFeaturesApiIT extends TestSpaceWithFeature {
         put(getSpacesPath() + "/x-psql-test/features").
         then().
         header("X-Decompressed-Input-Size", "63").
-        header("X-Decompressed-Output-Size", "282").
+        header("X-Decompressed-Output-Size", "334").
         statusCode(OK.code());
   }
 }

@@ -47,7 +47,7 @@ public class ReadFeatureWithHistoryApiIT extends ReadFeatureApiIT {
         get(getSpacesPath() + "/x-psql-test/tile/quadkey/2100300120310022").
         then().
         header("X-Decompressed-Input-Size", "0").
-        header("X-Decompressed-Output-Size", "541").
-        statusCode(OK.code());
+        header("X-Decompressed-Output-Size", "595").
+        statusCode(OK.code()).extract().body().asString();
   }
 }

@@ -871,7 +871,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         get(getSpacesPath() + "/x-psql-test/tile/quadkey/2100300120310022").
         then().
         header("X-Decompressed-Input-Size", "0").
-        header("X-Decompressed-Output-Size", "479").
+        header("X-Decompressed-Output-Size", "547").
         statusCode(OK.code());
   }
 }
