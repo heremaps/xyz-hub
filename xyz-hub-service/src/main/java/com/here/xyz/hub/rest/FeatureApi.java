@@ -31,7 +31,6 @@ import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
-import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.TagsQuery;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
@@ -105,14 +104,14 @@ public class FeatureApi extends SpaceBasedApi {
     final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
     final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
     final SpaceContext spaceContext = getSpaceContext(context);
-    final String revision = Query.getString(context, Query.REVISION, null);
+    final String version = Query.getString(context, Query.VERSION, null);
     final String author = Query.getString(context, Query.AUTHOR, null);
 
     final GetFeaturesByIdEvent event = new GetFeaturesByIdEvent()
         .withIds(ids)
         .withSelection(Query.getSelection(context))
         .withForce2D(force2D)
-        .withRef(revision)
+        .withRef(version)
         .withContext(spaceContext)
         .withAuthor(author);
 
@@ -228,6 +227,7 @@ public class FeatureApi extends SpaceBasedApi {
     XyzNamespace.fixNormalizedTags(task.addTags);
     XyzNamespace.fixNormalizedTags(task.removeTags);
     task.prefixId = Query.getString(context, Query.PREFIX_ID, null);
+    task.author = Api.Context.getAuthor(context);
     task.execute(this::sendResponse, this::sendErrorResponse);
   }
 

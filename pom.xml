@@ -41,7 +41,7 @@
 
   <groupId>com.here.xyz</groupId>
   <artifactId>xyz-hub</artifactId>
-  <version>1.26.8-SNAPSHOT</version>
+  <version>1.27.6-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -92,7 +92,7 @@
     <vertx-version>4.1.7</vertx-version>
     <geo-tools-version>19.1</geo-tools-version>
     <jts-version>1.14.0</jts-version>
-    <jackson-version>2.13.4</jackson-version>
+    <jackson-version>2.14.1</jackson-version>
     <lambda-core-version>1.2.1</lambda-core-version>
     <log4j-version>2.17.1</log4j-version>
     <aws-log4j-version>1.5.1</aws-log4j-version>
@@ -262,6 +262,11 @@
       <dependency>
         <artifactId>vertx-jdbc-client</artifactId>
         <groupId>io.vertx</groupId>
+        <version>${vertx-version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.vertx</groupId>
+        <artifactId>vertx-pg-client</artifactId>
         <version>${vertx-version}</version>
       </dependency>
 

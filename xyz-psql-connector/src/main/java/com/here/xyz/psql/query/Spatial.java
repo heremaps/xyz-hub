@@ -23,13 +23,37 @@ import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.SpatialQueryEvent;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.responses.XyzResponse;
 import java.sql.SQLException;
 
-public abstract class Spatial<E extends SpatialQueryEvent> extends SearchForFeatures<E> {
+public abstract class Spatial<E extends SpatialQueryEvent, R extends XyzResponse> extends SearchForFeatures<E, R> {
 
   public Spatial(E event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(event, dbHandler);
   }
+
+  @Override
+  protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
+    SQLQuery geoFilter = buildGeoFilter(event);
+
+    SQLQuery query = super.buildQuery(event);
+    SQLQuery geoQuery = new SQLQuery("ST_Intersects(geo, ${{geoFilter}})")
+        .withQueryFragment("geoFilter", geoFilter);
+
+    SQLQuery filterWhereClause = new SQLQuery("${{geoQuery}} AND ${{searchQuery}}")
+        .withQueryFragment("geoQuery", geoQuery)
+        //Use the existing clause as searchQuery (from the base query)
+        .withQueryFragment("searchQuery", query.getQueryFragment("filterWhereClause"));
+
+    query
+        .withQueryFragment("filterWhereClause", filterWhereClause)
+        //Override the geo fragment by a clipped version
+        .withQueryFragment("geo", buildClippedGeoFragment(event, geoFilter));
+
+    return query;
+  }
+
+  protected abstract SQLQuery buildGeoFilter(E event);
 
   /**
    * Returns a geo-fragment, which will return the geometry objects clipped by the provided geoFilter

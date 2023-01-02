@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,12 +52,12 @@ public final class ModifyFeaturesEvent extends ContextAwareEvent<ModifyFeaturesE
   private List<Feature> upsertFeatures;
   @JsonInclude(Include.ALWAYS)
   private Map<String, String> deleteFeatures;
-  private Boolean transaction;
-  @JsonInclude(Include.NON_DEFAULT)
+  private boolean transaction;
+
   private boolean enableHistory;
-  @JsonInclude(Include.NON_DEFAULT)
+
   private boolean enableUUID;
-  @JsonInclude(Include.NON_DEFAULT)
+
   private boolean enableGlobalVersioning;
   private List<ModificationFailure> failed;
   private Integer maxVersionCount;
@@ -153,7 +153,7 @@ public final class ModifyFeaturesEvent extends ContextAwareEvent<ModifyFeaturesE
    * @return true if the store event should be transactional, therefore either fully succeed or fully fail.
    */
   @SuppressWarnings("unused")
-  public Boolean getTransaction() {
+  public boolean getTransaction() {
     return this.transaction;
   }
 
@@ -163,12 +163,12 @@ public final class ModifyFeaturesEvent extends ContextAwareEvent<ModifyFeaturesE
    * @param transaction if true, then the store event should be transactional, therefore either fully succeed or fully fail.
    */
   @SuppressWarnings("WeakerAccess")
-  public void setTransaction(Boolean transaction) {
+  public void setTransaction(boolean transaction) {
     this.transaction = transaction;
   }
 
   @SuppressWarnings("unused")
-  public ModifyFeaturesEvent withTransaction(Boolean transaction) {
+  public ModifyFeaturesEvent withTransaction(boolean transaction) {
     setTransaction(transaction);
     return this;
   }

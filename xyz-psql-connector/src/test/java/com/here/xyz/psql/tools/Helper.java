@@ -19,6 +19,13 @@
 
 package com.here.xyz.psql.tools;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,16 +33,15 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.XyzResponse;
 import com.jayway.jsonpath.Configuration;
 import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.Option;
-
 import java.io.InputStream;
 import java.util.List;
 import java.util.UUID;
-
-import static org.junit.Assert.*;
 
 public class Helper{
     protected final Configuration jsonPathConf = Configuration.defaultConfiguration().addOptions(Option.SUPPRESS_EXCEPTIONS);
@@ -48,7 +54,16 @@ public class Helper{
     }
 
     protected void assertNoErrorInResponse(String response) {
-        assertNull(JsonPath.compile("$.error").read(response, jsonPathConf));
+        assertEquals(null, JsonPath.compile("$.errorMessage").read(response, jsonPathConf));
+        assertEquals(null, JsonPath.compile("$.error").read(response, jsonPathConf));
+    }
+
+    protected void assertNoErrorInResponse(XyzResponse response) {
+        boolean isError = response instanceof ErrorResponse;
+        if (isError) {
+            ErrorResponse err = (ErrorResponse) response;
+            assertFalse("ErrorResponse[" + err.getError() + "]: " + err.getErrorMessage(), isError);
+        }
     }
 
     protected void assertRead(String insertRequest, String response, boolean checkGuid) throws Exception {

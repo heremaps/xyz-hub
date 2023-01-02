@@ -21,24 +21,25 @@ package com.here.xyz.psql.query;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByIdEvent;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import java.sql.SQLException;
 
-public class GetFeaturesById extends GetFeatures<GetFeaturesByIdEvent> {
+public class GetFeaturesById extends GetFeatures<GetFeaturesByIdEvent, FeatureCollection> {
 
   public GetFeaturesById(GetFeaturesByIdEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(event, dbHandler);
   }
 
   @Override
-  protected SQLQuery buildQuery(GetFeaturesByIdEvent event) throws SQLException {
+  protected SQLQuery buildQuery(GetFeaturesByIdEvent event) throws SQLException, ErrorResponseException {
     String[] idArray = event.getIds().toArray(new String[0]);
-    String filterWhereClause = "jsondata->>'id' = ANY(#{ids})";
+    String filterWhereClause = "${{idColumn}} = ANY(#{ids})";
 
-    SQLQuery query = super.buildQuery(event);
-    query.setQueryFragment("filterWhereClause", filterWhereClause);
-    query.setNamedParameter("ids", idArray);
-    return query;
+    return super.buildQuery(event)
+        .withQueryFragment("filterWhereClause", filterWhereClause)
+        .withQueryFragment("idColumn", buildIdFragment(event))
+        .withNamedParameter("ids", idArray);
   }
 }

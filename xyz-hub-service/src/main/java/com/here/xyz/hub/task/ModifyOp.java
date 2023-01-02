@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -230,10 +230,12 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
     public boolean isModified;
     public Exception exception;
     public String inputUUID;
+    public long inputVersion;
     private Map<String, Object> resultMap;
 
     public Entry(Map<String, Object> input, IfNotExists ifNotExists, IfExists ifExists, ConflictResolution cr) {
       this.inputUUID = getUuid(input);
+      this.inputVersion = getVersion(input);
       this.input = filterMetadata(input);
       this.cr = cr;
       this.ifExists = ifExists;
@@ -259,6 +261,8 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
     protected abstract String getUuid(T record);
 
     protected abstract String getUuid(Map<String, Object> record);
+
+    protected abstract long getVersion(Map<String, Object> record);
 
     public T patch() throws ModifyOpError, HttpException {
       final Map<String, Object> computedInput = toMap(base);
@@ -332,9 +336,9 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
     public abstract Map<String, Object> toMap(T record) throws ModifyOpError, HttpException;
 
     /**
-     * Checks, if the result of the operation is different than the head state.
+     * Checks, if the result of the operation is different from the head state.
      *
-     * @return true, if the result of the operation is different than the head state.
+     * @return true, if the result of the operation is different from the head state.
      */
     boolean isModified() throws HttpException, ModifyOpError {
       if (Objects.equals(head, result)) {

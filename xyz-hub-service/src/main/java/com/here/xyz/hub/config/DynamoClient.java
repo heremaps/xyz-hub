@@ -49,18 +49,18 @@ import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-class DynamoClient {
+public class DynamoClient {
 
   private static final Logger logger = LogManager.getLogger();
-  static final WorkerExecutor dynamoWorkers = Service.vertx.createSharedWorkerExecutor(DynamoClient.class.getName(), 8);
+  public static final WorkerExecutor dynamoWorkers = Service.vertx.createSharedWorkerExecutor(DynamoClient.class.getName(), 8);
   static AWSCredentialsProvider customCredentialsProvider;
 
   final AmazonDynamoDBAsync client;
-  final String tableName;
-  final DynamoDB db;
+  public final String tableName;
+  public final DynamoDB db;
   final ARN arn;
 
-  DynamoClient(String tableArn) {
+  public DynamoClient(String tableArn) {
     arn = new ARN(tableArn);
 
     final AmazonDynamoDBAsyncClientBuilder builder = AmazonDynamoDBAsyncClientBuilder.standard();
@@ -70,7 +70,7 @@ class DynamoClient {
       final String endpoint = "http://" + arn.getRegion() + ":" + Integer.parseInt(arn.getAccountId());
       builder.setEndpointConfiguration(new EndpointConfiguration(endpoint, "US-WEST-1"));
     }
-    else if (Service.configuration.USE_AWS_INSTANCE_CREDENTIALS_WITH_REFRESH) {
+    else if (Service.configuration != null && Service.configuration.USE_AWS_INSTANCE_CREDENTIALS_WITH_REFRESH) {
       synchronized(DynamoClient.class) {
         if (customCredentialsProvider == null) {
           customCredentialsProvider = InstanceProfileCredentialsProvider.createAsyncRefreshingProvider(true);
@@ -84,7 +84,7 @@ class DynamoClient {
     tableName = new ARN(tableArn).getResourceWithoutType();
   }
 
-  void createTable(String tableName, String attributes, String keys, String indexes, String ttl) {
+  public void createTable(String tableName, String attributes, String keys, String indexes, String ttl) {
     try {
       // required
       final List<AttributeDefinition> attList = new ArrayList<>();
@@ -132,7 +132,7 @@ class DynamoClient {
     }
   }
 
-  boolean isLocal() {
+  public boolean isLocal() {
     return Arrays.stream(Region.values()).noneMatch(r -> r.toAWSRegion().getName().equals(arn.getRegion()));
   }
 }

@@ -51,7 +51,7 @@ import java.util.stream.Collectors;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
+public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, FeatureCollection> {
 
   public static final String HPREFIX = "h07~";
   private static final String HANDLE_ENCRYPTION_PHRASE = "findFeaturesSort";
@@ -72,7 +72,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
   }
 
   @Override
-  protected SQLQuery buildQuery(IterateFeaturesEvent event) throws SQLException {
+  protected SQLQuery buildQuery(IterateFeaturesEvent event) throws SQLException, ErrorResponseException {
     if (isExtendedSpace(event) && event.getContext() == SpaceContext.DEFAULT) {
 
       SQLQuery extensionQuery = super.buildQuery(event);
@@ -240,7 +240,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
 
     String orderByClause = buildOrderByClause(event);
     List<String> continuationWhereClauses = event.getHandle() == null ? Collections.singletonList("")
-        : buildContinuationConditions(event.getHandle());
+        : buildContinuationConditions(event);
 
     SQLQuery partialQuery = new SQLQuery("");
 
@@ -326,13 +326,13 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
     List<String> sortby = event.getHandle() != null ? convHandle2sortbyList(event.getHandle()) : event.getSort();
 
     if (sortby == null || sortby.size() == 0)
-     return isPartOverI(event) ? "ORDER BY i" : "ORDER BY (jsondata->>'id')"; // in case no sort is specified
+     return isPartOverI(event) ? "ORDER BY i" : "ORDER BY (" + buildIdFragment(event) + ")"; // in case no sort is specified
 
     if( sortby.size() == 1 && sortby.get(0).toLowerCase().startsWith("id") ) // usecase order by id
      if( sortby.get(0).equalsIgnoreCase( "id:desc" ) )
-      return "ORDER BY (jsondata->>'id') DESC";
+      return "ORDER BY (" + buildIdFragment(event) + ") DESC";
      else
-      return "ORDER BY (jsondata->>'id')";
+      return "ORDER BY (" + buildIdFragment(event) + ")";
 
     String orderByClause = "", direction = "";
 
@@ -343,7 +343,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
      orderByClause += DhString.format("%s %s %s", (orderByClause.length() == 0 ? "" : ","), jpathFromSortProperty(s), direction);
     }
 
-    return DhString.format("ORDER BY %s, (jsondata->>'id') %s", orderByClause, direction); // id is always last sort crit with sort direction as last (most inner) index
+    return DhString.format("ORDER BY %s, (" + buildIdFragment(event) + ") %s", orderByClause, direction); // id is always last sort crit with sort direction as last (most inner) index
   }
 
   private static List<String> convHandle2sortbyList( String handle )
@@ -363,8 +363,9 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
     return event.getPart() != null && event.getSort() == null && !hasSearch;
   }
 
-  private static List<String> buildContinuationConditions( String handle )
+  private static List<String> buildContinuationConditions(IterateFeaturesEvent event)
   {
+    String handle = event.getHandle();
    List<String> ret = new ArrayList<String>(),
                 sortby = convHandle2sortbyList( handle );
    JSONObject h = new JSONObject(handle);
@@ -378,7 +379,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
    }
 
    if( h.has("h") ) // start handle partitioned by id
-   { ret.add(DhString.format(" and (jsondata->>'id') >= '%s'",h.get("h").toString()));
+   { ret.add(DhString.format(" and (" + buildIdFragment(event) + ") >= '%s'",h.get("h").toString()));
      return ret;
    }
 
@@ -400,7 +401,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
       sqlWhereContinuation += DhString.format(" and %s is null", jpathFromSortProperty(s) );
     }
 
-   sqlWhereContinuation += DhString.format(" and (jsondata->>'id') %s '%s'", ( descendingLast ? "<" : ">" ) ,h.get("h0").toString());
+   sqlWhereContinuation += DhString.format(" and (" + buildIdFragment(event) + ") %s '%s'", ( descendingLast ? "<" : ">" ) ,h.get("h0").toString());
 
    ret.add( sqlWhereContinuation );
 

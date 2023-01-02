@@ -48,6 +48,7 @@ import com.here.xyz.hub.connectors.RemoteFunctionClient.FunctionCall;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
+import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -65,6 +66,7 @@ import io.vertx.core.json.JsonObject;
 import java.io.InputStream;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.logging.log4j.LogManager;
@@ -237,6 +239,19 @@ public class RpcClient {
   }
 
   /**
+   * The following is only a temporary implementation to forward the versionsToKeep space property as param for all space-based events.
+   * @param event The event on which to set the versionsToKeep property as param
+   * @param space The space from which to read the versionsToKeep property
+   */
+  private void tmpFillVersionsToKeepParam(Event event, Space space) {
+    if (space != null) {
+      if (event.getParams() == null)
+        event.setParams(new HashMap<>());
+      event.getParams().put("versionsToKeep", space.getVersionsToKeep());
+    }
+  }
+
+  /**
    * Executes an event and returns the parsed FeatureCollection response.
    *
    * @param marker the log marker
@@ -246,7 +261,8 @@ public class RpcClient {
    * @return The rpc context belonging to the request
    */
   @SuppressWarnings("rawtypes")
-  public RpcContext execute(final Marker marker, final Event event, final boolean hasPriority, final Handler<AsyncResult<XyzResponse>> callback) {
+  public RpcContext execute(final Marker marker, final Event event, final boolean hasPriority, final Handler<AsyncResult<XyzResponse>> callback, Space tmpSpace) {
+    tmpFillVersionsToKeepParam(event, tmpSpace);
     final Connector connector = getConnector();
     event.setConnectorParams(connector.params);
     final boolean expectBinaryResponse = expectBinaryResponse(event);
@@ -282,6 +298,11 @@ public class RpcClient {
     });
     return context;
   }
+
+  public RpcContext execute(final Marker marker, final Event event, final boolean hasPriority, final Handler<AsyncResult<XyzResponse>> callback) {
+    return execute(marker, event, hasPriority, callback, null);
+  }
+
   /**
    * Executes an event and returns the parsed FeatureCollection response.
    *
@@ -291,8 +312,12 @@ public class RpcClient {
    * @return The rpc context belonging to the request
    */
   @SuppressWarnings("rawtypes")
+  public RpcContext execute(final Marker marker, final Event event, final Handler<AsyncResult<XyzResponse>> callback, Space tmpSpace) {
+    return execute(marker, event, false, callback, tmpSpace);
+  }
+
   public RpcContext execute(final Marker marker, final Event event, final Handler<AsyncResult<XyzResponse>> callback) {
-    return execute(marker, event, false, callback);
+    return execute(marker, event, callback, null);
   }
 
   private String preview(String eventJson, @SuppressWarnings("SameParameterValue") int previewLength) {
@@ -502,7 +527,7 @@ public class RpcClient {
 
   /**
    * Tries to parse the stringResponse and checks for errorMessage. In case of found, it throws a new exception with the errorMessage.
-   * Additionally checks if the message is related to Time Out and throws a GATEWAY_TIMEOUT. Also, if the message is not parsable at all,
+   * Additionally, checks if the message is related to Time Out and throws a GATEWAY_TIMEOUT. Also, if the message is not parsable at all,
    * throws an exception informing "Invalid JSON string"
    *
    * @param stringResponse the original response

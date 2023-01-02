@@ -23,7 +23,6 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.fasterxml.jackson.annotation.JsonIncludeProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonValue;
@@ -41,6 +40,8 @@ import java.util.Map;
 @JsonTypeName(value = "Space")
 @SuppressWarnings("unused")
 public class Space {
+
+  public static final int DEFAULT_VERSIONS_TO_KEEP = 1;
 
   /**
    * Beta release date: 2018-10-01T00:00Z[UTC]
@@ -170,12 +171,16 @@ public class Space {
   private Integer maxVersionCount;
 
   /**
-   * Defines how many revisions will be kept before the automatic purging of old revisions is starting.
-   * By default this value will be set to 1. That means there will be only one
-   * (HEAD) state of the space and no further revisions will be kept.
+   * Defines how many versions will be kept before the automatic purging of old versions is starting.
+   * By default, this value will be set to 1. That means there will be only one state (HEAD)
+   * of the space and no further versions will be kept.
    */
   @JsonView({Public.class, Static.class})
-  private int revisionsToKeep = 0;
+  @JsonInclude(Include.ALWAYS) //NOTE: This is only needed temporary to keep backwards compatibility for non-versioned spaces (see: DynamoSpaceConfigClient#getSpace() and JDBCSpaceConfigClient#getSpace())
+  private int versionsToKeep = DEFAULT_VERSIONS_TO_KEEP;
+
+  @JsonView({Internal.class, Static.class})
+  private long minVersion = 0;
 
   /**
    * If false, auto-indexing gets disabled
@@ -478,17 +483,30 @@ public class Space {
     return this;
   }
 
-  public int getRevisionsToKeep() {
-    return revisionsToKeep;
+  public int getVersionsToKeep() {
+    return versionsToKeep;
   }
 
-  public void setRevisionsToKeep(int revisionsToKeep) {
-    this.revisionsToKeep = revisionsToKeep;
+  public void setVersionsToKeep(int versionsToKeep) {
+    this.versionsToKeep = versionsToKeep;
   }
 
-  public Space withRevisionsToKeep(int revisionsToKeep) {
-    setRevisionsToKeep(revisionsToKeep);
+  public Space withVersionsToKeep(int versionsToKeep) {
+    setVersionsToKeep(versionsToKeep);
     return this;
+  }
+
+  public long getMinVersion() {
+    return minVersion;
+  }
+
+  public void setMinVersion(long minVersion) {
+    this.minVersion = minVersion;
+  }
+
+  public <T extends Space> T withMinVersion(long minVersion) {
+    setMinVersion(minVersion);
+    return (T) this;
   }
 
   public Boolean isEnableAutoSearchableProperties() {

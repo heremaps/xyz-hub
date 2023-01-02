@@ -19,10 +19,18 @@
 
 package com.here.xyz.psql.tools;
 
+import com.here.xyz.psql.config.DatabaseSettings;
+import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.config.PSQLConfig.AESGCMHelper;
+import com.mchange.v3.decode.CannotDecodeException;
 
 import java.io.UnsupportedEncodingException;
 import java.security.GeneralSecurityException;
+import java.util.HashMap;
+import java.util.Map;
+
+import static com.here.xyz.psql.config.DatabaseSettings.*;
+import static com.here.xyz.psql.config.DatabaseSettings.PSQL_USER;
 
 /**
  * This tool can be used to prepare a new secret ECPS string for the connectorParams of the PSQL storage connector.
@@ -55,5 +63,45 @@ public class ECPSTool {
 
   public static String decrypt(String phrase, String data) throws GeneralSecurityException {
     return new AESGCMHelper(phrase).decrypt(data);
+  }
+
+  public static DatabaseSettings readDBSettingsFromECPS(String ecps, String passphrase) throws CannotDecodeException{
+    Map<String, Object> decodedEcps = new HashMap<>();
+    try {
+      if(ecps != null)
+        ecps = ecps.replaceAll(" ","+");
+      decodedEcps = PSQLConfig.decryptECPS(ecps, passphrase);
+    }catch (Exception e){
+      throw new CannotDecodeException("ECPS Decryption has failed");
+    }
+
+    DatabaseSettings databaseSettings = new DatabaseSettings();
+
+    for (String key : decodedEcps.keySet()) {
+      switch (key) {
+        case DatabaseSettings.PSQL_DB:
+          databaseSettings.setDb((String) decodedEcps.get(PSQL_DB));
+          break;
+        case PSQL_HOST:
+          databaseSettings.setHost((String) decodedEcps.get(PSQL_HOST));
+          break;
+        case PSQL_PASSWORD:
+          databaseSettings.setPassword((String) decodedEcps.get(PSQL_PASSWORD));
+          break;
+        case PSQL_PORT:
+          databaseSettings.setPort(Integer.parseInt((String) decodedEcps.get(PSQL_PORT)));
+          break;
+        case PSQL_REPLICA_HOST:
+          databaseSettings.setReplicaHost((String) decodedEcps.get(PSQL_REPLICA_HOST));
+          break;
+        case PSQL_SCHEMA:
+          databaseSettings.setSchema((String) decodedEcps.get(PSQL_SCHEMA));
+          break;
+        case PSQL_USER:
+          databaseSettings.setUser((String) decodedEcps.get(PSQL_USER));
+          break;
+      }
+    }
+    return databaseSettings;
   }
 }

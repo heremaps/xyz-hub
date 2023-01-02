@@ -100,11 +100,16 @@ public class FeatureQueryApi extends SpaceBasedApi {
     try {
       final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
       final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
+      final PropertiesQuery propertiesQuery = getPropertiesQuery(context);
+      final String version = Query.getString(context, Query.F_PREFIX + Query.VERSION, null);
+      final String author = Query.getString(context, Query.F_PREFIX + Query.AUTHOR, null);
 
       final SearchForFeaturesEvent event = new SearchForFeaturesEvent();
       event.withLimit(getLimit(context))
           .withTags(Query.getTags(context))
-          .withPropertiesQuery(Query.getPropertiesQuery(context))
+          .withPropertiesQuery(propertiesQuery)
+          .withRef(version)
+          .withAuthor(author)
           .withForce2D(force2D)
           .withSelection(Query.getSelection(context));
 
@@ -113,6 +118,15 @@ public class FeatureQueryApi extends SpaceBasedApi {
     } catch (HttpException e) {
       sendErrorResponse(context, e);
     }
+  }
+
+  private PropertiesQuery getPropertiesQuery(final RoutingContext context) {
+    final PropertiesQuery propertiesQuery = Query.getPropertiesQuery(context);
+
+    if (propertiesQuery == null)
+      return null;
+
+    return propertiesQuery.filterOutNamedProperty(Query.F_PREFIX + Query.VERSION, Query.F_PREFIX + Query.AUTHOR);
   }
 
   /**

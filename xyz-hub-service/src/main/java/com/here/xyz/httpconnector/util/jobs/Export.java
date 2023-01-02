@@ -16,45 +16,28 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-
-package com.here.xyz.events;
+package com.here.xyz.httpconnector.util.jobs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-@JsonTypeName(value = "RevisionEvent")
-public class RevisionEvent extends Event<RevisionEvent> {
-  private Operation operation;
-  private PropertyQuery revision;
+@JsonInclude(JsonInclude.Include.NON_DEFAULT)
+public class Export extends Job {
+    @JsonInclude
+    private String type = "Export";
 
-  public Operation getOperation() {
-    return operation;
-  }
+    public Export(){ }
 
-  public void setOperation(Operation operation) {
-    this.operation = operation;
-  }
+    public Export(String description, String targetSpaceId, String targetTable, boolean enabledUUID, CSVFormat csvFormat, Strategy strategy) {
+        this.description = description;
+        this.targetSpaceId = targetSpaceId;
+        this.targetTable = targetTable;
+        this.strategy = strategy;
+    }
 
-  public RevisionEvent withOperation(Operation operation) {
-    setOperation(operation);
-    return this;
-  }
-
-  public PropertyQuery getRevision() {
-    return revision;
-  }
-
-  public void setRevision(PropertyQuery revision) {
-    this.revision = revision;
-  }
-
-  public RevisionEvent withRevision(PropertyQuery revision) {
-    setRevision(revision);
-    return this;
-  }
-
-  public enum Operation {
-    DELETE
-  }
+    public String getType() {
+        return type;
+    }
 }

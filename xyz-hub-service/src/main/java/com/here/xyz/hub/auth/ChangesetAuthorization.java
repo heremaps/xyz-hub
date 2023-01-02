@@ -26,14 +26,14 @@ import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.ext.web.RoutingContext;
 
-public class RevisionAuthorization extends Authorization {
+public class ChangesetAuthorization extends Authorization {
 
   public static Future<Void> authorize(RoutingContext context, Space space) {
     final Promise<Void> result = Promise.promise();
     JWTPayload jwt = Api.Context.getJWT(context);
 
     final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
-    requestRights.adminSpaces(XyzHubAttributeMap.forIdValues(space.getOwner(), space.getId()));
+    requestRights.manageSpaces(XyzHubAttributeMap.forIdValues(space.getOwner(), space.getId()));
 
     try {
       evaluateRights(Api.Context.getMarker(context), requestRights, jwt.getXyzHubMatrix());

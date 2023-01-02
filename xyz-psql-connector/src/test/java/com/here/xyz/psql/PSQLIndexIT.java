@@ -182,6 +182,13 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                 add("tags");
                 add("id");
                 add("viz");
+                add("idnew");
+                add("version");
+                add("nextversion");
+                add("idversion");
+                add("idversionnextversion");
+                add("operation");
+                add("author");
             }};
 
             String sqlSpaceSchema = "(select schema_name::text from information_schema.schemata where schema_name in ('xyz','public') order by 1 desc limit 1)";
@@ -194,7 +201,8 @@ public class PSQLIndexIT extends PSQLAbstractIT {
             while(resultSet.next()){
                 String idxProperty = resultSet.getString("idx_property");
                 if(systemIndices.contains(idxProperty)) {
-                    systemIndices.remove(idxProperty);
+                    if (!idxProperty.equals("Key"))
+                        systemIndices.remove(idxProperty);
                     assertEquals("s",resultSet.getString("src"));
                 }
                 else {
@@ -281,7 +289,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                         assertEquals("CREATE INDEX "+idx_name+" ON public.foo USING btree (geometrytype(geo))",indexdef);
                         break;
                     case "id" :
-                        assertEquals("CREATE UNIQUE INDEX idx_foo_id ON public.foo USING btree (((jsondata ->> 'id'::text)))",indexdef);
+                        assertEquals("CREATE INDEX idx_foo_id ON public.foo USING btree (((jsondata ->> 'id'::text)))",indexdef);
                         break;
                     case "geo" :
                         assertEquals("CREATE INDEX idx_foo_geo ON public.foo USING gist (geo)",indexdef);

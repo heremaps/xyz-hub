@@ -19,20 +19,18 @@
 
 package com.here.xyz.psql;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
-import com.here.xyz.events.GetFeaturesByTileEvent.ResponseType;
-import com.here.xyz.events.ModifySubscriptionEvent.Operation;
 import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.GetStorageStatisticsEvent;
@@ -44,15 +42,12 @@ import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
-import com.here.xyz.models.geojson.HQuad;
-import com.here.xyz.models.geojson.WebMercatorTile;
-import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.factory.H3SQL;
-import com.here.xyz.psql.factory.QuadbinSQL;
-import com.here.xyz.psql.factory.TweaksSQL;
+import com.here.xyz.psql.query.DeleteChangesets;
 import com.here.xyz.psql.query.GetFeaturesByBBox;
+import com.here.xyz.psql.query.GetFeaturesByBBoxClustered;
+import com.here.xyz.psql.query.GetFeaturesByBBoxTweaked;
 import com.here.xyz.psql.query.GetFeaturesByGeometry;
 import com.here.xyz.psql.query.GetFeaturesById;
 import com.here.xyz.psql.query.GetStorageStatistics;
@@ -65,15 +60,10 @@ import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import java.sql.SQLException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -83,18 +73,6 @@ import org.apache.logging.log4j.Logger;
 
 public class PSQLXyzConnector extends DatabaseHandler {
 
-  /**
-   * Real live counts via count(*)
-   */
-  public static final String COUNTMODE_REAL = "real";
-  /**
-   * Estimated counts, determined with _postgis_selectivity() or EXPLAIN Plan analyze
-   */
-  public static final String COUNTMODE_ESTIMATED = "estimated";
-  /**
-   * Combination of real and estimated.
-   */
-  public static final String COUNTMODE_MIXED = "mixed";
   private static final Logger logger = LogManager.getLogger();
   /**
    * The context for this request.
@@ -170,244 +148,34 @@ public class PSQLXyzConnector extends DatabaseHandler {
     }
   }
 
-  static private class TupleTime
-  { static private Map<String,String> rTuplesMap = new ConcurrentHashMap<String,String>();
-    long outTs;
-    TupleTime() { outTs = System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(15); rTuplesMap.clear(); }
-    boolean expired() { return  System.currentTimeMillis() > outTs; }
-  }
-
-  static private TupleTime ttime = new TupleTime();
-
-  static private boolean isVeryLargeSpace( String rTuples )
-  { long tresholdVeryLargeSpace = 350000000L; // 350M Objects
-
-    if( rTuples == null ) return false;
-
-    String[] a = rTuples.split("~");
-    if( a == null || a[0] == null ) return false;
-
-    try{ return tresholdVeryLargeSpace <= Long.parseLong(a[0]); } catch( NumberFormatException e ){}
-
-    return false;
-  }
-
   @Override
   protected XyzResponse processGetFeaturesByBBoxEvent(GetFeaturesByBBoxEvent event) throws Exception {
-    try{
+    try {
       logger.info("{} Received "+event.getClass().getSimpleName(), traceItem);
 
-      final BBox bbox = event.getBbox();
-
-      boolean bTweaks = ( event.getTweakType() != null ),
-              bOptViz = "viz".equals( event.getOptimizationMode() ),
-              bSelectionStar = false,
-              bClustering = (event.getClusteringType() != null);
-
-      ResponseType responseType = SQLQueryBuilder.getResponseType(event);
-      int mvtMargin = 0;
-      boolean bMvtRequested = responseType == MVT || responseType == MVT_FLATTENED,
-              bMvtFlattend  = responseType == MVT_FLATTENED;
-
-      WebMercatorTile mercatorTile = null;
-      HQuad hereTile = null;
-      GetFeaturesByTileEvent tileEv = ( event instanceof GetFeaturesByTileEvent ? (GetFeaturesByTileEvent) event : null );
-
-      if( tileEv != null && tileEv.getHereTileFlag() ){
-        if(bClustering)
-          throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "clustering=[hexbin,quadbin] is not supported for 'here' tile type. Use Web Mercator projection (quadkey, web, tms).");
-      }
-
-      if( bMvtRequested && tileEv == null )
-       throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "mvt format needs tile request");
-
-      if( bMvtRequested )
-      {
-        if( event.getConnectorParams() == null || event.getConnectorParams().get("mvtSupport") != Boolean.TRUE )
-         throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "mvt format is not supported");
-
-        if(!tileEv.getHereTileFlag())
-         mercatorTile = WebMercatorTile.forWeb(tileEv.getLevel(), tileEv.getX(), tileEv.getY());
-        else
-         hereTile = new HQuad(tileEv.getX(), tileEv.getY(),tileEv.getLevel());
-
-        mvtMargin = tileEv.getMargin();
-      }
-
-      if( event.getSelection() != null && "*".equals( event.getSelection().get(0) ))
-      { event.setSelection(null);
-        bSelectionStar = true; // differentiation needed, due to different semantic of "event.getSelection() == null" tweaks vs. nonTweaks
-      }
-
-      if( !bClustering && ( bTweaks || bOptViz ) )
-      {
-        Map<String, Object> tweakParams;
-        boolean bVizSamplingOff = false;
-
-        if( bTweaks )
-         tweakParams = event.getTweakParams();
-        else if ( !bOptViz )
-        { event.setTweakType( TweaksSQL.SIMPLIFICATION );
-          tweakParams = new HashMap<String, Object>();
-          tweakParams.put("algorithm", new String("gridbytilelevel"));
-        }
-        else
-        { event.setTweakType( TweaksSQL.ENSURE );
-          tweakParams = new HashMap<String, Object>();
-          switch( event.getVizSampling().toLowerCase() )
-          { case "high" : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 15 ) ); break;
-            case "low"  : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 70 ) ); break;
-            case "off"  : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 100 ));
-                          bVizSamplingOff = true;
-                          break;
-            case "med"  :
-            default     : tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 30 ) ); break;
-          }
-        }
-
-        int distStrength = 1;
-        boolean bSortByHashedValue = false;
-
-        switch ( event.getTweakType().toLowerCase() )  {
-
-          case TweaksSQL.ENSURE: {
-
-            if(ttime.expired())
-             ttime = new TupleTime();
-
-            String rTuples = TupleTime.rTuplesMap.get(event.getSpace());
-            Feature estimateFtr = executeQueryWithRetry(SQLQueryBuilder.buildEstimateSamplingStrengthQuery(event, bbox, rTuples )).getFeatures().get(0);
-            int rCount = estimateFtr.get("rcount");
-
-            if( rTuples == null )
-            { rTuples = estimateFtr.get("rtuples");
-              TupleTime.rTuplesMap.put(event.getSpace(), rTuples );
-            }
-
-            bSortByHashedValue = isVeryLargeSpace( rTuples );
-
-            boolean bDefaultSelectionHandling = (tweakParams.get(TweaksSQL.ENSURE_DEFAULT_SELECTION) == Boolean.TRUE );
-
-            if( event.getSelection() == null && !bDefaultSelectionHandling && !bSelectionStar )
-             event.setSelection(Arrays.asList("id","type"));
-
-            distStrength = TweaksSQL.calculateDistributionStrength( rCount, Math.max(Math.min((int) tweakParams.getOrDefault(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD,10),100),10) * 1000 );
-
-            HashMap<String, Object> hmap = new HashMap<>();
-            hmap.put("algorithm", new String("distribution"));
-            hmap.put("strength", new Integer( distStrength ));
-            tweakParams = hmap;
-            // fall thru tweaks=sampling
-          }
-
-          case TweaksSQL.SAMPLING: {
-            if( bTweaks || !bVizSamplingOff )
-            {
-              if( !bMvtRequested )
-              { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, bSortByHashedValue));
-                if( distStrength > 0 ) collection.setPartial(true); // either ensure mode or explicit tweaks:sampling request where strenght in [1..100]
-                return collection;
-              }
-              else
-               return executeBinQueryWithRetry(
-                         SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, tweakParams, bSortByHashedValue) , mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
-            }
-            else
-            { // fall thru tweaks=simplification e.g. mode=viz and vizSampling=off
-              tweakParams.put("algorithm", "gridbytilelevel");
-            }
-          }
-
-          case TweaksSQL.SIMPLIFICATION: {
-            if( !bMvtRequested )
-            { FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams));
-              return collection;
-            }
-            else
-             return executeBinQueryWithRetry(
-               SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams) , mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
-          }
-
-          default: break; // fall back to non-tweaks usage.
-        }
-      }
-
-      if( bClustering )
-      { final Map<String, Object> clusteringParams = event.getClusteringParams();
-
-        switch(event.getClusteringType().toLowerCase())
-        {
-          case H3SQL.HEXBIN :
-           if( !bMvtRequested )
-            return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams),false);
-           else
-            return executeBinQueryWithRetry(
-             SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams), mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ),false );
-
-          case QuadbinSQL.QUAD :
-           final int relResolution = ( clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) != null ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) :
-                                     ( clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION_RELATIVE) != null ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION_RELATIVE) : 0)),
-                     absResolution = clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION_ABSOLUTE) != null ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION_ABSOLUTE) : 0;
-           final String countMode = (String) clusteringParams.get(QuadbinSQL.QUADBIN_COUNTMODE);
-           final boolean noBuffer = (boolean) clusteringParams.getOrDefault(QuadbinSQL.QUADBIN_NOBOFFER,false);
-
-           checkQuadbinInput(countMode, relResolution, event, streamId);
-
-            if( !bMvtRequested )
-              return executeQueryWithRetry(SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config, noBuffer));
-            else
-              return executeBinQueryWithRetry(
-                      SQLQueryBuilder.buildMvtEncapsuledQuery(config.readTableFromEvent(event), SQLQueryBuilder.buildQuadbinClusteringQuery(event, bbox, relResolution, absResolution, countMode, config, noBuffer), mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
-
-          default: break; // fall back to non-tweaks usage.
-       }
-      }
-
-      final boolean isBigQuery = (bbox.widthInDegree(false) >= (360d / 4d) || (bbox.heightInDegree() >= (180d / 4d)));
-
-      if (isBigQuery)
-        //Check if Properties are indexed
-        checkCanSearchFor(event);
-
-      if (event.getParams() != null && event.getParams().containsKey("extends") && event.getContext() == DEFAULT)
-        return new GetFeaturesByBBox<>(event, this).run();
-
-      if( !bMvtRequested )
-       return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event));
-      else
-       return executeBinQueryWithRetry( SQLQueryBuilder.buildMvtEncapsuledQuery(event.getSpace(), SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event), mercatorTile, hereTile, bbox, mvtMargin, bMvtFlattend ) );
-
-    }catch (SQLException e){
+      if (event.getClusteringType() != null)
+        return new GetFeaturesByBBoxClustered<>(event, this).run();
+      if (event.getTweakType() != null || "viz".equals(event.getOptimizationMode()))
+        return new GetFeaturesByBBoxTweaked<>(event, this).run();
+      return new GetFeaturesByBBox<>(event, this).run();
+    }
+    catch (SQLException e) {
       return checkSQLException(e, config.readTableFromEvent(event));
-    }finally {
+    }
+    finally {
       logger.info("{} Finished "+event.getClass().getSimpleName(), traceItem);
     }
   }
 
-  /**
-   * Check if request parameters are valid. In case of invalidity throw an Exception
-   */
-  private void checkQuadbinInput(String countMode, int relResolution, GetFeaturesByBBoxEvent event, String streamId) throws ErrorResponseException
-  {
-    if(countMode != null && (!countMode.equalsIgnoreCase(COUNTMODE_REAL) && !countMode.equalsIgnoreCase(COUNTMODE_ESTIMATED) && !countMode.equalsIgnoreCase(
-        COUNTMODE_MIXED)) )
-      throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-          "Invalid request parameters. Unknown clustering.countmode="+countMode+". Available are: ["+ COUNTMODE_REAL
-              +","+ COUNTMODE_ESTIMATED +","+ COUNTMODE_MIXED +"]!");
-
-    if(relResolution > 5)
-      throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-          "Invalid request parameters. clustering.relativeResolution="+relResolution+" to high. 5 is maximum!");
-
-    if(event.getPropertiesQuery() != null && event.getPropertiesQuery().get(0).size() != 1)
-      throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-          "Invalid request parameters. Only one Property is allowed");
-
-    checkCanSearchFor(event);
-  }
-
   @Override
   protected XyzResponse processGetFeaturesByTileEvent(GetFeaturesByTileEvent event) throws Exception {
+    if (event.getHereTileFlag() && event.getClusteringType() != null)
+      throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, "clustering=[hexbin,quadbin] is not supported for 'here' tile type. Use Web Mercator projection (quadkey, web, tms).");
+
+    if ((event.getResponseType() == MVT || event.getResponseType() == MVT_FLATTENED)
+        && (event.getConnectorParams() == null || event.getConnectorParams().get("mvtSupport") != Boolean.TRUE))
+      throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, "mvt format is not supported");
+
     return processGetFeaturesByBBoxEvent(event);
   }
 
@@ -415,7 +183,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processIterateFeaturesEvent(IterateFeaturesEvent event) throws Exception {
     try {
       logger.info("{} Received "+event.getClass().getSimpleName(), traceItem);
-      checkCanSearchFor(event);
+      SearchForFeatures.checkCanSearchFor(event, this);
 
       if (isOrderByEvent(event))
         return IterateFeatures.findFeaturesSort(event, this);
@@ -445,7 +213,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processSearchForFeaturesEvent(SearchForFeaturesEvent event) throws Exception {
     try {
       logger.info("{} Received "+event.getClass().getSimpleName(), traceItem);
-      checkCanSearchFor(event);
+      SearchForFeatures.checkCanSearchFor(event, this);
 
       // For testing purposes.
       if (event.getSpace().contains("illegal_argument")) //TODO: Remove testing code from the actual connector implementation
@@ -460,12 +228,6 @@ public class PSQLXyzConnector extends DatabaseHandler {
     finally {
       logger.info("{} Finished " + event.getClass().getSimpleName(), traceItem);
     }
-  }
-
-  private void checkCanSearchFor(SearchForFeaturesEvent event) throws ErrorResponseException {
-    if (!Capabilities.canSearchFor(config.readTableFromEvent(event), event.getPropertiesQuery(), this))
-      throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-          "Invalid request parameters. Search for the provided properties is not supported for this space.");
   }
 
   @Override
@@ -568,7 +330,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   }
 
   private void validateModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception {
-    
+
    switch(event.getOperation())
    { case CREATE : case UPDATE : case DELETE : break;
      default:
@@ -594,6 +356,21 @@ public class PSQLXyzConnector extends DatabaseHandler {
     try {
       logger.info("{} Received " + event.getClass().getSimpleName(), traceItem);
       return new GetStorageStatistics(event, this).run();
+    }
+    catch (SQLException e) {
+      return checkSQLException(e, config.readTableFromEvent(event));
+    }
+    finally {
+      logger.info("{} Finished " + event.getClass().getSimpleName(), traceItem);
+    }
+  }
+
+  @Override
+  protected XyzResponse processChangesetEvent(DeleteChangesetsEvent event) throws Exception {
+    try {
+      logger.info("{} Received " + event.getClass().getSimpleName(), traceItem);
+      new DeleteChangesets(event, this).write();
+      return new SuccessResponse().withStatus("OK");
     }
     catch (SQLException e) {
       return checkSQLException(e, config.readTableFromEvent(event));

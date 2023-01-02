@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.xyz.hub.config;
+package com.here.xyz.httpconnector.config;
 
 import static com.here.xyz.psql.config.DatabaseSettings.PSQL_DB;
 import static com.here.xyz.psql.config.DatabaseSettings.PSQL_HOST;
@@ -29,7 +29,7 @@ import static com.here.xyz.psql.config.DatabaseSettings.PSQL_USER;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.Core;
-import com.here.xyz.hub.PsqlHttpVerticle;
+import com.here.xyz.httpconnector.CService;
 import com.here.xyz.psql.DatabaseMaintainer;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.SQLQueryBuilder;
@@ -69,7 +69,7 @@ public class MaintenanceClient {
     public <T> T executeQuery(SQLQuery query, ResultSetHandler<T> handler, DataSource dataSource) throws SQLException {
         final long start = System.currentTimeMillis();
         try {
-            final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null, PsqlHttpVerticle.DB_STATEMENT_TIMEOUT_IN_S));
+            final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null, CService.configuration.DB_STATEMENT_TIMEOUT_IN_S));
             return run.query(query.text(), handler, query.parameters().toArray());
         } finally {
             final long end = System.currentTimeMillis();
@@ -80,7 +80,7 @@ public class MaintenanceClient {
     public int executeQueryWithoutResults(SQLQuery query, DataSource dataSource) throws SQLException {
         final long start = System.currentTimeMillis();
         try {
-            final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null, PsqlHttpVerticle.DB_STATEMENT_TIMEOUT_IN_S));
+            final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null, CService.configuration.DB_STATEMENT_TIMEOUT_IN_S));
             return run.execute(query.text(), query.parameters().toArray());
         } finally {
             final long end = System.currentTimeMillis();
@@ -91,7 +91,7 @@ public class MaintenanceClient {
     public int executeUpdate(SQLQuery query, DataSource dataSource) throws SQLException {
         final long start = System.currentTimeMillis();
         try {
-            final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null, PsqlHttpVerticle.DB_STATEMENT_TIMEOUT_IN_S));
+            final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null,  CService.configuration.DB_STATEMENT_TIMEOUT_IN_S));
             final String queryText = query.text();
             final List<Object> queryParameters = query.parameters();
 
@@ -149,7 +149,7 @@ public class MaintenanceClient {
         DataSource source = dbInstance.getSource();
 
         SQLQuery hasPermissionsQuery = new SQLQuery("select has_database_privilege(?, ?, 'CREATE')", dbSettings.getUser(), dbSettings.getDb() );
-        SQLQuery installExtensionsQuery = new SQLQuery(MaintenanceSQL.generateMandatoryExtensionSQLv2());
+        SQLQuery installExtensionsQuery = new SQLQuery(MaintenanceSQL.generateMandatoryExtensionSQL());
 
         SQLQuery setSearchpath = new SQLQuery(MaintenanceSQL.generateSearchPathSQL(dbSettings.getSchema()));
         SQLQuery addInitializationEntry = new SQLQuery(MaintenanceSQL.generateInitializationEntry, dbSettings.getSchema(), dbInstance.getConnectorId(), true, extensionList,
@@ -333,15 +333,15 @@ public class MaintenanceClient {
         cpds.setUser(dbSettings.getUser());
         cpds.setPassword(dbSettings.getPassword());
 
-        cpds.setInitialPoolSize(PsqlHttpVerticle.DB_INITIAL_POOL_SIZE);
-        cpds.setMinPoolSize(PsqlHttpVerticle.DB_MIN_POOL_SIZE);
-        cpds.setMaxPoolSize(PsqlHttpVerticle.DB_MAX_POOL_SIZE);
+        cpds.setInitialPoolSize( CService.configuration.DB_INITIAL_POOL_SIZE);
+        cpds.setMinPoolSize( CService.configuration.DB_MIN_POOL_SIZE);
+        cpds.setMaxPoolSize( CService.configuration.DB_MAX_POOL_SIZE);
 
-        cpds.setAcquireRetryAttempts(PsqlHttpVerticle.DB_ACQUIRE_RETRY_ATTEMPTS);
-        cpds.setAcquireIncrement(PsqlHttpVerticle.DB_ACQUIRE_INCREMENT);
+        cpds.setAcquireRetryAttempts( CService.configuration.DB_ACQUIRE_RETRY_ATTEMPTS);
+        cpds.setAcquireIncrement( CService.configuration.DB_ACQUIRE_INCREMENT);
 
-        cpds.setCheckoutTimeout(PsqlHttpVerticle.DB_CHECKOUT_TIMEOUT * 1000 );
-        cpds.setTestConnectionOnCheckout(PsqlHttpVerticle.DB_TEST_CONNECTION_ON_CHECKOUT);
+        cpds.setCheckoutTimeout( CService.configuration.DB_CHECKOUT_TIMEOUT * 1000 );
+        cpds.setTestConnectionOnCheckout( CService.configuration.DB_TEST_CONNECTION_ON_CHECKOUT);
 
         cpds.setConnectionCustomizerClassName(ConnectionCustomizer.class.getName());
         return cpds;
@@ -357,7 +357,7 @@ public class MaintenanceClient {
             QueryRunner runner = new QueryRunner();
             try {
                 runner.execute(c, "SET enable_seqscan = off;");
-                runner.execute(c, "SET statement_timeout = " + (PsqlHttpVerticle.DB_STATEMENT_TIMEOUT_IN_S * 1000) + " ;");
+                runner.execute(c, "SET statement_timeout = " + (  CService.configuration.DB_STATEMENT_TIMEOUT_IN_S * 1000) + " ;");
                 runner.execute(c, "SET search_path=" + schema + ",h3,public,topology;");
             } catch (SQLException e) {
                 logger.error("Failed to initialize connection " + c + " [" + pdsIdt + "] : {}", e);

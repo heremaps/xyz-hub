@@ -29,30 +29,27 @@ import java.util.ArrayList;
 import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(Include.NON_DEFAULT)
 public class XyzNamespace implements XyzSerializable {
 
   public static final String XYZ_NAMESPACE = "@ns:com:here:xyz";
 
   @JsonProperty("_inputPosition")
-  @JsonInclude(Include.NON_NULL)
   private Long inputPosition;
 
   /**
    * The space ID the feature belongs to.
    */
-  @JsonInclude(Include.NON_NULL)
   private String space;
 
   /**
    * The timestamp, when a feature was created.
    */
-  @JsonInclude(Include.NON_DEFAULT)
   private long createdAt;
 
   /**
    * The timestamp, when a feature was last updated.
    */
-  @JsonInclude(Include.NON_DEFAULT)
   private long updatedAt;
 
   /**
@@ -73,33 +70,21 @@ public class XyzNamespace implements XyzSerializable {
   /**
    * The list of tags being attached to the feature.
    */
-  @JsonInclude(Include.NON_NULL)
   private List<String> tags;
 
   /**
-   * A flag indicating the object should be treated as being deleted. This flag is only informative and is not relevant for the XYZ Hub
-   * rather it could be interpreted by clients or processors & listeners.
+   * A flag indicating the object should be treated as being deleted.
    */
-  @JsonInclude(Include.NON_DEFAULT)
   private boolean deleted;
 
   /**
-   * The space-version of the feature within the history of its space.
-   * Multiple features could be part of a single space-version if they have been edited in one transaction.
+   * The space-version of the feature within the space's versions.
+   * Multiple features share the same space-version if they have been edited in one transaction.
    */
-  @Deprecated
-  @JsonInclude(Include.NON_EMPTY)
-  private Integer version;
+  private long version = -1;
 
   /**
-   * The revision number of the feature within the space's revisions.
-   * Multiple features share the same revision number if they have been edited in one transaction.
-   */
-  @JsonInclude(Include.NON_DEFAULT)
-  private int revision;
-
-  /**
-   * The author that changed the feature in the current revision.
+   * The author that changed the feature in the current version.
    * Multiple features share the same author if they have been edited in one transaction.
    */
   @JsonInclude(Include.NON_EMPTY)
@@ -381,31 +366,17 @@ public class XyzNamespace implements XyzSerializable {
     return this;
   }
 
-  public Integer getVersion() {
+  public long getVersion() {
     return version;
   }
 
-  public void setVersion(Integer version) {
+  public void setVersion(long version) {
     this.version = version;
   }
 
   @SuppressWarnings("unused")
-  public XyzNamespace withVersion(int version) {
+  public XyzNamespace withVersion(long version) {
     setVersion(version);
-    return this;
-  }
-
-  public int getRevision() {
-    return revision;
-  }
-
-  public void setRevision(int revision) {
-    this.revision = revision;
-  }
-
-  @SuppressWarnings("unused")
-  public XyzNamespace withRevision(int revision) {
-    setRevision(revision);
     return this;
   }
 
