@@ -19,9 +19,10 @@
 
 package com.here.xyz.psql.factory;
 
-import static com.here.xyz.psql.PSQLXyzConnector.COUNTMODE_ESTIMATED;
-import static com.here.xyz.psql.PSQLXyzConnector.COUNTMODE_MIXED;
-import static com.here.xyz.psql.PSQLXyzConnector.COUNTMODE_REAL;
+import static com.here.xyz.psql.query.GetFeaturesByBBoxClustered.COUNTMODE_ESTIMATED;
+import static com.here.xyz.psql.query.GetFeaturesByBBoxClustered.COUNTMODE_MIXED;
+import static com.here.xyz.psql.query.GetFeaturesByBBoxClustered.COUNTMODE_REAL;
+import static com.here.xyz.psql.query.GetFeaturesByBBoxClustered.COUNTMODE_BOOL;
 
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
@@ -53,6 +54,7 @@ public class QuadbinSQL {
 
         double bufferSizeInDeg = tile.getBBox(false).widthInDegree(true) / (Math.pow(2, resolution) *  1024.0);
         String realCountCondition = "",
+               boolCountCondition = "FALSE",
                _pureEstimation = "select sum( ti.tbl_est_cnt * xyz_postgis_selectivity( ti.tbloid, 'geo',qkbbox) )::bigint from tblinfo ti",
                pureEstimation = "",
                resultQkGeo = (!noBuffer ? DhString.format("ST_Buffer(qkbbox, -%f)",bufferSizeInDeg) : "qkbbox"),
@@ -67,6 +69,8 @@ public class QuadbinSQL {
             quadMode = COUNTMODE_MIXED;
 
         switch (quadMode) {
+            case COUNTMODE_BOOL:
+                boolCountCondition = "TRUE";
             case COUNTMODE_REAL:
                 realCountCondition = "TRUE";
                 pureEstimation = _pureEstimation;
@@ -106,9 +110,9 @@ public class QuadbinSQL {
                 "   where c1.oid = ('${schema}.${table}')::regclass "+
                 "), "+
                 "tbl_stats as ( select sum(tbl_est_cnt) as est_cnt from tblinfo ), "+
-                "quadkeys as ( "+ coveringQksSql + " ), "+
-                "quaddata as ( select qk, xyz_qk_qk2bbox( qk ) as qkbbox, ( select array[r.level,r.colx,r.rowy] from xyz_qk_qk2lrc(qk) r ) as qkxyz from quadkeys ), "+
-                "qk_stats  as ( select ("+realCountCondition+") as real_condition, * from (select *, ("+pureEstimation+") as cond_est_cnt, floor(est_cnt/pow(4,qkxyz[1]))::bigint as equi_cnt from tbl_stats, quaddata ) a ) "+
+                "quadkeys  as ( "+ coveringQksSql + " ), "+
+                "quaddata  as ( select qk, xyz_qk_qk2bbox( qk ) as qkbbox, ( select array[r.level,r.colx,r.rowy] from xyz_qk_qk2lrc(qk) r ) as qkxyz from quadkeys ), "+
+                "qk_stats  as ( select ("+boolCountCondition+") as bool_condition, ("+realCountCondition+") as real_condition, * from (select *, ("+pureEstimation+") as cond_est_cnt, floor(est_cnt/pow(4,qkxyz[1]))::bigint as equi_cnt from tbl_stats, quaddata ) a ) "+
 /*cte end*/
                 "SELECT jsondata, "+ geoPrj +" as geo from ("+
                 "SELECT  "+
@@ -130,11 +134,17 @@ public class QuadbinSQL {
                 "    FROM "+
                 "    (SELECT real_condition,est_cnt,equi_cnt,qk,qkbbox,qkxyz,"+
                 "        ("+
-                "        CASE WHEN real_condition THEN "+
-                "            (select count(1) from ${schema}.${table} where ST_Intersects(geo, qkbbox) and " + propQuery + ")"+
-                "        ELSE "+
-                "          cond_est_cnt "+
-                "        END)::bigint as cnt_bbox_est"+
+                "        CASE"+
+                "         WHEN bool_condition THEN "+
+                "          CASE WHEN EXISTS (select 1 from ${schema}.${table} where ST_Intersects(geo, qkbbox) and " + propQuery + ")"+
+                "           THEN 1::bigint "+
+                "           ELSE 0::bigint "+
+                "          END"+
+                "         WHEN real_condition THEN "+
+                "           (select count(1) from ${schema}.${table} where ST_Intersects(geo, qkbbox) and " + propQuery + ")"+
+                "         ELSE "+
+                "           cond_est_cnt "+
+                "        END )::bigint as cnt_bbox_est"+
                 "    FROM qk_stats "+
                 "    ) c"+
                 ") x WHERE qkgeo IS NOT null ");

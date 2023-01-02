@@ -120,6 +120,8 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public static final String UUID = "uuid";
     public static final String PUUID = "puuid";
     public static final String MUUID = "muuid";
+    public static final String VERSION = "version";
+    public static final String AUTHOR = "author";
   }
 
   private FeatureTask(T event, RoutingContext context, ApiResponseType responseType, boolean skipCache) {
@@ -340,7 +342,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           }});
 
       try {
-        getRpcClient(refConnector).execute(getMarker(), event, r -> processLoadEvent(c, event, r));
+        getRpcClient(refConnector).execute(getMarker(), event, r -> processLoadEvent(c, event, r), refSpace);
       }
       catch (Exception e) {
         logger.warn(gq.getMarker(), "Error trying to process LoadFeaturesEvent.", e);
@@ -446,6 +448,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
 
     public TaskPipeline<IdsQuery> createPipeline() {
       return TaskPipeline.create(this)
+          .then(FeatureTaskHandler::validateReadFeaturesParams)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::readCache)
@@ -638,6 +641,8 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public Map<Object, Integer> positionById;
     public LoadFeaturesEvent loadFeaturesEvent;
     public boolean hasNonModified;
+
+    public String author;
 
     public ConditionalOperation(ModifyFeaturesEvent event, RoutingContext context, ApiResponseType apiResponseTypeType,
         ModifyFeatureOp modifyOp, boolean requireResourceExists, int requestBodySize) {

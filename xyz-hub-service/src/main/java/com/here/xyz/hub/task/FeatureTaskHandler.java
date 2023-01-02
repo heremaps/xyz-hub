@@ -19,6 +19,8 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
 import static com.here.xyz.hub.rest.ApiResponseType.MVT;
@@ -41,6 +43,7 @@ import com.google.common.base.Strings;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContentModifiedNotification;
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.Event.TrustedParams;
 import com.here.xyz.events.EventNotification;
@@ -52,6 +55,7 @@ import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.hub.AbstractHttpServerVerticle;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
@@ -158,7 +162,7 @@ public class FeatureTaskHandler {
    * If the value exists for a space and it points to a value > 0, that is the version of the latest write to that space as it has been
    * performed by this service-node.
    */
-  private static ConcurrentHashMap<String, Integer> latestSeenContentVersions = new ConcurrentHashMap<>();
+  private static ConcurrentHashMap<String, Long> latestSeenContentVersions = new ConcurrentHashMap<>();
 
   /**
    * Contains the amount of all in-flight requests for each storage ID.
@@ -269,7 +273,7 @@ public class FeatureTaskHandler {
               scheduleContentModifiedNotification(task);
             }
           });
-        });
+        }, task.space);
         AbstractHttpServerVerticle.addStreamInfo(task.context, "SReqSize", responseContext.rpcContext.getRequestSize());
         task.addCancellingHandler(unused -> responseContext.rpcContext.cancelRequest());
       }
@@ -508,9 +512,9 @@ public class FeatureTaskHandler {
     }
   }
 
-  static void setLatestSeenContentVersion(Space space, int version) {
+  static void setLatestSeenContentVersion(Space space, long version) {
     if ((space.isEnableHistory() || space.isEnableGlobalVersioning()) && version > 0)
-      latestSeenContentVersions.compute(space.getId(), (spaceId, currentVersion) -> Math.max(currentVersion != null ? currentVersion : 0,
+      latestSeenContentVersions.compute(space.getId(), (spaceId, currentVersion) -> Math.max(currentVersion != null ? currentVersion : 0L,
           version));
   }
 
@@ -534,7 +538,7 @@ public class FeatureTaskHandler {
       long timerId = Service.vertx.setTimer(interval, tId -> {
         timerMap.remove(nc.space.getId());
         ContentModifiedNotification cmn = new ContentModifiedNotification().withSpace(nc.space.getId());
-        Integer spaceVersion = latestSeenContentVersions.get(nc.space.getId());
+        Long spaceVersion = latestSeenContentVersions.get(nc.space.getId());
         if (spaceVersion != null) cmn.setSpaceVersion(spaceVersion);
         if (adminNotification) {
           //Send it to the modification SNS topic
@@ -773,8 +777,10 @@ public class FeatureTaskHandler {
       return Space.resolveSpace(task.getMarker(), task.getEvent().getSpace())
           .compose(
               space -> {
-                task.space = space;
                 if (space != null) {
+                  if (space.getExtension() != null && task.getEvent() instanceof ContextAwareEvent && SUPER.equals(((ContextAwareEvent<?>) task.getEvent()).getContext()))
+                    return switchToSuperSpace(task, space);
+                  task.space = space;
                   //Inject the extension-map
                   return space.resolveCompositeParams(task.getMarker()).compose(resolvedExtensions -> {
                     Map<String, Object> storageParams = new HashMap<>();
@@ -783,6 +789,16 @@ public class FeatureTaskHandler {
                     storageParams.putAll(resolvedExtensions);
 
                     task.getEvent().setParams(storageParams);
+
+                    if (task.getEvent() instanceof SelectiveEvent) {
+                      //Inject the minVersion from the space config
+                      ((SelectiveEvent<?>) task.getEvent()).setMinVersion(space.getMinVersion());
+                    }
+                    if (task.getEvent() instanceof ContextAwareEvent) {
+                      //Inject the versionsToKeep from the space config
+                      ((ContextAwareEvent<?>) task.getEvent()).setVersionsToKeep(space.getVersionsToKeep());
+                    }
+
                     return Future.succeededFuture(space);
                   });
                 }
@@ -798,6 +814,15 @@ public class FeatureTaskHandler {
     catch (Exception e) {
       return Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition.", e));
     }
+  }
+
+  private static <X extends FeatureTask> Future<Space> switchToSuperSpace(X task, Space space) {
+    //Overwrite the event's space ID to be the ID of the extended (super) space ...
+    task.getEvent().setSpace(space.getExtension().getSpaceId());
+    //also overwrite the space context to be DEFAULT now ...
+    ((ContextAwareEvent<?>) task.getEvent()).setContext(DEFAULT);
+    //... and resolve the extended (super) space instead
+    return resolveSpace(task);
   }
 
   private static <X extends FeatureTask> Future<Space> resolveExtendedSpaces(X task, Space extendingSpace) {
@@ -1268,6 +1293,15 @@ public class FeatureTaskHandler {
         }
       }
     }
+
+    // update version for spaces where versioning is enabled
+    if (task.getEvent().getVersionsToKeep() > 1) {
+      // if version is not provided when updating the feature, use version from head
+      nsXyz.setVersion(entry.inputVersion == -1 && !isInsert ? entry.head.getProperties().getXyzNamespace().getVersion() : entry.inputVersion);
+    }
+
+    // author
+    nsXyz.setAuthor(task.author);
   }
 
   static void updateTags(FeatureTask.ConditionalOperation task, Callback<FeatureTask.ConditionalOperation> callback) {
@@ -1336,6 +1370,8 @@ public class FeatureTaskHandler {
         ((ModifyFeaturesEvent) task.getEvent()).setEnableGlobalVersioning(task.space.isEnableGlobalVersioning());
         ((ModifyFeaturesEvent) task.getEvent()).setEnableHistory(task.space.isEnableHistory());
       }
+      if (task.getEvent() instanceof ContextAwareEvent)
+        ((ContextAwareEvent) task.getEvent()).setVersionsToKeep(task.space.getVersionsToKeep());
       callback.call(task);
     } catch (Exception e) {
       callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition.", e));
@@ -1387,7 +1423,7 @@ public class FeatureTaskHandler {
               return;
             }
             handler.handle(Future.succeededFuture(count));
-          });
+          }, task.space);
     }
     catch (Exception e) {
       handler.handle(Future.failedFuture((e)));
@@ -1568,7 +1604,7 @@ public class FeatureTaskHandler {
         if (task.getState().isFinal()) return;
         addConnectorPerformanceInfo(task, Core.currentTimeMillis() - storageRequestStart, responseContext.rpcContext, "LF");
         processLoadEvent(task, callback, r);
-      });
+      }, task.space);
     }
     catch (Exception e) {
       logger.warn(task.getMarker(), "Error trying to process LoadFeaturesEvent.", e);
@@ -1580,14 +1616,15 @@ public class FeatureTaskHandler {
     if (task.loadFeaturesEvent != null)
       return task.loadFeaturesEvent;
 
-
     if (task.modifyOp.entries.size() == 0)
       return null;
 
+    final boolean useVersion = task.space.getVersionsToKeep() > 1;
     final HashMap<String, String> idsMap = new HashMap<>();
-    for (Entry<Feature> entry : task.modifyOp.entries) {
+    for (FeatureEntry entry : task.modifyOp.entries) {
       if (entry.input.get("id") instanceof String) {
-        idsMap.put((String) entry.input.get("id"), entry.inputUUID);
+        String version = entry.inputVersion == -1 ? null : String.valueOf(entry.inputVersion);
+        idsMap.put((String) entry.input.get("id"), useVersion ? version : entry.inputUUID);
       }
     }
     if (idsMap.size() == 0) {
@@ -1598,9 +1635,11 @@ public class FeatureTaskHandler {
         .withStreamId(task.getMarker().getName())
         .withSpace(task.space.getId())
         .withParams(task.getEvent().getParams())
+        .withContext(task.getEvent().getContext())
         .withEnableGlobalVersioning(task.space.isEnableGlobalVersioning())
         .withEnableHistory(task.space.isEnableHistory())
-        .withIdsMap(idsMap);
+        .withIdsMap(idsMap)
+        .withVersionsToKeep(task.space.getVersionsToKeep());
 
     task.loadFeaturesEvent = event;
     return event;
@@ -1641,17 +1680,26 @@ public class FeatureTaskHandler {
           throw new IllegalStateException("Received a feature with missing space namespace properties for object '" + feature.getId() + "'");
         }
 
-        String uuid = feature.getProperties().getXyzNamespace().getUuid();
+        if (task.getEvent().getVersionsToKeep() > 1) {
+          long version = feature.getProperties().getXyzNamespace().getVersion();
+          long requestedVersion = requestedUuid == null ? -1 : Long.parseLong(requestedUuid);
+          if (task.modifyOp.entries.get(position).head == null || version != -1 && version != requestedVersion)
+            task.modifyOp.entries.get(position).head = feature;
+          if (task.modifyOp.entries.get(position).base == null || version != -1 && version == requestedVersion && task.getEvent().getEnableUUID())
+            task.modifyOp.entries.get(position).base = feature;
+        }
+        else {
+          String uuid = feature.getProperties().getXyzNamespace().getUuid();
+          //Set the head state( i.e. the latest version in the database )
+          if (task.modifyOp.entries.get(position).head == null || uuid != null && !uuid.equals(requestedUuid))
+            task.modifyOp.entries.get(position).head = feature;
 
-        //Set the head state( i.e. the latest version in the database )
-        if (task.modifyOp.entries.get(position).head == null || uuid != null && !uuid.equals(requestedUuid))
-          task.modifyOp.entries.get(position).head = feature;
-
-        //Set the base state( i.e. the original version that the user was editing )
-        //Note: The base state must not be empty. If the connector doesn't support history and doesn't return the base state, use the
-        //head state instead.
-        if (task.modifyOp.entries.get(position).base == null || uuid != null && uuid.equals(requestedUuid))
-          task.modifyOp.entries.get(position).base = feature;
+          //Set the base state( i.e. the original version that the user was editing )
+          //Note: The base state must not be empty. If the connector doesn't support history and doesn't return the base state, use the
+          //head state instead.
+          if (task.modifyOp.entries.get(position).base == null || uuid != null && uuid.equals(requestedUuid))
+            task.modifyOp.entries.get(position).base = feature;
+        }
       }
 
       callback.call(task);
@@ -1757,6 +1805,25 @@ public class FeatureTaskHandler {
       queryParams = task.context.request().params();
       if (keepTask)
         this.task = task;
+    }
+  }
+
+  static <X extends FeatureTask> void validateReadFeaturesParams(final X task, final Callback<X> callback) {
+    if (task.getEvent() instanceof SelectiveEvent) {
+      String ref = ((SelectiveEvent) task.getEvent()).getRef();
+      if (ref != null && !isVersionValid(ref))
+        callback.exception(new HttpException(BAD_REQUEST, "Invalid value for version: " + ref));
+    }
+
+    callback.call(task);
+  }
+
+  private static boolean isVersionValid(String version) {
+    try {
+      return "*".equals(version) || Integer.parseInt(version) >= 0;
+    }
+    catch (NumberFormatException e) {
+      return false;
     }
   }
 }

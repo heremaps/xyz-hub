@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -648,9 +648,9 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
     }
   }
 
-  private void checkCompactChangesetVersionIntegrity(List<Feature> fList) throws JsonProcessingException {
+  private void checkCompactChangesetVersionIntegrity(List<Feature> fList) {
     for (Feature f : fList) {
-      int v = f.getProperties().getXyzNamespace().getVersion();
+      long v = f.getProperties().getXyzNamespace().getVersion();
       if(v < 11) {
         assertEquals(true, f.getProperties().get("free"));
       }if(v == 11 || v == 12){
@@ -661,7 +661,7 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
     }
   }
 
-  private void checkFeatureListContent(List<Feature> fList, boolean checkDeleteFlag) throws JsonProcessingException {
+  private void checkFeatureListContent(List<Feature> fList, boolean checkDeleteFlag) {
     for (Feature f : fList) {
       int id = Integer.parseInt(f.getId());
       boolean isFree = f.getProperties().get("free");

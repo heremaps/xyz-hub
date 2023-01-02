@@ -53,7 +53,7 @@ public class FeatureCollection extends XyzResponse<FeatureCollection> {
   private List<Feature> oldFeatures;
   private List<ModificationFailure> failed;
   @JsonInclude(Include.NON_EMPTY)
-  private Integer version;
+  private Long version;
 
   public FeatureCollection() {
     setFeatures(new ArrayList<>());
@@ -352,15 +352,15 @@ public class FeatureCollection extends XyzResponse<FeatureCollection> {
    * modification of the space - contains the (new) space-version which has just been written.
    * @return The new space-version after some modification
    */
-  public Integer getVersion() {
+  public Long getVersion() {
     return version;
   }
 
-  public void setVersion(int version) {
+  public void setVersion(long version) {
     this.version = version;
   }
 
-  public FeatureCollection withVersion(int version) {
+  public FeatureCollection withVersion(long version) {
     setVersion(version);
     return this;
   }

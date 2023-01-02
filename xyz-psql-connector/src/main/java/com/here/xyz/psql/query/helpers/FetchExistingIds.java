@@ -38,11 +38,11 @@ public class FetchExistingIds extends QueryRunner<FetchIdsInput, List<String>> {
 
   @Override
   protected SQLQuery buildQuery(FetchIdsInput input) throws SQLException, ErrorResponseException {
-    SQLQuery query = new SQLQuery("SELECT jsondata->>'id' id FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(#{ids})");
-    query.setVariable(SCHEMA, getSchema());
-    query.setVariable(TABLE, input.targetTable);
-    query.setNamedParameter("ids", input.idsToFetch.toArray(new String[0]));
-    return query;
+    return new SQLQuery("SELECT ${{idColumn}} id FROM ${schema}.${table} WHERE ${{idColumn}} = ANY(#{ids})")
+        .withVariable(SCHEMA, getSchema())
+        .withVariable(TABLE, input.targetTable)
+        .withNamedParameter("ids", input.idsToFetch.toArray(new String[0]))
+        .withQueryFragment("idColumn", input.useLegacyIdColumn ? "jsondata->>'id'" : "id");
   }
 
   @Override
@@ -54,11 +54,14 @@ public class FetchExistingIds extends QueryRunner<FetchIdsInput, List<String>> {
   }
 
   public static class FetchIdsInput {
-    public FetchIdsInput(String targetTable, Collection<String> idsToFetch) {
+    public FetchIdsInput(String targetTable, Collection<String> idsToFetch, boolean useLegacyIdColumn) {
       this.targetTable = targetTable;
       this.idsToFetch = idsToFetch;
+      this.useLegacyIdColumn = useLegacyIdColumn;
     }
     String targetTable;
     Collection<String> idsToFetch;
+
+    boolean useLegacyIdColumn;
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,25 +17,38 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub;
+package com.here.xyz.httpconnector;
 
-import static io.vertx.core.http.HttpHeaders.CONTENT_LENGTH;
-
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.io.ByteStreams;
 import com.here.xyz.connectors.AbstractConnectorHandler;
-import com.here.xyz.hub.rest.HttpConnectorApi;
+import com.here.xyz.httpconnector.rest.HttpConnectorApi;
+import com.here.xyz.httpconnector.rest.JobApi;
+import com.here.xyz.httpconnector.rest.JobStatusApi;
+import com.here.xyz.hub.AbstractHttpServerVerticle;
+import com.here.xyz.hub.XYZHubRESTVerticle;
 import com.here.xyz.psql.PSQLXyzConnector;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Promise;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.ext.web.Router;
-import java.util.HashMap;
-import java.util.Map;
 import io.vertx.ext.web.openapi.RouterBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
+import java.util.HashMap;
+import java.util.Map;
+
+import static io.vertx.core.http.HttpHeaders.CONTENT_LENGTH;
+
+/**
+ * Verticle for HTTP-Connector. Includes three API tribes for :
+ * - event Processing
+ * - maintenance Tasks
+ * - job execution
+ */
+
+public class PsqlHttpConnectorVerticle extends AbstractHttpServerVerticle {
 
   private static final Logger logger = LogManager.getLogger();
   private static Map<String, String> envMap;
@@ -43,23 +56,6 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
 
   private static String LOCATION = "openapi-http-connector.yaml";
   private static String API;
-  private static int HTTP_PORT;
-
-  public static String ECPS_PASSPHRASE;
-  public static Integer DB_INITIAL_POOL_SIZE;
-  public static Integer DB_MIN_POOL_SIZE;
-  public static Integer DB_MAX_POOL_SIZE;
-
-  public static Integer DB_ACQUIRE_RETRY_ATTEMPTS;
-  public static Integer DB_ACQUIRE_INCREMENT;
-
-  public static Integer DB_CHECKOUT_TIMEOUT;
-  public static boolean DB_TEST_CONNECTION_ON_CHECKOUT;
-
-  public static int DB_STATEMENT_TIMEOUT_IN_S;
-
-  public static int MAX_CONCURRENT_MAINTENANCE_TASKS;
-  public static int MISSING_MAINTENANCE_WARNING_IN_HR;
 
   static {
     try {
@@ -80,9 +76,12 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
           final RouterBuilder rb = ar.result();
           populateEnvMap();
 
-          new HttpConnectorApi(rb,connector);
+          new HttpConnectorApi(rb, connector);
+          new JobApi(rb);
 
           final Router router = rb.createRouter();
+
+          new JobStatusApi(router);
 
           //OpenAPI resources
           router.route("/psql/static/openapi/*").handler(createCorsHandler()).handler((routingContext -> {
@@ -101,7 +100,7 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
 
           //Add default handlers
           addDefaultHandlers(router);
-          createHttpServer(HTTP_PORT, router);
+          createHttpServer(CService.configuration.HTTP_PORT, router);
         }
         catch (Exception e) {
           logger.error("An error occurred, during the creation of the router from the Open API specification file.", e);
@@ -117,40 +116,16 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
     if (envMap != null)
       return envMap;
 
-    try {
-      populateEnvMap();
-    }catch (Exception e){
-      logger.error("Cannot populate EnvMap");
-    }
+    populateEnvMap();
 
     return envMap;
   }
 
-  public static synchronized void populateEnvMap() throws Exception{
-    envMap = new HashMap<>();
-    HttpConnector.configuration.fieldNames().forEach(fieldName -> {
-      Object value = HttpConnector.configuration.getValue(fieldName);
-      if (value != null){
-        envMap.put(fieldName, value.toString());
-      }
-    });
-
-    ECPS_PASSPHRASE = (envMap.get("ECPS_PHRASE") == null ? "local" : envMap.get("ECPS_PHRASE")) ;
-    HTTP_PORT = Integer.parseInt((envMap.get("HTTP_PORT") == null ? "9090" : envMap.get("HTTP_PORT")));
-
-    DB_INITIAL_POOL_SIZE = Integer.parseInt((envMap.get("DB_INITIAL_POOL_SIZE") == null ? "5" : envMap.get("DB_INITIAL_POOL_SIZE")));
-    DB_MIN_POOL_SIZE = Integer.parseInt((envMap.get("DB_MIN_POOL_SIZE") == null ? "1" : envMap.get("DB_MIN_POOL_SIZE")));
-    DB_MAX_POOL_SIZE = Integer.parseInt((envMap.get("DB_MAX_POOL_SIZE") == null ? "50" : envMap.get("DB_MAX_POOL_SIZE")));
-
-    DB_ACQUIRE_RETRY_ATTEMPTS = Integer.parseInt((envMap.get("DB_ACQUIRE_RETRY_ATTEMPTS") == null ? "10" : envMap.get("DB_ACQUIRE_RETRY_ATTEMPTS")));
-    DB_ACQUIRE_INCREMENT = Integer.parseInt((envMap.get("DB_ACQUIRE_INCREMENT") == null ? "1" : envMap.get("DB_ACQUIRE_INCREMENT")));
-
-    DB_CHECKOUT_TIMEOUT = Integer.parseInt((envMap.get("DB_CHECKOUT_TIMEOUT") == null ? "10" : envMap.get("DB_CHECKOUT_TIMEOUT")) );
-    DB_TEST_CONNECTION_ON_CHECKOUT = Boolean.parseBoolean((envMap.get("DB_TEST_CONNECTION_ON_CHECKOUT")));
-
-    DB_STATEMENT_TIMEOUT_IN_S = Integer.parseInt(envMap.get("DB_STATEMENT_TIMEOUT_IN_S") == null ? "10" : envMap.get("DB_STATEMENT_TIMEOUT_IN_S"));
-
-    MAX_CONCURRENT_MAINTENANCE_TASKS = Integer.parseInt((envMap.get("MAX_CONCURRENT_MAINTENANCE_TASKS") == null ? "1" : envMap.get("MAX_CONCURRENT_MAINTENANCE_TASKS")));
-    MISSING_MAINTENANCE_WARNING_IN_HR = Integer.parseInt((envMap.get("MISSING_MAINTENANCE_WARNING_IN_HR") == null ? "12" : envMap.get("MISSING_MAINTENANCE_WARNING_IN_HR")));
+  public static synchronized void populateEnvMap(){
+    try {
+      envMap = new ObjectMapper().convertValue(CService.configuration, HashMap.class);
+    }catch (Exception e){
+      logger.error("Cannot populate EnvMap");
+    }
   }
 }

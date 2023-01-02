@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,20 +20,62 @@
 package com.here.xyz.responses.changesets;
 
 import com.fasterxml.jackson.annotation.*;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.XyzResponse;
 
-@JsonIgnoreProperties(ignoreUnknown = true)
-@JsonTypeName(value = "Changeset")
-@JsonInclude(JsonInclude.Include.NON_EMPTY)
+/**
+ * A Changeset represents a set of Feature modifications having been performed as one transaction, single authored,
+ * which can contain multiple operations like insertions, deletions and updates.
+ */
+@JsonInclude(Include.NON_DEFAULT)
 public class Changeset extends XyzResponse<Changeset> {
 
-    @JsonTypeInfo( use = JsonTypeInfo.Id.NONE )
+    long version = -1;
+    String author;
+    long createdAt;
     private FeatureCollection inserted;
-    @JsonTypeInfo( use = JsonTypeInfo.Id.NONE )
     private FeatureCollection updated;
-    @JsonTypeInfo( use = JsonTypeInfo.Id.NONE )
     private FeatureCollection deleted;
+
+    public long getVersion() {
+        return version;
+    }
+
+    public void setVersion(long version) {
+        this.version = version;
+    }
+
+    public Changeset withVersion(long version) {
+        setVersion(version);
+        return this;
+    }
+
+    public String getAuthor() {
+        return author;
+    }
+
+    public void setAuthor(String author) {
+        this.author = author;
+    }
+
+    public Changeset withAuthor(String author) {
+        setAuthor(author);
+        return this;
+    }
+
+    public long getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(long createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public Changeset withCreatedAt(long createdAt) {
+        setCreatedAt(createdAt);
+        return this;
+    }
 
     public FeatureCollection getInserted() {
         return inserted;

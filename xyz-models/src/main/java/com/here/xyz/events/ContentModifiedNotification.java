@@ -35,20 +35,20 @@ public class ContentModifiedNotification extends Event<ContentModifiedNotificati
    * If the value exists and it points to a value > 0, that is the version of the latest write to that space as it has been performed by
    * the triggering service-node.
    */
-  private int spaceVersion;
+  private long spaceVersion;
 
   /**
    * @return The latest space-version as it has been seen on the service-node which sent this {@link ContentModifiedNotification}.
    */
-  public int getSpaceVersion() {
+  public long getSpaceVersion() {
     return spaceVersion;
   }
 
-  public void setSpaceVersion(int spaceVersion) {
+  public void setSpaceVersion(long spaceVersion) {
     this.spaceVersion = spaceVersion;
   }
 
-  public ContentModifiedNotification withSpaceVersion(int spaceVersion) {
+  public ContentModifiedNotification withSpaceVersion(long spaceVersion) {
     setSpaceVersion(spaceVersion);
     return this;
   }

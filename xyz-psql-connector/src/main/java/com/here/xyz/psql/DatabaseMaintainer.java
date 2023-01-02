@@ -47,7 +47,7 @@ public class DatabaseMaintainer {
     private static final Logger logger = LogManager.getLogger();
 
     /** Is used to check against xyz_ext_version() */
-    public static final int XYZ_EXT_VERSION = 148;
+    public static final int XYZ_EXT_VERSION = 153;
 
     public static final int H3_CORE_VERSION = 107;
 
@@ -122,7 +122,7 @@ public class DatabaseMaintainer {
                 if (!rs.getBoolean("all_ext_av")) {
                     /** Create Missing IDX_Maintenance Table */
                     if (userHasCreatePermissions) {
-                        stmt.execute(MaintenanceSQL.generateMandatoryExtensionSQL(hasPropertySearch));
+                        stmt.execute(MaintenanceSQL.generateMandatoryExtensionSQL());
                     } else {
                         logger.error("{} User permissions missing! Not able to create missing Extensions on database: {}@{} / {}. Installed Extension are: {}",
                                 traceItem, config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getDb(), rs.getString("ext_av"));
@@ -276,7 +276,7 @@ public class DatabaseMaintainer {
         }
     }
 
-    public SQLQuery maintainHistory(TraceItem traceItem, String schema, String table, int currentVersion, int maxVersionCount){
+    public SQLQuery maintainHistory(TraceItem traceItem, String schema, String table, long currentVersion, int maxVersionCount){
         long maxAllowedVersion = currentVersion - maxVersionCount;
 
         if(maxAllowedVersion <= 0)

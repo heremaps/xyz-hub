@@ -47,5 +47,6 @@
   "MAX_UNCOMPRESSED_REQUEST_SIZE": 0,
   "MAX_UNCOMPRESSED_RESPONSE_SIZE": 0,
 
-  "UPLOAD_LIMIT_HEADER_NAME" : "X-Upload-Content-Length-Limit"
+  "UPLOAD_LIMIT_HEADER_NAME" : "X-Upload-Content-Length-Limit",
+  "HTTP_CONNECTOR_ENDPOINT": "http://localhost:9090/psql"
 }

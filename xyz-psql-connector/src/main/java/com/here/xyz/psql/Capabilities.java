@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ public class Capabilities {
     return skeys;
   }
 
-  public static boolean canSearchFor(String space, PropertiesQuery query, PSQLXyzConnector connector) {
+  public static boolean canSearchFor(String tableName, PropertiesQuery query, DatabaseHandler dbHandler) {
     if (query == null) {
       return true;
     }
@@ -75,7 +75,7 @@ public class Capabilities {
          return true;
 
         /** Check if custom Indices are available. Eg.: properties.foo1&f.foo2*/
-        List<String> indices = IndexList.getIndexList(space, connector);
+        List<String> indices = IndexList.getIndexList(tableName, dbHandler);
 
         /** The table has not many records - Indices are not required */
         if (indices == null) {
@@ -96,7 +96,7 @@ public class Capabilities {
       if(idx_check == keys.size())
         return true;
 
-      return IndexList.getIndexList(space, connector) == null;
+      return IndexList.getIndexList(tableName, dbHandler) == null;
     } catch (Exception e) {
       // In all cases, when something with the check went wrong, allow the search
       return true;

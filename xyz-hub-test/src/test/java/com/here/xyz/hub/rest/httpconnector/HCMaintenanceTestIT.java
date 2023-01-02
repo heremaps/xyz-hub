@@ -20,9 +20,9 @@
 package com.here.xyz.hub.rest.httpconnector;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.hub.PsqlHttpVerticle;
+import com.here.xyz.httpconnector.CService;
 import com.here.xyz.hub.auth.TestAuthenticator;
-import com.here.xyz.hub.config.MaintenanceClient;
+import com.here.xyz.httpconnector.config.MaintenanceClient;
 import com.here.xyz.hub.rest.RestAssuredConfig;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.config.PSQLConfig;
@@ -71,15 +71,16 @@ public class HCMaintenanceTestIT {
     }
 
     public static MaintenanceClient initMaintenanceClient() throws Exception {
-        PsqlHttpVerticle.DB_INITIAL_POOL_SIZE = 1;
-        PsqlHttpVerticle.DB_MIN_POOL_SIZE = 1;
-        PsqlHttpVerticle.DB_MAX_POOL_SIZE = 1;
+        CService.configuration = new CService.Config();
+        CService.configuration.DB_INITIAL_POOL_SIZE = 1;
+        CService.configuration.DB_MIN_POOL_SIZE = 1;
+        CService.configuration.DB_MAX_POOL_SIZE = 1;
 
-        PsqlHttpVerticle.DB_ACQUIRE_RETRY_ATTEMPTS = 1;
-        PsqlHttpVerticle.DB_ACQUIRE_INCREMENT = 1;
+        CService.configuration.DB_ACQUIRE_RETRY_ATTEMPTS = 1;
+        CService.configuration.DB_ACQUIRE_INCREMENT = 1;
 
-        PsqlHttpVerticle.DB_CHECKOUT_TIMEOUT = 10;
-        PsqlHttpVerticle.DB_TEST_CONNECTION_ON_CHECKOUT = true;
+        CService.configuration.DB_CHECKOUT_TIMEOUT = 10;
+        CService.configuration.DB_TEST_CONNECTION_ON_CHECKOUT = true;
 
         return new MaintenanceClient();
     }
@@ -136,7 +137,7 @@ public class HCMaintenanceTestIT {
     }
 
     @Test
-    public void testPSQLStatusWithExistingConnector() throws JsonProcessingException {
+    public void testPSQLStatusWithExistingConnector() {
         given()
                 .contentType(APPLICATION_JSON)
                 .accept(APPLICATION_JSON)
@@ -152,7 +153,7 @@ public class HCMaintenanceTestIT {
     }
 
     @Test
-    public void testPSQLStatusWithWrongECPSConnector() throws JsonProcessingException {
+    public void testPSQLStatusWithWrongECPSConnector() {
         given()
                 .contentType(APPLICATION_JSON)
                 .accept(APPLICATION_JSON)
@@ -176,7 +177,7 @@ public class HCMaintenanceTestIT {
     }
 
     @Test
-    public void maintainExistingConnector() throws JsonProcessingException {
+    public void maintainExistingConnector() {
         long curTime = System.currentTimeMillis();
 
         given()
@@ -199,7 +200,7 @@ public class HCMaintenanceTestIT {
     }
 
     @Test
-    public void maintainNotExistingConnector() throws JsonProcessingException {
+    public void maintainNotExistingConnector() {
         given()
                 .contentType(APPLICATION_JSON)
                 .accept(APPLICATION_JSON)
@@ -246,7 +247,7 @@ public class HCMaintenanceTestIT {
                 .then()
                 .statusCode(NOT_FOUND.code());
 
-       given()
+        given()
                 .contentType(APPLICATION_JSON)
                 .accept(APPLICATION_JSON)
                 .headers(authHeaders)
@@ -280,7 +281,7 @@ public class HCMaintenanceTestIT {
                 .then()
                 .statusCode(OK.code())
                 .body("idxCreationFinished", equalTo(true))
-                .body("idxAvailable.size", equalTo(8))
+                .body("idxAvailable.size", equalTo(15))
                 .body("idxManual.searchableProperties.foo", equalTo(true))
                 .body("idxManual.sortableProperties", nullValue());
     }

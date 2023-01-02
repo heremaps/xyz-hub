@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,46 +23,92 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.LoadFeaturesEvent;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import java.sql.SQLException;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
-public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
+public class LoadFeatures extends GetFeatures<LoadFeaturesEvent, FeatureCollection> {
 
   public LoadFeatures(LoadFeaturesEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(event, dbHandler);
   }
 
   @Override
-  protected SQLQuery buildQuery(LoadFeaturesEvent event) throws SQLException {
+  protected SQLQuery buildQuery(LoadFeaturesEvent event) throws SQLException, ErrorResponseException {
     final Map<String, String> idMap = event.getIdsMap();
 
-    SQLQuery filterWhereClause = new SQLQuery("jsondata->>'id' = ANY(#{ids})")
-        .withNamedParameter("ids", idMap.keySet().toArray(new String[0]));
+    SQLQuery filterWhereClause = new SQLQuery("${{idColumn}} = ANY(#{ids})")
+        .withNamedParameter("ids", idMap.keySet().toArray(new String[0]))
+        .withQueryFragment("idColumn", buildIdFragment(event));
+
+    if (event.getVersionsToKeep() > 1) {
+      Set<String> idsOnly = new HashSet<>();
+      Map<String, String> idsWithVersions = new HashMap<>();
+
+      idMap.forEach((k,v) -> {
+        idsOnly.add(k);
+        if (v != null)
+          idsWithVersions.put(k, v);
+      });
+
+      filterWhereClause = new SQLQuery("((id, version) IN (${{loadFeaturesInput}}) OR (id, next_version) IN (${{loadFeaturesInputIdsOnly}}))")
+          .withQueryFragment("loadFeaturesInput", buildLoadFeaturesInputFragment(
+              idsWithVersions.keySet().toArray(new String[0]),
+              idsWithVersions.values().stream().map(Long::parseLong).toArray(Long[]::new)
+          ))
+          .withQueryFragment("loadFeaturesInputIdsOnly", buildLoadFeaturesInputFragment(idsOnly.toArray(new String[0])));
+    }
 
     SQLQuery headQuery = super.buildQuery(event)
         .withQueryFragment("filterWhereClause", filterWhereClause);
 
-    SQLQuery query = headQuery;
-    if (event.getEnableHistory() && (!isExtendedSpace(event) || event.getContext() != DEFAULT)) {
-      final boolean compactHistory = !event.getEnableGlobalVersioning() && dbHandler.getConfig().getConnectorParams().isCompactHistory();
-      if (compactHistory)
-        //History does not contain Inserts
-        query = new SQLQuery("${{headQuery}} UNION ${{historyQuery}}");
-      else
-        //History does contain Inserts
-        query = new SQLQuery("SELECT DISTINCT ON(jsondata->'properties'->'@ns:com:here:xyz'->'uuid') * FROM("
-            + "    ${{headQuery}} UNION ${{historyQuery}}"
-            + ")A");
+    if (event.getVersionsToKeep() <= 1) {
+      SQLQuery query = headQuery;
 
-      query
-          .withQueryFragment("headQuery", headQuery)
-          .withQueryFragment("historyQuery", buildHistoryQuery(event, idMap.values()));
+      if (event.getEnableHistory() && (!isExtendedSpace(event) || event.getContext() != DEFAULT)) {
+        final boolean compactHistory = !event.getEnableGlobalVersioning() && dbHandler.getConfig().getConnectorParams().isCompactHistory();
+        if (compactHistory)
+          //History does not contain Inserts
+          query = new SQLQuery("${{headQuery}} UNION ${{historyQuery}}");
+        else
+          //History does contain Inserts
+          query = new SQLQuery("SELECT DISTINCT ON(jsondata->'properties'->'@ns:com:here:xyz'->'uuid') * FROM("
+              + "    ${{headQuery}} UNION ${{historyQuery}}"
+              + ")A");
+
+        return query
+            .withQueryFragment("headQuery", headQuery)
+            .withQueryFragment("historyQuery", buildHistoryQuery(event, idMap.values()));
+      }
     }
 
-    return query;
+    return headQuery;
+  }
+
+  private static SQLQuery buildLoadFeaturesInputFragment(String[] ids) {
+    return buildLoadFeaturesInputFragment(ids, null);
+  }
+
+  private static SQLQuery buildLoadFeaturesInputFragment(String[] ids, Long[] versions) {
+    String idsParamName = "ids" + (versions != null ? "WithVersions" : ""); //TODO: That's a workaround for a minor bug in SQLQuery
+    SQLQuery inputFragment = new SQLQuery("WITH "
+        + "  recs AS ( "
+        + "    SELECT unnest(transform_load_features_input(#{" + idsParamName + "}${{versions}})) as rec) "
+        + "SELECT "
+        + "  (rec).id, "
+        + "  (rec).version "
+        + "FROM recs")
+        .withNamedParameter(idsParamName, ids)
+        .withQueryFragment("versions", versions == null ? "" : ", #{versions}");
+     if (versions != null)
+        inputFragment.setNamedParameter("versions", versions);
+     return inputFragment;
   }
 
   private SQLQuery buildHistoryQuery(LoadFeaturesEvent event, Collection<String> uuids) {
@@ -71,11 +117,12 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
         + "WHERE uuid = ANY(#{uuids}) AND EXISTS("
         + "    SELECT 1"
         + "    FROM ${schema}.${table} t"
-        + "    WHERE t.jsondata->>'id' =  h.jsondata->>'id'"
+        + "    WHERE t.${{idColumn}} =  h.jsondata->>'id'"
         + ")");
     historyQuery.setQueryFragment("geo", buildGeoFragment(event));
+    historyQuery.withQueryFragment("idColumn", buildIdFragment(event));
     historyQuery.setNamedParameter("uuids", uuids.toArray(new String[0]));
-    historyQuery.setVariable("hsttable", dbHandler.getConfig().readTableFromEvent(event) + DatabaseHandler.HISTORY_TABLE_SUFFIX);
+    historyQuery.setVariable("hsttable", getDefaultTable(event) + DatabaseHandler.HISTORY_TABLE_SUFFIX);
     return historyQuery;
   }
 }

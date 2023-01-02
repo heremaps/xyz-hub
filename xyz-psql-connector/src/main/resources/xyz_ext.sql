@@ -1,5 +1,5 @@
 --
--- Copyright (C) 2017-2020 HERE Europe B.V.
+-- Copyright (C) 2017-2022 HERE Europe B.V.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -153,11 +153,10 @@ DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 148
+ select 153
 $BODY$
   LANGUAGE sql IMMUTABLE;
-------------------------------------------------
-------------------------------------------------
+----------
 -- ADD NEW COLUMN TO IDX_STATUS TABLE
 DO $$
 BEGIN
@@ -167,6 +166,85 @@ EXCEPTION
 	    WHEN duplicate_column THEN RAISE NOTICE 'column <auto_indexing> already exists in <xyz_idxs_status>.';
 END;
 $$;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_import_trigger()
+ RETURNS trigger
+AS $BODY$
+	DECLARE
+        spaceId text := TG_ARGV[0];
+		addSpaceId boolean := TG_ARGV[1];
+		addUUID boolean := TG_ARGV[2];
+        oldLayout boolean := TG_ARGV[3];
+
+		fid text := NEW.jsondata->>'id';
+		createdAt BIGINT := FLOOR(EXTRACT(epoch FROM NOW())*1000);
+		meta jsonb := format(
+			'{
+                 "createdAt": %s,
+                 "updatedAt": %s
+			}', createdAt, createdAt
+        );
+        BEGIN
+		-- Inject id if not available
+		IF fid IS NULL THEN
+			NEW.jsondata := (NEW.jsondata|| format('{"id" : "%s"}', xyz_random_string(10))::jsonb);
+        END IF;
+
+		IF addSpaceId THEN
+			meta := jsonb_set(meta,'{space}',to_jsonb(spaceId));
+        END IF;
+
+		IF addUUID THEN
+			meta := jsonb_set(meta,'{uuid}',to_jsonb(gen_random_uuid()));
+        END IF;
+
+		-- Inject meta
+		NEW.jsondata := jsonb_set(NEW.jsondata,'{properties,@ns:com:here:xyz}', meta);
+
+		IF NEW.jsondata->'geometry' IS NOT NULL AND NEW.geo IS NULL THEN
+		--GeoJson Feature Import
+			NEW.geo := ST_Force3D(ST_GeomFromGeoJSON(NEW.jsondata->'geometry'));
+			NEW.jsondata := NEW.jsondata - 'geometry';
+        ELSE
+			NEW.geo := ST_Force3D(NEW.geo);
+        END IF;
+
+        -- Only needed during migration phase
+        IF oldLayout THEN
+             RETURN NEW;
+        END IF;
+
+        --TEMP VERSION FIX
+        NEW.operation := 'I';
+        NEW.version := 0;
+        NEW.id := NEW.jsondata->>'id';
+
+        RETURN NEW;
+    END;
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR  REPLACE FUNCTION xyz_random_string(length integer)
+    RETURNS text AS
+$BODY$
+    DECLARE
+        chars text[] := '{0,1,2,3,4,5,6,7,8,9,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z}';
+        result text := '';
+        i integer := 0;
+    BEGIN
+            IF length < 0 THEN
+                RAISE EXCEPTION 'Given length cannot be less than 0';
+        END IF;
+        FOR i IN 1..length LOOP
+            result := result || chars[1+random()*(array_length(chars, 1)-1)];
+        END LOOP;
+
+        RETURN result;
+    END;
+$BODY$
+LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 -- Function: xyz_index_dissolve_datatype(text)
@@ -307,34 +385,38 @@ $BODY$
 CREATE OR REPLACE FUNCTION xyz_trigger_historywriter_versioned()
   RETURNS trigger AS
 $BODY$
-	DECLARE v text := (NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'version');
-
+	DECLARE
+	    v text := (NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'version');
 	BEGIN
-		IF TG_OP = 'INSERT' THEN
-			EXECUTE
-				format('INSERT INTO'
-					||' %s."%s_hst" (uuid,jsondata,geo,vid)'
-					||' VALUES( %L,%L,%L, %L)',TG_TABLE_SCHEMA, TG_TABLE_NAME, NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo,
-						substring('0000000000'::text, 0, 10 - length(v)) ||
-						v || '_' || (NEW.jsondata->>'id'));
-			RETURN NEW;
-		END IF;
+	    IF TG_OP = 'DELETE' OR TG_OP = 'TRUNCATE' THEN
+	        -- Ignore.
+            RETURN NEW;
+        END IF;
+
+	    IF TG_OP = 'UPDATE' THEN
+	        IF NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = OLD.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' THEN
+                -- NOTE: no user data has been changed in the record.
+                -- The UPDATE was performed as part of a migration or only the next_version field was changed.
+                -- Ignoring trigger call.
+                RETURN NEW;
+            END IF;
+        END IF;
+
+        EXECUTE
+            format('INSERT INTO'
+                       || ' %s."%s_hst" (uuid, jsondata, geo, vid)'
+                       || ' VALUES(%L, %L, %L, %L)', TG_TABLE_SCHEMA, TG_TABLE_NAME, NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo,
+                substring('0000000000'::text, 0, 10 - length(v))
+                       || v || '_' || (NEW.jsondata->>'id'));
 
 		IF TG_OP = 'UPDATE' THEN
-			EXECUTE
-				format('INSERT INTO'
-					||' %s."%s_hst" (uuid,jsondata,geo,vid)'
-					||' VALUES( %L,%L,%L, %L)',TG_TABLE_SCHEMA, TG_TABLE_NAME, NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo,
-						substring('0000000000'::text, 0, 10 - length(v)) ||
-						v || '_' || (NEW.jsondata->>'id'));
-
+		    -- NOTE: Kept for backwards compatibility. For TG_OP == 'INSERT' AND op == 'D' we don't want to delete any row from the main table anymore!
 			IF NEW.jsondata->'properties'->'@ns:com:here:xyz'->'deleted' IS NOT null AND NEW.jsondata->'properties'->'@ns:com:here:xyz'->'deleted' = 'true'::jsonb THEN
 				EXECUTE
 					format('DELETE FROM %s."%s" WHERE jsondata->>''id'' = %L',TG_TABLE_SCHEMA, TG_TABLE_NAME, NEW.jsondata->>'id');
 			END IF;
-
-			RETURN NEW;
 		END IF;
+        RETURN NEW;
 	END;
 $BODY$
   LANGUAGE plpgsql VOLATILE;
@@ -526,7 +608,7 @@ begin
    rowy = i;
    colx = (j % numrowscols);
    saveCounter = saveCounter + 1;
-   
+
    if( saveCounter < 10000 ) then
     return next;
    else
@@ -729,7 +811,7 @@ $BODY$
 			   SELECT indexname, substring(indexname from char_length(spaceid) + 6) as idx_on, COALESCE((SELECT source from xyz_index_name_dissolve_to_property(indexname,spaceid)),'s') as source
 				FROM pg_indexes
 					WHERE
-				schemaname = ''||schema||'' AND tablename = ''||spaceid||''
+				schemaname = ''||schema||'' AND tablename = ''||spaceid||'' AND starts_with(indexname, 'idx_')
 		LOOP
 			src := av_idx_list.source;
 			idx_name := av_idx_list.indexname;
@@ -872,7 +954,7 @@ $BODY$
 		idx_type text := 'btree';
 	BEGIN
 		source = lower(source);
-		prop_path := '''' || replace( regexp_replace( xyz_index_get_plain_propkey(propkey),'^f\.',''),'.','''->''') || ''''; 
+		prop_path := '''' || replace( regexp_replace( xyz_index_get_plain_propkey(propkey),'^f\.',''),'.','''->''') || '''';
 
         /** root level property detected */
         IF (lower(SUBSTRING(propkey from 0 for 3)) = 'f.') THEN
@@ -2718,13 +2800,13 @@ language plpgsql immutable;
 CREATE OR REPLACE FUNCTION _prj_flatten(jdoc jsonb, depth integer )
 RETURNS TABLE(level integer, jkey text, jval jsonb) AS
 $body$
-with 
+with
  indata1  as ( select jdoc as jdata ),
  indata2  as ( select coalesce( depth, 100 )::integer as depth ), -- if unset, restrict leveldepth to 100, safetyreason
  outdata as
  ( with recursive searchobj( level, jkey, jval ) as
   (
-    select 0::integer as level, key as jkey, value as jval 
+    select 0::integer as level, key as jkey, value as jval
     from jsonb_each( jsonb_set('{}','{s}', (select jdata from indata1) ))
    union all
     select i.level + 1 as level, i.jkey || coalesce( '.' || key, '[' || ((row_number() over ( partition by i.jkey ) ) - 1)::text || ']' ), i.value as jval
@@ -2738,7 +2820,7 @@ with
   )
   select level, nullif( regexp_replace(jkey,'^s\.?','' ),'') as jkey, jval from searchobj, indata2 i2
   where 1 = 1
-    and 
+    and
     ( ( level = i2.depth ) or ( jsonb_typeof( jval ) in ( 'string', 'number', 'boolean', 'null' ) and level < i2.depth ) )
  )
  select level, jkey, jval from outdata
@@ -2759,25 +2841,25 @@ $body$
 with
  inleft  as ( select level, jkey, jval from _prj_flatten( left_jdoc , 1 ) ),
  inright as ( select level, jkey, jval from _prj_flatten( right_jdoc, 1 ) ),
- outdiff as 
+ outdiff as
  ( with recursive diffobj( level, jkey, jval_l, jval_r ) as
    (
      select coalesce( r.level, l.level ) as level, coalesce( l.jkey, r.jkey ) as jkey, l.jval as jval_l, r.jval as jval_r
      from inleft l full outer join inright r on ( r.jkey = l.jkey  )
      where (l.jkey isnull) or (r.jkey isnull) or ( l.jval != r.jval )
 	union all
-	 select ( i.level + nxt.level ) as level , 
-		    case nxt.jkey ~ '^\[\d+\]$' 
-	         when false then  i.jkey || '.' || nxt.jkey 
-			 else i.jkey || nxt.jkey 
-		    end as jkey,  /*i.jval_l, i.jval_r,*/ 
+	 select ( i.level + nxt.level ) as level ,
+		    case nxt.jkey ~ '^\[\d+\]$'
+	         when false then  i.jkey || '.' || nxt.jkey
+			 else i.jkey || nxt.jkey
+		    end as jkey,  /*i.jval_l, i.jval_r,*/
 		   nxt.jval_l, nxt.jval_r
-	 from diffobj i, 
+	 from diffobj i,
 		  lateral
 		  ( select coalesce( r.level, l.level ) as level, coalesce( l.jkey, r.jkey ) as jkey, l.jval as jval_l, r.jval as jval_r
 		    from _prj_flatten( i.jval_l,1) l full outer join _prj_flatten(i.jval_r,1) r on ( r.jkey = l.jkey  )
 		    where (l.jkey isnull) or (r.jkey isnull) or ( l.jval != r.jval )
-		  ) nxt   
+		  ) nxt
 	 where 1 = 1
 	   and jsonb_typeof( i.jval_l ) in ( 'object', 'array' )
 	   and jsonb_typeof( i.jval_l ) = jsonb_typeof( i.jval_r )
@@ -3053,5 +3135,125 @@ begin
   return 0.0;
 end;
 $body$;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION max_bigint() RETURNS BIGINT AS
+$BODY$
+BEGIN
+    RETURN 9223372036854775807::BIGINT;
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION operation_2_human_readable(operation CHAR) RETURNS TEXT AS
+$BODY$
+BEGIN
+    RETURN CASE WHEN operation = 'I' OR operation = 'H' THEN 'insert' ELSE (CASE WHEN operation = 'U' OR operation = 'J' THEN 'update' ELSE 'delete' END) END;
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_write_versioned_modification_operation(id TEXT, version BIGINT, operation CHAR, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN)
+    RETURNS INTEGER AS
+$BODY$
+    DECLARE
+        base_version BIGINT := (jsondata->'properties'->'@ns:com:here:xyz'->>'version')::BIGINT;
+        author TEXT := (jsondata->'properties'->'@ns:com:here:xyz'->>'author')::TEXT;
+        updated_rows INTEGER;
+    BEGIN
+        EXECUTE
+           format('INSERT INTO %I.%I (id, version, operation, author, jsondata, geo) VALUES (%L, %L, %L, %L, %L, %L)',
+               schema, tableName, id, version, operation, author, jsondata, CASE WHEN geo::geometry IS NULL THEN NULL ELSE ST_Force3D(ST_GeomFromWKB(geo::BYTEA, 4326)) END);
+
+        IF operation != 'I' AND operation != 'H' THEN
+            IF concurrencyCheck THEN
+                IF base_version IS NULL THEN
+                    RAISE EXCEPTION 'Error while trying to % feature with ID % in version %.', operation_2_human_readable(operation), id, version
+                        USING HINT = 'Base version is missing. Concurrency check can not be performed.';
+                END IF;
+
+                EXECUTE
+                    format('UPDATE %I.%I SET next_version = %L WHERE id = %L AND next_version = %L AND version = %L',
+                           schema, tableName, version, id, max_bigint(), base_version);
+
+                GET DIAGNOSTICS updated_rows = ROW_COUNT;
+                IF updated_rows != 1 THEN
+                    RAISE EXCEPTION 'Conflict while trying to % feature with ID % in version %.', operation_2_human_readable(operation), id, version
+                        USING HINT = 'Base version ' || base_version::TEXT || ' is not matching the current HEAD version.';
+                END IF;
+            ELSE
+                EXECUTE
+                    format('UPDATE %I.%I SET next_version = %L WHERE id = %L AND next_version = %L AND version < %L',
+                           schema, tableName, version, id, max_bigint(), version);
+
+                GET DIAGNOSTICS updated_rows = ROW_COUNT;
+                IF updated_rows != 1 THEN
+                    -- This can only happen if the HEAD version of the feature was deleted in the table for some reason
+                    RAISE EXCEPTION 'Unexpected error while trying to % feature with ID % in version %.', operation_2_human_readable(operation), id, version
+                        USING HINT = 'Previous (HEAD) version of the feature is missing.';
+                END IF;
+            END IF;
+        END IF;
+
+        RETURN 1;
+    END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'load_feature_version_input') THEN
+    CREATE TYPE load_feature_version_input AS (
+        id          TEXT,
+        version     BIGINT
+    );
+    END IF;
+    --more types here...
+END$$;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION transform_load_features_input(ids TEXT[], versions BIGINT[])
+    RETURNS LOAD_FEATURE_VERSION_INPUT[] AS
+$BODY$
+DECLARE
+    output LOAD_FEATURE_VERSION_INPUT[];
+    item LOAD_FEATURE_VERSION_INPUT;
+BEGIN
+    IF coalesce(array_length(ids, 1),0) > 0 THEN
+        FOR i IN 1 .. array_upper(ids, 1)
+            LOOP
+                item := ROW(ids[i], versions[i]);
+                SELECT array_append(output, item) into output;
+
+            END LOOP;
+    END IF;
+    RETURN output;
+END
+$BODY$
+    LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION transform_load_features_input(ids TEXT[])
+    RETURNS LOAD_FEATURE_VERSION_INPUT[] AS
+$BODY$
+DECLARE
+    output LOAD_FEATURE_VERSION_INPUT[];
+    versions BIGINT[];
+BEGIN
+    IF array_length(ids, 1) IS NULL THEN
+        RETURN output;
+    ELSE
+        FOR i IN 1 .. array_upper(ids, 1)
+        LOOP
+            versions := array_append(versions, max_bigint());
+        END LOOP;
+        RETURN transform_load_features_input(ids, versions);
+    END IF;
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------

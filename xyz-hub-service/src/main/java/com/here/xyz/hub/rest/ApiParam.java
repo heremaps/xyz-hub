@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.rest;
 
+import com.amazonaws.util.StringUtils;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQuery.QueryOperation;
@@ -29,8 +30,11 @@ import com.here.xyz.models.geojson.implementation.Point;
 import io.vertx.ext.web.RoutingContext;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -170,8 +174,10 @@ public class ApiParam {
     static final String START_VERSION = "startVersion";
     static final String END_VERSION = "endVersion";
     static final String PAGE_TOKEN = "pageToken";
-
+    static final String AUTHOR = "author";
     static final String SUBSCRIPTION_SOURCE = "source";
+
+    static final String F_PREFIX = "f.";
 
     private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{
       put("!=", QueryOperation.NOT_EQUALS);
@@ -202,7 +208,7 @@ public class ApiParam {
     /**
      * Returns the first value for a query parameter, if such exists, or the provided alternative value otherwise.
      */
-    static String getString(RoutingContext context, String param, String alt) {
+    public static String getString(RoutingContext context, String param, String alt) {
       queryParam(param, context);
       if (queryParam(param, context).size() == 0) {
         return alt;
@@ -219,7 +225,7 @@ public class ApiParam {
      * Returns the first value for a query parameter, if such exists and can be parsed as an integer, or the provided alternative value
      * otherwise.
      */
-    static Integer getInteger(RoutingContext context, String param, Integer alt) {
+    public static Integer getInteger(RoutingContext context, String param, Integer alt) {
       try {
         return Integer.parseInt(getString(context, param, null));
       }
@@ -263,7 +269,7 @@ public class ApiParam {
      * Returns the first value for a query parameter, if such exists and matches either the string 'true' or 'false', or the provided
      * alternative value otherwise.
      */
-    static boolean getBoolean(RoutingContext context, String param, boolean alt) {
+    public static boolean getBoolean(RoutingContext context, String param, boolean alt) {
       queryParam(param, context);
       if (queryParam(param, context).size() == 0) {
         return alt;
@@ -358,6 +364,51 @@ public class ApiParam {
         context.put("propertyQuery", propertyQuery);
       }
       return propertyQuery;
+    }
+
+    /**
+     * Returns the first property found in the query string in the format of key-operator-value(s)
+     * @param query the query part in the url without the '?' symbol
+     * @param key the property to be searched
+     * @param multiValue when true, checks for comma separated values, otherwise return the first value found
+     * @return null in case none is found
+     */
+    static PropertyQuery getPropertyQuery(String query, String key, boolean multiValue) {
+      if (StringUtils.isNullOrEmpty(query) || StringUtils.isNullOrEmpty(key))
+        return null;
+
+      try {
+        query = URLDecoder.decode(query, Charset.defaultCharset().name());
+      }
+      catch (UnsupportedEncodingException e) {
+        return null;
+      }
+
+      int startIndex;
+      if ((startIndex=query.indexOf(key)) != -1) {
+        String opValue = query.substring(startIndex + key.length()); // e.g. =eq=head
+        String operation = shortOperators
+            .stream()
+            .sorted(Comparator.comparingInt(k->k.length() * -1)) // reverse a sorted list because u want to get the longer ops first.
+            .filter(opValue::startsWith) // e.g. in case of key=eq=val, 2 ops will be filtered in: '=eq=' and '='.
+            .findFirst() // The reversed sort plus the findFirst makes sure the =eq= is the one you are looking for.
+            .orElse(null); // e.g. anything different from the allowed operators
+
+        if (operation == null)
+          return null;
+
+        String value = opValue.substring(operation.length()).split("&")[0];
+        List<Object> values = multiValue
+            ? Arrays.asList(value.split(","))
+            : Collections.singletonList(value.split(",")[0]);
+
+        return new PropertyQuery()
+            .withKey(key)
+            .withOperation(operators.get(operation))
+            .withValues(values);
+      }
+
+      return null;
     }
 
     protected static PropertiesQuery parsePropertiesQuery(String query, String property, boolean spaceProperties) {
