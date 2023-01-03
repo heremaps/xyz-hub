@@ -19,9 +19,14 @@
 
 package com.here.xyz.hub.rest.versioning;
 
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
+import static com.jayway.restassured.RestAssured.given;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+
 import com.here.xyz.hub.rest.StoreFeaturesApiIT;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Test;
 
 public class VStoreFeaturesApiIT extends StoreFeaturesApiIT {
 
@@ -34,5 +39,20 @@ public class VStoreFeaturesApiIT extends StoreFeaturesApiIT {
   @After
   public void tearDown() {
     VersioningBaseIT.tearDown();
+  }
+
+  @Test
+  @Override
+  public void testHeaderInputSizeReporting() {
+    given().
+        contentType(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        body("{\"type\": \"FeatureCollection\",\"features\": [{\"type\": \"Feature\"}]}").
+        when().
+        put(getSpacesPath() + "/x-psql-test/features").
+        then().
+        header("X-Decompressed-Input-Size", "63").
+        header("X-Decompressed-Output-Size", "346").
+        statusCode(OK.code());
   }
 }
