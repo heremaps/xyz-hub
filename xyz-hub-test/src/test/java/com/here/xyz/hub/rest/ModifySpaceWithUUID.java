@@ -22,9 +22,9 @@ package com.here.xyz.hub.rest;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.jayway.restassured.RestAssured.given;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -36,9 +36,12 @@ import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.jayway.restassured.response.ValidatableResponse;
 import com.jayway.restassured.specification.RequestSpecification;
-
-import java.util.*;
-
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -93,9 +96,15 @@ public class ModifySpaceWithUUID extends TestSpaceWithFeature {
     return fc;
   }
 
-  private FeatureCollection prepareUpdateWithUUID(String uuid ) throws JsonProcessingException {
+  protected FeatureCollection prepareUpdateWithUnexistingUUID() throws JsonProcessingException {
     FeatureCollection fc = prepareUpdate();
-    fc.getFeatures().get(0).getProperties().getXyzNamespace().setUuid(uuid);
+    fc.getFeatures().get(0).getProperties().getXyzNamespace().setUuid(UUID.randomUUID().toString());
+    return fc;
+  }
+
+  protected FeatureCollection prepareUpdateWithNullUUID() throws JsonProcessingException {
+    FeatureCollection fc = prepareUpdate();
+    fc.getFeatures().get(0).getProperties().getXyzNamespace().setUuid(null);
     return fc;
   }
 
@@ -111,7 +120,7 @@ public class ModifySpaceWithUUID extends TestSpaceWithFeature {
 
   @Test
   public void replaceWithUUID() throws JsonProcessingException {
-    createRequest(prepareUpdateWithUUID(null))
+    createRequest(prepareUpdateWithNullUUID())
         .put("/spaces/x-psql-test/features")
         .then().statusCode(OK.code())
         .body("features[0].properties.test", equalTo(1));
@@ -119,19 +128,18 @@ public class ModifySpaceWithUUID extends TestSpaceWithFeature {
 
   @Test
   public void replaceWithWrongUUID() throws JsonProcessingException {
-    createRequest(prepareUpdateWithUUID(UUID.randomUUID().toString()))
+    createRequest(prepareUpdateWithUnexistingUUID())
         .put("/spaces/x-psql-test/features")
         .then().statusCode(CONFLICT.code());
   }
 
   @Test
   public void replaceWithoutUUID() throws JsonProcessingException {
-    createRequest(prepareUpdateWithUUID(null))
-        .post("/spaces/x-psql-test/features")
+    createRequest(prepareUpdateWithNullUUID())
+        .put("/spaces/x-psql-test/features")
         .then().statusCode(OK.code())
         .body("features[0].properties.test", equalTo(1));
   }
-
 
   @Test
   public void mergeWithUUID() throws JsonProcessingException {
@@ -143,14 +151,14 @@ public class ModifySpaceWithUUID extends TestSpaceWithFeature {
 
   @Test
   public void mergeWithWrongUUID() throws JsonProcessingException {
-    createRequest(prepareUpdateWithUUID(UUID.randomUUID().toString()))
+    createRequest(prepareUpdateWithUnexistingUUID())
         .post("/spaces/x-psql-test/features?e=merge")
         .then().statusCode(CONFLICT.code());
   }
 
   @Test
   public void mergeWithoutUUID() throws JsonProcessingException {
-    createRequest(prepareUpdateWithUUID(null))
+    createRequest(prepareUpdateWithNullUUID())
         .post("/spaces/x-psql-test/features?e=merge")
         .then().statusCode(OK.code())
         .body("features[0].properties.test", equalTo(1));
@@ -158,7 +166,7 @@ public class ModifySpaceWithUUID extends TestSpaceWithFeature {
 
   @Test
   public void patchWithUUID() throws JsonProcessingException {
-    createRequest(prepareUpdateWithUUID(null))
+    createRequest(prepareUpdateWithNullUUID())
         .post("/spaces/x-psql-test/features")
         .then().statusCode(OK.code())
         .body("features[0].properties.test", equalTo(1));
@@ -166,14 +174,14 @@ public class ModifySpaceWithUUID extends TestSpaceWithFeature {
 
   @Test
   public void patchWithWrongUUID() throws JsonProcessingException {
-    createRequest(prepareUpdateWithUUID(UUID.randomUUID().toString()))
+    createRequest(prepareUpdateWithUnexistingUUID())
         .post("/spaces/x-psql-test/features")
         .then().statusCode(CONFLICT.code());
   }
 
   @Test
   public void patchWithoutUUID() throws JsonProcessingException {
-    createRequest(prepareUpdateWithUUID(null))
+    createRequest(prepareUpdateWithNullUUID())
         .post("/spaces/x-psql-test/features")
         .then().statusCode(OK.code())
         .body("features[0].properties.test", equalTo(1));

@@ -211,7 +211,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .body("id", equalTo(spaceId));
   }
 
-  static void countFeatures(int expected) {
+  protected void countFeatures(int expected) {
     given().
         accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
@@ -314,5 +314,21 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .delete("/spaces/" + spaceId + "/features/" + featureId)
         .then()
         .statusCode(NO_CONTENT.code());
+  }
+
+  public void postFeature(String spaceId, Feature feature) {
+    postFeature(spaceId, feature, AuthProfile.ACCESS_OWNER_1_ADMIN);
+  }
+
+  public void postFeature(String spaceId, Feature feature, AuthProfile authProfile) {
+    given()
+        .contentType(APPLICATION_GEO_JSON)
+        .headers(getAuthHeaders(authProfile))
+        .body(feature.serialize())
+        .when()
+        .post("/spaces/" + spaceId + "/features")
+        .then()
+        .statusCode(OK.code())
+        .body("features[0].id", equalTo(feature.getId()));
   }
 }
