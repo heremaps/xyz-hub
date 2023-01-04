@@ -19,14 +19,7 @@
 
 package com.here.xyz.hub.rest.versioning;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
-import static com.jayway.restassured.RestAssured.given;
-import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-import static org.hamcrest.Matchers.equalTo;
-
 import com.here.xyz.hub.rest.ReadFeatureApiGeomIT;
-import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.Properties;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -34,9 +27,9 @@ public class VReadFeatureApiGeomIT extends ReadFeatureApiGeomIT {
 
   @BeforeClass
   public static void setup() {
-    String spaceId = getSpaceId();
+    String spaceId = "x-psql-test";
     removeSpace(spaceId);
-    VersioningBaseIT.createSpace(spaceId, getSpacesPath(), 10);
+    VersioningBaseIT.createSpace(spaceId, getCreateSpacePath(), 10);
     addFeatures();
   }
   @AfterClass

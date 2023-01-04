@@ -26,14 +26,14 @@ public class VersioningBaseIT extends TestSpaceWithFeature {
   }
 
   protected static void setup() {
-    String spaceId = getSpaceId();
+    String spaceId = "x-psql-test";
     removeSpace(spaceId);
-    createSpace(spaceId, getSpacesPath(), 10);
+    createSpace(spaceId, getCreateSpacePath(), 10);
     addFeatures(spaceId);
   }
 
   protected static void tearDown() {
-    removeSpace(getSpaceId());
+    removeSpace("x-psql-test");
   }
 
   protected static void countExpected(int expected) {

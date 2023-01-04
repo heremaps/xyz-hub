@@ -22,16 +22,15 @@ package com.here.xyz.hub.rest.versioning;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.hub.rest.ModifySpaceWithUUID;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import org.junit.After;
 import org.junit.Before;
 
 public class VModifySpaceWithUUID extends ModifySpaceWithUUID {
 
   @Before
   public void setup() {
-    String spaceId = getSpaceId();
+    String spaceId = "x-psql-test";
     removeSpace(spaceId);
-    VersioningBaseIT.createSpace(spaceId, getSpacesPath(), 10, true);
+    VersioningBaseIT.createSpace(spaceId, getCreateSpacePath(), 10, true);
     addFeatures(spaceId);
   }
 

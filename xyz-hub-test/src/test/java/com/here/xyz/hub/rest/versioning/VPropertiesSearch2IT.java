@@ -27,9 +27,9 @@ public class VPropertiesSearch2IT extends PropertiesSearch2IT {
 
   @BeforeClass
   public static void setup() {
-    String spaceId = getSpaceId();
+    String spaceId = "x-psql-test";
     removeSpace(spaceId);
-    VersioningBaseIT.createSpace(spaceId, getSpacesPath(), 10);
+    VersioningBaseIT.createSpace(spaceId, getCreateSpacePath(), 10);
     addFeatures();
   }
   @AfterClass

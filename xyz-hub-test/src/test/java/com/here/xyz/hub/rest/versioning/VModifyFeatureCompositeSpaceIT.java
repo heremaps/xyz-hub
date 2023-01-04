@@ -20,7 +20,6 @@
 package com.here.xyz.hub.rest.versioning;
 
 import com.here.xyz.hub.rest.ModifyFeatureCompositeSpaceIT;
-import org.junit.After;
 import org.junit.Before;
 
 public class VModifyFeatureCompositeSpaceIT extends ModifyFeatureCompositeSpaceIT {
@@ -29,10 +28,11 @@ public class VModifyFeatureCompositeSpaceIT extends ModifyFeatureCompositeSpaceI
   public void setup() {
     tearDown();
 
-    VersioningBaseIT.createSpace(getSpaceId(), getSpacesPath(), 10);
-    createSpaceWithCustomStorage(getSpaceId() + "-2", "psql", null);
-    createSpaceWithExtension(getSpaceId());
-    createSpaceWithExtension(getSpaceId() + "-ext");
+    String spaceId = "x-psql-test";
+    VersioningBaseIT.createSpace(spaceId, getCreateSpacePath(), 10);
+    createSpaceWithCustomStorage(spaceId + "-2", "psql", null);
+    createSpaceWithExtension(spaceId);
+    createSpaceWithExtension(spaceId + "-ext");
 
     touchSpaces();
   }

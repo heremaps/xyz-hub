@@ -19,12 +19,7 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
-import static com.jayway.restassured.RestAssured.given;
-import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-
 import org.junit.BeforeClass;
-import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 @Category(RestTests.class)
@@ -35,19 +30,5 @@ public class ReadFeatureWithHistoryApiIT extends ReadFeatureApiIT {
     remove();
     createSpace(true);
     addFeatures();
-  }
-
-  @Test
-  @Override
-  public void testHeaderOutputSizeReporting() {
-    given().
-        accept(APPLICATION_GEO_JSON).
-        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
-        when().
-        get(getSpacesPath() + "/x-psql-test/tile/quadkey/2100300120310022").
-        then().
-        header("X-Decompressed-Input-Size", "0").
-        header("X-Decompressed-Output-Size", "595").
-        statusCode(OK.code()).extract().body().asString();
   }
 }
