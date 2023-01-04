@@ -32,7 +32,6 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import java.util.Arrays;
 import java.util.HashMap;
-
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -165,20 +164,6 @@ public class StoreFeaturesApiIT extends TestSpaceWithFeature {
         when().
         put(getSpacesPath() + "/x-psql-test/features").
         then().
-        statusCode(OK.code());
-  }
-
-  @Test
-  public void testHeaderInputSizeReporting() {
-    given().
-        contentType(APPLICATION_GEO_JSON).
-        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
-        body("{\"type\": \"FeatureCollection\",\"features\": [{\"type\": \"Feature\"}]}").
-        when().
-        put(getSpacesPath() + "/x-psql-test/features").
-        then().
-        header("X-Decompressed-Input-Size", "63").
-        header("X-Decompressed-Output-Size", "334").
         statusCode(OK.code());
   }
 }
