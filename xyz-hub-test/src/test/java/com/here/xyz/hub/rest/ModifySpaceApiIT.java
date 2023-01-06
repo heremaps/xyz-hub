@@ -206,24 +206,20 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
         .body("{\"versionsToKeep\": 0}")
         .when()
         .patch("/spaces/x-psql-test")
-        .then();
-    cleanUpId = response.extract().path("id");
-
-    response.statusCode(BAD_REQUEST.code());
+        .then()
+        .statusCode(BAD_REQUEST.code());
   }
 
   @Test
   public void patchExistingVersionsToKeepBiggerThanZeroToZero() {
-    final ValidatableResponse response = given()
+    given()
         .accept(APPLICATION_JSON)
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body("{\"versionsToKeep\": 10}")
         .when()
         .patch("/spaces/x-psql-test")
-        .then();
-    cleanUpId = response.extract().path("id");
-    response.body("versionsToKeep", equalTo(10));
+        .then().statusCode(BAD_REQUEST.code());
 
     given()
         .accept(APPLICATION_JSON)
@@ -236,32 +232,47 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
         .statusCode(BAD_REQUEST.code());
   }
 
-//  @Test // manual test for keeping versionsToKeep to zero when
-  public void patchExistingVersionsToKeepZero() {
-    System.out.println("change versionsToKeep in db to zero");
+  @Test
+  public void patchExistingVersionsToKeepBiggerThanOne() {
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body("{\"versionsToKeep\": 10}")
+        .when()
+        .patch("/spaces/x-psql-test")
+        .then()
+        .statusCode(BAD_REQUEST.code());
+  }
 
+  @Test
+  public void patchExistingVersionsToKeepFromTenToOne() {
+    cleanUpId = "x-psql-test-v2k-10";
     given()
         .accept(APPLICATION_JSON)
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"title\":\"aaaaa\",\"versionsToKeep\": 1}")
+        .body("{\"id\":\""+cleanUpId+"\",\"title\": \"v2k10\",\"versionsToKeep\": 10}")
         .when()
-        .patch("/spaces/x-psql-test")
+        .post("/spaces/")
         .then()
         .statusCode(OK.code());
-
-    System.out.println("Compare db and proof versionsToKeep is zero (not present)");
 
     given()
-        .accept(APPLICATION_JSON)
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"title\":\"aaaaa\",\"versionsToKeep\": 1}")
+        .body("{\"versionsToKeep\": 2}")
         .when()
-        .patch("/spaces/x-psql-test")
+        .patch("/spaces/" + cleanUpId)
         .then()
         .statusCode(OK.code());
 
-    System.out.println("Compare db and proof versionsToKeep is zero (not present) after reloading from db");
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body("{\"versionsToKeep\": 1}")
+        .when()
+        .patch("/spaces/" + cleanUpId)
+        .then()
+        .statusCode(BAD_REQUEST.code());
   }
 }
