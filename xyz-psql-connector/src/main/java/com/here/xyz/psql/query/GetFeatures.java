@@ -48,6 +48,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   @Override
   protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
+    int versionsToKeep = DatabaseHandler.readVersionsToKeep(event);
     boolean isExtended = isExtendedSpace(event) && event.getContext() == DEFAULT;
     SQLQuery query;
     if (isExtended) {
@@ -71,7 +72,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
               + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{authorCheck}} ${{orderBy}} ${{limit}} ${{offset}}");
     }
 
-    query.setQueryFragment("deletedCheck", buildDeletionCheckFragment(isExtended));
+    query.setQueryFragment("deletedCheck", buildDeletionCheckFragment(versionsToKeep, isExtended));
     query.withQueryFragment("versionCheck", buildVersionCheckFragment(event));
     query.withQueryFragment("authorCheck", buildAuthorCheckFragment(event));
     query.setQueryFragment("selection", buildSelectionFragment(event));
@@ -163,15 +164,19 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   private SQLQuery build1LevelBaseQuery(E event) {
+    int versionsToKeep = DatabaseHandler.readVersionsToKeep(event);
+
     return new SQLQuery("SELECT id, version, operation, jsondata, geo${{iColumnBase}}"
         + "    FROM ${schema}.${extendedTable} m"
         + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{iOffsetBase}} ${{limit}}")
         .withVariable("extendedTable", getExtendedTable(event))
-        .withQueryFragment("deletedCheck", buildDeletionCheckFragment(false)) //NOTE: We know that the base space is not an extended one
+        .withQueryFragment("deletedCheck", buildDeletionCheckFragment(versionsToKeep, false)) //NOTE: We know that the base space is not an extended one
         .withQueryFragment("versionCheck", buildBaseVersionCheckFragment());
   }
 
   private SQLQuery build2LevelBaseQuery(E event) {
+    int versionsToKeep = DatabaseHandler.readVersionsToKeep(event);
+
     return new SQLQuery("(SELECT id, version, operation, jsondata, geo${{iColumnIntermediate}}"
         + "    FROM ${schema}.${intermediateExtensionTable}"
         + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{iOffsetIntermediate}} ${{limit}})"
@@ -181,7 +186,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         + "            ${{innerBaseQuery}}"
         + "        ) b WHERE NOT exists(SELECT 1 FROM ${schema}.${intermediateExtensionTable} WHERE ${{idComparison}})")
         .withVariable("intermediateExtensionTable", getIntermediateTable(event))
-        .withQueryFragment("deletedCheck", buildDeletionCheckFragment(true)) //NOTE: We know that the intermediate space is an extended one
+        .withQueryFragment("deletedCheck", buildDeletionCheckFragment(versionsToKeep, true)) //NOTE: We know that the intermediate space is an extended one
         .withQueryFragment("versionCheck", buildBaseVersionCheckFragment())
         .withQueryFragment("innerBaseQuery", build1LevelBaseQuery(event))
         .withQueryFragment("idComparison", buildIdComparisonFragment(event, "b."));
@@ -191,7 +196,9 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     return DatabaseHandler.readVersionsToKeep(event) > 0 ? "id = " + prefix + "id" : "jsondata->>'id' = " + prefix + "jsondata->>'id'";
   }
 
-  private SQLQuery buildDeletionCheckFragment(boolean isExtended) {
+  private SQLQuery buildDeletionCheckFragment(int v2k, boolean isExtended) {
+    if (v2k <= 1 && !isExtended) return new SQLQuery("");
+
     String operationsParamName = "operationsToFilterOut" + (isExtended ? "Extended" : ""); //TODO: That's a workaround for a minor bug in SQLQuery
     return new SQLQuery(" AND operation NOT IN (SELECT unnest(#{" + operationsParamName + "}::CHAR[]))")
         .withNamedParameter(operationsParamName, Arrays.stream(isExtended
