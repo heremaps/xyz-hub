@@ -50,7 +50,7 @@ public class DecompressedSizeIT extends TestSpaceWithFeature {
         get(getSpacesPath() + "/x-psql-test/tile/quadkey/2100300120310022").
         then().
         header("X-Decompressed-Input-Size", "0").
-        header("X-Decompressed-Output-Size", "547").
+        header("X-Decompressed-Output-Size", "479").
         statusCode(OK.code());
   }
 
@@ -64,7 +64,7 @@ public class DecompressedSizeIT extends TestSpaceWithFeature {
         put(getSpacesPath() + "/x-psql-test/features").
         then().
         header("X-Decompressed-Input-Size", "63").
-        header("X-Decompressed-Output-Size", "334").
+        header("X-Decompressed-Output-Size", "282").
         statusCode(OK.code());
   }
 }
