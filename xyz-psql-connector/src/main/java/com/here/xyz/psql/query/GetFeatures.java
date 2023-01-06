@@ -26,6 +26,7 @@ import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE_HIDE_COMP
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
+import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.QueryEvent;
 import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.psql.DatabaseHandler;
@@ -226,7 +227,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   private static String injectVersionIntoNS(ContextAwareEvent event, String wrappedJsondata) {
     //NOTE: The following is a temporary implementation for backwards compatibility for spaces without versioning
-    if (DatabaseHandler.readVersionsToKeep(event) > 0)
+    if (DatabaseHandler.readVersionsToKeep(event) > 1 || (DatabaseHandler.readVersionsToKeep(event) > 0 && event instanceof LoadFeaturesEvent))
       return "jsonb_set(" + wrappedJsondata + ", '{properties, @ns:com:here:xyz, version}', to_jsonb(version))";
     return wrappedJsondata;
   }
