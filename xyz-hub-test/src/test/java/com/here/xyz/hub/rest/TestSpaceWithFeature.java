@@ -223,7 +223,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
   }
 
   @SuppressWarnings("SameParameterValue")
-  static FeatureCollection generateRandomFeatures(int featureCount, int propertyCount) {
+  public static FeatureCollection generateRandomFeatures(int featureCount, int propertyCount) {
     FeatureCollection collection = new FeatureCollection();
     Random random = new Random();
 
@@ -239,7 +239,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
                 .withProperties(new Properties());
             pKeys.forEach(p -> f.getProperties().put(p, RandomStringUtils.randomAlphanumeric(8)));
             return f;
-          }).limit(featureCount).collect(Collectors.toList()));
+          }).parallel().limit(featureCount).collect(Collectors.toList()));
     }
     catch (JsonProcessingException ignored) {}
     return collection;
