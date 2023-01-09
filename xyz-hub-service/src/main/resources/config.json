@@ -19,7 +19,6 @@
   "STORAGE_DB_URL": "jdbc:postgresql://localhost/postgres",
   "STORAGE_DB_USER": "postgres",
   "STORAGE_DB_PASSWORD": "password",
-  "PSQL_HTTP_CONNECTOR_HOST" : "localhost",
 
   "INSERT_LOCAL_CONNECTORS": true,
   "ENABLE_CONNECTOR_HEALTH_CHECKS" : false,

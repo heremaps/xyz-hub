@@ -359,7 +359,7 @@
       "local": {
         "id": "psql-http",
         "type": "Http",
-        "url": "http://${PSQL_HTTP_CONNECTOR_HOST}:9090/psql/event",
+        "url": "http://dummy",
         "protocolVersion": "0.6.0",
         "metricsActive": true
       }
