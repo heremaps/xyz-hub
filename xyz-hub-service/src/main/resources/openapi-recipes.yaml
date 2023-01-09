@@ -76,7 +76,7 @@ recipes:
       - components.responses.SubscriptionResponse
       - components.responses.SubscriptionsResponse
       - components.responses.JobResponse
-      - components.responses.JobResponses
+      - components.responses.JobsResponse
       - components.requestBodies.ConnectorConfig
       - components.requestBodies.SubscriptionRequest
       - components.schemas.AWSLambda
