@@ -178,7 +178,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
 
         try (final Connection connection = LAMBDA.dataSource.getConnection()) {
             /** Default System Indices */
-            List<String> systemIndices = Arrays.asList(
+            List<String> systemIndices = new ArrayList<>(Arrays.asList(
                 "createdAt",
                 "updatedAt",
                 "serial",
@@ -192,7 +192,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                 "idversion",
                 "operation",
                 "author"
-            );
+            ));
 
             String sqlSpaceSchema = "(select schema_name::text from information_schema.schemata where schema_name in ('xyz','public') order by 1 desc limit 1)";
 

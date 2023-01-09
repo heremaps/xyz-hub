@@ -18,6 +18,8 @@
  */
 package com.here.xyz.psql;
 
+import static com.here.xyz.psql.DatabaseHandler.PARTITION_SIZE;
+
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetHistoryStatisticsEvent;
@@ -198,10 +200,11 @@ public class SQLQueryBuilder {
 
   protected static SQLQuery buildMultiModalInsertStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
       return new SQLQuery("SELECT xyz_write_versioned_modification_operation(#{id}, #{version}, #{operation}, #{jsondata}, #{geo}, "
-          + "#{schema}, #{table}, #{concurrencyCheck})")
+          + "#{schema}, #{table}, #{concurrencyCheck}, #{partitionSize})")
           .withNamedParameter("schema", dbHandler.config.getDatabaseSettings().getSchema())
           .withNamedParameter("table", dbHandler.config.readTableFromEvent(event))
-          .withNamedParameter("concurrencyCheck", event.getEnableUUID());
+          .withNamedParameter("concurrencyCheck", event.getEnableUUID())
+          .withNamedParameter("partitionSize", PARTITION_SIZE);
   }
 
   protected static SQLQuery buildInsertStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
