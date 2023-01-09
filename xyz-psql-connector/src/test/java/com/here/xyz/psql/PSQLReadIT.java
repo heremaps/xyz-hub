@@ -74,7 +74,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
         String queryResponse = invokeLambda(getFeaturesByBBoxEvent.serialize());
         assertNotNull(queryResponse);
-        FeatureCollection featureCollection = (FeatureCollection) deserializeResponse(queryResponse);
+        FeatureCollection featureCollection = deserializeResponse(queryResponse);
         assertNotNull(featureCollection);
         List<Feature> features = featureCollection.getFeatures();
         assertNotNull(features);
@@ -107,9 +107,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
         queryResponse = invokeLambda(getFeaturesByBBoxEvent.serialize());
         assertNotNull(queryResponse);
-        XyzResponse response = XyzSerializable.deserialize(queryResponse);
-        if (response instanceof ErrorResponse)
-            failWithError((ErrorResponse) response);
+        XyzResponse response = deserializeResponse(queryResponse);
         featureCollection = (FeatureCollection) response;
         assertNotNull(featureCollection);
         features = featureCollection.getFeatures();
@@ -366,9 +364,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 .withSelection(new ArrayList<>(Collections.singletonList("properties.foo2")));
 
         queryResponse = invokeLambda(geometryEvent.serialize());
-        XyzResponse response = XyzSerializable.deserialize(queryResponse);
-        if (response instanceof ErrorResponse)
-            failWithError((ErrorResponse) response);
+        XyzResponse response = deserializeResponse(queryResponse);
         featureCollection = XyzSerializable.deserialize(queryResponse);
         assertNotNull(featureCollection);
         assertEquals(213, featureCollection.getFeatures().size());
@@ -702,13 +698,6 @@ public class PSQLReadIT extends PSQLAbstractIT {
         final String response = invokeLambdaFromFile("/events/IterateMySpace.json");
         final FeatureCollection features = XyzSerializable.deserialize(response);
         features.serialize(true);
-    }
-
-    private void failWithError(ErrorResponse error) {
-        if (error instanceof ErrorResponse)
-            fail("Received error response: [" + error.getError() + "] " + error.getErrorMessage());
-        else
-            fail("Failing without a valid ErrorResponse was provided.");
     }
 
     @SafeVarargs

@@ -79,10 +79,7 @@ public class PSQLLoadFeatures extends PSQLAbstractIT {
           put("F2", "0");
         }});
 
-    XyzResponse response = XyzSerializable.deserialize(invokeLambda(event.serialize()));
-    if (response instanceof ErrorResponse)
-      throw new RuntimeException(((ErrorResponse) response).getErrorMessage());
-    FeatureCollection loadedFeatures = (FeatureCollection) response;
+    FeatureCollection loadedFeatures = deserializeResponse(invokeLambda(event.serialize()));
     assertEquals(2, loadedFeatures.getFeatures().size());
     assertTrue(loadedFeatures.getFeatures().stream().anyMatch(f -> "F1".equals(f.getId())));
     assertTrue(loadedFeatures.getFeatures().stream().anyMatch(f -> "F2".equals(f.getId())));
