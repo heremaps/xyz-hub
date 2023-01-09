@@ -34,5 +34,5 @@
 
   "JOB_DYNAMO_EXP_IN_DAYS" : 10,
 
-  "JOB_SUPPORTED_RDS" : ["connectorName:dbIdentifier:0"]
+  "JOB_SUPPORTED_RDS" : ["psql:dbIdentifier:0"]
 }
