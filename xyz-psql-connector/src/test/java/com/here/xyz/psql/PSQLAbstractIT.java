@@ -147,10 +147,10 @@ public abstract class PSQLAbstractIT extends Helper {
     return response;
   }
 
-  protected XyzResponse deserializeResponse(String jsonResponse) throws JsonProcessingException, ErrorResponseException {
+  protected <T extends XyzResponse> T deserializeResponse(String jsonResponse) throws JsonProcessingException, ErrorResponseException {
     XyzResponse response = XyzSerializable.deserialize(jsonResponse);
     if (response instanceof ErrorResponse)
       throw new ErrorResponseException(((ErrorResponse) response).getError(), ((ErrorResponse) response).getErrorMessage());
-    return response;
+    return (T) response;
   }
 }

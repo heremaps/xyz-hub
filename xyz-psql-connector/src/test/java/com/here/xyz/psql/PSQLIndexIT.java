@@ -29,6 +29,8 @@ import com.here.xyz.psql.tools.FeatureGenerator;
 import com.here.xyz.responses.*;
 import com.here.xyz.psql.tools.DhString;
 
+import java.util.Arrays;
+import java.util.Collections;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -176,22 +178,21 @@ public class PSQLIndexIT extends PSQLAbstractIT {
 
         try (final Connection connection = LAMBDA.dataSource.getConnection()) {
             /** Default System Indices */
-            List<String> systemIndices = new ArrayList<String>(){{
-                add("createdAt");
-                add("updatedAt");
-                add("serial");
-                add("geo");
-                add("tags");
-                add("id");
-                add("viz");
-                add("idnew");
-                add("version");
-                add("nextversion");
-                add("idversion");
-                add("idversionnextversion");
-                add("operation");
-                add("author");
-            }};
+            List<String> systemIndices = Arrays.asList(
+                "createdAt",
+                "updatedAt",
+                "serial",
+                "geo",
+                "tags",
+                "id",
+                "viz",
+                "idnew",
+                "version",
+                "nextversion",
+                "idversion",
+                "operation",
+                "author"
+            );
 
             String sqlSpaceSchema = "(select schema_name::text from information_schema.schemata where schema_name in ('xyz','public') order by 1 desc limit 1)";
 
@@ -214,7 +215,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
 
             }
             /** If all System Indices could get found the list should be empty */
-            assertEquals(0,systemIndices.size());
+            assertEquals(Collections.emptyList(), systemIndices);
             /** If foo1:foo5 could get found only foo6 & foo7 should be in the map */
             assertEquals(2,searchableProperties.size());
         }
@@ -338,12 +339,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                 .withConnectorParams(connectorParams);
         // =========== Invoke GetStatisticsEvent ==========
         String stringResponse = invokeLambda(statisticsEvent.serialize());
-        StatisticsResponse response;
-        XyzResponse rawResp = XyzSerializable.deserialize(stringResponse);
-        if (rawResp instanceof ErrorResponse)
-            throw new ErrorResponseException(((ErrorResponse) rawResp).getError(), ((ErrorResponse) rawResp).getErrorMessage());
-        else
-            response = XyzSerializable.deserialize(stringResponse);
+        StatisticsResponse response = deserializeResponse(stringResponse);
 
         assertNotNull(response);
         assertEquals(new Long(11000), response.getCount().getValue());
