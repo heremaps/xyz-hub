@@ -1103,7 +1103,7 @@ paths:
       tags:
         - Manage Jobs
       summary: Get jobs
-      description: Reteive jobs
+      description: Retrieve jobs
       operationId: getJobs
       parameters:
         - $ref: '#/components/parameters/SpaceId'
@@ -1124,7 +1124,7 @@ paths:
       tags:
         - Manage Jobs
       summary: Get job
-      description: Reteive job
+      description: Retrieve job
       operationId: getJob
       parameters:
         - $ref: '#/components/parameters/SpaceId'
