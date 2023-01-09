@@ -129,7 +129,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private static String INCLUDE_OLD_STATES = "includeOldStates"; // read from event params
 
-    private static final long PARTITION_SIZE = 100_000;
+    public static final long PARTITION_SIZE = 100_000;
 
     /**
      * The data source connections factory.
