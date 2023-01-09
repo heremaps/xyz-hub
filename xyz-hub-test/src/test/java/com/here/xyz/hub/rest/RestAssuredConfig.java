@@ -22,7 +22,6 @@ package com.here.xyz.hub.rest;
 public class RestAssuredConfig {
   public String baseURI;
   public int hubPort;
-  public int connectorPort;
   public String fullHubUri;
   public String fullHttpConnectorUri;
 
@@ -46,7 +45,8 @@ public class RestAssuredConfig {
     config.baseURI = "http://"+host+"/" + service;
     config.hubPort = 8080;
     config.fullHubUri = "http://"+host+":"+config.hubPort +"/" + service;
-    config.fullHttpConnectorUri = System.getenv().containsKey("HTTP_CONNECTOR_ENDPOINT") ? System.getenv("HTTP_CONNECTOR_ENDPOINT") : "http://xyz-http-connector:9090/psql";
+    config.fullHttpConnectorUri = "http://"+host+":9090/psql";
+
     try {
       config.hubPort = Integer.parseInt(envPort);
     }
