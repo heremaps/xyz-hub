@@ -45,9 +45,8 @@ public class RestAssuredConfig {
     String service = System.getenv().containsKey("HTTP_SERVICE") ? System.getenv("HTTP_SERVICE") : "hub";
     config.baseURI = "http://"+host+"/" + service;
     config.hubPort = 8080;
-    config.connectorPort = 9090;
     config.fullHubUri = "http://"+host+":"+config.hubPort +"/" + service;
-    config.fullHttpConnectorUri = "http://"+host+":"+config.connectorPort +"/psql";
+    config.fullHttpConnectorUri = System.getenv().containsKey("HTTP_CONNECTOR_ENDPOINT") ? System.getenv("HTTP_CONNECTOR_ENDPOINT") : "http://xyz-http-connector:9090/psql";
     try {
       config.hubPort = Integer.parseInt(envPort);
     }

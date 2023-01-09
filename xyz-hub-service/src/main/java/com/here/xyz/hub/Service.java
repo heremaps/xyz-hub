@@ -532,11 +532,6 @@ public class Service extends Core {
     public String STORAGE_DB_PASSWORD;
 
     /**
-     * The http connector host.
-     */
-    public String PSQL_HTTP_CONNECTOR_HOST;
-
-    /**
      * The ARN of the space table in DynamoDB.
      */
     public String SPACES_DYNAMODB_TABLE_ARN;

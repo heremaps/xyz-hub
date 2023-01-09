@@ -265,8 +265,7 @@ public abstract class ConnectorConfigClient implements Initializable {
      try {
        //Replace HOST in http-connector config
         ((Connector.RemoteFunctionConfig.Http)connector.getRemoteFunction()).url =
-                new URL(((Connector.RemoteFunctionConfig.Http)connector.getRemoteFunction()).url.toString()
-                        .replace("${PSQL_HTTP_CONNECTOR_HOST}",Service.configuration.PSQL_HTTP_CONNECTOR_HOST));
+                new URL(Service.configuration.HTTP_CONNECTOR_ENDPOINT+"/event");
       } catch (MalformedURLException e) {}
     }
   }
