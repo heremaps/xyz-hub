@@ -169,95 +169,102 @@ public class SpaceTaskHandler {
       return;
     }
 
-    Space space = task.modifyOp.entries.get(0).result;
+    Space result = task.modifyOp.entries.get(0).result;
+    Map<String, Object> input = task.modifyOp.entries.get(0).input;
 
     if (task.isUpdate()) {
       /*
        * Validate immutable settings which are only can get set during the space creation:
        * enableUUID, enableHistory, enableGlobalVersioning, maxVersionCount, extension
        * */
-      Space spaceHead = task.modifyOp.entries.get(0).head;
+      Space head = task.modifyOp.entries.get(0).head;
 
-      if(spaceHead != null && spaceHead.isEnableUUID() == Boolean.TRUE && task.modifyOp.entries.get(0).input.get("enableUUID") == Boolean.TRUE )
-        task.modifyOp.entries.get(0).input.put("enableUUID",true);
-      else if(spaceHead != null && task.modifyOp.entries.get(0).input.get("enableUUID") != null )
+      if(head != null && head.isEnableUUID() == Boolean.TRUE && input.get("enableUUID") == Boolean.TRUE )
+        input.put("enableUUID",true);
+      else if(head != null && input.get("enableUUID") != null )
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'enableUUID' can only get set on space creation!");
 
       // enableHistory is immutable and it is only allowed to set it during the space creation
-      if(spaceHead != null && spaceHead.isEnableHistory() == Boolean.TRUE && task.modifyOp.entries.get(0).input.get("enableHistory") == Boolean.TRUE )
-        task.modifyOp.entries.get(0).input.put("enableHistory",true);
-      else if(spaceHead != null && task.modifyOp.entries.get(0).input.get("enableHistory") != null )
+      if(head != null && head.isEnableHistory() == Boolean.TRUE && input.get("enableHistory") == Boolean.TRUE )
+        input.put("enableHistory",true);
+      else if(head != null && input.get("enableHistory") != null )
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'enableHistory' can only get set on space creation!");
 
       // enableGlobalVersioning is immutable and it is only allowed to set it during the space creation
-      if(spaceHead != null && spaceHead.isEnableGlobalVersioning() == Boolean.TRUE && task.modifyOp.entries.get(0).input.get("enableGlobalVersioning") == Boolean.TRUE )
-        task.modifyOp.entries.get(0).input.put("enableGlobalVersioning",true);
-      else if(spaceHead != null && task.modifyOp.entries.get(0).input.get("enableGlobalVersioning") != null )
+      if(head != null && head.isEnableGlobalVersioning() == Boolean.TRUE && input.get("enableGlobalVersioning") == Boolean.TRUE )
+        input.put("enableGlobalVersioning",true);
+      else if(head != null && input.get("enableGlobalVersioning") != null )
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'enableGlobalVersioning' can only get set on space creation!");
 
       // getMaxVersionCount is immutable and it is only allowed to set it during the space creation
-      if(spaceHead != null && spaceHead.isEnableGlobalVersioning() && spaceHead.getMaxVersionCount() != null && task.modifyOp.entries.get(0).input.get("maxVersionCount") != null
-              && (spaceHead.getMaxVersionCount().compareTo((Integer)task.modifyOp.entries.get(0).input.get("maxVersionCount")) == 0))
-        task.modifyOp.entries.get(0).input.put("maxVersionCount" , spaceHead.getMaxVersionCount());
-      else if(spaceHead != null && spaceHead.isEnableGlobalVersioning() && task.modifyOp.entries.get(0).input.get("maxVersionCount") != null )
+      if(head != null && head.isEnableGlobalVersioning() && head.getMaxVersionCount() != null && input.get("maxVersionCount") != null
+              && (head.getMaxVersionCount().compareTo((Integer)input.get("maxVersionCount")) == 0))
+        input.put("maxVersionCount" , head.getMaxVersionCount());
+      else if(head != null && head.isEnableGlobalVersioning() && input.get("maxVersionCount") != null )
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'maxVersionCount' can only get set, in combination of enableGlobalVersioning, on space creation!");
+
+      if (head != null && head.getVersionsToKeep() == 1 && input.get("versionsToKeep") != null && ((Integer) input.get("versionsToKeep")) > 1)
+        throw new HttpException(BAD_REQUEST, "Validation failed. The property 'versionsToKeep' cannot be changed to a value bigger than 1 when its value is 1");
+
+      if (head != null && head.getVersionsToKeep() > 1 && input.get("versionsToKeep") != null && Objects.equals(1, input.get("versionsToKeep")))
+        throw new HttpException(BAD_REQUEST, "Validation failed. The property 'versionsToKeep' cannot be changed to 1 when its value is bigger than 1");
     }
 
     if (task.isCreate()) {
       //Automatic activation of enableHistory in case of enableGlobalVersioning
-      if(space.isEnableGlobalVersioning() && !space.isEnableHistory())
+      if(result.isEnableGlobalVersioning() && !result.isEnableHistory())
         task.modifyOp.entries.get(0).result.setEnableHistory(true);
       //Automatic activation of UUID in case of enableHistory
-      if(space.isEnableHistory() && !space.isEnableUUID())
+      if(result.isEnableHistory() && !result.isEnableUUID())
         task.modifyOp.entries.get(0).result.setEnableUUID(true);
     }
 
     //versionsToKeep does not allow zero as value
-    if (task.modifyOp.entries.get(0).input.get("versionsToKeep") != null &&
-        Objects.equals(0, task.modifyOp.entries.get(0).input.get("versionsToKeep")))
+    if (input.get("versionsToKeep") != null &&
+        Objects.equals(0, input.get("versionsToKeep")))
       throw new HttpException(BAD_REQUEST, "Validation failed. The property \"versionsToKeep\" cannot be set to zero");
 
-    if(space.getMaxVersionCount() != null){
-      if(!space.isEnableHistory() && !space.isEnableGlobalVersioning())
+    if(result.getMaxVersionCount() != null){
+      if(!result.isEnableHistory() && !result.isEnableGlobalVersioning())
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'maxVersionCount' can only get set if 'enableHistory' is set.");
-      if(space.getMaxVersionCount() < -1)
+      if(result.getMaxVersionCount() < -1)
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'maxVersionCount' must be greater or equal to -1.");
     }
 
     //NOTE: The following is a temporary implementation for backwards compatibility for the legacy history implementation
-    if ((space.isEnableGlobalVersioning() || space.isEnableHistory()) && space.getVersionsToKeep() > 1)
+    if ((result.isEnableGlobalVersioning() || result.isEnableHistory()) && result.getVersionsToKeep() > 1)
       throw new HttpException(BAD_REQUEST, "Validation failed. Versioning can not be activated in combination with legacy history. "
           + "Either set property \"enableGlobalVersioning\" or \"versionsToKeep\" to a value greater than 1 but not both.");
 
-    if (space.getId() == null) {
+    if (result.getId() == null) {
       throw new HttpException(BAD_REQUEST, "Validation failed. The property 'id' cannot be empty.");
     }
 
-    if (space.getOwner() == null) {
+    if (result.getOwner() == null) {
       throw new HttpException(BAD_REQUEST, "Validation failed. The property 'owner' cannot be empty.");
     }
 
-    if (space.getStorage() == null || space.getStorage().getId() == null) {
+    if (result.getStorage() == null || result.getStorage().getId() == null) {
       throw new HttpException(BAD_REQUEST, "Validation failed. The storage ID cannot be empty.");
     }
 
-    if (space.getTitle() == null) {
+    if (result.getTitle() == null) {
       throw new HttpException(BAD_REQUEST, "Validation failed. The property 'title' cannot be empty.");
     }
 
-    if (space.getClient() != null && Json.encode(space.getClient()).getBytes().length > CLIENT_VALUE_MAX_SIZE) {
+    if (result.getClient() != null && Json.encode(result.getClient()).getBytes().length > CLIENT_VALUE_MAX_SIZE) {
       throw new HttpException(BAD_REQUEST, "The property client is over the allowed limit of " + CLIENT_VALUE_MAX_SIZE + " bytes.");
     }
 
-    if (space.getVersionsToKeep() < 0 || space.getVersionsToKeep() > Service.configuration.MAX_VERSIONS_TO_KEEP) {
+    if (result.getVersionsToKeep() < 0 || result.getVersionsToKeep() > Service.configuration.MAX_VERSIONS_TO_KEEP) {
       throw new HttpException(BAD_REQUEST, "The property versionsToKeep must be equals to zero or a positive integer. Max value is " + Service.configuration.MAX_VERSIONS_TO_KEEP);
     }
 
-    if (space.getExtension() != null && space.getSearchableProperties() != null) {
+    if (result.getExtension() != null && result.getSearchableProperties() != null) {
       throw new HttpException(BAD_REQUEST, "Validation failed. The properties 'searchableProperties' and 'extends' cannot be set together.");
     }
 
-    if (space.getExtension() != null && space.getVersionsToKeep() > 1)
+    if (result.getExtension() != null && result.getVersionsToKeep() > 1)
       throw new HttpException(BAD_REQUEST, "Validation failed. Versioning can not be activated for composite spaces. "
           + "Either set property \"extends\" or set \"versionsToKeep\" to a value greater than 1 but not both.");
 
@@ -281,19 +288,19 @@ public class SpaceTaskHandler {
       }
     }
 
-    if (space.getSearchableProperties() != null && !space.getSearchableProperties().isEmpty() || space.getExtension() != null) {
-      Space.resolveConnector(task.getMarker(), space.getStorage().getId(), arConnector -> {
+    if (result.getSearchableProperties() != null && !result.getSearchableProperties().isEmpty() || result.getExtension() != null) {
+      Space.resolveConnector(task.getMarker(), result.getStorage().getId(), arConnector -> {
         if (arConnector.failed()) {
           callback.exception(new Exception(arConnector.cause()));
         } else {
           final Connector connector = arConnector.result();
-          if (space.getSearchableProperties() != null && !space.getSearchableProperties().isEmpty()
+          if (result.getSearchableProperties() != null && !result.getSearchableProperties().isEmpty()
               && !connector.capabilities.searchablePropertiesConfiguration) {
             callback.exception(new HttpException(BAD_REQUEST, "It's not supported to define the searchableProperties"
-                + " on space with storage connector " + space.getStorage().getId()));
-          } else if (space.getExtension() != null && !connector.capabilities.extensionSupport) {
-            callback.exception(new HttpException(BAD_REQUEST, "The space " + space.getId() + " cannot extend the space "
-                + space.getExtension().getSpaceId() + " because its storage does not have the capability 'extensionSupport'."));
+                + " on space with storage connector " + result.getStorage().getId()));
+          } else if (result.getExtension() != null && !connector.capabilities.extensionSupport) {
+            callback.exception(new HttpException(BAD_REQUEST, "The space " + result.getId() + " cannot extend the space "
+                + result.getExtension().getSpaceId() + " because its storage does not have the capability 'extensionSupport'."));
           } else {
             callback.call(task);
           }
