@@ -36,7 +36,7 @@ public class JDBCConfig {
 
   private static final Logger logger = LogManager.getLogger();
 
-  private static final String SCHEMA = "xyz_config";
+  public static final String SCHEMA = "xyz_config";
   static final String CONNECTOR_TABLE = SCHEMA + ".xyz_storage";
   static final String SPACE_TABLE = SCHEMA + ".xyz_space";
   static final String SUBSCRIPTION_TABLE = SCHEMA + ".xyz_subscription";

@@ -176,7 +176,7 @@ public abstract class Job {
     }
 
     public Job withErrorDescription(final String errorDescription) {
-        setErrorDescription(description);
+        setErrorDescription(errorDescription);
         return this;
     }
 
@@ -226,6 +226,11 @@ public abstract class Job {
 
     public void setStatus(Job.Status status) {
         this.status = status;
+    }
+
+    public Job withStatus(final Job.Status status) {
+        setStatus(status);
+        return this;
     }
 
     public CSVFormat getCsvFormat() {
@@ -312,6 +317,11 @@ public abstract class Job {
 
     public String getErrorType() {
         return errorType;
+    }
+
+    public Job withErrorType(String errorType) {
+        setErrorType(errorType);
+        return this;
     }
 
     public static class Public {

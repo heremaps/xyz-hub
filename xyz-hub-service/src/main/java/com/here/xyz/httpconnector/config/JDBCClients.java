@@ -30,6 +30,8 @@ import io.vertx.sqlclient.PoolOptions;
 import io.vertx.sqlclient.SqlClient;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import java.net.URI;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -38,6 +40,7 @@ import java.util.Set;
 public class JDBCClients {
     private static final Logger logger = LogManager.getLogger();
     private static final String APPLICATION_NAME_PREFIX = "job_engine_";
+    public static final String CONFIG_CLIENT_ID = "config_client";
     private static Map<String, DBClient> clients = new HashMap<>();
 
     public static void addClientIfRequired(String id, String ecps, String passphrase) throws CannotDecodeException, UnsupportedOperationException {
@@ -59,6 +62,27 @@ public class JDBCClients {
     public static void addClient(String id, String ecps, String passphrase) throws CannotDecodeException {
         DatabaseSettings settings = ECPSTool.readDBSettingsFromECPS(ecps, passphrase);
         addClient(id, settings);
+    }
+
+    public static void addConfigClient(){
+        /** Used to store Job definitions inside DB if Dynamo is not used */
+        DatabaseSettings settings = new DatabaseSettings();
+
+        if(CService.configuration != null && CService.configuration.STORAGE_DB_URL != null) {
+            URI uri = URI.create(CService.configuration.STORAGE_DB_URL.substring(5));
+            settings.setHost(uri.getHost());
+            settings.setPort(Integer.valueOf(uri.getPort() == -1 ? 5432 : uri.getPort()));
+
+            String[] pathComponent = uri.getPath() == null ? null : uri.getPath().split("/");
+            if (pathComponent != null && pathComponent.length > 1)
+                settings.setDb(pathComponent[1]);
+        }
+        if(CService.configuration != null && CService.configuration.STORAGE_DB_USER != null)
+            settings.setUser(CService.configuration.STORAGE_DB_USER);
+        if(CService.configuration != null && CService.configuration.STORAGE_DB_PASSWORD != null)
+            settings.setPassword(CService.configuration.STORAGE_DB_PASSWORD);
+
+        addClient(CONFIG_CLIENT_ID, settings);
     }
 
     static void addClient(String id, DatabaseSettings settings){
@@ -109,7 +133,7 @@ public class JDBCClients {
     public static void removeClient(String id){
         if(clients == null || clients.get(id) == null)
             return;
-        logger.info("Remove new SQL-Client [{}]",id);
+        logger.info("Remove SQL-Client [{}]", id);
         clients.get(id).getClient().close();
         clients.remove(id);
     }

@@ -24,14 +24,10 @@ import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.config.Initializable;
 import io.vertx.core.Future;
-import net.jodah.expiringmap.ExpirationPolicy;
-import net.jodah.expiringmap.ExpiringMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
-
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Client for reading and writing Jobs
@@ -44,7 +40,7 @@ public abstract class JobConfigClient implements Initializable {
         if (CService.configuration.JOBS_DYNAMODB_TABLE_ARN != null) {
             return new DynamoJobConfigClient(CService.configuration.JOBS_DYNAMODB_TABLE_ARN);
         } else {
-            return JobConfigClient.getInstance();
+            return JDBCJobConfigClient.getInstance();
         }
     }
 
@@ -89,6 +85,10 @@ public abstract class JobConfigClient implements Initializable {
     }
 
     public Future<Job> store(Marker marker, Job job) {
+        /** A newly created Job waits for an execution */
+        if(job.getStatus() == null)
+            job.setStatus(Job.Status.waiting);
+
         return storeJob(marker, job, false)
                 .onSuccess(v -> {
                     logger.info(marker, "job[{}]: successfully stored!", job.getId());
@@ -99,13 +99,15 @@ public abstract class JobConfigClient implements Initializable {
     }
 
     public Future<Job> delete(Marker marker, String jobId) {
-        return deleteJob(marker, jobId)
-                .onSuccess(job -> {
-                    if (job == null) {
-                        logger.info(marker, "jobId[{}]: not found. Nothing to delete!", jobId);
-                    }else {
-                        logger.info(marker, "job[{}]: successfully deleted!", jobId);
-                    }
+        return getJob(marker, jobId)
+                .onSuccess(j -> {
+                            if (j == null) {
+                                logger.info(marker, "jobId[{}]: not found. Nothing to delete!", jobId);
+                            }else {
+                                deleteJob(marker, j)
+                                        .onSuccess(job -> logger.info(marker, "job[{}]: successfully deleted!", jobId))
+                                        .onFailure(t -> logger.error(marker, "job[{}]: Failed delete job:", jobId, t));
+                            }
                 })
                 .onFailure(t -> logger.error(marker, "job[{}]: Failed delete job:", jobId, t));
     }
@@ -118,5 +120,5 @@ public abstract class JobConfigClient implements Initializable {
 
     protected abstract Future<Job> storeJob(Marker marker, Job job, boolean isUpdate);
 
-    protected abstract Future<Job> deleteJob(Marker marker, String jobId);
+    protected abstract Future<Job> deleteJob(Marker marker, Job job);
 }
