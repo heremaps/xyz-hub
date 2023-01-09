@@ -160,7 +160,6 @@ public class DatabaseWriter {
         query
             .withNamedParameter("id", feature.getId())
             .withNamedParameter("version", version)
-            .withNamedParameter("author", getAuthorFromFeature(feature))
             .withNamedParameter("operation", (action == DELETE || !getDeletedFlagFromFeature(feature) ? action
                 : action == INSERT ? INSERT_HIDE_COMPOSITE : UPDATE_HIDE_COMPOSITE).shortValue)
             .withNamedParameter("jsondata", featureToPGobject(event, feature, version));
@@ -181,12 +180,6 @@ public class DatabaseWriter {
             f.getProperties().getXyzNamespace() == null ? false :
             f.getProperties().getXyzNamespace().isDeleted();
     }
-
-  private static String getAuthorFromFeature(Feature f) {
-    return f.getProperties() == null ? null :
-        f.getProperties().getXyzNamespace() == null ? null :
-            f.getProperties().getXyzNamespace().getAuthor();
-  }
 
     protected static void modifyFeatures(DatabaseHandler dbh, ModifyFeaturesEvent event, ModificationType action,
         FeatureCollection collection, List<FeatureCollection.ModificationFailure> fails, List inputData, Connection connection,
