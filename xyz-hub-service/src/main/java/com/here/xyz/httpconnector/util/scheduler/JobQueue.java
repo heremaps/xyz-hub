@@ -52,6 +52,13 @@ public abstract class JobQueue implements Runnable {
 
     protected abstract void failJob(Job j);
 
+    public static Job hasJob(Job job){
+        return JOB_QUEUE.stream()
+                .filter(j -> j.getId().equalsIgnoreCase(job.getId()))
+                .findAny()
+                .orElse(null);
+    }
+
     public static void addJob(Job job){
         logger.info("[{}] added to JobQueue!", job.getId());
         JOB_QUEUE.add(job);
@@ -62,14 +69,14 @@ public abstract class JobQueue implements Runnable {
         JOB_QUEUE.remove(job);
     }
 
-    public static boolean checkRunningImportJobsOnSpace(String targetSpaceId){
+    public static String checkRunningImportJobsOnSpace(String targetSpaceId){
         for (Job j : JOB_QUEUE ) {
-            if(targetSpaceId != null  && targetSpaceId != null
+            if(targetSpaceId != null  && j.getTargetSpaceId() != null
                 && targetSpaceId.equalsIgnoreCase(j.getTargetSpaceId())){
-                return true;
+                return j.getId();
             }
         }
-        return false;
+        return null;
     }
 
     public static HashSet<Job> getQueue(){

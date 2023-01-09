@@ -130,7 +130,8 @@ public class ImportHandler {
 
         CService.jobConfigClient.getList(marker, type, status, targetSpaceId).onSuccess(
                 j -> p.complete(j)
-        ).onFailure(t -> p.fail(new HttpException(BAD_GATEWAY, t.getMessage())));
+        ).onFailure(
+                t -> p.fail(new HttpException(BAD_GATEWAY, t.getMessage())));
 
         return p.future();
     }
@@ -179,83 +180,91 @@ public class ImportHandler {
 
         Promise<Job> p = Promise.promise();
 
-        CService.jobConfigClient.get(marker, jobId).onSuccess(j -> {
-            if(!isJobStateValid(j, jobId, command, p))
-                return;
-
-            if(j != null && (j instanceof Import)){
-                Import importJob = (Import) j;
-
-                if(importJob.getTargetTable() == null){
-                    importJob.setTargetTable(enableHashedSpaceId ? Hasher.getHash(importJob.getTargetSpaceId()) : importJob.getTargetSpaceId());
-                }
-
-                if(command.equals(HApiParam.HQuery.Command.START) || command.equals(HApiParam.HQuery.Command.RETRY)){
-                    /** Add Client if missing or reload client if config has changed */
-
-                    try {
-                        JDBCImporter.addClientIfRequired(connectorId, ecps, passphrase);
-                    }catch (CannotDecodeException e){
-                        p.fail(new HttpException(PRECONDITION_FAILED, "Can not decode ECPS!"));
+        /** Load JobConfig */
+        CService.jobConfigClient.get(marker, jobId)
+                .onSuccess(j -> {
+                    if(!isJobStateValid(j, jobId, command, p))
                         return;
-                    }catch (UnsupportedOperationException e){
-                        p.fail(new HttpException(BAD_REQUEST, "Connector is not supported!"));
-                        return;
+
+                    if(j != null && (j instanceof Import)){
+                        Import importJob = (Import) j;
+
+                        if(importJob.getTargetTable() == null){
+                            importJob.setTargetTable(enableHashedSpaceId ? Hasher.getHash(importJob.getTargetSpaceId()) : importJob.getTargetSpaceId());
+                        }
+
+                        if(command.equals(HApiParam.HQuery.Command.START) || command.equals(HApiParam.HQuery.Command.RETRY)){
+                            /** Add Client if missing or reload client if config has changed */
+
+                            try {
+                                JDBCImporter.addClientIfRequired(connectorId, ecps, passphrase);
+                            }catch (CannotDecodeException e){
+                                p.fail(new HttpException(PRECONDITION_FAILED, "Can not decode ECPS!"));
+                                return;
+                            }catch (UnsupportedOperationException e){
+                                p.fail(new HttpException(BAD_REQUEST, "Connector is not supported!"));
+                                return;
+                            }
+
+                            /** Need connectorId as JDBC-clientID for scheduled processing in ImportQueue */
+                            importJob.setTargetConnector(connectorId);
+                            importJob.setEnabledUUID(enableUUID);
+                        }
+
+                        switch (command){
+                            case ABORT:
+                                p.fail(new HttpException(NOT_IMPLEMENTED,"NA"));
+                                return;
+                            case CREATEUPLOADURL:
+                                try {
+                                    addUploadURL(importJob);
+                                    CService.jobConfigClient.update(marker, importJob)
+                                            .onFailure( t-> p.fail(new HttpException(BAD_GATEWAY, t.getMessage())))
+                                            .onSuccess( f-> p.complete(importJob));
+                                } catch (IOException e) {
+                                    logger.error("Can`t create S3 URL ",e);
+                                    p.fail(new HttpException(BAD_GATEWAY, e.getMessage()));
+                                }
+                                return;
+                            case RETRY:
+                                checkAndAddJob(marker, importJob, p);
+                                return;
+                            case START:
+                                checkAndAddJob(marker, importJob, p);
+                        }
                     }
-
-                    /** Need connectorId as JDBC-clientID for scheduled processing in ImportQueue */
-                    importJob.setTargetConnector(connectorId);
-                    importJob.setEnabledUUID(enableUUID);
-                }
-
-                switch (command){
-                    case ABORT:
-                        p.fail(new HttpException(NOT_IMPLEMENTED,"NA"));
-                        return;
-                    case CREATEUPLOADURL:
-                        try {
-                            addUploadURL(importJob);
-                            p.complete(importJob);
-                            return;
-                        } catch (IOException e) {
-                            logger.error("Can`t create S3 URL ",e);
-                            p.fail(new HttpException(BAD_GATEWAY, e.getMessage()));
-                            return;
-                        }
-                    case RETRY:
-                        importJob.setErrorType(null);
-                        importJob.setErrorDescription(null);
-
-                        /** Actively push job to local JOB-Queue */
-                        CService.importQueue.addJob(importJob);
-                        p.complete(importJob);
-                        return;
-                    case START:
-                        if(!importJob.getStatus().equals(Job.Status.waiting)) {
-                            p.fail(new HttpException(PRECONDITION_FAILED, "Job cant get started. Invalid Job Status '" + importJob.getStatus() + "' !"));
-                        }else if(CService.importQueue.checkRunningImportJobsOnSpace(importJob.getTargetSpaceId())){
-                            /** Check in node memory */
-                            p.fail(new HttpException(CONFLICT, "Other job is already running on target!"));
-                        }else{
-                            CService.jobConfigClient.getRunningImportJobsOnSpace(marker, importJob.getTargetSpaceId())
-                                 .onSuccess(alreadyRunningOn -> {
-                                     /** Check on dynamo level */
-                                     if(alreadyRunningOn != null) {
-                                         p.fail(new HttpException(CONFLICT, "Job '"+alreadyRunningOn+"' is already running on target!"));
-                                         return;
-                                     }else{
-                                         /** Actively push job to local JOB-Queue */
-                                         CService.importQueue.addJob(importJob);
-                                         p.complete(importJob);
-                                     }
-                                 }).onFailure(f-> p.fail(new HttpException(BAD_GATEWAY, "Unexpected error!")));
-                        }
-                }
-            }
-        }).compose(
-                jobStatusUpdate -> CService.jobConfigClient.update(marker, jobStatusUpdate));
+                });
 
         return p.future();
+    }
+
+    private static void checkAndAddJob(Marker marker, Job job, Promise<Job> p){
+        checkRunningJobs(marker,job)
+                .onSuccess( runningJob -> {
+                    if(runningJob == null){
+                        /** Update JobConfig */
+                        CService.jobConfigClient.update(marker, job)
+                                .onFailure( t -> p.fail(new HttpException(BAD_GATEWAY, t.getMessage())))
+                                .onSuccess( f -> {
+                                    /** Actively push job to local JOB-Queue */
+                                    CService.importQueue.addJob(job);
+                                    p.complete();
+                                });
+                    }else{
+                        p.fail(new HttpException(CONFLICT, "Job '"+runningJob+"' is already running on target!"));
+                    }
+                }).onFailure(f -> p.fail(new HttpException(BAD_GATEWAY, "Unexpected error!")));
+    }
+
+    private static Future<String> checkRunningJobs(Marker marker, Job job){
+        /** Check in node memory */
+        String jobId = CService.importQueue.checkRunningImportJobsOnSpace(job.getTargetSpaceId());
+
+        if(jobId != null) {
+            return Future.succeededFuture(jobId);
+        }else{
+            return CService.jobConfigClient.getRunningImportJobsOnSpace(marker, job.getTargetSpaceId());
+        }
     }
 
     private static Map asMap(Object object) {

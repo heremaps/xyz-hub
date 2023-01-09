@@ -105,16 +105,17 @@ public class CService extends Core {
         rdsLookupDatabaseIdentifier.put(cId, config[1]);
         rdsLookupCapacity.put(cId, Integer.parseInt(config[2]));
       }
+      supportedConnectors.add(JDBCClients.CONFIG_CLIENT_ID);
     }catch (Exception e){
-      //logger.error("Configuration-Error - please check service config!");
+      logger.error("Configuration-Error - please check service config!");
       throw new RuntimeException("Configuration-Error - please check service config!",e);
     }
 
     maintenanceClient = new MaintenanceClient();
     jobConfigClient = JobConfigClient.getInstance();
 
-    jobConfigClient.init(spaceConfigReady -> {
-      if(spaceConfigReady.succeeded()) {
+    jobConfigClient.init(jobConfigReady -> {
+      if(jobConfigReady.succeeded()) {
         jdbcImporter = new JDBCImporter();
         jobS3Client = new JobS3Client();
         jobCWClient = new AwsCWClient();
@@ -122,7 +123,7 @@ public class CService extends Core {
         /** Start Job-Scheduler */
         importQueue.commence();
       }else
-        logger.error("Cant reach dynamoDB - JOB-API deactivated!");
+        logger.error("Cant reach jobAPI backend - JOB-API deactivated!");
     });
 
     final DeploymentOptions options = new DeploymentOptions()
@@ -252,6 +253,20 @@ public class CService extends Core {
      * Test on checkout if connection is valid
      */
     public boolean DB_TEST_CONNECTION_ON_CHECKOUT;
+
+    /** Store Jobs inside DB - only possible if no JOBS_DYNAMODB_TABLE_ARN is defined */
+    /**
+     * The PostgreSQL URL.
+     */
+    public String STORAGE_DB_URL;
+    /**
+     * The database user.
+     */
+    public String STORAGE_DB_USER;
+    /**
+     * The database password.
+     */
+    public String STORAGE_DB_PASSWORD;
   }
 }
 

@@ -146,7 +146,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
                 jobs.scan(filterList.toArray(new ScanFilter[0])).pages().forEach(j -> j.forEach(i -> {
                     try{
                         final Job job = Json.decodeValue(i.toJSON(), Job.class);
-                        System.out.println(job.getId()+" "+job.getTargetTable()+" "+job.getStatus());
+
                         switch (job.getStatus()){
                             case waiting:
                             case failed:
@@ -154,7 +154,6 @@ public class DynamoJobConfigClient extends JobConfigClient {
                             default: {
                                 logger.info("{} is blocked!",targetSpaceId);
                                 p.complete(job.getId());
-                                return;
                             }
                         }
                     }catch (DecodeException e){
@@ -170,10 +169,10 @@ public class DynamoJobConfigClient extends JobConfigClient {
     }
 
     @Override
-    protected Future<Job> deleteJob(Marker marker, String jobId) {
+    protected Future<Job> deleteJob(Marker marker, Job job) {
         return DynamoClient.dynamoWorkers.executeBlocking(p -> {
             DeleteItemSpec deleteItemSpec = new DeleteItemSpec()
-                    .withPrimaryKey("id", jobId)
+                    .withPrimaryKey("id", job.getId())
                     .withReturnValues(ReturnValue.ALL_OLD);
             DeleteItemOutcome response = jobs.deleteItem(deleteItemSpec);
 
@@ -193,10 +192,6 @@ public class DynamoJobConfigClient extends JobConfigClient {
     }
 
     private void storeJobSync(Job job, Promise p){
-        /** A newly created Job waits for an execution */
-        if(job.getStatus() == null)
-            job.setStatus(Status.waiting);
-
         jobs.putItem(Item.fromJSON(Json.encode(job)));
         p.complete(job);
     }

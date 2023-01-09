@@ -15,6 +15,10 @@
   "MAX_CONCURRENT_MAINTENANCE_TASKS" : 1 ,
   "MISSING_MAINTENANCE_WARNING_IN_HR" : 12,
 
+  "STORAGE_DB_URL": "jdbc:postgresql://localhost/postgres",
+  "STORAGE_DB_USER": "postgres",
+  "STORAGE_DB_PASSWORD": "password",
+
   "JOBS_DYNAMODB_TABLE_ARN" : "arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-jobs",
   "JOBS_S3_BUCKET": "TBD",
   "JOBS_S3_BUCKET_REGION": "eu-west-1",
