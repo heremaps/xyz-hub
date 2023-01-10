@@ -3167,7 +3167,7 @@ CREATE OR REPLACE FUNCTION xyz_create_history_partition(schema TEXT, rootTable T
 $BODY$
 BEGIN
     EXECUTE
-        format('CREATE TABLE %I.%I PARTITION OF %I.%I FOR VALUES FROM (%L) TO (%L)',
+        format('CREATE TABLE IF NOT EXISTS %I.%I PARTITION OF %I.%I FOR VALUES FROM (%L) TO (%L)',
             schema, (rootTable || '_p' || partitionNo), schema, rootTable,
             partitionSize * partitionNo, partitionSize * (partitionNo + 1));
 END
