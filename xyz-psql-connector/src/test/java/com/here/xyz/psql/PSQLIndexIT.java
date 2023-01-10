@@ -277,37 +277,37 @@ public class PSQLIndexIT extends PSQLAbstractIT {
 
                 switch (idx_property){
                     case "foo" :
-                        assertEquals("CREATE INDEX "+idx_name+" ON public.foo USING btree ((((jsondata -> 'properties'::text) -> 'foo'::text)))",indexdef);
+                        assertEquals("CREATE INDEX "+idx_name+" ON ONLY public.foo USING btree ((((jsondata -> 'properties'::text) -> 'foo'::text)))",indexdef);
                         break;
                     case "foo2" :
-                        assertEquals("CREATE INDEX "+idx_name+" ON public.foo USING gin ((((jsondata -> 'properties'::text) -> 'foo2'::text)))",indexdef);
+                        assertEquals("CREATE INDEX "+idx_name+" ON ONLY public.foo USING gin ((((jsondata -> 'properties'::text) -> 'foo2'::text)))",indexdef);
                         break;
                     case "foo.nested" :
-                        assertEquals("CREATE INDEX "+idx_name+" ON public.foo USING btree (((((jsondata -> 'properties'::text) -> 'foo'::text) -> 'nested'::text)))",indexdef);
+                        assertEquals("CREATE INDEX "+idx_name+" ON ONLY public.foo USING btree (((((jsondata -> 'properties'::text) -> 'foo'::text) -> 'nested'::text)))",indexdef);
                         break;
                     case "f.fooroot" :
-                        assertEquals("CREATE INDEX "+idx_name+" ON public.foo USING btree (((jsondata -> 'fooroot'::text)))",indexdef);
+                        assertEquals("CREATE INDEX "+idx_name+" ON ONLY public.foo USING btree (((jsondata -> 'fooroot'::text)))",indexdef);
                         break;
                     case "f.geometry.type" :
-                        assertEquals("CREATE INDEX "+idx_name+" ON public.foo USING btree (geometrytype(geo))",indexdef);
+                        assertEquals("CREATE INDEX "+idx_name+" ON ONLY public.foo USING btree (geometrytype(geo))",indexdef);
                         break;
                     case "id" :
-                        assertEquals("CREATE INDEX idx_foo_id ON public.foo USING btree (((jsondata ->> 'id'::text)))",indexdef);
+                        assertEquals("CREATE INDEX idx_foo_id ON ONLY public.foo USING btree (((jsondata ->> 'id'::text)))",indexdef);
                         break;
                     case "geo" :
-                        assertEquals("CREATE INDEX idx_foo_geo ON public.foo USING gist (geo)",indexdef);
+                        assertEquals("CREATE INDEX idx_foo_geo ON ONLY public.foo USING gist (geo)",indexdef);
                         break;
                     case "serial" :
-                        assertEquals("CREATE INDEX idx_foo_serial ON public.foo USING btree (i)",indexdef);
+                        assertEquals("CREATE INDEX idx_foo_serial ON ONLY public.foo USING btree (i)",indexdef);
                         break;
                     case "tags" :
-                        assertEquals("CREATE INDEX idx_foo_tags ON public.foo USING gin (((((jsondata -> 'properties'::text) -> '@ns:com:here:xyz'::text) -> 'tags'::text)))",indexdef);
+                        assertEquals("CREATE INDEX idx_foo_tags ON ONLY public.foo USING gin (((((jsondata -> 'properties'::text) -> '@ns:com:here:xyz'::text) -> 'tags'::text)))",indexdef);
                         break;
                     case "createdAt" :
-                        assertEquals("CREATE INDEX \"idx_foo_createdAt\" ON public.foo USING btree (((((jsondata -> 'properties'::text) -> '@ns:com:here:xyz'::text) -> 'createdAt'::text)), ((jsondata ->> 'id'::text)))",indexdef);
+                        assertEquals("CREATE INDEX \"idx_foo_createdAt\" ON ONLY public.foo USING btree (((((jsondata -> 'properties'::text) -> '@ns:com:here:xyz'::text) -> 'createdAt'::text)), ((jsondata ->> 'id'::text)))",indexdef);
                         break;
                     case "updatedAt" :
-                        assertEquals("CREATE INDEX \"idx_foo_updatedAt\" ON public.foo USING btree (((((jsondata -> 'properties'::text) -> '@ns:com:here:xyz'::text) -> 'updatedAt'::text)), ((jsondata ->> 'id'::text)))",indexdef);
+                        assertEquals("CREATE INDEX \"idx_foo_updatedAt\" ON ONLY public.foo USING btree (((((jsondata -> 'properties'::text) -> '@ns:com:here:xyz'::text) -> 'updatedAt'::text)), ((jsondata ->> 'id'::text)))",indexdef);
                         break;
                 }
             }

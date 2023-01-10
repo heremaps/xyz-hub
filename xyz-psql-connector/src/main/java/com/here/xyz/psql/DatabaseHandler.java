@@ -1232,7 +1232,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     private void createHeadPartition(Statement stmt, String schema, String rootTable) throws SQLException {
-        SQLQuery q = new SQLQuery("CREATE TABLE ${schema}.${partitionTable} "
+        SQLQuery q = new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${partitionTable} "
             + "PARTITION OF ${schema}.${rootTable} FOR VALUES FROM (max_bigint()) TO (MAXVALUE)")
             .withVariable(SCHEMA, schema)
             .withVariable("rootTable", rootTable)
