@@ -354,7 +354,7 @@ $BODY$
         EXECUTE
             format('INSERT INTO'
                        || ' %s."%s_hst" (uuid, jsondata, geo, vid)'
-                       || ' VALUES(%L, %L, %L, %L)', TG_TABLE_SCHEMA, TG_TABLE_NAME, NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo,
+                       || ' VALUES(%L, %L, %L, %L)', TG_TABLE_SCHEMA, xyz_get_root_table(TG_TABLE_NAME), NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo,
                 substring('0000000000'::text, 0, 10 - length(v))
                        || v || '_' || (NEW.jsondata->>'id'));
 
@@ -384,7 +384,7 @@ $BODY$
 			EXECUTE
 				format('INSERT INTO'
 					||' %s."%s_hst" (uuid,jsondata,geo)'
-					||' VALUES( %L,%L,%L)',TG_TABLE_SCHEMA, TG_TABLE_NAME, NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo);
+					||' VALUES( %L,%L,%L)',TG_TABLE_SCHEMA, xyz_get_root_table(TG_TABLE_NAME), NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo);
 			RETURN NEW;
 		END IF;
 
@@ -395,7 +395,7 @@ $BODY$
 					|| 'FROM( '
 					|| '	select uuid FROM %s."%s_hst" '
 					|| '		WHERE jsondata->>''id'' = %L ORDER BY jsondata->''properties''->''@ns:com:here:xyz''->''updatedAt'' ASC'
-					|| ') A',TG_TABLE_SCHEMA, TG_TABLE_NAME, OLD.jsondata->>'id'
+					|| ') A',TG_TABLE_SCHEMA, xyz_get_root_table(TG_TABLE_NAME), OLD.jsondata->>'id'
 				) into oldest_uuids;
 
 			max_version_diff := array_length(oldest_uuids,1) - max_version_cnt;
@@ -407,7 +407,7 @@ $BODY$
 						INTO uuid_deletes;
 				END LOOP;
 				EXECUTE
-					format('DELETE FROM %s."%s_hst" WHERE uuid = ANY(%L)',TG_TABLE_SCHEMA, TG_TABLE_NAME, uuid_deletes);
+					format('DELETE FROM %s."%s_hst" WHERE uuid = ANY(%L)',TG_TABLE_SCHEMA, xyz_get_root_table(TG_TABLE_NAME), uuid_deletes);
 			END IF;
 		END IF;
 
@@ -415,14 +415,14 @@ $BODY$
 			EXECUTE
 				format('INSERT INTO'
 					||' %s."%s_hst" (uuid,jsondata,geo)'
-					||' VALUES( %L,%L,%L)',TG_TABLE_SCHEMA, TG_TABLE_NAME, NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo);
+					||' VALUES( %L,%L,%L)',TG_TABLE_SCHEMA, xyz_get_root_table(TG_TABLE_NAME), NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo);
 			RETURN NEW;
 
 		ELSEIF TG_OP = 'DELETE' THEN
 			EXECUTE
 				format('INSERT INTO'
 					||' %s."%s_hst" (uuid,jsondata,geo)'
-					||' VALUES( %L,%L,%L)',TG_TABLE_SCHEMA, TG_TABLE_NAME,
+					||' VALUES( %L,%L,%L)',TG_TABLE_SCHEMA, xyz_get_root_table(TG_TABLE_NAME),
 					OLD.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' || '_deleted',
 					jsonb_set(OLD.jsondata,'{properties,@ns:com:here:xyz}', ('{"deleted":true}'::jsonb  || (OLD.jsondata->'properties'->'@ns:com:here:xyz')::jsonb)),
 					OLD.geo);
@@ -450,7 +450,7 @@ $BODY$
                     || 'FROM( '
                     || '	select uuid FROM %s."%s_hst" '
                     || '		WHERE jsondata->>''id'' = %L ORDER BY jsondata->''properties''->''@ns:com:here:xyz''->''updatedAt'' ASC'
-                    || ') A',TG_TABLE_SCHEMA, TG_TABLE_NAME, OLD.jsondata->>'id'
+                    || ') A',TG_TABLE_SCHEMA, xyz_get_root_table(TG_TABLE_NAME), OLD.jsondata->>'id'
                 ) into path;
 
             max_version_diff := array_length(path,1) - max_version_cnt;
@@ -462,7 +462,7 @@ $BODY$
                         INTO uuid_deletes;
                 END LOOP;
                 EXECUTE
-                    format('DELETE FROM %s."%s_hst" WHERE uuid = ANY(%L)',TG_TABLE_SCHEMA, TG_TABLE_NAME, uuid_deletes);
+                    format('DELETE FROM %s."%s_hst" WHERE uuid = ANY(%L)',TG_TABLE_SCHEMA, xyz_get_root_table(TG_TABLE_NAME), uuid_deletes);
             END IF;
         END IF;
 
@@ -470,13 +470,13 @@ $BODY$
 			EXECUTE
 				format('INSERT INTO'
 					||' %s."%s_hst" (uuid,jsondata,geo)'
-					||' VALUES( %L,%L,%L)',TG_TABLE_SCHEMA, TG_TABLE_NAME, OLD.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', OLD.jsondata, OLD.geo);
+					||' VALUES( %L,%L,%L)',TG_TABLE_SCHEMA, xyz_get_root_table(TG_TABLE_NAME), OLD.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', OLD.jsondata, OLD.geo);
 			RETURN NEW;
 		ELSEIF TG_OP = 'DELETE' THEN
 			EXECUTE
 				format('INSERT INTO'
 					||' %s."%s_hst" (uuid,jsondata,geo)'
-                    ||' VALUES( %L,%L,%L)',TG_TABLE_SCHEMA, TG_TABLE_NAME,
+                    ||' VALUES( %L,%L,%L)',TG_TABLE_SCHEMA, xyz_get_root_table(TG_TABLE_NAME),
 						OLD.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid',
 						jsonb_set(OLD.jsondata,'{properties,@ns:com:here:xyz}', ('{"deleted":true}'::jsonb  || (OLD.jsondata->'properties'->'@ns:com:here:xyz')::jsonb)),
 						OLD.geo);
@@ -3185,7 +3185,20 @@ BEGIN
     END IF;
 END
 $BODY$
-    LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_get_root_table(tableName TEXT) RETURNS TEXT AS
+$BODY$
+BEGIN
+    IF tableName LIKE '%_head' THEN
+        RETURN substring(tableName, 1, length(tableName) - 5);
+    ELSE
+        RETURN tableName;
+    END IF;
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_table_exists(schema TEXT, tableName TEXT) RETURNS BOOLEAN AS
