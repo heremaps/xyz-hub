@@ -18,6 +18,7 @@
  */
 package com.here.xyz.psql;
 
+import static com.here.xyz.psql.DatabaseHandler.HEAD_TABLE_SUFFIX;
 import static com.here.xyz.psql.DatabaseHandler.PARTITION_SIZE;
 
 import com.here.xyz.events.ContextAwareEvent;
@@ -328,16 +329,20 @@ public class SQLQueryBuilder {
         return SQLQuery.replaceVars(deleteHistoryEntriesWithDeleteFlag, schema, table);
     }
 
-    protected static String[] deleteHistoryTriggerSQL(final String schema, final String table){
-        String[] sqls= new String[2];
-        /** Old naming */
-        String oldDeleteHistoryTriggerSQL = "DROP TRIGGER IF EXISTS TR_"+table.replaceAll("-","_")+"_HISTORY_WRITER ON  ${schema}.${table};";
-        /** New naming */
-        String deleteHistoryTriggerSQL = "DROP TRIGGER IF EXISTS \"TR_"+table.replaceAll("-","_")+"_HISTORY_WRITER\" ON  ${schema}.${table};";
+    protected static String deleteHistoryTriggerSQL(final String schema, final String table, boolean withQuotes) {
+      String triggerName = toTriggerName(table);
+      if (withQuotes)
+        triggerName = "\"" + triggerName + "\"";
 
-        sqls[0] = SQLQuery.replaceVars(oldDeleteHistoryTriggerSQL, schema, table);
-        sqls[1] = SQLQuery.replaceVars(deleteHistoryTriggerSQL, schema, table);
-        return sqls;
+      String deleteHistoryTriggerSQL = "DROP TRIGGER IF EXISTS " + triggerName + " ON  ${schema}.${table};";
+
+      return SQLQuery.replaceVars(deleteHistoryTriggerSQL, schema, table);
+    }
+
+    private static String toTriggerName(String tableName) {
+      if (tableName.endsWith(HEAD_TABLE_SUFFIX))
+        tableName = tableName.substring(0, tableName.length() - HEAD_TABLE_SUFFIX.length());
+      return "TR_" + tableName.replaceAll("-", "_") + "_HISTORY_WRITER";
     }
 
     protected static String addHistoryTriggerSQL(final String schema, final String table, final Integer maxVersionCount, final boolean compactHistory, final boolean isEnableGlobalVersioning){
@@ -357,7 +362,7 @@ public class SQLQueryBuilder {
             }
         }
 
-        triggerSQL = "CREATE TRIGGER \"TR_"+table.replaceAll("-","_")+"_HISTORY_WRITER\" " +
+        triggerSQL = "CREATE TRIGGER \"" + toTriggerName(table) + "\" " +
                 tiggerEvent+" "+triggerActions+" ${schema}.${table} " +
                 " FOR EACH ROW " +
                 "EXECUTE PROCEDURE "+triggerFunction;

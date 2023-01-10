@@ -269,6 +269,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
         invokeLambda(mfevent.serialize());
 
         //DELETE feature
+        mfevent.setInsertFeatures(null);
         mfevent.setUpdateFeatures(null);
         mfevent.setDeleteFeatures(new HashMap<String,String>(){{put("1234",null);}});
         invokeLambda(mfevent.serialize());

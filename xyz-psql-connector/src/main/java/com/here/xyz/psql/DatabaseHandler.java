@@ -126,6 +126,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     public static final String OTA_PHASE_1_STARTED = "phase1_started";
 
     public static final String OTA_PHASE_X_COMPLETE = "phaseX_complete";
+    public static final String HEAD_TABLE_SUFFIX = "_head";
 
     private static String INCLUDE_OLD_STATES = "includeOldStates"; // read from event params
 
@@ -1193,7 +1194,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             deleteIndex(stmt, "idx_" + tableName + "_idversionnextversion");
 
             //Rename old table to become the head partition
-            String headPartitionTable = tableName + "_head";
+            String headPartitionTable = tableName + HEAD_TABLE_SUFFIX;
             SQLQuery renameQuery = new SQLQuery("ALTER TABLE ${schema}.${table} RENAME TO ${newTableName}")
                 .withVariable("schema", schema)
                 .withVariable("table", tableName)
@@ -1235,7 +1236,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             + "PARTITION OF ${schema}.${rootTable} FOR VALUES FROM (max_bigint()) TO (MAXVALUE)")
             .withVariable(SCHEMA, schema)
             .withVariable("rootTable", rootTable)
-            .withVariable("partitionTable", rootTable + "_head");
+            .withVariable("partitionTable", rootTable + HEAD_TABLE_SUFFIX);
 
         stmt.addBatch(q.substitute().text());
     }
@@ -1417,14 +1418,14 @@ public abstract class DatabaseHandler extends StorageConnector {
 
                     if(!isEnableGlobalVersioning) {
                         /** old naming */
-                        query = SQLQueryBuilder.deleteHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName)[0];
+                        query = SQLQueryBuilder.deleteHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName + HEAD_TABLE_SUFFIX, false);
                         stmt.addBatch(query);
                         /** new naming */
-                        query = SQLQueryBuilder.deleteHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName)[1];
+                        query = SQLQueryBuilder.deleteHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName + HEAD_TABLE_SUFFIX, true);
                         stmt.addBatch(query);
                     }
 
-                    query = SQLQueryBuilder.addHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName, maxVersionCount, compactHistory, isEnableGlobalVersioning);
+                    query = SQLQueryBuilder.addHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName + HEAD_TABLE_SUFFIX, maxVersionCount, compactHistory, isEnableGlobalVersioning);
                     stmt.addBatch(query);
 
                     stmt.setQueryTimeout(calculateTimeout());
@@ -1457,13 +1458,13 @@ public abstract class DatabaseHandler extends StorageConnector {
                     createSpaceStatement(stmt, event);
 
                     /** old naming */
-                    String query = SQLQueryBuilder.deleteHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName)[0];
+                    String query = SQLQueryBuilder.deleteHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName + HEAD_TABLE_SUFFIX, false);
                     stmt.addBatch(query);
                     /** new naming */
-                    query = SQLQueryBuilder.deleteHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName)[1];
+                    query = SQLQueryBuilder.deleteHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName + HEAD_TABLE_SUFFIX, true);
                     stmt.addBatch(query);
 
-                    query = SQLQueryBuilder.addHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName, maxVersionCount, compactHistory, isEnableGlobalVersioning);
+                    query = SQLQueryBuilder.addHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName + HEAD_TABLE_SUFFIX, maxVersionCount, compactHistory, isEnableGlobalVersioning);
                     stmt.addBatch(query);
 
                     stmt.setQueryTimeout(calculateTimeout());
