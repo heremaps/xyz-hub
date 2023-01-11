@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 package com.here.xyz.psql.query;
 
+import static com.here.xyz.psql.DatabaseHandler.PARTITION_SIZE;
 import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
 
 import com.here.xyz.connectors.ErrorResponseException;
@@ -26,6 +27,7 @@ import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.query.helpers.GetHeadVersion;
+import com.here.xyz.psql.query.helpers.versioning.GetOldestPartitionRangeMin;
 import com.here.xyz.responses.SuccessResponse;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -50,15 +52,31 @@ public class DeleteChangesets extends XyzQueryRunner<DeleteChangesetsEvent, Succ
   }
 
   @Override
-  protected SQLQuery buildQuery(DeleteChangesetsEvent event) throws SQLException {
-    return new SQLQuery("DELETE FROM ${schema}.${table} WHERE next_version <= #{minVersion}")
+  protected SQLQuery buildQuery(DeleteChangesetsEvent event) throws SQLException, ErrorResponseException {
+    return new SQLQuery("${{removePartitions}}${{purgeRemainder}}")
+        .withQueryFragment("removePartitions", buildRemovePartitionsQuery(event))
+        .withQueryFragment("purgeRemainder", buildPurgeRemainderFromOldestPartition(event))
         .withVariable(SCHEMA, getSchema())
-        .withVariable(TABLE, getDefaultTable(event))
+        .withVariable(TABLE, getDefaultTable(event));
+  }
+
+  protected SQLQuery buildRemovePartitionsQuery(DeleteChangesetsEvent event) throws SQLException, ErrorResponseException {
+    String table = getDefaultTable(event);
+    long previousMinRangeMin = new GetOldestPartitionRangeMin(event, dbHandler).run();
+    String sql = "";
+    for (long partitionNo = previousMinRangeMin / PARTITION_SIZE; partitionNo < (event.getMinVersion() + 1) / PARTITION_SIZE; partitionNo++)
+      sql += "ALTER TABLE IF EXISTS ${schema}.${table} DETACH PARTITION \"" + table + "_p" + partitionNo + "\" CONCURRENTLY;"
+          + "DROP TABLE IF EXISTS ${schema}.\"" + table + "_p" + partitionNo + "\";";
+    return new SQLQuery(sql);
+  }
+
+  protected SQLQuery buildPurgeRemainderFromOldestPartition(DeleteChangesetsEvent event) {
+    return new SQLQuery("DELETE FROM ${schema}.${table} WHERE next_version <= #{minVersion}")
         .withNamedParameter("minVersion", event.getMinVersion());
   }
 
   @Override
   public SuccessResponse handle(ResultSet rs) throws SQLException {
-    return new SuccessResponse();
+    return null;
   }
 }
