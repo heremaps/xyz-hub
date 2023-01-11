@@ -1683,9 +1683,13 @@ public class FeatureTaskHandler {
         if (task.getEvent().getVersionsToKeep() > 1) {
           long version = feature.getProperties().getXyzNamespace().getVersion();
           long requestedVersion = requestedUuid == null ? -1 : Long.parseLong(requestedUuid);
-          if (task.modifyOp.entries.get(position).head == null || version != -1 && version != requestedVersion)
+
+          if (task.modifyOp.entries.get(position).head == null || version != -1 && version != requestedVersion) {
             task.modifyOp.entries.get(position).head = feature;
-          if (task.modifyOp.entries.get(position).base == null || version != -1 && version == requestedVersion && task.getEvent().getEnableUUID())
+            task.modifyOp.entries.get(position).base = feature;
+          }
+
+          if (version != -1 && version == requestedVersion && task.getEvent().getEnableUUID())
             task.modifyOp.entries.get(position).base = feature;
         }
         else {
