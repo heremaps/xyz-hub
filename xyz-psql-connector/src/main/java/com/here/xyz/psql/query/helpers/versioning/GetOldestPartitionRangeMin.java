@@ -19,8 +19,6 @@
 
 package com.here.xyz.psql.query.helpers.versioning;
 
-import static com.here.xyz.psql.DatabaseHandler.PARTITION_SIZE;
-
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
 import com.here.xyz.psql.DatabaseHandler;
@@ -58,6 +56,6 @@ public class GetOldestPartitionRangeMin extends XyzEventBasedQueryRunner<Event, 
     if (minRangeMin == Long.MAX_VALUE)
       throw new SQLException("Unable to get oldest partition for table.");
     else
-      return minRangeMin / PARTITION_SIZE;
+      return minRangeMin;
   }
 }
