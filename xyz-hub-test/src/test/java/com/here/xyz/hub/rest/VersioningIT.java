@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,7 +37,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.FixMethodOrder;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -54,11 +53,6 @@ public class VersioningIT extends TestSpaceWithFeature {
   final String FEATURE_ID_3 = "Q1370732";
   final String USER_1= "XYZ-01234567-89ab-cdef-0123-456789aUSER1";
   final String USER_2= "XYZ-01234567-89ab-cdef-0123-456789aUSER2";
-
-  @BeforeClass
-  public static void setupClass() {
-    remove();
-  }
 
   @Before
   public void setup() {
