@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ import static com.here.xyz.psql.DatabaseHandler.HISTORY_TABLE_SUFFIX;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.QueryEvent;
 import com.here.xyz.psql.query.GetFeatures;
-import com.here.xyz.psql.query.helpers.GetNextVersion;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
