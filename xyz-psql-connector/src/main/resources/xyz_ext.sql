@@ -748,6 +748,7 @@ $BODY$
 		av_idx_list record;
 		comment_prefix text:='p.name=';
 	BEGIN
+	    spaceid := xyz_get_root_table(spaceid);
 		FOR av_idx_list IN
 			   SELECT indexname, substring(indexname from char_length(spaceid) + 6) as idx_on, COALESCE((SELECT source from xyz_index_name_dissolve_to_property(indexname,spaceid)),'s') as source
 				FROM pg_indexes
@@ -1534,7 +1535,7 @@ $BODY$
 			ORDER BY reltuples
 	LOOP
 		BEGIN
-			spaceid := xyz_spaces.spaceid;
+			spaceid := xyz_get_root_table(xyz_spaces.spaceid);
 
             --skip history tables
             IF NOT xyz_is_space_table(schema, spaceid) THEN
@@ -1597,13 +1598,13 @@ $BODY$
 			BEGIN
 				IF xyz_space_stat.prop_stat != '[]'::jsonb THEN
 					select jsonb_agg(FORMAT('{"property":"%s","type":"%s"}',prop_key, prop_type)::jsonb) INTO idx_prop from (
-						select * from xyz_index_proposals_on_properties(schema,xyz_space_stat.spaceid)
+						select * from xyz_index_proposals_on_properties(schema,xyz_get_head_table(schema,xyz_space_stat.spaceid))
 							order by prop_key
 					)B;
 				END IF;
 
 				select jsonb_agg(FORMAT('{"property":"%s","src":"%s"}',idx_property, src)::jsonb) INTO idx_av from (
-					select * from xyz_index_list_all_available(schema,xyz_space_stat.spaceid)
+					select * from xyz_index_list_all_available(schema,xyz_get_head_table(schema,xyz_space_stat.spaceid))
 						--where src='a'
 						order by idx_property
 				)A;
@@ -2505,7 +2506,7 @@ $BODY$
 	DECLARE estimate_cnt bigint;
 
 	BEGIN
-		SELECT reltuples into estimate_cnt FROM pg_class WHERE oid = concat('"',$1, '"."', $2, '"')::regclass;
+		SELECT reltuples into estimate_cnt FROM pg_class WHERE oid = concat('"',$1, '"."', xyz_get_head_table(schema, spaceid), '"')::regclass;
 
 		IF estimate_cnt > big_space_threshold THEN
 			RETURN QUERY EXECUTE 'select * from xyz_statistic_xl_space('''||schema||''', ''' || xyz_get_head_table(schema, spaceid) || ''' , '||tablesamplecnt||')';
