@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,16 +17,16 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.psql.query.helpers;
+package com.here.xyz.psql.query.helpers.versioning;
 
-import static com.here.xyz.psql.query.helpers.GetNextVersion.VERSION_SEQUENCE_SUFFIX;
+import static com.here.xyz.psql.query.helpers.versioning.GetNextVersion.VERSION_SEQUENCE_SUFFIX;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.QueryRunner;
 import com.here.xyz.psql.SQLQuery;
-import com.here.xyz.psql.query.helpers.SetVersion.SetVersionInput;
+import com.here.xyz.psql.query.helpers.versioning.SetVersion.SetVersionInput;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 

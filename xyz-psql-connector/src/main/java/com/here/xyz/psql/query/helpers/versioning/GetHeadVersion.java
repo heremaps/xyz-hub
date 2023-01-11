@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.psql.query.helpers;
+package com.here.xyz.psql.query.helpers.versioning;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
@@ -27,25 +27,23 @@ import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-public class GetNextVersion<E extends Event> extends XyzEventBasedQueryRunner<E, Long> {
+public class GetHeadVersion<E extends Event> extends XyzEventBasedQueryRunner<E, Long> {
 
-  public static final String VERSION_SEQUENCE_SUFFIX = "_version_seq";
-
-  public GetNextVersion(E input, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
+  public GetHeadVersion(E input, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(input, dbHandler);
   }
 
   @Override
   protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
-    return new SQLQuery("SELECT nextval('${schema}.${sequence}')")
+    return new SQLQuery("SELECT max(version) FROM ${schema}.${table}")
         .withVariable(SCHEMA, getSchema())
-        .withVariable("sequence", getDefaultTable(event) + VERSION_SEQUENCE_SUFFIX);
+        .withVariable(TABLE, getDefaultTable(event));
   }
 
   @Override
   public Long handle(ResultSet rs) throws SQLException {
     if (rs.next())
       return rs.getLong(1);
-    throw new SQLException("Unable to increase version sequence.");
+    throw new SQLException("Unable to retrieve HEAD version from space.");
   }
 }

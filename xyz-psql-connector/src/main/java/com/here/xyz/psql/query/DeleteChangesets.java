@@ -26,7 +26,7 @@ import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
-import com.here.xyz.psql.query.helpers.GetHeadVersion;
+import com.here.xyz.psql.query.helpers.versioning.GetHeadVersion;
 import com.here.xyz.psql.query.helpers.versioning.GetOldestPartitionRangeMin;
 import com.here.xyz.responses.SuccessResponse;
 import java.sql.ResultSet;
@@ -53,6 +53,7 @@ public class DeleteChangesets extends XyzQueryRunner<DeleteChangesetsEvent, Succ
 
   @Override
   protected SQLQuery buildQuery(DeleteChangesetsEvent event) throws SQLException, ErrorResponseException {
+    //TODO: Execute asynchronously in DB
     return new SQLQuery("${{removePartitions}}${{purgeRemainder}}")
         .withQueryFragment("removePartitions", buildRemovePartitionsQuery(event))
         .withQueryFragment("purgeRemainder", buildPurgeRemainderFromOldestPartition(event))

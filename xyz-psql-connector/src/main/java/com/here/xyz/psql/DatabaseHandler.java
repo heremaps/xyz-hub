@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
 import static com.here.xyz.psql.QueryRunner.SCHEMA;
-import static com.here.xyz.psql.query.helpers.GetNextVersion.VERSION_SEQUENCE_SUFFIX;
+import static com.here.xyz.psql.query.helpers.versioning.GetNextVersion.VERSION_SEQUENCE_SUFFIX;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -58,13 +58,13 @@ import com.here.xyz.psql.query.GetFeaturesByBBox;
 import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.helpers.FetchExistingIds;
 import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
-import com.here.xyz.psql.query.helpers.GetNextVersion;
+import com.here.xyz.psql.query.helpers.versioning.GetNextVersion;
 import com.here.xyz.psql.query.helpers.GetTablesWithColumn;
 import com.here.xyz.psql.query.helpers.GetTablesWithColumn.GetTablesWithColumnInput;
 import com.here.xyz.psql.query.helpers.GetTablesWithComment;
 import com.here.xyz.psql.query.helpers.GetTablesWithComment.GetTablesWithCommentInput;
-import com.here.xyz.psql.query.helpers.SetVersion;
-import com.here.xyz.psql.query.helpers.SetVersion.SetVersionInput;
+import com.here.xyz.psql.query.helpers.versioning.SetVersion;
+import com.here.xyz.psql.query.helpers.versioning.SetVersion.SetVersionInput;
 import com.here.xyz.psql.tools.DhString;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.ErrorResponse;
