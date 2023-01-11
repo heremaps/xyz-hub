@@ -66,8 +66,7 @@ public class DeleteChangesets extends XyzQueryRunner<DeleteChangesetsEvent, Succ
     long previousMinRangeMin = new GetOldestPartitionRangeMin(event, dbHandler).run();
     String sql = "";
     for (long partitionNo = previousMinRangeMin / PARTITION_SIZE; partitionNo < (event.getMinVersion() + 1) / PARTITION_SIZE; partitionNo++)
-      sql += "ALTER TABLE IF EXISTS ${schema}.${table} DETACH PARTITION \"" + table + "_p" + partitionNo + "\" CONCURRENTLY;"
-          + "DROP TABLE IF EXISTS ${schema}.\"" + table + "_p" + partitionNo + "\";";
+      sql += "DROP TABLE IF EXISTS ${schema}.\"" + table + "_p" + partitionNo + "\";";
     return new SQLQuery(sql);
   }
 
