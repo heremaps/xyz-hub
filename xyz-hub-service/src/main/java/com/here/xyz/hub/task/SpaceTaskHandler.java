@@ -264,10 +264,6 @@ public class SpaceTaskHandler {
       throw new HttpException(BAD_REQUEST, "Validation failed. The properties 'searchableProperties' and 'extends' cannot be set together.");
     }
 
-    if (result.getExtension() != null && result.getVersionsToKeep() > 1)
-      throw new HttpException(BAD_REQUEST, "Validation failed. Versioning can not be activated for composite spaces. "
-          + "Either set property \"extends\" or set \"versionsToKeep\" to a value greater than 1 but not both.");
-
     if (task.modifyOp.entries.get(0).result.getExtension() != null) {
       // in case of create, the storage must be not set from the user (or set exactly as if the storage property in space template)
       // in case of update, the property storage is checked for modification against the head value
