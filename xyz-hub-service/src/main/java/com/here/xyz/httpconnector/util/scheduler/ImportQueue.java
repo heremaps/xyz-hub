@@ -25,14 +25,18 @@ import com.here.xyz.httpconnector.util.jobs.ImportObject;
 import com.here.xyz.httpconnector.util.jobs.ImportValidator;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.status.RDSStatus;
+import com.here.xyz.hub.Core;
 import com.mchange.v3.decode.CannotDecodeException;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
+import io.vertx.core.json.JsonObject;
 import io.vertx.pgclient.PgException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.nio.charset.Charset;
 import java.util.*;
 
 /**
@@ -135,11 +139,13 @@ public class ImportQueue extends JobQueue{
                                 case finalized:
                                     logger.info("JOB[{}] is finalized!", importJob.getId());
                                     removeJob(importJob);
+                                    updateSpaceConfig(new JsonObject().put("readOnly", false), importJob);
                                     break;
                                 case failed:
                                     logger.info("JOB[{}] has failed!",importJob.getId());
                                     /** Remove Job from Queue - in some cases the user is able to retry */
                                     removeJob(importJob);
+                                    updateSpaceConfig(new JsonObject().put("readOnly", false), importJob);
                                     break;
                                 case waiting:
                                     updateJobStatus(importJob,Job.Status.validating)
@@ -149,8 +155,11 @@ public class ImportQueue extends JobQueue{
                                     updateJobStatus(importJob,Job.Status.queued);
                                     break;
                                 case queued:
-                                    updateJobStatus(importJob,Job.Status.preparing)
-                                            .onSuccess(f -> prepareJob(importJob));
+                                    updateJobStatus(importJob, Job.Status.preparing)
+                                            .onSuccess(f ->
+                                                    updateSpaceConfig(new JsonObject().put("readOnly", true), importJob)
+                                                        .onSuccess(f2 -> prepareJob(importJob))
+                                            );
                                     break;
                                 case prepared:
                                     updateJobStatus(importJob,Job.Status.executing)
@@ -180,32 +189,36 @@ public class ImportQueue extends JobQueue{
     protected void prepareJob(Job j){
         String defaultSchema = JDBCImporter.getDefaultSchema(j.getTargetConnector());
 
-        CService.jdbcImporter.prepareImport(j.getTargetConnector(), defaultSchema,  j.getTargetTable(), ((Import)j).isEnabledUUID(),  j.getCsvFormat())
-            .compose(
-                f2 -> {
-                    j.setStatus(Job.Status.prepared);
-                    return CService.jobConfigClient.update(null, j);
-                })
-            .onFailure(f -> {
+        CService.jdbcImporter.prepareImport(defaultSchema, (Import)j)
+                .compose(
+                        f2 -> {
+                            j.setStatus(Job.Status.prepared);
+                            return CService.jobConfigClient.update(null, j);
+                        })
+                .onFailure(f -> {
                     logger.warn("JOB[{}] preparation has failed!", j.getId(), f);
                     j.setErrorType(Import.ERROR_TYPE_PREPARATION_FAILED);
 
-                    if(f instanceof PgException && ((PgException)f).getCode() != null) {
-                        if (((PgException)f).getCode().equalsIgnoreCase("42P01")) {
-                            logger.info("TargetTable '"+j.getTargetTable()+"' does not Exists!");
+                    if (f instanceof PgException && ((PgException) f).getCode() != null) {
+                        if (((PgException) f).getCode().equalsIgnoreCase("42P01")) {
+                            logger.info("TargetTable '" + j.getTargetTable() + "' does not Exists!");
                             j.setErrorDescription(Import.ERROR_DESCRIPTION_TARGET_TABLE_DOES_NOT_EXISTS);
                             failJob(j);
                             return;
                         }
                     }
-                    //@TODO: Collect possible error-cases
-                    j.setErrorDescription( Import.ERROR_DESCRIPTION_UNEXPECTED);
+                    //@TODO: Collect more possible error-cases
+                    if (f.getMessage() != null && f.getMessage().equalsIgnoreCase("SequenceNot0"))
+                        j.setErrorDescription(Import.ERROR_DESCRIPTION_SEQUENCE_NOT_0);
+                    else
+                        j.setErrorDescription(Import.ERROR_DESCRIPTION_UNEXPECTED);
                     failJob(j);
                 });
     }
 
     @Override
     protected void executeJob(Job j){
+        j.setExecutedAt(Core.currentTimeMillis() / 1000L);
         String defaultSchema = JDBCImporter.getDefaultSchema(j.getTargetConnector());
         List<Future> importFutures = new ArrayList<>();
 
@@ -297,7 +310,8 @@ public class ImportQueue extends JobQueue{
                     j.setErrorType(Import.ERROR_TYPE_FINALIZATION_FAILED);
                     failJob(j);
                 }).compose(
-                    f2 -> {
+                    f -> {
+                        j.setFinalizedAt(Core.currentTimeMillis() / 1000L);
                         logger.info("JOB[{}] finalization finished!", j.getId());
                         if(j.getErrorDescription() != null)
                             j.setStatus(Job.Status.failed);
@@ -314,8 +328,32 @@ public class ImportQueue extends JobQueue{
         j.setStatus(Job.Status.failed);
 
         CService.jobConfigClient.update(null , j)
-                .onFailure(t -> logger.warn("JOB[{}] update failed!", j.getId()))
-                .onSuccess(s -> { removeJob(j); return; });
+                .onFailure(t -> logger.warn("JOB[{}] update failed!", j.getId()));
+    }
+
+    protected Future<Void> updateSpaceConfig(JsonObject config, Job j){
+        Promise<Void> p = Promise.promise();
+
+        CService.webClient.patchAbs(CService.configuration.HUB_ENDPOINT+"/spaces/"+j.getTargetSpaceId())
+                .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
+                .sendJsonObject(config)
+                .onSuccess(res -> {
+                    if(res.statusCode() != HttpResponseStatus.OK.code()) {
+                        j.setErrorDescription( Import.ERROR_DESCRIPTION_READONLY_MODE_FAILED);
+                        j.setStatus(Job.Status.failed);
+                        updateJobStatus((Import) j, Job.Status.failed);
+                        p.fail("ERROR_DESCRIPTION_READONLY_MODE_FAILED");
+                        return;
+                    }
+                    p.complete();
+                })
+                .onFailure(f -> {
+                    j.setErrorDescription(Import.ERROR_DESCRIPTION_READONLY_MODE_FAILED);
+                    j.setStatus(Job.Status.failed);
+                    updateJobStatus((Import) j, Job.Status.failed);
+                    p.fail("ERROR_DESCRIPTION_READONLY_MODE_FAILED");
+                });
+        return p.future();
     }
 
     protected Future<Future> updateJobStatus(Import j, Job.Status status){

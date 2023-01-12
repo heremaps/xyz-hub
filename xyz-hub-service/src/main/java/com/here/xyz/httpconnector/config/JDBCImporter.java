@@ -57,8 +57,8 @@ public class JDBCImporter extends JDBCClients{
     private static final String IDX_NAME_ID_NEW = "idnew";
     private static final String IDX_NAME_VERSION = "version";
     private static final String IDX_NAME_ID_VERSION = "idversion";
-    private static final String IDX_NAME_ID_VERSION_NXT_VERSION = "idversionnextversion";
     private static final String IDX_NAME_OPERATION = "operation";
+    private static final String IDX_NAME_AUTHOR = "author";
 
     /** Temporally used during migration phase */
     private static final Boolean OLD_DATABASE_LAYOUT =  (CService.configuration !=null && CService.configuration.JOB_OLD_DATABASE_LAYOUT != null)
@@ -69,27 +69,33 @@ public class JDBCImporter extends JDBCClients{
 
     /** List of version related default Indices */
     public static final String[] DEFAULT_IDX_LIST_EXTENDED = { IDX_NAME_ID,IDX_NAME_GEO,IDX_NAME_CREATEDAT,IDX_NAME_UPDATEDAT,IDX_NAME_SERIAL,IDX_NAME_TAGS,IDX_NAME_VIZ,
-            IDX_NAME_ID_NEW,IDX_NAME_VERSION,IDX_NAME_ID_VERSION,IDX_NAME_ID_VERSION_NXT_VERSION,IDX_NAME_OPERATION };
+            IDX_NAME_ID_NEW,IDX_NAME_VERSION,IDX_NAME_ID_VERSION,IDX_NAME_OPERATION,IDX_NAME_AUTHOR };
 
     /**
      * Prepare Table for Import
      */
-    public static Future<Void> prepareImport(String clientID, String schema, String tablename, Boolean enableUUID, CSVFormat csvFormat){
+    public static Future<Void> prepareImport(String schema, Import job){
 
-       return doesTableExists(clientID, schema, tablename)
-               .compose( f1 -> {
-                   logger.info("Start IDX-List of: {}", tablename);
-                   return listIndices(clientID, schema, tablename)
-                           .compose(idxList -> {
-                               logger.info("Start deletion of IDX-List: {}", idxList);
-                               return dropIndices(clientID, schema, tablename, idxList)
-                                       .compose(f2 -> {
-                                           logger.info("Start creation of Import-View {}", getViewName(tablename));
-                                           return createTriggerOnTargetTable(clientID, schema, tablename, enableUUID, csvFormat)
-                                                   .compose(f3 -> Future.succeededFuture());
-                                       });
-                           });
-               });
+        return increaseVersionSequence(job.getTargetConnector(), schema, job.getTargetTable())
+                .compose( version -> {
+                    job.setSpaceVersion(version);
+                    if(version > 1){
+                        /** Abort - if increased version is not 0 => Layer is not empty */
+                        return Future.failedFuture("SequenceNot0");
+                    }
+
+                    logger.info("Start IDX-List of: {}", job.getTargetTable());
+                    return listIndices(job.getTargetConnector(), schema, job.getTargetTable())
+                            .compose(idxList -> {
+                                logger.info("Start deletion of IDX-List: {}", idxList);
+                                return dropIndices(job.getTargetConnector(), schema, job.getTargetTable(), idxList)
+                                        .compose(f2 -> {
+                                            logger.info("Start creation of Import-Trigger {}", getViewName(job.getTargetTable()));
+                                            return createTriggerOnTargetTable(job.getTargetConnector(), schema, job.getTargetTable(), job.isEnabledUUID(), job.getCsvFormat(), job.getSpaceVersion(), "ANONYMOUS")
+                                                    .compose(f3 -> Future.succeededFuture());
+                                        });
+                            });
+                });
     }
 
     public static Future<List<String>> listIndices(String clientID, String schema, String tablename){
@@ -110,7 +116,7 @@ public class JDBCImporter extends JDBCClients{
         SQLQuery q = new SQLQuery("");
 
         for (String idx : idxList) {
-            q.append("DROP INDEX IF EXISTS ${schema}.\""+idx+"\";");
+            q.append("DROP INDEX IF EXISTS ${schema}.\""+idx+"\" CASCADE;");
         }
         q.setVariable("schema", schema);
 
@@ -148,25 +154,39 @@ public class JDBCImporter extends JDBCClients{
                 .map(viewName);
     }
 
-    public static Future<String> createTriggerOnTargetTable(String clientID, String schema, String tablename, Boolean enableUUID, CSVFormat csvFormat){
+    public static Future<String> createTriggerOnTargetTable(String clientID, String schema, String tablename, Boolean enableUUID, CSVFormat csvFormat, Long spaceVersion, String author){
         boolean addTablenameToXYZNs = false;
         boolean _enableUUID  = enableUUID == null ? false : enableUUID;
 
+        /**TODO: Add Read Only-Mode */
+        /**TODO: Add Author + version */
+
         SQLQuery q = new SQLQuery("CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${tablename} \n"
-                + "FOR EACH ROW EXECUTE PROCEDURE ${schema}.xyz_import_trigger('{trigger_hrn}',{addTableName},{enableUUID},{oldLayout});"
+                + "FOR EACH ROW EXECUTE PROCEDURE ${schema}.xyz_import_trigger('{trigger_hrn}',{addTableName},{enableUUID},{spaceVersion},{author},{oldLayout});"
                 .replace("{trigger_hrn}","TBD")
-                .replace("{enableUUID}", Boolean.toString(_enableUUID))
                 .replace("{addTableName}", Boolean.toString(addTablenameToXYZNs))
+                .replace("{enableUUID}", Boolean.toString(_enableUUID))
+                .replace("{spaceVersion}", Long.toString(spaceVersion))
+                .replace("{author}", author)
                 .replace("{oldLayout}", Boolean.toString(OLD_DATABASE_LAYOUT))
         );
 
         q.setVariable("schema", schema);
         q.setVariable("tablename", tablename);
-        q.setVariable("hrn", "TBD");
 
         return getClient(clientID).query(q.substitute().text())
                 .execute()
                 .map(tablename);
+    }
+
+    public static Future<Long> increaseVersionSequence(String clientID, String schema, String tablename){
+        SQLQuery q = new SQLQuery("SELECT nextval('${schema}.${table}');");
+        q.setVariable("schema", schema);
+        q.setVariable("table", tablename+"_version_seq");
+
+        return getClient(clientID).query(q.substitute().text())
+                .execute()
+                .map(row -> row.iterator().next().getLong(0));
     }
 
     public static Future<Void> doesTableExists(String clientID, String schema, String tablename){
@@ -225,6 +245,27 @@ public class JDBCImporter extends JDBCClients{
                 .map(row -> row.iterator().next().getString(0));
     }
 
+
+    public static List<Future> generateIndexFutures (Job job, String schema, String tableName, String clientId){
+        List<Future> indicesFutures = new ArrayList<>();
+
+        for (String idxName:  (OLD_DATABASE_LAYOUT ? DEFAULT_IDX_LIST : DEFAULT_IDX_LIST_EXTENDED)) {
+            /** Create VIZ index only on root table - to workaround potential postgres bug */
+            if(idxName.equalsIgnoreCase(IDX_NAME_VIZ) && (tableName.indexOf("_head") != -1 || tableName.indexOf("_p0") != -1))
+                continue;
+
+            SQLQuery q = createIdxQuery(idxName, schema, tableName);
+            indicesFutures.add(createIndex(clientId, q, idxName)
+                    .onSuccess(idx -> {
+                        logger.info("IDX creation of '{}' succeeded!", idx);
+                        ((Import)job).addIdx(idxName+"@"+tableName);
+                    }).onFailure(e -> {
+                        logger.warn("IDX creation '{}' failed! ",idxName+"@"+tableName,e);
+                        job.setErrorDescription(Import.ERROR_DESCRIPTION_IDX_CREATION_FAILED);
+                    }));
+        }
+        return indicesFutures;
+    }
     /**
      * Finalize Import - create Indices and drop temporary resources
      */
@@ -234,37 +275,39 @@ public class JDBCImporter extends JDBCClients{
 
         Promise<Void> p = Promise.promise();
 
-        List<Future> indicesFutures = new ArrayList<>();
+        /** Current workaround to avoid "duplicate key value violates unique constraint"-error, which
+         * get caused due to a potential bug inside postgres partitioning. This happens during
+         * a parallel index creation where indexNames on partitions are getting created with
+         * conflicting names e.g.: "3b32d555c6a2eb07009fbf382564d9e1_p0_expr_expr1_idx"
+         * */
+        List<Future> indicesFuturesHead = generateIndexFutures(job, schema, tableName+"_head", clientId);
 
-        for (String idxName:  (OLD_DATABASE_LAYOUT ? DEFAULT_IDX_LIST : DEFAULT_IDX_LIST_EXTENDED)) {
-            SQLQuery q = createIdxQuery(idxName, schema, tableName);
-            indicesFutures.add(createIndex(clientId, q, idxName)
-                    .onSuccess(idx -> {
-                        logger.info("IDX creation of '{}' succeeded!", idx);
-                        ((Import)job).addIdx(idxName);
-                        //TODO: Add Manual Indices!
-                    }).onFailure(e -> {
-                        logger.warn("IDX creation '{}' failed! ",idxName,e);
-                        job.setErrorDescription(Import.ERROR_DESCRIPTION_IDX_CREATION_FAILED);
-                    }));
-        }
-
-        CompositeFuture.join(indicesFutures).onComplete(
+        CompositeFuture.join(indicesFuturesHead).onComplete(
                 t-> {
-                    deleteImportTrigger(clientId, schema, tableName)
-                            .onComplete(
-                                    f-> {
-                                        markMaintenance(clientId, schema, tableName);
-                                        p.complete();
-                                    }
-                            );
+                    List<Future> indicesFuturesP0 = generateIndexFutures(job, schema, tableName+"_p0", clientId);
+                    CompositeFuture.join(indicesFuturesP0).onComplete(
+                            t2-> {
+                                List<Future> indicesFuturesRoot = generateIndexFutures(job, schema, tableName, clientId);
+                                CompositeFuture.join(indicesFuturesRoot).onComplete(
+                                        t3-> {
+                                            deleteImportTrigger(clientId, schema, tableName)
+                                                .onComplete(
+                                                        f-> {
+                                                            markMaintenance(clientId, schema, tableName);
+                                                            p.complete();
+                                                        }
+                                                );
+                                        }
+                                );
+                            }
+                    );
                 }
         ).onFailure(e -> {
             logger.warn("Table cleanup has failed",e);
             if(job.getErrorDescription() == null)
                 job.setErrorDescription(Import.ERROR_DESCRIPTION_TABLE_CLEANUP_FAILED);
+            p.fail("Table cleanup has failed");
         });
-
         return p.future();
     }
 
@@ -310,7 +353,7 @@ public class JDBCImporter extends JDBCClients{
 
         switch (idxName){
             case IDX_NAME_ID:
-                q = new SQLQuery("CREATE UNIQUE INDEX IF NOT EXISTS ${idx_name} ON ${schema}.${table} ((jsondata->>'id'));");
+                q = new SQLQuery("CREATE INDEX IF NOT EXISTS ${idx_name} ON ${schema}.${table} ((jsondata->>'id'));");
                 q.setVariable("idx_name", "idx_"+tablename+"_"+IDX_NAME_ID);
                 break;
             case IDX_NAME_GEO:
@@ -350,12 +393,12 @@ public class JDBCImporter extends JDBCClients{
                 q = new SQLQuery("CREATE INDEX IF NOT EXISTS ${idx_name} ON ${schema}.${table} USING btree (id,version);");
                 q.setVariable("idx_name", "idx_"+tablename+"_"+IDX_NAME_ID_VERSION);
                 break;
-            case IDX_NAME_ID_VERSION_NXT_VERSION:
-                q = new SQLQuery("CREATE INDEX IF NOT EXISTS ${idx_name} ON ${schema}.${table} USING btree (id, version, next_version);");
-                q.setVariable("idx_name", "idx_"+tablename+"_"+IDX_NAME_ID_VERSION_NXT_VERSION);
+            case IDX_NAME_AUTHOR:
+                q = new SQLQuery("CREATE INDEX IF NOT EXISTS ${idx_name} ON ${schema}.${table} USING btree (author);");
+                q.setVariable("idx_name", "idx_"+tablename+"_"+IDX_NAME_AUTHOR);
                 break;
             case IDX_NAME_OPERATION:
-                q = new SQLQuery("CREATE INDEX IF NOT EXISTS ${idx_name} ON ${schema}.${table} USING btree (id, version, operation);");
+                q = new SQLQuery("CREATE INDEX IF NOT EXISTS ${idx_name} ON ${schema}.${table} USING btree (operation);");
                 q.setVariable("idx_name", "idx_"+tablename+"_"+IDX_NAME_OPERATION);
                 break;
         }
