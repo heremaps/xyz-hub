@@ -1199,6 +1199,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 .withVariable("schema", schema)
                 .withVariable("table", tableName)
                 .withVariable("newTableName", headPartitionTable);
+            stmt.addBatch(renameQuery.substitute().text());
 
             //Create new root table using the old name
             createSpaceTableStatement(stmt, schema, tableName, 0);
