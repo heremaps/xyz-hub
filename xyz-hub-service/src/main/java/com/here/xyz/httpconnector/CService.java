@@ -26,6 +26,8 @@ import com.here.xyz.hub.Core;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.VertxOptions;
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.web.client.WebClient;
+import io.vertx.ext.web.client.WebClientOptions;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -40,6 +42,8 @@ import java.util.concurrent.TimeUnit;
  * Vertex deployment of HTTP-Connector.
  */
 public class CService extends Core {
+  public static final String USER_AGENT = "HTTP-Connector/" + BUILD_VERSION;
+
   /**
    * The host ID.
    */
@@ -78,7 +82,11 @@ public class CService extends Core {
   /**
    * Service Configuration
    */
-  public static Config configuration;;
+  public static Config configuration;
+  /**
+   * A web client to access XYZ Hub and other web resources.
+   */
+  public static WebClient webClient;
 
   public static final List<String> supportedConnectors = new ArrayList<>();
   public static final HashMap<String, String> rdsLookupDatabaseIdentifier = new HashMap<>();
@@ -116,6 +124,14 @@ public class CService extends Core {
 
     jobConfigClient.init(jobConfigReady -> {
       if(jobConfigReady.succeeded()) {
+        /** Init webclient */
+        webClient = WebClient.create(vertx, new WebClientOptions()
+                .setUserAgent(USER_AGENT)
+                .setTcpKeepAlive(true)
+                .setIdleTimeout(60)
+                .setTcpQuickAck(true)
+                .setTcpFastOpen(true));
+
         jdbcImporter = new JDBCImporter();
         jobS3Client = new JobS3Client();
         jobCWClient = new AwsCWClient();
@@ -267,6 +283,9 @@ public class CService extends Core {
      * The database password.
      */
     public String STORAGE_DB_PASSWORD;
+    /**
+     * Hub-Endpoint
+     */
+    public String HUB_ENDPOINT;
   }
 }
-
