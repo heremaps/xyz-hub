@@ -1177,15 +1177,16 @@ public abstract class DatabaseHandler extends StorageConnector {
         try (Statement stmt = connection.createStatement()) {
             //Alter existing table: add new author column and some constraints
             SQLQuery alterQuery = new SQLQuery("ALTER TABLE ${schema}.${table} "
-                + "ADD COLUMN author TEXT, "
+                + "ADD COLUMN IF NOT EXISTS author TEXT, "
                 + "ALTER COLUMN version DROP DEFAULT, "
                 + "ALTER COLUMN id SET NOT NULL, "
                 + "ALTER COLUMN operation DROP DEFAULT, "
-                + "DROP CONSTRAINT IF EXISTS ${constraintName}, "
+                + "DROP CONSTRAINT IF EXISTS ${oldConstraintName}, "
                 + "ADD CONSTRAINT ${constraintName} PRIMARY KEY (id, version, next_version)")
                 .withVariable("schema", schema)
                 .withVariable("table", tableName)
-                .withVariable("constraintName", tableName + "_primKey");
+                .withVariable("oldConstraintName", tableName + "_primKey")
+                .withVariable("constraintName", tableName + "_head_primKey");
             stmt.addBatch(alterQuery.substitute().text());
             //Add index for new author column
             stmt.addBatch(buildCreateIndexQuery(schema, tableName, "author", "BTREE").substitute().text());
