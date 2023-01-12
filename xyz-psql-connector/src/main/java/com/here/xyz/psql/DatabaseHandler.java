@@ -1181,6 +1181,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 + "ALTER COLUMN version DROP DEFAULT, "
                 + "ALTER COLUMN id SET NOT NULL, "
                 + "ALTER COLUMN operation DROP DEFAULT, "
+                + "DROP CONSTRAINT IF EXISTS ${constraintName}, "
                 + "ADD CONSTRAINT ${constraintName} PRIMARY KEY (id, version, next_version)")
                 .withVariable("schema", schema)
                 .withVariable("table", tableName)
