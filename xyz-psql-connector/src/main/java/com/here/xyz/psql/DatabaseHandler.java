@@ -1280,7 +1280,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         createVersioningIndices(stmt, schema, table);
 
         if (versionsToKeep <= 1) {
-            query = "CREATE " + (versionsToKeep < 1 ? "UNIQUE" : "") + " INDEX IF NOT EXISTS ${idx_id} ON ${schema}.${table} ((jsondata->>'id'))";
+            query = "CREATE INDEX IF NOT EXISTS ${idx_id} ON ${schema}.${table} ((jsondata->>'id'))";
             query = SQLQuery.replaceVars(query, replacements, schema, table);
             stmt.addBatch(query);
         }
