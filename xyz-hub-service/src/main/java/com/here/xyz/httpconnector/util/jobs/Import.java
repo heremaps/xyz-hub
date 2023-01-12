@@ -45,6 +45,8 @@ public class Import extends Job {
     public static String ERROR_DESCRIPTION_TARGET_TABLE_DOES_NOT_EXISTS = "TARGET_TABLE_DOES_NOT_EXISTS";
     public static String ERROR_DESCRIPTION_UNEXPECTED = "UNEXPECTED_ERROR";
     public static String ERROR_DESCRIPTION_TABLE_CLEANUP_FAILED = "TABLE_CLEANUP_FAILED";
+    public static String ERROR_DESCRIPTION_READONLY_MODE_FAILED= "READONLY_MODE_FAILED";
+    public static String ERROR_DESCRIPTION_SEQUENCE_NOT_0 = "SEQUENCE_NOT_0";
 
     @JsonInclude
     @JsonView({Public.class})

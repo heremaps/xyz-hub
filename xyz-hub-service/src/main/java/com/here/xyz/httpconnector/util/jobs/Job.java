@@ -115,6 +115,20 @@ public abstract class Job {
     private long updatedAt = DEFAULT_TIMESTAMP;
 
     /**
+     * The timestamp which indicates when the execution began.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonView({Public.class})
+    private Long executedAt;
+
+    /**
+     * The timestamp at which time the finalization is completed.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonView({Public.class})
+    private Long finalizedAt;
+
+    /**
      * The expiration timestamp.
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -153,6 +167,12 @@ public abstract class Job {
 
     @JsonView({Internal.class})
     private String targetConnector;
+
+    @JsonView({Internal.class})
+    private Long spaceVersion;
+
+    @JsonView({Internal.class})
+    private String author;
 
     public String getId(){
         return id;
@@ -285,6 +305,32 @@ public abstract class Job {
         return this;
     }
 
+    public Long getExecutedAt() {
+        return executedAt;
+    }
+
+    public void setExecutedAt(final Long executedAt) {
+        this.executedAt = executedAt;
+    }
+
+    public Job withExecutedAt(final Long startedAt) {
+        setExecutedAt(startedAt);
+        return this;
+    }
+
+    public Long getFinalizedAt() {
+        return finalizedAt;
+    }
+
+    public void setFinalizedAt(final Long finalizedAt) {
+        this.finalizedAt = finalizedAt;
+    }
+
+    public Job withFinalizedAt(final Long finalizedAt) {
+        setFinalizedAt(finalizedAt);
+        return this;
+    }
+
     public Long getExp() {
         return exp;
     }
@@ -321,6 +367,32 @@ public abstract class Job {
 
     public Job withErrorType(String errorType) {
         setErrorType(errorType);
+        return this;
+    }
+
+    public Long getSpaceVersion() {
+        return spaceVersion;
+    }
+
+    public void setSpaceVersion(final Long spaceVersion) {
+        this.spaceVersion = spaceVersion;
+    }
+
+    public Job withSpaceVersion(final long spaceVersion) {
+        setSpaceVersion(spaceVersion);
+        return this;
+    }
+
+    public String getAuthor() {
+        return author;
+    }
+
+    public void setAuthor(String author) {
+        this.author = author;
+    }
+
+    public Job withAuthor(String author) {
+        setAuthor(author);
         return this;
     }
 
