@@ -1254,7 +1254,6 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     private void createSpaceTableStatement(Statement stmt, String schema, String table, long versionsToKeep) throws SQLException {
-        boolean withPartitioning = true;
         String tableFields =
             "id TEXT NOT NULL, "
                 + "version BIGINT NOT NULL, "
@@ -1266,7 +1265,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 + "i BIGSERIAL"
                 + ", CONSTRAINT ${constraintName} PRIMARY KEY (id, version, next_version)";
 
-        SQLQuery q = new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}})" + (withPartitioning ? " PARTITION BY RANGE (next_version)" : ""))
+        SQLQuery q = new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}}) PARTITION BY RANGE (next_version)")
             .withQueryFragment("tableFields", tableFields)
             .withVariable("schema", schema)
             .withVariable("table", table)
@@ -1304,9 +1303,12 @@ public abstract class DatabaseHandler extends StorageConnector {
         query = SQLQuery.replaceVars(query, replacements, schema, table);
         stmt.addBatch(query);
 
-        query = "CREATE INDEX IF NOT EXISTS ${idx_viz} ON ${schema}.${table} USING btree (left( md5(''||i),5))";
-        query = SQLQuery.replaceVars(query, replacements, schema, table);
-        stmt.addBatch(query);
+        //TODO: That is a workaround for migration so that the viz index is not created twice on the HEAD partition
+        if (versionsToKeep > 0) {
+            query = "CREATE INDEX IF NOT EXISTS ${idx_viz} ON ${schema}.${table} USING btree (left( md5(''||i),5))";
+            query = SQLQuery.replaceVars(query, replacements, schema, table);
+            stmt.addBatch(query);
+        }
     }
 
     private void createSpaceStatement(Statement stmt, Event event) throws SQLException {
