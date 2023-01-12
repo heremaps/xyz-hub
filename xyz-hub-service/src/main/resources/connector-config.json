@@ -34,5 +34,6 @@
 
   "JOB_DYNAMO_EXP_IN_DAYS" : 10,
 
-  "JOB_SUPPORTED_RDS" : ["psql:dbIdentifier:0"]
+  "JOB_SUPPORTED_RDS" : ["psql:dbIdentifier:0"],
+  "HUB_ENDPOINT" : "http://localhost:8080/hub"
 }
