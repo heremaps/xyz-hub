@@ -47,9 +47,14 @@ public class JobProxyApi extends Api{
                                 .onFailure(t ->  this.sendErrorResponse(context, new HttpException(BAD_REQUEST, "The resource ID does not exist!")))
                                 .onSuccess(headSpace -> {
                                     if (headSpace == null) {
-                                        this.sendErrorResponse(context, new HttpException(BAD_REQUEST, "The space does not exist!"));
+                                        this.sendErrorResponse(context, new HttpException(BAD_REQUEST, "The resource ID does not exist!"));
                                         return;
                                     }
+                                    if(headSpace.getVersionsToKeep() != 1 ) {
+                                        this.sendErrorResponse(context, new HttpException(BAD_REQUEST, "Versioning is not supported!"));
+                                        return;
+                                    }
+
                                     job.setTargetSpaceId(spaceId);
                                     job.setTargetConnector(headSpace.getStorage().getId());
 
