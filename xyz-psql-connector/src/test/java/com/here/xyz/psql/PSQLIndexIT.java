@@ -18,34 +18,37 @@
  */
 package com.here.xyz.psql;
 
+import static com.here.xyz.events.ModifySpaceEvent.Operation.CREATE;
+import static com.here.xyz.events.ModifySpaceEvent.Operation.UPDATE;
+import static com.here.xyz.psql.query.ModifySpace.IDX_STATUS_TABLE_FQN;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.config.ConnectorParameters;
-import com.here.xyz.psql.tools.FeatureGenerator;
-import com.here.xyz.responses.*;
 import com.here.xyz.psql.tools.DhString;
-
-import java.util.Arrays;
-import java.util.Collections;
-import org.junit.After;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
+import com.here.xyz.psql.tools.FeatureGenerator;
+import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.responses.SuccessResponse;
+import com.here.xyz.responses.XyzError;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static com.here.xyz.psql.query.ModifySpace.IDX_STATUS_TABLE_FQN;
-import static org.junit.Assert.*;
-import static org.junit.Assert.assertEquals;
+import org.junit.After;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class PSQLIndexIT extends PSQLAbstractIT {
 
@@ -74,7 +77,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
 
         /** Set 5 searchable Properties - 4 should be allowed by default */
         ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent().withSpace("foo")
-            .withOperation(ModifySpaceEvent.Operation.CREATE)
+            .withOperation(CREATE)
             .withConnectorParams(connectorParams)
             .withSpaceDefinition(new Space()
                     .withId("foo")
@@ -88,7 +91,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
 
         /** Set 4 searchable Properties */
         modifySpaceEvent = new ModifySpaceEvent().withSpace("foo")
-            .withOperation(ModifySpaceEvent.Operation.CREATE)
+            .withOperation(CREATE)
             .withConnectorParams(connectorParams)
             .withSpaceDefinition(new Space()
                     .withId("foo")
@@ -109,7 +112,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
         searchableProperties.put("foo7",false);
 
         modifySpaceEvent = new ModifySpaceEvent().withSpace("foo")
-            .withOperation(ModifySpaceEvent.Operation.UPDATE)
+            .withOperation(UPDATE)
             .withConnectorParams(connectorParams)
             .withSpaceDefinition(new Space()
                     .withId("foo")
@@ -153,6 +156,21 @@ public class PSQLIndexIT extends PSQLAbstractIT {
 
     @Test
     public void testOnDemandIdxCreation() throws Exception {
+        //Create space with history
+        ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent().withSpace("foo")
+                .withOperation(CREATE)
+                .withConnectorParams(connectorParams)
+                .withSpaceDefinition(new Space()
+                        .withId("foo")
+                        /** Table gets created also without features */
+                        .withEnableHistory(true)
+                        .withEnableUUID(true)
+                );
+
+        SuccessResponse response = deserializeResponse(invokeLambda(modifySpaceEvent.serialize()));
+        assertEquals("OK",response.getStatus());
+
+        //Update space, add searchable properties
         Map<String,Boolean> searchableProperties = new HashMap(){{
             put("foo1",true);
             put("foo2",true);
@@ -161,20 +179,20 @@ public class PSQLIndexIT extends PSQLAbstractIT {
             put("foo5",false);
             put("foo6",false);
         }};
+        modifySpaceEvent = new ModifySpaceEvent().withSpace("foo")
+            .withOperation(UPDATE)
+            .withConnectorParams(connectorParams)
+            .withSpaceDefinition(new Space()
+                .withId("foo")
+                .withSearchableProperties(searchableProperties)
+                /** Table gets created also without features */
+                .withEnableHistory(true)
+                .withEnableUUID(true)
+            );
 
-        ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent().withSpace("foo")
-                .withOperation(ModifySpaceEvent.Operation.UPDATE)
-                .withConnectorParams(connectorParams)
-                .withSpaceDefinition(new Space()
-                        .withId("foo")
-                        .withSearchableProperties(searchableProperties)
-                        /** Table gets created also without features */
-                        .withEnableHistory(true)
-                        .withEnableUUID(true)
-                );
+        response = deserializeResponse(invokeLambda(modifySpaceEvent.serialize()));
+        assertEquals("OK", response.getStatus());
 
-        SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
-        assertEquals("OK",response.getStatus());
 
         try (final Connection connection = LAMBDA.dataSource.getConnection()) {
             /** Default System Indices */
@@ -237,6 +255,21 @@ public class PSQLIndexIT extends PSQLAbstractIT {
 
     @Test
     public void testOnDemandIndexContent() throws Exception {
+        //Create space with history
+        ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent().withSpace("foo")
+            .withOperation(CREATE)
+            .withConnectorParams(connectorParams)
+            .withSpaceDefinition(new Space()
+                .withId("foo")
+                /** Table gets created also without features */
+                .withEnableHistory(true)
+                .withEnableUUID(true)
+            );
+
+        SuccessResponse response = deserializeResponse(invokeLambda(modifySpaceEvent.serialize()));
+        assertEquals("OK",response.getStatus());
+
+        //Update space, add searchable properties
         Map<String,Boolean> searchableProperties = new HashMap(){{
             put("foo",true);
             put("foo2::array",true);
@@ -248,8 +281,8 @@ public class PSQLIndexIT extends PSQLAbstractIT {
         /** Increase to 5 allowed Indices */
         connectorParams.put(ConnectorParameters.ON_DEMAND_IDX_LIMIT, 5);
 
-        ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent().withSpace("foo")
-                .withOperation(ModifySpaceEvent.Operation.UPDATE)
+        modifySpaceEvent = new ModifySpaceEvent().withSpace("foo")
+                .withOperation(UPDATE)
                 .withConnectorParams(connectorParams)
                 .withSpaceDefinition(new Space()
                         .withId("foo")
@@ -259,7 +292,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                         .withEnableUUID(true)
                 );
 
-        SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
+        response = deserializeResponse(invokeLambda(modifySpaceEvent.serialize()));
         assertEquals("OK",response.getStatus());
 
         try (final Connection connection = LAMBDA.dataSource.getConnection()) {
@@ -363,7 +396,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
 
         /** Deactivate autoIndexing */
         ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent().withSpace("foo")
-                .withOperation(ModifySpaceEvent.Operation.UPDATE)
+                .withOperation(UPDATE)
                 .withConnectorParams(connectorParams)
                 .withSpaceDefinition(new Space()
                         .withId("foo")
