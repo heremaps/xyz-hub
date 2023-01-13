@@ -1173,34 +1173,6 @@ public abstract class DatabaseHandler extends StorageConnector {
         return tableCompleted;
     }
 
-    public static void main(String[] args) {
-        String schema = "public";
-        String tableName = "";
-        String headPartitionTable = tableName + HEAD_TABLE_SUFFIX;
-
-        SQLQuery alterQuery = new SQLQuery("ALTER TABLE ${schema}.${table} "
-            + "ADD COLUMN author TEXT, "
-            + "ALTER COLUMN version DROP DEFAULT, "
-            + "ALTER COLUMN id SET NOT NULL, "
-            + "ALTER COLUMN operation DROP DEFAULT, "
-            + "DROP CONSTRAINT IF EXISTS ${oldConstraintName}, "
-            + "ADD CONSTRAINT ${constraintName} PRIMARY KEY (id, version, next_version)")
-            .withVariable("schema", schema)
-            .withVariable("table", tableName)
-            .withVariable("oldConstraintName", tableName + "_primKey")
-            .withVariable("constraintName", tableName + "_head_primKey");
-        System.out.println(alterQuery.substitute().text());
-        System.out.println(buildCreateIndexQuery(schema, tableName, "author", "BTREE").substitute().text());
-        System.out.println(buildCreateIndexQuery(schema, tableName, "next_version", "BTREE").substitute().text());
-        System.out.println(new SQLQuery("DROP INDEX IF EXISTS ${indexName}").withVariable("indexName", "idx_" + tableName + "_idversionnextversion").substitute().text());
-        SQLQuery renameQuery = new SQLQuery("ALTER TABLE ${schema}.${table} RENAME TO ${newTableName}")
-            .withVariable("schema", schema)
-            .withVariable("table", tableName)
-            .withVariable("newTableName", headPartitionTable);
-        System.out.println(renameQuery.substitute().text());
-
-    }
-
     private void oneTimeAddConstraintsAndPartitioningToOldTables(Connection connection, String schema, String tableName) throws SQLException {
         try (Statement stmt = connection.createStatement()) {
             //Alter existing table: add new author column and some constraints
@@ -1487,9 +1459,6 @@ public abstract class DatabaseHandler extends StorageConnector {
                     connection.setAutoCommit(false);
 
                 try (Statement stmt = connection.createStatement()) {
-                    /** Create Space-Table */
-                    createSpaceStatement(stmt, event);
-
                     /** old naming */
                     String query = SQLQueryBuilder.deleteHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName + HEAD_TABLE_SUFFIX, false);
                     stmt.addBatch(query);
