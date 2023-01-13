@@ -58,6 +58,8 @@ import com.here.xyz.psql.query.GetFeaturesByBBox;
 import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.helpers.FetchExistingIds;
 import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
+import com.here.xyz.psql.query.helpers.TableExists;
+import com.here.xyz.psql.query.helpers.TableExists.Table;
 import com.here.xyz.psql.query.helpers.versioning.GetNextVersion;
 import com.here.xyz.psql.query.helpers.GetTablesWithColumn;
 import com.here.xyz.psql.query.helpers.GetTablesWithColumn.GetTablesWithColumnInput;
@@ -497,7 +499,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 ensureHistorySpace(maxVersionCount, compactHistory, isEnableGlobalVersioning);
             else if(event.getOperation() == Operation.UPDATE)
                 //Update HistoryTrigger to apply maxVersionCount.
-                updateHistoryTrigger(maxVersionCount, compactHistory, isEnableGlobalVersioning);
+                updateHistoryTrigger(event, maxVersionCount, compactHistory, isEnableGlobalVersioning);
         }
 
         new ModifySpace(event, this).write();
@@ -1448,8 +1450,11 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
-    protected void updateHistoryTrigger(Integer maxVersionCount, boolean compactHistory, boolean isEnableGlobalVersioning) throws SQLException {
+    protected void updateHistoryTrigger(ModifySpaceEvent event, Integer maxVersionCount, boolean compactHistory, boolean isEnableGlobalVersioning)
+        throws SQLException, ErrorResponseException {
+        final String schema = config.getDatabaseSettings().getSchema();
         final String tableName = config.readTableFromEvent(event);
+        boolean headTableExists = readVersionsToKeep(event) > 0 && new TableExists(new Table(schema, tableName + HEAD_TABLE_SUFFIX), this).run();
 
         try (final Connection connection = dataSource.getConnection()) {
             advisoryLock( tableName, connection );
@@ -1460,13 +1465,13 @@ public abstract class DatabaseHandler extends StorageConnector {
 
                 try (Statement stmt = connection.createStatement()) {
                     /** old naming */
-                    String query = SQLQueryBuilder.deleteHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName + HEAD_TABLE_SUFFIX, false);
+                    String query = SQLQueryBuilder.deleteHistoryTriggerSQL(schema, tableName + (headTableExists ? HEAD_TABLE_SUFFIX : ""), false);
                     stmt.addBatch(query);
                     /** new naming */
-                    query = SQLQueryBuilder.deleteHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName + HEAD_TABLE_SUFFIX, true);
+                    query = SQLQueryBuilder.deleteHistoryTriggerSQL(schema, tableName + (headTableExists ? HEAD_TABLE_SUFFIX : ""), true);
                     stmt.addBatch(query);
 
-                    query = SQLQueryBuilder.addHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName + HEAD_TABLE_SUFFIX, maxVersionCount, compactHistory, isEnableGlobalVersioning);
+                    query = SQLQueryBuilder.addHistoryTriggerSQL(schema, tableName + (headTableExists ? HEAD_TABLE_SUFFIX : ""), maxVersionCount, compactHistory, isEnableGlobalVersioning);
                     stmt.addBatch(query);
 
                     stmt.setQueryTimeout(calculateTimeout());
