@@ -647,7 +647,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
                     if ((e instanceof SQLException && ((SQLException)e).getSQLState() != null
                             && ((SQLException)e).getSQLState().equalsIgnoreCase("42P01")))
-                        ;//Table does not exist yet - create it!
+                        throw e;//Table does not exist yet - create it!
                     else {
 
                         logger.warn("{} Transaction has failed. {]", traceItem, e);

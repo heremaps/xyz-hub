@@ -272,7 +272,11 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
                     throw new SQLException("Exception populating transaction log entries");
                 }
             }
-        }finally {
+        } catch (Exception ex) {
+            logger.error("{} Exception populating transaction log entries. ", traceItem, ex);
+            throw new SQLException("Exception populating transaction log entries");
+        }
+        finally {
             batchStmt.close();
         }
     }
