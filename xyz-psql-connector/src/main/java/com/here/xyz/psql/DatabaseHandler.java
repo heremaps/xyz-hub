@@ -25,6 +25,7 @@ import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
 import static com.here.xyz.psql.QueryRunner.SCHEMA;
+import static com.here.xyz.psql.QueryRunner.TABLE;
 import static com.here.xyz.psql.query.helpers.versioning.GetNextVersion.VERSION_SEQUENCE_SUFFIX;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -160,8 +161,6 @@ public abstract class DatabaseHandler extends StorageConnector {
      */
     protected DatabaseMaintainer dbMaintainer;
 
-    private Map<String, String> replacements = new HashMap<>();
-
     private boolean retryAttempted;
 
     @Override
@@ -281,26 +280,6 @@ public abstract class DatabaseHandler extends StorageConnector {
         if (event.getPreferPrimaryDataSource() != null && event.getPreferPrimaryDataSource() == Boolean.TRUE) {
             this.readDataSource = this.dataSource;
         }
-
-        String table = config.readTableFromEvent(event);
-        String hstTable = table+HISTORY_TABLE_SUFFIX;
-
-        replacements.put("idx_serial", "idx_" + table + "_serial");
-        replacements.put("idx_id", "idx_" + table + "_id");
-        replacements.put("idx_tags", "idx_" + table + "_tags");
-        replacements.put("idx_geo", "idx_" + table + "_geo");
-        replacements.put("idx_createdAt", "idx_" + table + "_createdAt");
-        replacements.put("idx_updatedAt", "idx_" + table + "_updatedAt");
-        replacements.put("idx_viz", "idx_" + table + "_viz");
-
-        replacements.put("idx_hst_id", "idx_" + hstTable + "_id");
-        replacements.put("idx_hst_uuid", "idx_" + hstTable + "_uuid");
-        replacements.put("idx_hst_updatedAt", "idx_" + hstTable + "_updatedAt");
-        replacements.put("idx_hst_version", "idx_" + hstTable + "_version");
-        replacements.put("idx_hst_deleted", "idx_" + hstTable + "_deleted");
-        replacements.put("idx_hst_lastVersion", "idx_" + hstTable + "_lastVersion");
-        replacements.put("idx_hst_idvsort", "idx_" + hstTable + "_idvsort");
-        replacements.put("idx_hst_vidsort", "idx_" + hstTable + "_vidsort");
     }
 
     private void removeDbInstanceFromMap(String connectorId){
@@ -1177,6 +1156,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private void oneTimeAddConstraintsAndPartitioningToOldTables(Connection connection, String schema, String tableName) throws SQLException {
         try (Statement stmt = connection.createStatement()) {
+            String headPartitionTable = tableName + HEAD_TABLE_SUFFIX;
             //Alter existing table: add new author column and some constraints
             SQLQuery alterQuery = new SQLQuery("ALTER TABLE ${schema}.${table} "
                 + "ADD COLUMN IF NOT EXISTS author TEXT, "
@@ -1188,25 +1168,34 @@ public abstract class DatabaseHandler extends StorageConnector {
                 .withVariable("schema", schema)
                 .withVariable("table", tableName)
                 .withVariable("oldConstraintName", tableName + "_primKey")
-                .withVariable("constraintName", tableName + "_head_primKey");
+                .withVariable("constraintName", headPartitionTable + "_primKey");
             stmt.addBatch(alterQuery.substitute().text());
-            //Add index for new author column
-            stmt.addBatch(buildCreateIndexQuery(schema, tableName, "author", "BTREE").substitute().text());
-            //Add index for next_version column
-            stmt.addBatch(buildCreateIndexQuery(schema, tableName, "next_version", "BTREE").substitute().text());
-            //Delete obsolete index for (id, version, next_version) as that's' the new primary key anyways
-            deleteIndex(stmt, "idx_" + tableName + "_idversionnextversion");
 
+            //Get all index definitions for later creation of indices at the new root table
+            List<String> allHeadIndexDefs = getAllIndexDefinitions(connection, schema, tableName)
+                .stream()
+                .filter(def -> !def.contains("idversionnextversion")) //Filter out the index which will get deleted
+                .map(def -> def.contains("_id ") && def.contains("UNIQUE") ? def.replace("UNIQUE", "") : def) //Make sure the legacy id index on the root table will be created without UNIQUE constraint
+                .collect(Collectors.toList());
+            //Rename existing indices to free the index-names for the use at the root table
+            renameAllIndices(connection, stmt, schema, tableName, headPartitionTable);
             //Rename old table to become the head partition
-            String headPartitionTable = tableName + HEAD_TABLE_SUFFIX;
             SQLQuery renameQuery = new SQLQuery("ALTER TABLE ${schema}.${table} RENAME TO ${newTableName}")
                 .withVariable("schema", schema)
                 .withVariable("table", tableName)
                 .withVariable("newTableName", headPartitionTable);
             stmt.addBatch(renameQuery.substitute().text());
+            //Delete obsolete index for (id, version, next_version) as that's the new primary key anyways
+            deleteIndex(stmt, "idx_" + headPartitionTable + "_idversionnextversion");
 
-            //Create new root table using the old name
-            createSpaceTableStatement(stmt, schema, tableName, 0);
+            //Create new root table using the old main table name
+            createSpaceTableStatement(stmt, schema, tableName, 0, false);
+            //Create all indices on the new root table which are existing at the head table
+            batchCreateIndices(stmt, allHeadIndexDefs);
+            //Add index for new author column
+            stmt.addBatch(buildCreateIndexQuery(schema, tableName, "author", "BTREE").substitute().text());
+            //Add index for next_version column
+            stmt.addBatch(buildCreateIndexQuery(schema, tableName, "next_version", "BTREE").substitute().text());
 
             //Attach the HEAD partition
             attachHeadPartition(stmt, schema, tableName, headPartitionTable);
@@ -1257,7 +1246,50 @@ public abstract class DatabaseHandler extends StorageConnector {
         stmt.addBatch(q.substitute().text());
     }
 
-    private void createSpaceTableStatement(Statement stmt, String schema, String table, long versionsToKeep) throws SQLException {
+    private void renameAllIndices(Connection connection, Statement stmt, String schema, String oldTableName, String newTableName) throws SQLException {
+        //First get all indexes
+        List<String> indexNames = getAllIndexNames(connection, schema, oldTableName);
+        for (String indexName : indexNames)
+            renameIndex(stmt, schema, indexName, indexName.replace(oldTableName, newTableName));
+    }
+
+    private List<String> getAllIndexDefinitions(Connection connection, String schema, String tableName) throws SQLException {
+        return getAllIndexInfo(connection, schema, tableName, "indexdef");
+    }
+
+    private List<String> getAllIndexNames(Connection connection, String schema, String tableName) throws SQLException {
+        return getAllIndexInfo(connection, schema, tableName, "indexname");
+    }
+
+    private List<String> getAllIndexInfo(Connection connection, String schema, String tableName, String columnName) throws SQLException {
+        SQLQuery q = new SQLQuery("SELECT ${{selection}} FROM pg_indexes WHERE schemaname = #{schema} AND indexname LIKE 'idx_${{tableName}}_%';")
+            .withNamedParameter("schema", schema)
+            .withQueryFragment("tableName", tableName)
+            .withQueryFragment("selection", columnName);
+
+        final QueryRunner run = new QueryRunner(new StatementConfiguration(null,null,null,null, calculateTimeout()));
+        return run.query(connection, q.substitute().text(), rs -> {
+            List<String> indexNames = new ArrayList<>();
+            while (rs.next())
+                indexNames.add(rs.getString(columnName));
+            return indexNames;
+        }, q.parameters().toArray());
+    }
+
+    private void renameIndex(Statement stmt, String schema, String oldIndexName, String newIndexName) throws SQLException {
+        SQLQuery q = new SQLQuery("ALTER INDEX ${oldIndexName} RENAME TO ${newIndexName}")
+            .withVariable("schema", schema)
+            .withVariable("oldIndexName", oldIndexName)
+            .withVariable("newIndexName", newIndexName);
+        stmt.addBatch(q.substitute().text());
+    }
+
+    private void batchCreateIndices(Statement stmt, List<String> indexDefinitions) throws SQLException {
+        for (String indexDefinition : indexDefinitions)
+            stmt.addBatch(indexDefinition);
+    }
+
+    private void createSpaceTableStatement(Statement stmt, String schema, String table, long versionsToKeep, boolean withIndices) throws SQLException {
         String tableFields =
             "id TEXT NOT NULL, "
                 + "version BIGINT NOT NULL, "
@@ -1269,57 +1301,56 @@ public abstract class DatabaseHandler extends StorageConnector {
                 + "i BIGSERIAL"
                 + ", CONSTRAINT ${constraintName} PRIMARY KEY (id, version, next_version)";
 
-        SQLQuery q = new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}}) PARTITION BY RANGE (next_version)")
+        SQLQuery createTable = new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}}) PARTITION BY RANGE (next_version)")
             .withQueryFragment("tableFields", tableFields)
             .withVariable("schema", schema)
             .withVariable("table", table)
             .withVariable("constraintName", table + "_primKey");
 
-        stmt.addBatch(q.substitute().text());
+        stmt.addBatch(createTable.substitute().text());
 
         String query;
 
-        createVersioningIndices(stmt, schema, table);
+        if (withIndices) {
+            createVersioningIndices(stmt, schema, table);
 
-        if (versionsToKeep <= 1) {
-            query = "CREATE INDEX IF NOT EXISTS ${idx_id} ON ${schema}.${table} ((jsondata->>'id'))";
-            query = SQLQuery.replaceVars(query, replacements, schema, table);
-            stmt.addBatch(query);
+            if (versionsToKeep <= 1) {
+                query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} ((jsondata->>'id'))";
+                doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + table + "_id"), schema, table);
+            }
+
+            query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} USING gin ((jsondata->'properties'->'@ns:com:here:xyz'->'tags') jsonb_ops)";
+            doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + table + "_tags"), schema, table);
+
+            query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} USING gist ((geo))";
+            doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + table + "_geo"), schema, table);
+
+            query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} USING btree ((i))";
+            doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + table + "_serial"), schema, table);
+
+            query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt'), (jsondata->>'id'))";
+            doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + table + "_updatedAt"), schema, table);
+
+            query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'createdAt'), (jsondata->>'id'))";
+            doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + table + "_createdAt"), schema, table);
+
+            //TODO: That is a workaround for migration so that the viz index is not created twice on the HEAD partition
+            if (versionsToKeep > 0) {
+                query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} USING btree (left( md5(''||i),5))";
+                doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + table + "_viz"), schema, table);
+            }
         }
+    }
 
-        query = "CREATE INDEX IF NOT EXISTS ${idx_tags} ON ${schema}.${table} USING gin ((jsondata->'properties'->'@ns:com:here:xyz'->'tags') jsonb_ops)";
-        query = SQLQuery.replaceVars(query, replacements, schema, table);
-        stmt.addBatch(query);
-
-        query = "CREATE INDEX IF NOT EXISTS ${idx_geo} ON ${schema}.${table} USING gist ((geo))";
-        query = SQLQuery.replaceVars(query, replacements, schema, table);
-        stmt.addBatch(query);
-
-        query = "CREATE INDEX IF NOT EXISTS ${idx_serial} ON ${schema}.${table}  USING btree ((i))";
-        query = SQLQuery.replaceVars(query, replacements, schema, table);
-        stmt.addBatch(query);
-
-        query = "CREATE INDEX IF NOT EXISTS ${idx_updatedAt} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt'), (jsondata->>'id'))";
-        query = SQLQuery.replaceVars(query, replacements, schema, table);
-        stmt.addBatch(query);
-
-        query = "CREATE INDEX IF NOT EXISTS ${idx_createdAt} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'createdAt'), (jsondata->>'id'))";
-        query = SQLQuery.replaceVars(query, replacements, schema, table);
-        stmt.addBatch(query);
-
-        //TODO: That is a workaround for migration so that the viz index is not created twice on the HEAD partition
-        if (versionsToKeep > 0) {
-            query = "CREATE INDEX IF NOT EXISTS ${idx_viz} ON ${schema}.${table} USING btree (left( md5(''||i),5))";
-            query = SQLQuery.replaceVars(query, replacements, schema, table);
-            stmt.addBatch(query);
-        }
+    private void doReplacementsAndAdd(Statement stmt, SQLQuery q, String schema, String table) throws SQLException {
+        stmt.addBatch(q.withVariable(SCHEMA, schema).withVariable(TABLE, table).withVariable("hsttable", table + HISTORY_TABLE_SUFFIX).substitute().text());
     }
 
     private void createSpaceStatement(Statement stmt, Event event) throws SQLException {
         String schema = config.getDatabaseSettings().getSchema();
         String table = config.readTableFromEvent(event);
 
-        createSpaceTableStatement(stmt, schema, table, readVersionsToKeep(event));
+        createSpaceTableStatement(stmt, schema, table, readVersionsToKeep(event), true);
         createHeadPartition(stmt, schema, table);
         createHistoryPartition(stmt, schema, table, 0L);
 
@@ -1366,7 +1397,9 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     protected void ensureHistorySpace(Integer maxVersionCount, boolean compactHistory, boolean isEnableGlobalVersioning) throws SQLException {
+        final String schema = config.getDatabaseSettings().getSchema();
         final String tableName = config.readTableFromEvent(event);
+        final String hstTable = tableName + HISTORY_TABLE_SUFFIX;
 
         try (final Connection connection = dataSource.getConnection()) {
             advisoryLock( tableName, connection );
@@ -1382,57 +1415,47 @@ public abstract class DatabaseHandler extends StorageConnector {
                     String query = "CREATE TABLE IF NOT EXISTS ${schema}.${hsttable} (uuid text NOT NULL, jsondata jsonb, geo geometry(GeometryZ,4326)," +
                             (isEnableGlobalVersioning ? " vid text ," : "")+
                             " CONSTRAINT \""+tableName+"_pkey\" PRIMARY KEY (uuid))";
-                    query = SQLQuery.replaceVars(query, config.getDatabaseSettings().getSchema(), tableName);
-                    stmt.addBatch(query);
+                    doReplacementsAndAdd(stmt, new SQLQuery(query), schema, tableName);
 
-                    query = "CREATE INDEX IF NOT EXISTS ${idx_hst_uuid} ON ${schema}.${hsttable} USING btree (uuid)";
-                    query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
-                    stmt.addBatch(query);
+                    query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${hsttable} USING btree (uuid)";
+                    doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + hstTable + "_uuid"), schema, tableName);
 
-                    query = "CREATE INDEX IF NOT EXISTS ${idx_hst_id} ON ${schema}.${hsttable} ((jsondata->>'id'))";
-                    query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
-                    stmt.addBatch(query);
+                    query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${hsttable} ((jsondata->>'id'))";
+                    doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + hstTable + "_id"), schema, tableName);
 
-                    query = "CREATE INDEX IF NOT EXISTS ${idx_hst_updatedAt} ON ${schema}.${hsttable} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt'))";
-                    query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
-                    stmt.addBatch(query);
+                    query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${hsttable} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt'))";
+                    doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + hstTable + "_updatedAt"), schema, tableName);
 
                     if(isEnableGlobalVersioning) {
-                        query = "CREATE INDEX IF NOT EXISTS ${idx_hst_deleted} ON ${schema}.${hsttable} USING btree (((jsondata->'properties'->'@ns:com:here:xyz'->'deleted')::jsonb))";
-                        query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
-                        stmt.addBatch(query);
+                        query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${hsttable} USING btree (((jsondata->'properties'->'@ns:com:here:xyz'->'deleted')::jsonb))";
+                        doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + hstTable + "_deleted"), schema, tableName);
 
-                        query = "CREATE INDEX IF NOT EXISTS ${idx_hst_version} ON ${schema}.${hsttable} USING btree (((jsondata->'properties'->'@ns:com:here:xyz'->'version')::jsonb))";
-                        query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
-                        stmt.addBatch(query);
+                        query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${hsttable} USING btree (((jsondata->'properties'->'@ns:com:here:xyz'->'version')::jsonb))";
+                        doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + hstTable + "_version"), schema, tableName);
 
-                        query = "CREATE INDEX IF NOT EXISTS ${idx_hst_lastVersion} ON ${schema}.${hsttable} USING btree (((jsondata->'properties'->'@ns:com:here:xyz'->'lastVersion')::jsonb))";
-                        query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
-                        stmt.addBatch(query);
+                        query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${hsttable} USING btree (((jsondata->'properties'->'@ns:com:here:xyz'->'lastVersion')::jsonb))";
+                        doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + hstTable + "_lastVersion"), schema, tableName);
 
-                        query = "CREATE INDEX IF NOT EXISTS ${idx_hst_idvsort} ON ${schema}.${hsttable} USING btree ((jsondata ->> 'id'::text), ((jsondata->'properties'->'@ns:com:here:xyz'->'version')::jsonb) DESC )";
-                        query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
-                        stmt.addBatch(query);
+                        query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${hsttable} USING btree ((jsondata ->> 'id'::text), ((jsondata->'properties'->'@ns:com:here:xyz'->'version')::jsonb) DESC )";
+                        doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + hstTable + "_idvsort"), schema, tableName);
 
-                        query = "CREATE INDEX IF NOT EXISTS ${idx_hst_vidsort} ON ${schema}.${hsttable} USING btree (((jsondata->'properties'->'@ns:com:here:xyz'->'version')::jsonb) , (jsondata ->> 'id'::text))";
-                        query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
-                        stmt.addBatch(query);
+                        query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${hsttable} USING btree (((jsondata->'properties'->'@ns:com:here:xyz'->'version')::jsonb) , (jsondata ->> 'id'::text))";
+                        doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + hstTable + "_vidsort"), schema, tableName);
 
-                        query = "CREATE SEQUENCE  IF NOT EXISTS " + config.getDatabaseSettings().getSchema() + ".\"" + tableName.replaceAll("-", "_") + "_hst_seq\"";
-                        query = SQLQuery.replaceVars(query, replacements, config.getDatabaseSettings().getSchema(), tableName);
-                        stmt.addBatch(query);
+                        query = "CREATE SEQUENCE  IF NOT EXISTS " + schema + ".\"" + tableName.replaceAll("-", "_") + "_hst_seq\"";
+                        doReplacementsAndAdd(stmt, new SQLQuery(query), schema, tableName);
                     }
 
                     if(!isEnableGlobalVersioning) {
                         /** old naming */
-                        query = SQLQueryBuilder.deleteHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName + HEAD_TABLE_SUFFIX, false);
+                        query = SQLQueryBuilder.deleteHistoryTriggerSQL(schema, tableName + HEAD_TABLE_SUFFIX, false);
                         stmt.addBatch(query);
                         /** new naming */
-                        query = SQLQueryBuilder.deleteHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName + HEAD_TABLE_SUFFIX, true);
+                        query = SQLQueryBuilder.deleteHistoryTriggerSQL(schema, tableName + HEAD_TABLE_SUFFIX, true);
                         stmt.addBatch(query);
                     }
 
-                    query = SQLQueryBuilder.addHistoryTriggerSQL(config.getDatabaseSettings().getSchema(), tableName + HEAD_TABLE_SUFFIX, maxVersionCount, compactHistory, isEnableGlobalVersioning);
+                    query = SQLQueryBuilder.addHistoryTriggerSQL(schema, tableName + HEAD_TABLE_SUFFIX, maxVersionCount, compactHistory, isEnableGlobalVersioning);
                     stmt.addBatch(query);
 
                     stmt.setQueryTimeout(calculateTimeout());
