@@ -74,11 +74,6 @@ import org.apache.logging.log4j.Logger;
 public class PSQLXyzConnector extends DatabaseHandler {
 
   private static final Logger logger = LogManager.getLogger();
-  /**
-   * The context for this request.
-   */
-  @SuppressWarnings("WeakerAccess")
-  protected Context context;
 
   @Override
   protected XyzResponse processHealthCheckEvent(HealthCheckEvent event) {

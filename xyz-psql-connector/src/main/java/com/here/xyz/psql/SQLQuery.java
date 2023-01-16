@@ -261,12 +261,6 @@ public class SQLQuery {
     setText(m.replaceAll("?"));
   }
 
-  //TODO: Replace usages by calls to #substitute()
-  @Deprecated
-  protected static String replaceVars(String query, Map<String, String> replacements, String schema, String table) {
-    return replaceVars(replaceVars(query, schema, table), replacements);
-  }
-
   private static String replaceVars(String queryText, Map<String, String> replacements) {
     for (String key : replacements.keySet())
       queryText = queryText.replaceAll(VAR_PREFIX + key + VAR_SUFFIX, sqlQuote(replacements.get(key)));
