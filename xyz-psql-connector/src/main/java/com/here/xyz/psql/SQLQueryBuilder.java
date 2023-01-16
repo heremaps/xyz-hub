@@ -406,7 +406,7 @@ public class SQLQueryBuilder {
 	}
 
     protected static String getReplicaIdentity(final String schema, final String table)
-    { return String.format("select relreplident from pg_class where oid = to_regclass( '\"%s\".\"%s\"' )",schema,table); }
+    { return String.format("select relreplident, relname from pg_class where oid in (to_regclass( '\"%1$s\".\"%2$s\"' ), to_regclass( '\"%1$s\".\"%2$s_head\"' )) and relkind = 'r' ",schema,table); }
 
     protected static String setReplicaIdentity(final String schema, final String table)
     { return String.format("alter table \"%s\".\"%s\" replica identity full",schema,table); }

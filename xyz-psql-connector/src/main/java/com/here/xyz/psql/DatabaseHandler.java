@@ -1498,18 +1498,21 @@ public abstract class DatabaseHandler extends StorageConnector {
                 if (cStateFlag)
                     connection.setAutoCommit(false);
 
-                String infoSql = SQLQueryBuilder.getReplicaIdentity(config.getDatabaseSettings().getSchema(), tableName),
-                       setReplIdSql = SQLQueryBuilder.setReplicaIdentity(config.getDatabaseSettings().getSchema(), tableName);
+                String infoSql = SQLQueryBuilder.getReplicaIdentity(config.getDatabaseSettings().getSchema(), tableName);
 
                 try (Statement stmt = connection.createStatement();
                      ResultSet rs = stmt.executeQuery(infoSql); )
                 {
                     if( !rs.next() )
                     { createSpaceStatement(stmt, event); /** Create Space-Table */
+                      String setReplIdSql = SQLQueryBuilder.setReplicaIdentity(config.getDatabaseSettings().getSchema(), tableName + "_head" ); 
                       stmt.addBatch(setReplIdSql);
                     }
                     else if(! "f".equals(rs.getString(1) ) ) /** Table exists, but wrong replic identity */
-                     stmt.addBatch(setReplIdSql);
+                    { String rTableName = rs.getString(2),
+                             setReplIdSql = SQLQueryBuilder.setReplicaIdentity(config.getDatabaseSettings().getSchema(), rTableName);
+                      stmt.addBatch(setReplIdSql);
+                    } 
                     else
                      return; /** Table exists with propper replic identity */
 
