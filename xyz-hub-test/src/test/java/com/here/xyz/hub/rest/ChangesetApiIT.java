@@ -156,7 +156,7 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void deleteChangesets() {
+  public void deleteChangesets() throws InterruptedException {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .get("/spaces/" + cleanUpSpaceId + "/features/F2?version=0")
@@ -174,6 +174,8 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
         .delete("/spaces/" + cleanUpSpaceId + "/changesets?version<1")
         .then()
         .statusCode(NO_CONTENT.code());
+
+    Thread.sleep(3_000);
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
