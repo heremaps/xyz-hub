@@ -1160,6 +1160,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             //Alter existing table: add new author column and some constraints
             SQLQuery alterQuery = new SQLQuery("ALTER TABLE ${schema}.${table} "
                 + "ADD COLUMN IF NOT EXISTS author TEXT, "
+                + "DROP COLUMN IF EXISTS deleted CASCADE, "
                 + "ALTER COLUMN version DROP DEFAULT, "
                 + "ALTER COLUMN id SET NOT NULL, "
                 + "ALTER COLUMN operation DROP DEFAULT, "
@@ -1263,8 +1264,9 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private List<String> getAllIndexInfo(Connection connection, String schema, String tableName, String columnName) throws SQLException {
         SQLQuery q = new SQLQuery("SELECT ${{selection}} FROM pg_indexes WHERE schemaname = #{schema} "
-            + "AND indexname LIKE 'idx_${{tableName}}_%'"
-            + "AND indexname NOT LIKE 'idx_${{tableName}}_hst_%';")
+            + "AND indexname LIKE 'idx_${{tableName}}_%' "
+            + "AND indexname NOT LIKE 'idx_${{tableName}}_hst_%' "
+            + "AND indexname NOT LIKE 'idx_%deleted%';") //Exclude "deleted" index from renaming & recreation on root
             .withNamedParameter("schema", schema)
             .withQueryFragment("tableName", tableName)
             .withQueryFragment("selection", columnName);
