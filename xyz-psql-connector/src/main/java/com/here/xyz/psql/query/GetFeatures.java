@@ -74,7 +74,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
     query.setQueryFragment("deletedCheck", buildDeletionCheckFragment(versionsToKeep, isExtended));
     query.withQueryFragment("versionCheck", buildVersionCheckFragment(event));
-    query.withQueryFragment("authorCheck", ""); // NOTE: this should be added when column auhtor is available for all tables: buildAuthorCheckFragment(event)
+    query.withQueryFragment("authorCheck", buildAuthorCheckFragment(event));
     query.setQueryFragment("selection", buildSelectionFragment(event));
     query.setQueryFragment("geo", buildGeoFragment(event));
     query.setQueryFragment("iColumn", ""); //NOTE: This can be overridden by implementing subclasses
