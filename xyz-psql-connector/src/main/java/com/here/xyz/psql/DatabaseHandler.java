@@ -1198,10 +1198,12 @@ public abstract class DatabaseHandler extends StorageConnector {
             //Add index for next_version column
             stmt.addBatch(buildCreateIndexQuery(schema, tableName, "next_version", "BTREE").substitute().text());
 
-            //Attach the HEAD partition
-            attachHeadPartition(stmt, schema, tableName, headPartitionTable);
             //Create the first history partition
             createHistoryPartition(stmt, schema, tableName, 0L);
+            //Move all rows to history partition, which don't belong into HEAD partition anymore (if such rows do exist)
+            moveHistoryRows(stmt, schema, headPartitionTable, tableName + "_p0");
+            //Attach the HEAD partition
+            attachHeadPartition(stmt, schema, tableName, headPartitionTable);
 
             //Add comment "phaseX_complete"
             SQLQuery setPhaseXComment = new SQLQuery("COMMENT ON TABLE ${schema}.${table} IS '" + OTA_PHASE_X_COMPLETE + "'")
@@ -1234,6 +1236,19 @@ public abstract class DatabaseHandler extends StorageConnector {
             .withVariable("partitionTable", rootTable + HEAD_TABLE_SUFFIX);
 
         stmt.addBatch(q.substitute().text());
+    }
+
+    private void moveHistoryRows(Statement stmt, String schema, String headPartition, String historyPartition) throws SQLException {
+        SQLQuery copy = new SQLQuery("INSERT INTO ${schema}.${historyTable} (id, version, next_version, operation, author, jsondata, geo, i) SELECT id, version, next_version, operation, author, jsondata, geo, i FROM ${schema}.${headTable} WHERE next_version != max_bigint()")
+            .withVariable(SCHEMA, schema)
+            .withVariable("headTable", headPartition)
+            .withVariable("historyTable", historyPartition);
+        stmt.addBatch(copy.substitute().text());
+
+        SQLQuery delete = new SQLQuery("DELETE FROM ${schema}.${headTable} WHERE next_version != max_bigint()")
+            .withVariable(SCHEMA, schema)
+            .withVariable("headTable", headPartition);
+        stmt.addBatch(delete.substitute().text());
     }
 
     private void createHistoryPartition(Statement stmt, String schema, String rootTable, long partitionNo) throws SQLException {
