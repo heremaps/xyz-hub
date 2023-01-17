@@ -1189,11 +1189,11 @@ public abstract class DatabaseHandler extends StorageConnector {
             deleteIndex(stmt, "idx_" + headPartitionTable + "_idversionnextversion");
 
             //Create new root table using the old main table name
-            createSpaceTableStatement(stmt, schema, tableName, 0, false);
+            createSpaceTableStatement(stmt, schema, tableName, 0, false, tableName + "_i_seq");
             //Create all indices on the new root table which are existing at the head table
             batchCreateIndices(stmt, allHeadIndexDefs);
             //Add index for new author column
-            stmt.addBatch(buildCreateIndexQuery(schema, tableName, "author", "BTREE").substitute().text());
+            stmt.addBatch(buildCreateIndexQuery(schema, tableName, "author", "BTREE", false).substitute().text());
             //Add index for next_version column
             stmt.addBatch(buildCreateIndexQuery(schema, tableName, "next_version", "BTREE").substitute().text());
 
@@ -1262,7 +1262,9 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     private List<String> getAllIndexInfo(Connection connection, String schema, String tableName, String columnName) throws SQLException {
-        SQLQuery q = new SQLQuery("SELECT ${{selection}} FROM pg_indexes WHERE schemaname = #{schema} AND indexname LIKE 'idx_${{tableName}}_%';")
+        SQLQuery q = new SQLQuery("SELECT ${{selection}} FROM pg_indexes WHERE schemaname = #{schema} "
+            + "AND indexname LIKE 'idx_${{tableName}}_%'"
+            + "AND indexname NOT LIKE 'idx_${{tableName}}_hst_%';")
             .withNamedParameter("schema", schema)
             .withQueryFragment("tableName", tableName)
             .withQueryFragment("selection", columnName);
@@ -1289,7 +1291,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             stmt.addBatch(indexDefinition);
     }
 
-    private void createSpaceTableStatement(Statement stmt, String schema, String table, long versionsToKeep, boolean withIndices) throws SQLException {
+    private void createSpaceTableStatement(Statement stmt, String schema, String table, long versionsToKeep, boolean withIndices, String existingSerial) throws SQLException {
         String tableFields =
             "id TEXT NOT NULL, "
                 + "version BIGINT NOT NULL, "
@@ -1298,7 +1300,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 + "author TEXT, "
                 + "jsondata JSONB, "
                 + "geo geometry(GeometryZ, 4326), "
-                + "i BIGSERIAL"
+                + "i " + (existingSerial == null ? "BIGSERIAL" : "BIGINT NOT NULL DEFAULT nextval('${schema}.${existingSerial}')")
                 + ", CONSTRAINT ${constraintName} PRIMARY KEY (id, version, next_version)";
 
         SQLQuery createTable = new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}}) PARTITION BY RANGE (next_version)")
@@ -1306,6 +1308,9 @@ public abstract class DatabaseHandler extends StorageConnector {
             .withVariable("schema", schema)
             .withVariable("table", table)
             .withVariable("constraintName", table + "_primKey");
+
+        if (existingSerial != null)
+            createTable.setVariable("existingSerial", existingSerial);
 
         stmt.addBatch(createTable.substitute().text());
 
@@ -1350,7 +1355,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         String schema = config.getDatabaseSettings().getSchema();
         String table = config.readTableFromEvent(event);
 
-        createSpaceTableStatement(stmt, schema, table, readVersionsToKeep(event), true);
+        createSpaceTableStatement(stmt, schema, table, readVersionsToKeep(event), true, null);
         createHeadPartition(stmt, schema, table);
         createHistoryPartition(stmt, schema, table, 0L);
 
@@ -1378,22 +1383,31 @@ public abstract class DatabaseHandler extends StorageConnector {
       return buildCreateIndexQuery(schema, table, Collections.singletonList(columnName), method);
     }
 
+    static SQLQuery buildCreateIndexQuery(String schema, String table, String columnName, String method, boolean withNulls) {
+        return buildCreateIndexQuery(schema, table, Collections.singletonList(columnName), method, withNulls ? null : columnName + " IS NOT NULL");
+    }
+
     static SQLQuery buildCreateIndexQuery(String schema, String table, List<String> columnNames, String method) {
+        return buildCreateIndexQuery(schema, table, columnNames, method, null);
+    }
+
+    static SQLQuery buildCreateIndexQuery(String schema, String table, List<String> columnNames, String method, String predicate) {
         return buildCreateIndexQuery(schema, table, columnNames, method, "idx_" + table + "_"
-            + columnNames.stream().map(colName -> colName.replace("_", "")).collect(Collectors.joining()));
+            + columnNames.stream().map(colName -> colName.replace("_", "")).collect(Collectors.joining()), predicate);
     }
 
     static SQLQuery buildCreateIndexQuery(String schema, String table, String columnName, String method, String indexName) {
-        return buildCreateIndexQuery(schema, table, Arrays.asList(columnName), method, indexName);
+        return buildCreateIndexQuery(schema, table, Arrays.asList(columnName), method, indexName, null);
     }
 
     private static SQLQuery buildCreateIndexQuery(String schema, String table, List<String> columnNamesOrExpressions, String method,
-        String indexName) {
+        String indexName, String predicate) {
         return new SQLQuery("CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} USING " + method
-            + " (" + String.join(", ", columnNamesOrExpressions) + ")")
+            + " (" + String.join(", ", columnNamesOrExpressions) + ") ${{predicate}}")
             .withVariable("schema", schema)
             .withVariable("table", table)
-            .withVariable("indexName", indexName);
+            .withVariable("indexName", indexName)
+            .withQueryFragment("predicate", predicate != null ? "WHERE " + predicate : "");
     }
 
     protected void ensureHistorySpace(Integer maxVersionCount, boolean compactHistory, boolean isEnableGlobalVersioning) throws SQLException {
@@ -1528,14 +1542,14 @@ public abstract class DatabaseHandler extends StorageConnector {
                 {
                     if( !rs.next() )
                     { createSpaceStatement(stmt, event); /** Create Space-Table */
-                      String setReplIdSql = SQLQueryBuilder.setReplicaIdentity(config.getDatabaseSettings().getSchema(), tableName + "_head" ); 
+                      String setReplIdSql = SQLQueryBuilder.setReplicaIdentity(config.getDatabaseSettings().getSchema(), tableName + "_head" );
                       stmt.addBatch(setReplIdSql);
                     }
                     else if(! "f".equals(rs.getString(1) ) ) /** Table exists, but wrong replic identity */
                     { String rTableName = rs.getString(2),
                              setReplIdSql = SQLQueryBuilder.setReplicaIdentity(config.getDatabaseSettings().getSchema(), rTableName);
                       stmt.addBatch(setReplIdSql);
-                    } 
+                    }
                     else
                      return; /** Table exists with propper replic identity */
 
