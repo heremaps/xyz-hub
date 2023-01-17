@@ -372,9 +372,7 @@ public class VersioningIT extends TestSpaceWithFeature {
 //        .body("features.size()", equalTo(0)); FIXME should return not found or head?
   }
 
-  // TODO below all tests regarding author, however, it's not yet being populated in the database, enable them when feature's column author is filled
   @Test
-  @Ignore
   public void getFeatureByAuthor() {
     postFeature(SPACE_ID_1_NO_UUID, new Feature().withId(FEATURE_ID_2).withProperties(new Properties().with("name", "second feature")), AuthProfile.ACCESS_OWNER_2_ALL);
 
@@ -412,7 +410,6 @@ public class VersioningIT extends TestSpaceWithFeature {
   }
 
   @Test
-  @Ignore
   public void getFeaturesByAuthor() {
     postFeature(SPACE_ID_1_NO_UUID, new Feature().withId(FEATURE_ID_2).withProperties(new Properties().with("name", "second feature")), AuthProfile.ACCESS_OWNER_2_ALL);
 
@@ -446,7 +443,6 @@ public class VersioningIT extends TestSpaceWithFeature {
   }
 
   @Test
-  @Ignore
   public void getFeaturesEqualsToVersionAndAuthor() {
     postFeature(SPACE_ID_1_NO_UUID, new Feature().withId(FEATURE_ID_2).withProperties(new Properties().with("name", "second feature")), AuthProfile.ACCESS_OWNER_2_ALL);
 
@@ -508,11 +504,11 @@ public class VersioningIT extends TestSpaceWithFeature {
 
   @Test
   public void getFeaturesVersionStarAndAuthor() {
-
+    // TODO
   }
 
   @Test
-  @Ignore
+  @Ignore // TODO remove ignore
   public void searchFeaturesByPropertyAndAuthor() {
     postFeature(SPACE_ID_1_NO_UUID, new Feature().withId(FEATURE_ID_2).withProperties(new Properties().with("capacity", 58505)),
         AuthProfile.ACCESS_OWNER_2_ALL);
