@@ -110,7 +110,7 @@ DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 154
+ select 155
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -3067,6 +3067,7 @@ $BODY$
         author TEXT := (jsondata->'properties'->'@ns:com:here:xyz'->>'author')::TEXT;
         updated_rows INTEGER;
     BEGIN
+        jsondata := jsondata #- '{properties,@ns:com:here:xyz,version}';
         EXECUTE
            format('INSERT INTO %I.%I (id, version, operation, author, jsondata, geo) VALUES (%L, %L, %L, %L, %L, %L)',
                schema, tableName, id, version, operation, author, jsondata, CASE WHEN geo::geometry IS NULL THEN NULL ELSE ST_Force3D(ST_GeomFromWKB(geo::BYTEA, 4326)) END);
