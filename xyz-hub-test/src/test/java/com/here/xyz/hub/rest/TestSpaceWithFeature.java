@@ -224,6 +224,10 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
 
   @SuppressWarnings("SameParameterValue")
   public static FeatureCollection generateRandomFeatures(int featureCount, int propertyCount) {
+    return generateRandomFeatures(featureCount, propertyCount, false);
+  }
+
+  public static FeatureCollection generateRandomFeatures(int featureCount, int propertyCount, boolean generateId) {
     FeatureCollection collection = new FeatureCollection();
     Random random = new Random();
 
@@ -238,6 +242,11 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
                     new Point().withCoordinates(new PointCoordinates(360d * random.nextDouble() - 180d, 180d * random.nextDouble() - 90d)))
                 .withProperties(new Properties());
             pKeys.forEach(p -> f.getProperties().put(p, RandomStringUtils.randomAlphanumeric(8)));
+
+            if (generateId) {
+              f.setId(RandomStringUtils.randomAlphabetic(10));
+            }
+
             return f;
           }).parallel().limit(featureCount).collect(Collectors.toList()));
     }
