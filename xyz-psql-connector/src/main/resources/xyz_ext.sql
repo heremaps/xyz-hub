@@ -2509,7 +2509,7 @@ $BODY$
 	DECLARE estimate_cnt bigint;
 
 	BEGIN
-		SELECT reltuples into estimate_cnt FROM pg_class WHERE oid = concat('"',$1, '"."', xyz_get_head_table(schema, spaceid), '"')::regclass;
+		SELECT reltuples into estimate_cnt FROM pg_class WHERE oid = ( select concat('"',$1, '"."', xyz_get_head_table(schema, spaceid), '"')::regclass);
 
 		IF estimate_cnt > big_space_threshold THEN
 			RETURN QUERY EXECUTE 'select * from xyz_statistic_xl_space('''||schema||''', ''' || xyz_get_head_table(schema, spaceid) || ''' , '||tablesamplecnt||')';
