@@ -3,4 +3,12 @@ FROM postgres:14
 ENV POSTGRES_PASSWORD password
 
 RUN apt-get update && \
-    apt-get -y install postgresql-14-postgis-3
+    apt-get -y install postgresql-14-postgis-3 postgresql-14-wal2json
+
+RUN echo "#!/bin/sh -e\n\
+\n\n\
+sed -i.1.org -e \"s/#wal_level\s*=/wal_level = logical #/\" /var/lib/postgresql/data/postgresql.conf\n\n\
+sed -i.2.org -e \"s/#track_commit_timestamp\s*=/track_commit_timestamp = on #/\" /var/lib/postgresql/data/postgresql.conf\n\n\
+" > /docker-entrypoint-initdb.d/cfg_logical_replication.sh
+
+RUN chmod 755 /docker-entrypoint-initdb.d/cfg_logical_replication.sh
