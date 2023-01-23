@@ -208,6 +208,9 @@ public class SpaceTaskHandler {
 
       if (head != null && head.getVersionsToKeep() > 1 && input.get("versionsToKeep") != null && Objects.equals(1, input.get("versionsToKeep")))
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'versionsToKeep' cannot be changed to 1 when its value is bigger than 1");
+
+      if (head != null && head.getVersionsToKeep() >= 1 && input.get("versionsToKeep") != null && Objects.equals(0, input.get("versionsToKeep")))
+        throw new HttpException(BAD_REQUEST, "Validation failed. The property \"versionsToKeep\" cannot be set to zero");
     }
 
     if (task.isCreate()) {
@@ -217,12 +220,9 @@ public class SpaceTaskHandler {
       //Automatic activation of UUID in case of enableHistory
       if(result.isEnableHistory() && !result.isEnableUUID())
         task.modifyOp.entries.get(0).result.setEnableUUID(true);
+      if (result.getVersionsToKeep() == 0)
+        throw new HttpException(BAD_REQUEST, "Validation failed. The property \"versionsToKeep\" cannot be set to zero");
     }
-
-    //versionsToKeep does not allow zero as value
-    if (input.get("versionsToKeep") != null &&
-        Objects.equals(0, input.get("versionsToKeep")))
-      throw new HttpException(BAD_REQUEST, "Validation failed. The property \"versionsToKeep\" cannot be set to zero");
 
     if(result.getMaxVersionCount() != null){
       if(!result.isEnableHistory() && !result.isEnableGlobalVersioning())
