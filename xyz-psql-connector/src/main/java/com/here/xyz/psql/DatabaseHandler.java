@@ -1188,6 +1188,8 @@ public abstract class DatabaseHandler extends StorageConnector {
             stmt.addBatch(renameQuery.substitute().text());
             //Delete obsolete index for (id, version, next_version) as that's the new primary key anyways
             deleteIndex(stmt, "idx_" + headPartitionTable + "_idversionnextversion");
+            //Delete obsolete unique legacy id index
+            deleteIndex(stmt, "idx_" + headPartitionTable + "_id");
 
             //Create new root table using the old main table name
             createSpaceTableStatement(stmt, schema, tableName, 0, false, tableName + "_i_seq");
