@@ -68,6 +68,14 @@ public class VersioningNIT extends TestSpaceWithFeature {
         .statusCode(OK.code());
   }
 
+  public void addDefaultFeature(){
+    given()
+        .contentType(APPLICATION_GEO_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(DEFAULT_FC_PAYLOAD.toString())
+        .when()
+        .post(getSpacesPath() + "/"+ SPACE_WITH_VERSIONING +"/features");
+  }
 
   @After
   public void tearDown() {
@@ -157,6 +165,12 @@ public class VersioningNIT extends TestSpaceWithFeature {
 
   @Test
   public void testPatchHead() throws JsonProcessingException {
+    addDefaultFeature();
+    FeatureCollection fc = DEFAULT_FC_PAYLOAD.copy();
+    fc.getFeatures().get(0).getProperties().getXyzNamespace().setVersion(0);
+  }
+
+  public void testPatchNoVersion() throws JsonProcessingException {
   }
 
   public void testPatchOldVersion() throws JsonProcessingException {
@@ -168,6 +182,9 @@ public class VersioningNIT extends TestSpaceWithFeature {
   public void testMergeHead() throws JsonProcessingException {
   }
 
+  public void testMergeNoVersion() throws JsonProcessingException {
+  }
+
   public void testMergeOldVersion() throws JsonProcessingException {
   }
 
@@ -177,10 +194,10 @@ public class VersioningNIT extends TestSpaceWithFeature {
   public void testReplaceHead() throws JsonProcessingException {
   }
 
-  public void testReplaceOldVersion() throws JsonProcessingException {
+  public void testReplaceNoVersion() throws JsonProcessingException {
   }
 
-  public void testReplaceNoVersion() throws JsonProcessingException {
+  public void testReplaceOldVersion() throws JsonProcessingException {
   }
 
   public void delete() throws JsonProcessingException {
