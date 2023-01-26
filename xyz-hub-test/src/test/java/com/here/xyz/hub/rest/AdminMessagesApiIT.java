@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -97,7 +97,6 @@ public class AdminMessagesApiIT extends RestAssuredTest {
         .accept(APPLICATION_JSON)
         .when()
         .get("/static/" + tmpFile)
-        .prettyPeek()
         .then()
         .statusCode(OK.code())
         .body("content", equalTo(content))
@@ -176,7 +175,6 @@ public class AdminMessagesApiIT extends RestAssuredTest {
               .accept(APPLICATION_JSON)
               .when()
               .get("/static/" + tmpFile)
-              .prettyPeek()
               .then();
 
           if (r.extract().statusCode() == OK.code()) {
