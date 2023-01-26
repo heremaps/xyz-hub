@@ -21,6 +21,7 @@ package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
 import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
@@ -28,14 +29,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
-import com.here.xyz.models.geojson.implementation.XyzNamespace;
-import java.util.Arrays;
+import java.util.Collections;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.FixMethodOrder;
@@ -46,17 +45,41 @@ import org.junit.runners.MethodSorters;
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 @Category(RestTests.class)
 public class VersioningNIT extends TestSpaceWithFeature {
-  final String SPACE_WITH_VERSIONING = "spacev2k1000";
-  final Feature DEFAULT_FEATURE_PAYLOAD =  new Feature().withId("f1")
+
+  String SPACE_ID = "spacev2k1000";
+  final static Feature TEST_FEATURE =  new Feature().withId("f1")
       .withGeometry(new Point().withCoordinates(new PointCoordinates(0,0)))
       .withProperties(new Properties().with("key1", "value1"));
-  final FeatureCollection DEFAULT_FC_PAYLOAD =  new FeatureCollection().withFeatures(Arrays.asList(DEFAULT_FEATURE_PAYLOAD));
 
   @Before
   public void setup() {
     remove();
-    createSpaceWithVersionsToKeep(SPACE_WITH_VERSIONING, 1000);
+    createSpaceWithVersionsToKeep("spacev2k1000", 1000);
   }
+
+  public String constructPayload(Feature feature, String ifExists, String ifNotExists){
+    return "{"
+        + "    \"type\": \"FeatureModificationList\","
+        + "    \"modifications\": ["
+        + "        {"
+        + "            \"type\": \"FeatureModification\","
+        + "            \"onFeatureNotExists\": \""+ifNotExists+"\","
+        + "            \"onFeatureExists\": \""+ifExists+"\","
+        + "            \"featureData\": " + new FeatureCollection().withFeatures(Collections.singletonList(feature)).serialize()
+        + "        }"
+        + "    ]"
+        + "}";
+  }
+
+  public void addDefaultFeature(){
+    given()
+        .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(constructPayload(TEST_FEATURE, "create", "patch"))
+        .when()
+        .post(getSpacesPath() + "/"+ SPACE_ID +"/features");
+  }
+
   public void createSpaceWithVersionsToKeep(String spaceId, int versionsToKeep) {
     given()
         .contentType(APPLICATION_JSON)
@@ -67,95 +90,51 @@ public class VersioningNIT extends TestSpaceWithFeature {
         .then()
         .statusCode(OK.code());
   }
-
-  public void addDefaultFeature(){
-    given()
-        .contentType(APPLICATION_GEO_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(DEFAULT_FC_PAYLOAD.toString())
-        .when()
-        .post(getSpacesPath() + "/"+ SPACE_WITH_VERSIONING +"/features");
-  }
-
   @After
   public void tearDown() {
-    removeSpace(SPACE_WITH_VERSIONING);
+    removeSpace(SPACE_ID);
   }
 
   @Test
-  public void testCreatePOST() {
+  public void testCreateNoVersion() {
     given()
-        .contentType(APPLICATION_GEO_JSON)
+        .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(DEFAULT_FC_PAYLOAD.toString())
+        .body(constructPayload(TEST_FEATURE, "create", "patch"))
         .when()
-        .post(getSpacesPath() + "/"+ SPACE_WITH_VERSIONING +"/features")
+        .post(getSpacesPath() + "/"+ SPACE_ID +"/features")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
+        .body("features[0].properties.key1", equalTo("value1"))
         .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(0));
   }
 
   @Test
-  public void testCreatePUT() {
+  public void testCreateWithNotExistingVersion() {
+    Feature feature = TEST_FEATURE.copy();
+    feature.getProperties().getXyzNamespace().setVersion(999);
+
     given()
         .contentType(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(DEFAULT_FC_PAYLOAD.toString())
+        .body(constructPayload(feature, "create", "patch"))
         .when()
-        .put(getSpacesPath() + "/"+ SPACE_WITH_VERSIONING +"/features")
+        .post(getSpacesPath() + "/"+ SPACE_ID +"/features")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
+        .body("features[0].properties.key1", equalTo("value1"))
         .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(0));
   }
 
   @Test
-  public void testCreatePOSTwithVersion() throws JsonProcessingException {
-    FeatureCollection fc = DEFAULT_FC_PAYLOAD.copy();
-    fc.getFeatures().get(0).getProperties().getXyzNamespace().setVersion(100);
-
+  public void testNamespacePropertiesCorrect() {
     given()
-        .contentType(APPLICATION_GEO_JSON)
+        .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(fc.toString())
-        .when()
-        .post(getSpacesPath() + "/"+ SPACE_WITH_VERSIONING +"/features")
-        .then()
-        .statusCode(OK.code())
-        .body("features.size()", equalTo(1))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(0));
-  }
-
-  @Test
-  public void testCreatePUTwithVersion() throws JsonProcessingException {
-    FeatureCollection fc = DEFAULT_FC_PAYLOAD.copy();
-    fc.getFeatures().get(0).getProperties().getXyzNamespace().setVersion(100);
-
-    given()
-        .contentType(APPLICATION_GEO_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(fc.toString())
-        .when()
-        .put(getSpacesPath() + "/"+ SPACE_WITH_VERSIONING +"/features")
-        .then()
-        .statusCode(OK.code())
-        .body("features.size()", equalTo(1))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(0));;
-  }
-
-  @Test
-  public void testNamespacePropertiesCorrect() throws JsonProcessingException {
-    FeatureCollection fc = DEFAULT_FC_PAYLOAD.copy();
-    fc.getFeatures().get(0).getProperties().getXyzNamespace().setVersion(100);
-
-    given()
-        .contentType(APPLICATION_GEO_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(fc.toString())
-        .when()
-        .put(getSpacesPath() + "/"+ SPACE_WITH_VERSIONING +"/features")
-        .then()
+        .body(constructPayload(TEST_FEATURE, "create", "patch"))
+        .when().post(getSpacesPath() + "/"+ SPACE_ID +"/features").then()
         .statusCode(OK.code())
         .body("features[0].properties.'@ns:com:here:xyz'.size()", equalTo(3))
         .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(0))
@@ -164,45 +143,138 @@ public class VersioningNIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testPatchHead() throws JsonProcessingException {
+  public void testPatchHead() {
     addDefaultFeature();
-    FeatureCollection fc = DEFAULT_FC_PAYLOAD.copy();
-    fc.getFeatures().get(0).getProperties().getXyzNamespace().setVersion(0);
+    Feature feature = TEST_FEATURE.copy();
+    feature.getProperties().getXyzNamespace().setVersion(0);
+    feature.getProperties().put("key2", "value2");
+
+    given()
+        .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(constructPayload(feature, "create", "patch"))
+        .when().post(getSpacesPath() + "/"+ SPACE_ID +"/features").then()
+        .statusCode(OK.code())
+        .body("features.size()", equalTo(1))
+        .body("features[0].properties.key1", equalTo("value1"))
+        .body("features[0].properties.key2", equalTo("value2"))
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
   }
 
-  public void testPatchNoVersion() throws JsonProcessingException {
+  @Test
+  public void testPatchNoVersion() {
+    addDefaultFeature();
+    Feature feature = TEST_FEATURE.copy();
+    feature.getProperties().put("key2", "value2");
+
+    given()
+        .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(constructPayload(feature, "create", "patch"))
+        .when().post(getSpacesPath() + "/"+ SPACE_ID +"/features").then()
+        .statusCode(OK.code())
+        .body("features.size()", equalTo(1))
+        .body("features[0].properties.key1", equalTo("value1"))
+        .body("features[0].properties.key2", equalTo("value2"))
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
   }
 
+  @Test
   public void testPatchOldVersion() throws JsonProcessingException {
+    addDefaultFeature();
+
+    // update
+    Feature feature = TEST_FEATURE.copy();
+    feature.getProperties().put("key2", "value2");
+    given()
+        .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(constructPayload(feature, "create", "patch"))
+        .when().post(getSpacesPath() + "/"+ SPACE_ID +"/features").then()
+        .statusCode(OK.code())
+        .body("features.size()", equalTo(1))
+        .body("features[0].properties.key2", equalTo("value2"))
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
+
+    // update again with "base" version 0 and a non-conflicting change
+    Feature feature2 = TEST_FEATURE.copy();
+    feature.getProperties().getXyzNamespace().setVersion(0);
+    feature.getProperties().put("key3", "value3");
+    given()
+        .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(constructPayload(feature, "create", "patch"))
+        .when().post(getSpacesPath() + "/"+ SPACE_ID +"/features").then()
+        .statusCode(OK.code())
+        .body("features.size()", equalTo(1))
+        .body("features[0].properties.key1", equalTo("value1"))
+        .body("features[0].properties.key2", equalTo("value2"))
+        .body("features[0].properties.key3", equalTo("value3"))
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
   }
 
+  @Test
   public void testPatchOldVersionWithConflict() throws JsonProcessingException {
+    addDefaultFeature();
+
+    // update
+    Feature feature = TEST_FEATURE.copy();
+    feature.getProperties().put("key2", "value2");
+    given()
+        .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(constructPayload(feature, "create", "patch"))
+        .when().post(getSpacesPath() + "/"+ SPACE_ID +"/features").then()
+        .statusCode(OK.code())
+        .body("features.size()", equalTo(1))
+        .body("features[0].properties.key2", equalTo("value2"))
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
+
+    // update again with "base" version 0 and a conflicting change
+    Feature feature2 = TEST_FEATURE.copy();
+    feature.getProperties().getXyzNamespace().setVersion(0);
+    feature.getProperties().put("key2", "value3");
+    given()
+        .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(constructPayload(feature, "create", "patch"))
+        .when().post(getSpacesPath() + "/"+ SPACE_ID +"/features").then()
+        .statusCode(CONFLICT.code());
   }
 
-  public void testMergeHead() throws JsonProcessingException {
+  @Test
+  public void testMergeHead() {
   }
 
-  public void testMergeNoVersion() throws JsonProcessingException {
+  @Test
+  public void testMergeNoVersion() {
   }
 
-  public void testMergeOldVersion() throws JsonProcessingException {
+  @Test
+  public void testMergeOldVersion() {
   }
 
-  public void testMergeOldVersionWithConflict() throws JsonProcessingException {
+  @Test
+  public void testMergeOldVersionWithConflict() {
   }
 
-  public void testReplaceHead() throws JsonProcessingException {
+  @Test
+  public void testReplaceHead() {
   }
 
-  public void testReplaceNoVersion() throws JsonProcessingException {
+  @Test
+  public void testReplaceNoVersion() {
   }
 
-  public void testReplaceOldVersion() throws JsonProcessingException {
+  @Test
+  public void testReplaceOldVersion() {
   }
 
-  public void delete() throws JsonProcessingException {
+  @Test
+  public void delete() {
   }
 
-  public void deleteAndRecreate() throws JsonProcessingException {
+  @Test
+  public void deleteAndRecreate() {
   }
 }
