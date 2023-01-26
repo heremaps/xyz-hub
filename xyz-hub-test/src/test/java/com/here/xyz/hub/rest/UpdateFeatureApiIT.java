@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -74,7 +74,6 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         body(content("/xyz/hub/featureWithNumberId.json")).
         when().
         post(getSpacesPath() + "/x-psql-test/features").
-        prettyPeek().
         then().
         statusCode(OK.code()).
         body("features[0].id", equalTo("1234"));
@@ -89,7 +88,6 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         body(content("/xyz/hub/wrongType.json")).
         when().
         post(getSpacesPath() + "/x-psql-test/features").
-        prettyPeek().
         then().
         statusCode(BAD_REQUEST.code());
   }

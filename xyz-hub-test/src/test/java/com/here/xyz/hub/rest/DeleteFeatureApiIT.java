@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -186,7 +186,6 @@ public class DeleteFeatureApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
         .delete(getSpacesPath() + "/x-psql-test/features?tags=*")
-        .prettyPeek()
         .then()
         .statusCode(OK.code());
     //TODO: check the body once CMEKB-2627 is done
