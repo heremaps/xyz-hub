@@ -1224,7 +1224,13 @@ public class FeatureTaskHandler {
 
         // DELETE
         else if (entry.head != null) {
-          delete.put(entry.head.getId(), entry.inputUUID);
+          String state = entry.inputUUID;
+
+          if (task.getEvent().getVersionsToKeep() > 1) {
+            state = String.valueOf(entry.head.getProperties().getXyzNamespace().getVersion());
+          }
+
+          delete.put(entry.head.getId(), state);
         }
       }
 

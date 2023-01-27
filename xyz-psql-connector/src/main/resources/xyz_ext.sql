@@ -3105,6 +3105,11 @@ $BODY$
             IF version % partitionSize = partitionSize / 2 THEN
                 EXECUTE xyz_create_history_partition(schema, tableName, floor(version / partitionSize) + 1, partitionSize);
             END IF;
+        ELSE
+            -- Ignore concurrency check for inserts and try to update the previous versions
+            EXECUTE
+                format('UPDATE %I.%I SET next_version = %L WHERE id = %L AND next_version = %L AND version < %L',
+                       schema, tableName, version, id, max_bigint(), version);
         END IF;
 
         RETURN 1;
