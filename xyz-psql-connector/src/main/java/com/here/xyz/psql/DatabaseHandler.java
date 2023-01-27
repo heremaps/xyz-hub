@@ -584,6 +584,11 @@ public abstract class DatabaseHandler extends StorageConnector {
                 upserts.addAll(updates);
                 updates.clear();
             }
+            if (!inserts.isEmpty()) {
+              //Transform the incoming inserts into upserts, because we don't know whether the object is existing in the extension already, i.e. deleted and reinserted
+              upserts.addAll(inserts);
+              inserts.clear();
+            }
         }
 
         long version = -1;
