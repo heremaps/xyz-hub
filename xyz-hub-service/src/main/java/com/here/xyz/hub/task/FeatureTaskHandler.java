@@ -1282,7 +1282,7 @@ public class FeatureTaskHandler {
     nsXyz.setUpdatedAt(now);
 
     // UUID fields
-    if (task.space.isEnableUUID() && task.space.getVersionsToKeep() <= 1) {
+    if (task.space.isEnableUUID() && (task.space.getVersionsToKeep() <= 1 || task.space.isEnableGlobalVersioning())) {
       nsXyz.setUuid(UUID.randomUUID().toString());
 
       if (!isInsert) {
