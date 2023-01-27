@@ -118,7 +118,7 @@ public class DatabaseWriter {
         if (event.getVersionsToKeep() > 1) {
             Feature deletedFeature = new Feature()
                 .withId(deletion.getKey())
-                .withProperties(new Properties().withXyzNamespace(new XyzNamespace().withDeleted(true)));
+                .withProperties(new Properties().withXyzNamespace(new XyzNamespace().withDeleted(true).withVersion(Long.parseLong(deletion.getValue()))));
             fillInsertQueryFromFeature(query, DELETE, deletedFeature, event, version);
         }
         else {
