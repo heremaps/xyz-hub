@@ -125,11 +125,12 @@ public class DatabaseWriter {
             //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
             boolean oldTableStyle = true; //DatabaseHandler.readVersionsToKeep(event) < 1;
             query.setNamedParameter("id", deletion.getKey());
-            if (event.getEnableUUID())
-                if (oldTableStyle)
-                    query.setNamedParameter("puuid", deletion.getValue());
-                else //TODO: Check if we should not throw an exception in that case
-                    query.setNamedParameter("baseVersion", deletion.getValue() != null ? Long.parseLong(deletion.getValue()) : null);
+            if (event.getEnableUUID()) {
+              if (oldTableStyle)
+                query.setNamedParameter("puuid", deletion.getValue());
+              else //TODO: Check if we should not throw an exception in that case
+                query.setNamedParameter("baseVersion", deletion.getValue() != null ? Long.parseLong(deletion.getValue()) : null);
+            }
         }
     }
 
@@ -140,13 +141,14 @@ public class DatabaseWriter {
         //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
         boolean oldTableStyle = true; //DatabaseHandler.readVersionsToKeep(event) < 1;
         final String puuid = feature.getProperties().getXyzNamespace().getPuuid();
-        if (event.getEnableUUID())
-            if (puuid == null && oldTableStyle)
-                throw new WriteFeatureException(UPDATE_ERROR_PUUID_MISSING);
-            else if (oldTableStyle)
-                query.setNamedParameter("puuid", puuid);
-            else
-                query.setNamedParameter("baseVersion", feature.getProperties().getXyzNamespace().getVersion());
+        if (event.getEnableUUID() && event.getVersionsToKeep() <= 1) {
+          if (puuid == null && oldTableStyle)
+            throw new WriteFeatureException(UPDATE_ERROR_PUUID_MISSING);
+          else if (oldTableStyle)
+            query.setNamedParameter("puuid", puuid);
+          else
+            query.setNamedParameter("baseVersion", feature.getProperties().getXyzNamespace().getVersion());
+        }
 
         /*
         NOTE: If versioning is activated for the space, always only inserts are performed,
