@@ -141,7 +141,7 @@ public class DatabaseWriter {
         //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
         boolean oldTableStyle = true; //DatabaseHandler.readVersionsToKeep(event) < 1;
         final String puuid = feature.getProperties().getXyzNamespace().getPuuid();
-        if (event.getEnableUUID() && event.getVersionsToKeep() <= 1) {
+        if (event.getEnableUUID() && (event.getVersionsToKeep() <= 1 || event.isEnableGlobalVersioning())) {
           if (puuid == null && oldTableStyle)
             throw new WriteFeatureException(UPDATE_ERROR_PUUID_MISSING);
           else if (oldTableStyle)
