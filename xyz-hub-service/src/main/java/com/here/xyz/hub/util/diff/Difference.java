@@ -57,6 +57,11 @@ public interface Difference {
     public Object newValue() {
       return newValue;
     }
+
+    @Override
+    public String toString() {
+      return "" + newValue;
+    }
   }
 
 

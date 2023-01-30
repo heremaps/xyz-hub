@@ -155,6 +155,15 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
       }
     }
 
+    @Override
+    protected long getVersion(Feature input) {
+      try {
+        return input.getProperties().getXyzNamespace().getVersion();
+      } catch (Exception e) {
+        return -1;
+      }
+    }
+
     public String getId(Feature record) {
       return record == null ? null : record.getId();
     }
