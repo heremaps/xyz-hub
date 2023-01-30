@@ -69,6 +69,11 @@ public class ModifySpaceOp extends ModifyOp<Space, SpaceEntry> {
     }
 
     @Override
+    protected long getVersion(Space record) {
+      return -1;
+    }
+
+    @Override
     public Map<String, Object> filterMetadata(Map<String, Object> map) {
       return filter(map, metadataFilter);
     }

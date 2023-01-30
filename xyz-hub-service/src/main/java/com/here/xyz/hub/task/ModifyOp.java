@@ -231,6 +231,8 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
     public Exception exception;
     public String inputUUID;
     public long inputVersion;
+    public boolean useVersion;
+    public boolean skipConflictDetection;
     private Map<String, Object> resultMap;
 
     public Entry(Map<String, Object> input, IfNotExists ifNotExists, IfExists ifExists, ConflictResolution cr) {
@@ -263,6 +265,8 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
     protected abstract String getUuid(Map<String, Object> record);
 
     protected abstract long getVersion(Map<String, Object> record);
+
+    protected abstract long getVersion(T record);
 
     public T patch() throws ModifyOpError, HttpException {
       final Map<String, Object> computedInput = toMap(base);
@@ -300,20 +304,38 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
     }
 
     public T replace() throws ModifyOpError, HttpException {
-      if (inputUUID != null && getUuid(head) != null && !com.google.common.base.Objects.equal(inputUUID, getUuid(head))) {
-        throw new ModifyOpError(
-            "The feature with id " + getId(head) + " cannot be replaced. The provided UUID doesn't match the UUID of the head state: "
-                + getUuid(head));
+      if (useVersion && !skipConflictDetection) {
+        if (inputVersion != -1 && getVersion(head) != -1 && inputVersion != getVersion(head)) {
+          throw new ModifyOpError(
+              "The feature with id " + getId(head) + " cannot be replaced. The provided version doesn't match the version of the head state: "
+                  + getVersion(head));
+        }
+      } else {
+        if (inputUUID != null && getUuid(head) != null && !com.google.common.base.Objects.equal(inputUUID, getUuid(head))) {
+          throw new ModifyOpError(
+              "The feature with id " + getId(head) + " cannot be replaced. The provided UUID doesn't match the UUID of the head state: "
+                  + getUuid(head));
+        }
       }
+
       return fromMap(input);
     }
 
     public T delete() throws ModifyOpError, HttpException {
-      if (inputUUID != null && getUuid(head) != null && !com.google.common.base.Objects.equal(inputUUID, getUuid(head))) {
-        throw new ModifyOpError(
-            "The feature with id " + getId(head) + " cannot be deleted. The provided UUID doesn't match the UUID of the head state: "
-                + getUuid(head));
+      if (useVersion && !skipConflictDetection) {
+        if (inputVersion != -1 && getVersion(head) != -1 && inputVersion != getVersion(head)) {
+          throw new ModifyOpError(
+              "The feature with id " + getId(head) + " cannot be deleted. The provided version doesn't match the version of the head state: "
+                  + getVersion(head));
+        }
+      } else {
+        if (inputUUID != null && getUuid(head) != null && !com.google.common.base.Objects.equal(inputUUID, getUuid(head))) {
+          throw new ModifyOpError(
+              "The feature with id " + getId(head) + " cannot be deleted. The provided UUID doesn't match the UUID of the head state: "
+                  + getUuid(head));
+        }
       }
+
       if (head != null) {
         isModified = true;
       }
