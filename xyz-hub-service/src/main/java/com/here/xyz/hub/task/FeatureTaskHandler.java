@@ -1147,42 +1147,6 @@ public class FeatureTaskHandler {
     callback.call(task);
   }
 
-  static void monitorFeatureRequest(ConditionalOperation task, Callback<ConditionalOperation> callback) {
-    try {
-      if (Service.configuration.MONITOR_FEATURES_WITH_UUID
-          && task.space.isEnableHistory()
-          && task.modifyOp.isWrite()
-          && !task.modifyOp.entries.isEmpty()) {
-
-        FeatureEntry entry = task.modifyOp.entries.get(0);
-
-        // monitor only the inputs which the first feature contains uuid
-        if (!Strings.isNullOrEmpty(entry.inputUUID)) {
-          boolean containsInput = entry.input != null;
-          boolean containsHead = entry.head != null;
-          boolean containsBase = entry.base != null;
-
-          String spaceId = task.space.getId();
-          String owner = task.space.getOwner();
-          String featureId = containsInput ? (String) entry.input.get("id") : null;
-          String uuid = entry.inputUUID;
-
-          String ifExists = entry.ifExists.name();
-          String ifNotExists = entry.ifNotExists.name();
-
-          logger.warn(task.getMarker(), "Monitoring WRITE feature on space: " + spaceId + "; owner: " + owner +
-              "; featureId: " + featureId + "; containsInput: " + containsInput + "; containsHead: " + containsHead + "; containsBase: "
-              + containsBase + "; uuid: " + uuid + "; ifExists: " + ifExists + "; ifNotExists: " + ifNotExists);
-        }
-      }
-    }
-    catch (Exception e) {
-      logger.warn(task.getMarker(), "Unable to monitor feature request", e);
-    }
-
-    callback.call(task);
-  }
-
   static void processConditionalOp(ConditionalOperation task, Callback<ConditionalOperation> callback) throws Exception {
     try {
       task.modifyOp.process();
