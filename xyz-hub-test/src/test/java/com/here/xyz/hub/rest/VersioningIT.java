@@ -24,6 +24,7 @@ import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -564,5 +565,19 @@ public class VersioningIT extends TestSpaceWithFeature {
         .body("features[0].id", equalTo(FEATURE_ID_2))
         .body("features[0].properties.capacity", equalTo(58505))
         .body("features[0].properties.@ns:com:here:xyz.version", equalTo(2));
+  }
+
+  @Test
+  public void deleteFeatureAndReinsertTest() {
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .delete(getSpacesPath() + "/" + SPACE_ID_2_UUID + "/features/" + FEATURE_ID_1)
+        .then()
+        .statusCode(NO_CONTENT.code());
+
+    postFeature(SPACE_ID_2_UUID, new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("name", "updated name 2")));
+
+    postFeature(SPACE_ID_2_UUID, new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("name", "updated name 3")));
   }
 }

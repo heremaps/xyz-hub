@@ -673,7 +673,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::loadObjects)
           .then(FeatureTaskHandler::verifyResourceExists)
           .then(FeatureTaskHandler::updateTags)
-          .then(FeatureTaskHandler::monitorFeatureRequest)
           .then(FeatureTaskHandler::processConditionalOp)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::enforceUsageQuotas)
