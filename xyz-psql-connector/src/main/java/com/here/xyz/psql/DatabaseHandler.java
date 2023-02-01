@@ -560,7 +560,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         Map<String, String> deletes = Optional.ofNullable(event.getDeleteFeatures()).orElse(new HashMap<>());
         List<FeatureCollection.ModificationFailure> fails = Optional.ofNullable(event.getFailed()).orElse(new ArrayList<>());
 
-        List<String> originalUpdates = updates.stream().map(f -> f.getId()).collect(Collectors.toList());
+        List<String> originalUpdates = updates.stream().map(Feature::getId).collect(Collectors.toList());
         List<String> originalDeletes = new ArrayList<>(deletes.keySet());
         //Handle deletes / updates on extended spaces
         if (isForExtendingSpace(event) && event.getContext() == DEFAULT) {
@@ -571,18 +571,29 @@ public abstract class DatabaseHandler extends StorageConnector {
                     new FetchIdsInput(ExtendedSpace.getExtendedTable(event, this), originalDeletes, true), this).run();
 
                 for (String featureId : originalDeletes) {
-                    if (existingIdsInBase.contains(featureId)) {
-                        upserts.add(new Feature()
-                            .withId(featureId)
-                            .withProperties(new Properties().withXyzNamespace(new XyzNamespace().withDeleted(true))));
-                        deletes.remove(featureId);
-                    }
+                  if (existingIdsInBase.contains(featureId)) {
+                    Feature toDelete = new Feature()
+                        .withId(featureId)
+                        .withProperties(new Properties().withXyzNamespace(new XyzNamespace().withDeleted(true)));
+
+                    try {
+                      toDelete.getProperties().getXyzNamespace().setVersion(Long.parseLong(deletes.get(featureId)));
+                    } catch (Exception ignore) {}
+
+                    upserts.add(toDelete);
+                    deletes.remove(featureId);
+                  }
                 }
             }
             if (!updates.isEmpty()) {
                 //Transform the incoming updates into upserts, because we don't know whether the object is existing in the extension already
                 upserts.addAll(updates);
                 updates.clear();
+            }
+            if (!inserts.isEmpty() && readVersionsToKeep(event) < 1) {
+              //Transform the incoming inserts into upserts, because we don't know whether the object is existing in the extension already, i.e. deleted and reinserted
+              upserts.addAll(inserts);
+              inserts.clear();
             }
         }
 
