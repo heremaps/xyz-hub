@@ -34,6 +34,7 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
+import com.jayway.restassured.response.ValidatableResponse;
 import java.util.Collections;
 import org.junit.After;
 import org.junit.Before;
@@ -57,7 +58,7 @@ public class VersioningNIT extends TestSpaceWithFeature {
     createSpaceWithVersionsToKeep("spacev2k1000", 1000);
   }
 
-  public String constructPayload(Feature feature, String ifExists, String ifNotExists){
+  public String constructPayload(Feature feature, String ifNotExists, String ifExists){
     return "{"
         + "    \"type\": \"FeatureModificationList\","
         + "    \"modifications\": ["
@@ -69,6 +70,14 @@ public class VersioningNIT extends TestSpaceWithFeature {
         + "        }"
         + "    ]"
         + "}";
+  }
+
+  public ValidatableResponse write(Feature feature, String ifNotExists, String ifExists){
+    return given()
+        .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(constructPayload(feature, ifNotExists, ifExists))
+        .when().post(getSpacesPath() + "/"+ SPACE_ID +"/features").then();
   }
 
   public void addDefaultFeature(){
@@ -180,17 +189,13 @@ public class VersioningNIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testPatchOldVersion() throws JsonProcessingException {
+  public void testPatchOldVersion() {
     addDefaultFeature();
 
     // update
     Feature feature = TEST_FEATURE.copy();
     feature.getProperties().put("key2", "value2");
-    given()
-        .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(constructPayload(feature, "create", "patch"))
-        .when().post(getSpacesPath() + "/"+ SPACE_ID +"/features").then()
+    write(feature, "create", "patch")
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key2", equalTo("value2"))
@@ -200,11 +205,7 @@ public class VersioningNIT extends TestSpaceWithFeature {
     Feature feature2 = TEST_FEATURE.copy();
     feature.getProperties().getXyzNamespace().setVersion(0);
     feature.getProperties().put("key3", "value3");
-    given()
-        .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(constructPayload(feature, "create", "patch"))
-        .when().post(getSpacesPath() + "/"+ SPACE_ID +"/features").then()
+    write(feature, "create", "patch")
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", equalTo("value1"))
@@ -214,17 +215,12 @@ public class VersioningNIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testPatchOldVersionWithConflict() throws JsonProcessingException {
+  public void testPatchOldVersionWithConflict() {
     addDefaultFeature();
-
     // update
     Feature feature = TEST_FEATURE.copy();
     feature.getProperties().put("key2", "value2");
-    given()
-        .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(constructPayload(feature, "create", "patch"))
-        .when().post(getSpacesPath() + "/"+ SPACE_ID +"/features").then()
+    write(feature, "create", "patch")
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key2", equalTo("value2"))
@@ -234,24 +230,43 @@ public class VersioningNIT extends TestSpaceWithFeature {
     Feature feature2 = TEST_FEATURE.copy();
     feature.getProperties().getXyzNamespace().setVersion(0);
     feature.getProperties().put("key2", "value3");
-    given()
-        .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(constructPayload(feature, "create", "patch"))
-        .when().post(getSpacesPath() + "/"+ SPACE_ID +"/features").then()
+    write(feature, "create", "patch")
         .statusCode(CONFLICT.code());
   }
 
   @Test
   public void testMergeHead() {
+    addDefaultFeature();
+
+    // update
+    Feature feature = TEST_FEATURE.copy();
+    feature.getProperties().put("key2", "value2");
+    feature.getProperties().put("version", 0);
+
+    write(feature, "create", "merge")
+        .statusCode(OK.code())
+        .body("features.size()", equalTo(1))
+        .body("features[0].properties.key2", equalTo("value2"))
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
   }
 
   @Test
   public void testMergeNoVersion() {
+    addDefaultFeature();
+    // update
+    Feature feature = TEST_FEATURE.copy();
+    feature.getProperties().put("key2", "value2");
+
+    write(feature, "create", "merge")
+        .statusCode(OK.code())
+        .body("features.size()", equalTo(1))
+        .body("features[0].properties.key2", equalTo("value2"))
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
   }
 
   @Test
   public void testMergeOldVersion() {
+
   }
 
   @Test
