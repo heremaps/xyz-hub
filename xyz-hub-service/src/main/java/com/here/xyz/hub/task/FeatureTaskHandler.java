@@ -1017,7 +1017,7 @@ public class FeatureTaskHandler {
   }
 
   private static List<Map<String, Object>> getFeatureModifications(ConditionalOperation task) throws Exception {
-    if (APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST.equals(task.context.parsedHeaders().contentType().rawValue())) {
+    if (APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST.equals(task.context.parsedHeaders().contentType().value())) {
       return getObjectsAsList(task.context);
     }
 

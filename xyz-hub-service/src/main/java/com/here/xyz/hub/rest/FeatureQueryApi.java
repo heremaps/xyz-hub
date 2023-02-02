@@ -298,7 +298,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
 
       ApiResponseType responseType = ApiResponseType.FEATURE_COLLECTION;
 
-      if( context.parsedHeaders().accept().stream().map(ParsedHeaderValue::rawValue).anyMatch( APPLICATION_VND_MAPBOX_VECTOR_TILE::equals) )
+      if( context.parsedHeaders().accept().stream().map(ParsedHeaderValue::value).anyMatch( APPLICATION_VND_MAPBOX_VECTOR_TILE::equals) )
        responseType = ApiResponseType.MVT;
       else if( acceptTypeSuffix != null )
        switch( acceptTypeSuffix.toLowerCase() )
