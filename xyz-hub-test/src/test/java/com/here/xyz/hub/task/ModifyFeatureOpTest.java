@@ -26,6 +26,7 @@ import static org.junit.Assert.assertTrue;
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
 import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.task.ModifyOp.IfNotExists;
@@ -69,8 +70,9 @@ public class ModifyFeatureOpTest {
       List<Map<String, Object>> features = Arrays.asList(JsonObject.mapFrom(input).getMap());
       Map<String, Object> featureCollection = Collections.singletonMap("features", features);
 
-      ModifyFeatureOp op = new ModifyFeatureOp(Collections.singletonList(Collections.singletonMap("featureData", featureCollection)),
-          IfNotExists.CREATE, IfExists.MERGE, true, ConflictResolution.ERROR);
+      List<FeatureEntry> entries = ModifyFeatureOp.convertToFeatureEntries(Collections.singletonList(Collections.singletonMap("featureData", featureCollection)),
+          IfNotExists.CREATE, IfExists.MERGE, ConflictResolution.ERROR);
+      ModifyFeatureOp op = new ModifyFeatureOp(entries, true);
       final Entry<Feature> entry = op.entries.get(0);
       entry.head = head;
       entry.base = base;
@@ -101,8 +103,9 @@ public class ModifyFeatureOpTest {
       List<Map<String, Object>> features = Collections.singletonList(JsonObject.mapFrom(input).getMap());
       Map<String, Object> featureCollection = Collections.singletonMap("features", features);
 
-      ModifyFeatureOp op = new ModifyFeatureOp(Collections.singletonList(Collections.singletonMap("featureData", featureCollection)),
-          IfNotExists.CREATE, IfExists.MERGE, true, ConflictResolution.ERROR);
+      List<FeatureEntry> entries = ModifyFeatureOp.convertToFeatureEntries(Collections.singletonList(Collections.singletonMap("featureData", featureCollection)),
+          IfNotExists.CREATE, IfExists.MERGE, ConflictResolution.ERROR);
+      ModifyFeatureOp op = new ModifyFeatureOp(entries, true);
       final Entry<Feature> entry = op.entries.get(0);
       entry.head = base;
       entry.base = base;
@@ -130,8 +133,9 @@ public class ModifyFeatureOpTest {
       List<Map<String, Object>> features = Collections.singletonList(JsonObject.mapFrom(input).getMap());
       Map<String, Object> featureCollection = Collections.singletonMap("features", features);
 
-      ModifyFeatureOp op = new ModifyFeatureOp(Collections.singletonList(Collections.singletonMap("featureData", featureCollection)),
-          IfNotExists.CREATE, IfExists.MERGE, true, ConflictResolution.ERROR, false);
+      List<FeatureEntry> entries = ModifyFeatureOp.convertToFeatureEntries(Collections.singletonList(Collections.singletonMap("featureData", featureCollection)),
+          IfNotExists.CREATE, IfExists.MERGE, ConflictResolution.ERROR);
+      ModifyFeatureOp op = new ModifyFeatureOp(entries, true, false);
       final Entry<Feature> entry = op.entries.get(0);
       entry.head = null;
       entry.base = null;

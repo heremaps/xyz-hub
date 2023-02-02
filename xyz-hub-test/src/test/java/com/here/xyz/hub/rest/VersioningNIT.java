@@ -115,10 +115,6 @@ public class VersioningNIT extends TestSpaceWithFeature {
         .then()
         .statusCode(OK.code());
   }
-  @After
-  public void tearDown() {
-    removeSpace(SPACE_ID);
-  }
 
   @Test
   public void testCreateNoVersion() {

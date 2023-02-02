@@ -24,10 +24,10 @@ import static com.here.xyz.hub.task.FeatureTask.FeatureKey.CREATED_AT;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.MUUID;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PUUID;
-import static com.here.xyz.hub.task.FeatureTask.FeatureKey.VERSION;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.SPACE;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.UPDATED_AT;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.UUID;
+import static com.here.xyz.hub.task.FeatureTask.FeatureKey.VERSION;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
@@ -38,11 +38,11 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.json.JsonObject;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
 
@@ -52,47 +52,70 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
 
   public boolean allowFeatureCreationWithUUID;
 
-  /**
-   * @param featureModifications A list of FeatureModifications of which each may have different settings for existence-handling and/or
-   * conflict-handling. If these settings are not specified at the FeatureModification the according other parameters (ifNotExists,
-   * ifExists, conflictResolution) of this constructor will be applied for that purpose.
-   */
-  public ModifyFeatureOp(List<Map<String, Object>> featureModifications, IfNotExists ifNotExists, IfExists ifExists,
-      boolean isTransactional, ConflictResolution conflictResolution, boolean allowFeatureCreationWithUUID) {
-    this(featureModifications, ifNotExists, ifExists, isTransactional, conflictResolution);
+  public ModifyFeatureOp(List<FeatureEntry> featureEntries, boolean isTransactional) {
+    this(featureEntries, isTransactional, false);
+  }
+
+  public ModifyFeatureOp(List<FeatureEntry> featureEntries, boolean isTransactional, boolean allowFeatureCreationWithUUID) {
+    super(featureEntries, isTransactional);
     this.allowFeatureCreationWithUUID = allowFeatureCreationWithUUID;
   }
 
-  public ModifyFeatureOp(List<Map<String, Object>> featureModifications, IfNotExists ifNotExists, IfExists ifExists,
-      boolean isTransactional, ConflictResolution conflictResolution) {
-    super((featureModifications == null) ? Collections.emptyList() : featureModifications.stream().flatMap(fm -> {
+  /**
+   * Converts a list of feature modifications input into a list of FeatureEntry where which entry contains information on how to handle
+   * when the feature exists, not exists or conflict cases.
+   * @param featureModifications A list of FeatureModifications of which each may have different settings for existence-handling and/or
+   *  conflict-handling. If these settings are not specified at the FeatureModification the according other parameters (ifNotExists,
+   *  ifExists, conflictResolution) of this constructor will be applied for that purpose.
+   * @param ifNotExists defines the action in case the feature does not exist, possible values are available at {@link IfNotExists}
+   * @param ifExists defines the action in case the feature already exists, possible values are available at {@link IfExists}
+   * @param conflictResolution defines the action in case there is a conflict when processing the feature, possible values are available at {@link ConflictResolution}
+   * @return the list of feature entries, which can be empty
+   * @throws HttpException in case the parameters ifExists, ifNotExists and conflictResolution extracted from the featureModification contains invalid values
+   */
+  public static List<FeatureEntry> convertToFeatureEntries(List<Map<String, Object>> featureModifications, IfNotExists ifNotExists, IfExists ifExists, ConflictResolution conflictResolution)
+      throws HttpException {
+    if (featureModifications == null)
+      return Collections.emptyList();
+
+    final List<FeatureEntry> result = new ArrayList<>();
+    for (Map<String, Object> fm : featureModifications) {
       IfNotExists ne =
           fm.get(ON_FEATURE_NOT_EXISTS) instanceof String ? IfNotExists.of((String) fm.get(ON_FEATURE_NOT_EXISTS)) : ifNotExists;
       IfExists e = fm.get(ON_FEATURE_EXISTS) instanceof String ? IfExists.of((String) fm.get(ON_FEATURE_EXISTS)) : ifExists;
       ConflictResolution cr = fm.get(ON_MERGE_CONFLICT) instanceof String ?
           ConflictResolution.of((String) fm.get(ON_MERGE_CONFLICT)) : conflictResolution;
 
+      validateDefaultParams(ne, e, cr);
+
       List<String> featureIds = (List<String>) fm.get("featureIds");
       Map<String, Object> featureCollection = (Map<String, Object>) fm.get("featureData");
-      List<Map<String, Object>> features = null;
-      if (featureCollection != null) {
-        features = (List<Map<String, Object>>) featureCollection.get("features");
-      }
+      List<Map<String, Object>> features = new ArrayList<>();
 
-      if (featureIds == null && features == null) {
-        return Stream.empty();
-      }
+      if (featureCollection != null)
+          features.addAll((List<Map<String, Object>>) featureCollection.get("features"));
 
-      if (featureIds != null) {
-        if (features == null) {
-          features = idsToFeatures(featureIds);
-        } else {
-          features.addAll(idsToFeatures(featureIds));
-        }
-      }
+      if (featureIds != null)
+        features.addAll(idsToFeatures(featureIds));
 
-      return features.stream().map(feature -> new FeatureEntry(feature, ne, e, cr));
-    }).collect(Collectors.toList()), isTransactional);
+      result.addAll(features.stream().map(feature -> new FeatureEntry(feature, ne, e, cr)).collect(Collectors.toList()));
+    }
+
+    return result;
+  }
+
+  private static void validateDefaultParams(IfNotExists ne, IfExists e, ConflictResolution cr) throws HttpException {
+    if (ne == null) {
+      throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Invalid value provided for parameter onFeatureNotExists");
+    }
+
+    if (e == null) {
+      throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Invalid value provided for parameter onFeatureExists");
+    }
+
+    if (cr == null) {
+      throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Invalid value provided for parameter onMergeConflict");
+    }
   }
 
   private static List<Map<String, Object>> idsToFeatures(List<String> featureIds) {

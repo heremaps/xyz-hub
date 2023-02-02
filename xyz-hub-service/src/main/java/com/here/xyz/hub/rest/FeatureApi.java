@@ -38,6 +38,7 @@ import com.here.xyz.hub.task.FeatureTask.ConditionalOperation;
 import com.here.xyz.hub.task.FeatureTask.DeleteOperation;
 import com.here.xyz.hub.task.FeatureTask.IdsQuery;
 import com.here.xyz.hub.task.ModifyFeatureOp;
+import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
 import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.task.ModifyOp.IfNotExists;
 import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
@@ -219,16 +220,23 @@ public class FeatureApi extends SpaceBasedApi {
 
     ModifyFeaturesEvent event = new ModifyFeaturesEvent().withTransaction(transactional).withContext(spaceContext);
     int bodySize = context.getBody() != null ? context.getBody().length() : 0;
-    ConditionalOperation task = buildConditionalOperation(event, context, apiResponseTypeType, featureModifications, ifNotExists, ifExists, transactional, cr, requireResourceExists, bodySize);
-    final List<String> addTags = Query.queryParam(Query.ADD_TAGS, context);
-    final List<String> removeTags = Query.queryParam(Query.REMOVE_TAGS, context);
-    task.addTags = XyzNamespace.normalizeTags(addTags);
-    task.removeTags = XyzNamespace.normalizeTags(removeTags);
-    XyzNamespace.fixNormalizedTags(task.addTags);
-    XyzNamespace.fixNormalizedTags(task.removeTags);
-    task.prefixId = Query.getString(context, Query.PREFIX_ID, null);
-    task.author = Api.Context.getAuthor(context);
-    task.execute(this::sendResponse, this::sendErrorResponse);
+
+    try {
+      ConditionalOperation task = buildConditionalOperation(event, context, apiResponseTypeType, featureModifications, ifNotExists,
+          ifExists, transactional, cr, requireResourceExists, bodySize);
+      final List<String> addTags = Query.queryParam(Query.ADD_TAGS, context);
+      final List<String> removeTags = Query.queryParam(Query.REMOVE_TAGS, context);
+      task.addTags = XyzNamespace.normalizeTags(addTags);
+      task.removeTags = XyzNamespace.normalizeTags(removeTags);
+      XyzNamespace.fixNormalizedTags(task.addTags);
+      XyzNamespace.fixNormalizedTags(task.removeTags);
+      task.prefixId = Query.getString(context, Query.PREFIX_ID, null);
+      task.author = Api.Context.getAuthor(context);
+      task.execute(this::sendResponse, this::sendErrorResponse);
+    } catch (HttpException e) {
+      logger.warn(Api.Context.getMarker(context), e.getMessage(), e);
+      context.fail(e);
+    }
   }
 
   private static boolean checkModificationOnSuper(RoutingContext context, SpaceContext spaceContext) {
@@ -250,11 +258,12 @@ public class FeatureApi extends SpaceBasedApi {
       boolean transactional,
       ConflictResolution cr,
       boolean requireResourceExists,
-      int bodySize) {
+      int bodySize) throws HttpException {
     if (featureModifications == null)
       return new ConditionalOperation(event, context, apiResponseTypeType, ifNotExists, ifExists, transactional, cr, requireResourceExists, bodySize);
 
-    final ModifyFeatureOp modifyFeatureOp = new ModifyFeatureOp(featureModifications, ifNotExists, ifExists, transactional, cr);
+    final List<FeatureEntry> featureEntries = ModifyFeatureOp.convertToFeatureEntries(featureModifications, ifNotExists, ifExists, cr);
+    final ModifyFeatureOp modifyFeatureOp = new ModifyFeatureOp(featureEntries, transactional);
     return new ConditionalOperation(event, context, apiResponseTypeType, modifyFeatureOp, requireResourceExists, bodySize);
   }
 }
