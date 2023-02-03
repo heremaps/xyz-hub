@@ -27,7 +27,6 @@ import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.query.helpers.versioning.GetHeadVersion;
-import com.here.xyz.psql.query.helpers.versioning.GetOldestPartitionRangeMin;
 import com.here.xyz.responses.SuccessResponse;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -42,41 +41,27 @@ public class DeleteChangesets extends XyzQueryRunner<DeleteChangesetsEvent, Succ
   }
 
   @Override
-  public void write() throws SQLException, ErrorResponseException {
+  public SuccessResponse run() throws SQLException, ErrorResponseException {
     long headVersion = new GetHeadVersion<>(event, dbHandler).run();
     if (event.getMinVersion() > headVersion)
       throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Can not delete all changesets older than version " + event.getMinVersion()
           + " as it would also delete the HEAD (" + headVersion
           + ") version. Minimum version which may specified as new minimum version is HEAD.");
-    super.write();
+    return super.run();
   }
 
   @Override
   protected SQLQuery buildQuery(DeleteChangesetsEvent event) throws SQLException, ErrorResponseException {
-    //TODO: Execute asynchronously in DB
-    return new SQLQuery("${{removePartitions}}${{purgeRemainder}}")
-        .withQueryFragment("removePartitions", buildRemovePartitionsQuery(event))
-        .withQueryFragment("purgeRemainder", buildPurgeRemainderFromOldestPartition(event))
-        .withVariable(SCHEMA, getSchema())
-        .withVariable(TABLE, getDefaultTable(event));
-  }
-
-  protected SQLQuery buildRemovePartitionsQuery(DeleteChangesetsEvent event) throws SQLException, ErrorResponseException {
-    String table = getDefaultTable(event);
-    long previousMinRangeMin = new GetOldestPartitionRangeMin(event, dbHandler).run();
-    String sql = "";
-    for (long partitionNo = previousMinRangeMin / PARTITION_SIZE; partitionNo < (event.getMinVersion() + 1) / PARTITION_SIZE; partitionNo++)
-      sql += "DROP TABLE IF EXISTS ${schema}.\"" + table + "_p" + partitionNo + "\";";
-    return new SQLQuery(sql);
-  }
-
-  protected SQLQuery buildPurgeRemainderFromOldestPartition(DeleteChangesetsEvent event) {
-    return new SQLQuery("DELETE FROM ${schema}.${table} WHERE next_version <= #{minVersion}")
-        .withNamedParameter("minVersion", event.getMinVersion());
+    return new SQLQuery("SELECT xyz_delete_changesets(#{schema}, #{table}, #{partitionSize}, #{minVersion})")
+        .withNamedParameter(SCHEMA, getSchema())
+        .withNamedParameter(TABLE, getDefaultTable(event))
+        .withNamedParameter("partitionSize", PARTITION_SIZE)
+        .withNamedParameter("minVersion", event.getMinVersion())
+        .withAsync(true);
   }
 
   @Override
   public SuccessResponse handle(ResultSet rs) throws SQLException {
-    return null;
+    return new SuccessResponse();
   }
 }

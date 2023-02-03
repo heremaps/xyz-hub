@@ -57,6 +57,8 @@ public class SQLQuery {
   private static final String VAR_TABLE_SEQ = "table_seq";
   private static final String VAR_HST_TABLE_SEQ = "hsttable_seq";
 
+  private boolean async = false;
+
   private HashMap<String, List<Integer>> namedParams2Positions = new HashMap<>();
 
   private PreparedStatement preparedStatement;
@@ -189,7 +191,14 @@ public class SQLQuery {
   public SQLQuery substitute() {
     replaceVars();
     replaceFragments();
-    replaceNamedParameters();
+    replaceNamedParameters(!async);
+    if (async) {
+      SQLQuery asyncQuery = new SQLQuery("SELECT asyncify(#{query}, #{password})")
+          .withNamedParameter("query", text())
+          .withNamedParameter("password", DatabaseHandler.getInstance().getConfig().getDatabaseSettings().getPassword());
+      setText(asyncQuery.substitute().text());
+      return asyncQuery;
+    }
     return this;
   }
 
@@ -244,7 +253,7 @@ public class SQLQuery {
   /**
    * Replaces #{namedVar} in the queryText with ? and appends the corresponding parameters from the specified map.
    */
-  private void replaceNamedParametersInt() {
+  private void replaceNamedParametersInt(boolean usePlaceholders) {
     Pattern p = Pattern.compile("#\\{\\s*([^\\s\\}]+)\\s*\\}");
     Matcher m = p.matcher(text());
 
@@ -256,9 +265,23 @@ public class SQLQuery {
         namedParams2Positions.put(nParam, new ArrayList<>());
       namedParams2Positions.get(nParam).add(parameters.size());
       addParameter( namedParameters.get(nParam) );
+      if (!usePlaceholders) {
+        setText(m.replaceFirst(paramValueToString(namedParameters.get(nParam))));
+        m = p.matcher(text());
+      }
     }
 
-    setText(m.replaceAll("?"));
+    if (usePlaceholders)
+      setText(m.replaceAll("?"));
+  }
+
+  private String paramValueToString(Object paramValue) {
+    if (paramValue instanceof String)
+      return "'" + paramValue + "'";
+    if (paramValue instanceof Number)
+      return paramValue.toString();
+    throw new RuntimeException("Only strings or numeric values are allowed for parameters of async queries. Provided: "
+        + paramValue.getClass().getSimpleName());
   }
 
   private static String replaceVars(String queryText, Map<String, String> replacements) {
@@ -331,12 +354,16 @@ public class SQLQuery {
 
   //TODO: Make private when refactoring is complete
   public void replaceNamedParameters() {
+    replaceNamedParameters(true);
+  }
+
+  private void replaceNamedParameters(boolean usePlaceholders) {
     if (namedParameters == null || namedParameters.size() == 0)
       return;
     if (parameters() != null && parameters().size() != 0)
       throw new RuntimeException("No named parameters can be used inside queries which use un-named parameters. "
           + "Use only named parameters instead!");
-    replaceNamedParametersInt();
+    replaceNamedParametersInt(usePlaceholders);
     //Clear all named parameters
     namedParameters = null;
   }
@@ -517,6 +544,19 @@ public class SQLQuery {
 
   public SQLQuery withQueryFragment(String key, SQLQuery fragment) {
     setQueryFragment(key, fragment);
+    return this;
+  }
+
+  public boolean isAsync() {
+    return async;
+  }
+
+  public void setAsync(boolean async) {
+    this.async = async;
+  }
+
+  public SQLQuery withAsync(boolean async) {
+    setAsync(async);
     return this;
   }
 
