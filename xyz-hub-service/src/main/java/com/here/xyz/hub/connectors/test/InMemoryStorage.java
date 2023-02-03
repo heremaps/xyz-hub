@@ -31,6 +31,7 @@ import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.GetStorageStatisticsEvent;
+import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
@@ -141,7 +142,12 @@ public class InMemoryStorage extends StorageConnector {
   }
 
   @Override
-  protected XyzResponse processChangesetEvent(DeleteChangesetsEvent event) throws Exception {
+  protected XyzResponse processDeleteChangesetsEvent(DeleteChangesetsEvent event) throws Exception {
+    throw new UnsupportedOperationException(event.getClass().getSimpleName() + " not implemented.");
+  }
+
+  @Override
+  protected XyzResponse processIterateChangesetsEvent(IterateChangesetsEvent event) throws Exception {
     throw new UnsupportedOperationException(event.getClass().getSimpleName() + " not implemented.");
   }
 

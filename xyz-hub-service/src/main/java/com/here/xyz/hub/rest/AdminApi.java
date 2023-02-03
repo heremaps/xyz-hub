@@ -120,7 +120,7 @@ public class AdminApi extends Api {
     try {
       Marker marker = Api.Context.getMarker(context);
       AdminAuthorization.authorizeAdminCapability(context, ADMIN_CAPABILITY_STATISTICS);
-      StorageStatisticsProvider.provideStorageStatistics(marker, Query.getLong(context, INCLUDE_CHANGES_SINCE, 0))
+      StorageStatisticsProvider.provideStorageStatistics(marker, Query.getLong(context, INCLUDE_CHANGES_SINCE, 0L))
           .onFailure(t -> sendErrorResponse(context, t))
           .onSuccess(storageStatistics -> context
               .response()

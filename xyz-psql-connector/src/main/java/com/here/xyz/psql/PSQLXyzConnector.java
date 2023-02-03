@@ -35,6 +35,7 @@ import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.GetStorageStatisticsEvent;
 import com.here.xyz.events.HealthCheckEvent;
+import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
@@ -51,6 +52,7 @@ import com.here.xyz.psql.query.GetFeaturesByBBoxTweaked;
 import com.here.xyz.psql.query.GetFeaturesByGeometry;
 import com.here.xyz.psql.query.GetFeaturesById;
 import com.here.xyz.psql.query.GetStorageStatistics;
+import com.here.xyz.psql.query.IterateChangesets;
 import com.here.xyz.psql.query.IterateFeatures;
 import com.here.xyz.psql.query.LoadFeatures;
 import com.here.xyz.psql.query.SearchForFeatures;
@@ -361,7 +363,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   }
 
   @Override
-  protected XyzResponse processChangesetEvent(DeleteChangesetsEvent event) throws Exception {
+  protected XyzResponse processDeleteChangesetsEvent(DeleteChangesetsEvent event) throws Exception {
     try {
       logger.info("{} Received " + event.getClass().getSimpleName(), traceItem);
       new DeleteChangesets(event, this).write();
@@ -372,6 +374,20 @@ public class PSQLXyzConnector extends DatabaseHandler {
     }
     finally {
       logger.info("{} Finished " + event.getClass().getSimpleName(), traceItem);
+    }
+  }
+
+  @Override
+  protected XyzResponse processIterateChangesetsEvent(IterateChangesetsEvent event) throws Exception {
+    try {
+      logger.info("{} Received IterateChangesetsEvent", traceItem);
+      return new IterateChangesets(event, this).run();
+    }
+    catch (SQLException e) {
+      return checkSQLException(e, config.readTableFromEvent(event));
+    }
+    finally {
+      logger.info("{} Finished GetFeaturesByIdEvent", traceItem);
     }
   }
 

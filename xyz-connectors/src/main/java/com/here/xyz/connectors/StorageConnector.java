@@ -30,6 +30,7 @@ import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.GetStorageStatisticsEvent;
 import com.here.xyz.events.HealthCheckEvent;
+import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
@@ -84,6 +85,9 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
     if (event instanceof IterateHistoryEvent) {
       return processIterateHistoryEvent((IterateHistoryEvent) event);
     }
+    if (event instanceof IterateChangesetsEvent) {
+      return processIterateChangesetsEvent((IterateChangesetsEvent) event);
+    }
     if (event instanceof SearchForFeaturesEvent) {
       return processSearchForFeaturesEvent((SearchForFeaturesEvent) event);
     }
@@ -106,7 +110,7 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
       return processGetStorageStatisticsEvent((GetStorageStatisticsEvent) event);
     }
     if (event instanceof DeleteChangesetsEvent) {
-      return processChangesetEvent((DeleteChangesetsEvent) event);
+      return processDeleteChangesetsEvent((DeleteChangesetsEvent) event);
     }
     if (event instanceof OneTimeActionEvent)
       return processOneTimeActionEvent((OneTimeActionEvent) event);
@@ -209,5 +213,7 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
     return new SuccessResponse();
   }
 
-  protected abstract XyzResponse processChangesetEvent(DeleteChangesetsEvent event) throws Exception;
+  protected abstract XyzResponse processDeleteChangesetsEvent(DeleteChangesetsEvent event) throws Exception;
+
+  protected abstract XyzResponse processIterateChangesetsEvent(IterateChangesetsEvent event) throws Exception;
 }

@@ -192,6 +192,43 @@ paths:
         '404':
           $ref: '#/components/responses/ErrorResponse404'
   '/spaces/{spaceId}/changesets':
+    get:
+      tags:
+        - Manage Spaces
+      summary: Get Changesets
+      description: >-
+        Retrieves the existing Changesets from the space.
+
+        Each successful write transaction to the space is stored as one single Changeset,
+        which can contain modifications applied to one or more features.
+
+        The Changeset response payload may be split in multiple pages, next page is written in the property
+        'nextPageToken', which then, can be retrieved by using the 'pageToken' parameter.
+      operationId: getChangesets
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/Reader'
+        - $ref: '#/components/parameters/Operation'
+        - $ref: '#/components/parameters/StartVersion'
+        - $ref: '#/components/parameters/EndVersion'
+        - $ref: '#/components/parameters/NumberOfVersions'
+        - $ref: '#/components/parameters/PageToken'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          $ref: '#/components/responses/ChangesetResponse'
+        '204':
+          $ref: '#/components/responses/EmptyResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+        '513':
+          $ref: '#/components/responses/ErrorResponse513'
     delete:
       tags:
         - Manage Spaces
@@ -1383,7 +1420,6 @@ components:
           - extension
           - super
         default: default
-
     East:
       name: east
       in: query
@@ -1530,6 +1566,35 @@ components:
         format: double
         minimum: -90
         maximum: 90
+    NumberOfVersions:
+      name: numberOfVersions
+      in: query
+      description: >-
+        The amount of Changesets to be retrieved, beginning at the last reader's pointer.
+      required: false
+      schema:
+        type: integer
+        default: 1
+    Operation:
+      name: operation
+      in: query
+      description: >-
+        The operation to be executed in the reader's pointer when retrieving Changesets.
+
+        It should be used in conjunction with the 'reader' parameter.
+
+        The possible values are:
+          - read: retrieves the changesets and updates the reader's pointer to the next version.
+          - peek: retrieves the changesets but keeps the current reader's pointer pointing to the current version.
+          - advance: moves the pointer to the next version and do not return any data.
+      required: false
+      schema:
+        type: string
+        enum:
+          - read
+          - peek
+          - advance
+        default: read
     PageToken:
       name: pageToken
       in: query
@@ -1644,6 +1709,16 @@ components:
         Radius in meters which defines the diameter of the search request.
       schema:
         type: integer
+    Reader:
+      name: reader
+      in: query
+      description: >-
+        The reader where the operation will be performed, multiple readers can be registered to the same space.
+
+        It should be used in conjunction with 'startVersion', 'endVersion' or 'numberOfVersions'.
+      required: false
+      schema:
+        type: string
     RefFeatureId:
       name: refFeatureId
       in: query
@@ -1948,6 +2023,12 @@ components:
           - retry
           - createUploadUrl
   responses:
+    ChangesetResponse:
+      description: Changesets which are containing FeatureCollections grouped by operation.
+      content:
+        application/vnd.here.changeset-collection:
+          schema:
+            $ref: '#/components/schemas/ChangesetCollection'
     ConnectorResponse:
       description: The connector
       content:
@@ -2298,10 +2379,13 @@ components:
           description: For how long, in seconds, Data Hub should hold the content cached.
     Changeset:
       type: object
-      description: A Changeset includes three FeatureCollections grouped by the operations inserted, updated, deleted.
+      description: A Changeset includes three FeatureCollection objects grouped by the operations inserted, updated, deleted.
       properties:
         type:
           type: string
+        author:
+          type: string
+          description: The author who performed the changes.
         inserted:
           type: array
           description: FeatureCollection of inserted features.
@@ -2317,6 +2401,14 @@ components:
           description: FeatureCollection of deleted features.
           items:
             $ref: '#/components/schemas/FeatureCollection'
+        createdAt:
+          description: >-
+            The UNIX Epoch time of when this object has been created (in
+            milliseconds since 01.01.1970).
+          example: 1234567890123
+          format: int64
+          readOnly: true
+          type: integer
       example:
         type: Changeset
         inserted:

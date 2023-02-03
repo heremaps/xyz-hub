@@ -179,6 +179,10 @@ public class ApiParam {
 
     static final String F_PREFIX = "f.";
 
+    static final String OPERATION = "operation";
+    static final String READER = "reader";
+    static final String NUMBER_OF_VERSIONS = "numberOfVersions";
+
     private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{
       put("!=", QueryOperation.NOT_EQUALS);
       put(">=", QueryOperation.GREATER_THAN_OR_EQUALS);
@@ -242,7 +246,7 @@ public class ApiParam {
      * @param alt The alternative value for the optional query parameter
      * @return The parsed long value
      */
-    static long getLong(RoutingContext context, String param, long alt) {
+    static long getLong(RoutingContext context, String param, Long alt) {
       try {
         return Long.parseLong(getString(context, param, null));
       }
