@@ -3059,13 +3059,14 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_write_versioned_modification_operation(id TEXT, version BIGINT, operation CHAR, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN, partitionSize BIGINT)
+CREATE OR REPLACE FUNCTION xyz_write_versioned_modification_operation(id TEXT, version BIGINT, operation CHAR, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN, partitionSize BIGINT, versionsToKeep INT, pw TEXT)
     RETURNS INTEGER AS
 $BODY$
     DECLARE
         base_version BIGINT := (jsondata->'properties'->'@ns:com:here:xyz'->>'version')::BIGINT;
         author TEXT := (jsondata->'properties'->'@ns:com:here:xyz'->>'author')::TEXT;
         updated_rows INTEGER;
+        minVersion BIGINT;
     BEGIN
         jsondata := jsondata #- '{properties,@ns:com:here:xyz,version}';
         EXECUTE
@@ -3110,6 +3111,14 @@ $BODY$
             EXECUTE
                 format('UPDATE %I.%I SET next_version = %L WHERE id = %L AND next_version = %L AND version < %L',
                        schema, tableName, version, id, max_bigint(), version);
+        END IF;
+
+        -- Delete old changesets from the history to keep only as many versions as specified through "versionsToKeep" if necessary
+        IF version % 10 = 1 THEN -- Perform the check only on every 10th transaction
+            minVersion := version - versionsToKeep + 1;
+            IF minVersion > 0 THEN
+                PERFORM asyncify('SELECT xyz_delete_changesets(''' || schema || ''', ''' || tableName || ''', ' ||  partitionSize || ', ' || minVersion || ')', pw);
+            END IF;
         END IF;
 
         RETURN 1;
