@@ -19,6 +19,14 @@ tags:
     description: Read and write endpoints for features.
   - name: Manage Connectors
     description: Read and write endpoints for connectors.
+  - name: Manage Subscriptions
+    description: Read and write endpoints for subscriptions.
+  - name: Manage Jobs
+    description: Read and write endpoints for jobs.
+  - name: Manage Changesets
+    description: Read and write endpoints for changesets.
+  - name: Manage Readers
+    description: Read and write endpoints for readers.
 paths:
   '/spaces':
     get:
@@ -29,46 +37,6 @@ paths:
         Lists the spaces, which the current authenticated user has access to.
       operationId: getSpaces
       parameters:
-        - name: includeRights
-          in: query
-          description: >-
-            If set to _true_, the access rights for each space are included in
-            the response.
-          required: false
-          schema:
-            type: boolean
-            default: false
-        - name: includeConnectors
-          in: query
-          description: >-
-            If set to _true_, the connectors for each space are included in
-            the response.
-          required: false
-          schema:
-            type: boolean
-            default: false
-        - name: owner
-          in: query
-          description: >
-            Define the owner(s) of spaces to be shown in the response.
-
-            Possible values are:
-
-
-            * __me__ (_The default value;_ Show only the spaces being owned by
-            the current user),
-
-            * __(someOwnerId)__ (_Only for shared spaces:_ Explicitly only show
-            spaces belonging to the specified user),
-
-            * __others__ (Show only the spaces having been shared _excluding the
-            own ones_),
-
-            * __*__ (Show all spaces the current user has access to)
-          required: false
-          schema:
-            type: string
-            default: me
         - name: contentUpdatedAt
           in: query
           description: >
@@ -101,6 +69,62 @@ paths:
           schema:
             type: string
             example: 1597092085740
+        - name: includeConnectors
+          in: query
+          description: >-
+            If set to _true_, the connectors for each space are included in
+            the response.
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: includeReaders
+          in: query
+          description: >-
+            If set to _true_, the readers for each space are included in
+            the response. Only spaces containing readers will be returned.
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: includeRights
+          in: query
+          description: >-
+            If set to _true_, the access rights for each space are included in
+            the response.
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: owner
+          in: query
+          description: >
+            Define the owner(s) of spaces to be shown in the response.
+
+            Possible values are:
+
+
+            * __me__ (_The default value;_ Show only the spaces being owned by
+            the current user),
+
+            * __(someOwnerId)__ (_Only for shared spaces:_ Explicitly only show
+            spaces belonging to the specified user),
+
+            * __others__ (Show only the spaces having been shared _excluding the
+            own ones_),
+
+            * __*__ (Show all spaces the current user has access to)
+          required: false
+          schema:
+            type: string
+            default: me
+        - name: readerId
+          in: query
+          description: >
+            Filters the space list by reader's Id.
+          required: false
+          schema:
+            type: string
       responses:
         '200':
           $ref: '#/components/responses/SpacesResponse'
@@ -194,7 +218,7 @@ paths:
   '/spaces/{spaceId}/changesets':
     get:
       tags:
-        - Manage Spaces
+        - Manage Changesets
       summary: Get Changesets
       description: >-
         Retrieves the existing Changesets from the space.
@@ -202,23 +226,18 @@ paths:
         Each successful write transaction to the space is stored as one single Changeset,
         which can contain modifications applied to one or more features.
 
-        The Changeset response payload may be split in multiple pages, next page is written in the property
+        The response payload may be split in multiple pages, next page is written in the property
         'nextPageToken', which then, can be retrieved by using the 'pageToken' parameter.
       operationId: getChangesets
       parameters:
         - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/Reader'
-        - $ref: '#/components/parameters/Operation'
         - $ref: '#/components/parameters/StartVersion'
         - $ref: '#/components/parameters/EndVersion'
-        - $ref: '#/components/parameters/NumberOfVersions'
         - $ref: '#/components/parameters/PageToken'
         - $ref: '#/components/parameters/Limit'
       responses:
         '200':
-          $ref: '#/components/responses/ChangesetResponse'
-        '204':
-          $ref: '#/components/responses/EmptyResponse'
+          $ref: '#/components/responses/ChangesetCollectionResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse400'
         '401':
@@ -231,7 +250,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse513'
     delete:
       tags:
-        - Manage Spaces
+        - Manage Changesets
       summary: Delete Changesets
       description: >-
         Deletes one or more changesets where the version number can be specified by the query parameter 'version', where
@@ -253,6 +272,134 @@ paths:
       responses:
         '204':
           $ref: '#/components/responses/EmptyResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+  '/spaces/{spaceId}/changesets/{version}':
+    get:
+      tags:
+        - Manage Changesets
+      summary: Get Changeset
+      description: >-
+        Retrieves one Changeset from the space by version.
+
+        Each successful write transaction to the space is stored as one single Changeset,
+        which can contain modifications applied to one or more features.
+
+        The response payload may be split in multiple pages, next page is written in the property
+        'nextPageToken', which then, can be retrieved by using the 'pageToken' parameter.
+      operationId: getChangeset
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/VersionPath'
+        - $ref: '#/components/parameters/PageToken'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          $ref: '#/components/responses/ChangesetResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+        '513':
+          $ref: '#/components/responses/ErrorResponse513'
+  '/spaces/{spaceId}/readers/{readerId}':
+    put:
+      tags:
+        - Manage Readers
+      summary: Create reader
+      description: >-
+        Registers a reader identified by readerId into the space.
+
+        At the moment of registration, reader pointer points to HEAD version of the space,
+        and subsequent write operations in the space can be retrieved by using the /changesets
+        endpoint, using the current value of the reader.
+
+        A space may have multiple readers, pointing to different versions. Each reader can be
+        processed separately, and then, at the end of the process, the version can be increased to match
+        the version of the data which has been already processed.
+      operationId: putReader
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/ReaderId'
+      responses:
+        '200':
+          $ref: '#/components/responses/ReaderResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+    delete:
+      tags:
+        - Manage Readers
+      summary: Delete reader
+      description: >-
+        Deregisters a reader identified by readerId from the space.
+      operationId: deleteReader
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/ReaderId'
+      responses:
+        '204':
+          $ref: '#/components/responses/EmptyResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+  '/spaces/{spaceId}/readers/{readerId}/version':
+    get:
+      tags:
+        - Manage Readers
+      summary: Get reader's version
+      description: >-
+        Retrieves the reader's current version.
+      operationId: getReaderVersion
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/ReaderId'
+      responses:
+        '200':
+          $ref: '#/components/responses/ReaderResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+    post:
+      tags:
+        - Manage Readers
+      summary: Increase reader's version
+      description: >-
+        Increases the reader version only when the version being submitted is bigger than the current version, ignoring otherwise.
+      operationId: increaseVersion
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/ReaderId'
+      requestBody:
+        $ref: '#/components/requestBodies/ReaderRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/ReaderResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
         '401':
           $ref: '#/components/responses/ErrorResponse401'
         '403':
@@ -1566,35 +1713,6 @@ components:
         format: double
         minimum: -90
         maximum: 90
-    NumberOfVersions:
-      name: numberOfVersions
-      in: query
-      description: >-
-        The amount of Changesets to be retrieved, beginning at the last reader's pointer.
-      required: false
-      schema:
-        type: integer
-        default: 1
-    Operation:
-      name: operation
-      in: query
-      description: >-
-        The operation to be executed in the reader's pointer when retrieving Changesets.
-
-        It should be used in conjunction with the 'reader' parameter.
-
-        The possible values are:
-          - read: retrieves the changesets and updates the reader's pointer to the next version.
-          - peek: retrieves the changesets but keeps the current reader's pointer pointing to the current version.
-          - advance: moves the pointer to the next version and do not return any data.
-      required: false
-      schema:
-        type: string
-        enum:
-          - read
-          - peek
-          - advance
-        default: read
     PageToken:
       name: pageToken
       in: query
@@ -1709,14 +1827,12 @@ components:
         Radius in meters which defines the diameter of the search request.
       schema:
         type: integer
-    Reader:
-      name: reader
-      in: query
+    ReaderId:
+      name: readerId
+      in: path
       description: >-
-        The reader where the operation will be performed, multiple readers can be registered to the same space.
-
-        It should be used in conjunction with 'startVersion', 'endVersion' or 'numberOfVersions'.
-      required: false
+        The reader ID from the reader which holds the pointer to a changeset's version.
+      required: true
       schema:
         type: string
     RefFeatureId:
@@ -1935,6 +2051,14 @@ components:
       required: false
       schema:
         type: string
+    VersionPath:
+      name: version
+      in: path
+      description: >-
+        The version of a Changeset.
+      required: true
+      schema:
+        type: string
     VersionIterate:
       name: version
       in: query
@@ -2023,12 +2147,18 @@ components:
           - retry
           - createUploadUrl
   responses:
-    ChangesetResponse:
-      description: Changesets which are containing FeatureCollections grouped by operation.
+    ChangesetCollectionResponse:
+      description: A collection of Changesets which contains FeatureCollections grouped by operation.
       content:
         application/vnd.here.changeset-collection:
           schema:
             $ref: '#/components/schemas/ChangesetCollection'
+    ChangesetResponse:
+      description: One Changeset which contains FeatureCollections grouped by operation.
+      content:
+        application/vnd.here.changeset:
+          schema:
+            $ref: '#/components/schemas/Changeset'
     ConnectorResponse:
       description: The connector
       content:
@@ -2206,6 +2336,12 @@ components:
         application/geo+json:
           schema:
             $ref: '#/components/schemas/FeatureCollectionIterable'
+    ReaderResponse:
+      description: A reader response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Reader'
     SpaceResponse:
       description: The space.
       content:
@@ -2321,6 +2457,12 @@ components:
         application/geo+json:
           schema:
             $ref: '#/components/schemas/Geometry'
+    ReaderRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Reader'
     SpaceRequest:
       required: true
       content:
@@ -3246,9 +3388,9 @@ components:
     OnFeatureExists:
       type: string
       enum:
+        - merge
         - patch
         - replace
-        - merge
         - delete
         - retain
         - error
@@ -3296,6 +3438,26 @@ components:
                   maxItems: 3
                   minItems: 2
                 minItems: 4
+    Reader:
+      type: object
+      description: >-
+        A reader which points to a Changeset's version.
+      properties:
+        id:
+          type: string
+          description: >-
+            The connector ID, which should correspond to one of the existing connectors in Data Hub.
+        spaceVersion:
+          type: integer
+          format: int64
+          readOnly: true
+          description: >-
+            The space's HEAD version.
+        readerVersion:
+          type: integer
+          format: int64
+          description: >-
+            The current reader's version.
     RemoteFunctionConfig:
       type: object
       description: A connector declaration.
@@ -3513,6 +3675,14 @@ components:
             e.g. ?version=<version_number>
           example: 2
           type: integer
+        readers:
+          description: >-
+            A map containing the reader ids and the current versions of each reader.
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
+          readOnly: true
       example:
         title: My Demo Space
         description: Description as markdown
