@@ -20,10 +20,13 @@
 package com.here.xyz.hub.config;
 
 import com.here.xyz.hub.Service;
+import com.here.xyz.models.hub.Subscription;
+import com.here.xyz.psql.SQLQuery;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.Promise;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.sql.SQLClient;
 import io.vertx.ext.sql.SQLConnection;
@@ -128,5 +131,17 @@ public class JDBCConfig {
         step1.run();
       });
     });
+  }
+
+  protected static Future<Void> updateWithParams(SQLQuery query) {
+    Promise<Void> p = Promise.promise();
+    client.updateWithParams(query.text(), new JsonArray(query.parameters()), out -> {
+      if (out.succeeded()) {
+        p.complete();
+      } else {
+        p.fail(out.cause());
+      }
+    });
+    return p.future();
   }
 }

@@ -49,12 +49,12 @@ public class DynamoReaderConfigClient extends ReaderConfigClient {
   }
 
   @Override
-  public Future<Reader> deleteReader(Marker marker, String spaceId, String reader) {
+  protected Future<Reader> deleteReader(Marker marker, String id, String spaceId) {
     return null;
   }
 
   @Override
-  protected Future<Reader> deleteReaders(Marker marker, String spaceId) {
+  protected Future<List<Reader>> deleteReaders(Marker marker, String spaceId) {
     return null;
   }
 

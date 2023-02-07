@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -139,24 +139,12 @@ public class JDBCSubscriptionConfigClient extends SubscriptionConfigClient {
         "UPDATE SET id = ?, source = ?, config = cast(? as JSONB)",
         subscription.getId(), subscription.getSource(), Json.encode(subscription),
         subscription.getId(), subscription.getSource(), Json.encode(subscription));
-    return updateWithParams(subscription, query);
+    return JDBCConfig.updateWithParams(query);
   }
 
   @Override
   protected Future<Subscription> deleteSubscription(Marker marker, String subscriptionId) {
     final SQLQuery query = new SQLQuery("DELETE FROM " + SUBSCRIPTION_TABLE + " WHERE id = ?", subscriptionId);
-    return get(marker, subscriptionId).compose(subscription -> updateWithParams(subscription, query).map(subscription));
-  }
-
-  private Future<Void> updateWithParams(Subscription modifiedObject, SQLQuery query) {
-    Promise<Void> p = Promise.promise();
-    client.updateWithParams(query.text(), new JsonArray(query.parameters()), out -> {
-      if (out.succeeded()) {
-        p.complete();
-      } else {
-        p.fail(out.cause());
-      }
-    });
-    return p.future();
+    return get(marker, subscriptionId).compose(subscription -> JDBCConfig.updateWithParams(query).map(subscription));
   }
 }

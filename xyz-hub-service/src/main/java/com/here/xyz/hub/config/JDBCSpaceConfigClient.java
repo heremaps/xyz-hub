@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -68,18 +68,6 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
     JDBCConfig.init(onReady);
   }
 
-
-  private Future<Void> updateWithParams(Space modifiedObject, SQLQuery query) {
-    Promise<Void> p = Promise.promise();
-    client.updateWithParams(query.text(), new JsonArray(query.parameters()), out -> {
-      if (out.succeeded())
-        p.complete();
-      else
-        p.fail(out.cause());
-    });
-    return p.future();
-  }
-
   @Override
   public Future<Space> getSpace(Marker marker, String spaceId) {
     Promise<Space> p = Promise.promise();
@@ -115,7 +103,7 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
       query = new SQLQuery(
           "INSERT INTO " + SPACE_TABLE + " (id, owner, cid, config) VALUES (?, ?, ?, cast(? as JSONB)) ON CONFLICT (id) DO UPDATE SET owner = excluded.owner, cid = excluded.cid, config = excluded.config",
           space.getId(), space.getOwner(), space.getCid(), XyzSerializable.STATIC_MAPPER.get().writeValueAsString(itemData));
-      return updateWithParams(space, query).mapEmpty();
+      return JDBCConfig.updateWithParams(query).mapEmpty();
     }
     catch (JsonProcessingException e) {
       return Future.failedFuture(new EncodeException("Failed to encode as JSON: " + e.getMessage(), e));
@@ -125,7 +113,7 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
   @Override
   protected Future<Space> deleteSpace(Marker marker, String spaceId) {
     SQLQuery query = new SQLQuery("DELETE FROM " + SPACE_TABLE + " WHERE id = ?", spaceId);
-    return get(marker, spaceId).compose(space -> updateWithParams(space, query).map(space));
+    return get(marker, spaceId).compose(space -> JDBCConfig.updateWithParams(query).map(space));
   }
 
   @Override
