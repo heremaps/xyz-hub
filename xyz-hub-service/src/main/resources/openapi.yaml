@@ -3264,12 +3264,8 @@ components:
               minimum: 0
       example:
         type: ChangesetStatisticsResponse
-        dataSize:
-          value: 108364
-          estimated: true
-        maxVersion:
-          value: 112
-          estimated: true
+        minVersion: 0
+        maxVersion: 112
     HistoryStatisticsResponse:
       description: The response returned to when counting features in a history.
       properties:
