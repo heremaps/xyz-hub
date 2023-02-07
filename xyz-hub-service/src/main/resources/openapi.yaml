@@ -3446,7 +3446,11 @@ components:
         id:
           type: string
           description: >-
-            The connector ID, which should correspond to one of the existing connectors in Data Hub.
+            The reader ID.
+        spaceId:
+          type: string
+          description: >-
+            The space ID this reader is registered.
         spaceVersion:
           type: integer
           format: int64
