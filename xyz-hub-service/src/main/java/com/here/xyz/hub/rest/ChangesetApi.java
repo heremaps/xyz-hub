@@ -60,6 +60,7 @@ public class ChangesetApi extends SpaceBasedApi {
 
       Operation parsedOperation = Operation.safeValueOf(operation, Operation.READ);
       SpaceConnectorBasedHandler.execute(context,
+          space -> ChangesetAuthorization.authorize(context, space).map(space),
           new IterateChangesetsEvent()
               .withSpace(spaceId)
               .withReader(reader)
