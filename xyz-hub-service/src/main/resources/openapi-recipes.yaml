@@ -193,6 +193,15 @@ recipes:
         path: paths.'/spaces/{spaceId}/job/{jobId}/execute'
         replace: paths.'/hub/spaces/{spaceId}/job/{jobId}/execute'
       - type: key
+        path: paths.'/spaces/{spaceId}/readers/{readerId}'
+        replace: paths.'/hub/spaces/{spaceId}/readers/{readerId}'
+      - type: key
+        path: paths.'/spaces/{spaceId}/readers/{readerId}/version'
+        replace: paths.'/hub/spaces/{spaceId}/readers/{readerId}/version'
+      - type: key
+        path: components.requestBodies.ConnectorConfig.content.'application/json'.schema
+        replace: components.requestBodies.ConnectorConfig.content.'application/json'.x-schema
+      - type: key
         path: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/geo+json'.schema
         replace: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/geo+json'.x-schema
       - type: key
@@ -210,3 +219,12 @@ recipes:
       - type: key
         path: components.requestBodies.SpaceRequest.content.'application/json'.schema
         replace: components.requestBodies.SpaceRequest.content.'application/json'.x-schema
+      - type: key
+        path: components.requestBodies.ReaderRequest.content.'application/json'.schema
+        replace: components.requestBodies.ReaderRequest.content.'application/json'.x-schema
+      - type: key
+        path: components.requestBodies.SubscriptionRequest.content.'application/json'.schema
+        replace: components.requestBodies.SubscriptionRequest.content.'application/json'.x-schema
+      - type: key
+        path: components.requestBodies.JobRequest.content.'application/json'.schema
+        replace: components.requestBodies.JobRequest.content.'application/json'.x-schema
