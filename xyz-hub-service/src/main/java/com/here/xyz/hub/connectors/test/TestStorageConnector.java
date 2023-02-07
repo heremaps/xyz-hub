@@ -21,24 +21,7 @@ package com.here.xyz.hub.connectors.test;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.connectors.StorageConnector;
-import com.here.xyz.events.DeleteChangesetsEvent;
-import com.here.xyz.events.DeleteFeaturesByTagEvent;
-import com.here.xyz.events.Event;
-import com.here.xyz.events.GetFeaturesByBBoxEvent;
-import com.here.xyz.events.GetFeaturesByGeometryEvent;
-import com.here.xyz.events.GetFeaturesByIdEvent;
-import com.here.xyz.events.GetFeaturesByTileEvent;
-import com.here.xyz.events.GetHistoryStatisticsEvent;
-import com.here.xyz.events.GetStatisticsEvent;
-import com.here.xyz.events.GetStorageStatisticsEvent;
-import com.here.xyz.events.IterateChangesetsEvent;
-import com.here.xyz.events.IterateFeaturesEvent;
-import com.here.xyz.events.IterateHistoryEvent;
-import com.here.xyz.events.LoadFeaturesEvent;
-import com.here.xyz.events.ModifyFeaturesEvent;
-import com.here.xyz.events.ModifySpaceEvent;
-import com.here.xyz.events.ModifySubscriptionEvent;
-import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.events.*;
 import com.here.xyz.hub.Core;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -179,6 +162,11 @@ public class TestStorageConnector extends StorageConnector {
 
   @Override
   protected XyzResponse processIterateChangesetsEvent(IterateChangesetsEvent event) throws Exception {
+    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
+  }
+
+  @Override
+  protected XyzResponse processGetChangesetsStatisticsEvent(GetChangesetStatisticsEvent event) throws Exception {
     throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
   }
 

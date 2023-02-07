@@ -39,6 +39,7 @@ import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.OneTimeActionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.IterateHistoryEvent;
+import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
@@ -87,6 +88,9 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
     }
     if (event instanceof IterateChangesetsEvent) {
       return processIterateChangesetsEvent((IterateChangesetsEvent) event);
+    }
+    if (event instanceof GetChangesetStatisticsEvent) {
+      return processGetChangesetsStatisticsEvent((GetChangesetStatisticsEvent) event);
     }
     if (event instanceof SearchForFeaturesEvent) {
       return processSearchForFeaturesEvent((SearchForFeaturesEvent) event);
@@ -216,4 +220,6 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
   protected abstract XyzResponse processDeleteChangesetsEvent(DeleteChangesetsEvent event) throws Exception;
 
   protected abstract XyzResponse processIterateChangesetsEvent(IterateChangesetsEvent event) throws Exception;
+
+  protected abstract XyzResponse processGetChangesetsStatisticsEvent(GetChangesetStatisticsEvent event) throws Exception;
 }

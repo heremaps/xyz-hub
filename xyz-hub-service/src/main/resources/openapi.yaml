@@ -310,6 +310,23 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
         '513':
           $ref: '#/components/responses/ErrorResponse513'
+  '/spaces/{spaceId}/changesets/statistics':
+    get:
+      tags:
+        - Manage Changesets
+      summary: Get ChangesetStatistics
+      description: >-
+        Returns statistics about changesets.
+      operationId: getChangesetStatistics
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+      responses:
+        '200':
+          $ref: '#/components/responses/ChangesetStatisticsResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
   '/spaces/{spaceId}/readers/{readerId}':
     put:
       tags:
@@ -1051,7 +1068,7 @@ paths:
         - $ref: '#/components/parameters/SkipCache'
       responses:
         '200':
-          $ref: '#/components/responses/HistoryStatisticsResponseResponse'
+          $ref: '#/components/responses/HistoryStatisticsResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse400'
         '404':
@@ -2324,12 +2341,18 @@ components:
         application/vnd.here.compact-changeset:
           schema:
             $ref: '#/components/schemas/CompactChangeset'
-    HistoryStatisticsResponseResponse:
+    HistoryStatisticsResponse:
       description: Statistical information about a history.
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/HistoryStatisticsResponse'
+    ChangesetStatisticsResponse:
+      description: Statistical information about a Changesets.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ChangesetStatisticsResponse'
     IterateResponse:
       description: A FeatureCollection with handle response.
       content:
@@ -2817,27 +2840,27 @@ components:
           items:
             type: string
             enum: [
-                ModifySpaceEvent.request,
-                ModifySpaceEvent.response,
-                GetStatisticsEvent.request,
-                GetStatisticsEvent.response,
-                GetFeaturesByIdEvent.request,
-                GetFeaturesByIdEvent.response,
-                SearchForFeaturesEvent.request,
-                SearchForFeaturesEvent.response,
-                IterateFeaturesEvent.request,
-                IterateFeaturesEvent.response,
-                GetFeaturesByTileEvent.request,
-                GetFeaturesByTileEvent.response,
-                GetFeaturesByBBoxEvent.request,
-                GetFeaturesByBBoxEvent.response,
-                GetFeaturesByGeometryEvent.request,
-                GetFeaturesByGeometryEvent.response,
-                ModifyFeaturesEvent.request,
-                ModifyFeaturesEvent.response,
-                DeleteFeaturesByTagEvent.request,
-                DeleteFeaturesByTagEvent.response,
-                ContentModifiedNotification.request
+              ModifySpaceEvent.request,
+              ModifySpaceEvent.response,
+              GetStatisticsEvent.request,
+              GetStatisticsEvent.response,
+              GetFeaturesByIdEvent.request,
+              GetFeaturesByIdEvent.response,
+              SearchForFeaturesEvent.request,
+              SearchForFeaturesEvent.response,
+              IterateFeaturesEvent.request,
+              IterateFeaturesEvent.response,
+              GetFeaturesByTileEvent.request,
+              GetFeaturesByTileEvent.response,
+              GetFeaturesByBBoxEvent.request,
+              GetFeaturesByBBoxEvent.response,
+              GetFeaturesByGeometryEvent.request,
+              GetFeaturesByGeometryEvent.response,
+              ModifyFeaturesEvent.request,
+              ModifyFeaturesEvent.response,
+              DeleteFeaturesByTagEvent.request,
+              DeleteFeaturesByTagEvent.response,
+              ContentModifiedNotification.request
             ]
         contactEmails:
           description: >-
@@ -3214,6 +3237,39 @@ components:
               MultiPolygon: '#/components/schemas/MultiPolygon'
               Point: '#/components/schemas/Point'
               Polygon: '#/components/schemas/Polygon'
+    ChangesetStatisticsResponse:
+      description: Summarizes statistics about Changesets
+      properties:
+        type:
+          type: string
+        minVersion:
+          type: object
+          readOnly: true
+          properties:
+            value:
+              type: integer
+              description: >-
+                The min version which is available.
+              format: int64
+              minimum: 0
+        maxVersion:
+          type: object
+          readOnly: true
+          properties:
+            value:
+              type: integer
+              description: >-
+                The max version which is available.
+              format: int64
+              minimum: 0
+      example:
+        type: ChangesetStatisticsResponse
+        dataSize:
+          value: 108364
+          estimated: true
+        maxVersion:
+          value: 112
+          estimated: true
     HistoryStatisticsResponse:
       description: The response returned to when counting features in a history.
       properties:

@@ -23,7 +23,6 @@ import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
 
-import com.amazonaws.services.lambda.runtime.Context;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
@@ -33,6 +32,7 @@ import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.GetStatisticsEvent;
+import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.events.GetStorageStatisticsEvent;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.IterateChangesetsEvent;
@@ -51,6 +51,7 @@ import com.here.xyz.psql.query.GetFeaturesByBBoxClustered;
 import com.here.xyz.psql.query.GetFeaturesByBBoxTweaked;
 import com.here.xyz.psql.query.GetFeaturesByGeometry;
 import com.here.xyz.psql.query.GetFeaturesById;
+import com.here.xyz.psql.query.GetChangesetStatistics;
 import com.here.xyz.psql.query.GetStorageStatistics;
 import com.here.xyz.psql.query.IterateChangesets;
 import com.here.xyz.psql.query.IterateFeatures;
@@ -386,7 +387,19 @@ public class PSQLXyzConnector extends DatabaseHandler {
       return checkSQLException(e, config.readTableFromEvent(event));
     }
     finally {
-      logger.info("{} Finished GetFeaturesByIdEvent", traceItem);
+      logger.info("{} Finished IterateChangesetsEvent", traceItem);
+    }
+  }
+
+  @Override
+  protected XyzResponse processGetChangesetsStatisticsEvent(GetChangesetStatisticsEvent event) throws Exception {
+    try {
+      logger.info("{} Received GetChangesetsStatisticsEvent", traceItem);
+      return new GetChangesetStatistics(event,this).run();
+    }catch (SQLException e){
+      return checkSQLException(e, config.readTableFromEvent(event));
+    }finally {
+      logger.info("{} Finished GetChangesetsStatisticsEvent", traceItem);
     }
   }
 

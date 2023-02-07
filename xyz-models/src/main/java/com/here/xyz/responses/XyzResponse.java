@@ -43,6 +43,7 @@ import com.here.xyz.util.Hasher;
     @JsonSubTypes.Type(value = StatisticsResponse.class, name = "StatisticsResponse"),
     @JsonSubTypes.Type(value = StorageStatistics.class, name = "StorageStatistics"),
     @JsonSubTypes.Type(value = HistoryStatisticsResponse.class, name = "HistoryStatisticsResponse"),
+    @JsonSubTypes.Type(value = ChangesetsStatisticsResponse.class, name = "ChangesetsStatisticsResponse"),
     @JsonSubTypes.Type(value = SuccessResponse.class, name = "SuccessResponse"),
     @JsonSubTypes.Type(value = NotModifiedResponse.class, name = "NotModifiedResponse"),
     @JsonSubTypes.Type(value = FeatureCollection.class, name = "FeatureCollection"),
