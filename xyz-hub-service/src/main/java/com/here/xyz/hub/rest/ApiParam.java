@@ -181,6 +181,7 @@ public class ApiParam {
 
     static final String OPERATION = "operation";
     static final String READER = "reader";
+    static final String READER_ID = "readerId";
     static final String NUMBER_OF_VERSIONS = "numberOfVersions";
 
     private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{
