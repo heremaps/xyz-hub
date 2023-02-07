@@ -389,7 +389,7 @@ paths:
       summary: Increase reader's version
       description: >-
         Increases the reader version only when the version being submitted is bigger than the current version, ignoring otherwise.
-      operationId: increaseVersion
+      operationId: increaseReaderVersion
       parameters:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/ReaderId'
