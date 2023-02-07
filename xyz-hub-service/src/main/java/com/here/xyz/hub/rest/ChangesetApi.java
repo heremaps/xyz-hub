@@ -19,61 +19,68 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.events.PropertyQuery.QueryOperation.LESS_THAN;
-
 import com.here.xyz.events.DeleteChangesetsEvent;
+import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.events.IterateChangesetsEvent;
-import com.here.xyz.events.IterateChangesetsEvent.Operation;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.ChangesetAuthorization;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.SpaceConnectorBasedHandler;
+import com.here.xyz.responses.changesets.Changeset;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
 import org.apache.logging.log4j.Marker;
 
+import static com.here.xyz.events.PropertyQuery.QueryOperation.LESS_THAN;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+
 public class ChangesetApi extends SpaceBasedApi {
 
   public ChangesetApi(RouterBuilder rb) {
     rb.operation("getChangesets").handler(this::getChangesets);
+    rb.operation("getChangeset").handler(this::getChangeset);
     rb.operation("deleteChangesets").handler(this::deleteChangesets);
+    rb.operation("getChangesetStatistics").handler(this::getChangesetStatistics);
+  }
+
+  /**
+   * Get changesets by version
+   */
+  private void getChangeset(final RoutingContext context) {
+    try {
+      IterateChangesetsEvent event = buildIterateChangesetsEvent(context, false);
+
+      SpaceConnectorBasedHandler.execute(context,
+                      space -> ChangesetAuthorization.authorize(context, space).map(space),
+                      event)
+              .onSuccess(result ->
+                {
+                    if(result instanceof Changeset && ((Changeset) result).getVersion() == -1){
+                      sendErrorResponse(context, new HttpException(NOT_FOUND, "The requested resource does not exist."));
+                    }
+                    this.sendResponse(context, HttpResponseStatus.OK, result);
+                })
+              .onFailure(t -> this.sendErrorResponse(context, t));
+
+    } catch(HttpException e) {
+      sendErrorResponse(context, e);
+    }
   }
 
   /**
    * Get changesets by version
    */
   private void getChangesets(final RoutingContext context) {
-    final String spaceId = context.pathParam(Path.SPACE_ID);
-    final String reader = Query.getString(context, Query.READER, null);
-    final String operation = Query.getString(context, Query.OPERATION, null);
-    final Long startVersion = Query.getLong(context, Query.START_VERSION, null);
-    final Long endVersion = Query.getLong(context, Query.END_VERSION, null);
-    final Long numberOfVersions = Query.getLong(context, Query.NUMBER_OF_VERSIONS, null);
-    final String pageToken = Query.getString(context, Query.PAGE_TOKEN, null);
-    final long limit = Query.getLong(context, Query.LIMIT, 10_000L);
-
     try {
-      validateGetChangesetsQueryParams(reader, operation, startVersion, endVersion, numberOfVersions);
+      IterateChangesetsEvent event = buildIterateChangesetsEvent(context, true);
 
-      Operation parsedOperation = Operation.safeValueOf(operation, Operation.READ);
       SpaceConnectorBasedHandler.execute(context,
-          space -> ChangesetAuthorization.authorize(context, space).map(space),
-          new IterateChangesetsEvent()
-              .withSpace(spaceId)
-              .withReader(reader)
-              .withOperation(parsedOperation)
-              .withStartVersion(startVersion)
-              .withEndVersion(endVersion)
-              .withNumberOfVersions(numberOfVersions)
-              .withPageToken(pageToken)
-              .withLimit(limit))
+                      space -> ChangesetAuthorization.authorize(context, space).map(space),
+                      event)
           .onSuccess(result -> {
-            if (parsedOperation == Operation.ADVANCE)
-              this.sendResponse(context, HttpResponseStatus.NO_CONTENT, null);
-            else
               this.sendResponse(context, HttpResponseStatus.OK, result);
           })
           .onFailure(t -> this.sendErrorResponse(context, t));
@@ -83,15 +90,44 @@ public class ChangesetApi extends SpaceBasedApi {
     }
   }
 
-  private void validateGetChangesetsQueryParams(String reader, String operation, Long startVersion, Long endVersion, Long numberOfVersions)
-    throws HttpException {
-    if (reader != null) {
-      if (operation != null && Operation.safeValueOf(operation) == null)
-        throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Invalid value for operation parameter. Possible values are: read, peek or advance.");
-      if (numberOfVersions != null && (startVersion != null || endVersion != null))
-        throw new HttpException(HttpResponseStatus.BAD_REQUEST, "The parameter numberOfVersions cannot be used together with startVersion and endVersion.");
-      if ((startVersion != null && endVersion == null) || (startVersion == null && endVersion != null))
-        throw new HttpException(HttpResponseStatus.BAD_REQUEST, "The parameters startVersion and endVersion should be used together.");
+  private IterateChangesetsEvent buildIterateChangesetsEvent(final RoutingContext context, final boolean useChangesetCollection) throws HttpException {
+    final String spaceId = context.pathParam(Path.SPACE_ID);
+    final String pageToken = Query.getString(context, Query.PAGE_TOKEN, null);
+    final long limit = Query.getLong(context, Query.LIMIT, 10_000L);
+
+    final Long startVersion, endVersion;
+
+    if(useChangesetCollection){
+      startVersion = Query.getLong(context, Query.START_VERSION, null);
+      endVersion = Query.getLong(context, Query.END_VERSION, null);
+    }else{
+      final String version = context.pathParam(Path.VERSION);
+      startVersion = Long.parseLong(version);
+      endVersion = null;
+    }
+
+    validateGetChangesetsQueryParams(startVersion, endVersion, useChangesetCollection);
+
+    return new IterateChangesetsEvent()
+            .withSpace(spaceId)
+            .withStartVersion(startVersion)
+            .withEndVersion(endVersion)
+            .withPageToken(pageToken)
+            .withLimit(limit);
+  }
+
+  private void validateGetChangesetsQueryParams(Long startVersion, Long endVersion, boolean useChangesetCollection)
+          throws HttpException {
+    if(useChangesetCollection){
+      if(startVersion == null || endVersion == null)
+        throw new HttpException(HttpResponseStatus.BAD_REQUEST, "The parameters startVersion and endVersion are required.");
+      if(startVersion < 0 || endVersion < 0)
+        throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Invalid version specified.");
+      if(startVersion > endVersion)
+        throw new HttpException(HttpResponseStatus.BAD_REQUEST, "The parameter startVersion needs to be smaller as endVersion.");
+    }else{
+      if(startVersion == null)
+        throw new HttpException(HttpResponseStatus.BAD_REQUEST, "The parameters version is required.");
     }
   }
 
@@ -135,5 +171,17 @@ public class ChangesetApi extends SpaceBasedApi {
     catch (NumberFormatException e) {
       this.sendErrorResponse(context, new HttpException(HttpResponseStatus.BAD_REQUEST, "Query parameter version must be a valid number larger than 0"));
     }
+  }
+
+  private void getChangesetStatistics(final RoutingContext context) {
+    final String spaceId = context.pathParam(Path.SPACE_ID);
+    SpaceConnectorBasedHandler.execute(context,
+                    space -> ChangesetAuthorization.authorize(context, space).map(space),
+                    new GetChangesetStatisticsEvent()
+                            .withSpace(spaceId))
+            .onSuccess(result -> {
+                this.sendResponse(context, HttpResponseStatus.OK, result);
+            })
+            .onFailure(t -> this.sendErrorResponse(context, t));
   }
 }

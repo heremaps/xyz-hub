@@ -109,6 +109,7 @@ public class ApiParam {
     public static final String TILE_ID = "tileId";
     public static final String TILE_TYPE = "type";
     public static final String SUBSCRIPTION_ID = "subscriptionId";
+    public static final String VERSION = "version";
   }
 
   public static class Query {
@@ -247,7 +248,7 @@ public class ApiParam {
      * @param alt The alternative value for the optional query parameter
      * @return The parsed long value
      */
-    static long getLong(RoutingContext context, String param, Long alt) {
+    static Long getLong(RoutingContext context, String param, Long alt) {
       try {
         return Long.parseLong(getString(context, param, null));
       }

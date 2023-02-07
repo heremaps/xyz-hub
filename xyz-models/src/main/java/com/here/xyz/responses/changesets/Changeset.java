@@ -37,6 +37,7 @@ public class Changeset extends XyzResponse<Changeset> {
     private FeatureCollection inserted;
     private FeatureCollection updated;
     private FeatureCollection deleted;
+    private String nextPageToken;
 
     public long getVersion() {
         return version;
@@ -113,6 +114,21 @@ public class Changeset extends XyzResponse<Changeset> {
 
     public Changeset withDeleted(final FeatureCollection deleted) {
         setDeleted(deleted);
+        return this;
+    }
+
+    @SuppressWarnings("unused")
+    public String getNextPageToken() {
+        return nextPageToken;
+    }
+
+    @SuppressWarnings("WeakerAccess")
+    public void setNextPageToken(String nextPageToken) {
+        this.nextPageToken = nextPageToken;
+    }
+
+    public Changeset withNextPageToken(final String nextPageToken) {
+        setNextPageToken(nextPageToken);
         return this;
     }
 }

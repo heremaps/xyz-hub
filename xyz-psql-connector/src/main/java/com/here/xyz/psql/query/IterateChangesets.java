@@ -22,11 +22,12 @@ package com.here.xyz.psql.query;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.events.*;
+import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;
 
@@ -37,16 +38,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class IterateChangesets extends SearchForFeatures<IterateChangesetsEvent, ChangesetCollection> {
+public class IterateChangesets extends SearchForFeatures<IterateChangesetsEvent, XyzResponse> {
 
   private String pageToken;
   private long limit;
-  private long start;
-  private long end;
-
-  private boolean isCompact;
-
-  private IterateFeaturesEvent tmpEvent; //TODO: Remove after refactoring
+  private Long start;
+  private Long end;
 
   public IterateChangesets(IterateChangesetsEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(event, dbHandler);
@@ -55,16 +52,111 @@ public class IterateChangesets extends SearchForFeatures<IterateChangesetsEvent,
     pageToken = event.getPageToken();
     start = event.getStartVersion();
     end = event.getEndVersion();
-    isCompact = event.isCompact();
   }
 
   @Override
   protected SQLQuery buildQuery(IterateChangesetsEvent event) throws SQLException, ErrorResponseException {
-    return build(event);
+    return buildIterateChangesets(event);
   }
 
   @Override
-  public ChangesetCollection handle(ResultSet rs) throws SQLException {
+  public XyzResponse handle(ResultSet rs) throws SQLException {
+    if(end == null)
+      return handleChangeset(rs);
+    return handleChangesetCollection(rs);
+  }
+
+  public SQLQuery buildIterateChangesets(IterateChangesetsEvent event){
+    SQLQuery query =new SQLQuery(
+        "SELECT " +
+                " version||'_'||id as vid,"+
+                " id,"+
+                " version,"+
+                " author,"+
+                " operation,"+
+                " (jsondata#-'{properties,@ns:com:here:xyz,version}') || jsonb_strip_nulls(jsonb_build_object('geometry',ST_AsGeoJSON(geo)::jsonb)) As feature "+
+                "   from  ${schema}.${table} "+
+                " WHERE 1=1"+
+                "      ${{page}}"+
+                "      ${{start_version}}"+
+                "      ${{end_version}}"+
+                " order by version ASC,id "+
+                " ${{limit}}");
+
+    query.setVariable(SCHEMA, getSchema());
+    query.setVariable(TABLE, getDefaultTable(event));
+    query.setNamedParameter("start",event.getStartVersion());
+    query.setNamedParameter("end",event.getEndVersion());
+    query.setQueryFragment("page", event.getPageToken() != null ?
+            new SQLQuery("AND version||'_'||id > #{page_token} ")
+                    .withNamedParameter("page_token", event.getPageToken()) : new SQLQuery(""));
+    query.setQueryFragment("start_version", event.getStartVersion() != null ?
+            new SQLQuery("AND version >= #{start}")
+                    .withNamedParameter("start", event.getStartVersion()) : new SQLQuery(""));
+    query.setQueryFragment("end_version", event.getEndVersion() != null ?
+            new SQLQuery("AND version <= #{end}")
+                    .withNamedParameter("end", event.getEndVersion()) : new SQLQuery(""));
+    query.setQueryFragment("limit", event.getLimit() != 0 ? buildLimitFragment(event.getLimit()) : new SQLQuery(""));
+
+    return query;
+  }
+
+  public Changeset handleChangeset(ResultSet rs) throws SQLException {
+    String author = null;
+    long createdAt = 0;
+    long numFeatures = 0;
+    Changeset cc = new Changeset();
+
+    List<Feature> inserts = new ArrayList<>();
+    List<Feature> updates = new ArrayList<>();
+    List<Feature> deletes = new ArrayList<>();
+
+    while (rs.next()) {
+      Feature feature;
+      String operation = rs.getString("Operation");
+      if(author == null)
+        author = rs.getString("author");
+
+      try {
+        feature =  new ObjectMapper().readValue(rs.getString("Feature"), Feature.class);
+        if(createdAt == 0)
+          createdAt = feature.getProperties().getXyzNamespace().getUpdatedAt();
+      }catch (JsonProcessingException e){
+        throw new SQLException("Cant read json from database!");
+      }
+
+      switch (operation){
+        case "I":
+        case "H":
+          inserts.add(feature);
+          break;
+        case "U":
+        case "J":
+          updates.add(feature);
+          break;
+        case "D":
+          deletes.add(feature);
+          break;
+      }
+      pageToken = rs.getString("vid");
+      numFeatures++;
+    }
+
+    cc.setVersion(numFeatures > 0 ? start : -1l);
+    cc.setCreatedAt(createdAt);
+    cc.setAuthor(author);
+    cc.setInserted(new FeatureCollection().withFeatures(inserts));
+    cc.setUpdated(new FeatureCollection().withFeatures(updates));
+    cc.setDeleted(new FeatureCollection().withFeatures(deletes));
+
+    if (numFeatures > 0 && numFeatures == limit) {
+      cc.setNextPageToken(pageToken);
+    }
+
+    return cc;
+  }
+
+  public ChangesetCollection handleChangesetCollection(ResultSet rs) throws SQLException {
     long numFeatures = 0;
 
     ChangesetCollection ccol = new ChangesetCollection();
@@ -105,9 +197,11 @@ public class IterateChangesets extends SearchForFeatures<IterateChangesetsEvent,
 
       switch (operation){
         case "I":
+        case "H":
           inserts.add(feature);
           break;
         case "U":
+        case "J":
           updates.add(feature);
           break;
         case "D":
@@ -134,42 +228,6 @@ public class IterateChangesets extends SearchForFeatures<IterateChangesetsEvent,
     if (numFeatures > 0 && numFeatures == limit) {
       ccol.setNextPageToken(pageToken);
     }
-
     return ccol;
-  }
-
-  public SQLQuery build(IterateChangesetsEvent event){
-    SQLQuery query =new SQLQuery(
-        "SELECT " +
-                " version||'_'||id as vid,"+
-                " id,"+
-                " version,"+
-                " next_version,"+
-                " operation,"+
-                " jsondata || jsonb_strip_nulls(jsonb_build_object('geometry',ST_AsGeoJSON(geo)::jsonb)) As feature "+
-                "   from  ${schema}.${table} "+
-                " WHERE 1=1"+
-                "      ${{page}}"+
-                "      ${{start_version}}"+
-                "      ${{end_version}}"+
-                " order by version ASC,id "+
-                " ${{limit}}");
-
-    query.setVariable(SCHEMA, getSchema());
-    query.setVariable(TABLE, getDefaultTable(event));
-    query.setNamedParameter("start",event.getStartVersion());
-    query.setNamedParameter("end",event.getEndVersion());
-    query.setQueryFragment("page", event.getPageToken() != null ?
-            new SQLQuery("AND version||'_'||id > #{page_token} ")
-                    .withNamedParameter("page_token", event.getPageToken()) : new SQLQuery(""));
-    query.setQueryFragment("start_version", event.getStartVersion() != null ?
-            new SQLQuery("AND version >= #{start}")
-                    .withNamedParameter("start", event.getStartVersion()) : new SQLQuery(""));
-    query.setQueryFragment("end_version", event.getEndVersion() != null ?
-            new SQLQuery("AND version <= #{end}")
-                    .withNamedParameter("end", event.getEndVersion()) : new SQLQuery(""));
-    query.setQueryFragment("limit", event.getLimit() != 0 ? buildLimitFragment(event.getLimit()) : new SQLQuery(""));
-
-    return query;
   }
 }

@@ -27,20 +27,5 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 @JsonTypeName(value = "CompactChangeset")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class CompactChangeset extends Changeset {
-    private String nextPageToken;
-
-    @SuppressWarnings("unused")
-    public String getNextPageToken() {
-        return nextPageToken;
-    }
-
-    @SuppressWarnings("WeakerAccess")
-    public void setNextPageToken(String nextPageToken) {
-        this.nextPageToken = nextPageToken;
-    }
-
-    public CompactChangeset withNextPageToken(final String nextPageToken) {
-        setNextPageToken(nextPageToken);
-        return this;
-    }
+    //gets removed with history endpoint after migration is done
 }
