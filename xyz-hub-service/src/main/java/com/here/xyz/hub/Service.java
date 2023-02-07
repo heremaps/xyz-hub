@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -550,6 +550,11 @@ public class Service extends Core {
      * The ARN of the subscriptions table in DynamoDB.
      */
     public String SUBSCRIPTIONS_DYNAMODB_TABLE_ARN;
+
+    /**
+     * The ARN of the subscriptions table in DynamoDB.
+     */
+    public String READERS_DYNAMODB_TABLE_ARN;
 
     /**
      * The ARN of the admin message topic.

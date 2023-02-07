@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@ public class JDBCConfig {
   static final String CONNECTOR_TABLE = SCHEMA + ".xyz_storage";
   static final String SPACE_TABLE = SCHEMA + ".xyz_space";
   static final String SUBSCRIPTION_TABLE = SCHEMA + ".xyz_subscription";
+  static final String READER_TABLE = SCHEMA + ".xyz_readers";
   private static SQLClient client;
   private static boolean initialized = false;
 
@@ -93,7 +94,8 @@ public class JDBCConfig {
             "CREATE SCHEMA " + SCHEMA,
             "CREATE table  " + CONNECTOR_TABLE + " (id VARCHAR(50) primary key, owner VARCHAR (50), config JSONB)",
             "CREATE table  " + SPACE_TABLE + " (id VARCHAR(255) primary key, owner VARCHAR (50), cid VARCHAR (255), config JSONB)",
-            "CREATE table  " + SUBSCRIPTION_TABLE + " (id VARCHAR(255) primary key, source VARCHAR (255), config JSONB)"
+            "CREATE table  " + SUBSCRIPTION_TABLE + " (id VARCHAR(255) primary key, source VARCHAR (255), config JSONB)",
+            "CREATE table  " + READER_TABLE + " (id VARCHAR(255), space VARCHAR (255), version BIGINT, PRIMARY KEY(id, space))"
         );
 
         Promise<Void> onComplete = Promise.promise();
