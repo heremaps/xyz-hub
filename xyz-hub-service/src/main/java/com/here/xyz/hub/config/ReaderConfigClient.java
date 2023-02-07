@@ -41,7 +41,7 @@ public abstract class ReaderConfigClient implements Initializable{
 
   protected abstract Future<List<Reader>> getReaders(Marker marker, List<String> spaceIds);
 
-  protected abstract Future<Void> storeReader(Marker marker, Reader reader);
+  public abstract Future<Void> storeReader(Marker marker, Reader reader);
 
   protected abstract Future<Reader> deleteReader(Marker marker, String spaceId, String reader);
 

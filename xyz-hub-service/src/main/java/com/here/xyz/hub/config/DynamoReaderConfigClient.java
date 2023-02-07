@@ -44,7 +44,7 @@ public class DynamoReaderConfigClient extends ReaderConfigClient {
   }
 
   @Override
-  protected Future<Void> storeReader(Marker marker, Reader reader) {
+  public Future<Void> storeReader(Marker marker, Reader reader) {
     return null;
   }
 
