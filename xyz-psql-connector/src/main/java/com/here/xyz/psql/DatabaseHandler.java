@@ -163,6 +163,17 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private boolean retryAttempted;
 
+    private static DatabaseHandler instance;
+
+    protected DatabaseHandler() {
+        super();
+        instance = this;
+    }
+
+    protected static DatabaseHandler getInstance() {
+        return instance;
+    }
+
     @Override
     protected XyzResponse processOneTimeActionEvent(OneTimeActionEvent event) throws Exception {
         try {

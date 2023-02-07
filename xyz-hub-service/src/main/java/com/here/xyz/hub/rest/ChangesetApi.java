@@ -26,6 +26,7 @@ import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.events.IterateChangesetsEvent.Operation;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.auth.ChangesetAuthorization;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.SpaceConnectorBasedHandler;
@@ -116,6 +117,7 @@ public class ChangesetApi extends SpaceBasedApi {
         throw new NumberFormatException();
 
       SpaceConnectorBasedHandler.execute(context,
+              space -> ChangesetAuthorization.authorize(context, space).map(space),
               new DeleteChangesetsEvent()
                   .withSpace(spaceId)
                   .withMinVersion(minVersion))

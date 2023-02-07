@@ -366,8 +366,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processDeleteChangesetsEvent(DeleteChangesetsEvent event) throws Exception {
     try {
       logger.info("{} Received " + event.getClass().getSimpleName(), traceItem);
-      new DeleteChangesets(event, this).write();
-      return new SuccessResponse().withStatus("OK");
+      return new DeleteChangesets(event, this).run();
     }
     catch (SQLException e) {
       return checkSQLException(e, config.readTableFromEvent(event));

@@ -110,7 +110,7 @@ DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 156
+ select 157
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -3059,13 +3059,14 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_write_versioned_modification_operation(id TEXT, version BIGINT, operation CHAR, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN, partitionSize BIGINT)
+CREATE OR REPLACE FUNCTION xyz_write_versioned_modification_operation(id TEXT, version BIGINT, operation CHAR, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN, partitionSize BIGINT, versionsToKeep INT, pw TEXT)
     RETURNS INTEGER AS
 $BODY$
     DECLARE
         base_version BIGINT := (jsondata->'properties'->'@ns:com:here:xyz'->>'version')::BIGINT;
         author TEXT := (jsondata->'properties'->'@ns:com:here:xyz'->>'author')::TEXT;
         updated_rows INTEGER;
+        minVersion BIGINT;
     BEGIN
         jsondata := jsondata #- '{properties,@ns:com:here:xyz,version}';
         EXECUTE
@@ -3110,6 +3111,14 @@ $BODY$
             EXECUTE
                 format('UPDATE %I.%I SET next_version = %L WHERE id = %L AND next_version = %L AND version < %L',
                        schema, tableName, version, id, max_bigint(), version);
+        END IF;
+
+        -- Delete old changesets from the history to keep only as many versions as specified through "versionsToKeep" if necessary
+        IF version % 10 = 1 THEN -- Perform the check only on every 10th transaction
+            minVersion := version - versionsToKeep + 1;
+            IF minVersion > 0 THEN
+                PERFORM asyncify('SELECT xyz_delete_changesets(''' || schema || ''', ''' || tableName || ''', ' ||  partitionSize || ', ' || minVersion || ')', pw);
+            END IF;
         END IF;
 
         RETURN 1;
@@ -3185,6 +3194,29 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_delete_changesets(schema TEXT, tableName TEXT, partitionSize BIGINT, minVersion BIGINT) RETURNS VOID AS
+$BODY$
+DECLARE
+    minRangeMin BIGINT;
+BEGIN
+    -- Get range-min value of the oldest history partition
+    minRangeMin := (WITH partition_ranges as (
+        SELECT substring(pg_get_expr(relpartbound, oid, true), 19) as range_expression
+            FROM pg_class WHERE relname LIKE tableName || '_p%' AND relkind = 'r'
+    ) SELECT min(substring(range_expression, 0, position('''' IN range_expression))::BIGINT) FROM partition_ranges);
+
+    -- Drop according partitions
+    FOR partitionNo in (minRangeMin / partitionSize)..((minVersion + 1) / partitionSize - 1) loop
+        EXECUTE 'DROP TABLE IF EXISTS "' || schema || '"."' || tableName || '_p' || partitionNo || '"';
+    END LOOP;
+
+    -- Purge the remainder in the new oldest partition
+    EXECUTE 'DELETE FROM "' || schema || '"."' || tableName || '" WHERE next_version <= ' || minVersion;
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_get_head_table(schema TEXT, tableName TEXT) RETURNS TEXT AS
 $BODY$
 BEGIN
@@ -3219,6 +3251,17 @@ BEGIN
     EXECUTE
         format('SELECT EXISTS (SELECT FROM pg_tables WHERE schemaname = %L AND tablename = %L) AS tableExists', schema, tableName) INTO existsResult;
     RETURN existsResult.tableExists;
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION asyncify(query TEXT, password TEXT) RETURNS VOID AS
+$BODY$
+BEGIN
+    PERFORM CASE WHEN ARRAY['conn'] <@ dblink_get_connections() THEN dblink_disconnect('conn') END;
+    PERFORM dblink_connect('conn', 'host = localhost dbname = ' || current_database() || ' user = ' || CURRENT_USER || ' password = ' || password);
+    PERFORM dblink_send_query('conn', query || '; COMMIT; SELECT pg_terminate_backend(pg_backend_pid())');
 END
 $BODY$
 LANGUAGE plpgsql VOLATILE;
