@@ -181,6 +181,9 @@ recipes:
         path: paths.'/spaces/{spaceId}/changesets'
         replace: paths.'/hub/spaces/{spaceId}/changesets'
       - type: key
+        path: paths.'/spaces/{spaceId}/changesets/{version}'
+        replace: paths.'/hub/spaces/{spaceId}/changesets/{version}'
+      - type: key
         path: paths.'/spaces/{spaceId}/jobs'
         replace: paths.'/hub/spaces/{spaceId}/jobs'
       - type: key
