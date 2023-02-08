@@ -133,7 +133,9 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
       if (hasHandle)
         query.setQueryFragment("filterWhereClause", "i > #{startOffset}");
 
-      query.setQueryFragment("orderBy", "ORDER BY i");
+      // Fixed missing ORDER BY clause (by using query params provided in REST API call)
+      //query.setQueryFragment("orderBy", "ORDER BY i");
+      query.setQueryFragment("orderBy", buildOrderByClause(event));
     }
 
     if (hasHandle)
