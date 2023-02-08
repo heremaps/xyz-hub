@@ -34,9 +34,14 @@ recipes:
   - name: stable
     extends: base,no-e-ne-cr-params,no-extension
     exclude:
+      - tags.name=Manage Changesets
+      - tags.name=Manage Readers
       - tags.name=Manage Connectors
       - tags.name=Manage Subscriptions
       - tags.name=Manage Jobs
+      - paths.'/spaces/{spaceId}/readers'
+      - paths.'/spaces/{spaceId}/readers/{readerId}'
+      - paths.'/spaces/{spaceId}/readers/{readerId}/version'
       - paths.'/spaces'.get.parameters.name=includeConnectors
       - paths.'/spaces'.get.parameters.name=contentUpdatedAt
       - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*Transactional$
@@ -59,6 +64,9 @@ recipes:
       - paths.'/spaces/{spaceId}/job/{jobId}/execute'
       - paths.'/connectors'
       - paths.'/connectors/{connectorId}'
+      - paths.'/spaces/{spaceId}/changesets'
+      - paths.'/spaces/{spaceId}/changesets/{version}'
+      - paths.'/spaces/{spaceId}/changesets/statistics'
       - components.parameters.ConnectorId
       - components.parameters.PageToken
       - components.parameters.Version
@@ -69,6 +77,8 @@ recipes:
       - components.parameters.PrefixId
       - components.parameters.Transactional
       - components.parameters.SubscriptionId
+      - components.parameters.ReaderId
+      - components.parameters.VersionPath
       - components.responses.ConnectorResponse
       - components.responses.ConnectorsResponse
       - components.responses.CountFeaturesResponse
@@ -77,6 +87,7 @@ recipes:
       - components.responses.SubscriptionsResponse
       - components.responses.JobResponse
       - components.responses.JobsResponse
+      - components.responses.ChangesetStatisticsResponse
       - components.requestBodies.ConnectorConfig
       - components.requestBodies.SubscriptionRequest
       - components.schemas.AWSLambda
@@ -104,6 +115,8 @@ recipes:
       - components.schemas.Changeset
       - components.schemas.ChangesetCollection
       - components.schemas.CompactChangeset
+      - components.schemas.ChangesetStatisticsResponse
+      - components.schemas.Reader
       - components.schemas.Connector
       - components.schemas.Subscription
       - components.schemas.SubscriptionConfig
