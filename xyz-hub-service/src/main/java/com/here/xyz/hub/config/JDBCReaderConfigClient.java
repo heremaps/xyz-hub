@@ -89,7 +89,7 @@ public class JDBCReaderConfigClient extends ReaderConfigClient{
   }
 
   @Override
-  protected Future<Reader> deleteReader(Marker marker, String spaceId, String reader) {
+  public Future<Reader> deleteReader(Marker marker, String spaceId, String reader) {
     return null;
   }
 

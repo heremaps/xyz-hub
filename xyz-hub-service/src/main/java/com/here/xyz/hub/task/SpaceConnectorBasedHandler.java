@@ -41,9 +41,7 @@ public class SpaceConnectorBasedHandler {
 
   private static final Logger logger = LogManager.getLogger();
 
-  public static <T extends Event<T>> Future<XyzResponse<?>> execute(RoutingContext context, Function<Space, Future<Space>>authorizationFunction, Event<T> e) {
-    final Marker marker = Api.Context.getMarker(context);
-
+  public static <T extends Event<T>, R extends XyzResponse<R>> Future<R> execute(Marker marker, Function<Space, Future<Space>> authorizationFunction, Event<T> e) {
     return SpaceConfigClient.getInstance().get(marker, e.getSpace())
       .flatMap(space -> space == null
           ? Future.failedFuture(new HttpException(BAD_REQUEST, "The resource ID '" + e.getSpace() + "' does not exist!"))
@@ -55,12 +53,12 @@ public class SpaceConnectorBasedHandler {
           ? Future.failedFuture(t)
           : Future.failedFuture(new HttpException(BAD_REQUEST, "Connector is not available", t)))
       .flatMap(rpcClient -> {
-        final Promise<XyzResponse<?>> promise = Promise.promise();
+        final Promise<R> promise = Promise.promise();
         rpcClient.execute(marker, e, handler -> {
           if (handler.failed())
             promise.fail(new HttpException(BAD_REQUEST, "Error calling the connector"));
           else
-            promise.complete(handler.result());
+            promise.complete((R) handler.result());
         });
         return promise.future();
       });

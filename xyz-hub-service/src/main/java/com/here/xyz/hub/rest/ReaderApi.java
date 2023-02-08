@@ -25,6 +25,7 @@ import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.models.hub.Reader;
+import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
@@ -46,38 +47,65 @@ public class ReaderApi extends SpaceBasedApi {
     final String readerId = Query.getString(context, Query.READER_ID, null);
 
     registerReader(Api.Context.getMarker(context), spaceId, readerId)
-        .onSuccess(result ->this.sendResponse(context, HttpResponseStatus.OK, result))
-        .onFailure(t -> this.sendErrorResponse(context, t instanceof HttpException
-            ? t
-            : new HttpException(HttpResponseStatus.BAD_REQUEST, t.getMessage())));
+        .onSuccess(result -> sendResponse(context, HttpResponseStatus.OK, result))
+        .onFailure(t -> sendHttpErrorResponse(context, t));
   }
 
   private void deleteReader(RoutingContext context) {
     final String spaceId = context.pathParam(Path.SPACE_ID);
-    final String reader = Query.getString(context, Query.READER_ID, null);
+    final String readerId = Query.getString(context, Query.READER_ID, null);
+
+    deregisterReader(Api.Context.getMarker(context), spaceId, readerId)
+        .flatMap(result -> result == null
+            ? Future.succeededFuture()
+            : Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Reader not found")))
+        .onSuccess(none -> sendResponse(context, HttpResponseStatus.NO_CONTENT, null))
+        .onFailure(t -> sendHttpErrorResponse(context, t));
   }
 
   private void getReaderVersion(RoutingContext context) {
     final String spaceId = context.pathParam(Path.SPACE_ID);
-    final String reader = Query.getString(context, Query.READER_ID, null);
+    final String readerId = Query.getString(context, Query.READER_ID, null);
   }
 
   private void increaseReaderVersion(RoutingContext context) {
     final String spaceId = context.pathParam(Path.SPACE_ID);
-    final String reader = Query.getString(context, Query.READER_ID, null);
+    final String readerId = Query.getString(context, Query.READER_ID, null);
   }
 
+  // TODO auth
   public static Future<Reader> registerReader(Marker marker, String spaceId, String readerId) {
     if (spaceId == null || readerId == null)
-      return Future.failedFuture("Invalid parameters");
+      return Future.failedFuture("Invalid spaceId or readerId parameters");
 
     final Future<Space> spaceFuture = SpaceConfigClient.getInstance().get(marker, spaceId)
         .flatMap(s -> s == null ? Future.failedFuture("Resource with id " + spaceId + " not found.") : Future.succeededFuture(s));
-    final Future<Long> versionFuture = Future.succeededFuture(1L); // TODO maxversion
+    final Future<ChangesetsStatisticsResponse> changesetFuture = ChangesetApi.getChangesetStatistics(marker, Future::succeededFuture, spaceId);
 
-    return CompositeFuture.all(spaceFuture, versionFuture).flatMap(cf -> {
-      final Reader reader = new Reader().withId(readerId).withSpaceId(spaceId).withVersion(versionFuture.result());
+    return CompositeFuture.all(spaceFuture, changesetFuture).flatMap(cf -> {
+      final Reader reader = new Reader()
+          .withId(readerId)
+          .withSpaceId(spaceId)
+          .withVersion(changesetFuture.result().getMaxVersion());
       return ReaderConfigClient.getInstance().storeReader(marker, reader).map(v -> reader);
     });
+  }
+
+  // TODO auth
+  public static Future<Reader> deregisterReader(Marker marker, String spaceId, String readerId) {
+    if (spaceId == null || readerId == null)
+      return Future.failedFuture("Invalid spaceId or readerId parameters");
+
+    return SpaceConfigClient.getInstance().get(marker, spaceId)
+        .flatMap(s -> s == null ? Future.failedFuture("Resource with id " + spaceId + " not found.") : Future.succeededFuture())
+        .flatMap(none -> ReaderConfigClient.getInstance().deleteReader(marker, spaceId, readerId));
+  }
+
+  private void sendHttpErrorResponse(RoutingContext context, Throwable t) {
+    if (t == null)
+      t = new HttpException(HttpResponseStatus.BAD_REQUEST, "Invalid response");
+    if (!(t instanceof HttpException))
+      t = new HttpException(HttpResponseStatus.BAD_REQUEST, t.getMessage());
+    this.sendErrorResponse(context, t);
   }
 }

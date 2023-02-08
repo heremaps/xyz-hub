@@ -25,13 +25,17 @@ import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.ChangesetAuthorization;
+import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.SpaceConnectorBasedHandler;
+import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import com.here.xyz.responses.changesets.Changeset;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
+import java.util.function.Function;
 import org.apache.logging.log4j.Marker;
 
 import static com.here.xyz.events.PropertyQuery.QueryOperation.LESS_THAN;
@@ -53,7 +57,7 @@ public class ChangesetApi extends SpaceBasedApi {
     try {
       IterateChangesetsEvent event = buildIterateChangesetsEvent(context, false);
 
-      SpaceConnectorBasedHandler.execute(context,
+      SpaceConnectorBasedHandler.execute(Api.Context.getMarker(context),
                       space -> ChangesetAuthorization.authorize(context, space).map(space),
                       event)
               .onSuccess(result ->
@@ -77,7 +81,7 @@ public class ChangesetApi extends SpaceBasedApi {
     try {
       IterateChangesetsEvent event = buildIterateChangesetsEvent(context, true);
 
-      SpaceConnectorBasedHandler.execute(context,
+      SpaceConnectorBasedHandler.execute(Api.Context.getMarker(context),
                       space -> ChangesetAuthorization.authorize(context, space).map(space),
                       event)
           .onSuccess(result -> {
@@ -153,7 +157,7 @@ public class ChangesetApi extends SpaceBasedApi {
       if (minVersion < 1)
         throw new NumberFormatException();
 
-      SpaceConnectorBasedHandler.execute(context,
+      SpaceConnectorBasedHandler.execute(Api.Context.getMarker(context),
               space -> ChangesetAuthorization.authorize(context, space).map(space),
               new DeleteChangesetsEvent()
                   .withSpace(spaceId)
@@ -174,14 +178,16 @@ public class ChangesetApi extends SpaceBasedApi {
   }
 
   private void getChangesetStatistics(final RoutingContext context) {
+    final Marker marker = Api.Context.getMarker(context);
+    final Function<Space, Future<Space>> changesetAuthorization = space -> ChangesetAuthorization.authorize(context, space).map(space);
     final String spaceId = context.pathParam(Path.SPACE_ID);
-    SpaceConnectorBasedHandler.execute(context,
-                    space -> ChangesetAuthorization.authorize(context, space).map(space),
-                    new GetChangesetStatisticsEvent()
-                            .withSpace(spaceId))
-            .onSuccess(result -> {
-                this.sendResponse(context, HttpResponseStatus.OK, result);
-            })
-            .onFailure(t -> this.sendErrorResponse(context, t));
+
+    getChangesetStatistics(marker, changesetAuthorization, spaceId)
+        .onSuccess(result -> sendResponse(context, HttpResponseStatus.OK, result))
+        .onFailure(t -> sendErrorResponse(context, t));
+  }
+
+  public static Future<ChangesetsStatisticsResponse> getChangesetStatistics(Marker marker, Function<Space, Future<Space>> authorizationFunction, String spaceId) {
+    return SpaceConnectorBasedHandler.execute(marker, authorizationFunction, new GetChangesetStatisticsEvent().withSpace(spaceId));
   }
 }
