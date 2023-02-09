@@ -85,14 +85,15 @@ public class IterateChangesets extends SearchForFeatures<IterateChangesetsEvent,
 
     query.setVariable(SCHEMA, getSchema());
     query.setVariable(TABLE, getDefaultTable(event));
-    query.setNamedParameter("start",event.getStartVersion());
-    query.setNamedParameter("end",event.getEndVersion());
     query.setQueryFragment("page", event.getPageToken() != null ?
             new SQLQuery("AND version||'_'||id > #{page_token} ")
                     .withNamedParameter("page_token", event.getPageToken()) : new SQLQuery(""));
+
     query.setQueryFragment("start_version", event.getStartVersion() != null ?
-            new SQLQuery("AND version >= #{start}")
-                    .withNamedParameter("start", event.getStartVersion()) : new SQLQuery(""));
+            new SQLQuery("AND version >= greatest(#{start}, (select max(version) - #{versionsToKeep} from ${schema}.${table}))")
+                    .withNamedParameter("versionsToKeep", event.getVersionsToKeep())
+                    .withNamedParameter("start", Math.max(event.getStartVersion(), event.getMinSpaceVersion())) : new SQLQuery(""));
+
     query.setQueryFragment("end_version", event.getEndVersion() != null ?
             new SQLQuery("AND version <= #{end}")
                     .withNamedParameter("end", event.getEndVersion()) : new SQLQuery(""));

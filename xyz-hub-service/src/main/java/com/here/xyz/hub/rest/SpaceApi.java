@@ -72,6 +72,7 @@ public class SpaceApi extends SpaceBasedApi {
         ApiResponseType.SPACE_LIST,
         ApiParam.Query.getBoolean(context, ApiParam.Query.INCLUDE_RIGHTS, false),
         ApiParam.Query.getBoolean(context, Query.INCLUDE_CONNECTORS, false),
+        ApiParam.Query.getBoolean(context, Query.INCLUDE_READERS, false),
         ApiParam.Query.getString(context, ApiParam.Query.OWNER, MatrixReadQuery.ME),
         ApiParam.Query.getSpacePropertiesQuery(context, ApiParam.Query.CONTENT_UPDATED_AT)
     ).execute(this::sendResponse, this::sendErrorResponse);

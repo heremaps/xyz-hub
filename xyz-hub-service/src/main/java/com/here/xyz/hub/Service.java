@@ -120,7 +120,7 @@ public class Service extends Core {
   public static SubscriptionConfigClient subscriptionConfigClient;
 
   /**
-   * The client to access the subscription configuration.
+   * The client to access the reader configuration.
    */
   public static ReaderConfigClient readerConfigClient;
 

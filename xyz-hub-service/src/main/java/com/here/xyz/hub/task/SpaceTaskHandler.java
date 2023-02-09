@@ -54,7 +54,9 @@ import com.here.xyz.hub.task.TaskPipeline.C1;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
 import com.here.xyz.hub.util.diff.Difference;
 import com.here.xyz.hub.util.diff.Patcher;
+import com.here.xyz.models.hub.Reader;
 import com.here.xyz.models.hub.Space.ConnectorRef;
+import io.vertx.core.Future;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.jackson.DatabindCodec;
@@ -80,6 +82,28 @@ public class SpaceTaskHandler {
 
   static <X extends ReadQuery<?>> void readSpaces(final X task, final Callback<X> callback) {
     Service.spaceConfigClient.getSelected(task.getMarker(), task.authorizedCondition, task.selectedCondition, task.propertiesQuery)
+        .flatMap(spaces -> !task.selectedCondition.includeReaders
+            ? Future.succeededFuture(spaces)
+            : Service.readerConfigClient
+              .getReaders(task.getMarker(), spaces.stream().map(Space::getId).collect(Collectors.toList()))
+              .map(readers -> readers.stream().reduce(new HashMap<String, List<Reader>>(), (map, reader) -> {
+                map.putIfAbsent(reader.getId(), new ArrayList<>());
+                map.get(reader.getId()).add(reader);
+
+                return map;
+              }, (map1, map2) -> {
+                map2.forEach((k,v) -> {
+                  map1.putIfAbsent(k, new ArrayList<>());
+                  map1.get(k).addAll(v);
+                });
+
+                return map1;
+              }))
+              .map(map -> spaces
+                  .stream()
+                  .peek(space -> space.setReaders(map.get(space.getId())))
+                  .collect(Collectors.toList()))
+        )
         .onFailure(t -> {
           logger.error(task.getMarker(), "Unable to load space definitions.'", t);
           callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definitions.", t));

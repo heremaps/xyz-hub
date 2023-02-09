@@ -147,6 +147,11 @@ public class DynamoReaderConfigClient extends ReaderConfigClient {
   }
 
   @Override
+  public Future<Long> increaseVersion(Marker marker, String spaceId, String readerId, Long newVersion) {
+    return null;
+  }
+
+  @Override
   public Future<Reader> deleteReader(Marker marker, String id, String spaceId) {
     return DynamoClient.dynamoWorkers.executeBlocking(future -> {
           try {

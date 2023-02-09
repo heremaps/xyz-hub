@@ -20,5 +20,32 @@
 package com.here.xyz.events;
 
 public class GetChangesetStatisticsEvent extends Event<GetChangesetStatisticsEvent> {
+    private long minSpaceVersion;
+    private int versionsToKeep;
 
+    public long getMinSpaceVersion() {
+        return minSpaceVersion;
+    }
+
+    public void setMinSpaceVersion(long minSpaceVersion) {
+        this.minSpaceVersion = minSpaceVersion;
+    }
+
+    public GetChangesetStatisticsEvent withMinSpaceVersion(long minSpaceVersion) {
+        setMinSpaceVersion(minSpaceVersion);
+        return this;
+    }
+
+    public int getVersionsToKeep() {
+        return versionsToKeep;
+    }
+
+    public void setVersionsToKeep(int versionsToKeep) {
+        this.versionsToKeep = versionsToKeep;
+    }
+
+    public GetChangesetStatisticsEvent withVersionsToKeep(int setVersionsToKeep) {
+        setVersionsToKeep(versionsToKeep);
+        return this;
+    }
 }

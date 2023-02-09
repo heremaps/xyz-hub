@@ -19,6 +19,8 @@
 
 package com.here.xyz.hub.rest;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.config.ReaderConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.models.Space;
@@ -42,6 +44,7 @@ public class ReaderApi extends SpaceBasedApi {
     rb.operation("increaseReaderVersion").handler(this::increaseReaderVersion);
   }
 
+  // TODO auth
   private void putReader(RoutingContext context) {
     final String spaceId = context.pathParam(Path.SPACE_ID);
     final String readerId = Query.getString(context, Query.READER_ID, null);
@@ -51,6 +54,7 @@ public class ReaderApi extends SpaceBasedApi {
         .onFailure(t -> sendHttpErrorResponse(context, t));
   }
 
+  // TODO auth
   private void deleteReader(RoutingContext context) {
     final String spaceId = context.pathParam(Path.SPACE_ID);
     final String readerId = Query.getString(context, Query.READER_ID, null);
@@ -63,14 +67,37 @@ public class ReaderApi extends SpaceBasedApi {
         .onFailure(t -> sendHttpErrorResponse(context, t));
   }
 
+  // TODO auth
   private void getReaderVersion(RoutingContext context) {
     final String spaceId = context.pathParam(Path.SPACE_ID);
     final String readerId = Query.getString(context, Query.READER_ID, null);
+    final Marker marker = Api.Context.getMarker(context);
+
+    ReaderConfigClient.getInstance().getReader(marker, readerId, spaceId)
+        .flatMap(r -> r == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Reader " + readerId + " with space " + spaceId + " not found")) : Future.succeededFuture(r))
+        .onSuccess(r -> sendResponse(context, HttpResponseStatus.OK, r))
+        .onFailure(t -> sendHttpErrorResponse(context, t));
+
   }
 
+  // TODO auth
   private void increaseReaderVersion(RoutingContext context) {
     final String spaceId = context.pathParam(Path.SPACE_ID);
     final String readerId = Query.getString(context, Query.READER_ID, null);
+    final Marker marker = Api.Context.getMarker(context);
+
+    final Future<Space> spaceFuture = SpaceConfigClient.getInstance().get(marker, spaceId)
+        .flatMap(s -> s == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Resource with id " + spaceId + " not found.")) : Future.succeededFuture(s));
+    final Future<Reader> readerFuture = ReaderConfigClient.getInstance().getReader(marker, readerId, spaceId)
+        .flatMap(r -> r == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Reader " + readerId + " with space " + spaceId + " not found")) : Future.succeededFuture(r));
+    final Future<Long> inputFuture = deserializeReader(context.getBodyAsString())
+        .map(Reader::getVersion);
+
+    CompositeFuture.all(spaceFuture, readerFuture, inputFuture)
+        .flatMap(cf -> ReaderConfigClient.getInstance().increaseVersion(marker, spaceId, readerId, inputFuture.result()))
+        .flatMap(newVersion -> newVersion == null ? Future.failedFuture("Increasing the version failed") : Future.succeededFuture(newVersion))
+        .onSuccess(newVersion -> sendResponse(context, HttpResponseStatus.OK, readerFuture.result().withVersion(newVersion)))
+        .onFailure(t -> sendHttpErrorResponse(context, t));
   }
 
   // TODO auth
@@ -79,7 +106,7 @@ public class ReaderApi extends SpaceBasedApi {
       return Future.failedFuture("Invalid spaceId or readerId parameters");
 
     final Future<Space> spaceFuture = SpaceConfigClient.getInstance().get(marker, spaceId)
-        .flatMap(s -> s == null ? Future.failedFuture("Resource with id " + spaceId + " not found.") : Future.succeededFuture(s));
+        .flatMap(s -> s == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Resource with id " + spaceId + " not found.")) : Future.succeededFuture(s));
     final Future<ChangesetsStatisticsResponse> changesetFuture = ChangesetApi.getChangesetStatistics(marker, Future::succeededFuture, spaceId);
 
     return CompositeFuture.all(spaceFuture, changesetFuture).flatMap(cf -> {
@@ -97,8 +124,16 @@ public class ReaderApi extends SpaceBasedApi {
       return Future.failedFuture("Invalid spaceId or readerId parameters");
 
     return SpaceConfigClient.getInstance().get(marker, spaceId)
-        .flatMap(s -> s == null ? Future.failedFuture("Resource with id " + spaceId + " not found.") : Future.succeededFuture())
+        .flatMap(s -> s == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Resource with id " + spaceId + " not found.")) : Future.succeededFuture())
         .flatMap(none -> ReaderConfigClient.getInstance().deleteReader(marker, readerId, spaceId));
+  }
+
+  private Future<Reader> deserializeReader(String body) {
+    try {
+      return Future.succeededFuture(XyzSerializable.deserialize(body));
+    } catch (JsonProcessingException e) {
+      return Future.failedFuture("Unable to parse body");
+    }
   }
 
   private void sendHttpErrorResponse(RoutingContext context, Throwable t) {
