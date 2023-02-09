@@ -24,19 +24,16 @@ import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.spec.DeleteItemSpec;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
-import com.amazonaws.services.dynamodbv2.model.DeleteItemRequest;
 import com.amazonaws.services.dynamodbv2.model.ExecuteStatementRequest;
 import com.amazonaws.services.dynamodbv2.model.ExecuteTransactionRequest;
 import com.amazonaws.services.dynamodbv2.model.ParameterizedStatement;
 import com.amazonaws.services.dynamodbv2.model.ReturnValue;
 import com.here.xyz.models.hub.Reader;
-import com.here.xyz.models.hub.Subscription;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.json.Json;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -118,6 +115,40 @@ public class DynamoReaderConfigClient extends ReaderConfigClient {
             final ExecuteStatementRequest request = new ExecuteStatementRequest()
                 .withStatement("SELECT * FROM \"" + readerTable.getTableName()+"\" WHERE \"spaceId\" = ?")
                 .withParameters(new AttributeValue(spaceId));
+
+            future.complete(getReaders( dynamoClient.client.executeStatement(request).getItems() ));
+          } catch (Exception e) {
+            future.fail(e);
+          }
+        }
+    );
+  }
+
+  @Override
+  public Future<List<Reader>> getReaders(Marker marker, List<String> spaceIds) {
+    return DynamoClient.dynamoWorkers.executeBlocking( future -> {
+          try {
+            String spaceParamsSt = StringUtils.join(Collections.nCopies(spaceIds.size(), "?"), ",");
+            List<AttributeValue> params = spaceIds.stream().map(AttributeValue::new).collect(Collectors.toList());
+
+            final ExecuteStatementRequest request = new ExecuteStatementRequest()
+                .withStatement("SELECT * FROM \"" + readerTable.getTableName()+"\" WHERE \"spaceId\" IN ["+spaceParamsSt+"]")
+                .withParameters(params);
+
+            future.complete(getReaders( dynamoClient.client.executeStatement(request).getItems() ));
+          } catch (Exception e) {
+            future.fail(e);
+          }
+        }
+    );
+  }
+
+  @Override
+  public Future<List<Reader>> getAllReaders(Marker marker) {
+    return DynamoClient.dynamoWorkers.executeBlocking( future -> {
+          try {
+            final ExecuteStatementRequest request = new ExecuteStatementRequest()
+                .withStatement("SELECT * FROM \"" + readerTable.getTableName()+"\"");
 
             future.complete(getReaders( dynamoClient.client.executeStatement(request).getItems() ));
           } catch (Exception e) {

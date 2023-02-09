@@ -43,6 +43,10 @@ public abstract class ReaderConfigClient implements Initializable{
 
   public abstract Future<List<Reader>> getReaders(Marker marker, String spaceId);
 
+  public abstract Future<List<Reader>> getReaders(Marker marker, List<String> spaceIds);
+
+  public abstract Future<List<Reader>> getAllReaders(Marker marker);
+
   public abstract Future<Void> storeReader(Marker marker, Reader reader);
 
   public abstract Future<Long> increaseVersion(Marker marker, String spaceId, String readerId, Long newVersion);

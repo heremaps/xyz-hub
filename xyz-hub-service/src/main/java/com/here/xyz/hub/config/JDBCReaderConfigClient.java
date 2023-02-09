@@ -91,7 +91,14 @@ public class JDBCReaderConfigClient extends ReaderConfigClient{
     return _getReaders(marker, new SQLQuery("WHERE space=?", spaceId));
   }
 
-//  @Override
+  @Override
+  public Future<List<Reader>> getReaders(Marker marker, List<String> spaceIds) {
+    List<String> params = spaceIds.stream().map(e->"?").collect(Collectors.toList());
+    SQLQuery query = new SQLQuery("WHERE space IN (" + StringUtils.join(params, ",")+")", spaceIds.toArray());
+    return _getReaders(marker, query);
+  }
+
+  @Override
   public Future<List<Reader>> getAllReaders(Marker marker) {
     return _getReaders(marker, null);
   }
@@ -99,7 +106,8 @@ public class JDBCReaderConfigClient extends ReaderConfigClient{
   private Future<List<Reader>> _getReaders(Marker marker, SQLQuery whereClause) {
     Promise<List<Reader>> p = Promise.promise();
     SQLQuery query = new SQLQuery("SELECT id, space, version FROM " + READER_TABLE );
-    query.append(whereClause);
+    if(whereClause != null )
+      whereClause.append(whereClause);
     client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
         List<Reader> reader = out.result().getRows().stream().map(r->new Reader()
