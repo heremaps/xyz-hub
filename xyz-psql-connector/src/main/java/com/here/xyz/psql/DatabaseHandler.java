@@ -50,6 +50,7 @@ import com.here.xyz.models.txn.TransactionData;
 import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.config.DatabaseSettings;
 import com.here.xyz.psql.config.PSQLConfig;
+import com.here.xyz.psql.factory.MaintenanceSQL;
 import com.here.xyz.psql.query.ExtendedSpace;
 import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.helpers.FetchExistingIds;
@@ -616,7 +617,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 if (transactional) {
                     final TransactionLog txnLog = prepareTransactionDetails(inserts, updates, deletes, oldFeatures, table);
                     //DatabaseWriter.insertTransactionDetails(this, schema, traceItem, txnLog, connection);
-                    DatabaseWriter.insertTransactionDetails(this, "xyz_ops", traceItem, txnLog, connection);
+                    DatabaseWriter.insertTransactionDetails(this, MaintenanceSQL.XYZ_OPS_SCHEMA, traceItem, txnLog, connection);
 
                     /** Commit SQLS in one transaction */
                     connection.commit();

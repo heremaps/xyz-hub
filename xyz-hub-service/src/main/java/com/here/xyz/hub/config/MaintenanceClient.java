@@ -185,6 +185,15 @@ public class MaintenanceClient {
             logger.info("{}: Create required Space-Meta-Table..", connectorId);
             executeQueryWithoutResults(new SQLQuery(MaintenanceSQL.createSpaceMetaTable), source);
 
+            logger.info("{}: Create required Ops-Schema..", connectorId);
+            executeQueryWithoutResults(new SQLQuery(MaintenanceSQL.opsSchemaSQL), source);
+
+            logger.info("{}: Create required Xyz-Txn-Table..", connectorId);
+            executeQueryWithoutResults(new SQLQuery(MaintenanceSQL.createTxnTableSQL), source);
+
+            logger.info("{}: Create required Xyz-Txn-Data-Table..", connectorId);
+            executeQueryWithoutResults(new SQLQuery(MaintenanceSQL.createTxnDataTableSQL), source);
+
             /** set searchPath */
             executeQueryWithoutResults(setSearchpath, source);
             /** Install extensions */

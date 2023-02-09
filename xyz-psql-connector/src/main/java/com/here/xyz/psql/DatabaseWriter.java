@@ -25,6 +25,7 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.txn.TransactionLog;
+import com.here.xyz.psql.factory.MaintenanceSQL;
 import com.vividsolutions.jts.geom.Coordinate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -56,10 +57,6 @@ public class DatabaseWriter {
     public static final String LOG_EXCEPTION_INSERT = "insert";
     public static final String LOG_EXCEPTION_UPDATE = "update";
     public static final String LOG_EXCEPTION_DELETE = "delete";
-
-    public static final String DB_TABLE_XYZ_TXN = "xyz_txn";
-
-    public static final String DB_TABLE_XYZ_TXN_DATA = "xyz_txn_data";
 
     protected static PGobject featureToPGobject(final Feature feature, Integer version) throws SQLException {
         final Geometry geometry = feature.getGeometry();
@@ -141,8 +138,8 @@ public class DatabaseWriter {
         if (txnLog.getTxnDataList().isEmpty())
             return;
         setAutocommit(connection,false);
-        DatabaseTransactionalWriter.insertTransactionLog(dbh, schema, DB_TABLE_XYZ_TXN, traceItem, txnLog, connection);
-        DatabaseTransactionalWriter.insertTransactionData(dbh, schema, DB_TABLE_XYZ_TXN_DATA, traceItem, txnLog, connection);
+        DatabaseTransactionalWriter.insertTransactionLog(dbh, schema, MaintenanceSQL.XYZ_OPS_TXN_TABLE, traceItem, txnLog, connection);
+        DatabaseTransactionalWriter.insertTransactionData(dbh, schema, MaintenanceSQL.XYZ_OPS_TXN_DATA_TABLE, traceItem, txnLog, connection);
     }
 
     protected static FeatureCollection insertFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem, FeatureCollection collection,

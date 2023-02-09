@@ -33,6 +33,16 @@ public class MaintenanceSQL {
     public static String XYZ_CONFIG_IDX_TABLE = "xyz_idxs_status";
     private static String XYZ_CONFIG_STORAGE_TABLE = "xyz_storage";
     private static String XYZ_CONFIG_SPACE_TABLE = "xyz_space";
+    /**
+     * Main schema for xyz-relevant operations.
+     */
+    public static final String XYZ_OPS_SCHEMA = "xyz_ops";
+
+    /**
+     * Tables for database wide configurations, which belong to XYZ_OPS_SCHEMA
+     */
+    public static String XYZ_OPS_TXN_TABLE = "xyz_txn";
+    public static String XYZ_OPS_TXN_DATA_TABLE = "xyz_txn_data";
 
     /**
      * Check if all required database extensions are installed
@@ -54,10 +64,13 @@ public class MaintenanceSQL {
      */
     public static String generateCheckSchemasAndIdxTableSQL(String schema){
         return "SELECT array_agg(nspname) @> ARRAY['" + schema + "'] as main_schema, "
-                + " array_agg(nspname) @> ARRAY['xyz_config'] as config_schema, "
+                + " array_agg(nspname) @> ARRAY['" + XYZ_CONFIG_SCHEMA + "'] as config_schema, "
+                + " array_agg(nspname) @> ARRAY['" + XYZ_OPS_SCHEMA + "'] as ops_schema, "
                 + "(SELECT (to_regclass('" + XYZ_CONFIG_SCHEMA + "."+XYZ_CONFIG_IDX_TABLE+"') IS NOT NULL) as idx_table), "
                 + "(SELECT (to_regclass('" + XYZ_CONFIG_SCHEMA + "."+XYZ_CONFIG_DB_STATUS+"') IS NOT NULL) as db_status_table), "
-                + "(SELECT (to_regclass('" + XYZ_CONFIG_SCHEMA + "."+XYZ_CONFIG_SPACE_META_TABLE+"') IS NOT NULL) as space_meta_table) "
+                + "(SELECT (to_regclass('" + XYZ_CONFIG_SCHEMA + "."+XYZ_CONFIG_SPACE_META_TABLE+"') IS NOT NULL) as space_meta_table), "
+                + "(SELECT (to_regclass('" + XYZ_OPS_SCHEMA + "."+XYZ_OPS_TXN_TABLE+"') IS NOT NULL) as txn_table), "
+                + "(SELECT (to_regclass('" + XYZ_OPS_SCHEMA + "."+XYZ_OPS_TXN_DATA_TABLE+"') IS NOT NULL) as txn_data_table) "
                 + "FROM( "
                 + "	SELECT nspname::text FROM pg_catalog.pg_namespace "
                 + "		WHERE nspowner <> 1 "
@@ -270,4 +283,31 @@ public class MaintenanceSQL {
             "UPDATE "+MaintenanceSQL.XYZ_CONFIG_SCHEMA + "."+MaintenanceSQL.XYZ_CONFIG_IDX_TABLE
             +"  SET idx_creation_finished = null "
             +"		WHERE schem=? AND spaceid=?";
+
+    /** Create XYZ_OPS_SCHEMA */
+    public static String opsSchemaSQL = "CREATE SCHEMA IF NOT EXISTS \"" + XYZ_OPS_SCHEMA + "\";";
+
+    /** Create XYZ_OPS_TXN_TABLE in XYZ_OPS_SCHEMA. */
+    public static String createTxnTableSQL =
+            "CREATE TABLE IF NOT EXISTS " + XYZ_OPS_SCHEMA + "."+XYZ_OPS_TXN_TABLE+
+                    "( " +
+                    "  space_id text NOT NULL, " +
+                    "  uuids text[] NOT NULL, " +
+                    "  op_timestamp TIMESTAMPTZ NOT NULL DEFAULT now(), " +
+                    "  txn_id bigserial NOT NULL, "+
+                    "  CONSTRAINT "+XYZ_OPS_TXN_TABLE+"_pkey PRIMARY KEY (txn_id) " +
+                    "); " +
+            "CREATE INDEX IF NOT EXISTS \"idx_xyz_txn_uuids\" ON " + XYZ_OPS_SCHEMA + "." + XYZ_OPS_TXN_TABLE +
+                    " USING gin (uuids); ";
+
+    /** Create XYZ_OPS_TXN_DATA_TABLE in XYZ_OPS_SCHEMA. */
+    public static String createTxnDataTableSQL =
+            "CREATE TABLE IF NOT EXISTS " + XYZ_OPS_SCHEMA + "."+XYZ_OPS_TXN_DATA_TABLE+
+                    "( " +
+                    "  uuid text NOT NULL, " +
+                    "  operation text NOT NULL, " +     // SAVE, UPDATE, DELETE
+                    "  jsondata jsonb NULL, "+
+                    "  CONSTRAINT "+XYZ_OPS_TXN_DATA_TABLE+"_pkey PRIMARY KEY (uuid) " +
+                    "); ";
+
 }
