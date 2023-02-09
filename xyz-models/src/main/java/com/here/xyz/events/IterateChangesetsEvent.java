@@ -27,15 +27,14 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 @JsonTypeName(value = "IterateChangesetsEvent")
 public final class IterateChangesetsEvent extends SearchForFeaturesEvent<IterateChangesetsEvent> {
 
-  private String reader;
-  private Operation operation;
   private String pageToken;
   @JsonInclude(JsonInclude.Include.NON_DEFAULT)
   private Long startVersion;
   @JsonInclude(JsonInclude.Include.NON_DEFAULT)
   private Long endVersion;
-  private Long numberOfVersions;
-  private boolean compact;
+
+  private long minSpaceVersion;
+  private int versionsToKeep;
 
   public Long getStartVersion() {
     return startVersion;
@@ -79,71 +78,29 @@ public final class IterateChangesetsEvent extends SearchForFeaturesEvent<Iterate
     return this;
   }
 
-  public boolean isCompact() {
-    return compact;
+  public long getMinSpaceVersion() {
+    return minSpaceVersion;
   }
 
-  public void setCompact(boolean compact) {
-    this.compact = compact;
+  public void setMinSpaceVersion(long minSpaceVersion) {
+    this.minSpaceVersion = minSpaceVersion;
   }
 
-  public IterateChangesetsEvent withCompact(boolean compact) {
-    setCompact(compact);
+  public IterateChangesetsEvent withMinSpaceVersion(long minSpaceVersion) {
+    setMinSpaceVersion(minSpaceVersion);
     return this;
   }
 
-  public String getReader() {
-    return reader;
+  public int getVersionsToKeep() {
+    return versionsToKeep;
   }
 
-  public void setReader(String reader) {
-    this.reader = reader;
+  public void setVersionsToKeep(int versionsToKeep) {
+    this.versionsToKeep = versionsToKeep;
   }
 
-  public IterateChangesetsEvent withReader(String reader) {
-    setReader(reader);
+  public IterateChangesetsEvent withVersionsToKeep(int setVersionsToKeep) {
+    setVersionsToKeep(versionsToKeep);
     return this;
-  }
-
-  public Operation getOperation() {
-    return operation;
-  }
-
-  public void setOperation(Operation operation) {
-    this.operation = operation;
-  }
-
-  public IterateChangesetsEvent withOperation(Operation operation) {
-    setOperation(operation);
-    return this;
-  }
-
-  public Long getNumberOfVersions() {
-    return numberOfVersions;
-  }
-
-  public void setNumberOfVersions(Long numberOfVersions) {
-    this.numberOfVersions = numberOfVersions;
-  }
-
-  public IterateChangesetsEvent withNumberOfVersions(Long numberOfVersions) {
-    setNumberOfVersions(numberOfVersions);
-    return this;
-  }
-
-  public enum Operation {
-    READ, PEEK, ADVANCE;
-
-    public static Operation safeValueOf(String operation) {
-      return safeValueOf(operation, null);
-    }
-
-    public static Operation safeValueOf(String operation, Operation defaultValue) {
-      try {
-        return Operation.valueOf(operation.toUpperCase());
-      } catch (Exception e) {
-        return defaultValue;
-      }
-    }
   }
 }

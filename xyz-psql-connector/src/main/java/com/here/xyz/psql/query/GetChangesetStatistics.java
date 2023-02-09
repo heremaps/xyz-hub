@@ -21,33 +21,29 @@ package com.here.xyz.psql.query;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
-import com.here.xyz.events.GetStorageStatisticsEvent;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
-import com.here.xyz.responses.StatisticsResponse.Value;
-import com.here.xyz.responses.StorageStatistics;
-import com.here.xyz.responses.StorageStatistics.SpaceByteSizes;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.*;
-import java.util.stream.Collectors;
-
-import static com.here.xyz.psql.DatabaseHandler.HISTORY_TABLE_SUFFIX;
 
 public class GetChangesetStatistics extends XyzQueryRunner<GetChangesetStatisticsEvent, ChangesetsStatisticsResponse> {
+  long minSpaceVersion;
+  long versionsToKeep;
 
   public GetChangesetStatistics(GetChangesetStatisticsEvent event, DatabaseHandler dbHandler)
       throws SQLException, ErrorResponseException {
     super(event, dbHandler);
     setUseReadReplica(true);
+    this.minSpaceVersion = event.getMinSpaceVersion();
+    this.versionsToKeep = event.getVersionsToKeep();
   }
 
   @Override
   protected SQLQuery buildQuery(GetChangesetStatisticsEvent event) {
     SQLQuery query =new SQLQuery(
-            "SELECT max(version) as max, min(version) as min" +
+            "SELECT max(version) as max" +
                     "   from  ${schema}.${table} ");
 
     query.setVariable(SCHEMA, getSchema());
@@ -60,9 +56,14 @@ public class GetChangesetStatistics extends XyzQueryRunner<GetChangesetStatistic
   public ChangesetsStatisticsResponse handle(ResultSet rs) throws SQLException {
     ChangesetsStatisticsResponse csr = new ChangesetsStatisticsResponse();
     if(rs.next()){
-      csr.setMinVersion(rs.getLong("min"));
-      csr.setMaxVersion(rs.getLong("max"));
+      long maxVersion = rs.getLong("max");
+      csr.setMaxVersion(maxVersion);
+      csr.setMinVersion(calculateMinVersion(maxVersion));
     }
     return csr;
+  }
+
+  private long calculateMinVersion(long maxVersion){
+    return Math.max(minSpaceVersion, maxVersion-versionsToKeep);
   }
 }
