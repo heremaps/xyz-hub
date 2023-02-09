@@ -20,18 +20,19 @@
 package com.here.xyz.hub.task;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
 import com.here.xyz.events.Event;
+import com.here.xyz.events.GetChangesetStatisticsEvent;
+import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.hub.config.ConnectorConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.Space;
-import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.responses.XyzResponse;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
-import io.vertx.ext.web.RoutingContext;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -47,6 +48,20 @@ public class SpaceConnectorBasedHandler {
           ? Future.failedFuture(new HttpException(BAD_REQUEST, "The resource ID '" + e.getSpace() + "' does not exist!"))
           : Future.succeededFuture(space))
       .flatMap(authorizationFunction)
+      .flatMap(space -> {
+                    injectEventParameters(e, space);
+                    return Future.succeededFuture(space);
+              }
+      )
+      .flatMap(space -> {
+                    try {
+                        validateBasedOnSpaceConfig(e, space);
+                        return Future.succeededFuture(space);
+                    }catch (HttpException ex){
+                        return Future.failedFuture(ex);
+                    }
+                }
+            )
       .flatMap(space -> ConnectorConfigClient.getInstance().get(marker, space.getStorage().getId()))
       .map(RpcClient::getInstanceFor)
       .recover(t -> t instanceof HttpException
@@ -63,4 +78,25 @@ public class SpaceConnectorBasedHandler {
         return promise.future();
       });
   }
+
+  private static void injectEventParameters(Event e, Space space){
+      if (e instanceof GetChangesetStatisticsEvent) {
+          ((GetChangesetStatisticsEvent) e).setMinSpaceVersion(space.getMinVersion());
+          ((GetChangesetStatisticsEvent) e).setVersionsToKeep(space.getVersionsToKeep());
+      }else if (e instanceof IterateChangesetsEvent) {
+          ((IterateChangesetsEvent) e).setMinSpaceVersion(space.getMinVersion());
+          ((IterateChangesetsEvent) e).setVersionsToKeep(space.getVersionsToKeep());
+      }
+  }
+
+  private static void validateBasedOnSpaceConfig(Event e, Space space) throws HttpException {
+        if (e instanceof IterateChangesetsEvent) {
+            if(((IterateChangesetsEvent) e).getStartVersion() < space.getMinVersion()) {
+                if(((IterateChangesetsEvent) e).getEndVersion() == null)
+                    throw new HttpException(NOT_FOUND, "The requested version '"+((IterateChangesetsEvent) e).getStartVersion()+"' got deleted.");
+                else
+                    throw new HttpException(BAD_REQUEST, "StartVersion is to low! Min startVersion = "+space.getMinVersion());
+            }
+        }
+    }
 }
