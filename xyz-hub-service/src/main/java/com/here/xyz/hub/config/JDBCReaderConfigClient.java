@@ -20,19 +20,14 @@
 package com.here.xyz.hub.config;
 
 import static com.here.xyz.hub.config.JDBCConfig.READER_TABLE;
-import static com.here.xyz.hub.config.JDBCConfig.SPACE_TABLE;
 
-import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.models.hub.Reader;
 import com.here.xyz.psql.SQLQuery;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
-import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
-import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.sql.SQLClient;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -89,7 +84,7 @@ public class JDBCReaderConfigClient extends ReaderConfigClient{
   }
 
   @Override
-  public Future<Void> increaseVersion(Marker marker, String spaceId, String readerId) {
+  public Future<Long> increaseVersion(Marker marker, String spaceId, String readerId, Long newVersion) {
     return null;
   }
 

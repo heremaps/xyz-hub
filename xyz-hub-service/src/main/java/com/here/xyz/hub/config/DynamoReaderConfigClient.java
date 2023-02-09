@@ -49,7 +49,7 @@ public class DynamoReaderConfigClient extends ReaderConfigClient {
   }
 
   @Override
-  public Future<Void> increaseVersion(Marker marker, String spaceId, String readerId) {
+  public Future<Long> increaseVersion(Marker marker, String spaceId, String readerId, Long newVersion) {
     return null;
   }
 

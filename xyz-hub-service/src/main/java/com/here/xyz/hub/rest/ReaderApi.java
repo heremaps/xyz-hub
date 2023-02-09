@@ -19,6 +19,8 @@
 
 package com.here.xyz.hub.rest;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.config.ReaderConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.models.Space;
@@ -88,11 +90,13 @@ public class ReaderApi extends SpaceBasedApi {
         .flatMap(s -> s == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Resource with id " + spaceId + " not found.")) : Future.succeededFuture(s));
     final Future<Reader> readerFuture = ReaderConfigClient.getInstance().getReader(marker, readerId, spaceId)
         .flatMap(r -> r == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Reader " + readerId + " with space " + spaceId + " not found")) : Future.succeededFuture(r));
+    final Future<Long> inputFuture = deserializeReader(context.getBodyAsString())
+        .map(Reader::getVersion);
 
-    CompositeFuture.all(spaceFuture, readerFuture)
-        .flatMap(cf -> ReaderConfigClient.getInstance().increaseVersion(marker, spaceId, readerId))
-        .map(none -> readerFuture.result())
-        .onSuccess(reader -> sendResponse(context, HttpResponseStatus.OK, reader.withVersion(reader.getVersion() + 1)))
+    CompositeFuture.all(spaceFuture, readerFuture, inputFuture)
+        .flatMap(cf -> ReaderConfigClient.getInstance().increaseVersion(marker, spaceId, readerId, inputFuture.result()))
+        .flatMap(newVersion -> newVersion == null ? Future.failedFuture("Increasing the version failed") : Future.succeededFuture(newVersion))
+        .onSuccess(newVersion -> sendResponse(context, HttpResponseStatus.OK, readerFuture.result().withVersion(newVersion)))
         .onFailure(t -> sendHttpErrorResponse(context, t));
   }
 
@@ -122,6 +126,14 @@ public class ReaderApi extends SpaceBasedApi {
     return SpaceConfigClient.getInstance().get(marker, spaceId)
         .flatMap(s -> s == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Resource with id " + spaceId + " not found.")) : Future.succeededFuture())
         .flatMap(none -> ReaderConfigClient.getInstance().deleteReader(marker, spaceId, readerId));
+  }
+
+  private Future<Reader> deserializeReader(String body) {
+    try {
+      return Future.succeededFuture(XyzSerializable.deserialize(body));
+    } catch (JsonProcessingException e) {
+      return Future.failedFuture("Unable to parse body");
+    }
   }
 
   private void sendHttpErrorResponse(RoutingContext context, Throwable t) {
