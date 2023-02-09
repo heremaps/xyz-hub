@@ -56,7 +56,7 @@ public class JDBCReaderConfigClient extends ReaderConfigClient{
   }
 
   @Override
-  protected Future<Reader> getReader(Marker marker, String id, String spaceId) {
+  public Future<Reader> getReader(Marker marker, String id, String spaceId) {
     Promise<Reader> p = Promise.promise();
     SQLQuery query = new SQLQuery("SELECT id, space, version FROM " + READER_TABLE + " WHERE id = ? AND space = ?", id, spaceId);
     client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
@@ -85,6 +85,11 @@ public class JDBCReaderConfigClient extends ReaderConfigClient{
 
   @Override
   public Future<Void> storeReader(Marker marker, Reader reader) {
+    return null;
+  }
+
+  @Override
+  public Future<Void> increaseVersion(Marker marker, String spaceId, String readerId) {
     return null;
   }
 

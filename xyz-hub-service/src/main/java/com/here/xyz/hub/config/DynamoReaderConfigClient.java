@@ -34,7 +34,7 @@ public class DynamoReaderConfigClient extends ReaderConfigClient {
   }
 
   @Override
-  protected Future<Reader> getReader(Marker marker, String spaceId, String readerId) {
+  public Future<Reader> getReader(Marker marker, String spaceId, String readerId) {
     return null;
   }
 
@@ -45,6 +45,11 @@ public class DynamoReaderConfigClient extends ReaderConfigClient {
 
   @Override
   public Future<Void> storeReader(Marker marker, Reader reader) {
+    return null;
+  }
+
+  @Override
+  public Future<Void> increaseVersion(Marker marker, String spaceId, String readerId) {
     return null;
   }
 
