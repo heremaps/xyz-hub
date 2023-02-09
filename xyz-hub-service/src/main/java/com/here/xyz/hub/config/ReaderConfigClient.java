@@ -37,15 +37,15 @@ public abstract class ReaderConfigClient implements Initializable{
       return JDBCReaderConfigClient.getInstance();
     }
   }
-  protected abstract Future<Reader> getReader(Marker marker, String id, String spaceId);
+  public abstract Future<Reader> getReader(Marker marker, String id, String spaceId);
 
-  protected abstract Future<List<Reader>> getReaders(Marker marker, List<String> spaceIds);
+  public abstract Future<List<Reader>> getReaders(Marker marker, String id, List<String> spaceIds);
+
+  public abstract Future<List<Reader>> getReaders(Marker marker, String spaceId);
 
   public abstract Future<Void> storeReader(Marker marker, Reader reader);
 
   public abstract Future<Reader> deleteReader(Marker marker, String id, String spaceId);
 
-  protected abstract Future<List<Reader>> deleteReaders(Marker marker, String spaceId);
-
-  protected abstract Future<List<Reader>> getAllReaders(Marker marker);
+  public abstract Future<List<Reader>> deleteReaders(Marker marker, String spaceId);
 }

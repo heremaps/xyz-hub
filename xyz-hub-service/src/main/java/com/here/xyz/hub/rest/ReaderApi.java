@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -98,7 +98,7 @@ public class ReaderApi extends SpaceBasedApi {
 
     return SpaceConfigClient.getInstance().get(marker, spaceId)
         .flatMap(s -> s == null ? Future.failedFuture("Resource with id " + spaceId + " not found.") : Future.succeededFuture())
-        .flatMap(none -> ReaderConfigClient.getInstance().deleteReader(marker, spaceId, readerId));
+        .flatMap(none -> ReaderConfigClient.getInstance().deleteReader(marker, readerId, spaceId));
   }
 
   private void sendHttpErrorResponse(RoutingContext context, Throwable t) {
