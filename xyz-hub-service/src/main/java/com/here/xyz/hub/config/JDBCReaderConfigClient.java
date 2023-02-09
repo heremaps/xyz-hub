@@ -74,7 +74,7 @@ public class JDBCReaderConfigClient extends ReaderConfigClient{
   }
 
   @Override
-  protected Future<List<Reader>> getReaders(Marker marker, List<String> spaceIds) {
+  public Future<List<Reader>> getReaders(Marker marker, List<String> spaceIds) {
     return null;
   }
 

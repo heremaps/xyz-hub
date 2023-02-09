@@ -243,6 +243,10 @@ public class Space {
   @JsonView({Public.class, Static.class})
   private List<List<Object>> sortableProperties;
 
+  @JsonInclude(Include.NON_EMPTY)
+  @JsonView({Public.class, Static.class})
+  private List<Reader> readers;
+
   /**
    * Controls whether during feature creation, the operation succeeds when the payload contains UUID or fails with 409. Default is true.
    */
@@ -636,6 +640,19 @@ public class Space {
 
   public Space withAllowFeatureCreationWithUUID(final boolean allowFeatureCreationWithUUID) {
     setAllowFeatureCreationWithUUID(allowFeatureCreationWithUUID);
+    return this;
+  }
+
+  public List<Reader> getReaders() {
+    return readers;
+  }
+
+  public void setReaders(final List<Reader> readers) {
+    this.readers = readers;
+  }
+
+  public Space withReaders(final List<Reader> readers) {
+    setReaders(readers);
     return this;
   }
 

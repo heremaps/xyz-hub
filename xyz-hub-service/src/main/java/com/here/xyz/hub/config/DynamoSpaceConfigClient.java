@@ -90,7 +90,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       logger.info("DynamoDB running locally, initializing tables.");
 
       try {
-        dynamoClient.createTable(spaces.getTableName(), "id:S,owner:S,shared:N", "id", "owner,shared", "exp");
+        dynamoClient.createTable(spaces.getTableName(), "id:S,owner:S,shared:N,hasReaders:N", "id", "owner,shared,hasReaders", "exp");
         dynamoClient.createTable(packages.getTableName(), "packageName:S,spaceId:S", "packageName,spaceId", null, null);
       }
       catch (AmazonDynamoDBException e) {
@@ -118,8 +118,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
           Map<String, Object> itemData = spaceItem.asMap();
           itemData.put("shared", ((Number) itemData.get("shared")).intValue() == 1);
           //NOTE: The following is a temporary implementation to keep backwards compatibility for non-versioned spaces
-          if (itemData.get("versionsToKeep") == null)
-            itemData.put("versionsToKeep", 0);
+          itemData.putIfAbsent("versionsToKeep", 0);
           final Space space = DatabindCodec.mapper().convertValue(itemData, Space.class);
           if (space != null)
             logger.info(marker, "Space ID: {} with title: \"{}\" has been decoded", spaceId, space.getTitle());
@@ -154,7 +153,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     }
     final boolean delPackages = deletePackages, insPackages = insertPackages;
 
-    return DynamoClient.dynamoWorkers.executeBlocking(p -> storeSpaceSync(space, p))
+    return DynamoClient.dynamoWorkers.<Void>executeBlocking(p -> storeSpaceSync(space, p))
         .onFailure(t -> logger.error(marker, "Failure storing a space into DynamoDB", t))
         .compose(v -> delPackages ? deleteSpaceFromPackages(marker, originalSpace) : Future.succeededFuture())
         .compose(v -> insPackages ? storeSpaceIntoPackages(marker, space) : Future.succeededFuture())
@@ -165,7 +164,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     return Objects.equals(packages1 != null ? new HashSet<>(packages1) : null, packages2 != null ? new HashSet<>(packages2) : null);
   }
 
-  private void storeSpaceSync(Space space, Promise p) {
+  private void storeSpaceSync(Space space, Promise<Void> p) {
     final Map<String, Object> itemData = XyzSerializable.STATIC_MAPPER.get().convertValue(space, new TypeReference<Map<String, Object>>() {});
     itemData.put("shared", space.isShared() ? 1 : 0); //Shared value must be a number because it's also used as index
     sanitize(itemData);
@@ -223,7 +222,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
   }
 
   private Future<Void> storeSpaceIntoPackage(Space space, String packageName) {
-    Promise p = Promise.promise();
+    Promise<Void> p = Promise.promise();
     PutItemRequest req = new PutItemRequest()
         .withTableName(packages.getTableName())
         .withItem(new HashMap<String, AttributeValue>() {{
@@ -408,12 +407,24 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
       //TODO: Implement selection by packages here: selectedCondition.packages
 
+      if (selectedCondition.includeReaders) {
+        final Set<String> readersSpaces = new HashSet<>();
+        spaces
+            .getIndex("hasReaders-index")
+            .query(new QuerySpec().withHashKey("hasReaders", 1).withProjectionExpression("id"))
+            .pages()
+            .forEach(page -> page.forEach(i -> readersSpaces.add(i.getString("id"))));
+
+        authorizedSpaces.removeIf(i -> !readersSpaces.contains(i));
+        logger.debug(marker, "Number of space IDs after filter out spaces without readers: {}", authorizedSpaces.size());
+      }
+
       logger.info(marker, "Final number of space IDs to be retrieved from DynamoDB: {}", authorizedSpaces.size());
       if (!authorizedSpaces.isEmpty()) {
         int batches = (int) Math.ceil((double) authorizedSpaces.size() / 100);
         for (int i = 0; i < batches; i++) {
           final TableKeysAndAttributes keys = new TableKeysAndAttributes(dynamoClient.tableName);
-          authorizedSpaces.stream().skip(i * 100).limit(100).forEach(id -> keys.addHashOnlyPrimaryKey("id", id));
+          authorizedSpaces.stream().skip(i * 100L).limit(100).forEach(id -> keys.addHashOnlyPrimaryKey("id", id));
 
           BatchGetItemOutcome outcome = dynamoClient.db.batchGetItem(keys);
           processOutcome(outcome, result);

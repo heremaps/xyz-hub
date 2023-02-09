@@ -180,6 +180,7 @@ public abstract class SpaceConfigClient implements Initializable {
 
     public boolean shared = true;
     public boolean negateOwnerIds = false;
+    public boolean includeReaders = false;
   }
 
   public static class InvalidateSpaceCacheMessage extends RelayedMessage {

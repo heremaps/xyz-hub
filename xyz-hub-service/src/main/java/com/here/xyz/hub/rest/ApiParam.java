@@ -141,6 +141,7 @@ public class ApiParam {
     static final String HANDLE = "handle";
     static final String INCLUDE_RIGHTS = "includeRights";
     static final String INCLUDE_CONNECTORS = "includeConnectors";
+    static final String INCLUDE_READERS = "includeReaders";
     static final String OWNER = "owner";
     static final String LAT = "lat";
     static final String LON = "lon";
