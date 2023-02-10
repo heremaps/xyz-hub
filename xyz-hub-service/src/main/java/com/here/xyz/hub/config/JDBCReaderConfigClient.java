@@ -22,14 +22,11 @@ package com.here.xyz.hub.config;
 import static com.here.xyz.hub.config.JDBCConfig.READER_TABLE;
 
 import com.here.xyz.models.hub.Reader;
-import com.here.xyz.models.hub.Subscription;
 import com.here.xyz.psql.SQLQuery;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.json.JsonArray;
 import io.vertx.ext.sql.SQLClient;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -107,7 +104,7 @@ public class JDBCReaderConfigClient extends ReaderConfigClient{
     Promise<List<Reader>> p = Promise.promise();
     SQLQuery query = new SQLQuery("SELECT id, space, version FROM " + READER_TABLE );
     if(whereClause != null )
-      whereClause.append(whereClause);
+      query.append(whereClause);
     client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
         List<Reader> reader = out.result().getRows().stream().map(r->new Reader()

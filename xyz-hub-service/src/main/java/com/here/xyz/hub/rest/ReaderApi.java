@@ -47,7 +47,7 @@ public class ReaderApi extends SpaceBasedApi {
   // TODO auth
   private void putReader(RoutingContext context) {
     final String spaceId = context.pathParam(Path.SPACE_ID);
-    final String readerId = Query.getString(context, Query.READER_ID, null);
+    final String readerId = context.pathParam(Path.READER_ID);
 
     registerReader(Api.Context.getMarker(context), spaceId, readerId)
         .onSuccess(result -> sendResponse(context, HttpResponseStatus.OK, result))
