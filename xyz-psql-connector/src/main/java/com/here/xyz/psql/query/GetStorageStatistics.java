@@ -92,6 +92,7 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
     //Read the space / history info from the returned ResultSet
     while (rs.next()) {
       String tableName = rs.getString(TABLE_NAME);
+      boolean isHistoryTable = isHistoryTable(tableName);
       int suffixPos = tableName.lastIndexOf('_');
       //TODO: The following is a backwards-compatibility implementation for the old table style and can be removed once all tables have been migrated to the new partitioned table style
       tableName = suffixPos != -1 ? tableName.substring(0, suffixPos) : tableName;
@@ -101,7 +102,7 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
            indexBytes = rs.getLong(INDEX_BYTES);
 
       SpaceByteSizes sizes = byteSizes.computeIfAbsent(spaceId, k -> new SpaceByteSizes());
-      if (isHistoryTable(tableName))
+      if (isHistoryTable)
         sizes.setHistoryBytes(new Value<>(tableBytes + indexBytes).withEstimated(true));
       else {
         sizes.setContentBytes(new Value<>(tableBytes).withEstimated(true));
