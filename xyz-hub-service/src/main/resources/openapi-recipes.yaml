@@ -35,25 +35,22 @@ recipes:
     extends: base,no-e-ne-cr-params,no-extension
     exclude:
       - tags.name=Manage Changesets
-      - tags.name=Manage Readers
+      - tags.name=Manage Tags
       - tags.name=Manage Connectors
       - tags.name=Manage Subscriptions
       - tags.name=Manage Jobs
-      - paths.'/spaces/{spaceId}/readers'
-      - paths.'/spaces/{spaceId}/readers/{readerId}'
-      - paths.'/spaces/{spaceId}/readers/{readerId}/version'
+      - paths.'/spaces/{spaceId}/tags'
+      - paths.'/spaces/{spaceId}/tags/{tagId}'
       - paths.'/spaces'.get.parameters.name=includeConnectors
       - paths.'/spaces'.get.parameters.name=contentUpdatedAt
       - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*Transactional$
       - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*PrefixId$
-      - paths.'/spaces/{spaceId}/features'.delete.parameters.$ref~=^.*TagList$
       - paths.'/spaces/{spaceId}/bbox'.get.parameters.$ref~=^.*Tweaks$
       - paths.'/spaces/{spaceId}/bbox'.get.parameters.$ref~=^.*TweaksParams$
       - paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.parameters.$ref~=^.*Tweaks$
       - paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.parameters.$ref~=^.*TweaksParams$
       - paths.'/spaces/{spaceId}/history'
       - paths.'/spaces/{spaceId}/history/statistics'
-      - paths.'/spaces/{spaceId}/count'
       - paths.'/spaces/{spaceId}/iterate'.get.parameters.$ref~=^.*Version$
       - paths.'/spaces/{spaceId}/iterate'.get.parameters.$ref~=^.*Sort$
       - paths.'/spaces/{spaceId}/iterate'.get.parameters.$ref~=^.*Part$
@@ -77,11 +74,10 @@ recipes:
       - components.parameters.PrefixId
       - components.parameters.Transactional
       - components.parameters.SubscriptionId
-      - components.parameters.ReaderId
+      - components.parameters.TagId
       - components.parameters.VersionPath
       - components.responses.ConnectorResponse
       - components.responses.ConnectorsResponse
-      - components.responses.CountFeaturesResponse
       - components.responses.HistoryResponse
       - components.responses.SubscriptionResponse
       - components.responses.SubscriptionsResponse
@@ -93,7 +89,6 @@ recipes:
       - components.schemas.AWSLambda
       - components.schemas.CacheProfile
       - components.schemas.ConnectorConfig
-      - components.schemas.CountFeatures
       - components.schemas.Http
       - components.schemas.RemoteFunctionConfig
       - components.schemas.Space.properties.enableUUID
@@ -116,7 +111,7 @@ recipes:
       - components.schemas.ChangesetCollection
       - components.schemas.CompactChangeset
       - components.schemas.ChangesetStatisticsResponse
-      - components.schemas.Reader
+      - components.schemas.Tag
       - components.schemas.Connector
       - components.schemas.Subscription
       - components.schemas.SubscriptionConfig
@@ -127,12 +122,6 @@ recipes:
         replace: ${get-tile-description}
   - name: experimental
     extends: base,no-e-ne-cr-params,no-extension
-    exclude:
-      - paths.'/spaces/{spaceId}/features'.delete.parameters.$ref~=^.*TagList$
-      - paths.'/spaces/{spaceId}/count'
-      - components.responses.CountFeaturesResponse
-      - components.schemas.CountFeatures
-      - components.schemas.Space.properties.tags
   - name: contract
     extends: base
     replace:
@@ -170,9 +159,6 @@ recipes:
         path: paths.'/spaces/{spaceId}/iterate'
         replace: paths.'/hub/spaces/{spaceId}/iterate'
       - type: key
-        path: paths.'/spaces/{spaceId}/count'
-        replace: paths.'/hub/spaces/{spaceId}/count'
-      - type: key
         path: paths.'/spaces/{spaceId}/history'
         replace: paths.'/hub/spaces/{spaceId}/history'
       - type: key
@@ -209,11 +195,11 @@ recipes:
         path: paths.'/spaces/{spaceId}/job/{jobId}/execute'
         replace: paths.'/hub/spaces/{spaceId}/job/{jobId}/execute'
       - type: key
-        path: paths.'/spaces/{spaceId}/readers/{readerId}'
-        replace: paths.'/hub/spaces/{spaceId}/readers/{readerId}'
+        path: paths.'/spaces/{spaceId}/tags'
+        replace: paths.'/hub/spaces/{spaceId}/tags'
       - type: key
-        path: paths.'/spaces/{spaceId}/readers/{readerId}/version'
-        replace: paths.'/hub/spaces/{spaceId}/readers/{readerId}/version'
+        path: paths.'/spaces/{spaceId}/tags/{tagId}'
+        replace: paths.'/hub/spaces/{spaceId}/tags/{tagId}'
       - type: key
         path: components.requestBodies.ConnectorConfig.content.'application/json'.schema
         replace: components.requestBodies.ConnectorConfig.content.'application/json'.x-schema
@@ -236,8 +222,8 @@ recipes:
         path: components.requestBodies.SpaceRequest.content.'application/json'.schema
         replace: components.requestBodies.SpaceRequest.content.'application/json'.x-schema
       - type: key
-        path: components.requestBodies.ReaderRequest.content.'application/json'.schema
-        replace: components.requestBodies.ReaderRequest.content.'application/json'.x-schema
+        path: components.requestBodies.TagRequest.content.'application/json'.schema
+        replace: components.requestBodies.TagRequest.content.'application/json'.x-schema
       - type: key
         path: components.requestBodies.SubscriptionRequest.content.'application/json'.schema
         replace: components.requestBodies.SubscriptionRequest.content.'application/json'.x-schema

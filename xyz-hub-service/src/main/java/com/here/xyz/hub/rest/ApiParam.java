@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -110,7 +110,7 @@ public class ApiParam {
     public static final String TILE_TYPE = "type";
     public static final String SUBSCRIPTION_ID = "subscriptionId";
     public static final String VERSION = "version";
-    public static final String READER_ID = "readerId";
+    public static final String TAG_ID = "tagId";
   }
 
   public static class Query {
@@ -142,7 +142,7 @@ public class ApiParam {
     static final String HANDLE = "handle";
     static final String INCLUDE_RIGHTS = "includeRights";
     static final String INCLUDE_CONNECTORS = "includeConnectors";
-    static final String INCLUDE_READERS = "includeReaders";
+    static final String INCLUDE_TAGS = "includeTags";
     static final String OWNER = "owner";
     static final String LAT = "lat";
     static final String LON = "lon";
@@ -178,14 +178,8 @@ public class ApiParam {
     static final String END_VERSION = "endVersion";
     static final String PAGE_TOKEN = "pageToken";
     static final String AUTHOR = "author";
-    static final String SUBSCRIPTION_SOURCE = "source";
 
     static final String F_PREFIX = "f.";
-
-    static final String OPERATION = "operation";
-    static final String READER = "reader";
-    static final String READER_ID = "readerId";
-    static final String NUMBER_OF_VERSIONS = "numberOfVersions";
 
     private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{
       put("!=", QueryOperation.NOT_EQUALS);

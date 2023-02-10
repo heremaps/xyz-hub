@@ -25,8 +25,8 @@ tags:
     description: Read and write endpoints for jobs.
   - name: Manage Changesets
     description: Read and write endpoints for changesets.
-  - name: Manage Readers
-    description: Read and write endpoints for readers.
+  - name: Manage Tags
+    description: Read and write endpoints for tags.
 paths:
   '/spaces':
     get:
@@ -78,11 +78,11 @@ paths:
           schema:
             type: boolean
             default: false
-        - name: includeReaders
+        - name: includeTags
           in: query
           description: >-
-            If set to _true_, the readers for each space are included in
-            the response. Only spaces containing readers will be returned.
+            If set to _true_, the tags for each space are included in
+            the response.
           required: false
           schema:
             type: boolean
@@ -118,10 +118,10 @@ paths:
           schema:
             type: string
             default: me
-        - name: readerId
+        - name: tag
           in: query
           description: >
-            Filters the space list by reader's Id.
+            Filter for spaces with the given tag.
           required: false
           schema:
             type: string
@@ -327,28 +327,66 @@ paths:
           $ref: '#/components/responses/ErrorResponse400'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
-  '/spaces/{spaceId}/readers/{readerId}':
-    put:
+  '/spaces/{spaceId}/tags':
+    post:
       tags:
-        - Manage Readers
-      summary: Create reader
+        - Manage Tags
+      summary: Create a tag
       description: >-
-        Registers a reader identified by readerId into the space.
-
-        At the moment of registration, reader pointer points to HEAD version of the space,
-        and subsequent write operations in the space can be retrieved by using the /changesets
-        endpoint, using the current value of the reader.
-
-        A space may have multiple readers, pointing to different versions. Each reader can be
-        processed separately, and then, at the end of the process, the version can be increased to match
-        the version of the data which has been already processed.
-      operationId: putReader
+        Create a tag, which points to a version of the space.
+        
+        If a version is not provided when creating the tag, then the current HEAD version will be 
+        referenced. If a version is provided, then it must be bigger than the minimum version of the 
+        space.
+      operationId: createTag
       parameters:
         - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/ReaderId'
       responses:
         '200':
-          $ref: '#/components/responses/ReaderResponse'
+          $ref: '#/components/responses/TagResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+  '/spaces/{spaceId}/tags/{tagId}':
+    patch:
+      tags:
+        - Manage Tags
+      summary: Update a tag
+      description: >-
+        Update a tag.
+      operationId: updateTag
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/TagId'
+      responses:
+        '200':
+          $ref: '#/components/responses/TagResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+    get:
+      tags:
+        - Manage Tags
+      summary: Get a tag
+      description: >-
+        Retrieves a tag.
+      operationId: getTag
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/TagId'
+      responses:
+        '200':
+          $ref: '#/components/responses/TagResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse400'
         '401':
@@ -359,62 +397,17 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
     delete:
       tags:
-        - Manage Readers
-      summary: Delete reader
+        - Manage Tags
+      summary: Delete a tag
       description: >-
-        Deregisters a reader identified by readerId from the space.
-      operationId: deleteReader
+        Deletes a tag.
+      operationId: deleteTag
       parameters:
         - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/ReaderId'
-      responses:
-        '204':
-          $ref: '#/components/responses/EmptyResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
-        '404':
-          $ref: '#/components/responses/ErrorResponse404'
-  '/spaces/{spaceId}/readers/{readerId}/version':
-    get:
-      tags:
-        - Manage Readers
-      summary: Get reader's version
-      description: >-
-        Retrieves the reader's current version.
-      operationId: getReaderVersion
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/ReaderId'
+        - $ref: '#/components/parameters/TagId'
       responses:
         '200':
-          $ref: '#/components/responses/ReaderResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
-        '404':
-          $ref: '#/components/responses/ErrorResponse404'
-    post:
-      tags:
-        - Manage Readers
-      summary: Increase reader's version
-      description: >-
-        Increases the reader version only when the version being submitted is bigger than the current version, ignoring otherwise.
-      operationId: increaseReaderVersion
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/ReaderId'
-      requestBody:
-        $ref: '#/components/requestBodies/ReaderRequest'
-      responses:
-        '200':
-          $ref: '#/components/responses/ReaderResponse'
+          $ref: '#/components/responses/TagResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse400'
         '401':
@@ -460,8 +453,6 @@ paths:
       operationId: putFeatures
       parameters:
         - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/AddTags'
-        - $ref: '#/components/parameters/RemoveTags'
       requestBody:
         $ref: '#/components/requestBodies/FeatureCollectionRequest'
       responses:
@@ -591,8 +582,6 @@ paths:
       operationId: postFeatures
       parameters:
         - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/AddTags'
-        - $ref: '#/components/parameters/RemoveTags'
         - $ref: '#/components/parameters/IfExists'
         - $ref: '#/components/parameters/IfNotExists'
         - $ref: '#/components/parameters/ConflictResolution'
@@ -630,7 +619,6 @@ paths:
       parameters:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/Ids'
-        - $ref: '#/components/parameters/TagList'
         - $ref: '#/components/parameters/Context'
       responses:
         '200':
@@ -678,8 +666,6 @@ paths:
       parameters:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/FeatureId'
-        - $ref: '#/components/parameters/AddTags'
-        - $ref: '#/components/parameters/RemoveTags'
       requestBody:
         $ref: '#/components/requestBodies/FeatureRequest'
       responses:
@@ -706,8 +692,6 @@ paths:
       parameters:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/FeatureId'
-        - $ref: '#/components/parameters/AddTags'
-        - $ref: '#/components/parameters/RemoveTags'
       requestBody:
         $ref: '#/components/requestBodies/FeatureRequest'
       responses:
@@ -780,7 +764,6 @@ paths:
         - $ref: '#/components/parameters/North'
         - $ref: '#/components/parameters/East'
         - $ref: '#/components/parameters/South'
-        - $ref: '#/components/parameters/TagList'
         - $ref: '#/components/parameters/Clip'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/PropertiesQuery'
@@ -823,7 +806,6 @@ paths:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/TileType'
         - $ref: '#/components/parameters/TileId'
-        - $ref: '#/components/parameters/TagList'
         - $ref: '#/components/parameters/Clip'
         - $ref: '#/components/parameters/PropertiesQuery'
         - $ref: '#/components/parameters/PropertiesSelection'
@@ -870,7 +852,6 @@ paths:
         - $ref: '#/components/parameters/RefFeatureId'
         - $ref: '#/components/parameters/H3Index'
         - $ref: '#/components/parameters/Radius'
-        - $ref: '#/components/parameters/TagList'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Clip'
         - $ref: '#/components/parameters/PropertiesQuery'
@@ -901,7 +882,6 @@ paths:
       parameters:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/Radius'
-        - $ref: '#/components/parameters/TagList'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Clip'
         - $ref: '#/components/parameters/PropertiesQuery'
@@ -935,7 +915,6 @@ paths:
       operationId: searchForFeatures
       parameters:
         - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/TagList'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/PropertiesQuery'
         - $ref: '#/components/parameters/PropertiesSelection'
@@ -990,30 +969,6 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
         '513':
           $ref: '#/components/responses/ErrorResponse513'
-  '/spaces/{spaceId}/count':
-    x-deprecated: true
-    get:
-      tags:
-        - Read Features
-      summary: Get feature count
-      description: >-
-        Returns the feature count of all features in the space or the count for
-        the provided combination of tags.
-      operationId: getFeaturesCount
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/TagList'
-      responses:
-        '200':
-          $ref: '#/components/responses/CountFeaturesResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
-        '404':
-          $ref: '#/components/responses/ErrorResponse404'
   '/spaces/{spaceId}/history':
     get:
       tags:
@@ -1419,16 +1374,6 @@ components:
       scheme: bearer
       bearerFormat: JWT
   parameters:
-    AddTags:
-      name: addTags
-      in: query
-      description: Tags to be added to the features.
-      required: false
-      style: form
-      schema:
-        type: array
-        items:
-          type: string
     Author:
       name: author
       in: query
@@ -1844,11 +1789,11 @@ components:
         Radius in meters which defines the diameter of the search request.
       schema:
         type: integer
-    ReaderId:
-      name: readerId
+    TagId:
+      name: tagId
       in: path
       description: >-
-        The reader ID from the reader which holds the pointer to a changeset's version.
+        The id of the tag.
       required: true
       schema:
         type: string
@@ -1870,16 +1815,6 @@ components:
         Required if refFeatureId is used.
       schema:
         type: string
-    RemoveTags:
-      name: removeTags
-      in: query
-      description: Tags to be removed from the features.
-      required: false
-      style: form
-      schema:
-        type: array
-        items:
-          type: string
     RequiredIds:
       name: id
       in: query
@@ -1949,20 +1884,6 @@ components:
       required: false
       schema:
         type: integer
-    TagList:
-      name: tags
-      in: query
-      description: >-
-        A comma separated list of tags or combination of tags concatenated with
-        a plus sign (+). A comma separated list of tags means any tag may be
-        found. A plus sign concatenated list means every tag is required.
-      allowEmptyValue: true
-      #allowReserved: true
-      style: form
-      schema:
-        type: array
-        items:
-          type: string
     TileId:
       name: tileId
       in: path
@@ -2190,13 +2111,6 @@ components:
             items:
               $ref: '#/components/schemas/ConnectorConfig'
             type: array
-    CountFeaturesResponse:
-      x-deprecated: true
-      description: The number of features in a spaces, optionally counted by tag(s).
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/CountFeatures'
     EmptyResponse:
       description: >-
         An empty response as a result of a user-request with accepted MIME type application/x-empty.
@@ -2313,10 +2227,6 @@ components:
                   '@ns:com:here:xyz':
                     createdAt: 1517504700726
                     updatedAt: 1517504700726
-                    space: 0FzlE2wX
-                    tags:
-                      - football
-                      - stadium
                   amenity: Football Stadium
                   capacity: 54074
                   description: Home of the Liverpool Football Club.
@@ -2359,12 +2269,12 @@ components:
         application/geo+json:
           schema:
             $ref: '#/components/schemas/FeatureCollectionIterable'
-    ReaderResponse:
-      description: A reader response.
+    TagResponse:
+      description: A tag response.
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Reader'
+            $ref: '#/components/schemas/Tag'
     SpaceResponse:
       description: The space.
       content:
@@ -2480,12 +2390,12 @@ components:
         application/geo+json:
           schema:
             $ref: '#/components/schemas/Geometry'
-    ReaderRequest:
+    TagRequest:
       required: true
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Reader'
+            $ref: '#/components/schemas/Tag'
     SpaceRequest:
       required: true
       content:
@@ -2588,10 +2498,6 @@ components:
                   - 8.3125
               properties:
                 name: Polideportivo Cachamay
-                '@ns:com:here:xyz':
-                  tags:
-                    - football
-                    - stadium
                 sport: association football
                 capacity: 41600
         updated:
@@ -2606,10 +2512,6 @@ components:
                   - 32.228889
               properties:
                 name: Arizona Stadium
-                '@ns:com:here:xyz':
-                  tags:
-                    - football
-                    - stadium
                 sport: American football
                 capacity: 56037
         deleted:
@@ -2624,10 +2526,6 @@ components:
                   - 8.3125
               properties:
                 name: Murrayfield Stadium
-                '@ns:com:here:xyz':
-                  tags:
-                    - rugby
-                    - stadium
                 sport: rugby union
                 capacity: 67144
     ChangesetCollection:
@@ -2669,9 +2567,6 @@ components:
                   properties:
                     name: Polideportivo Cachamay
                     '@ns:com:here:xyz':
-                      tags:
-                        - football
-                        - stadium
                       version: 1
                     sport: association football
                     capacity: 41600
@@ -2688,9 +2583,6 @@ components:
                   properties:
                     name: Arizona Stadium
                     '@ns:com:here:xyz':
-                      tags:
-                        - football
-                        - stadium
                       version: 1
                     sport: American football
                     capacity: 56037
@@ -2722,10 +2614,7 @@ components:
               properties:
                 name: Polideportivo Cachamay
                 '@ns:com:here:xyz':
-                  tags:
-                    - football
-                    - stadium
-                version: 1
+                  version: 1
                 sport: association football
                 capacity: 41600
         updated:
@@ -2741,10 +2630,7 @@ components:
               properties:
                 name: Arizona Stadium
                 '@ns:com:here:xyz':
-                  tags:
-                    - football
-                    - stadium
-                version: 5
+                  version: 5
                 sport: American football
                 capacity: 56037
         deleted:
@@ -2858,8 +2744,6 @@ components:
               GetFeaturesByGeometryEvent.response,
               ModifyFeaturesEvent.request,
               ModifyFeaturesEvent.response,
-              DeleteFeaturesByTagEvent.request,
-              DeleteFeaturesByTagEvent.response,
               ContentModifiedNotification.request
             ]
         contactEmails:
@@ -2907,22 +2791,6 @@ components:
       example:
         label: HERE
         alt: HERE XYZ
-    CountFeatures:
-      x-deprecated: true
-      type: object
-      description: >-
-        The response returned when successfully requesting the feature count of
-        a space.
-      properties:
-        count:
-          description: The feature count.
-          type: integer
-        estimated:
-          $ref: '#/components/schemas/Estimated'
-      example:
-        type: CountResponse
-        count: 100
-        estimated: false
     Error:
       type: object
       description: >-
@@ -2979,10 +2847,6 @@ components:
                 - 53.430828
             properties:
               name: Anfield
-              '@ns:com:here:xyz':
-                tags:
-                  - football
-                  - stadium
               amenity: Football Stadium
               capacity: 54074
               description: Home of the Liverpool Football Club.
@@ -3030,9 +2894,6 @@ components:
                   '@ns:com:here:xyz':
                     createdAt: 1517504700726
                     updatedAt: 1517504700726
-                    tags:
-                      - football
-                      - stadium
                   amenity: Football Stadium
                   capacity: 54074
                   description: Home of the Liverpool Football Club.
@@ -3064,9 +2925,6 @@ components:
                   '@ns:com:here:xyz':
                     createdAt: 1517504700726
                     updatedAt: 1517504700726
-                    tags:
-                      - football
-                      - stadium
                   amenity: Football Stadium
                   capacity: 54074
                   description: Home of the Liverpool Football Club.
@@ -3111,9 +2969,6 @@ components:
                     createdAt: 1517504700726
                     updatedAt: 1517504700726
                     space: 0FzlE2wX
-                    tags:
-                      - football
-                      - stadium
                   amenity: Football Stadium
                   capacity: 54074
                   description: Home of the Liverpool Football Club.
@@ -3155,10 +3010,6 @@ components:
                   - 53.430828
               properties:
                 name: Anfield
-                '@ns:com:here:xyz':
-                  tags:
-                    - football
-                    - stadium
                 amenity: Football Stadium
                 capacity: 54074
                 description: Home of the Liverpool Football Club.
@@ -3196,10 +3047,6 @@ components:
                       - 53.430828
                   properties:
                     name: Anfield
-                    '@ns:com:here:xyz':
-                      tags:
-                        - football
-                        - stadium
                     amenity: Football Stadium
                     capacity: 54074
                     description: Home of the Liverpool Football Club.
@@ -3490,30 +3337,25 @@ components:
                   maxItems: 3
                   minItems: 2
                 minItems: 4
-    Reader:
+    Tag:
       type: object
       description: >-
-        A reader which points to a Changeset's version.
+        A tag which points to a version of the space.
       properties:
         id:
           type: string
           description: >-
-            The reader ID.
+            The tag ID.
         spaceId:
           type: string
           description: >-
-            The space ID this reader is registered.
-        spaceVersion:
+            The space ID for which the tag is registered.
+        version:
           type: integer
           format: int64
           readOnly: true
           description: >-
-            The space's HEAD version.
-        readerVersion:
-          type: integer
-          format: int64
-          description: >-
-            The current reader's version.
+            The referenced version.
     RemoteFunctionConfig:
       type: object
       description: A connector declaration.
@@ -3646,11 +3488,6 @@ components:
         cid:
           description: An additional identifier specifying a context of the owner.
           type: string
-        tags:
-          description: The tags for this objects.
-          items:
-            type: string
-          type: array
         createdAt:
           default: 1538352000000
           description: >-
@@ -3731,9 +3568,9 @@ components:
             e.g. ?version=<version_number>
           example: 2
           type: integer
-        readers:
+        tags:
           description: >-
-            A map containing the reader ids and the current versions of each reader.
+            A map containing the tag ids and the respective referenced versions.
           type: object
           additionalProperties:
             type: integer
@@ -3851,23 +3688,6 @@ components:
               description: >-
                 Specifies the scope of searchability of the properties. One of NONE, PARTIAL, ALL.
               example: PARTIAL
-        tags:
-          type: object
-          description: Tags of the space with their count.
-          properties:
-            value:
-              type: array
-              items:
-                type: object
-                properties:
-                  key:
-                    type: string
-                    description: Tag name
-                  count:
-                    type: number
-                    description: How many features with this tag
-            estimated:
-              $ref: '#/components/schemas/Estimated'
         searchable:
           type: string
           description: >-
@@ -3902,10 +3722,6 @@ components:
               searchable: true
           estimated: true
           searchable: PARTIAL
-        tags:
-          value:
-            - key: PuneBusStop
-              count: 29208
         etag: 072d3ec0f881b4e7
     StorageCapabilities:
       type: object

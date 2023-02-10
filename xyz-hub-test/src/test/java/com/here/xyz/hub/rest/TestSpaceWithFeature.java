@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -59,7 +59,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
     TestWithSpaceCleanup.removeSpace("x-psql-test");
   }
 
-  private static ValidatableResponse createSpace(String content) {
+  public static ValidatableResponse createSpace(String content) {
     return given()
         .contentType(APPLICATION_JSON)
         .accept(APPLICATION_JSON)
@@ -122,6 +122,17 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .extract()
         .body()
         .path("id");
+  }
+
+  public void createSpaceWithVersionsToKeep(String spaceId, int versionsToKeep, boolean enableUUID) {
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body("{\"id\":\""+spaceId+"\",\"title\":\"" + spaceId + "\",\"versionsToKeep\":"+versionsToKeep+",\"enableUUID\":"+enableUUID+"}")
+        .when()
+        .post(getCreateSpacePath())
+        .then()
+        .statusCode(OK.code());
   }
 
   protected static void addFeatures() {

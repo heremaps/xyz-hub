@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -208,7 +208,7 @@ public class Space {
    */
   @JsonView({Public.class, Static.class})
   @JsonInclude(Include.NON_EMPTY)
-  private List<String> tags;
+  private Map<String, Tag> tags;
 
   /**
    * The creation timestamp.
@@ -242,10 +242,6 @@ public class Space {
   @JsonInclude(Include.NON_EMPTY)
   @JsonView({Public.class, Static.class})
   private List<List<Object>> sortableProperties;
-
-  @JsonInclude(Include.NON_EMPTY)
-  @JsonView({Public.class, Static.class})
-  private List<Reader> readers;
 
   /**
    * Controls whether during feature creation, the operation succeeds when the payload contains UUID or fails with 409. Default is true.
@@ -552,19 +548,6 @@ public class Space {
     return this;
   }
 
-  public List<String> getTags() {
-    return tags;
-  }
-
-  public void setTags(final List<String> tags) {
-    this.tags = tags;
-  }
-
-  public Space withTags(final List<String> tags) {
-    setTags(tags);
-    return this;
-  }
-
   public long getCreatedAt() {
     return createdAt;
   }
@@ -643,19 +626,18 @@ public class Space {
     return this;
   }
 
-  public List<Reader> getReaders() {
-    return readers;
+  public Map<String, Tag> getReaders() {
+    return tags;
   }
 
-  public void setReaders(final List<Reader> readers) {
-    this.readers = readers;
+  public void setTags(final Map<String,Tag> tags) {
+    this.tags = tags;
   }
 
-  public Space withReaders(final List<Reader> readers) {
-    setReaders(readers);
+  public Space withTags(final Map<String,Tag> tags) {
+    setTags(tags);
     return this;
   }
-
 
   @SuppressWarnings("WeakerAccess")
   public static class Public {

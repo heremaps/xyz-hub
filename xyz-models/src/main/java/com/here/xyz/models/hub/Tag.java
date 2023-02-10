@@ -19,7 +19,7 @@
 
 package com.here.xyz.models.hub;
 
-public class Reader {
+public class Tag {
   /**
    * The reader id.
    */
@@ -43,7 +43,7 @@ public class Reader {
     this.id = id;
   }
 
-  public Reader withId(String id) {
+  public Tag withId(String id) {
     setId(id);
     return this;
   }
@@ -56,7 +56,7 @@ public class Reader {
     this.spaceId = spaceId;
   }
 
-  public Reader withSpaceId(String spaceId) {
+  public Tag withSpaceId(String spaceId) {
     setSpaceId(spaceId);
     return this;
   }
@@ -69,7 +69,7 @@ public class Reader {
     this.version = version;
   }
 
-  public Reader withVersion(long version) {
+  public Tag withVersion(long version) {
    setVersion(version);
    return this;
   }

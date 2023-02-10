@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ import com.here.xyz.hub.task.TaskPipeline.C1;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
 import com.here.xyz.hub.util.diff.Difference;
 import com.here.xyz.hub.util.diff.Patcher;
-import com.here.xyz.models.hub.Reader;
+import com.here.xyz.models.hub.Tag;
 import com.here.xyz.models.hub.Space.ConnectorRef;
 import io.vertx.core.Future;
 import io.vertx.core.json.Json;
@@ -84,9 +84,9 @@ public class SpaceTaskHandler {
     Service.spaceConfigClient.getSelected(task.getMarker(), task.authorizedCondition, task.selectedCondition, task.propertiesQuery)
         .flatMap(spaces -> !task.selectedCondition.includeReaders
             ? Future.succeededFuture(spaces)
-            : Service.readerConfigClient
-              .getReaders(task.getMarker(), spaces.stream().map(Space::getId).collect(Collectors.toList()))
-              .map(readers -> readers.stream().reduce(new HashMap<String, List<Reader>>(), (map, reader) -> {
+            : Service.tagConfigClient
+              .getTags(task.getMarker(), spaces.stream().map(Space::getId).collect(Collectors.toList()))
+              .map(readers -> readers.stream().reduce(new HashMap<String, List<Tag>>(), (map, reader) -> {
                 map.putIfAbsent(reader.getId(), new ArrayList<>());
                 map.get(reader.getId()).add(reader);
 
@@ -101,7 +101,7 @@ public class SpaceTaskHandler {
               }))
               .map(map -> spaces
                   .stream()
-                  .peek(space -> space.setReaders(map.get(space.getId())))
+//                  .peek(space -> space.setTags(map.get(space.getId())))
                   .collect(Collectors.toList()))
         )
         .onFailure(t -> {

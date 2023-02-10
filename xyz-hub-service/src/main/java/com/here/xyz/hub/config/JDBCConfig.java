@@ -20,7 +20,6 @@
 package com.here.xyz.hub.config;
 
 import com.here.xyz.hub.Service;
-import com.here.xyz.models.hub.Subscription;
 import com.here.xyz.psql.SQLQuery;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -43,7 +42,7 @@ public class JDBCConfig {
   static final String CONNECTOR_TABLE = SCHEMA + ".xyz_storage";
   static final String SPACE_TABLE = SCHEMA + ".xyz_space";
   static final String SUBSCRIPTION_TABLE = SCHEMA + ".xyz_subscription";
-  static final String READER_TABLE = SCHEMA + ".xyz_readers";
+  static final String TAG_TABLE = SCHEMA + ".xyz_tags";
   private static SQLClient client;
   private static boolean initialized = false;
 
@@ -98,7 +97,7 @@ public class JDBCConfig {
             "CREATE table  " + CONNECTOR_TABLE + " (id VARCHAR(50) primary key, owner VARCHAR (50), config JSONB)",
             "CREATE table  " + SPACE_TABLE + " (id VARCHAR(255) primary key, owner VARCHAR (50), cid VARCHAR (255), config JSONB)",
             "CREATE table  " + SUBSCRIPTION_TABLE + " (id VARCHAR(255) primary key, source VARCHAR (255), config JSONB)",
-            "CREATE table  " + READER_TABLE + " (id VARCHAR(255), space VARCHAR (255), version BIGINT, PRIMARY KEY(id, space))"
+            "CREATE table  " + TAG_TABLE + " (id VARCHAR(255), space VARCHAR (255), version BIGINT, PRIMARY KEY(id, space))"
         );
 
         Promise<Void> onComplete = Promise.promise();

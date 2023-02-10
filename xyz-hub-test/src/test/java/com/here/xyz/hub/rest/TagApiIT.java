@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,16 +21,16 @@ package com.here.xyz.hub.rest;
 
 import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
-import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 
+import com.jayway.restassured.response.ValidatableResponse;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class ReaderApiIT extends TestSpaceWithFeature {
+public class TagApiIT extends TestSpaceWithFeature {
 
   @BeforeClass
   public static void setupClass() {
@@ -39,8 +39,7 @@ public class ReaderApiIT extends TestSpaceWithFeature {
 
   @Before
   public void setup() {
-    createSpace();
-    addFeatures();
+    createSpaceWithVersionsToKeep(getSpaceId(), 2, false);
   }
 
   @After
@@ -48,76 +47,72 @@ public class ReaderApiIT extends TestSpaceWithFeature {
     removeSpace(getSpaceId());
   }
 
-  @Test
-  public void createReader() {
-    given()
+  private ValidatableResponse _createReader(){
+    return given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .put("/spaces/" + getSpaceId() + "/readers/XYZ_1")
-        .then()
-        .statusCode(OK.code())
-        .body("id", equalTo("XYZ_1"))
-        .body("spaceId", equalTo(getSpaceId()))
-        .body("version", equalTo(1));
+        .body("{\"id\":\"XYZ_1\"}")
+        .post("/spaces/" + getSpaceId() + "/tags")
+        .then();
   }
 
   @Test
-  public void deleteReader() {
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .delete("/spaces/" + getSpaceId() + "/readers/XYZ_1")
-        .then()
-        .statusCode(NOT_FOUND.code());
-
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .put("/spaces/" + getSpaceId() + "/readers/XYZ_1")
-        .then()
+  public void createTag() {
+    _createReader()
         .statusCode(OK.code())
         .body("id", equalTo("XYZ_1"))
         .body("spaceId", equalTo(getSpaceId()))
-        .body("version", equalTo(1));
+        .body("version", equalTo(0));
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .delete("/spaces/" + getSpaceId() + "/readers/XYZ_1")
+        .get("/spaces/" + getSpaceId() + "/tags/XYZ_1")
         .then()
-        .statusCode(NO_CONTENT.code());
+        .statusCode(OK.code());
   }
 
   @Test
-  public void getReaderVersion() {
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + getSpaceId() + "/readers/XYZ_1/version")
-        .then()
-        .statusCode(NOT_FOUND.code());
+  public void deleteTag() {
+    _createReader();
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .put("/spaces/" + getSpaceId() + "/readers/XYZ_1")
+        .delete("/spaces/" + getSpaceId() + "/tags/XYZ_1")
         .then()
         .statusCode(OK.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + getSpaceId() + "/readers/XYZ_1/version")
+        .delete("/spaces/" + getSpaceId() + "/tags/XYZ_1")
         .then()
-        .statusCode(OK.code())
-        .body("version", equalTo(1));
+        .statusCode(NOT_FOUND.code());
   }
 
   @Test
-  public void increaseReaderVersion() {
+  public void getTagVersion() {
+    _createReader();
+
+        given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + getSpaceId() + "/tags/XYZ_1")
+        .then()
+        .statusCode(OK.code())
+        .body("version", equalTo(0));
+  }
+
+  @Test
+  public void updateTagVersion() {
+    _createReader();
+
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .put("/spaces/" + getSpaceId() + "/readers/XYZ_1")
+        .body("{\"version\":999}")
+        .patch("/spaces/" + getSpaceId() + "/tags/XYZ_1")
         .then()
         .statusCode(OK.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body("{\"version\": 999}")
-        .post("/spaces/" + getSpaceId() + "/readers/XYZ_1/version")
+        .get("/spaces/" + getSpaceId() + "/tags/XYZ_1")
         .then()
         .statusCode(OK.code())
         .body("version", equalTo(999));

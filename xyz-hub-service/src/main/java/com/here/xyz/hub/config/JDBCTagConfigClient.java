@@ -19,9 +19,9 @@
 
 package com.here.xyz.hub.config;
 
-import static com.here.xyz.hub.config.JDBCConfig.READER_TABLE;
+import static com.here.xyz.hub.config.JDBCConfig.TAG_TABLE;
 
-import com.here.xyz.models.hub.Reader;
+import com.here.xyz.models.hub.Tag;
 import com.here.xyz.psql.SQLQuery;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -35,36 +35,36 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
-public class JDBCReaderConfigClient extends ReaderConfigClient{
+public class JDBCTagConfigClient extends TagConfigClient {
   private static final Logger logger = LogManager.getLogger();
 
-  private static JDBCReaderConfigClient instance;
+  private static JDBCTagConfigClient instance;
   SQLClient client;
 
-  private JDBCReaderConfigClient() {
+  private JDBCTagConfigClient() {
     this.client = JDBCConfig.getClient();
   }
 
-  public static ReaderConfigClient getInstance() {
+  public static TagConfigClient getInstance() {
     if (instance == null) {
-      instance = new JDBCReaderConfigClient();
+      instance = new JDBCTagConfigClient();
     }
     return instance;
   }
 
   @Override
-  public Future<Reader> getReader(Marker marker, String id, String spaceId) {
-    Promise<Reader> p = Promise.promise();
-    SQLQuery query = new SQLQuery("SELECT id, space, version FROM " + READER_TABLE + " WHERE id = ? AND space = ?", id, spaceId);
+  public Future<Tag> getTag(Marker marker, String id, String spaceId) {
+    Promise<Tag> p = Promise.promise();
+    SQLQuery query = new SQLQuery("SELECT id, space, version FROM " + TAG_TABLE + " WHERE id = ? AND space = ?", id, spaceId);
     client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
-        Optional<Reader> reader = out.result().getRows().stream().map(r->new Reader()
+        Optional<Tag> tag = out.result().getRows().stream().map(r->new Tag()
                 .withId(r.getString("id"))
                 .withSpaceId(r.getString("space"))
                 .withVersion(r.getLong("version"))
         ).findFirst();
-        if (reader.isPresent()) {
-          p.complete(reader.get());
+        if (tag.isPresent()) {
+          p.complete(tag.get());
         }
         else
           p.complete();
@@ -76,43 +76,43 @@ public class JDBCReaderConfigClient extends ReaderConfigClient{
   }
 
   @Override
-  public Future<List<Reader>> getReaders(Marker marker, String id, List<String> spaceIds) {
+  public Future<List<Tag>> getTags(Marker marker, String id, List<String> spaceIds) {
     List<String> params = spaceIds.stream().map(e->"?").collect(Collectors.toList());
     SQLQuery query = new SQLQuery("WHERE id=?", id);
     query.append(new SQLQuery("AND space IN (" + StringUtils.join(params, ",")+")", spaceIds.toArray()));
-    return _getReaders(marker, query);
+    return _getTags(marker, query);
   }
 
   @Override
-  public Future<List<Reader>> getReaders(Marker marker, String spaceId) {
-    return _getReaders(marker, new SQLQuery("WHERE space=?", spaceId));
+  public Future<List<Tag>> getTags(Marker marker, String spaceId) {
+    return _getTags(marker, new SQLQuery("WHERE space=?", spaceId));
   }
 
   @Override
-  public Future<List<Reader>> getReaders(Marker marker, List<String> spaceIds) {
+  public Future<List<Tag>> getTags(Marker marker, List<String> spaceIds) {
     List<String> params = spaceIds.stream().map(e->"?").collect(Collectors.toList());
     SQLQuery query = new SQLQuery("WHERE space IN (" + StringUtils.join(params, ",")+")", spaceIds.toArray());
-    return _getReaders(marker, query);
+    return _getTags(marker, query);
   }
 
   @Override
-  public Future<List<Reader>> getAllReaders(Marker marker) {
-    return _getReaders(marker, null);
+  public Future<List<Tag>> getAllTags(Marker marker) {
+    return _getTags(marker, null);
   }
 
-  private Future<List<Reader>> _getReaders(Marker marker, SQLQuery whereClause) {
-    Promise<List<Reader>> p = Promise.promise();
-    SQLQuery query = new SQLQuery("SELECT id, space, version FROM " + READER_TABLE );
+  private Future<List<Tag>> _getTags(Marker marker, SQLQuery whereClause) {
+    Promise<List<Tag>> p = Promise.promise();
+    SQLQuery query = new SQLQuery("SELECT id, space, version FROM " + TAG_TABLE);
     if(whereClause != null )
       query.append(whereClause);
     client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
-        List<Reader> reader = out.result().getRows().stream().map(r->new Reader()
+        List<Tag> tag = out.result().getRows().stream().map(r->new Tag()
             .withId(r.getString("id"))
             .withSpaceId(r.getString("space"))
             .withVersion(r.getLong("version"))
         ).collect(Collectors.toList());
-        p.complete(reader);
+        p.complete(tag);
       }
       else
         p.fail(out.cause());
@@ -121,19 +121,14 @@ public class JDBCReaderConfigClient extends ReaderConfigClient{
   }
 
   @Override
-  public Future<Long> increaseVersion(Marker marker, String spaceId, String readerId, Long newVersion) {
-    return null;
-  }
-
-  @Override
-  public Future<Void> storeReader(Marker marker, Reader reader) {
+  public Future<Void> storeTag(Marker marker, Tag tag) {
     Promise<Void> p = Promise.promise();
 
-    final SQLQuery query = new SQLQuery("INSERT INTO " + READER_TABLE + " (id, space, version) VALUES (?, ?, ?) " +
+    final SQLQuery query = new SQLQuery("INSERT INTO " + TAG_TABLE + " (id, space, version) VALUES (?, ?, ?) " +
         "ON CONFLICT (id,space) DO " +
         "UPDATE SET id = ?, space = ?, version = ?",
-        reader.getId(), reader.getSpaceId(), reader.getVersion(),
-        reader.getId(), reader.getSpaceId(), reader.getVersion());
+        tag.getId(), tag.getSpaceId(), tag.getVersion(),
+        tag.getId(), tag.getSpaceId(), tag.getVersion());
 
     client.updateWithParams(query.text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
@@ -146,16 +141,16 @@ public class JDBCReaderConfigClient extends ReaderConfigClient{
   }
 
   @Override
-  public Future<Reader> deleteReader(Marker marker, String id, String spaceId) {
-    final SQLQuery query = new SQLQuery("DELETE FROM " + READER_TABLE + " WHERE id = ? AND space = ?", id, spaceId);
-    return getReader(marker, id, spaceId).compose(reader -> JDBCConfig.updateWithParams(query).map(reader));
+  public Future<Tag> deleteTag(Marker marker, String id, String spaceId) {
+    final SQLQuery query = new SQLQuery("DELETE FROM " + TAG_TABLE + " WHERE id = ? AND space = ?", id, spaceId);
+    return getTag(marker, id, spaceId).compose(tag -> JDBCConfig.updateWithParams(query).map(tag));
   }
 
   @Override
-  public Future<List<Reader>> deleteReaders(Marker marker, String spaceId) {
-    final SQLQuery query = new SQLQuery("DELETE FROM " + READER_TABLE + " WHERE space = ?", spaceId);
-    return getReaders(marker, spaceId)
-        .compose(readers -> JDBCConfig.updateWithParams(query)
-        .map(readers));
+  public Future<List<Tag>> deleteTagsForSpace(Marker marker, String spaceId) {
+    final SQLQuery query = new SQLQuery("DELETE FROM " + TAG_TABLE + " WHERE space = ?", spaceId);
+    return getTags(marker, spaceId)
+        .compose(tags -> JDBCConfig.updateWithParams(query)
+        .map(tags));
   }
 }

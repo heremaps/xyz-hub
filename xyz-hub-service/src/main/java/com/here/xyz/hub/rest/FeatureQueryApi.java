@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -70,19 +70,9 @@ public class FeatureQueryApi extends SpaceBasedApi {
     rb.operation("getFeaturesBySpatialPost").handler(this::getFeaturesBySpatial);
     rb.operation("getFeaturesByBBox").handler(this::getFeaturesByBBox);
     rb.operation("getFeaturesByTile").handler(this::getFeaturesByTile);
-    rb.operation("getFeaturesCount").handler(this::getFeaturesCount);
     rb.operation("getStatistics").handler(this::getStatistics);
     rb.operation("iterateFeatures").handler(this::iterateFeatures);
     rb.operation("searchForFeatures").handler(this::searchForFeatures);
-  }
-
-  /**
-   * Retrieves the count of features in the space.
-   */
-  @Deprecated
-  private void getFeaturesCount(final RoutingContext context) {
-    new GetStatistics(new GetStatisticsEvent(), context, ApiResponseType.COUNT_RESPONSE, Query.getBoolean(context, SKIP_CACHE, false))
-        .execute(this::sendResponse, this::sendErrorResponse);
   }
 
   /**

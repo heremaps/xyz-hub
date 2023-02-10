@@ -20,38 +20,37 @@
 package com.here.xyz.hub.config;
 
 import com.here.xyz.hub.Service;
-import com.here.xyz.models.hub.Reader;
+import com.here.xyz.models.hub.Tag;
 import io.vertx.core.Future;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
-public abstract class ReaderConfigClient implements Initializable{
+public abstract class TagConfigClient implements Initializable{
   private static final Logger logger = LogManager.getLogger();
 
-  public static ReaderConfigClient getInstance() {
+  public static TagConfigClient getInstance() {
     if (Service.configuration.READERS_DYNAMODB_TABLE_ARN != null) {
-      return new DynamoReaderConfigClient(Service.configuration.READERS_DYNAMODB_TABLE_ARN);
+      return new DynamoTagConfigClient(Service.configuration.READERS_DYNAMODB_TABLE_ARN);
     } else {
-      return JDBCReaderConfigClient.getInstance();
+      return JDBCTagConfigClient.getInstance();
     }
   }
-  public abstract Future<Reader> getReader(Marker marker, String id, String spaceId);
+  public abstract Future<Tag> getTag(Marker marker, String id, String spaceId);
 
-  public abstract Future<List<Reader>> getReaders(Marker marker, String id, List<String> spaceIds);
+  public abstract Future<List<Tag>> getTags(Marker marker, String id, List<String> spaceIds);
 
-  public abstract Future<List<Reader>> getReaders(Marker marker, String spaceId);
+  public abstract Future<List<Tag>> getTags(Marker marker, String spaceId);
 
-  public abstract Future<List<Reader>> getReaders(Marker marker, List<String> spaceIds);
+  public abstract Future<List<Tag>> getTags(Marker marker, List<String> spaceIds);
 
-  public abstract Future<List<Reader>> getAllReaders(Marker marker);
+  public abstract Future<List<Tag>> getAllTags(Marker marker);
 
-  public abstract Future<Void> storeReader(Marker marker, Reader reader);
+  public abstract Future<Void> storeTag(Marker marker, Tag tag);
 
-  public abstract Future<Long> increaseVersion(Marker marker, String spaceId, String readerId, Long newVersion);
+  public abstract Future<Tag> deleteTag(Marker marker, String id, String spaceId);
 
-  public abstract Future<Reader> deleteReader(Marker marker, String id, String spaceId);
-
-  public abstract Future<List<Reader>> deleteReaders(Marker marker, String spaceId);
+  public abstract Future<List<Tag>> deleteTagsForSpace(Marker marker, String spaceId);
 }
+

@@ -71,17 +71,6 @@ public class VersioningIT extends TestSpaceWithFeature {
     postFeature(spaceId, new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("name", "updated name")));
   }
 
-  public void createSpaceWithVersionsToKeep(String spaceId, int versionsToKeep, boolean enableUUID) {
-    given()
-        .contentType(APPLICATION_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body("{\"id\":\""+spaceId+"\",\"title\":\"" + spaceId + "\",\"versionsToKeep\":"+versionsToKeep+",\"enableUUID\":"+enableUUID+"}")
-        .when()
-        .post(getCreateSpacePath())
-        .then()
-        .statusCode(OK.code());
-  }
-
   @After
   public void tearDown() {
     removeSpace(SPACE_ID_1_NO_UUID);

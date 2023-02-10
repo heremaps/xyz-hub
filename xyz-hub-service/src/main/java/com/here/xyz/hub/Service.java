@@ -24,7 +24,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.cache.CacheClient;
 import com.here.xyz.hub.config.ConnectorConfigClient;
-import com.here.xyz.hub.config.ReaderConfigClient;
+import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.config.SubscriptionConfigClient;
 import com.here.xyz.hub.connectors.BurstAndUpdateThread;
@@ -122,7 +122,7 @@ public class Service extends Core {
   /**
    * The client to access the reader configuration.
    */
-  public static ReaderConfigClient readerConfigClient;
+  public static TagConfigClient tagConfigClient;
 
   /**
    * A web client to access XYZ Hub nodes and other web resources.
@@ -180,7 +180,7 @@ public class Service extends Core {
     spaceConfigClient = SpaceConfigClient.getInstance();
     connectorConfigClient = ConnectorConfigClient.getInstance();
     subscriptionConfigClient = SubscriptionConfigClient.getInstance();
-    readerConfigClient = ReaderConfigClient.getInstance();
+    tagConfigClient = TagConfigClient.getInstance();
 
     webClient = WebClient.create(vertx, new WebClientOptions()
         .setUserAgent(XYZ_HUB_USER_AGENT)
@@ -205,7 +205,7 @@ public class Service extends Core {
           }
         });
         subscriptionConfigClient.init(subscriptionConfigReady -> {});
-        readerConfigClient.init(readerConfigReady -> {});
+        tagConfigClient.init(readerConfigReady -> {});
       }
     });
   }
