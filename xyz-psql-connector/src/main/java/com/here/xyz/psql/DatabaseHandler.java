@@ -513,7 +513,6 @@ public abstract class DatabaseHandler extends StorageConnector {
         { case CREATE :
           case UPDATE :
             long rVal = (long) executeUpdateWithRetry( SQLQueryBuilder.buildAddSubscriptionQuery(space, schemaName, tableName ) );
-            setReplicaIdentity();
             return new FeatureCollection().withCount(rVal);
 
           case DELETE :
@@ -1565,49 +1564,6 @@ public abstract class DatabaseHandler extends StorageConnector {
             }
         }
     }
-
-    protected void setReplicaIdentity() throws SQLException {
-        final String tableName = config.readTableFromEvent(event);
-
-        try (final Connection connection = dataSource.getConnection()) {
-            advisoryLock( tableName, connection );
-            boolean cStateFlag = connection.getAutoCommit();
-            try {
-                if (cStateFlag)
-                    connection.setAutoCommit(false);
-
-                String infoSql = SQLQueryBuilder.getReplicaIdentity(config.getDatabaseSettings().getSchema(), tableName);
-
-                try (Statement stmt = connection.createStatement();
-                     ResultSet rs = stmt.executeQuery(infoSql); )
-                {
-                    if( !rs.next() )
-                    { createSpaceStatement(stmt, event); /** Create Space-Table */
-                      String setReplIdSql = SQLQueryBuilder.setReplicaIdentity(config.getDatabaseSettings().getSchema(), tableName + "_head" );
-                      stmt.addBatch(setReplIdSql);
-                    }
-                    else if(! "f".equals(rs.getString(1) ) ) /** Table exists, but wrong replic identity */
-                    { String rTableName = rs.getString(2),
-                             setReplIdSql = SQLQueryBuilder.setReplicaIdentity(config.getDatabaseSettings().getSchema(), rTableName);
-                      stmt.addBatch(setReplIdSql);
-                    }
-                    else
-                     return; /** Table exists with propper replic identity */
-
-                    stmt.setQueryTimeout(calculateTimeout());
-                    stmt.executeBatch();
-                    connection.commit();
-                }
-            } catch (Exception e) {
-                throw new SQLException("set replica identity to full failed: "+tableName, e);
-            } finally {
-                advisoryUnlock( tableName, connection );
-                if (cStateFlag)
-                    connection.setAutoCommit(true);
-            }
-        }
-    }
-
 
 /** #################################### Resultset Handlers #################################### */
     /**
