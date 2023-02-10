@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ package com.here.xyz.events;
 
 public class DeleteChangesetsEvent extends Event<DeleteChangesetsEvent> {
   private long minVersion;
+  private Long minTag;
 
   public long getMinVersion() {
     return minVersion;
@@ -32,6 +33,19 @@ public class DeleteChangesetsEvent extends Event<DeleteChangesetsEvent> {
 
   public DeleteChangesetsEvent withMinVersion(long minVersion) {
     setMinVersion(minVersion);
+    return this;
+  }
+
+  public Long getMinTag() {
+    return minTag;
+  }
+
+  public void setMinTag(Long minTag) {
+    this.minTag = minTag;
+  }
+
+  public DeleteChangesetsEvent withMinTag(Long minTag) {
+    setMinTag(minTag);
     return this;
   }
 }

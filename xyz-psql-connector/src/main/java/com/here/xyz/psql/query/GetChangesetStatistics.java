@@ -56,9 +56,10 @@ public class GetChangesetStatistics extends XyzQueryRunner<GetChangesetStatistic
   public ChangesetsStatisticsResponse handle(ResultSet rs) throws SQLException {
     ChangesetsStatisticsResponse csr = new ChangesetsStatisticsResponse();
     if(rs.next()){
-      long maxVersion = rs.getLong("max");
+      String mV = rs.getString("max");
+      long maxVersion = (mV == null ? -1 : Long.parseLong(mV));
       csr.setMaxVersion(maxVersion);
-      csr.setMinVersion(calculateMinVersion(maxVersion));
+      csr.setMinVersion(mV == null ? -1 : calculateMinVersion(maxVersion));
     }
     return csr;
   }
