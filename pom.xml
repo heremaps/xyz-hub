@@ -89,7 +89,7 @@
 
     <!-- Dependencies versions -->
     <aws-sdk-version>1.12.128</aws-sdk-version>
-    <vertx-version>4.1.7</vertx-version>
+    <vertx-version>4.3.8</vertx-version>
     <geo-tools-version>19.1</geo-tools-version>
     <jts-version>1.14.0</jts-version>
     <jackson-version>2.14.1</jackson-version>
