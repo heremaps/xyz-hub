@@ -28,11 +28,14 @@ import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.query.helpers.versioning.GetHeadVersion;
 import com.here.xyz.responses.SuccessResponse;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
 public class DeleteChangesets extends XyzQueryRunner<DeleteChangesetsEvent, SuccessResponse> {
-
+  private static final Logger logger = LogManager.getLogger();
   private DeleteChangesetsEvent event;
 
   public DeleteChangesets(DeleteChangesetsEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
@@ -56,12 +59,24 @@ public class DeleteChangesets extends XyzQueryRunner<DeleteChangesetsEvent, Succ
         .withNamedParameter(SCHEMA, getSchema())
         .withNamedParameter(TABLE, getDefaultTable(event))
         .withNamedParameter("partitionSize", PARTITION_SIZE)
-        .withNamedParameter("minVersion", event.getMinVersion())
+        .withNamedParameter("minVersion", calculateMinVersion(event))
         .withAsync(true);
   }
 
   @Override
   public SuccessResponse handle(ResultSet rs) throws SQLException {
     return new SuccessResponse();
+  }
+
+  private long calculateMinVersion(DeleteChangesetsEvent event){
+    if(event.getMinTag() != null && event.getMinTag() < event.getMinVersion()){
+      /** In this case cant delete some parts of the requested version because the version would
+       * further be needed form the notification producer. If it is possible to delete parts,
+       * the minVersion (stored in the space-definition) will reflect the user-choice. So it will
+       * not be possible to request changesets which are potentially and temporary present.*/
+      logger.info("Reduce minVersion:"+event.getMinVersion()+" -> "+event.getMinTag());
+      return event.getMinTag();
+    }
+    return event.getMinVersion();
   }
 }
