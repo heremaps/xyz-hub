@@ -26,6 +26,7 @@ import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.hub.rest.TagApi;
 import com.here.xyz.hub.task.FeatureTask.ModifySubscriptionQuery;
 import com.here.xyz.models.hub.Subscription;
 import io.vertx.core.AsyncResult;
@@ -190,7 +191,17 @@ public class SubscriptionHandler {
                 logger.error(marker, "Unable to delete resource definition.", ar.cause());
                 handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to delete the resource definition.", ar.cause())));
             } else {
-                handler.handle(Future.succeededFuture(ar.result()));
+                Service.subscriptionConfigClient.getBySource(marker, subscription.getSource())
+                        .onSuccess(list -> {
+                            if (list == null || list.isEmpty()) {
+                                TagApi.deleteTag(marker, subscription.getSource(), Service.configuration.SUBSCRIPTION_TAG)
+                                        .onSuccess(t -> handler.handle(Future.succeededFuture(ar.result())))
+                                        .onFailure(t -> handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to delete tag during subscription de-registration.", t.getCause()))));
+                            } else {
+                                handler.handle(Future.succeededFuture(ar.result()));
+                            }
+                        })
+                        .onFailure(t -> handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable retrieve subscription list during subscription de-registration.", t.getCause()))));
             }
         });
     }

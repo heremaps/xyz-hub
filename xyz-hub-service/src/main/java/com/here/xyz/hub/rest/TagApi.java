@@ -32,7 +32,6 @@ import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Marker;
 
 public class TagApi extends SpaceBasedApi {
