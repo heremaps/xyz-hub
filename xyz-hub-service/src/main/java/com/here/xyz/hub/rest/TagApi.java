@@ -37,109 +37,111 @@ import org.apache.logging.log4j.Marker;
 
 public class TagApi extends SpaceBasedApi {
 
-  public TagApi(RouterBuilder rb) {
-    rb.operation("createTag").handler(this::createTag);
-    rb.operation("updateTag").handler(this::updateTag);
-    rb.operation("getTag").handler(this::getTag);
-    rb.operation("deleteTag").handler(this::deleteTag);
-  }
-
-  // TODO auth
-  private void createTag(RoutingContext context) {
-    final String spaceId = context.pathParam(Path.SPACE_ID);
-
-    createTag(Api.Context.getMarker(context), spaceId, context.getBodyAsString())
-        .onSuccess(result -> sendResponse(context, HttpResponseStatus.OK, result))
-        .onFailure(t -> sendHttpErrorResponse(context, t));
-  }
-
-  // TODO auth
-  private void deleteTag(RoutingContext context) {
-    final String spaceId = context.pathParam(Path.SPACE_ID);
-    final String tagId = context.pathParam(Path.TAG_ID);
-
-    deleteTag(Api.Context.getMarker(context), spaceId, tagId)
-        .flatMap(result -> result != null
-            ? Future.succeededFuture(result)
-            : Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Tag not found")))
-        .onSuccess(r -> sendResponse(context, HttpResponseStatus.OK, r))
-        .onFailure(t -> sendHttpErrorResponse(context, t));
-  }
-
-  // TODO auth
-  private void getTag(RoutingContext context) {
-    final String spaceId = context.pathParam(Path.SPACE_ID);
-    final String tagId = context.pathParam(Path.TAG_ID);
-    final Marker marker = Api.Context.getMarker(context);
-
-    TagConfigClient.getInstance().getTag(marker, tagId, spaceId)
-        .flatMap(r -> r == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Reader " + tagId + " with space " + spaceId + " not found")) : Future.succeededFuture(r))
-        .onSuccess(r -> sendResponse(context, HttpResponseStatus.OK, r))
-        .onFailure(t -> sendHttpErrorResponse(context, t));
-
-  }
-
-  // TODO auth
-  private void updateTag(RoutingContext context) {
-    final String spaceId = context.pathParam(Path.SPACE_ID);
-    final String tagId = context.pathParam(Path.TAG_ID);
-    final Marker marker = Api.Context.getMarker(context);
-
-    final Future<Space> spaceFuture = SpaceConfigClient.getInstance().get(marker, spaceId)
-        .flatMap(s -> s == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Resource with id " + spaceId + " not found.")) : Future.succeededFuture(s));
-    final Future<Tag> tagFuture = TagConfigClient.getInstance().getTag(marker, tagId, spaceId)
-        .flatMap(r -> r == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Reader " + tagId + " with space " + spaceId + " not found")) : Future.succeededFuture(r));
-    final Future<Long> inputFuture = deserializeTag(context.getBodyAsString())
-        .map(Tag::getVersion);
-
-    final Long version = inputFuture.result();
-    CompositeFuture.all(spaceFuture, tagFuture, inputFuture)
-        .flatMap(cf -> TagConfigClient.getInstance().storeTag(marker, new Tag().withId(tagId).withSpaceId(spaceId).withVersion(version)))
-        .onSuccess(v -> sendResponse(context, HttpResponseStatus.OK, tagFuture.result().withVersion(version)))
-        .onFailure(t -> sendHttpErrorResponse(context, t));
-  }
-
-  // TODO auth
-  public static Future<Tag> createTag(Marker marker, String spaceId, String serializedTag) {
-    if (spaceId == null)
-      return Future.failedFuture("Invalid spaceId or readerId parameters");
-
-    final Future<Tag> tagFuture = deserializeTag(serializedTag)
-        .flatMap(tag -> StringUtils.isEmpty(tag.getId()) ? Future.failedFuture("Tag id is required") : Future.succeededFuture(tag));
-    final Future<Space> spaceFuture = SpaceConfigClient.getInstance().get(marker, spaceId)
-        .flatMap(s -> s == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Resource with id " + spaceId + " not found.")) : Future.succeededFuture(s));
-    final Future<ChangesetsStatisticsResponse> changesetFuture = ChangesetApi.getChangesetStatistics(marker, Future::succeededFuture, spaceId);
-
-    return CompositeFuture.all(tagFuture, spaceFuture, changesetFuture).flatMap(cf -> {
-      final Tag tag = tagFuture.result()
-          .withSpaceId(spaceId)
-          .withVersion(changesetFuture.result().getMaxVersion());
-      return TagConfigClient.getInstance().storeTag(marker, tag).map(v -> tag);
-    });
-  }
-
-  // TODO auth
-  public static Future<Tag> deleteTag(Marker marker, String spaceId, String tagId) {
-    if (spaceId == null || tagId == null)
-      return Future.failedFuture("Invalid spaceId or tagId parameters");
-
-    return SpaceConfigClient.getInstance().get(marker, spaceId)
-        .flatMap(none -> TagConfigClient.getInstance().deleteTag(marker, tagId, spaceId));
-  }
-
-  private static Future<Tag> deserializeTag(String body) {
-    try {
-      return Future.succeededFuture(XyzSerializable.deserialize(body, Tag.class));
-    } catch (JsonProcessingException e) {
-      return Future.failedFuture("Unable to parse body");
+    public TagApi(RouterBuilder rb) {
+        rb.operation("createTag").handler(this::createTag);
+        rb.operation("updateTag").handler(this::updateTag);
+        rb.operation("getTag").handler(this::getTag);
+        rb.operation("deleteTag").handler(this::deleteTag);
     }
-  }
 
-  private void sendHttpErrorResponse(RoutingContext context, Throwable t) {
-    if (t == null)
-      t = new HttpException(HttpResponseStatus.BAD_REQUEST, "Invalid response");
-    if (!(t instanceof HttpException))
-      t = new HttpException(HttpResponseStatus.BAD_REQUEST, t.getMessage());
-    this.sendErrorResponse(context, t);
-  }
+    // TODO auth
+    private void createTag(RoutingContext context) {
+        final String spaceId = context.pathParam(Path.SPACE_ID);
+
+        deserializeTag(context.getBodyAsString())
+                .flatMap(tag -> createTag(Api.Context.getMarker(context), spaceId, tag.getId()))
+                .onSuccess(result -> sendResponse(context, HttpResponseStatus.OK, result))
+                .onFailure(t -> sendHttpErrorResponse(context, t));
+    }
+
+    // TODO auth
+    private void deleteTag(RoutingContext context) {
+        final String spaceId = context.pathParam(Path.SPACE_ID);
+        final String tagId = context.pathParam(Path.TAG_ID);
+
+        deleteTag(Api.Context.getMarker(context), spaceId, tagId)
+                .flatMap(result -> result != null
+                        ? Future.succeededFuture(result)
+                        : Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Tag not found")))
+                .onSuccess(r -> sendResponse(context, HttpResponseStatus.OK, r))
+                .onFailure(t -> sendHttpErrorResponse(context, t));
+    }
+
+    // TODO auth
+    private void getTag(RoutingContext context) {
+        final String spaceId = context.pathParam(Path.SPACE_ID);
+        final String tagId = context.pathParam(Path.TAG_ID);
+        final Marker marker = Api.Context.getMarker(context);
+
+        TagConfigClient.getInstance().getTag(marker, tagId, spaceId)
+                .flatMap(r -> r == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Reader " + tagId + " with space " + spaceId + " not found")) : Future.succeededFuture(r))
+                .onSuccess(r -> sendResponse(context, HttpResponseStatus.OK, r))
+                .onFailure(t -> sendHttpErrorResponse(context, t));
+
+    }
+
+    // TODO auth
+    private void updateTag(RoutingContext context) {
+        final String spaceId = context.pathParam(Path.SPACE_ID);
+        final String tagId = context.pathParam(Path.TAG_ID);
+        final Marker marker = Api.Context.getMarker(context);
+
+        final Future<Space> spaceFuture = SpaceConfigClient.getInstance().get(marker, spaceId)
+                .flatMap(s -> s == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Resource with id " + spaceId + " not found.")) : Future.succeededFuture(s));
+        final Future<Tag> tagFuture = TagConfigClient.getInstance().getTag(marker, tagId, spaceId)
+                .flatMap(r -> r == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Reader " + tagId + " with space " + spaceId + " not found")) : Future.succeededFuture(r));
+        final Future<Long> inputFuture = deserializeTag(context.getBodyAsString())
+                .map(Tag::getVersion);
+
+        final Long version = inputFuture.result();
+        CompositeFuture.all(spaceFuture, tagFuture, inputFuture)
+                .flatMap(cf -> TagConfigClient.getInstance().storeTag(marker, new Tag().withId(tagId).withSpaceId(spaceId).withVersion(version)))
+                .onSuccess(v -> sendResponse(context, HttpResponseStatus.OK, tagFuture.result().withVersion(version)))
+                .onFailure(t -> sendHttpErrorResponse(context, t));
+    }
+
+    // TODO auth
+    public static Future<Tag> createTag(Marker marker, String spaceId, String tagId) {
+        if (spaceId == null)
+            return Future.failedFuture("Invalid spaceId parameter");
+        if (tagId == null )
+            return Future.failedFuture("Invalid tagId parameter");
+
+        final Future<Space> spaceFuture = SpaceConfigClient.getInstance().get(marker, spaceId)
+                .flatMap(s -> s == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Resource with id " + spaceId + " not found.")) : Future.succeededFuture(s));
+        final Future<ChangesetsStatisticsResponse> changesetFuture = ChangesetApi.getChangesetStatistics(marker, Future::succeededFuture, spaceId);
+
+        return CompositeFuture.all(spaceFuture, changesetFuture).flatMap(cf -> {
+            final Tag tag = new Tag()
+                    .withId(tagId)
+                    .withSpaceId(spaceId)
+                    .withVersion(changesetFuture.result().getMaxVersion());
+            return TagConfigClient.getInstance().storeTag(marker, tag).map(v -> tag);
+        });
+    }
+
+    // TODO auth
+    public static Future<Tag> deleteTag(Marker marker, String spaceId, String tagId) {
+        if (spaceId == null || tagId == null)
+            return Future.failedFuture("Invalid spaceId or tagId parameters");
+
+        return SpaceConfigClient.getInstance().get(marker, spaceId)
+                .flatMap(none -> TagConfigClient.getInstance().deleteTag(marker, tagId, spaceId));
+    }
+
+    private static Future<Tag> deserializeTag(String body) {
+        try {
+            return Future.succeededFuture(XyzSerializable.deserialize(body, Tag.class));
+        } catch (JsonProcessingException e) {
+            return Future.failedFuture("Unable to parse body");
+        }
+    }
+
+    private void sendHttpErrorResponse(RoutingContext context, Throwable t) {
+        if (t == null)
+            t = new HttpException(HttpResponseStatus.BAD_REQUEST, "Invalid response");
+        if (!(t instanceof HttpException))
+            t = new HttpException(HttpResponseStatus.BAD_REQUEST, t.getMessage());
+        this.sendErrorResponse(context, t);
+    }
 }

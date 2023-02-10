@@ -1,3 +1,22 @@
+/*
+ * Copyright (C) 2017-2023 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 package com.here.xyz.hub.rest;
 
 import com.here.xyz.models.hub.Subscription;
@@ -15,7 +34,7 @@ import static org.hamcrest.Matchers.is;
 
 public class SubscriptionApiIT extends TestSpaceWithFeature {
 
-    private static String cleanUpSpaceId = "space-1";
+    private static String cleanUpSpaceId = "space1";
 
     @BeforeClass
     public static void setupClass() {
@@ -37,7 +56,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
         removeSubscription(AuthProfile.ACCESS_ALL, "test-subscription-1");
     }
 
-    private Subscription addTestSubscription() {
+    public static Subscription addTestSubscription() {
         return given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
@@ -241,7 +260,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
         given()
                 .accept(APPLICATION_JSON)
                 .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES))
-                .queryParam("source", "space-1")
+                .queryParam("source", "space1")
                 .when()
                 .get("/spaces/" + cleanUpSpaceId + "/subscriptions")
                 .then()

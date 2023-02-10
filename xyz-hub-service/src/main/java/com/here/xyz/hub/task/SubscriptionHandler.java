@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ package com.here.xyz.hub.task;
 import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.ModifySubscriptionEvent.Operation;
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.rest.HttpException;
@@ -136,9 +137,19 @@ public class SubscriptionHandler {
                 logger.error(marker, "Unable to store resource definition.", ar.cause());
                 handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to store the resource definition.", ar.cause())));
             } else {
-                handler.handle(Future.succeededFuture(subscription));
-            }
-        });
+                TagConfigClient.getInstance().getTag(marker, subscription.getId(), subscription.getSource())
+                        .onSuccess(tag -> {
+                            if (tag == null) {
+                                TagApi.createTag(marker, subscription.getSource(), Service.configuration.SUBSCRIPTION_TAG)
+                                        .onSuccess(t -> handler.handle(Future.succeededFuture(subscription)))
+                                        .onFailure(t -> handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to store tag during subscription registration.", t.getCause()))));
+                            } else {
+                                handler.handle(Future.succeededFuture(subscription));
+                            }
+                        })
+                        .onFailure(t -> handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to get tag during subscription registration.", t.getCause()))));
+                }
+            });
     }
 
     public static void deleteSubscription(RoutingContext context, Subscription subscription, Handler<AsyncResult<Subscription>> handler) {

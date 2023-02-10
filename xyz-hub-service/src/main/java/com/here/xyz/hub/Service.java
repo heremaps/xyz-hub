@@ -804,6 +804,10 @@ public class Service extends Core {
      */
     public String DECOMPRESSED_OUTPUT_SIZE_HEADER_NAME = "X-Decompressed-Output-Size";
 
+    /**
+     * Name of the tag created for spaces with subscription.
+     */
+    public String SUBSCRIPTION_TAG = "xyz_ntf";
   }
   /**
    * That message can be used to change the log-level of one or more service-nodes. The specified level must be a valid log-level. As this

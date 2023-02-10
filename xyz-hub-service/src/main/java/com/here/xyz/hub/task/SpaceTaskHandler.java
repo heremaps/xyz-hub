@@ -25,11 +25,7 @@ import static com.here.xyz.hub.auth.XyzHubActionMatrix.DELETE_FEATURES;
 import static com.here.xyz.hub.auth.XyzHubActionMatrix.MANAGE_SPACES;
 import static com.here.xyz.hub.auth.XyzHubActionMatrix.READ_FEATURES;
 import static com.here.xyz.hub.auth.XyzHubActionMatrix.UPDATE_FEATURES;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
-import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
-import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
-import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
+import static io.netty.handler.codec.http.HttpResponseStatus.*;
 
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
@@ -39,6 +35,7 @@ import com.here.xyz.hub.auth.ActionMatrix;
 import com.here.xyz.hub.auth.AttributeMap;
 import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceSelectionCondition;
+import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.connectors.models.Space.SpaceWithRights;
@@ -615,4 +612,19 @@ public class SpaceTaskHandler {
     //Resume
     callback.call(task);
   }
+
+    public static void cleanDependentResources(ConditionalOperation task, Callback<ConditionalOperation> callback) {
+      if(task.isDelete()) {
+        String spaceId = task.responseSpaces.get(0).getId();
+        TagConfigClient.getInstance().deleteTagsForSpace(task.getMarker(), spaceId)
+            .onSuccess(a-> callback.call(task))
+            .onFailure(a->{
+              logger.error(task.getMarker(), "Failed to delete tags for space {}", spaceId);
+              callback.call(task);
+            });
+      }
+      else {
+        callback.call(task);
+      }
+    }
 }
