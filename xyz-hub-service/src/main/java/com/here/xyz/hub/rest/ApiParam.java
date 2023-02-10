@@ -110,6 +110,7 @@ public class ApiParam {
     public static final String TILE_TYPE = "type";
     public static final String SUBSCRIPTION_ID = "subscriptionId";
     public static final String VERSION = "version";
+    public static final String READER_ID = "readerId";
   }
 
   public static class Query {
