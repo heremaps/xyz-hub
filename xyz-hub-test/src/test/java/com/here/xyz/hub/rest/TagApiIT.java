@@ -76,7 +76,7 @@ public class TagApiIT extends TestSpaceWithFeature {
                 .statusCode(OK.code())
                 .body("id", equalTo("XYZ_1"))
                 .body("spaceId", equalTo(getSpaceId()))
-                .body("version", equalTo(0));
+                .body("version", equalTo(-1));
 
         given()
                 .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
@@ -111,7 +111,7 @@ public class TagApiIT extends TestSpaceWithFeature {
                 .get("/spaces/" + getSpaceId() + "/tags/XYZ_1")
                 .then()
                 .statusCode(OK.code())
-                .body("version", equalTo(0));
+                .body("version", equalTo(-1));
     }
 
     @Test

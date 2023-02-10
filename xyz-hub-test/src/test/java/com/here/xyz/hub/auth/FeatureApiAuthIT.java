@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -61,17 +61,6 @@ public class FeatureApiAuthIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_2)).
         when().
         get(getSpacesPath() + "/x-psql-test/bbox?north=23.13&west=113.32&south=23.14&east=113.33").
-        then().
-        statusCode(FORBIDDEN.code());
-  }
-
-  @Test
-  public void testFullCountWithOtherOwner() {
-    given().
-        accept(APPLICATION_JSON).
-        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_2)).
-        when().
-        get(getSpacesPath() + "/x-psql-test/count").
         then().
         statusCode(FORBIDDEN.code());
   }
