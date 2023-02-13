@@ -1423,9 +1423,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     private static SQLQuery buildAddIndexCommentsQuery(String schema, String table) {
-        return new SQLQuery("SELECT * FROM xyz_index_check_comments(#{schema}, #{table})")
-            .withNamedParameter("schema", schema)
-            .withNamedParameter("table", table);
+        return new SQLQuery("SELECT xyz_index_check_comments('" + schema + "', '" + table + "')");
     }
 
     static SQLQuery buildCreateIndexQuery(String schema, String table, String columnName, String method) {
