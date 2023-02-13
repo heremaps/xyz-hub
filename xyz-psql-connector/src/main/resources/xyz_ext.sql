@@ -110,7 +110,7 @@ DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 157
+ select 158
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -3114,12 +3114,13 @@ $BODY$
         END IF;
 
         -- Delete old changesets from the history to keep only as many versions as specified through "versionsToKeep" if necessary
-        IF version % 10 = 1 THEN -- Perform the check only on every 10th transaction
-            minVersion := version - versionsToKeep + 1;
-            IF minVersion > 0 THEN
-                PERFORM asyncify('SELECT xyz_delete_changesets(''' || schema || ''', ''' || tableName || ''', ' ||  partitionSize || ', ' || minVersion || ')', pw);
-            END IF;
-        END IF;
+        -- Temporarily deactivated
+        --IF version % 10 = 1 THEN -- Perform the check only on every 10th transaction
+        --    minVersion := version - versionsToKeep + 1;
+        --    IF minVersion > 0 THEN
+        --        PERFORM asyncify('SELECT xyz_delete_changesets(''' || schema || ''', ''' || tableName || ''', ' ||  partitionSize || ', ' || minVersion || ')', pw);
+        --    END IF;
+        --END IF;
 
         RETURN 1;
     END
