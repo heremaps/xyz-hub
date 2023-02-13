@@ -1220,6 +1220,8 @@ public abstract class DatabaseHandler extends StorageConnector {
             stmt.addBatch(buildCreateIndexQuery(schema, tableName, "author", "BTREE", false).substitute().text());
             //Add index for next_version column
             stmt.addBatch(buildCreateIndexQuery(schema, tableName, "next_version", "BTREE").substitute().text());
+            //Add comments to non-system indices
+            stmt.addBatch(buildAddIndexCommentsQuery(schema, tableName).substitute().text());
 
             //Create the first history partition
             createHistoryPartition(stmt, schema, tableName, 0L);
@@ -1417,6 +1419,10 @@ public abstract class DatabaseHandler extends StorageConnector {
         stmt.addBatch(buildCreateIndexQuery(schema, table, Arrays.asList("id", "version"), "BTREE").substitute().text());
         stmt.addBatch(buildCreateIndexQuery(schema, table, "operation", "BTREE").substitute().text());
         stmt.addBatch(buildCreateIndexQuery(schema, table, "author", "BTREE").substitute().text());
+    }
+
+    private static SQLQuery buildAddIndexCommentsQuery(String schema, String table) {
+        return new SQLQuery("SELECT xyz_index_check_comments('" + schema + "', '" + table + "')");
     }
 
     static SQLQuery buildCreateIndexQuery(String schema, String table, String columnName, String method) {

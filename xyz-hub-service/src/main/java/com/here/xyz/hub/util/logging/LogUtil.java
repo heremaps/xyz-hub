@@ -149,7 +149,7 @@ public class LogUtil {
     final JWTPayload tokenPayload = Api.Context.getJWT(context);
     if (tokenPayload != null) {
       accessLog.clientInfo.userId = tokenPayload.aid;
-      accessLog.clientInfo.appId = tokenPayload.cid;
+      accessLog.clientInfo.appId = tokenPayload.cid != null ? tokenPayload.cid : Api.Context.getAuthor(context);
       accessLog.classified = new String[]{tokenPayload.tid, tokenPayload.jwt};
     }
     else {
