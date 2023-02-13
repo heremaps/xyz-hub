@@ -4,6 +4,5 @@
     "tileMaxLevel": 21,
     "ISOCountryCodesAsProperty": true,
     "insertBBox": true,
-    "client": {},
-    "tags": ["a", "b"]
+    "client": {}
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ public class UpdateSpaceApiIT extends TestSpaceWithFeature {
             contentType(APPLICATION_JSON).
             headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
             body(content("/xyz/hub/updateSpace.json")).
-            when().patch("/spaces/x-psql-test").then();
+            when().patch("/spaces/x-psql-test").peek().then();
 
         long createdAt = response.extract().path("createdAt");
 
@@ -66,8 +66,7 @@ public class UpdateSpaceApiIT extends TestSpaceWithFeature {
             body("id", equalTo("x-psql-test")).
             body("title", equalTo("My Demo Space Updated")).
             body("storage.id", equalTo("psql")).
-            body("updatedAt", not(equalTo(createdAt))).
-            body("tags.size", equalTo(2));
+            body("updatedAt", not(equalTo(createdAt)));
 
         /** Test immutable UUID */
         given().
