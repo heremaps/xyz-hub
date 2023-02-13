@@ -148,6 +148,7 @@ public class DatabaseMaintainer {
                 final boolean idx_table = rs.getBoolean("idx_table");
                 final boolean db_status_table = rs.getBoolean("db_status_table");
                 final boolean space_meta_table = rs.getBoolean("space_meta_table");
+                final boolean tag_table = rs.getBoolean("tag_table");
 
                 try {
                     /** Create Missing Schemas */
@@ -167,13 +168,18 @@ public class DatabaseMaintainer {
                     }
 
                     if (!db_status_table) {
-                        /** Create Missing IDX_Maintenance Table */
+                        /** Create Missing DbStatus Table */
                         stmt.execute(MaintenanceSQL.createDbStatusTable);
                     }
 
                     if (!space_meta_table) {
-                        /** Create Missing IDX_Maintenance Table */
+                        /** Create Missing Space Meta Table */
                         stmt.execute(MaintenanceSQL.createSpaceMetaTable);
+                    }
+
+                    if (!tag_table) {
+                        /** Create Missing Tag Table */
+                        stmt.execute(MaintenanceSQL.createTagTable);
                     }
                 } catch (Exception e) {
                     logger.warn("{} Failed to create missing Schema(s) on database: {} / {}@{} '{}'", traceItem, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost(), e);

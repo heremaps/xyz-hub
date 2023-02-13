@@ -185,6 +185,9 @@ public class MaintenanceClient {
             logger.info("{}: Create required Space-Meta-Table..", connectorId);
             executeQueryWithoutResults(new SQLQuery(MaintenanceSQL.createSpaceMetaTable), source);
 
+            logger.info("{}: Create required Tag-Table..", connectorId);
+            executeQueryWithoutResults(new SQLQuery(MaintenanceSQL.createTagTable), source);
+
             /** set searchPath */
             executeQueryWithoutResults(setSearchpath, source);
             /** Install extensions */
