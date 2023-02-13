@@ -59,7 +59,7 @@ public class DynamoTagConfigClient extends TagConfigClient {
   @Override
   public void init(Handler<AsyncResult<Void>> onReady) {
     if (dynamoClient.isLocal()) {
-      dynamoClient.createTable(tagTable.getTableName(), "id:S,spaceId:S,version:N", "id,spaceId", "spaceId", null);
+      dynamoClient.createTable(tagTable.getTableName(), "id:S,spaceId:S", "id,spaceId", "spaceId", null);
     }
 
     onReady.handle(Future.succeededFuture());
@@ -100,6 +100,24 @@ public class DynamoTagConfigClient extends TagConfigClient {
                 .withParameters(params);
 
             future.complete(getTags( dynamoClient.client.executeStatement(request).getItems() ));
+          } catch (Exception e) {
+            future.fail(e);
+          }
+        }
+    );
+  }
+
+  public Future<List<Tag>> getTagsByTagId(Marker marker, String tagId) {
+    return DynamoClient.dynamoWorkers.executeBlocking(future -> {
+          try {
+            List<AttributeValue> params = Stream.of(tagId)
+                .map(AttributeValue::new).collect(Collectors.toList());
+
+            final ExecuteStatementRequest request = new ExecuteStatementRequest()
+                .withStatement("SELECT * FROM \"" + tagTable.getTableName() + "\" WHERE \"id\" = ?")
+                .withParameters(params);
+
+            future.complete(getTags(dynamoClient.client.executeStatement(request).getItems()));
           } catch (Exception e) {
             future.fail(e);
           }
@@ -187,7 +205,7 @@ public class DynamoTagConfigClient extends TagConfigClient {
             if (response.getItem() != null)
               future.complete(Json.decodeValue(response.getItem().toJSON(), Tag.class));
             else
-              future.fail(new RuntimeException("The tag with the provided ID doesn't exist for the space with the provided space ID."));
+              future.complete(null);
           }
           catch (Exception e) {
             future.fail(e);

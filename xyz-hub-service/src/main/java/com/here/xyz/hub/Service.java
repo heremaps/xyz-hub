@@ -560,9 +560,9 @@ public class Service extends Core {
     public String SUBSCRIPTIONS_DYNAMODB_TABLE_ARN;
 
     /**
-     * The ARN of the subscriptions table in DynamoDB.
+     * The ARN of the tags table in DynamoDB.
      */
-    public String READERS_DYNAMODB_TABLE_ARN;
+    public String TAGS_DYNAMODB_TABLE_ARN;
 
     /**
      * The ARN of the admin message topic.

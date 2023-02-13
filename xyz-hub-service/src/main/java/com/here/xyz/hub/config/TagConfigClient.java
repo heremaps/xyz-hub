@@ -31,8 +31,8 @@ public abstract class TagConfigClient implements Initializable{
   private static final Logger logger = LogManager.getLogger();
 
   public static TagConfigClient getInstance() {
-    if (Service.configuration.READERS_DYNAMODB_TABLE_ARN != null) {
-      return new DynamoTagConfigClient(Service.configuration.READERS_DYNAMODB_TABLE_ARN);
+    if (Service.configuration.TAGS_DYNAMODB_TABLE_ARN != null) {
+      return new DynamoTagConfigClient(Service.configuration.TAGS_DYNAMODB_TABLE_ARN);
     } else {
       return JDBCTagConfigClient.getInstance();
     }
@@ -40,6 +40,8 @@ public abstract class TagConfigClient implements Initializable{
   public abstract Future<Tag> getTag(Marker marker, String id, String spaceId);
 
   public abstract Future<List<Tag>> getTags(Marker marker, String id, List<String> spaceIds);
+
+  public abstract Future<List<Tag>> getTagsByTagId(Marker marker, String tagId);
 
   public abstract Future<List<Tag>> getTags(Marker marker, String spaceId);
 

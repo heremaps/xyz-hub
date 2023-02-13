@@ -78,15 +78,6 @@ paths:
           schema:
             type: boolean
             default: false
-        - name: includeTags
-          in: query
-          description: >-
-            If set to _true_, the tags for each space are included in
-            the response.
-          required: false
-          schema:
-            type: boolean
-            default: false
         - name: includeRights
           in: query
           description: >-
@@ -334,9 +325,9 @@ paths:
       summary: Create a tag
       description: >-
         Create a tag, which points to a version of the space.
-        
-        If a version is not provided when creating the tag, then the current HEAD version will be 
-        referenced. If a version is provided, then it must be bigger than the minimum version of the 
+
+        If a version is not provided when creating the tag, then the current HEAD version will be
+        referenced. If a version is provided, then it must be bigger than the minimum version of the
         space.
       operationId: createTag
       parameters:

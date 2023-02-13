@@ -101,11 +101,13 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
     public static final String OTHERS = "others";
     public static final String ALL = "*";
 
-    public MatrixReadQuery(RoutingContext context, ApiResponseType returnType, boolean includeRights, boolean includeConnectors, boolean includeReaders, String owner, PropertiesQuery propsQuery) {
+    public MatrixReadQuery(RoutingContext context, ApiResponseType returnType, boolean includeRights, boolean includeConnectors, String owner, PropertiesQuery propsQuery, String tagId) {
       super(context, returnType, null, null);
+
+      selectedCondition = new SpaceSelectionCondition();
+      selectedCondition.tagId = tagId;
+
       if (!Strings.isNullOrEmpty(owner)) {
-        selectedCondition = new SpaceSelectionCondition();
-        selectedCondition.includeReaders = includeReaders;
         String ownOwnerId = Api.Context.getJWT(context).aid;
         switch (owner) {
           case ME:

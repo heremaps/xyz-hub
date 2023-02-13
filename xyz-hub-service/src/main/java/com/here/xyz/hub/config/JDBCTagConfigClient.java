@@ -96,6 +96,13 @@ public class JDBCTagConfigClient extends TagConfigClient {
   }
 
   @Override
+  public Future<List<Tag>> getTagsByTagId(Marker marker, String tagId) {
+    SQLQuery query = new SQLQuery("WHERE id=#{tagId}").withNamedParameter("tagId", tagId);
+    query.substitute();
+    return _getTags(marker, query);
+  }
+
+  @Override
   public Future<List<Tag>> getAllTags(Marker marker) {
     return _getTags(marker, null);
   }

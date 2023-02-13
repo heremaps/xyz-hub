@@ -626,7 +626,7 @@ public class Space {
     return this;
   }
 
-  public Map<String, Tag> getReaders() {
+  public Map<String, Tag> getTags() {
     return tags;
   }
 

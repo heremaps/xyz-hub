@@ -69,6 +69,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -78,29 +79,23 @@ public class SpaceTaskHandler {
   private static final int CLIENT_VALUE_MAX_SIZE = 1024;
 
   static <X extends ReadQuery<?>> void readSpaces(final X task, final Callback<X> callback) {
-    Service.spaceConfigClient.getSelected(task.getMarker(), task.authorizedCondition, task.selectedCondition, task.propertiesQuery)
-        .flatMap(spaces -> !task.selectedCondition.includeReaders
-            ? Future.succeededFuture(spaces)
-            : Service.tagConfigClient
-              .getTags(task.getMarker(), spaces.stream().map(Space::getId).collect(Collectors.toList()))
-              .map(readers -> readers.stream().reduce(new HashMap<String, List<Tag>>(), (map, reader) -> {
-                map.putIfAbsent(reader.getId(), new ArrayList<>());
-                map.get(reader.getId()).add(reader);
+    Future<List<Tag>> tagsFuture = StringUtils.isBlank(task.selectedCondition.tagId) ?
+        Future.succeededFuture(Collections.emptyList()) :
+        Service.tagConfigClient.getTagsByTagId(task.getMarker(), task.selectedCondition.tagId);
 
-                return map;
-              }, (map1, map2) -> {
-                map2.forEach((k,v) -> {
-                  map1.putIfAbsent(k, new ArrayList<>());
-                  map1.get(k).addAll(v);
-                });
+    tagsFuture
+        .flatMap(tags -> {
+          if (task.selectedCondition.tagId != null) {
+            if (tags.isEmpty())
+              return Future.succeededFuture(Collections.emptyList());
 
-                return map1;
-              }))
-              .map(map -> spaces
-                  .stream()
-//                  .peek(space -> space.setTags(map.get(space.getId())))
-                  .collect(Collectors.toList()))
-        )
+            task.selectedCondition.ownerIds = Collections.emptySet();
+            task.selectedCondition.spaceIds = tags.stream().map(Tag::getSpaceId).collect(Collectors.toSet());
+          }
+
+          return Service.spaceConfigClient.getSelected(task.getMarker(), task.authorizedCondition, task.selectedCondition, task.propertiesQuery)
+              .flatMap(spaces -> augmentWithTags(spaces, tags));
+        })
         .onFailure(t -> {
           logger.error(task.getMarker(), "Unable to load space definitions.'", t);
           callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definitions.", t));
@@ -109,6 +104,29 @@ public class SpaceTaskHandler {
           task.responseSpaces = spaces;
           callback.call(task);
         });
+  }
+
+  static Future<List<Space>> augmentWithTags(List<Space> spaces, List<Tag> tags) {
+    final Map<String, HashMap<String, Tag>> tagsMap = tags.stream().reduce(new HashMap<>(), (map, tag) -> {
+      map.putIfAbsent(tag.getSpaceId(), new HashMap<>());
+      map.get(tag.getSpaceId()).put(tag.getId(), tag);
+
+      return map;
+    }, (map1, map2) -> {
+      map2.forEach((k, v) -> {
+        map1.putIfAbsent(k, new HashMap<>());
+        map1.get(k).putAll(v);
+      });
+
+      return map1;
+    });
+
+    return Future.succeededFuture(
+        spaces
+        .stream()
+        .peek(space -> space.setTags(tagsMap.get(space.getId())))
+        .collect(Collectors.toList())
+    );
   }
 
   static <X extends ReadQuery<?>> void readFromJWT(final X task, final Callback<X> callback) {

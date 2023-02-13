@@ -90,7 +90,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       logger.info("DynamoDB running locally, initializing tables.");
 
       try {
-        dynamoClient.createTable(spaces.getTableName(), "id:S,owner:S,shared:N,hasReaders:N", "id", "owner,shared,hasReaders", "exp");
+        dynamoClient.createTable(spaces.getTableName(), "id:S,owner:S,shared:N", "id", "owner,shared", "exp");
         dynamoClient.createTable(packages.getTableName(), "packageName:S,spaceId:S", "packageName,spaceId", null, null);
       }
       catch (AmazonDynamoDBException e) {
@@ -368,7 +368,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
             });
           });
 
-          //Filter out spaces with contentUpatedAt property
+          //Filter out spaces with contentUpdatedAt property
           spaces
               .scan(new ScanSpec()
                   .withProjectionExpression("id, contentUpdatedAt")
@@ -406,18 +406,6 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       }
 
       //TODO: Implement selection by packages here: selectedCondition.packages
-
-      if (selectedCondition.includeReaders) {
-        final Set<String> readersSpaces = new HashSet<>();
-        spaces
-            .getIndex("hasReaders-index")
-            .query(new QuerySpec().withHashKey("hasReaders", 1).withProjectionExpression("id"))
-            .pages()
-            .forEach(page -> page.forEach(i -> readersSpaces.add(i.getString("id"))));
-
-        authorizedSpaces.removeIf(i -> !readersSpaces.contains(i));
-        logger.debug(marker, "Number of space IDs after filter out spaces without readers: {}", authorizedSpaces.size());
-      }
 
       logger.info(marker, "Final number of space IDs to be retrieved from DynamoDB: {}", authorizedSpaces.size());
       if (!authorizedSpaces.isEmpty()) {

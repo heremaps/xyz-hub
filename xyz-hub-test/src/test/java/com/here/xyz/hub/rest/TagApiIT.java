@@ -24,8 +24,8 @@ import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
-import com.here.xyz.models.hub.Subscription;
 import com.jayway.restassured.response.ValidatableResponse;
 import org.junit.After;
 import org.junit.Before;
@@ -33,6 +33,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class TagApiIT extends TestSpaceWithFeature {
+
+    private static final String SECOND_SPACE = "secondSpace";
 
     @BeforeClass
     public static void setupClass() {
@@ -47,6 +49,7 @@ public class TagApiIT extends TestSpaceWithFeature {
     @After
     public void teardown() {
         removeSpace(getSpaceId());
+        removeSpace(SECOND_SPACE);
     }
 
     private ValidatableResponse _createTag() {
@@ -178,4 +181,26 @@ public class TagApiIT extends TestSpaceWithFeature {
                 .then()
                 .statusCode(NOT_FOUND.code());
     }
+
+  @Test
+  public void testListSpacesFilterByTagId() {
+    createSpaceWithVersionsToKeep(SECOND_SPACE, 2, false);
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces?tag=XYZ_1")
+        .then()
+        .body("size()", is(0));
+
+    _createTag();
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces?tag=XYZ_1")
+        .then()
+        .body("size()", is(1))
+        .body( "[0].tags.XYZ_1.id", equalTo("XYZ_1"))
+        .body( "[0].tags.XYZ_1.spaceId", equalTo("x-psql-test"))
+        .body( "[0].tags.XYZ_1.version", equalTo(-1));
+  }
 }
