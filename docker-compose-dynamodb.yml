@@ -2,6 +2,8 @@ version: "3"
 services:
     xyz-hub:
         image: "xyz-hub"
+        build:
+            context: "./"
         container_name: "xyz-hub"
         ports:
             - "8080:8080"
