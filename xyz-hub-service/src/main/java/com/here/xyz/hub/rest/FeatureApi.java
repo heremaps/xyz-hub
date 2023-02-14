@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,21 +28,17 @@ import static com.here.xyz.hub.rest.ApiParam.Query.SKIP_CACHE;
 import static io.vertx.core.http.HttpHeaders.ACCEPT;
 
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
-import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
-import com.here.xyz.events.TagsQuery;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.FeatureTask.ConditionalOperation;
-import com.here.xyz.hub.task.FeatureTask.DeleteOperation;
 import com.here.xyz.hub.task.FeatureTask.IdsQuery;
 import com.here.xyz.hub.task.ModifyFeatureOp;
 import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
 import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.task.ModifyOp.IfNotExists;
 import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
-import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.ext.web.RoutingContext;
@@ -172,34 +168,20 @@ public class FeatureApi extends SpaceBasedApi {
    */
   private void deleteFeatures(final RoutingContext context) {
     final Set<String> featureIds = new HashSet<>(Query.queryParam(Query.FEATURE_ID, context));
-    final TagsQuery tags = Query.getTags(context);
     final String accept = context.request().getHeader(ACCEPT);
     final ApiResponseType responseType = APPLICATION_GEO_JSON.equals(accept) || APPLICATION_JSON.equals(accept)
         ? ApiResponseType.FEATURE_COLLECTION : ApiResponseType.EMPTY;
     final SpaceContext spaceContext = getSpaceContext(context);
 
     //Delete features by IDs
-    if (featureIds != null && !featureIds.isEmpty()) {
-      Map<String, Object> featureModification = Collections.singletonMap("featureIds", new ArrayList<>(featureIds));
-
-      executeConditionalOperationChain(false, context, responseType, IfExists.DELETE, IfNotExists.RETAIN, true,
-          ConflictResolution.ERROR, Collections.singletonList(featureModification), spaceContext);
-    }
-
-    //Delete features by tags
-    else if (!tags.isEmpty()) {
-      if (checkModificationOnSuper(context, spaceContext))
-        return;
-      DeleteFeaturesByTagEvent event = new DeleteFeaturesByTagEvent();
-      if (!tags.containsWildcard()) {
-        event.setTags(tags);
-      }
-      new DeleteOperation(event, context, responseType)
-          .execute(this::sendResponse, this::sendErrorResponse);
-    } else {
+    if (featureIds == null || featureIds.isEmpty()) {
       context.fail(
           new HttpException(HttpResponseStatus.BAD_REQUEST, "At least one identifier should be provided as a query parameter."));
     }
+    Map<String, Object> featureModification = Collections.singletonMap("featureIds", new ArrayList<>(featureIds));
+
+    executeConditionalOperationChain(false, context, responseType, IfExists.DELETE, IfNotExists.RETAIN, true,
+            ConflictResolution.ERROR, Collections.singletonList(featureModification), spaceContext);
   }
 
   /**
@@ -224,12 +206,6 @@ public class FeatureApi extends SpaceBasedApi {
     try {
       ConditionalOperation task = buildConditionalOperation(event, context, apiResponseTypeType, featureModifications, ifNotExists,
           ifExists, transactional, cr, requireResourceExists, bodySize);
-      final List<String> addTags = Query.queryParam(Query.ADD_TAGS, context);
-      final List<String> removeTags = Query.queryParam(Query.REMOVE_TAGS, context);
-      task.addTags = XyzNamespace.normalizeTags(addTags);
-      task.removeTags = XyzNamespace.normalizeTags(removeTags);
-      XyzNamespace.fixNormalizedTags(task.addTags);
-      XyzNamespace.fixNormalizedTags(task.removeTags);
       task.prefixId = Query.getString(context, Query.PREFIX_ID, null);
       task.author = Api.Context.getAuthor(context);
       task.execute(this::sendResponse, this::sendErrorResponse);

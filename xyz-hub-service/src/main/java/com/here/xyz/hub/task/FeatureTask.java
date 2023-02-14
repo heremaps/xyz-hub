@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -635,8 +635,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public ConflictResolution conflictResolution;
     public List<Feature> unmodifiedFeatures;
     public final boolean requireResourceExists;
-    public List<String> addTags;
-    public List<String> removeTags;
     public String prefixId;
     public Map<Object, Integer> positionById;
     public LoadFeaturesEvent loadFeaturesEvent;
@@ -672,7 +670,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::preprocessConditionalOp)
           .then(FeatureTaskHandler::loadObjects)
           .then(FeatureTaskHandler::verifyResourceExists)
-          .then(FeatureTaskHandler::updateTags)
           .then(FeatureTaskHandler::processConditionalOp)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::enforceUsageQuotas)

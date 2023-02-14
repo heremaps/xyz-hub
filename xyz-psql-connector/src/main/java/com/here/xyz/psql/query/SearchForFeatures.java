@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,8 +24,6 @@ import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.QueryEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
-import com.here.xyz.events.TagsQuery;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.Capabilities;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
@@ -159,20 +157,6 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
     return query;
   }
 
-  private static SQLQuery generateTagsQuery(TagsQuery tagsQuery) {
-    if (tagsQuery == null || tagsQuery.size() == 0)
-      return null;
-
-    SQLQuery query = new SQLQuery("(");
-    for (int i = 0; i < tagsQuery.size(); i++) {
-      query.append((i == 0 ? "" : " OR ") + "jsondata->'properties'->'@ns:com:here:xyz'->'tags' ??& #{tags" + i + "}");
-      query.setNamedParameter("tags" + i, tagsQuery.get(i).toArray(new String[0]));
-    }
-    query.append(")");
-
-    return query;
-  }
-
   //TODO: Can be removed after completion of refactoring
   @Deprecated
   public static SQLQuery generateSearchQueryBWC(QueryEvent event) {
@@ -184,16 +168,11 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
 
   protected static SQLQuery generateSearchQuery(final QueryEvent event) { //TODO: Make private again
     final SQLQuery propertiesQuery = generatePropertiesQuery(event);
-    final SQLQuery tagsQuery = generateTagsQuery(event.getTags());
 
     SQLQuery query = new SQLQuery("");
     if (propertiesQuery != null) {
       query.append("${{propertiesQuery}}");
       query.setQueryFragment("propertiesQuery", propertiesQuery);
-    }
-    if (tagsQuery != null) {
-      query.append ((propertiesQuery != null ? " AND " : "") + "${{tagsQuery}}");
-      query.setQueryFragment("tagsQuery", tagsQuery);
     }
 
     query.replaceFragments();

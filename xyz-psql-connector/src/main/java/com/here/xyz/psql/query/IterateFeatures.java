@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@ import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.events.PropertyQueryList;
-import com.here.xyz.events.TagsQuery;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.Capabilities;
 import com.here.xyz.psql.Capabilities.IndexList;
@@ -473,12 +472,10 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
     String ts = jn.get("t").toString();
     String ms = jn.get("m").toString();
     PropertiesQuery pq = om.readValue( ps, PropertiesQuery.class );
-    TagsQuery tq = om.readValue( ts, TagsQuery.class );
     Integer[] part = om.readValue(ms,Integer[].class);
 
     event.setPart(part);
     event.setPropertiesQuery(pq);
-    event.setTags(tq);
     event.setHandle(handle);
   }
 
@@ -486,9 +483,8 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
   {
    ObjectMapper om = new ObjectMapper();
    String pQry = DhString.format( ",\"p\":%s", event.getPropertiesQuery() != null ? om.writeValueAsString(event.getPropertiesQuery()) : "[]" ),
-          tQry = DhString.format( ",\"t\":%s", event.getTags() != null ? om.writeValueAsString(event.getTags()) : "[]" ),
           mQry = DhString.format( ",\"m\":%s", event.getPart() != null ? om.writeValueAsString(event.getPart()) : "[]" ),
-          hndl = DhString.format("%s%s%s%s}", dbhandle.substring(0, dbhandle.lastIndexOf("}")), pQry, tQry, mQry );
+          hndl = DhString.format("%s%s%s}", dbhandle.substring(0, dbhandle.lastIndexOf("}")), pQry, mQry );
    return hndl;
   }
 
@@ -553,7 +549,6 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
   private static FeatureCollection requestIterationHandles(IterateFeaturesEvent event, int nrHandles, DatabaseHandler dbHandler) throws Exception
   {
     event.setPart(null);
-    event.setTags(null);
 
     FeatureCollection cl = dbHandler.executeQueryWithRetry( buildGetIterateHandlesQuery(nrHandles));
     List<List<Object>> hdata = cl.getFeatures().get(0).getProperties().get("handles");

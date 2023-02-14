@@ -24,7 +24,6 @@ import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.events.PropertyQueryList;
-import com.here.xyz.events.TagsQuery;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;
 import io.vertx.ext.web.RoutingContext;
@@ -117,9 +116,6 @@ public class ApiParam {
 
     public static final String ACCESS_TOKEN = "access_token";
     static final String FEATURE_ID = "id";
-    static final String ADD_TAGS = "addTags";
-    static final String REMOVE_TAGS = "removeTags";
-    static final String TAGS = "tags";
     static final String SELECTION = "selection";
     static final String SORT = "sort";
     static final String PART = "part";
@@ -286,13 +282,6 @@ public class ApiParam {
       }
 
       return alt;
-    }
-
-    /**
-     * Returns the parsed tags parameter
-     */
-    static TagsQuery getTags(RoutingContext context) {
-      return TagsQuery.fromQueryParameter(queryParam(Query.TAGS, context));
     }
 
     public static List<String> getSelection(RoutingContext context) {

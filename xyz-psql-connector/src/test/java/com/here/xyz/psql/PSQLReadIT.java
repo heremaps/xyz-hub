@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -85,7 +85,6 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 = new GetFeaturesByTileEvent()
                 .withConnectorParams(defaultTestConnectorParams)
                 .withSpace("foo")
-                .withTags(TagsQuery.fromQueryParameter(new ArrayList<String>(){{ add("yellow"); }}))
                 .withBbox(new BBox(-170, -170, 170, 170));
 
         queryResponse = invokeLambda(getFeaturesByBBoxEvent.serialize());
@@ -101,7 +100,6 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 = new GetFeaturesByTileEvent()
                 .withConnectorParams(defaultTestConnectorParams)
                 .withSpace("foo")
-                .withTags(TagsQuery.fromQueryParameter(new ArrayList<String>(){{ add("yellow"); }}))
                 .withSelection(new ArrayList<String>(){{ add("id");add("type");add("geometry");add("properties.name");}})
                 .withBbox(new BBox(-170, -170, 170, 170));
 
@@ -124,7 +122,6 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 = new GetFeaturesByTileEvent()
                 .withConnectorParams(defaultTestConnectorParams)
                 .withSpace("foo")
-                .withTags(TagsQuery.fromQueryParameter(new ArrayList<String>(){{ add("yellow"); }}))
                 .withSelection(new ArrayList<String>(){{ add("properties.@ns:com:here:xyz.tags");}})
                 .withBbox(new BBox(-170, -170, 170, 170));
 
@@ -143,7 +140,6 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 = new GetFeaturesByTileEvent()
                 .withConnectorParams(defaultTestConnectorParams)
                 .withSpace("foo")
-                .withTags(TagsQuery.fromQueryParameter(new ArrayList<String>(){{ add("yellow"); }}))
                 .withSelection(new ArrayList<String>(){{ add("properties");}})
                 .withBbox(new BBox(-170, -170, 170, 170));
 
@@ -161,7 +157,6 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 = new GetFeaturesByTileEvent()
                 .withConnectorParams(defaultTestConnectorParams)
                 .withSpace("foo")
-                .withTags(TagsQuery.fromQueryParameter(new ArrayList<String>(){{ add("yellow"); }}))
                 .withBbox(new BBox(10, -5, 20, 5));
 
         queryResponse = invokeLambda(getFeaturesByBBoxEvent.serialize());
@@ -536,7 +531,6 @@ public class PSQLReadIT extends PSQLAbstractIT {
         properties1.put("operation", "EQUALS");
         properties1.put("values", Collections.singletonList("Toyota"));
         addPropertiesQueryToSearchObject(test1, false, properties1);
-        addTagsToSearchObject(test1, "yellow");
         invokeAndAssert(test1, 1, "Toyota");
 
         // Test 2
@@ -573,7 +567,6 @@ public class PSQLReadIT extends PSQLAbstractIT {
         properties5.put("operation", "GREATER_THAN");
         properties5.put("values", Collections.singletonList(5));
         addPropertiesQueryToSearchObject(test5, false, properties5);
-        addTagsToSearchObject(test5, "red");
         invokeAndAssert(test5, 1, "Toyota");
 
         // Test 6
@@ -583,7 +576,6 @@ public class PSQLReadIT extends PSQLAbstractIT {
         properties6.put("operation", "LESS_THAN");
         properties6.put("values", Collections.singletonList(5));
         addPropertiesQueryToSearchObject(test6, false, properties6);
-        addTagsToSearchObject(test6, "red");
         invokeAndAssert(test6, 1, "Ducati");
 
         // Test 7
@@ -615,7 +607,6 @@ public class PSQLReadIT extends PSQLAbstractIT {
         properties10.put("operation", "EQUALS");
         properties10.put("values", Collections.singletonList("Toyota"));
         addPropertiesQueryToSearchObject(test10, false, properties10);
-        addTagsToSearchObject(test10, "cyan");
         invokeAndAssert(test10, 0);
 
         // Test 11
@@ -718,12 +709,6 @@ public class PSQLReadIT extends PSQLAbstractIT {
         }
 
         list.get(0).addAll(Arrays.asList(objects));
-    }
-
-    protected void addTagsToSearchObject(Map<String, Object> json, String... tags) {
-        json.remove("tags");
-        json.put("tags", new ArrayList<String>());
-        ((List) json.get("tags")).add(new ArrayList(Arrays.asList(tags)));
     }
 
     protected void invokeAndAssert(Map<String, Object> json, int size, String... names) throws Exception {
