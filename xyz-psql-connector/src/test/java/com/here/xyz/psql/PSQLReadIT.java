@@ -93,7 +93,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         assertNotNull(featureCollection);
         features = featureCollection.getFeatures();
         assertNotNull(features);
-        assertEquals(1, features.size());
+        assertEquals(3, features.size());
 
         // =========== QUERY WITH SELECTION BBOX - +TAGS ==========
         getFeaturesByBBoxEvent
@@ -110,7 +110,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         assertNotNull(featureCollection);
         features = featureCollection.getFeatures();
         assertNotNull(features);
-        assertEquals(1, features.size());
+        assertEquals(3, features.size());
         assertEquals(1, new ObjectMapper().convertValue(features.get(0).getProperties(), Map.class).size());
         assertEquals("Toyota", features.get(0).getProperties().get("name"));
         assertNotNull(features.get(0).getId());
@@ -131,7 +131,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         assertNotNull(featureCollection);
         features = featureCollection.getFeatures();
         assertNotNull(features);
-        assertEquals(1, features.size());
+        assertEquals(3, features.size());
         assertEquals(1, new ObjectMapper().convertValue(features.get(0).getProperties(), Map.class).size());
         assertEquals(1, features.get(0).getProperties().getXyzNamespace().getTags().size());
 
@@ -149,7 +149,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         assertNotNull(featureCollection);
         features = featureCollection.getFeatures();
         assertNotNull(features);
-        assertEquals(1, features.size());
+        assertEquals(3, features.size());
         assertEquals(2, new ObjectMapper().convertValue(features.get(0).getProperties(), Map.class).size());
 
         // =========== QUERY BBOX - +SMALL; +TAGS ==========
@@ -165,7 +165,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         assertNotNull(featureCollection);
         features = featureCollection.getFeatures();
         assertNotNull(features);
-        assertEquals(1, features.size());
+        assertEquals(3, features.size());
     }
 
     @Test
@@ -572,10 +572,16 @@ public class PSQLReadIT extends PSQLAbstractIT {
         // Test 6
         Map<String, Object> test6 = mapper.readValue(basic, tr);
         Map<String, Object> properties6 = new HashMap<>();
+        Map<String, Object> properties6_2 = new HashMap<>();
         properties6.put("key", "properties.size");
         properties6.put("operation", "LESS_THAN");
         properties6.put("values", Collections.singletonList(5));
-        addPropertiesQueryToSearchObject(test6, false, properties6);
+
+        properties6_2.put("key", "properties.@ns:com:here:xyz.tags");
+        properties6_2.put("operation", "CONTAINS");
+        properties6_2.put("values", Collections.singletonList("red"));
+        addPropertiesQueryToSearchObject(test6, false, properties6, properties6_2);
+
         invokeAndAssert(test6, 1, "Ducati");
 
         // Test 7
@@ -603,10 +609,16 @@ public class PSQLReadIT extends PSQLAbstractIT {
         // Test 10
         Map<String, Object> test10 = mapper.readValue(basic, tr);
         Map<String, Object> properties10 = new HashMap<>();
+        Map<String, Object> properties10_2 = new HashMap<>();
         properties10.put("key", "properties.name");
         properties10.put("operation", "EQUALS");
         properties10.put("values", Collections.singletonList("Toyota"));
-        addPropertiesQueryToSearchObject(test10, false, properties10);
+
+        properties10_2.put("key", "properties.@ns:com:here:xyz.tags");
+        properties10_2.put("operation", "CONTAINS");
+        properties10_2.put("values", Collections.singletonList("cyan"));
+        addPropertiesQueryToSearchObject(test10, false, properties10, properties10_2);
+
         invokeAndAssert(test10, 0);
 
         // Test 11
