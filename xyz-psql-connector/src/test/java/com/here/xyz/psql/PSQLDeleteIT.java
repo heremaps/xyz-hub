@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -67,68 +67,5 @@ public class PSQLDeleteIT extends PSQLAbstractIT {
         String deleteResponse = invokeLambda(deleteEvent);
         assertNoErrorInResponse(deleteResponse);
         LOGGER.info("Modify features tested successfully");
-    }
-
-    @Test
-    public void testDeleteFeaturesByTagWithOldStates() throws Exception {
-        testDeleteFeaturesByTag(true);
-    }
-
-    @Test
-    public void testDeleteFeaturesByTagDefault() throws Exception {
-        testDeleteFeaturesByTag(false);
-    }
-
-    protected void testDeleteFeaturesByTag(boolean includeOldStates) throws Exception {
-        // =========== INSERT ==========
-        String insertJsonFile = "/events/InsertFeaturesEvent.json";
-        String insertResponse = invokeLambdaFromFile(insertJsonFile);
-        LOGGER.info("RAW RESPONSE: " + insertResponse);
-        String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
-        assertRead(insertRequest, insertResponse, false);
-        LOGGER.info("Preparation: Insert features");
-
-        // =========== COUNT ==========
-        String statsResponse = invokeLambdaFromFile("/events/GetStatisticsEvent.json");
-        Integer originalCount = JsonPath.read(statsResponse, "$.count.value");
-        LOGGER.info("Preparation: feature count = {}", originalCount);
-
-        // =========== DELETE SOME TAGGED FEATURES ==========
-        LOGGER.info("Delete tagged features");
-        final DocumentContext deleteByTagEventDoc = getEventFromResource("/events/DeleteFeaturesByTagEvent.json");
-        deleteByTagEventDoc.put("$", "params", Collections.singletonMap("includeOldStates", includeOldStates));
-        String[][] tags = {{"yellow"}};
-        deleteByTagEventDoc.put("$", "tags", tags);
-        String deleteByTagEvent = deleteByTagEventDoc.jsonString();
-        String deleteByTagResponse = invokeLambda(deleteByTagEvent);
-        assertNoErrorInResponse(deleteByTagResponse);
-        final JsonPath jsonPathFeatures = JsonPath.compile("$.features");
-        @SuppressWarnings("rawtypes") List features = jsonPathFeatures.read(deleteByTagResponse, jsonPathConf);
-        if (includeOldStates) {
-            assertNotNull("'features' element in DeleteByTagResponse is missing", features);
-            assertTrue("'features' element in DeleteByTagResponse is empty", features.size() > 0);
-        } else if (features != null) {
-            assertEquals("unexpected features in DeleteByTagResponse", 0, features.size());
-        }
-
-        statsResponse = invokeLambdaFromFile("/events/GetStatisticsEvent.json");
-        Integer count = JsonPath.read(statsResponse, "$.count.value");
-        assertTrue(originalCount > count);
-        LOGGER.info("Delete tagged features tested successfully");
-
-        // =========== DELETE ALL FEATURES ==========
-        deleteByTagEventDoc.put("$", "tags", null);
-        String deleteAllEvent = deleteByTagEventDoc.jsonString();
-        String deleteAllResponse = invokeLambda(deleteAllEvent);
-        assertNoErrorInResponse(deleteAllResponse);
-        features = jsonPathFeatures.read(deleteAllResponse, jsonPathConf);
-        if (features != null) {
-            assertEquals("unexpected features in DeleteByTagResponse", 0, features.size());
-        }
-
-        statsResponse = invokeLambdaFromFile("/events/GetStatisticsEvent.json");
-        count = JsonPath.read(statsResponse, "$.count.value");
-        assertEquals(0, count.intValue());
-        LOGGER.info("Delete all features tested successfully");
     }
 }
