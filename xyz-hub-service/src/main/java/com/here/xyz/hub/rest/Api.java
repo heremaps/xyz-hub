@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -635,8 +635,6 @@ public abstract class Api {
      * Temporary solution until https://github.com/vert-x3/issues/issues/380 is resolved.
      */
 
-    private static final String[] nonDecodeList = { Query.TAGS };
-
     static MultiMap getQueryParameters(RoutingContext context) {
       MultiMap queryParams = context.get(QUERY_PARAMS);
       if (queryParams != null) {
@@ -651,13 +649,12 @@ public abstract class Api {
           int eqDelimiter = paramString.indexOf("=");
           if (eqDelimiter > 0) {
             String key = paramString.substring(0, eqDelimiter);
-            boolean decode = !ArrayUtils.contains(nonDecodeList,key);
             String rawValue = paramString.substring(eqDelimiter + 1);
             if (rawValue.length() > 0) {
               String[] values = rawValue.split(",");
               Stream.of(values).forEach(v -> {
                 try {
-                  map.add(key, (decode ? URLDecoder.decode(v, Charset.defaultCharset().name()) : v ));
+                  map.add(key, URLDecoder.decode(v, Charset.defaultCharset().name()));
                 } catch (UnsupportedEncodingException ignored) {
                 }
               });

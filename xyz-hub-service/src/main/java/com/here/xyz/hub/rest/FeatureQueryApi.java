@@ -96,7 +96,6 @@ public class FeatureQueryApi extends SpaceBasedApi {
 
       final SearchForFeaturesEvent event = new SearchForFeaturesEvent();
       event.withLimit(getLimit(context))
-          .withTags(Query.getTags(context))
           .withPropertiesQuery(propertiesQuery)
           .withRef(version)
           .withAuthor(author)
@@ -139,7 +138,6 @@ public class FeatureQueryApi extends SpaceBasedApi {
         IterateFeaturesEvent event = new IterateFeaturesEvent();
         event.withLimit(getLimit(context))
             .withForce2D(force2D)
-            .withTags(Query.getTags(context))
             .withPropertiesQuery(propertiesQuery)
             .withSelection(Query.getSelection(context))
             .withSort(sort)
@@ -156,7 +154,6 @@ public class FeatureQueryApi extends SpaceBasedApi {
       IterateFeaturesEvent event = new IterateFeaturesEvent()
           .withLimit(getLimit(context))
           .withForce2D(force2D)
-          .withTags(Query.getTags(context))
           .withSelection(Query.getSelection(context))
           .withV(version)
           .withHandle(Query.getString(context, Query.HANDLE, null))
@@ -213,7 +210,6 @@ public class FeatureQueryApi extends SpaceBasedApi {
           .withRadius(Query.getRadius(context))
           .withH3Index(Query.getH3Index(context))
           .withLimit(getLimit(context))
-          .withTags(Query.getTags(context))
           .withClip(Query.getBoolean(context, Query.CLIP, false))
           .withPropertiesQuery(Query.getPropertiesQuery(context))
           .withSelection(Query.getSelection(context))
@@ -250,7 +246,6 @@ public class FeatureQueryApi extends SpaceBasedApi {
             .withTweakType(Query.getString(context, Query.TWEAKS, null))
             .withTweakParams(Query.getAdditionalParams(context, Query.TWEAKS))
             .withLimit(getLimit(context))
-            .withTags(Query.getTags(context))
             .withPropertiesQuery(Query.getPropertiesQuery(context))
             .withSelection(Query.getSelection(context))
             .withAuthor(author)
@@ -311,7 +306,6 @@ public class FeatureQueryApi extends SpaceBasedApi {
             .withTweakType(Query.getString(context, Query.TWEAKS, null))
             .withTweakParams(Query.getAdditionalParams(context, Query.TWEAKS))
             .withLimit(getLimit(context, ("viz".equals(optimMode) ? HARD_LIMIT : DEFAULT_FEATURE_LIMIT)))
-            .withTags(Query.getTags(context))
             .withPropertiesQuery(Query.getPropertiesQuery(context))
             .withSelection(Query.getSelection(context))
             .withForce2D(force2D)
