@@ -110,7 +110,7 @@ DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 158
+ select 159
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -1530,20 +1530,16 @@ $BODY$
 		FROM pg_class C
 			LEFT JOIN pg_tables D ON (D.tablename = C.relname)
 			LEFT JOIN pg_namespace N ON (N.oid = C.relnamespace)
-			LEFT JOIN xyz_config.xyz_idxs_status E ON (E.spaceid = C.relname)
+            LEFT JOIN xyz_config.xyz_idxs_status E ON (E.spaceid = xyz_get_root_table(C.relname))
 		WHERE relkind='r' AND nspname = ''||schema||'' AND array_position(owner_list, tableowner::text) > 0
 			/** More than 3000 objecs has changed OR space is new and has more than min_table_count entries */
 			AND ((ABS(COALESCE(E.count,0) - COALESCE(reltuples,0)) > 3000 AND reltuples > min_table_count )  OR ( E.count IS null AND reltuples > min_table_count ))
 			AND relname != 'spatial_ref_sys'
-			ORDER BY reltuples
+            AND  xyz_is_space_table(''||schema||'', E.spaceid)
+        ORDER BY reltuples
 	LOOP
 		BEGIN
 			spaceid := xyz_get_root_table(xyz_spaces.spaceid);
-
-            --skip history tables
-            IF NOT xyz_is_space_table(schema, spaceid) THEN
-                CONTINUE;
-            END IF;
 
 			EXECUTE format('SELECT tablesize, geometrytypes, properties, tags, count, bbox from xyz_statistic_space(''%s'',''%s'')',schema , xyz_spaces.spaceid)
 				INTO tablesize, geometrytypes, properties, tags, count, bbox;
