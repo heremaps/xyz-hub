@@ -22,14 +22,18 @@ package com.here.xyz.hub.task;
 import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.ModifySubscriptionEvent.Operation;
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.rest.TagApi;
 import com.here.xyz.hub.task.FeatureTask.ModifySubscriptionQuery;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Subscription;
+import com.here.xyz.models.hub.Tag;
 import io.vertx.core.AsyncResult;
+import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.json.JsonObject;
@@ -141,21 +145,32 @@ public class SubscriptionHandler {
                 logger.error(marker, "Unable to store resource definition.", ar.cause());
                 handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to store the resource definition.", ar.cause())));
             } else {
-                TagConfigClient.getInstance().getTag(marker, subscription.getId(), subscription.getSource())
-                        .onSuccess(tag -> {
-                            if (tag == null) {
-                                TagApi.createTag(marker, subscription.getSource(), Service.configuration.SUBSCRIPTION_TAG)
-                                        .map(cf -> logStoreSubscription(marker, spaceFuture, tagFuture))
-                        .onSuccess(t -> handler.handle(Future.succeededFuture(subscription)))
-                                        .onFailure(t -> handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to store tag during subscription registration.", t.getCause()))));
-                            } else {
-                                handler.handle(Future.succeededFuture(subscription));
-                            }
-                        })
-                        .onFailure(t -> handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to get tag during subscription registration.", t.getCause()))));
+                Future<Void> spaceFuture = SpaceConfigClient.getInstance().get(marker, subscription.getSource())
+                    .flatMap(space -> increaseVersionsToKeepIfNecessary(marker, space))
+                    .recover(t->Future.failedFuture("Unable to increase versionsToKeep value on space " + subscription.getSource() + " during subscription registration."));
+                Future<Tag> tagFuture = TagConfigClient.getInstance().getTag(marker, subscription.getId(), subscription.getSource())
+                    .flatMap(tag -> createTagIfNecessary(marker, tag, subscription.getSource()))
+                    .recover(t->Future.failedFuture("Unable to store tag for space " + subscription.getSource() + " during subscription registration."));
+
+                CompositeFuture.all(spaceFuture, tagFuture)
+                        .map(cf -> logStoreSubscription(marker, spaceFuture, tagFuture))
+                        .onSuccess(none -> handler.handle(Future.succeededFuture(subscription)))
+                        .onFailure(t -> handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Subscription registration failed.", t.getCause()))));
                 }
             });
     }
+
+    private static Future<Void> increaseVersionsToKeepIfNecessary(Marker marker, Space space) {
+      return space != null && space.getVersionsToKeep() == 1 ?
+          SpaceConfigClient.getInstance().store(marker, (com.here.xyz.hub.connectors.models.Space) space.withVersionsToKeep(2)) :
+          Future.succeededFuture();
+    }
+
+  private static Future<Tag> createTagIfNecessary(Marker marker, Tag tag, String spaceId) {
+    return tag == null ?
+        TagApi.createTag(marker, spaceId, Service.configuration.SUBSCRIPTION_TAG) :
+        Future.succeededFuture(tag);
+  }
 
     private static Future<Void> logStoreSubscription(Marker marker, Future<Void> spaceFuture, Future<Tag> tagFuture) {
       logger.info(marker, "spaceFuture for increasing version " + (spaceFuture.failed() ? "failed with cause " + spaceFuture.cause().getMessage() : "succeeded"));

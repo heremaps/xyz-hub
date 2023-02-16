@@ -35,15 +35,17 @@ import static org.hamcrest.Matchers.is;
 public class SubscriptionApiIT extends TestSpaceWithFeature {
 
     private static String cleanUpSpaceId = "space1";
+    private static String cleanUpSpaceId2 = "space2";
 
     @BeforeClass
     public static void setupClass() {
         removeAll();
     }
-    
+
     @Before
     public void setup() {
         createSpaceWithCustomStorage(cleanUpSpaceId, "psql", null);
+        createSpaceWithVersionsToKeep(cleanUpSpaceId2, 10, false);
     }
 
     @After
@@ -52,8 +54,10 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
     }
 
     private static void removeAll() {
+        removeSubscription(AuthProfile.ACCESS_ALL, cleanUpSpaceId, "test-subscription-1");
+        removeSubscription(AuthProfile.ACCESS_ALL, cleanUpSpaceId2, "test-subscription-1");
         removeSpace(cleanUpSpaceId);
-        removeSubscription(AuthProfile.ACCESS_ALL, "test-subscription-1");
+        removeSpace(cleanUpSpaceId2);
     }
 
     public static Subscription addTestSubscription() {
@@ -76,12 +80,12 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
                 .post("/spaces/" + cleanUpSpaceId + "/subscriptions")
                 .then();
     }
-    public static ValidatableResponse removeSubscription(AuthProfile authProfile, String subscriptionId) {
+    public static ValidatableResponse removeSubscription(AuthProfile authProfile, String spaceId, String subscriptionId) {
         return given()
                 .accept(APPLICATION_JSON)
                 .headers(getAuthHeaders(authProfile))
                 .when()
-                .delete("/spaces/" + cleanUpSpaceId + "/subscriptions/" + subscriptionId)
+                .delete("/spaces/" + spaceId + "/subscriptions/" + subscriptionId)
                 .then();
     }
 
@@ -273,7 +277,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
         addTestSubscription();
 
         String subscriptionId = "test-subscription-1";
-        removeSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, subscriptionId)
+        removeSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, cleanUpSpaceId, subscriptionId)
                 .statusCode(OK.code())
                 .body("id", equalTo(subscriptionId));
     }
@@ -282,7 +286,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
     public void deleteSubscriptionNotPresent() {
 
         String subscriptionId = "unknown-subscription";
-        removeSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, subscriptionId)
+        removeSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, cleanUpSpaceId, subscriptionId)
                 .statusCode(NOT_FOUND.code());
     }
 
@@ -291,7 +295,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
         addTestSubscription();
 
         String subscriptionId = "test-subscription-1";
-        removeSubscription(AuthProfile.NO_ACCESS, subscriptionId)
+        removeSubscription(AuthProfile.NO_ACCESS, cleanUpSpaceId, subscriptionId)
                 .statusCode(FORBIDDEN.code());
     }
 
@@ -300,8 +304,38 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
         addTestSubscription();
 
         String subscriptionId = "test-subscription-1";
-        removeSubscription(AuthProfile.ACCESS_SPACE_2_MANAGE_SPACES, subscriptionId)
+        removeSubscription(AuthProfile.ACCESS_SPACE_2_MANAGE_SPACES, cleanUpSpaceId, subscriptionId)
                 .statusCode(FORBIDDEN.code());
     }
 
+  @Test
+  public void testAddSubscriptionOnSpaceV2K1() {
+    addTestSubscription();
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + cleanUpSpaceId)
+        .then()
+        .statusCode(OK.code())
+        .body("versionsToKeep", equalTo(2));
+  }
+
+
+  @Test
+  public void testAddSubscriptionOnSpaceV2K10() {
+    given()
+        .accept(APPLICATION_JSON)
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(content("/xyz/hub/createSubscription.json"))
+        .post("/spaces/" + cleanUpSpaceId2 + "/subscriptions")
+        .then().statusCode(CREATED.code());
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + cleanUpSpaceId2)
+        .then()
+        .statusCode(OK.code())
+        .body("versionsToKeep", equalTo(10));
+  }
 }

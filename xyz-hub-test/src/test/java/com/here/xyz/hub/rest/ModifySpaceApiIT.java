@@ -224,6 +224,18 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
   }
 
   @Test
+  public void patchExistingVersionsToKeepFromOneToTwo() {
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body("{\"versionsToKeep\": 2}")
+        .when()
+        .patch("/spaces/x-psql-test")
+        .then()
+        .statusCode(OK.code());
+  }
+
+  @Test
   public void patchExistingVersionsToKeepFromTenToOne() {
     cleanUpId = "x-psql-test-v2k-10";
     given()
