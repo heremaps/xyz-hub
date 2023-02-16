@@ -327,11 +327,12 @@ paths:
         Create a tag, which points to a version of the space.
 
         If a version is not provided when creating the tag, then the current HEAD version will be
-        referenced. If a version is provided, then it must be bigger than the minimum version of the
-        space.
+        referenced.
       operationId: createTag
       parameters:
         - $ref: '#/components/parameters/SpaceId'
+      requestBody:
+        $ref: '#/components/requestBodies/TagRequest'
       responses:
         '200':
           $ref: '#/components/responses/TagResponse'
@@ -349,11 +350,13 @@ paths:
         - Manage Tags
       summary: Update a tag
       description: >-
-        Update a tag.
+        Update the version of a tag.
       operationId: updateTag
       parameters:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/TagId'
+      requestBody:
+        $ref: '#/components/requestBodies/TagRequest'
       responses:
         '200':
           $ref: '#/components/responses/TagResponse'
