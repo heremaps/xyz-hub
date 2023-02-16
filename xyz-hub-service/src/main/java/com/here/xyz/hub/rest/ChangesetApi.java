@@ -31,6 +31,7 @@ import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.SpaceConnectorBasedHandler;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import com.here.xyz.responses.changesets.Changeset;
+import com.here.xyz.responses.changesets.ChangesetCollection;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
@@ -60,13 +61,7 @@ public class ChangesetApi extends SpaceBasedApi {
       SpaceConnectorBasedHandler.execute(Api.Context.getMarker(context),
                       space -> ChangesetAuthorization.authorize(context, space).map(space),
                       event)
-              .onSuccess(result ->
-                {
-                    if(result instanceof Changeset && ((Changeset) result).getVersion() == -1){
-                      sendErrorResponse(context, new HttpException(NOT_FOUND, "The requested resource does not exist."));
-                    }
-                    this.sendResponse(context, HttpResponseStatus.OK, result);
-                })
+              .onSuccess(result -> sendResponse(context,result))
               .onFailure(t -> this.sendErrorResponse(context, t));
 
     } catch(HttpException e) {
@@ -84,14 +79,22 @@ public class ChangesetApi extends SpaceBasedApi {
       SpaceConnectorBasedHandler.execute(Api.Context.getMarker(context),
                       space -> ChangesetAuthorization.authorize(context, space).map(space),
                       event)
-          .onSuccess(result -> {
-              this.sendResponse(context, HttpResponseStatus.OK, result);
-          })
-          .onFailure(t -> this.sendErrorResponse(context, t));
+              .onSuccess(result -> sendResponse(context,result))
+              .onFailure(t -> this.sendErrorResponse(context, t));
 
     } catch(HttpException e) {
       sendErrorResponse(context, e);
     }
+  }
+
+  private void sendResponse(final RoutingContext context, Object result){
+    if(result instanceof Changeset && ((Changeset) result).getVersion() == -1){
+      this.sendErrorResponse(context, new HttpException(NOT_FOUND, "The requested resource does not exist."));
+    }else if(result instanceof ChangesetCollection && ((ChangesetCollection) result).getStartVersion() == -1 &&
+          ((ChangesetCollection) result).getEndVersion() == -1){
+      this.sendErrorResponse(context, new HttpException(NOT_FOUND, "The requested resource does not exist."));
+    }else
+      this.sendResponse(context, HttpResponseStatus.OK, result);
   }
 
   private IterateChangesetsEvent buildIterateChangesetsEvent(final RoutingContext context, final boolean useChangesetCollection) throws HttpException {
@@ -107,13 +110,14 @@ public class ChangesetApi extends SpaceBasedApi {
     }else{
       final String version = context.pathParam(Path.VERSION);
       startVersion = Long.parseLong(version);
-      endVersion = null;
+      endVersion = startVersion;
     }
 
     validateGetChangesetsQueryParams(startVersion, endVersion, useChangesetCollection);
 
     return new IterateChangesetsEvent()
             .withSpace(spaceId)
+            .withUseCollection(useChangesetCollection)
             .withStartVersion(startVersion)
             .withEndVersion(endVersion)
             .withPageToken(pageToken)
