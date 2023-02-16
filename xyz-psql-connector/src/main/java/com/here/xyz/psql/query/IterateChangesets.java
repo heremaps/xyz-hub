@@ -43,7 +43,7 @@ public class IterateChangesets extends SearchForFeatures<IterateChangesetsEvent,
   private String pageToken;
   private long limit;
   private Long start;
-  private Long end;
+  private boolean useCollection;
 
   public IterateChangesets(IterateChangesetsEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(event, dbHandler);
@@ -51,7 +51,7 @@ public class IterateChangesets extends SearchForFeatures<IterateChangesetsEvent,
     limit = event.getLimit();
     pageToken = event.getPageToken();
     start = event.getStartVersion();
-    end = event.getEndVersion();
+    useCollection = event.isUseCollection();
   }
 
   @Override
@@ -61,9 +61,9 @@ public class IterateChangesets extends SearchForFeatures<IterateChangesetsEvent,
 
   @Override
   public XyzResponse handle(ResultSet rs) throws SQLException {
-    if(end == null)
-      return handleChangeset(rs);
-    return handleChangesetCollection(rs);
+    if(useCollection)
+      return handleChangesetCollection(rs);
+    return handleChangeset(rs);
   }
 
   public SQLQuery buildIterateChangesets(IterateChangesetsEvent event){
@@ -74,7 +74,7 @@ public class IterateChangesets extends SearchForFeatures<IterateChangesetsEvent,
                 " version,"+
                 " author,"+
                 " operation,"+
-                " (jsondata#-'{properties,@ns:com:here:xyz,version}') || jsonb_strip_nulls(jsonb_build_object('geometry',ST_AsGeoJSON(geo)::jsonb)) As feature "+
+                " jsonb_set(jsondata,'{properties, @ns:com:here:xyz, version}',to_jsonb(version)) || jsonb_strip_nulls(jsonb_build_object('geometry',ST_AsGeoJSON(geo)::jsonb)) As feature "+
                 "   from  ${schema}.${table} "+
                 " WHERE 1=1"+
                 "      ${{page}}"+
@@ -222,6 +222,9 @@ public class IterateChangesets extends SearchForFeatures<IterateChangesetsEvent,
       versions.put(lastVersion, cs);
       ccol.setStartVersion(startVersion);
       ccol.setEndVersion(lastVersion);
+    }else{
+      ccol.setStartVersion(-1);
+      ccol.setEndVersion(-1);
     }
 
     ccol.setVersions(versions);
