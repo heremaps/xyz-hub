@@ -48,7 +48,7 @@ public class TagApi extends SpaceBasedApi {
         final String spaceId = context.pathParam(Path.SPACE_ID);
 
         deserializeTag(context.getBodyAsString())
-                .flatMap(tag -> createTag(Api.Context.getMarker(context), spaceId, tag.getId()))
+                .flatMap(tag -> createTag(Api.Context.getMarker(context), spaceId, tag.getId(), tag.getVersion()))
                 .onSuccess(result -> sendResponse(context, HttpResponseStatus.OK, result))
                 .onFailure(t -> sendHttpErrorResponse(context, t));
     }
@@ -99,8 +99,12 @@ public class TagApi extends SpaceBasedApi {
                 .onFailure(t -> sendHttpErrorResponse(context, t));
     }
 
-    // TODO auth
     public static Future<Tag> createTag(Marker marker, String spaceId, String tagId) {
+        return createTag(marker, spaceId, tagId, 0);
+    }
+
+    // TODO auth
+    private static Future<Tag> createTag(Marker marker, String spaceId, String tagId, long version) {
         if (spaceId == null)
             return Future.failedFuture("Invalid spaceId parameter");
         if (tagId == null )
@@ -114,7 +118,7 @@ public class TagApi extends SpaceBasedApi {
             final Tag tag = new Tag()
                     .withId(tagId)
                     .withSpaceId(spaceId)
-                    .withVersion(changesetFuture.result().getMaxVersion());
+                    .withVersion(version == 0 ? changesetFuture.result().getMaxVersion() : version);
             return TagConfigClient.getInstance().storeTag(marker, tag).map(v -> tag);
         });
     }
