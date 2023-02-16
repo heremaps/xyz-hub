@@ -28,11 +28,13 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.json.DecodeException;
+import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
 import static com.here.xyz.hub.auth.XyzHubAttributeMap.SPACE;
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
@@ -103,6 +105,9 @@ public class SubscriptionApi extends Api {
       String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
       Subscription subscription = getSubscriptionInput(context);
       subscription.setSource(spaceId);
+      Marker marker = Api.Context.getMarker(context);
+
+      logger.info(marker, "Registering subscription for space " + spaceId + ": " + JsonObject.mapFrom(subscription));
       validateSubscriptionRequest(subscription);
 
       SubscriptionAuthorization.authorizeManageSpacesRights(context, spaceId, arAuth -> {

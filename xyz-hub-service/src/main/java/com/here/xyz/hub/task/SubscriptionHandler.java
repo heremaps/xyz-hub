@@ -32,6 +32,7 @@ import com.here.xyz.models.hub.Subscription;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -94,12 +95,14 @@ public class SubscriptionHandler {
         subscription.setStatus(new Subscription.SubscriptionStatus().withState(Subscription.SubscriptionStatus.State.ACTIVE));
         Service.subscriptionConfigClient.get(marker, subscription.getId()).onComplete(ar -> {
             if (ar.failed()) {
+                logger.info(marker, "Getting subscription with id " + subscription.getId() + " failed with reason: " + ar.cause().getMessage());
+
                 // Send ModifySubscriptionEvent to the connector
                 sendEvent(context, Operation.CREATE, subscription, false, marker, eventAr -> {
                     if(eventAr.failed()) {
                         handler.handle(Future.failedFuture(eventAr.cause()));
                     } else {
-                        storeSubscription(context, subscription, handler, marker);
+                        storeSubscription(marker, subscription, handler);
                     }
                 });
             } else {
@@ -125,14 +128,14 @@ public class SubscriptionHandler {
                 if(eventAr.failed()) {
                     handler.handle(Future.failedFuture(eventAr.cause()));
                 } else {
-                    storeSubscription(context, subscription, handler, marker);
+                    storeSubscription(marker, subscription, handler);
                 }
             });
         });
     }
 
-    protected static void storeSubscription(RoutingContext context, Subscription subscription, Handler<AsyncResult<Subscription>> handler, Marker marker) {
-
+    protected static void storeSubscription(Marker marker, Subscription subscription, Handler<AsyncResult<Subscription>> handler) {
+        logger.info(marker, "storing subscription ");
         Service.subscriptionConfigClient.store(marker, subscription).onComplete(ar -> {
             if (ar.failed()) {
                 logger.error(marker, "Unable to store resource definition.", ar.cause());
@@ -142,7 +145,8 @@ public class SubscriptionHandler {
                         .onSuccess(tag -> {
                             if (tag == null) {
                                 TagApi.createTag(marker, subscription.getSource(), Service.configuration.SUBSCRIPTION_TAG)
-                                        .onSuccess(t -> handler.handle(Future.succeededFuture(subscription)))
+                                        .map(cf -> logStoreSubscription(marker, spaceFuture, tagFuture))
+                        .onSuccess(t -> handler.handle(Future.succeededFuture(subscription)))
                                         .onFailure(t -> handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to store tag during subscription registration.", t.getCause()))));
                             } else {
                                 handler.handle(Future.succeededFuture(subscription));
@@ -151,6 +155,12 @@ public class SubscriptionHandler {
                         .onFailure(t -> handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to get tag during subscription registration.", t.getCause()))));
                 }
             });
+    }
+
+    private static Future<Void> logStoreSubscription(Marker marker, Future<Void> spaceFuture, Future<Tag> tagFuture) {
+      logger.info(marker, "spaceFuture for increasing version " + (spaceFuture.failed() ? "failed with cause " + spaceFuture.cause().getMessage() : "succeeded"));
+      logger.info(marker, "tagFuture for tag creation" + (tagFuture.failed() ? "failed with cause " + tagFuture.cause().getMessage() : "succeeded"));
+      return Future.succeededFuture();
     }
 
     public static void deleteSubscription(RoutingContext context, Subscription subscription, Handler<AsyncResult<Subscription>> handler) {
@@ -207,7 +217,6 @@ public class SubscriptionHandler {
     }
 
     private static void sendEvent(RoutingContext context, Operation op, Subscription subscription, boolean hasNoActiveSubscriptions,Marker marker, Handler<AsyncResult<Subscription>> handler) {
-
         ModifySubscriptionEvent event = new ModifySubscriptionEvent()
                 .withOperation(op)
                 .withSubscription(subscription)
@@ -216,13 +225,16 @@ public class SubscriptionHandler {
                 .withSpace(subscription.getSource())
                 .withHasNoActiveSubscriptions(hasNoActiveSubscriptions);
 
+        logger.info(marker, "ModifySubscriptionEvent to be sent to the connector: " + JsonObject.mapFrom(event));
         ModifySubscriptionQuery query = new ModifySubscriptionQuery(event, context, ApiResponseType.EMPTY);
 
         TaskPipeline.C1<ModifySubscriptionQuery> wrappedSuccessHandler = (t) -> {
+            logger.info(marker, "Sending subscription event succeeded");
             handler.handle(Future.succeededFuture());
         };
 
         TaskPipeline.C2<ModifySubscriptionQuery, Throwable> wrappedExceptionHandler = (t, e) -> {
+            logger.info(marker, "Sending subscription event failed");
             handler.handle((Future.failedFuture(e)));
         };
 
