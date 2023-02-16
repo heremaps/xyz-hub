@@ -35,6 +35,7 @@ public final class IterateChangesetsEvent extends SearchForFeaturesEvent<Iterate
 
   private long minSpaceVersion;
   private int versionsToKeep;
+  private boolean useCollection;
 
   public Long getStartVersion() {
     return startVersion;
@@ -101,6 +102,15 @@ public final class IterateChangesetsEvent extends SearchForFeaturesEvent<Iterate
 
   public IterateChangesetsEvent withVersionsToKeep(int setVersionsToKeep) {
     setVersionsToKeep(versionsToKeep);
+    return this;
+  }
+
+  public boolean isUseCollection() { return useCollection;  }
+
+  public void setUseCollection(boolean useCollection) { this.useCollection = useCollection; }
+
+  public IterateChangesetsEvent withUseCollection(boolean useCollection) {
+    setUseCollection(useCollection);
     return this;
   }
 }
