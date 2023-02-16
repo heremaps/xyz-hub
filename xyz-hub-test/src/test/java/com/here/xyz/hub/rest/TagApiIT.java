@@ -21,11 +21,13 @@ package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.jayway.restassured.RestAssured.given;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
+import com.jayway.restassured.http.ContentType;
 import com.jayway.restassured.response.ValidatableResponse;
 import org.junit.After;
 import org.junit.Before;
@@ -55,10 +57,20 @@ public class TagApiIT extends TestSpaceWithFeature {
     private ValidatableResponse _createTag() {
         return given()
                 .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .contentType(ContentType.JSON)
                 .body("{\"id\":\"XYZ_1\"}")
                 .post("/spaces/" + getSpaceId() + "/tags")
                 .then();
     }
+
+  private ValidatableResponse _addOneFeature() {
+    return given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType("application/geo+json")
+        .body("{\"type\":\"Feature\",\"properties\":{\"name\":\"abc\"}}")
+        .post("/spaces/" + getSpaceId() + "/features")
+        .then();
+  }
 
     @Test
     public void testDeleteSpace() {
@@ -123,6 +135,7 @@ public class TagApiIT extends TestSpaceWithFeature {
 
         given()
                 .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .contentType(ContentType.JSON)
                 .body("{\"version\":999}")
                 .patch("/spaces/" + getSpaceId() + "/tags/XYZ_1")
                 .then()
@@ -202,5 +215,42 @@ public class TagApiIT extends TestSpaceWithFeature {
         .body( "[0].tags.XYZ_1.id", equalTo("XYZ_1"))
         .body( "[0].tags.XYZ_1.spaceId", equalTo("x-psql-test"))
         .body( "[0].tags.XYZ_1.version", equalTo(-1));
+  }
+
+  @Test
+  public void testUpdateTagWithVersionNotSet() {
+    _createTag();
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(ContentType.JSON)
+        .patch("/spaces/" + getSpaceId() + "/tags/XYZ_1")
+        .then()
+        .statusCode(BAD_REQUEST.code());
+  }
+
+  @Test
+  public void testCreateTagWithoutVersionNot() {
+    _addOneFeature();
+    _addOneFeature();
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(ContentType.JSON)
+        .body("{\"id\":\"XYZ_1\"}")
+        .post("/spaces/" + getSpaceId() + "/tags")
+        .then()
+        .body("version", equalTo(1));
+  }
+
+  @Test
+  public void testCreateTagWithVersion() {
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(ContentType.JSON)
+        .body("{\"id\":\"XYZ_1\",\"version\":555}")
+        .post("/spaces/" + getSpaceId() + "/tags")
+        .then()
+        .body("version", equalTo(555));
   }
 }

@@ -242,9 +242,6 @@ public class SpaceTaskHandler {
       else if(head != null && head.isEnableGlobalVersioning() && input.get("maxVersionCount") != null )
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'maxVersionCount' can only get set, in combination of enableGlobalVersioning, on space creation!");
 
-      if (head != null && head.getVersionsToKeep() == 1 && input.get("versionsToKeep") != null && ((Integer) input.get("versionsToKeep")) > 1)
-        throw new HttpException(BAD_REQUEST, "Validation failed. The property 'versionsToKeep' cannot be changed to a value bigger than 1 when its value is 1");
-
       if (head != null && head.getVersionsToKeep() > 1 && input.get("versionsToKeep") != null && Objects.equals(1, input.get("versionsToKeep")))
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'versionsToKeep' cannot be changed to 1 when its value is bigger than 1");
 
