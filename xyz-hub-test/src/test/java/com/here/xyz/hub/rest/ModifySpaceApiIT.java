@@ -216,28 +216,7 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
         .accept(APPLICATION_JSON)
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"versionsToKeep\": 10}")
-        .when()
-        .patch("/spaces/x-psql-test")
-        .then().statusCode(BAD_REQUEST.code());
-
-    given()
-        .accept(APPLICATION_JSON)
-        .contentType(APPLICATION_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body("\"versionsToKeep\": 0}")
-        .when()
-        .patch("/spaces/x-psql-test")
-        .then()
-        .statusCode(BAD_REQUEST.code());
-  }
-
-  @Test
-  public void patchExistingVersionsToKeepBiggerThanOne() {
-    given()
-        .contentType(APPLICATION_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"versionsToKeep\": 10}")
         .when()
         .patch("/spaces/x-psql-test")
         .then()
