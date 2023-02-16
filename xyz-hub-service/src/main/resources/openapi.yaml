@@ -607,8 +607,7 @@ paths:
         - Write Features
       summary: Delete multiple features
       description: >-
-        Feature IDs can be used to delete features individually,
-        or the wildcard sign '*' can be used to delete all features in the space.
+        Delete the features with the provided ids.
       operationId: deleteFeatures
       parameters:
         - $ref: '#/components/parameters/SpaceId'
