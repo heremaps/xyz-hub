@@ -83,7 +83,7 @@ public class QuadbinSQL {
                 if(propQuery != null){
                     pureEstimation =
                                     "  SELECT xyz_count_estimation(concat(" +
-                                    "      'select 1 from ${schema}.${table}"+
+                                    "      'select 1 from ${schema}.${table_head}"+
                                     "       WHERE ST_Intersects(geo, xyz_qk_qk2bbox(''',qk,''')) "+
                                     " AND "+
                                     propQuery.replaceAll("'","''")+
@@ -107,7 +107,7 @@ public class QuadbinSQL {
                 "   from pg_class c1 "+
                 "   left join pg_inherits pm on (c1.oid = pm.inhparent) "+
                 "   left join pg_class c2 on (c2.oid = pm.inhrelid) "+
-                "   where c1.oid = ('${schema}.${table}')::regclass "+
+                "   where c1.oid = ('${schema}.${table_head}')::regclass "+
                 "), "+
                 "tbl_stats as ( select sum(tbl_est_cnt) as est_cnt from tblinfo ), "+
                 "quadkeys  as ( "+ coveringQksSql + " ), "+
@@ -136,12 +136,12 @@ public class QuadbinSQL {
                 "        ("+
                 "        CASE"+
                 "         WHEN bool_condition THEN "+
-                "          CASE WHEN EXISTS (select 1 from ${schema}.${table} where ST_Intersects(geo, qkbbox) and " + propQuery + ")"+
+                "          CASE WHEN EXISTS (select 1 from ${schema}.${table_head} where ST_Intersects(geo, qkbbox) and " + propQuery + ")"+
                 "           THEN 1::bigint "+
                 "           ELSE 0::bigint "+
                 "          END"+
                 "         WHEN real_condition THEN "+
-                "           (select count(1) from ${schema}.${table} where ST_Intersects(geo, qkbbox) and " + propQuery + ")"+
+                "           (select count(1) from ${schema}.${table_head} where ST_Intersects(geo, qkbbox) and " + propQuery + ")"+
                 "         ELSE "+
                 "           cond_est_cnt "+
                 "        END )::bigint as cnt_bbox_est"+
