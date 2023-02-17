@@ -104,7 +104,7 @@ public class H3SQL
           + "            ( ",
  h3sqlMid_1a = // standard flavour
             "              select %2$s as cval, coalesce( l.geoh3, v.geo ) as refpt"
-          + "              from ${schema}.${table} v " 
+          + "              from ${schema}.${table_head} v " 
           + "               left join lateral "
           + "                ( select st_force3d(st_setsrid( h3ToGeoDeg( coveringDeg( case ST_Within(geo, %5$s ) " 
           + "                                                                          when true then ST_MakeValid(geo) "
@@ -115,7 +115,7 @@ public class H3SQL
           + "                on ( true ) ",
  h3sqlMid_1b = // convert to points flavour          
             "              select %2$s as cval, st_geometryn(st_points( ST_Intersection( v.geo, %5$s ) ) ,1) as refpt"
-          + "              from ${schema}.${table} v ",
+          + "              from ${schema}.${table_head} v ",
  h3sqlMid_2 =
             "              where 1 = 1 and st_intersects( geo , %5$s ) and %6$s",          
   h3sqlEnd =
