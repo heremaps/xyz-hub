@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -690,7 +690,7 @@ public class AuthTestsIT extends RestAssuredTest {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .body(content("/xyz/hub/updateFeature.json"))
         .when()
-        .put("/spaces/" + cleanUpId + "/features/Q2838923")
+        .put("/spaces/" + cleanUpId + "/features/Q2838923?addTags=baseball&removeTags=soccer")
         .then()
         .statusCode(FORBIDDEN.code());
 
@@ -700,14 +700,15 @@ public class AuthTestsIT extends RestAssuredTest {
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_READ_WRITE_PACKAGES_HERE))
         .body(content("/xyz/hub/updateFeature.json"))
         .when()
-        .put("/spaces/" + cleanUpId + "/features/Q2838923")
+        .put("/spaces/" + cleanUpId + "/features/Q2838923?addTags=baseball&removeTags=soccer")
         .then()
         .statusCode(OK.code())
         .body("id", equalTo("Q2838923"))
         .body("properties.name", equalTo("Estadio Universidad San Marcos Updated"))
         .body("properties.occupant", equalTo("National University of San Marcos Updated"))
         .body("properties.sport", equalTo("association baseball"))
-        .body("properties.capacity", equalTo(67470));
+        .body("properties.capacity", equalTo(67470))
+        .body("properties.'@ns:com:here:xyz'.tags", hasItems("stadium", "baseball"));
   }
 
   @Test

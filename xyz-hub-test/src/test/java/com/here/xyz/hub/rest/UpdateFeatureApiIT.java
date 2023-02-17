@@ -100,7 +100,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         body(content("/xyz/hub/updateFeature.json")).
         when().
-        put(getSpacesPath() + "/x-psql-test/features/Q2838923").
+        put(getSpacesPath() + "/x-psql-test/features/Q2838923?addTags=baseball&removeTags=soccer").
         then().
         statusCode(OK.code()).
         body("id", equalTo("Q2838923")).
@@ -108,7 +108,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         body("properties.occupant", equalTo("National University of San Marcos Updated")).
         body("properties.sport", equalTo("association baseball")).
         body("properties.capacity", equalTo(67470)).
-        body("properties.'@ns:com:here:xyz'.tags", hasItems("stadium", "soccer"));
+        body("properties.'@ns:com:here:xyz'.tags", hasItems("stadium", "baseball"));
   }
 
 
@@ -120,7 +120,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         body(content("/xyz/hub/updateFeature.json")).
         when().
-        put(getSpacesPath() + "/x-psql-test/features/Q2838924").
+        put(getSpacesPath() + "/x-psql-test/features/Q2838924?addTags=baseball&removeTags=soccer").
         then().
         statusCode(OK.code()).
         body("id", equalTo("Q2838924")).
@@ -128,7 +128,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         body("properties.occupant", equalTo("National University of San Marcos Updated")).
         body("properties.sport", equalTo("association baseball")).
         body("properties.capacity", equalTo(67470)).
-        body("properties.'@ns:com:here:xyz'.tags", hasItems("stadium", "soccer"));
+        body("properties.'@ns:com:here:xyz'.tags", hasItems("stadium", "baseball"));
   }
 
   @Test
@@ -139,7 +139,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         body(content("/xyz/hub/updateFeature.json")).
         when().
-        put(getSpacesPath() + "/x-psql-test/features/Q2838924?prefixId=foo:").
+        put(getSpacesPath() + "/x-psql-test/features/Q2838924?addTags=baseball&removeTags=soccer&prefixId=foo:").
         then().
         statusCode(OK.code()).
         body("id", equalTo("foo:Q2838924")).
@@ -147,7 +147,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         body("properties.occupant", equalTo("National University of San Marcos Updated")).
         body("properties.sport", equalTo("association baseball")).
         body("properties.capacity", equalTo(67470)).
-        body("properties.'@ns:com:here:xyz'.tags", hasItems("stadium", "soccer"));
+        body("properties.'@ns:com:here:xyz'.tags", hasItems("stadium", "baseball"));
   }
 
   @Test
@@ -171,7 +171,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         body(content("/xyz/hub/updateFeatureById.json")).
         when().
-        post(getSpacesPath() + "/x-psql-test/features").
+        post(getSpacesPath() + "/x-psql-test/features?addTags=baseball&removeTags=soccer").
         then().
         statusCode(OK.code()).
         body("features[0].id", equalTo("Q271454")).
@@ -179,7 +179,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         body("features[0].properties.occupant", equalTo("National University of San Marcos Updated")).
         body("features[0].properties.sport", equalTo("association baseball")).
         body("features[0].properties.capacity", equalTo(67470)).
-        body("features[0].properties.'@ns:com:here:xyz'.tags", hasItems("stadium", "soccer"));
+        body("features[0].properties.'@ns:com:here:xyz'.tags", hasItems("stadium", "baseball"));
   }
 
   @Test
@@ -190,7 +190,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         body(content("/xyz/hub/updateFeatureById.json")).
         when().
-        post(getSpacesPath() + "/x-psql-test/features?prefixId=foo:").
+        post(getSpacesPath() + "/x-psql-test/features?addTags=baseball&removeTags=soccer&prefixId=foo:").
         then().
         statusCode(OK.code()).
         body("features[0].id", equalTo("foo:Q271454")).
@@ -198,7 +198,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         body("features[0].properties.occupant", equalTo("National University of San Marcos Updated")).
         body("features[0].properties.sport", equalTo("association baseball")).
         body("features[0].properties.capacity", equalTo(67470)).
-        body("features[0].properties.'@ns:com:here:xyz'.tags", hasItems("stadium", "soccer"));
+        body("features[0].properties.'@ns:com:here:xyz'.tags", hasItems("stadium", "baseball"));
   }
 
   @Test
@@ -209,14 +209,15 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         body(content("/xyz/hub/createFeatureById.json")).
         when().
-        post(getSpacesPath() + "/x-psql-test/features").
+        post(getSpacesPath() + "/x-psql-test/features?addTags=baseball&removeTags=soccer").
         then().
         statusCode(OK.code()).
         body("features[0].id", equalTo("Q271455")).
         body("features[0].properties.name", equalTo("Estadio Universidad San Marcos Updated")).
         body("features[0].properties.occupant", equalTo("National University of San Marcos Updated")).
         body("features[0].properties.sport", equalTo("association baseball")).
-        body("features[0].properties.capacity", equalTo(67470));
+        body("features[0].properties.capacity", equalTo(67470)).
+        body("features[0].properties.'@ns:com:here:xyz'.tags", hasItems("stadium", "baseball"));
   }
 
   @Test
@@ -227,7 +228,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         body(content("/xyz/hub/updateFeature.json")).
         when().
-        patch(getSpacesPath() + "/x-psql-test/features/Q2838923").
+        patch(getSpacesPath() + "/x-psql-test/features/Q2838923?addTags=baseball&removeTags=soccer").
         then().
         statusCode(OK.code());
   }
@@ -240,7 +241,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         body(content("/xyz/hub/patchFeature.json")).
         when().
-        patch(getSpacesPath() + "/x-psql-test/features/Q2838923").
+        patch(getSpacesPath() + "/x-psql-test/features/Q2838923?addTags=baseball&removeTags=soccer").
         then().
         statusCode(OK.code());
   }
@@ -253,7 +254,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
         body(content("/xyz/hub/updateFeatureById.json")).
         when().
-        post(getSpacesPath() + "/x-psql-test/features").
+        post(getSpacesPath() + "/x-psql-test/features?addTags=baseball&removeTags=soccer").
         then().
         statusCode(OK.code());
   }
@@ -266,7 +267,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         body(content("/xyz/hub/emptyFeatureCollection.json")).
         when().
-        post(getSpacesPath() + "/x-psql-test/features").
+        post(getSpacesPath() + "/x-psql-test/features?addTags=baseball").
         then().
         statusCode(OK.code()).
         body("features.size()", equalTo(0));

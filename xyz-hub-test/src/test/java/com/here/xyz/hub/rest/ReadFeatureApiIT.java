@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -843,6 +843,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
   }
 
   private void createSpaceWithSize(int s) {
+    // Create a space which returns around 9 MB of data
     cleanUpId = HUGE_RESPONSE_SPACE + s;
     JsonObject space = new JsonObject()
         .put("id", cleanUpId)
