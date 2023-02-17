@@ -106,7 +106,7 @@ public class FeatureApiAuthIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_2)).
         body(content("/xyz/hub/updateFeature.json")).
         when().
-        put(getSpacesPath() + "/x-psql-test/features/Q2838923").
+        put(getSpacesPath() + "/x-psql-test/features/Q2838923?addTags=baseball&removeTags=soccer").
         then().
         statusCode(FORBIDDEN.code());
   }
@@ -119,7 +119,7 @@ public class FeatureApiAuthIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_2)).
         body(content("/xyz/hub/updateFeatureById.json")).
         when().
-        post(getSpacesPath() + "/x-psql-test/features").
+        post(getSpacesPath() + "/x-psql-test/features?addTags=baseball&removeTags=soccer").
         then().
         statusCode(FORBIDDEN.code());
   }
@@ -141,7 +141,7 @@ public class FeatureApiAuthIT extends TestSpaceWithFeature {
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_2))
         .when()
-        .delete(getSpacesPath() + "/x-psql-test/features?id=Q4201688")
+        .delete(getSpacesPath() + "/x-psql-test/features?tags=soccer")
         .then()
         .statusCode(FORBIDDEN.code());
   }

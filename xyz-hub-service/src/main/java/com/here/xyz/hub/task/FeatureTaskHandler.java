@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2022 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1285,6 +1285,39 @@ public class FeatureTaskHandler {
 
     // author
     nsXyz.setAuthor(task.author);
+  }
+
+  static void updateTags(FeatureTask.ConditionalOperation task, Callback<FeatureTask.ConditionalOperation> callback) {
+    if ((task.addTags == null || task.addTags.size() == 0) && (task.removeTags == null || task.removeTags.size() == 0)) {
+      callback.call(task);
+      return;
+    }
+
+    for (Entry<Feature> entry : task.modifyOp.entries) {
+      // For existing objects: if the input does not contain the tags, copy them from the edited state.
+      final Map<String, Object> nsXyz = new JsonObject(entry.input).getJsonObject("properties").getJsonObject(XyzNamespace.XYZ_NAMESPACE)
+          .getMap();
+      if (!(nsXyz.get("tags") instanceof List)) {
+        ArrayList<String> inputTags = new ArrayList<>();
+        if (entry.base != null && entry.base.getProperties().getXyzNamespace().getTags() != null) {
+          inputTags.addAll(entry.base.getProperties().getXyzNamespace().getTags());
+        }
+        nsXyz.put("tags", inputTags);
+      }
+      final List<String> tags = (List<String>) nsXyz.get("tags");
+      if (task.addTags != null) {
+        task.addTags.forEach(tag -> {
+          if (!tags.contains(tag)) {
+            tags.add(tag);
+          }
+        });
+      }
+      if (task.removeTags != null) {
+        task.removeTags.forEach(tags::remove);
+      }
+    }
+
+    callback.call(task);
   }
 
   static <X extends FeatureTask<?, X>> void enforceUsageQuotas(X task, Callback<X> callback) {
