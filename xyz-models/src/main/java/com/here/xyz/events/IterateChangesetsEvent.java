@@ -33,9 +33,23 @@ public final class IterateChangesetsEvent extends SearchForFeaturesEvent<Iterate
   @JsonInclude(JsonInclude.Include.NON_DEFAULT)
   private Long endVersion;
 
+  private Long minTagVersion;
   private long minSpaceVersion;
   private int versionsToKeep;
   private boolean useCollection;
+
+  public Long getMinTagVersion() {
+    return minTagVersion;
+  }
+
+  public void setMinTagVersion(Long minTagVersion) {
+    this.minTagVersion = minTagVersion;
+  }
+
+  public IterateChangesetsEvent withMinTagVersion(Long minTag) {
+    setMinTagVersion(minTag);
+    return this;
+  }
 
   public Long getStartVersion() {
     return startVersion;

@@ -46,6 +46,8 @@ public class DeleteChangesets extends XyzQueryRunner<DeleteChangesetsEvent, Succ
   @Override
   public SuccessResponse run() throws SQLException, ErrorResponseException {
     long headVersion = new GetHeadVersion<>(event, dbHandler).run();
+    if(event.getMinTagVersion() != null && event.getMinTagVersion() < event.getMinVersion())
+      throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Tag for version " + event.getMinTagVersion() +" exists!");
     if (event.getMinVersion() > headVersion)
       throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Can not delete all changesets older than version " + event.getMinVersion()
           + " as it would also delete the HEAD (" + headVersion
@@ -69,13 +71,13 @@ public class DeleteChangesets extends XyzQueryRunner<DeleteChangesetsEvent, Succ
   }
 
   private long calculateMinVersion(DeleteChangesetsEvent event){
-    if(event.getMinTag() != null && event.getMinTag() < event.getMinVersion()){
+    if(event.getMinTagVersion() != null && event.getMinTagVersion() < event.getMinVersion()){
       /** In this case cant delete some parts of the requested version because the version would
        * further be needed form the notification producer. If it is possible to delete parts,
        * the minVersion (stored in the space-definition) will reflect the user-choice. So it will
        * not be possible to request changesets which are potentially and temporary present.*/
-      logger.info("Reduce minVersion:"+event.getMinVersion()+" -> "+event.getMinTag());
-      return event.getMinTag();
+      logger.info("Reduce minVersion:"+event.getMinVersion()+" -> "+event.getMinTagVersion());
+      return event.getMinTagVersion();
     }
     return event.getMinVersion();
   }

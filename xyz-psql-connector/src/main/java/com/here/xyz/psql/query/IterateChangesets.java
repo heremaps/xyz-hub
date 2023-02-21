@@ -27,6 +27,7 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.psql.query.helpers.versioning.GetHeadVersion;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;
@@ -38,20 +39,41 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class IterateChangesets extends SearchForFeatures<IterateChangesetsEvent, XyzResponse> {
+import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
+
+public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, XyzResponse> {
 
   private String pageToken;
   private long limit;
   private Long start;
   private boolean useCollection;
+  private IterateChangesetsEvent event;
 
   public IterateChangesets(IterateChangesetsEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(event, dbHandler);
 
-    limit = event.getLimit();
-    pageToken = event.getPageToken();
-    start = event.getStartVersion();
-    useCollection = event.isUseCollection();
+    this.event = event;
+    this.limit = event.getLimit();
+    this.pageToken = event.getPageToken();
+    this.start = event.getStartVersion();
+    this.useCollection = event.isUseCollection();
+  }
+
+  @Override
+  public XyzResponse run() throws SQLException, ErrorResponseException {
+    long headVersion = new GetHeadVersion<>(event, dbHandler).run();
+    long minVersion;
+
+    if(event.getMinTagVersion() == null) {
+      minVersion= Math.max(event.getMinSpaceVersion(), headVersion - event.getVersionsToKeep());
+    }else{
+      minVersion = event.getMinSpaceVersion();
+    }
+
+    if (start < minVersion)
+      throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Min Version = " + minVersion);
+
+    return super.run();
   }
 
   @Override
@@ -90,14 +112,14 @@ public class IterateChangesets extends SearchForFeatures<IterateChangesetsEvent,
                     .withNamedParameter("page_token", event.getPageToken()) : new SQLQuery(""));
 
     query.setQueryFragment("start_version", event.getStartVersion() != null ?
-            new SQLQuery("AND version >= greatest(#{start}, (select max(version) - #{versionsToKeep} from ${schema}.${table}))")
+            new SQLQuery("AND version >=  #{start} ")
                     .withNamedParameter("versionsToKeep", event.getVersionsToKeep())
-                    .withNamedParameter("start", Math.max(event.getStartVersion(), event.getMinSpaceVersion())) : new SQLQuery(""));
+                    .withNamedParameter("start", event.getStartVersion()) : new SQLQuery(""));
 
     query.setQueryFragment("end_version", event.getEndVersion() != null ?
             new SQLQuery("AND version <= #{end}")
                     .withNamedParameter("end", event.getEndVersion()) : new SQLQuery(""));
-    query.setQueryFragment("limit", event.getLimit() != 0 ? buildLimitFragment(event.getLimit()) : new SQLQuery(""));
+    query.setQueryFragment("limit", event.getLimit() != 0 ? new SQLQuery("LIMIT #{limit}").withNamedParameter("limit", event.getLimit()) : new SQLQuery(""));
 
     return query;
   }
