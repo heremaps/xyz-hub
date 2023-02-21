@@ -50,6 +50,7 @@
     <module>xyz-models</module>
     <module>xyz-connectors</module>
     <module>xyz-psql-connector</module>
+    <module>xyz-publishers</module>
   </modules>
 
   <scm>
@@ -215,6 +216,11 @@
       <dependency>
         <groupId>${project.groupId}</groupId>
         <artifactId>xyz-psql-connector</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>xyz-publishers</artifactId>
         <version>${project.version}</version>
       </dependency>
 

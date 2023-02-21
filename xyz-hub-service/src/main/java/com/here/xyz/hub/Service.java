@@ -45,7 +45,7 @@ import com.here.xyz.hub.util.metrics.base.CWBareValueMetricPublisher;
 import com.here.xyz.hub.util.metrics.base.MetricPublisher;
 import com.here.xyz.hub.util.metrics.net.ConnectionMetrics;
 import com.here.xyz.hub.util.metrics.net.ConnectionMetrics.HubMetricsFactory;
-import com.here.xyz.util.JsonConfigFile;
+import com.here.xyz.pub.XYZTransactionPublisher;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.DeploymentOptions;
@@ -63,7 +63,6 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -205,7 +204,13 @@ public class Service extends Core {
             die(1, "Connector config client failed", ar.cause());
           }
         });
-        subscriptionConfigClient.init(subscriptionConfigReady -> {});
+        subscriptionConfigClient.init(subscriptionConfigReady -> {
+          if (subscriptionConfigReady.succeeded()) {
+            XYZTransactionPublisher.getInstance(rawConfiguration).start();
+          } else {
+            die(1, "Subscription config client failed", subscriptionConfigReady.cause());
+          }
+        });
       } else {
         die(1, "Space config client failed", ar.cause());
       }
