@@ -49,7 +49,6 @@ public class SpaceConnectorBasedHandler {
           : Future.succeededFuture(space))
       .flatMap(authorizationFunction)
       .flatMap(space -> injectEventParameters(marker, e, space))
-      .flatMap(space -> validateBasedOnSpaceConfig(e, space))
       .flatMap(space -> ConnectorConfigClient.getInstance().get(marker, space.getStorage().getId()))
       .map(RpcClient::getInstanceFor)
       .recover(t -> t instanceof HttpException
@@ -70,49 +69,37 @@ public class SpaceConnectorBasedHandler {
   private static Future<Space> injectEventParameters(Marker marker, Event e, Space space){
       Promise<Space> p = Promise.promise();
 
-      if (e instanceof IterateChangesetsEvent) {
-          ((IterateChangesetsEvent) e).setMinSpaceVersion(space.getMinVersion());
-          ((IterateChangesetsEvent) e).setVersionsToKeep(space.getVersionsToKeep());
-          p.complete(space);
-      }else if (e instanceof GetChangesetStatisticsEvent || e instanceof DeleteChangesetsEvent) {
+      if (e instanceof GetChangesetStatisticsEvent || e instanceof DeleteChangesetsEvent || e instanceof IterateChangesetsEvent) {
           getMinTag(marker, space.getId())
                   .onSuccess(minTag -> {
                       if (e instanceof DeleteChangesetsEvent)
-                          ((DeleteChangesetsEvent) e).setMinTag(minTag);
+                          ((DeleteChangesetsEvent) e).setMinTagVersion(minTag);
                       else if(e instanceof GetChangesetStatisticsEvent) {
                           ((GetChangesetStatisticsEvent) e).setVersionsToKeep(space.getVersionsToKeep());
-                          ((GetChangesetStatisticsEvent) e).setMinSpaceVersion(
-                                  minTag != null && minTag < space.getMinVersion() ?
-                                          minTag : space.getMinVersion());
+                          ((GetChangesetStatisticsEvent) e).setMinSpaceVersion(space.getMinVersion());
+                          ((GetChangesetStatisticsEvent) e).setMinTagVersion(minTag);
+                      }else  if (e instanceof IterateChangesetsEvent) {
+                          ((IterateChangesetsEvent) e).setVersionsToKeep(space.getVersionsToKeep());
+                          ((IterateChangesetsEvent) e).setMinSpaceVersion(space.getMinVersion());
+                          ((IterateChangesetsEvent) e).setMinTagVersion(minTag);
                       }
                       p.complete(space);
                   }).onFailure(
                       t -> p.fail(new HttpException(BAD_GATEWAY, "Unexpected problem!"))
                   );
-      }
+      }else
+          p.complete(space);
       return p.future();
   }
 
-  private static Future<Space> validateBasedOnSpaceConfig(Event e, Space space) {
-      if (e instanceof IterateChangesetsEvent) {
-          if(((IterateChangesetsEvent) e).getStartVersion() < space.getMinVersion()) {
-              if(((IterateChangesetsEvent) e).getEndVersion() == null)
-                  return Future.failedFuture(new HttpException(NOT_FOUND, "The requested version '"+((IterateChangesetsEvent) e).getStartVersion()+"' got deleted."));
-              else
-                  return Future.failedFuture(new HttpException(BAD_REQUEST, "StartVersion is to low! Min startVersion = "+space.getMinVersion()));
-          }
-      }
-      return Future.succeededFuture(space);
-    }
-
-    private static Future<Long> getMinTag(Marker marker, String space){
-        return TagConfigClient.getInstance().getTags(marker,space)
-                .flatMap(r -> r == null ? Future.succeededFuture(null)
-                        : Future.succeededFuture(r.stream().mapToLong(tag -> tag.getVersion()).min())
-                )
-                .flatMap(r -> {
-                    /** Return min tag of this space */
-                    return Future.succeededFuture((r.isPresent() ? r.getAsLong() : null));
-                });
-    }
+  private static Future<Long> getMinTag(Marker marker, String space){
+      return TagConfigClient.getInstance().getTags(marker,space)
+            .flatMap(r -> r == null ? Future.succeededFuture(null)
+                    : Future.succeededFuture(r.stream().mapToLong(tag -> tag.getVersion()).min())
+            )
+            .flatMap(r -> {
+                /** Return min tag of this space */
+                return Future.succeededFuture((r.isPresent() ? r.getAsLong() : null));
+            });
+  }
 }

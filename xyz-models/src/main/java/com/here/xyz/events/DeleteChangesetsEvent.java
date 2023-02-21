@@ -21,7 +21,7 @@ package com.here.xyz.events;
 
 public class DeleteChangesetsEvent extends Event<DeleteChangesetsEvent> {
   private long minVersion;
-  private Long minTag;
+  private Long minTagVersion;
 
   public long getMinVersion() {
     return minVersion;
@@ -36,16 +36,16 @@ public class DeleteChangesetsEvent extends Event<DeleteChangesetsEvent> {
     return this;
   }
 
-  public Long getMinTag() {
-    return minTag;
+  public Long getMinTagVersion() {
+    return minTagVersion;
   }
 
-  public void setMinTag(Long minTag) {
-    this.minTag = minTag;
+  public void setMinTagVersion(Long minTagVersion) {
+    this.minTagVersion = minTagVersion;
   }
 
-  public DeleteChangesetsEvent withMinTag(Long minTag) {
-    setMinTag(minTag);
+  public DeleteChangesetsEvent withMinTagVersion(Long minTag) {
+    setMinTagVersion(minTag);
     return this;
   }
 }

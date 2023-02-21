@@ -29,14 +29,16 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 public class GetChangesetStatistics extends XyzQueryRunner<GetChangesetStatisticsEvent, ChangesetsStatisticsResponse> {
+  Long minTagVersion;
   long minSpaceVersion;
-  long versionsToKeep;
+  int versionsToKeep;
 
   public GetChangesetStatistics(GetChangesetStatisticsEvent event, DatabaseHandler dbHandler)
       throws SQLException, ErrorResponseException {
     super(event, dbHandler);
     setUseReadReplica(true);
     this.minSpaceVersion = event.getMinSpaceVersion();
+    this.minTagVersion = event.getMinTagVersion();
     this.versionsToKeep = event.getVersionsToKeep();
   }
 
@@ -65,6 +67,10 @@ public class GetChangesetStatistics extends XyzQueryRunner<GetChangesetStatistic
   }
 
   private long calculateMinVersion(long maxVersion){
+    if(minTagVersion != null){
+      /** versionsToKeep doesn't matter. minSpaceVersion is always smaller than minTagVersion */
+      return minSpaceVersion;
+    }
     return Math.max(minSpaceVersion, maxVersion-versionsToKeep);
   }
 }
