@@ -93,7 +93,7 @@ public class JDBCConfig {
             "CREATE SCHEMA " + SCHEMA,
             "CREATE table  " + CONNECTOR_TABLE + " (id VARCHAR(50) primary key, owner VARCHAR (50), config JSONB)",
             "CREATE table  " + SPACE_TABLE + " (id VARCHAR(255) primary key, owner VARCHAR (50), cid VARCHAR (255), config JSONB)",
-            "CREATE table  " + SUBSCRIPTION_TABLE + " (id VARCHAR(255) primary key, source VARCHAR (255), config JSONB)"
+            "CREATE table  " + SUBSCRIPTION_TABLE + " (id VARCHAR(255) primary key, source VARCHAR (255), config JSONB, status JSONB DEFAULT '{ \"state\": \"ACTIVE\" }')"
         );
 
         Promise<Void> onComplete = Promise.promise();

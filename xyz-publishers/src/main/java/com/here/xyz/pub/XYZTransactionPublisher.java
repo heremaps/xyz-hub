@@ -1,6 +1,7 @@
 package com.here.xyz.pub;
 
 import com.here.xyz.pub.handlers.PublisherJob;
+import com.here.xyz.pub.models.JdbcConnectionParams;
 import com.here.xyz.pub.models.PubConfig;
 import io.vertx.core.json.JsonObject;
 import org.apache.logging.log4j.LogManager;
@@ -17,11 +18,14 @@ public class XYZTransactionPublisher {
 
     private static PubConfig pubCfg;
 
+    private static JdbcConnectionParams adminDBConnParams;
+
 
 
     // empty constructor to prevent external instantiation of singleton
     private XYZTransactionPublisher(final JsonObject config) {
         rawConfig = config;
+        readConfig();
     }
 
 
@@ -29,27 +33,35 @@ public class XYZTransactionPublisher {
     public static synchronized XYZTransactionPublisher getInstance(final JsonObject config) {
         if (pub == null) {
             pub = new XYZTransactionPublisher(config);
-            pub.readConfig();
         }
         return pub;
     }
 
 
     // Read and validate publisher specific config
-    public static void readConfig() {
+    private static void readConfig() {
         pubCfg = rawConfig.mapTo(PubConfig.class);
+        // Read AdminDB connection params
+        adminDBConnParams = new JdbcConnectionParams();
+        adminDBConnParams.setSpaceId("XYZ_ADMIN_DB");
+        adminDBConnParams.setDbUrl(pubCfg.STORAGE_DB_URL);
+        adminDBConnParams.setUser(pubCfg.STORAGE_DB_USER);
+        adminDBConnParams.setPswd(pubCfg.STORAGE_DB_PASSWORD);
     }
 
 
     // Starts the periodic publisher job (if enabled in config)
     public void start() {
         if (!pubCfg.ENABLE_TXN_PUBLISHER) {
-            logger.warn("Transaction Publisher is not enabled.");
+            logger.warn("As per config, Transaction Publisher is not enabled.");
             return;
         }
-        // TODO : Schedule job to execute processAllSubscriptions() function (configurable freq. e.g. 1 sec)
+        // Schedule Publisher job (as per configured frequency e.g. 2 secs)
         new ScheduledThreadPoolExecutor(1)
-                .scheduleWithFixedDelay(new PublisherJob(), 0, pubCfg.TXN_PUB_JOB_FREQ_MS, TimeUnit.MILLISECONDS);
+                .scheduleWithFixedDelay(
+                        new PublisherJob(pubCfg, adminDBConnParams),
+                        0, pubCfg.TXN_PUB_JOB_FREQ_MS, TimeUnit.MILLISECONDS
+                );
     }
 
 }

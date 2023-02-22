@@ -47,6 +47,8 @@
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
         <skipTests>true</skipTests>
+        <!-- library versions -->
+        <hikari-cp.version>4.0.3</hikari-cp.version>
     </properties>
 
     <!-- Release settings -->
@@ -145,6 +147,13 @@
         <dependency>
             <artifactId>vertx-core</artifactId>
             <groupId>io.vertx</groupId>
+        </dependency>
+
+        <!-- Hikari Connection Pool -->
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <version>${hikari-cp.version}</version>
         </dependency>
     </dependencies>
 
