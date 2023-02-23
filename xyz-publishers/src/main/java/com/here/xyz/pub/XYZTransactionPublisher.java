@@ -1,6 +1,6 @@
 package com.here.xyz.pub;
 
-import com.here.xyz.pub.handlers.PublisherJob;
+import com.here.xyz.pub.handlers.PubJobHandler;
 import com.here.xyz.pub.models.JdbcConnectionParams;
 import com.here.xyz.pub.models.PubConfig;
 import io.vertx.core.json.JsonObject;
@@ -59,7 +59,7 @@ public class XYZTransactionPublisher {
         // Schedule Publisher job (as per configured frequency e.g. 2 secs)
         new ScheduledThreadPoolExecutor(1)
                 .scheduleWithFixedDelay(
-                        new PublisherJob(pubCfg, adminDBConnParams),
+                        new PubJobHandler(pubCfg, adminDBConnParams),
                         0, pubCfg.TXN_PUB_JOB_FREQ_MS, TimeUnit.MILLISECONDS
                 );
     }

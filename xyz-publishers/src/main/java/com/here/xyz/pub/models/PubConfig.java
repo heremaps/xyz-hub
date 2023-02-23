@@ -17,4 +17,6 @@ public class PubConfig {
     public int TXN_PUB_TPOOL_MAX_SIZE;
     public long TXN_PUB_TPOOL_KEEP_ALIVE_SEC;
 
+    // XYZ Config Schema
+    public static String XYZ_ADMIN_DB_CFG_SCHEMA = "xyz_config";
 }
