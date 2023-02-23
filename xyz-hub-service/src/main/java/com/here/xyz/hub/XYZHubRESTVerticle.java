@@ -183,7 +183,16 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
               globalRouter.mountSubRouter("/", router);
 
               vertx.eventBus().localConsumer(Service.SHARED_DATA, event -> {
+                //Create the main service listener
                 createHttpServer(Service.configuration.HTTP_PORT, globalRouter);
+
+                //Create the main service TLS listener
+                if (Service.configuration.XYZ_HUB_HTTPS_PORT > 0
+                    && Service.configuration.XYZ_HUB_SERVER_TLS_KEY != null && Service.configuration.XYZ_HUB_SERVER_TLS_CERT != null)
+                  createHttpServerWithMutualTls(Service.configuration.HTTP_PORT, globalRouter, Service.configuration.XYZ_HUB_SERVER_TLS_KEY,
+                      Service.configuration.XYZ_HUB_SERVER_TLS_CERT, Service.configuration.XYZ_HUB_CLIENT_TLS_TRUSTSTORE);
+
+                //Create the admin messaging listener
                 if (Service.configuration.HTTP_PORT != Service.configuration.ADMIN_MESSAGE_PORT) {
                   createHttpServer(Service.configuration.ADMIN_MESSAGE_PORT, globalRouter);
                 }
