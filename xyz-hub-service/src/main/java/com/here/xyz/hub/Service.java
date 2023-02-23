@@ -808,7 +808,28 @@ public class Service extends Core {
      * Name of the tag created for spaces with subscription.
      */
     public String SUBSCRIPTION_TAG = "xyz_ntf";
+
+    /**
+     * The port of the HTTPS listener.
+     */
+    public int XYZ_HUB_HTTPS_PORT;
+
+    /**
+     * The PEM encoded private key for server side TLS including header & footer.
+     */
+    public String XYZ_HUB_SERVER_TLS_KEY;
+
+    /**
+     * The PEM encoded public certificate(-chain) for server side TLS including header & footer.
+     */
+    public String XYZ_HUB_SERVER_TLS_CERT;
+
+    /**
+     * The PEM encoded certificate(-chain) to be used as truststore for client TLS authentication (mTLS) including header & footer.
+     */
+    public String XYZ_HUB_CLIENT_TLS_TRUSTSTORE;
   }
+
   /**
    * That message can be used to change the log-level of one or more service-nodes. The specified level must be a valid log-level. As this
    * is a {@link RelayedMessage} it can be sent to a specific service-node or to all service-nodes regardless of the first service node by

@@ -30,6 +30,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE;
 import static io.netty.handler.codec.http.HttpResponseStatus.UNAUTHORIZED;
+import static io.vertx.core.http.ClientAuth.REQUIRED;
 import static io.vertx.core.http.HttpHeaders.AUTHORIZATION;
 import static io.vertx.core.http.HttpHeaders.CACHE_CONTROL;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
@@ -59,6 +60,8 @@ import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.json.Json;
+import io.vertx.core.net.PemKeyCertOptions;
+import io.vertx.core.net.PemTrustOptions;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.CorsHandler;
@@ -107,10 +110,37 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
       AUTHORIZATION, CONTENT_TYPE, USER_AGENT, IF_MODIFIED_SINCE, IF_NONE_MATCH, CACHE_CONTROL, STREAM_ID
   );
 
-  public Future<Void>  createHttpServer(int port, Router router) {
+  public Future<Void> createHttpServer(int port, Router router) {
+    return createHttpServerWithTls(port, router, null, null);
+  }
+
+  public Future<Void> createHttpServerWithTls(int port, Router router, String serverPemKey, String serverPemCert) {
+    return createHttpServerWithMutualTls(port, router, serverPemKey, serverPemCert, null);
+  }
+
+  public Future<Void> createHttpServerWithMutualTls(int port, Router router, String serverPemKey, String serverPemCert, String clientAuthPemTrustCertChain) {
     Promise<Void> promise = Promise.promise();
 
-    vertx.createHttpServer(SERVER_OPTIONS)
+    HttpServerOptions serverOptions = new HttpServerOptions(SERVER_OPTIONS);
+
+    if (serverPemKey != null && serverPemCert != null)
+      serverOptions
+          .setSsl(true)
+          .setKeyCertOptions(
+              new PemKeyCertOptions()
+                  .setKeyValue(Buffer.buffer(serverPemKey))
+                  .setCertValue(Buffer.buffer(serverPemCert))
+          );
+
+    if (clientAuthPemTrustCertChain != null)
+      serverOptions
+          .setClientAuth(REQUIRED)
+          .setTrustOptions(
+              new PemTrustOptions().addCertValue(Buffer.buffer(clientAuthPemTrustCertChain))
+          );
+
+
+    vertx.createHttpServer(serverOptions)
         .requestHandler(router)
         .listen(port, result -> {
           if (result.succeeded()) {
