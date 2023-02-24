@@ -187,8 +187,8 @@ The triggers will as well maintain the XYZ namespace, so they will set in
 Note, the triggers for downward compatibility will be the same, except that they are missing 
 
 ```sql
--- Create a unique transaction identifier from the given UTC timestamp and the given transaction id.
-CREATE OR REPLACE FUNCTION xyz_tnx_of(ts timestamptz, txid int8)
+-- Create a transaction number from the given UTC timestamp and the given transaction id.
+CREATE OR REPLACE FUNCTION xyz_txn_of(ts timestamptz, txid int8)
     RETURNS int8
     LANGUAGE plpgsql IMMUTABLE 
     AS $$
@@ -213,38 +213,38 @@ BEGIN
 END;
 $$;
 
--- Create the minimal unique transaction identifier for the given UTC timestamp.
-CREATE OR REPLACE FUNCTION xyz_tnx_min(ts timestamptz)
+-- Create the minimal transaction number for the given UTC timestamp.
+CREATE OR REPLACE FUNCTION xyz_txn_min(ts timestamptz)
     RETURNS int8
     LANGUAGE 'plpgsql' IMMUTABLE
 AS $$
 BEGIN
-    RETURN xyz_tnx_of(ts, 0::int8);
+    RETURN xyz_txn_of(ts, 0::int8);
 END
 $$;
 
--- Create the maximal unique transaction identifier for the given UTC timestamp.
-CREATE OR REPLACE FUNCTION xyz_tnx_max(ts timestamptz)
+-- Create the maximal transaction number for the given UTC timestamp.
+CREATE OR REPLACE FUNCTION xyz_txn_max(ts timestamptz)
     RETURNS int8
     LANGUAGE 'plpgsql' IMMUTABLE
 AS $$
 BEGIN
-    RETURN xyz_tnx_of(ts, x'7fffffffffffffff'::int8);
+    RETURN xyz_txn_of(ts, x'7fffffffffffffff'::int8);
 END
 $$;
 
--- Create the unique transaction identifier for the current transaction.
-CREATE OR REPLACE FUNCTION xyz_tnx_current()
+-- Create the unique transaction number for the current transaction.
+CREATE OR REPLACE FUNCTION xyz_txn_current()
     RETURNS int8
     LANGUAGE 'plpgsql' STABLE
     AS $$
 BEGIN
-    RETURN xyz_tnx_of(current_timestamp, txid_current());
+    RETURN xyz_txn_of(current_timestamp, txid_current());
 END
 $$;
 
--- Split the given unique transaction identifier into its part.
-CREATE OR REPLACE FUNCTION xyz_tnx_extract(tnx int8)
+-- Split the given unique transaction number into its part.
+CREATE OR REPLACE FUNCTION xyz_txn_extract(txn int8)
     RETURNS TABLE
             (
                 year    int8,
@@ -258,17 +258,17 @@ CREATE OR REPLACE FUNCTION xyz_tnx_extract(tnx int8)
 AS
 $$
 BEGIN
-    RETURN QUERY SELECT 2000 + ((tnx >> 52) & x'ff'::int8)                           as "year",
-                        ((tnx >> 48) & x'f'::int8)                                   as "month",
-                        ((tnx >> 43) & x'1f'::int8)                                  as "day",
-                        (tnx >> 38) & x'1f'::int8                                    as "hour",
-                        (tnx >> 32) & x'3f'::int8                                    as "minute",
-                        (((tnx >> 16) & x'ffff'::int8) << 12 | (tnx & x'fff'::int8)) as "txid";
+    RETURN QUERY SELECT 2000 + ((txn >> 52) & x'ff'::int8)                           as "year",
+                        ((txn >> 48) & x'f'::int8)                                   as "month",
+                        ((txn >> 43) & x'1f'::int8)                                  as "day",
+                        (txn >> 38) & x'1f'::int8                                    as "hour",
+                        (txn >> 32) & x'3f'::int8                                    as "minute",
+                        (((txn >> 16) & x'ffff'::int8) << 12 | (txn & x'fff'::int8)) as "txid";
 END;
 $$;
 
--- Create a UUID from the given unique transaction identifier and the given sequence.
-CREATE OR REPLACE FUNCTION xyz_uuid_of(tnx int8, i int8)
+-- Create a UUID from the given transaction number and the given identifier.
+CREATE OR REPLACE FUNCTION xyz_uuid_of(txn int8, i int8)
     RETURNS uuid
     LANGUAGE 'plpgsql' IMMUTABLE
     AS
@@ -276,14 +276,14 @@ $BODY$
 DECLARE
     raw_uuid bytea; 
 BEGIN
-    raw_uuid := set_byte('\x00000000000000000000000000000000'::bytea, 0, ((tnx >> 56) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 1, ((tnx >> 48) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 2, ((tnx >> 40) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 3, ((tnx >> 32) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 4, ((tnx >> 24) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 5, ((tnx >> 16) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 6, ((tnx >> 8) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 7, (tnx & x'ff'::int8)::int);
+    raw_uuid := set_byte('\x00000000000000000000000000000000'::bytea, 0, ((txn >> 56) & x'ff'::int8)::int);
+    raw_uuid := set_byte(raw_uuid, 1, ((txn >> 48) & x'ff'::int8)::int);
+    raw_uuid := set_byte(raw_uuid, 2, ((txn >> 40) & x'ff'::int8)::int);
+    raw_uuid := set_byte(raw_uuid, 3, ((txn >> 32) & x'ff'::int8)::int);
+    raw_uuid := set_byte(raw_uuid, 4, ((txn >> 24) & x'ff'::int8)::int);
+    raw_uuid := set_byte(raw_uuid, 5, ((txn >> 16) & x'ff'::int8)::int);
+    raw_uuid := set_byte(raw_uuid, 6, ((txn >> 8) & x'ff'::int8)::int);
+    raw_uuid := set_byte(raw_uuid, 7, (txn & x'ff'::int8)::int);
     raw_uuid := set_byte(raw_uuid, 8, (((i >> 56) & x'3f'::int8) | 128)::int);
     raw_uuid := set_byte(raw_uuid, 9, ((i >> 48) & x'ff'::int8)::int);
     raw_uuid := set_byte(raw_uuid, 10, ((i >> 40) & x'ff'::int8)::int);
