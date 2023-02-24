@@ -1,13 +1,14 @@
-![XYZ Hub](xyz.svg)
+![Naksha (नक्शा) - XYZ-Hub](xyz.svg)
 ---
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Run XYZ Hub tests](https://github.com/heremaps/xyz-hub/workflows/Run%20XYZ%20Hub%20tests/badge.svg)](https://github.com/heremaps/xyz-hub/actions?query=workflow%3A%22Run+XYZ+Hub+tests%22)
 
-XYZ Hub is a RESTful web service for the access and management of geospatial data.
+[Naksha](https://en.wikipedia.org/wiki/Naksha) [(नक्शा)](https://www.shabdkosh.com/search-dictionary?lc=hi&sl=en&tl=hi&e=%E0%A4%A8%E0%A4%95%E0%A5%8D%E0%A4%B6%E0%A4%BE) is the name of this fork of the [XYZ-Hub](https://github.com/heremaps/xyz-hub) (pronounced **nakshaa** or **nakśā**). It stays a web service for the access and management of geospatial data. This spin-off was done to independently realize needed new features, not planned to be supported in the original [XYZ-Hub](https://github.com/heremaps/xyz-hub) project.
+
+The meaning of [Naksha](https://en.wikipedia.org/wiki/Naksha) is “Map”.
 
 # Overview
-Some of the features of XYZ Hub are:
+Naksha features are:
 * Organize geo datasets in _spaces_
 * Store and manipulate individual geo features (points, linestrings, polygons)
 * Retrieve geo features as vector tiles, with or without clipped geometries
@@ -19,18 +20,16 @@ Some of the features of XYZ Hub are:
 * Build a real-time geodata pipeline with processors
 * Attach listeners to react on events
 
-You can find more information in the [XYZ Documentation](https://www.here.xyz/api) and in the [OpenAPI specification](https://xyz.api.here.com/hub/static/redoc/index.html).
-
-XYZ Hub uses [GeoJSON](https://tools.ietf.org/html/rfc79460) as the main geospatial data exchange format. Tiled data can also be provided as [MVT](https://github.com/mapbox/vector-tile-spec/blob/master/2.1/README.md).
+Naksha uses [GeoJSON](https://tools.ietf.org/html/rfc79460) as the main geospatial data exchange format. Tiled data can also be provided as [MVT](https://github.com/mapbox/vector-tile-spec/blob/master/2.1/README.md).
 
 # Prerequisites
 
- * Java 8.x
- * Maven 3.6+
- * Postgres 10+ with PostGIS 2.5+
- * Redis 5+ (optional)
- * Docker 18+ (optional)
- * Docker Compose 1.24+ (optional)
+* Java 8+
+* Maven 3.6+
+* Postgres 10+ with PostGIS 2.5+
+* Redis 5+ (optional)
+* Docker 18+ (optional)
+* Docker Compose 1.24+ (optional)
 
 # Getting started
 Clone and install the project using:
@@ -60,24 +59,25 @@ mvn clean install -Pdocker
 The service could also be started directly as a fat jar. In this case Postgres and the other optional dependencies need to be started separately.
 
 ```bash
-java [OPTIONS] -jar xyz-hub-service/target/xyz-hub-service.jar
+java -jar xyz-hub-service/target/xyz-hub-service.jar
 ```
 
-Example:
+### Configuration
+
+The service persists out of modules with a bootstrap code to start the service. All configuration is done in the [config.json](./xyz-hub-service/src/main/resources/config.json).
+
+The bootstrap code could be used to run only the `hub-verticle` or only the `connector-verticle` or it can be used to run both as a single monolith. In a microservice deployment you run one cluster with only `hub-verticle` deployment and another cluster with only `connector-verticle` deployment. It is as well possible to mix this, so running a monolith deployment that optionally can use connector configurations to use foreign connectors for individual spaces.
+
+**Warning**: The `connector-verticle` does not perform security checks, so open it to external access will bypass all security restrictions!
+
+The location of the configuration file could be modified using environment variables or by creating the `config.json` file in the corresponding configuration folder. The exact configuration folder is platform dependent, but generally follows the [XGD user configuration directory](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html), standard, so on Linux being by default `~/.config/xyz-hub/`. For Windows the files will reside in the [CSIDL_PROFILE](https://learn.microsoft.com/en-us/windows/win32/shell/csidl?redirectedfrom=MSDN) folder, by default `C:\Users\{username}\.config\xyz-hub`. This path could be changed via environment variable `XDG_CONFIG_HOME`, which will result in the location `$XDG_CONFIG_HOME/xyz-hub/`. Next to this, an explicit location can be specified via the environment variable `XYZ_CONFIG_PATH`, this path will not be extended by the `xyz-hub` folder, so you can directly specify where to keep the config files. This is important when you want to start multiple versions of the service: `XYZ_CONFIG_PATH=~/.config/xyz-hub/a/ java -jar xyz-hub-service.jar`.
+
+The individual environment variable names can be found in the source code of the configuration files being [CoreConfig](xyz-models/src/main/java/com/here/xyz/config/CoreConfig.java), [HubConfig](xyz-models/src/main/java/com/here/xyz/config/HubConfig.java) and [ConnectorConfig](xyz-models/src/main/java/com/here/xyz/config/ConnectorConfig.java). All properties annotated with `@JsonProperty` can always be set as well as environment variable, prefixed with `XYZ_` unless they are always starting with that prefix, for example `XYZ_HUB_REMOTE_SERVICE_URLS`. If the environment variable name is different you will find an additional annotation `@EnvName`. If the name within the configuration file is different, then either `@JsonProperty` or `@JsonName` annotations can be found.
 
 ```bash
-java -DHTTP_PORT=8080 -jar xyz-hub-service/target/xyz-hub-service.jar
-```
-
-### Configuration options
-The service start parameters could be specified by editing the [default config file](./xyz-hub-service/src/main/resources/config.json), using environment variables or system properties. See the default list of [configuration parameters](https://github.com/heremaps/xyz-hub/wiki/Configuration-parameters) and their default values.
-
-Note: To override the configuration files from the JAR, place the configuration file (`config.json` and/or `connector-config.json`) into the home directory of the subdirectory `.xyz-hub` of the user running the service. Example in Linux:
-
-```bash
-mkdir ~/.xyz-hub
-cp xyz-hub-service/src/main/resources/config.json ~/.xyz-hub
-cp xyz-hub-service/src/main/resources/connector-config.json ~/.xyz-hub 
+mkdir ~/.config/xyz-hub
+cp xyz-hub-service/src/main/resources/config.json ~/.config/xyz-hub/
+cp xyz-hub-service/src/main/resources/config-db.json ~/.config/xyz-hub/
 ```
 
 # Usage
@@ -85,14 +85,16 @@ cp xyz-hub-service/src/main/resources/connector-config.json ~/.xyz-hub
 Start using the service by creating a _space_:
 
 ```bash
-curl -H "content-type:application/json" -d '{"title": "my first space", "description": "my first geodata repo"}' http://localhost:8080/hub/spaces
+curl -H "content-type:application/json" \
+-d '{"id": "test-space", "title": "my first space", "description": "my first geodata repo"}' \
+"http://localhost:8080/hub/spaces"
 ```
 
-The service will respond with the space definition including the space ID:
+The service will respond with the space definition including the space ID (should you not specify an own `id`):
 
 ```json
 {
-    "id": "pvhQepar",
+    "id": "test-space",
     "title": "my first space",
     "description": "my first geodata repo",
     "storage": {
@@ -152,8 +154,11 @@ The service will respond with the inserted geo features:
 ### OpenAPI specification
 
 The OpenAPI specification files are accessible under the following URIs:
-* Stable: `http://<host>:<port>/hub/static/openapi/stable.yaml`
-* Experimental: `http://<host>:<port>/hub/static/openapi/experimental.yaml`
+* Full: [http://{host}:{port}/hub/static/openapi/full.yaml](http://localhost:8080/hub/static/openapi/full.yaml)
+* Stable: [http://{host}:{port}/hub/static/openapi/stable.yaml](http://localhost:8080/hub/static/openapi/stable.yaml)
+* Experimental: [http://{host}:{port}/hub/static/openapi/experimental.yaml](http://localhost:8080/hub/static/openapi/experimental.yaml)
+* Contract: [http://{host}:{port}/hub/static/openapi/contract.yaml](http://localhost:8080/hub/static/openapi/contract.yaml)
+* Connector: [http://{host}:{port}/psql/static/openapi/openapi-http-connector.yaml](http://localhost:8080/psql/static/openapi/openapi-http-connector.yaml)
 
 # Acknowledgements
 
