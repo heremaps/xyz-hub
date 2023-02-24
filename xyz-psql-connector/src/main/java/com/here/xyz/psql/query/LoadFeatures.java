@@ -41,54 +41,63 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent, FeatureCollecti
 
   @Override
   protected SQLQuery buildQuery(LoadFeaturesEvent event) throws SQLException, ErrorResponseException {
+    return event.getVersionsToKeep() > 1 ? buildQueryForV2K2(event) : buildQueryForV2K1(event);
+  }
+
+  private SQLQuery buildQueryForV2K1(LoadFeaturesEvent event) throws SQLException, ErrorResponseException {
     final Map<String, String> idMap = event.getIdsMap();
 
     SQLQuery filterWhereClause = new SQLQuery("${{idColumn}} = ANY(#{ids})")
         .withNamedParameter("ids", idMap.keySet().toArray(new String[0]))
         .withQueryFragment("idColumn", buildIdFragment(event));
 
-    if (event.getVersionsToKeep() > 1) {
-      Set<String> idsOnly = new HashSet<>();
-      Map<String, String> idsWithVersions = new HashMap<>();
-
-      idMap.forEach((k,v) -> {
-        idsOnly.add(k);
-        if (v != null)
-          idsWithVersions.put(k, v);
-      });
-
-      filterWhereClause = new SQLQuery("((id, version) IN (${{loadFeaturesInput}}) OR (id, next_version) IN (${{loadFeaturesInputIdsOnly}}))")
-          .withQueryFragment("loadFeaturesInput", buildLoadFeaturesInputFragment(
-              idsWithVersions.keySet().toArray(new String[0]),
-              idsWithVersions.values().stream().map(Long::parseLong).toArray(Long[]::new)
-          ))
-          .withQueryFragment("loadFeaturesInputIdsOnly", buildLoadFeaturesInputFragment(idsOnly.toArray(new String[0])));
-    }
-
     SQLQuery headQuery = super.buildQuery(event)
         .withQueryFragment("filterWhereClause", filterWhereClause);
 
-    if (event.getVersionsToKeep() <= 1) {
-      SQLQuery query = headQuery;
+    if (event.getEnableHistory() && (!isExtendedSpace(event) || event.getContext() != DEFAULT)) {
+      final boolean compactHistory = !event.getEnableGlobalVersioning() && dbHandler.getConfig().getConnectorParams().isCompactHistory();
+      SQLQuery query;
+      if (compactHistory)
+        //History does not contain Inserts
+        query = new SQLQuery("${{headQuery}} UNION ${{historyQuery}}");
+      else
+        //History does contain Inserts
+        query = new SQLQuery("SELECT DISTINCT ON(jsondata->'properties'->'@ns:com:here:xyz'->'uuid') * FROM("
+            + "    ${{headQuery}} UNION ${{historyQuery}}"
+            + ")A");
 
-      if (event.getEnableHistory() && (!isExtendedSpace(event) || event.getContext() != DEFAULT)) {
-        final boolean compactHistory = !event.getEnableGlobalVersioning() && dbHandler.getConfig().getConnectorParams().isCompactHistory();
-        if (compactHistory)
-          //History does not contain Inserts
-          query = new SQLQuery("${{headQuery}} UNION ${{historyQuery}}");
-        else
-          //History does contain Inserts
-          query = new SQLQuery("SELECT DISTINCT ON(jsondata->'properties'->'@ns:com:here:xyz'->'uuid') * FROM("
-              + "    ${{headQuery}} UNION ${{historyQuery}}"
-              + ")A");
-
-        return query
-            .withQueryFragment("headQuery", headQuery)
-            .withQueryFragment("historyQuery", buildHistoryQuery(event, idMap.values()));
-      }
+      return query
+          .withQueryFragment("headQuery", headQuery)
+          .withQueryFragment("historyQuery", buildHistoryQuery(event, idMap.values()));
     }
 
     return headQuery;
+  }
+
+  private SQLQuery buildQueryForV2K2(LoadFeaturesEvent event) throws SQLException, ErrorResponseException {
+    final Map<String, String> idMap = event.getIdsMap();
+    Set<String> idsOnly = new HashSet<>();
+    Map<String, String> idsWithVersions = new HashMap<>();
+
+    idMap.forEach((k,v) -> {
+      idsOnly.add(k);
+      if (v != null)
+        idsWithVersions.put(k, v);
+    });
+
+    SQLQuery filterWhereClauseHead = new SQLQuery("(id, next_version) IN (${{loadFeaturesInputIdsOnly}})")
+        .withQueryFragment("loadFeaturesInputIdsOnly", buildLoadFeaturesInputFragment(idsOnly.toArray(new String[0])));
+
+    SQLQuery filterWhereClauseHistory = new SQLQuery("(id, version) IN (${{loadFeaturesInput}})")
+        .withQueryFragment("loadFeaturesInput", buildLoadFeaturesInputFragment(
+            idsWithVersions.keySet().toArray(new String[0]),
+            idsWithVersions.values().stream().map(Long::parseLong).toArray(Long[]::new)
+        ));
+
+    return new SQLQuery("${{versioningHead}} UNION ${{versioningHistory}}")
+        .withQueryFragment("versioningHead", super.buildQuery(event).withQueryFragment("filterWhereClause", filterWhereClauseHead))
+        .withQueryFragment("versioningHistory", super.buildQuery(event).withQueryFragment("filterWhereClause", filterWhereClauseHistory));
+
   }
 
   private static SQLQuery buildLoadFeaturesInputFragment(String[] ids) {
