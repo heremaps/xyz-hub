@@ -1,9 +1,10 @@
-package com.here.xyz.pub.jdbc;
+package com.here.xyz.pub.db;
 
 import com.here.xyz.models.hub.Subscription;
 import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.pub.models.JdbcConnectionParams;
 import com.here.xyz.pub.models.PubConfig;
+import com.here.xyz.pub.models.PubTransactionData;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import org.apache.logging.log4j.LogManager;
@@ -38,6 +39,28 @@ public class PubDatabaseHandler {
             "SELECT st.config->'params'->>'ecps' AS ecps, st.config->'remoteFunctions'->'local'->'env'->>'ECPS_PHRASE' AS pswd " +
             "FROM "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_storage st " +
             "WHERE st.id = (SELECT s.config->'storage'->>'id' FROM "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_space s WHERE s.id = ?)";
+
+    // TODO : Change to xyz_config (i.e. PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA)
+    // TODO : LIMIT can split transactional data into multiple fetches.
+    //      It may require a fix in future, if it needs to be transactional batch publish.
+    final private static String FETCH_TXNS_FROM_SPACEDB =
+            "SELECT t.txn_id, d.operation, d.jsondata " +
+            "FROM xyz_ops.xyz_txn t, xyz_ops.xyz_txn_data d " +
+            "WHERE d.uuid = ANY(t.uuids) " +
+            "AND t.txn_id > ? AND t.space_id = ? " +
+            "ORDER BY t.txn_id asc, t.op_timestamp asc " +
+            "LIMIT 50";
+
+    // TODO : Change to xyz_config (i.e. PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA)
+    final private static String UPDATE_PUB_TXN_ID =
+            "UPDATE xyz_ops.xyz_txn_pub " +
+            "SET last_txn_id = ? , updated_at = now() " +
+            "WHERE subscription_id = ? ";
+
+    // TODO : Change to xyz_config (i.e. PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA)
+    final private static String INSERT_PUB_TXN_ID =
+            "INSERT INTO xyz_ops.xyz_txn_pub (subscription_id, last_txn_id, updated_at) " +
+            "VALUES (? , ? , now()) ";
 
 
 
@@ -135,6 +158,61 @@ public class PubDatabaseHandler {
             rs.close();
         }
         return spaceDBConnParams;
+    }
+
+    public static List<PubTransactionData> fetchPublishableTransactions(
+            final JdbcConnectionParams spaceDBConnParams, final String spaceId, final long lastTxnId) throws SQLException {
+        List<PubTransactionData> txnList = null;
+
+        try (final Connection conn = PubJdbcConnectionPool.getConnection(spaceDBConnParams);
+             final PreparedStatement stmt = conn.prepareStatement(FETCH_TXNS_FROM_SPACEDB);
+        ) {
+            stmt.setLong(1, lastTxnId);
+            stmt.setString(2, spaceId);
+            final ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                final PubTransactionData pubTxnData = new PubTransactionData();
+                pubTxnData.setTxnId(rs.getLong("txn_id"));
+                pubTxnData.setAction(rs.getString("operation"));
+                pubTxnData.setJsonData(rs.getString("jsonData"));
+                // add to the list
+                if (txnList == null) {
+                    txnList = new ArrayList<>();
+                }
+                txnList.add(pubTxnData);
+            }
+            rs.close();
+        }
+        return txnList;
+    }
+
+
+    public static void saveLastTxnId(
+            final JdbcConnectionParams spaceDBConnParams, final String subId, final long lastTxnId) throws SQLException {
+        int rowCnt = 0;
+
+        // UPDATE or INSERT into xyz_txn_pub table
+        try (final Connection conn = PubJdbcConnectionPool.getConnection(spaceDBConnParams)) {
+            // First try UPDATE
+            try (final PreparedStatement stmt = conn.prepareStatement(UPDATE_PUB_TXN_ID)) {
+                stmt.setLong(1, lastTxnId);
+                stmt.setString(2, subId);
+                rowCnt = stmt.executeUpdate();
+            }
+            if (rowCnt > 0) {
+                // UPDATE was successful, return from here
+                conn.commit();
+                return;
+            }
+
+            // UPDATE was unsuccessful, try INSERT
+            try (final PreparedStatement stmt = conn.prepareStatement(INSERT_PUB_TXN_ID)) {
+                stmt.setString(1, subId);
+                stmt.setLong(2, lastTxnId);
+                stmt.executeUpdate();
+            }
+            conn.commit();
+        }
     }
 
 }

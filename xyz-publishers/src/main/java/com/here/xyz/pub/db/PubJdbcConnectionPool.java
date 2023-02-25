@@ -1,7 +1,5 @@
-package com.here.xyz.pub.jdbc;
+package com.here.xyz.pub.db;
 
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -12,7 +10,7 @@ import com.zaxxer.hikari.HikariDataSource;
 
 public class PubJdbcConnectionPool {
 
-    // TODO : Use TTL to clear out unused DS
+    // TODO : Use TTL to clear out DS regularly
     private static ConcurrentHashMap<JdbcConnectionParams, HikariDataSource> dsCache = new ConcurrentHashMap<>();
 
     private PubJdbcConnectionPool() {
@@ -46,6 +44,7 @@ public class PubJdbcConnectionPool {
         config.setMaximumPoolSize(dbConnParams.getMaxPoolSize());
         config.setMinimumIdle(dbConnParams.getMinPoolSize());
         config.setIdleTimeout(dbConnParams.getIdleTimeout());
+        config.setAutoCommit(false);
         ds = new HikariDataSource(config);
 
         dsCache.put(dbConnParams, ds);

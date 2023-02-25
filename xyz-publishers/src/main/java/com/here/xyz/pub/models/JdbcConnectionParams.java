@@ -13,7 +13,7 @@ public class JdbcConnectionParams {
     private String pswd;
     // Hikari connection pool configuration
     private long connTimeout = 30000;
-    private int maxPoolSize = 5;
+    private int maxPoolSize = 10;
     private int minPoolSize = 1;
     private long idleTimeout = 600000;
 

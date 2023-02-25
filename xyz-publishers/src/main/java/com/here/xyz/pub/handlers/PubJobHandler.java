@@ -1,7 +1,7 @@
 package com.here.xyz.pub.handlers;
 
 import com.here.xyz.models.hub.Subscription;
-import com.here.xyz.pub.jdbc.PubDatabaseHandler;
+import com.here.xyz.pub.db.PubDatabaseHandler;
 import com.here.xyz.pub.models.JdbcConnectionParams;
 import com.here.xyz.pub.models.PubConfig;
 import org.apache.logging.log4j.LogManager;
