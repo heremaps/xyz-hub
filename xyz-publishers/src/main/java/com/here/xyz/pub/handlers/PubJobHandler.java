@@ -69,12 +69,10 @@ public class PubJobHandler implements Runnable {
         // distribute subscritions to thread pool
         List<Future> fList = new ArrayList<Future>(subList.size());
         for (final Subscription sub : subList) {
-            // TODO : Remove
-            logger.info("Subscription to be submitted to thread for subId : {}", sub.getId());
+            logger.debug("Subscription to be submitted to thread for subId : {}", sub.getId());
             final Future f = subHandlingPool.submit(new PubSubscriptionHandler(pubCfg, adminDBConnParams, sub));
             fList.add(f);
-            // TODO : Remove
-            logger.info("Subscription submitted to thread for subId : {}", sub.getId());
+            logger.debug("Subscription submitted to thread for subId : {}", sub.getId());
         }
         // Wait for thread completion
         for (Future f : fList) {

@@ -28,6 +28,7 @@ public class DefaultSNSPublisher implements IPublisher {
         final String snsTopic = PubUtil.getSnsTopicARN(sub);
         final long lotStartTS = System.currentTimeMillis();
         // local counters
+        long publishedRecCnt = 0;
         long crtTxnId = 0;
         long prevTxnId = lastStoredTxnId;
         // final counter to be returned
@@ -58,10 +59,11 @@ public class DefaultSNSPublisher implements IPublisher {
                         .build();
                 final CompletableFuture<PublishResponse> futureResponse = snsClient.publish(request);
                 final PublishResponse result = futureResponse.join();
+                publishedRecCnt++;
                 final long timeTaken = System.currentTimeMillis() - startTS;
                 // TODO : Debug
-                logger.info("Message [{}] published in {}ms to SNS [{}] for subId [{}]. Status is {}.",
-                        crtTxnId, timeTaken, snsTopic, subId, result.sdkHttpResponse().statusCode());
+                logger.info("Message [{}], txnId={} published in {}ms to SNS [{}] for subId [{}]. Status is {}.",
+                        publishedRecCnt, crtTxnId, timeTaken, snsTopic, subId, result.sdkHttpResponse().statusCode());
 
                 // Record last successfully published txn_id
                 // NOTE : Same txn_id can have multiple messages,
@@ -79,7 +81,7 @@ public class DefaultSNSPublisher implements IPublisher {
             lastCompletedTxnId = prevTxnId;
             final long lotTimeTaken = System.currentTimeMillis() - lotStartTS;
             logger.info("Published [{}] records in {}ms to SNS [{}] for subId [{}], space [{}]. Last published txnId was [{}]",
-                    txnList.size(), lotTimeTaken, snsTopic, subId, spaceId, lastCompletedTxnId);
+                    publishedRecCnt, lotTimeTaken, snsTopic, subId, spaceId, lastCompletedTxnId);
         }
 
         return lastCompletedTxnId;

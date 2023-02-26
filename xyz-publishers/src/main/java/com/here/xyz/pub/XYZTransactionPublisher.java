@@ -60,8 +60,10 @@ public class XYZTransactionPublisher {
         new ScheduledThreadPoolExecutor(1)
                 .scheduleWithFixedDelay(
                         new PubJobHandler(pubCfg, adminDBConnParams),
-                        0, pubCfg.TXN_PUB_JOB_FREQ_MS, TimeUnit.MILLISECONDS
+                        pubCfg.TXN_PUB_JOB_INITIAL_DELAY_MS, pubCfg.TXN_PUB_JOB_SUBSEQUENT_DELAY_MS, TimeUnit.MILLISECONDS
                 );
+        logger.info("Transaction Publisher job is set to start after {}ms with subsequent delay of {}ms.",
+                pubCfg.TXN_PUB_JOB_INITIAL_DELAY_MS, pubCfg.TXN_PUB_JOB_SUBSEQUENT_DELAY_MS);
     }
 
 }

@@ -56,7 +56,8 @@ public class PubSubscriptionHandler implements Runnable{
             // if no entry found, then log error and return
             JdbcConnectionParams spaceDBConnParams = PubDatabaseHandler.fetchDBConnParamsForSpaceId(sub.getSource(), adminDBConnParams);
             // TODO : Debug
-            logger.info("For subscription Id [{}] the Database details fetched as [{}]", subId, spaceDBConnParams);
+            logger.info("Subscription Id [{}] to be processed against database {} with user {}",
+                    subId, spaceDBConnParams.getDbUrl(), spaceDBConnParams.getUser());
 
             // TODO : Wait for ongoing transactions (lower txn_id's which are not yet committed),
             // instead of directly moving to next txn_id (which can result into losing out on messages)
