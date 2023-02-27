@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -204,8 +204,8 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
 
       if(lastVersion !=  null && version > lastVersion) {
         Changeset cs = new Changeset().withInserted(new FeatureCollection().withFeatures(inserts))
-                .withUpdated(new FeatureCollection().withFeatures(updates))
-                .withDeleted(new FeatureCollection().withFeatures(deletes));
+            .withVersion(lastVersion).withUpdated(new FeatureCollection().withFeatures(updates))
+            .withDeleted(new FeatureCollection().withFeatures(deletes));
         versions.put(lastVersion, cs);
         inserts = new ArrayList<>();
         updates = new ArrayList<>();
