@@ -3,14 +3,15 @@ package com.here.xyz.pub.db;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.concurrent.ConcurrentHashMap;
-
 import com.here.xyz.pub.models.JdbcConnectionParams;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class PubJdbcConnectionPool {
+    private static final Logger logger = LogManager.getLogger();
 
-    // TODO : Use TTL to clear out DS regularly
     private static ConcurrentHashMap<JdbcConnectionParams, HikariDataSource> dsCache = new ConcurrentHashMap<>();
 
     private PubJdbcConnectionPool() {
@@ -46,6 +47,16 @@ public class PubJdbcConnectionPool {
         config.setIdleTimeout(dbConnParams.getIdleTimeout());
         config.setAutoCommit(false);
         ds = new HikariDataSource(config);
+
+        // For the same SpaceId, remove previous DataSource (if exists) from the cache
+        final String spaceId = dbConnParams.getSpaceId();
+        for (JdbcConnectionParams connParams : dsCache.keySet()) {
+            if (spaceId.equals(connParams.getSpaceId())) {
+                dsCache.get(connParams).close(); // close datasource
+                dsCache.remove(connParams); // remove datasource from cache
+                logger.info("Removed old cached DataSource for spaceId {}.", spaceId);
+            }
+        }
 
         dsCache.put(dbConnParams, ds);
         return ds;

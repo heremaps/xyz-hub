@@ -46,7 +46,7 @@ public class PubSubscriptionHandler implements Runnable{
                 return;
             }
 
-            // TODO : Fetch last txn_id from AdminDB::xyz_config::xyz_txn_pub table
+            // Fetch last txn_id from AdminDB::xyz_config::xyz_txn_pub table
             // if no entry found, then start with -1
             long lastTxnId = PubDatabaseHandler.fetchLastTxnIdForSubId(subId, adminDBConnParams);
             // TODO : Debug
