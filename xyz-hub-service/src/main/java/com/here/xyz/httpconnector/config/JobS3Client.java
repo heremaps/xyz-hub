@@ -103,6 +103,7 @@ public class JobS3Client extends AwsS3Client{
 
     private ImportObject checkFile(S3ObjectSummary s3ObjectSummary, ObjectMetadata objectMetadata, Job.CSVFormat csvFormat){
         ImportObject io = new ImportObject(s3ObjectSummary, objectMetadata);
+
         try {
             if(objectMetadata.getContentEncoding() != null &&
                     objectMetadata.getContentEncoding().equalsIgnoreCase("gzip")){
@@ -121,17 +122,36 @@ public class JobS3Client extends AwsS3Client{
                 logger.warn("checkFile error {} {}",io.getS3Key(), e);
             io.setValid(false);
         }
+
         return io;
     }
 
     private void validateFirstCSVLine(String key_name, String bucket_name, Job.CSVFormat csvFormat, String line, int fromKB) throws AmazonServiceException, IOException {
         int toKB =  fromKB + VALIDATE_LINE_KB_STEPS;
 
-        GetObjectRequest gor = new GetObjectRequest(bucket_name,key_name).withRange(fromKB, toKB );
-        S3Object o;
+        GetObjectRequest gor;
+        S3Object o = null;
+        S3ObjectInputStream s3is = null;
+        BufferedReader reader = null;
 
         try {
-             o = client.getObject(gor);
+            gor = new GetObjectRequest(bucket_name,key_name).withRange(fromKB, toKB );
+            o = client.getObject(gor);
+
+            s3is = o.getObjectContent();
+            reader = new BufferedReader(new InputStreamReader(s3is, StandardCharsets.UTF_8));
+
+            int val;
+            while((val = reader.read()) != -1) {
+                char c = (char)val;
+                line += c;
+
+                if(c == '\n' || c == '\r'){
+                    ImportValidator.validateCSVLine(line, csvFormat);
+                    return;
+                }
+            }
+
         }catch (AmazonServiceException e){
             /** Did not find a lineBreak - maybe CSV with 1LOC */
             if(e.getErrorCode().equalsIgnoreCase("InvalidRange")){
@@ -140,26 +160,18 @@ public class JobS3Client extends AwsS3Client{
                 return;
             }
             throw e;
-        }
-
-        S3ObjectInputStream s3is = o.getObjectContent();
-        BufferedReader reader = new BufferedReader(new InputStreamReader(s3is, StandardCharsets.UTF_8));
-
-        int val;
-        while((val = reader.read()) != -1) {
-            char c = (char)val;
-            line += c;
-
-            if(c == '\n' || c == '\r'){
-                ImportValidator.validateCSVLine(line, csvFormat);
-                return;
+        }finally {
+            if(s3is !=null) {
+                s3is.abort();
+                s3is.close();
             }
+            if(o != null)
+                o.close();
+            if(reader != null)
+                reader.close();
         }
 
         /** not found a line break */
-        reader.close();
-        s3is.abort();
-        s3is.close();
 
         if(toKB <= VALIDATE_LINE_MAX_LINE_SIZE_BYTES) {
             /** not found a line break till now - search further */
@@ -174,17 +186,22 @@ public class JobS3Client extends AwsS3Client{
         if(toKB == 0)
             toKB = VALIDATE_LINE_KB_STEPS;
 
-        GetObjectRequest gor = new GetObjectRequest(bucket_name,key_name).withRange(0, toKB );
-
-        S3Object o = client.getObject(gor);
-        S3ObjectInputStream s3is = o.getObjectContent();
-
-        BufferedReader reader = new BufferedReader(new InputStreamReader(
-                new GZIPInputStream(s3is)));
+        GetObjectRequest gor;
+        S3Object o = null;
+        S3ObjectInputStream s3is = null;
+        BufferedReader reader = null;
 
         int val;
 
         try {
+            gor = new GetObjectRequest(bucket_name,key_name).withRange(0, toKB );
+
+            o = client.getObject(gor);
+            s3is = o.getObjectContent();
+
+            reader = new BufferedReader(new InputStreamReader(
+                    new GZIPInputStream(s3is)));
+
             while ((val = reader.read()) != -1) {
                 char c = (char) val;
                 line += c;
@@ -196,11 +213,16 @@ public class JobS3Client extends AwsS3Client{
             }
         }catch (EOFException e) {
             /** Ignore incomplete stream */
+        }finally {
+            if(s3is !=null) {
+                s3is.abort();
+                s3is.close();
+            }
+            if(o != null)
+                o.close();
+            if(reader != null)
+                reader.close();
         }
-
-        reader.close();
-        s3is.abort();
-        s3is.close();
 
         if(toKB <= VALIDATE_LINE_MAX_LINE_SIZE_BYTES) {
             /** not found a line break till now - search further */
