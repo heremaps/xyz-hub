@@ -110,7 +110,7 @@ DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 159
+ select 160
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -1664,30 +1664,6 @@ $BODY$
 			);
 			INSERT INTO xyz_config.xyz_idxs_status (spaceid,count) VALUES ('idx_in_progress','0');
 		END IF;
-
-		FOR xyz_spaces IN
-			SELECT spaceid
-				FROM xyz_config.xyz_idxs_status C
-					LEFT JOIN pg_class A ON (A.relname = C.spaceid)
-					LEFT JOIN pg_tables D ON (D.tablename = C.spaceid)
-				WHERE (
-						D.tablename is null
-						AND C.spaceid != 'idx_in_progress'
-						AND C.count IS NOT NULL
-					)
-				    OR (
-						(COALESCE(reltuples,0) < min_table_count OR C.count IS NULL)
-						AND (idx_manual IS NULL OR idx_manual = '{}')
-                        AND auto_indexing IS NULL
-						AND C.spaceid != 'idx_in_progress'
-                    )OR (
-                        substring(C.spaceid,length(C.spaceid)-3) = '_hst'
-                    )
-		LOOP
-			RAISE NOTICE 'Remove deleted space %',xyz_spaces.spaceid;
-			DELETE FROM xyz_config.xyz_idxs_status
-				WHERE spaceid = xyz_spaces.spaceid;
-		END LOOP;
 
 		xyz_spaces := NULL;
 
