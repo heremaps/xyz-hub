@@ -3199,7 +3199,6 @@ CREATE OR REPLACE FUNCTION xyz_advanced_delete_changesets(
 	tablename text,
 	partitionsize bigint,
 	versions_to_keep bigint,
-	user_min_version bigint,
 	min_tag_version bigint,
 	pw text)
 RETURNS void AS
@@ -3222,11 +3221,11 @@ BEGIN
 		RETURN;
     END IF;
 
-	calcualted_min_version := greatest(user_min_version, statistic.max_version - statistic.versions_to_keep);
+	calcualted_min_version := greatest(user_min_version, statistic.max_version - statistic.versions_to_keep + 1);
 
 	IF min_tag_version >= 0 THEN
 		-- Tag has priority. Delete nothing below the minTagVersion!
-		calcualted_min_version := least(min_tag_version, calcualted_min_version);
+		calcualted_min_version := least(min_tag_version - 1, calcualted_min_version);
     END IF;
 
 	RAISE NOTICE 'PURGE - max_version:% min_available_version:% user_min_version:% calcualted_min_version:%',
