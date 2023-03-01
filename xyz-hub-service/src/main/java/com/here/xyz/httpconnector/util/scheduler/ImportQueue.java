@@ -333,6 +333,7 @@ public class ImportQueue extends JobQueue{
 
     protected Future<Void> updateSpaceConfig(JsonObject config, Job j){
         Promise<Void> p = Promise.promise();
+        config.put("contentUpdatedAt", CService.currentTimeMillis());
 
         CService.webClient.patchAbs(CService.configuration.HUB_ENDPOINT+"/spaces/"+j.getTargetSpaceId())
                 .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
