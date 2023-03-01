@@ -107,26 +107,26 @@ END $BODY$;
 -- Create a transaction number from the given UTC timestamp and the given transaction id.
 CREATE OR REPLACE FUNCTION naksha_txn_of(ts timestamptz, txid int8)
     RETURNS int8
-    LANGUAGE plpgsql IMMUTABLE
+    LANGUAGE 'plpgsql' IMMUTABLE
 AS $$
 DECLARE
     r record;
-    tid int8 := (txid & x'fffffff'::int8);
 BEGIN
-    WITH parts AS (SELECT EXTRACT(year from ts)::int8   as "year",
-                          EXTRACT(month from ts)::int8  as "month",
-                          EXTRACT(day from ts)::int8    as "day",
-                          EXTRACT(hour from ts)::int8   as "hour",
-                          EXTRACT(minute from ts)::int8 as "minute")
+    WITH parts AS (SELECT EXTRACT(year from ts)::int8         as "year",
+                          EXTRACT(month from ts)::int8        as "month",
+                          EXTRACT(day from ts)::int8          as "day",
+                          EXTRACT(hour from ts)::int8         as "hour",
+                          EXTRACT(minute from ts)::int8       as "minute",
+                          EXTRACT(milliseconds from ts)::int8 as "millis")
     SELECT parts.* INTO r FROM parts;
     RETURN ((r.year - 2000) << 52)
                | (r.month << 48)
                | (r.day << 43)
                | (r.hour << 38)
                | (r.minute << 32)
-               | ((tid >> 12) << 16)
+               | (r.millis << 16)
                | (4::int8 << 12)
-        | (tid & x'fff'::int8);
+               | (txid & x'fff'::int8);
 END;
 $$;
 
@@ -169,18 +169,20 @@ CREATE OR REPLACE FUNCTION naksha_txn_extract(txn int8)
                 day     int8,
                 hour    int8,
                 minute  int8,
+                millis  int8,
                 txid    int8
             )
     LANGUAGE 'plpgsql' IMMUTABLE
 AS
 $$
 BEGIN
-    RETURN QUERY SELECT 2000 + ((txn >> 52) & x'ff'::int8)                           as "year",
-                        ((txn >> 48) & x'f'::int8)                                   as "month",
-                        ((txn >> 43) & x'1f'::int8)                                  as "day",
-                        (txn >> 38) & x'1f'::int8                                    as "hour",
-                        (txn >> 32) & x'3f'::int8                                    as "minute",
-                        (((txn >> 16) & x'ffff'::int8) << 12 | (txn & x'fff'::int8)) as "txid";
+    RETURN QUERY SELECT 2000 + ((txn >> 52) & x'ff'::int8)  as "year",
+                        ((txn >> 48) & x'f'::int8)          as "month",
+                        ((txn >> 43) & x'1f'::int8)         as "day",
+                        (txn >> 38) & x'1f'::int8           as "hour",
+                        (txn >> 32) & x'3f'::int8           as "minute",
+                        (txn >> 16) & x'ffff'::int8         as "millis",
+                        (txn & x'0fff'::int8)               as "txid";
 END;
 $$;
 
@@ -259,14 +261,15 @@ BEGIN
     raw_uuid := naksha_uuid_to_bytes(the_uuid);
     txn := naksha_uuid_txn(raw_uuid);
     i := naksha_uuid_i(raw_uuid);
-    RETURN QUERY SELECT 2000 + ((txn >> 52) & x'ff'::int8)                           as "year",
-                        ((txn >> 48) & x'f'::int8)                                   as "month",
-                        ((txn >> 43) & x'1f'::int8)                                  as "day",
-                        (txn >> 38) & x'1f'::int8                                    as "hour",
-                        (txn >> 32) & x'3f'::int8                                    as "minute",
-                        (((txn >> 16) & x'ffff'::int8) << 12 | (txn & x'fff'::int8)) as "txid",
-                        txn                                                          as "txn",
-                        i                                                            as "i";
+    RETURN QUERY SELECT 2000 + ((txn >> 52) & x'ff'::int8)  as "year",
+                        ((txn >> 48) & x'f'::int8)          as "month",
+                        ((txn >> 43) & x'1f'::int8)         as "day",
+                        (txn >> 38) & x'1f'::int8           as "hour",
+                        (txn >> 32) & x'3f'::int8           as "minute",
+                        (txn >> 16) & x'ffff'::int8         as "millis",
+                        (txn & x'0fff'::int8)               as "txid",
+                        txn                                 as "txn",
+                        i                                   as "i";
 END
 $BODY$;
 
@@ -417,7 +420,15 @@ CREATE OR REPLACE FUNCTION naksha_ts_millis(ts timestamptz)
     LANGUAGE 'plpgsql' IMMUTABLE
 AS $BODY$
 BEGIN
-    return EXTRACT(epoch from ts)::int8 * 1000::int8 + EXTRACT(milliseconds from ts)::int8;
+    -- Note:
+    -- "epoch": returns the number of seconds.
+    -- "milliseconds": returns the seconds field, including fractional parts, multiplied by 1000.
+    --                 Note that this includes full seconds.
+    -- So epoch plus milliseconds adds the seconds twice, so we need to subtract the seconds!
+    -- See: https://www.postgresql.org/docs/15/functions-datetime.html#FUNCTIONS-DATETIME-EXTRACT
+    return EXTRACT(epoch from ts)::int8 * 1000::int8
+         + EXTRACT(milliseconds from ts)::int8
+         - (EXTRACT(seconds from ts)::int8 * 1000);
 END
 $BODY$;
 
@@ -427,7 +438,15 @@ CREATE OR REPLACE FUNCTION naksha_ts_micros(ts timestamptz)
     LANGUAGE 'plpgsql' IMMUTABLE
 AS $BODY$
 BEGIN
-    return EXTRACT(epoch from ts)::int8 * 1000000::int8 + EXTRACT(microsecond from ts)::int8;
+    -- Note:
+    -- "epoch": returns the number of seconds.
+    -- "microseconds": returns the seconds field, including fractional parts, multiplied by 1000000.
+    --                 Note that this includes full seconds.
+    -- So epoch plus microseconds adds the seconds twice, so we need to subtract the seconds!
+    -- See: https://www.postgresql.org/docs/15/functions-datetime.html#FUNCTIONS-DATETIME-EXTRACT
+    return EXTRACT(epoch from ts)::int8 * 1000000::int8
+         + EXTRACT(microseconds from ts)::int8
+         - (EXTRACT(seconds from ts)::int8 * 1000000);
 END
 $BODY$;
 
@@ -686,7 +705,6 @@ CREATE OR REPLACE FUNCTION naksha_space_enable_history(_schema text, _table text
     LANGUAGE 'plpgsql' VOLATILE
 AS $BODY$
 DECLARE
-    r record;
     after_name text;
     sql text;
 BEGIN
