@@ -3194,6 +3194,59 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_advanced_delete_changesets(
+	schema text,
+	tablename text,
+	partitionsize bigint,
+	versions_to_keep bigint,
+	user_min_version bigint,
+	min_tag_version bigint,
+	pw text)
+RETURNS void AS
+$BODY$
+DECLARE
+    statistic RECORD;
+	calcualted_min_version BIGINT;
+BEGIN
+    execute format('select '
+                   || 'meta->''minAvailableVersion'' as min_available_version, '
+                   || '(select max(version) from "%1$s"."%2$s") as max_version, '
+                   || '%3$L::bigint as versions_to_keep '
+                   || 'from xyz_config.space_meta '
+                   || 'where '
+                   || 'h_id=%2$L', schema, tablename, versions_to_keep )
+    INTO statistic;
+
+    IF statistic IS NULL THEN
+		-- Table not found in space_meta table - abort!
+		RETURN;
+    END IF;
+
+	calcualted_min_version := greatest(user_min_version, statistic.max_version - statistic.versions_to_keep);
+
+	IF min_tag_version >= 0 THEN
+		-- Tag has priority. Delete nothing below the minTagVersion!
+		calcualted_min_version := least(min_tag_version, calcualted_min_version);
+    END IF;
+
+	RAISE NOTICE 'PURGE - max_version:% min_available_version:% user_min_version:% calcualted_min_version:%',
+		statistic.max_version, statistic.min_available_version, user_min_version, calcualted_min_version;
+
+	IF statistic.min_available_version::BIGINT >= calcualted_min_version THEN
+		RAISE NOTICE 'PURGE - Requested versions are already deleted';
+		RETURN;
+    END IF;
+
+	PERFORM asyncify('SELECT xyz_delete_changesets(''' || schema || ''', ''' || tableName || ''', ' ||  partitionSize || ', ' || calcualted_min_version || ')', pw);
+
+    update xyz_config.space_meta
+        set meta = meta || jsonb_build_object('minAvailableVersion', calcualted_min_version)
+    where h_id = tablename;
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_get_head_table(schema TEXT, tableName TEXT) RETURNS TEXT AS
 $BODY$
 BEGIN
