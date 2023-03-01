@@ -25,6 +25,28 @@ CREATE EXTENSION IF NOT EXISTS postgis_topology;
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 -- CREATE EXTENSION pldbgapi;
 
+-- Notice:
+-- When service starts, check all connectors and their schemas if they are up-to-date with ext-version
+-- When a new connector is created/updated, synchronously check the database and schema and extension
+--   - Should we reject connector create/update, if the database is not accessible or anything fails?
+--   - I think we make it optionally like: ?failOrError=false
+-- After a certain time period, e.g. every 4 hours, check connectors and especially ensure that history tables exist!
+-- Clarify: What happens when the space is modified and the "tableName" is changed?
+--    First solution: Do not allow tableName change after creation (review later!)
+-- TODO: Add versioning!
+-- TODO: Add function to create config-schema!
+-- TODO: In long term, maintenance thread needs to clear history (drop too old tables!)
+-- TODO: For each space, ask to TTL of history (per space!)
+-- TODO: Add notifications for new transactions and then in the publisher ID updated, listen to them to avoid polling for new transactions
+-- TODO: tomorrow:
+--   Use Token API in Wikvaya Proxy!
+--   Deploy new Wikvaya and new XYZ-Hub to E2E!
+--   Create ADMIN Tokens
+--   Fix that owner is set correctly in Token and used by XYZ-Hub
+-- TODO: Change namespace from xyz-e2e ... to naksha-e2e ...
+-- TODO: Fix space creation in XYZ-Hub to use the naksha extension
+-- Ticket: https://confluence.in.here.com/pages/viewpage.action?pageId=1585083118
+
 -- We use function to prevent typos when accessing the config schema.
 -- Additionally we can change the config schema this way.
 -- Note: There can be only one central config schema in every database.
@@ -33,10 +55,54 @@ BEGIN
     return 'xyz_config';
 END $BODY$;
 
-CREATE OR REPLACE FUNCTION naksha_config_transcations() RETURNS text LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
+CREATE OR REPLACE FUNCTION naksha_config_transactions() RETURNS text LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
 BEGIN
     return 'transactions';
 END $BODY$;
+
+-- Returns the version: 16 bit reserved, 16 bit major, 16 bit minor, 16 bit revision
+CREATE OR REPLACE FUNCTION naksha_version() RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
+BEGIN
+    return 1::int8 << 32;
+END $BODY$;
+
+CREATE OR REPLACE FUNCTION naksha_version_of(major int, minor int, revision int) RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
+BEGIN
+    return ((major::int8 & x'ffff'::int8) << 32)
+         | ((minor::int8 & x'ffff'::int8) << 16)
+         | (revision::int8 & x'ffff'::int8);
+END $BODY$;
+
+CREATE OR REPLACE FUNCTION naksha_version_extract(version int8)
+    RETURNS TABLE
+            (
+                major    int,
+                minor    int,
+                revision int
+            )
+    LANGUAGE 'plpgsql' IMMUTABLE
+AS
+$$
+BEGIN
+    RETURN QUERY SELECT ((version >> 32) & x'ffff'::int8)::int  as "major",
+                        ((version >> 16) & x'ffff'::int8)::int  as "minor",
+                        (version & x'ffff'::int8)::int          as "revision";
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION naksha_version_text() RETURNS text LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
+BEGIN
+    return naksha_version_text(naksha_version());
+END $BODY$;
+
+CREATE OR REPLACE FUNCTION naksha_version_text(version int8) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
+BEGIN
+    return format('%s.%s.%s',
+                  (version >> 32) & x'ffff'::int8,
+                  (version >> 16) & x'ffff'::int8,
+                  (version & x'ffff'::int8));
+END $BODY$;
+
 
 -- Create a transaction number from the given UTC timestamp and the given transaction id.
 CREATE OR REPLACE FUNCTION naksha_txn_of(ts timestamptz, txid int8)
@@ -469,11 +535,19 @@ CREATE OR REPLACE FUNCTION naksha_space_ensure(_schema text, _table text)
     RETURNS void
     LANGUAGE 'plpgsql' VOLATILE
 AS $BODY$
+DECLARE
+    before_name text;
+    sql text;
 BEGIN
-    EXECUTE format('CREATE TABLE IF NOT EXISTS %I.%I (jsondata jsonb, geo geometry(GeometryZ, 4326), i int8 PRIMARY KEY NOT NULL)',
-                   _schema, _table);
-    EXECUTE format('CREATE SEQUENCE IF NOT EXISTS %I AS int8 OWNED BY %I.i',
-                   format('%s_i_seq', _table), _table);
+    sql := format('CREATE TABLE IF NOT EXISTS %I.%I ('
+               || 'jsondata jsonb, '
+               || 'geo geometry(GeometryZ, 4326), '
+               || 'i int8 PRIMARY KEY NOT NULL)',
+        _schema, _table);
+    EXECUTE sql;
+
+    sql := format('CREATE SEQUENCE IF NOT EXISTS %I AS int8 OWNED BY %I.i', format('%s_i_seq', _table), _table);
+    EXECUTE sql;
 
     -- Note: The HEAD table is updated very often, therefore we should not fill the indices too
     --       much to avoid too many page splits. This is as well helpful when doing bulk loads.
@@ -502,12 +576,22 @@ BEGIN
     EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I.%I '
                 || 'USING btree (naksha_json_lastUpdatedBy(jsondata) ASC) WITH (fillfactor=50)',
                    format('%s_lastUpdatedBy_idx', _table), _schema, _table);
+
+    -- We need the before trigger to update the XYZ namespace in jsondata.
+    before_name = format('%s_before', _table);
+    IF NOT EXISTS(SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid = _table::regclass and tgname = before_name) THEN
+        sql := format('CREATE OR REPLACE TRIGGER %I '
+                   || 'BEFORE INSERT OR UPDATE ON %I.%I '
+                   ||' FOR EACH ROW EXECUTE FUNCTION naksha_space_before_trigger();',
+                       before_name, _schema, _table);
+        EXECUTE sql;
+    END IF;
 END
 $BODY$;
 
 -- Ensures that the given schema and table exist as storage location for a space, including the
 -- needed history tables and partitions.
-CREATE OR REPLACE FUNCTION naksha_space_ensureWithHistory(_schema text, _table text)
+CREATE OR REPLACE FUNCTION naksha_space_ensure_with_history(_schema text, _table text)
     RETURNS void
     LANGUAGE 'plpgsql' VOLATILE
 AS $BODY$
@@ -521,70 +605,19 @@ BEGIN
                 || '(jsondata jsonb, geo geometry(GeometryZ, 4326), i int8 NOT NULL) '
                 || 'PARTITION BY RANGE (naksha_json_txn(jsondata))',
                    _schema, name);
+
     -- We rather use the start of the transaction to ensure that every query works.
     --ts = clock_timestamp();
     ts = current_timestamp;
-    PERFORM naksha_space_ensureWithHistory_partitionForDay(_schema, _table, ts);
-    PERFORM naksha_space_ensureWithHistory_partitionForDay(_schema, _table, ts + '1 day'::interval);
-    PERFORM naksha_space_ensureWithHistory_partitionForDay(_schema, _table, ts + '2 day'::interval);
-    PERFORM naksha_space_enableHistory(_schema, _table);
-END
-$BODY$;
-
--- Enable the history by adding the triggers to the main table.
-CREATE OR REPLACE FUNCTION naksha_space_enableHistory(_schema text, _table text)
-    RETURNS void
-    LANGUAGE 'plpgsql' VOLATILE
-AS $BODY$
-DECLARE
-    r record;
-    before_name text;
-    after_name text;
-    before_create bool;
-    after_create bool;
-BEGIN
-    before_name = format('%s_before', _table);
-    before_create = true;
-    after_name = format('%s_after', _table);
-    after_create = true;
-    FOR r IN(SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid = _table::regclass)
-    LOOP
-        IF (r.tgname = before_name) THEN
-            before_create = false;
-        END IF;
-        IF (r.tgname = after_name) THEN
-            after_create = false;
-        END IF;
-    END LOOP;
-    IF before_create THEN
-        EXECUTE format('CREATE OR REPLACE TRIGGER %I BEFORE INSERT OR UPDATE ON %I.%I FOR EACH ROW EXECUTE FUNCTION naksha_space_before_trigger();',
-                       before_name, _schema, _table);
-    END IF;
-    IF after_create THEN
-        EXECUTE format('CREATE OR REPLACE TRIGGER %I AFTER INSERT OR UPDATE OR DELETE ON %I.%I FOR EACH ROW EXECUTE FUNCTION naksha_space_after_trigger();',
-                       after_name, _schema, _table);
-    END IF;
-END
-$BODY$;
-
--- Disable the history by dropping the triggers from the main table.
-CREATE OR REPLACE FUNCTION naksha_space_disableHistory(_schema text, _table text)
-    RETURNS void
-    LANGUAGE 'plpgsql' VOLATILE
-AS $BODY$
-DECLARE
-    before_name text;
-    after_name text;
-BEGIN
-    before_name = format('%s_before', _table);
-    after_name = format('%s_after', _table);
-    EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I.%I', before_name, _schema, _table);
-    EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I.%I', after_name, _schema, _table);
+    PERFORM naksha_space_ensure_with_history__partitionForDay(_schema, _table, ts);
+    PERFORM naksha_space_ensure_with_history__partitionForDay(_schema, _table, ts + '1 day'::interval);
+    PERFORM naksha_space_ensure_with_history__partitionForDay(_schema, _table, ts + '2 day'::interval);
+    PERFORM naksha_space_enable_history(_schema, _table);
 END
 $BODY$;
 
 -- Ensure that the partition for the given day exists.
-CREATE OR REPLACE FUNCTION naksha_space_ensureWithHistory_partitionForDay(_schema text, _table text, from_ts timestamptz)
+CREATE OR REPLACE FUNCTION naksha_space_ensure_with_history__partitionForDay(_schema text, _table text, from_ts timestamptz)
     RETURNS void
     LANGUAGE 'plpgsql' VOLATILE
 AS $BODY$
@@ -622,7 +655,7 @@ BEGIN
     EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I.%I '
                  || 'USING btree (naksha_json_id(jsondata) ASC) '
                  || 'WITH (fillfactor=90);',
-                   format('%s_uuid_idx', hst_part_name), _schema, hst_part_name);
+                   format('%s_id_idx', hst_part_name), _schema, hst_part_name);
     EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I.%I '
                 || 'USING gist (geo, naksha_json_version(jsondata), naksha_json_version(jsondata)) '
                 || 'WITH (buffering=ON,fillfactor=90);',
@@ -646,21 +679,57 @@ BEGIN
 END
 $BODY$;
 
+
+-- Enable the history by adding the triggers to the main table.
+CREATE OR REPLACE FUNCTION naksha_space_enable_history(_schema text, _table text)
+    RETURNS void
+    LANGUAGE 'plpgsql' VOLATILE
+AS $BODY$
+DECLARE
+    r record;
+    after_name text;
+    sql text;
+BEGIN
+    after_name = format('%s_after', _table);
+    IF NOT EXISTS(SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid = _table::regclass and tgname = after_name) THEN
+        sql := format('CREATE OR REPLACE TRIGGER %I '
+                   || 'AFTER INSERT OR UPDATE OR DELETE ON %I.%I '
+                   ||' FOR EACH ROW EXECUTE FUNCTION naksha_space_after_trigger();',
+                      after_name, _schema, _table);
+        EXECUTE sql;
+    END IF;
+END
+$BODY$;
+
+-- Disable the history by dropping the triggers from the main table.
+CREATE OR REPLACE FUNCTION naksha_space_disable_history(_schema text, _table text)
+    RETURNS void
+    LANGUAGE 'plpgsql' VOLATILE
+AS $BODY$
+DECLARE
+    after_name text;
+BEGIN
+    after_name = format('%s_after', _table);
+    EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I.%I', after_name, _schema, _table);
+END
+$BODY$;
+
 CREATE OR REPLACE FUNCTION naksha_tx_create_table()
     RETURNS void
     LANGUAGE 'plpgsql' VOLATILE
 AS $BODY$
 DECLARE
-    cfg_schema text;
+    cfg_schema       text;
     cfg_transactions text;
-    sql text;
+    sql              text;
 BEGIN
     cfg_schema := naksha_config_schema();
-    cfg_transactions := naksha_config_transcations();
+    cfg_transactions := naksha_config_transactions();
 
     sql := format('CREATE TABLE IF NOT EXISTS %I.%I ('
         || 'i           BIGSERIAL PRIMARY KEY NOT NULL, '
         || 'txseqid     int8, '
+        || 'txseqts     timestamptz, '
         || 'txn         int8 NOT NULL, '
         || 'txid        int8 NOT NULL, '
         || 'txts        timestamptz NOT NULL, '
@@ -679,6 +748,12 @@ BEGIN
                 || 'ON %I.%I USING btree (txseqid DESC, "schema" ASC, "table" ASC)'
                 || 'INCLUDE (i)',
                    format('%s_txseqid_idx', cfg_transactions), cfg_schema, cfg_transactions);
+    EXECUTE sql;
+
+    sql := format('CREATE UNIQUE INDEX IF NOT EXISTS %I '
+                      || 'ON %I.%I USING btree (txseqts DESC)'
+                      || 'INCLUDE (i)',
+                  format('%s_txseqts_idx', cfg_transactions), cfg_schema, cfg_transactions);
     EXECUTE sql;
 
     sql := format('CREATE UNIQUE INDEX IF NOT EXISTS %I '
@@ -706,12 +781,12 @@ CREATE OR REPLACE FUNCTION naksha_tx_insert(_schema text, _table text)
     LANGUAGE 'plpgsql' VOLATILE
 AS $BODY$
 DECLARE
-    cfg_schema text;
+    cfg_schema       text;
     cfg_transactions text;
-    sql text;
+    sql              text;
 BEGIN
     cfg_schema := naksha_config_schema();
-    cfg_transactions := naksha_config_transcations();
+    cfg_transactions := naksha_config_transactions();
 
     sql := format('INSERT INTO %I.%I (txid, txts, txn, "schema", "table") '
                || 'VALUES (%s, %L::timestamptz, %s, %L, %L) '
@@ -721,5 +796,40 @@ BEGIN
     EXECUTE sql;
 EXCEPTION WHEN OTHERS THEN
     RAISE NOTICE '%s, sql = %', SQLERRM, sql;
+END
+$BODY$;
+
+CREATE OR REPLACE FUNCTION naksha_tx_add_commit_msg(id text, msg text)
+    RETURNS void
+    LANGUAGE 'plpgsql' VOLATILE
+AS $BODY$
+BEGIN
+    PERFORM naksha_tx_add_commit_msg(id, msg, null);
+END
+$BODY$;
+
+CREATE OR REPLACE FUNCTION naksha_tx_add_commit_msg(id text, msg text, attachment jsonb)
+    RETURNS void
+    LANGUAGE 'plpgsql' VOLATILE
+AS $BODY$
+DECLARE
+    cfg_schema       text;
+    cfg_transactions text;
+    sql              text;
+BEGIN
+    cfg_schema := naksha_config_schema();
+    cfg_transactions := naksha_config_transactions();
+
+    sql := format('INSERT INTO %I.%I (txid, txts, txn, "schema", "table", commit_msg, commit_json) '
+                      || 'VALUES (%s, %L::timestamptz, %s, %L, %L, %L, %L) '
+                      || 'ON CONFLICT (txn, "schema", "table") DO UPDATE '
+                      || 'SET commit_msg = %L, commit_json = %L::jsonb',
+                  cfg_schema, cfg_transactions,
+                  txid_current(), current_timestamp, naksha_txn_current(), 'COMMIT_MSG', id, msg, attachment,
+                  msg, attachment
+        );
+    EXECUTE sql;
+EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE '%, sql = %', SQLERRM, sql;
 END
 $BODY$;
