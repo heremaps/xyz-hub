@@ -586,6 +586,7 @@ CREATE OR REPLACE FUNCTION xyz_config.naksha_space_ensure(_schema text, _table t
     LANGUAGE 'plpgsql' VOLATILE
 AS $BODY$
 DECLARE
+    full_name text;
     before_name text;
     sql text;
 BEGIN
@@ -606,10 +607,10 @@ BEGIN
 
     -- Indices with important constrains.
     EXECUTE format('CREATE UNIQUE INDEX IF NOT EXISTS %I ON %I.%I '
-                || 'USING btree (naksha_json_id(jsondata) ASC) WITH (fillfactor=50)',
+                || 'USING btree (xyz_config.naksha_json_id(jsondata) ASC) WITH (fillfactor=50)',
                     format('%s_id_idx', _table), _schema, _table);
     EXECUTE format('CREATE UNIQUE INDEX IF NOT EXISTS %I ON %I.%I '
-                || 'USING btree (naksha_json_uuid(jsondata) DESC) WITH (fillfactor=50)',
+                || 'USING btree (xyz_config.naksha_json_uuid(jsondata) DESC) WITH (fillfactor=50)',
                     format('%s_uuid_idx', _table), _schema, _table);
 
     -- Indices that can be delayed in creation.
@@ -617,21 +618,22 @@ BEGIN
                  || 'USING gist (geo) WITH (buffering=ON,fillfactor=50)',
                     format('%s_geo_idx', _table), _schema, _table);
     EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I.%I '
-                || 'USING btree (naksha_json_txn(jsondata) DESC) WITH (fillfactor=50)',
+                || 'USING btree (xyz_config.naksha_json_txn(jsondata) DESC) WITH (fillfactor=50)',
                    format('%s_txn_idx', _table), _schema, _table);
     EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I.%I '
-                || 'USING btree (naksha_json_createdAt(jsondata) DESC) WITH (fillfactor=50)',
+                || 'USING btree (xyz_config.naksha_json_createdAt(jsondata) DESC) WITH (fillfactor=50)',
                    format('%s_createdAt_idx', _table), _schema, _table);
     EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I.%I '
-                || 'USING btree (naksha_json_updatedAt(jsondata) DESC) WITH (fillfactor=50)',
+                || 'USING btree (xyz_config.naksha_json_updatedAt(jsondata) DESC) WITH (fillfactor=50)',
                    format('%s_updatedAt_idx', _table), _schema, _table);
     EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I.%I '
-                || 'USING btree (naksha_json_lastUpdatedBy(jsondata) ASC) WITH (fillfactor=50)',
+                || 'USING btree (xyz_config.naksha_json_lastUpdatedBy(jsondata) ASC) WITH (fillfactor=50)',
                    format('%s_lastUpdatedBy_idx', _table), _schema, _table);
 
     -- We need the before trigger to update the XYZ namespace in jsondata.
-    before_name = format('%s_before', _table);
-    IF NOT EXISTS(SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid = _table::regclass and tgname = before_name) THEN
+    before_name := format('%s_before', _table);
+    full_name := format('%I.%I', _schema, _table);
+    IF NOT EXISTS(SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid = full_name::regclass and tgname = before_name) THEN
         sql := format('CREATE OR REPLACE TRIGGER %I '
                    || 'BEFORE INSERT OR UPDATE ON %I.%I '
                    ||' FOR EACH ROW EXECUTE FUNCTION xyz_config.naksha_space_before_trigger();',
@@ -687,11 +689,11 @@ BEGIN
     hst_name := format('%s_hst', _table);
     hst_part_name := format('%s_hst_%s', _table, from_day); -- example: foo_hst_2023_03_01
 
-    sql := format('CREATE TABLE IF NOT EXISTS %I.%I PARTITION OF %I '
+    sql := format('CREATE TABLE IF NOT EXISTS %I.%I PARTITION OF %I.%I '
                || 'FOR VALUES FROM (%L::timestamptz) TO (%L::timestamptz);',
-                  _schema, hst_part_name, hst_name,
+                  _schema, hst_part_name, _schema, hst_name,
                   from_day, to_day);
-    --RAISE NOTICE '%', sql;
+    RAISE NOTICE '%', sql;
     EXECUTE sql;
 
     -- Note: The history table is updated only for one day and then never touched again, therefore
@@ -705,7 +707,7 @@ BEGIN
                || 'INCLUDE (i) '
                || 'WITH (fillfactor=90) ',
                   format('%s_uuid_idx', hst_part_name), _schema, hst_part_name);
-    --RAISE NOTICE '%', sql;
+    RAISE NOTICE '%', sql;
     EXECUTE sql;
 
     -- Indices that can be delayed in creation.
@@ -714,7 +716,7 @@ BEGIN
                 || 'INCLUDE (i) '
                 || 'WITH (fillfactor=90) ',
                   format('%s_id_idx', hst_part_name), _schema, hst_part_name);
-    --RAISE NOTICE '%', sql;
+    RAISE NOTICE '%', sql;
     EXECUTE sql;
 
     sql := format('CREATE INDEX IF NOT EXISTS %I ON %I.%I '
@@ -722,7 +724,7 @@ BEGIN
                || 'INCLUDE (i) '
                || 'WITH (buffering=ON,fillfactor=90) ',
                   format('%s_geo_idx', hst_part_name), _schema, hst_part_name);
-    --RAISE NOTICE '%', sql;
+    RAISE NOTICE '%', sql;
     EXECUTE sql;
 
     sql := format('CREATE INDEX IF NOT EXISTS %I ON %I.%I '
@@ -730,7 +732,7 @@ BEGIN
                || 'INCLUDE (i) '
                || 'WITH (fillfactor=90) ',
                   format('%s_txn_idx', hst_part_name), _schema, hst_part_name);
-    --RAISE NOTICE '%', sql;
+    RAISE NOTICE '%', sql;
     EXECUTE sql;
 
     sql := format('CREATE INDEX IF NOT EXISTS %I ON %I.%I '
@@ -738,7 +740,7 @@ BEGIN
                || 'INCLUDE (i) '
                || 'WITH (fillfactor=90) ',
                   format('%s_createdAt_idx', hst_part_name), _schema, hst_part_name);
-    --RAISE NOTICE '%', sql;
+    RAISE NOTICE '%', sql;
     EXECUTE sql;
 
     sql := format('CREATE INDEX IF NOT EXISTS %I ON %I.%I '
@@ -746,7 +748,7 @@ BEGIN
                 || 'INCLUDE (i) '
                 || 'WITH (fillfactor=90) ',
                   format('%s_updatedAt_idx', hst_part_name), _schema, hst_part_name);
-    --RAISE NOTICE '%', sql;
+    RAISE NOTICE '%', sql;
     EXECUTE sql;
 
     sql := format('CREATE INDEX IF NOT EXISTS %I ON %I.%I '
@@ -756,7 +758,7 @@ BEGIN
                || 'INCLUDE (i) '
                || 'WITH (fillfactor=90) ',
                   format('%s_lastUpdatedBy_idx', hst_part_name), _schema, hst_part_name);
-    --RAISE NOTICE '%', sql;
+    RAISE NOTICE '%', sql;
     EXECUTE sql;
 END
 $BODY$;
@@ -769,10 +771,12 @@ CREATE OR REPLACE FUNCTION xyz_config.naksha_space_enable_history(_schema text, 
 AS $BODY$
 DECLARE
     after_name text;
+    full_name text;
     sql text;
 BEGIN
-    after_name = format('%s_after', _table);
-    IF NOT EXISTS(SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid = _table::regclass and tgname = after_name) THEN
+    after_name := format('%s_after', _table);
+    full_name := format('%I.%I', _schema, _table);
+    IF NOT EXISTS(SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid = full_name::regclass and tgname = after_name) THEN
         sql := format('CREATE OR REPLACE TRIGGER %I '
                    || 'AFTER INSERT OR UPDATE OR DELETE ON %I.%I '
                    ||' FOR EACH ROW EXECUTE FUNCTION xyz_config.naksha_space_after_trigger();',

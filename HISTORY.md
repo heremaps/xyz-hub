@@ -151,10 +151,23 @@ CREATE TABLE IF NOT EXISTS xyz_config.transactions
     commit_json jsonb,
     -- Columns managed by the transaction fix job. 
     space       text COLLATE "C",
-    seqid       int8,
-    seqts       timestamptz
+    id          int8,
+    ts          timestamptz
 );
 ```
+
+- `i`: Unique index of the row.
+- `txid`: The PostgresQL transaction id, can be used to review if previous transactions are still 
+          pending to detect eventual consistency.
+- `txi`: The unique transaction identifier encoded in the `txn` as **object_id**.
+- `txts`: The full timestamp when the transaction started, the year, month and day encoded as well 
+          in the `txn`.
+- `txn`: The UUID of the transaction as stored in the XYZ namespace property `txn`.
+- `schema` + `table`: The schema and table affected by the transaction.
+- `commit_msg` + `commit_json`: Arbitrary commit messages, they all have `schema` set to `COMMIT_MSG`. 
+- `space`: The space, set by the transaction fix job as soon as the transaction becomes visible.
+- `id`: The unique sequential identifier, set by the transaction fix job as soon as the transaction becomes visible.
+- `ts`: The timestamp of when the transaction became visible for the transaction fix job.
 
 ## Create history
 
