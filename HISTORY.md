@@ -120,9 +120,9 @@ The objects that can be a target are currently only two:
 All changes being part of the same transaction need to have the same unique transaction number. 
 Transaction numbers are globally unique.
 
-Naksha requires within the target database a single special schema named `naksha`. In this schema 
-certain maintenance spaces will be created, together with a couple of sequences and functions
-used to generate the unique transaction number.
+Naksha requires within the target database a single special schema named `xyz_config`. In this 
+schema certain maintenance spaces will be created, together with a couple of sequences and 
+functions used to generate the unique transaction number.
 
 The date is used to find the features of the transaction in the history partition. 
 
@@ -134,22 +134,23 @@ The date is used to find the features of the transaction in the history partitio
 
 ## Transaction History
 
-To enable the history we need a shared transaction table in the `naksha` schema:
+To enable the history we need a shared transaction table in the `xyz_config` schema:
 
 ```sql
-CREATE TABLE IF NOT EXISTS naksha.transactions
+CREATE TABLE IF NOT EXISTS xyz_config.transactions
 (
     i           BIGSERIAL PRIMARY KEY NOT NULL,
+    txid        int8                  NOT NULL,
     txi         int8                  NOT NULL,
     txts        timestamptz           NOT NULL,
     txdb        int8                  NOT NULL,
     txn         uuid                  NOT NULL,
-    txid        int8                  NOT NULL,
     "schema"    text COLLATE "C"      NOT NULL,
     "table"     text COLLATE "C"      NOT NULL,
-    space       text COLLATE "C",
     commit_msg  text COLLATE "C",
     commit_json jsonb,
+    -- Columns managed by the transaction fix job. 
+    space       text COLLATE "C",
     seqid       int8,
     seqts       timestamptz
 );
@@ -161,7 +162,7 @@ To manage the history we will add a “before” trigger, and an “after” tri
 “before” trigger will ensure that the XYZ namespace is filled correctly while the “after” trigger
 is optional and will write the transaction.
 
-## Transaction Fixation Job
+## Transaction Fix Job
 
 The last step is a background job added into Naksha-Hub that will fix the transaction table. It
 will set the `seqid` and `seqts` to signal the visibility of a transaction and to generate a 
