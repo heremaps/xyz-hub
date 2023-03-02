@@ -46,18 +46,27 @@ CREATE EXTENSION IF NOT EXISTS btree_gist;
 -- TODO: Change namespace from xyz-e2e ... to naksha-e2e ...
 -- TODO: Fix space creation in XYZ-Hub to use the naksha extension
 -- Ticket: https://confluence.in.here.com/pages/viewpage.action?pageId=1585083118
+-- Modify transaction number in simply drawing from a sequence and cache the number in
+-- a config variable
+-- This will not be persisted when the transactions ends!
+-- SELECT SET_CONFIG('naksha.txn', 'some value', true);
+-- This is empty at every transaction!
+-- SELECT current_setting('naksha.txn', true);
+
 
 -- We use function to prevent typos when accessing the config schema.
 -- Additionally we can change the config schema this way.
 -- Note: There can be only one central config schema in every database.
-CREATE OR REPLACE FUNCTION naksha_config_schema() RETURNS text LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
-BEGIN
-    return 'xyz_config';
-END $BODY$;
+CREATE SCHEMA IF NOT EXISTS naksha;
 
-CREATE OR REPLACE FUNCTION naksha_config_transactions() RETURNS text LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
+CREATE OR REPLACE FUNCTION naksha.config_transactions() RETURNS text LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
 BEGIN
     return 'transactions';
+END $BODY$;
+
+CREATE OR REPLACE FUNCTION naksha.config_dbId() RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
+BEGIN
+    return 0;
 END $BODY$;
 
 -- Returns the version: 16 bit reserved, 16 bit major, 16 bit minor, 16 bit revision
@@ -187,7 +196,7 @@ END;
 $$;
 
 -- Converts the UUID in a byte-array.
-CREATE OR REPLACE FUNCTION naksha_uuid_to_bytes(the_uuid uuid)
+CREATE OR REPLACE FUNCTION naksha.uuid_to_bytes(the_uuid uuid)
     RETURNS bytea
     LANGUAGE 'plpgsql' IMMUTABLE
 AS
@@ -198,7 +207,7 @@ END
 $BODY$;
 
 -- Converts the byte-array into a UUID.
-CREATE OR REPLACE FUNCTION naksha_uuid_from_bytes(raw_uuid bytea)
+CREATE OR REPLACE FUNCTION naksha.uuid_from_bytes(raw_uuid bytea)
     RETURNS uuid
     LANGUAGE 'plpgsql' IMMUTABLE
 AS
@@ -209,103 +218,151 @@ END
 $BODY$;
 
 -- Create a UUID from the given transaction number and the given identifier.
-CREATE OR REPLACE FUNCTION naksha_uuid_of(txn int8, i int8)
+CREATE OR REPLACE FUNCTION naksha.uuid_of(object_id int8, ts timestamptz, type int, db_id int8)
     RETURNS uuid
     LANGUAGE 'plpgsql' IMMUTABLE
 AS
 $BODY$
 DECLARE
     raw_uuid bytea;
+    year int8;
+    month int8;
+    day int8;
+    t int8;
 BEGIN
-    raw_uuid := set_byte('\x00000000000000000000000000000000'::bytea, 0, ((txn >> 56) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 1, ((txn >> 48) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 2, ((txn >> 40) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 3, ((txn >> 32) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 4, ((txn >> 24) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 5, ((txn >> 16) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 6, ((txn >> 8) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 7, (txn & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 8, (((i >> 56) & x'3f'::int8) | 128)::int);
-    raw_uuid := set_byte(raw_uuid, 9, ((i >> 48) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 10, ((i >> 40) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 11, ((i >> 32) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 12, ((i >> 24) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 13, ((i >> 16) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 14, ((i >> 8) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 15, (i & x'ff'::int8)::int);
+    object_id := object_id & x'0fffffffffffffff'::int8; -- 60 bit
+    year := (EXTRACT(year FROM ts)::int8 - 2000::int8) & x'00000000000003ff'::int8;
+    month := EXTRACT(month FROM ts)::int8;
+    day := EXTRACT(day FROM ts)::int8;
+    t := type::int8 & x'0000000000000007'::int8; -- 3 bit
+    db_id := db_id & x'0000000fffffffff'::int8; -- 40 bit
+    raw_uuid := set_byte('\x00000000000000000000000000000000'::bytea, 0, 0);
+    -- 48 high bit of object_id in big endian order (6 byte)
+    raw_uuid := set_byte(raw_uuid, 0, ((object_id >> 52) & x'ff'::int8)::int);
+    raw_uuid := set_byte(raw_uuid, 1, ((object_id >> 44) & x'ff'::int8)::int);
+    raw_uuid := set_byte(raw_uuid, 2, ((object_id >> 36) & x'ff'::int8)::int);
+    raw_uuid := set_byte(raw_uuid, 3, ((object_id >> 28) & x'ff'::int8)::int);
+    raw_uuid := set_byte(raw_uuid, 4, ((object_id >> 20) & x'ff'::int8)::int);
+    raw_uuid := set_byte(raw_uuid, 5, ((object_id >> 12) & x'ff'::int8)::int);
+    -- 4 bit version (1000), 4 bit of object_id
+    raw_uuid := set_byte(raw_uuid, 6, (x'40'::int8 | (object_id >> 8) & x'0f'::int8)::int);
+    -- low 8 bit of object_id
+    raw_uuid := set_byte(raw_uuid, 7, (object_id & x'ff'::int8)::int);
+    -- 2 bit variant (10), 6 high bit of year
+    raw_uuid := set_byte(raw_uuid, 8, (((year >> 4) & x'3f'::int8) | 128)::int);
+    -- 4 low bit year, month (has only 4 bit)
+    raw_uuid := set_byte(raw_uuid, 9, (((year & x'0f'::int8) << 4) | month)::int);
+    -- 5 bit day, 3 bit object type
+    raw_uuid := set_byte(raw_uuid, 10, ((day << 3) | t)::int);
+    -- 40 bit db_id (5 byte)
+    raw_uuid := set_byte(raw_uuid, 11, ((db_id >> 32) & x'ff'::int8)::int);
+    raw_uuid := set_byte(raw_uuid, 12, ((db_id >> 24) & x'ff'::int8)::int);
+    raw_uuid := set_byte(raw_uuid, 13, ((db_id >> 16) & x'ff'::int8)::int);
+    raw_uuid := set_byte(raw_uuid, 14, ((db_id >> 8) & x'ff'::int8)::int);
+    raw_uuid := set_byte(raw_uuid, 15, (db_id & x'ff'::int8)::int);
     RETURN CAST(ENCODE(raw_uuid, 'hex') AS UUID);
 END
 $BODY$;
 
+CREATE OR REPLACE FUNCTION naksha.uuid_object_id(raw_uuid bytea)
+    RETURNS int8
+    LANGUAGE 'plpgsql' IMMUTABLE
+AS
+$BODY$
+BEGIN
+    return ((get_byte(raw_uuid, 0)::int8) << 52)
+         | ((get_byte(raw_uuid, 1)::int8) << 44)
+         | ((get_byte(raw_uuid, 2)::int8) << 36)
+         | ((get_byte(raw_uuid, 3)::int8) << 28)
+         | ((get_byte(raw_uuid, 4)::int8) << 20)
+         | ((get_byte(raw_uuid, 5)::int8) << 12)
+         | ((get_byte(raw_uuid, 6)::int8 & x'0f'::int8) << 8)
+         | ((get_byte(raw_uuid, 7)::int8));
+END
+$BODY$;
+
+CREATE OR REPLACE FUNCTION naksha.uuid_ts(raw_uuid bytea)
+    RETURNS timestamptz
+    LANGUAGE 'plpgsql' IMMUTABLE
+AS
+$BODY$
+DECLARE
+    year int;
+    month int;
+    day int;
+BEGIN
+    -- 6 high bit from byte 8 plus 4 low bit from byte 9
+    year = 2000 + (((get_byte(raw_uuid, 8) & x'3f'::int) << 4) | (get_byte(raw_uuid, 9) >> 4));
+    -- 4 low bit from byte 9
+    month = get_byte(raw_uuid, 9) & x'0f'::int;
+    -- 5 high bit from byte 10
+    day = get_byte(raw_uuid, 10) >> 3;
+    return format('%s-%s-%s', year, month, day)::timestamptz;
+END
+$BODY$;
+
+CREATE OR REPLACE FUNCTION naksha.uuid_type(raw_uuid bytea)
+    RETURNS int
+    LANGUAGE 'plpgsql' IMMUTABLE
+AS
+$BODY$
+BEGIN
+    return get_byte(raw_uuid, 10) & x'07'::int;
+END
+$BODY$;
+
+CREATE OR REPLACE FUNCTION naksha.uuid_db_id(raw_uuid bytea)
+    RETURNS int8
+    LANGUAGE 'plpgsql' IMMUTABLE
+AS
+$BODY$
+BEGIN
+    return ((get_byte(raw_uuid, 11)::int8) << 32)
+         | ((get_byte(raw_uuid, 12)::int8) << 24)
+         | ((get_byte(raw_uuid, 13)::int8) << 16)
+         | ((get_byte(raw_uuid, 14)::int8) << 8)
+         | ((get_byte(raw_uuid, 15)::int8));
+END
+$BODY$;
+
 -- Fully extracts all values encoded into an UUID.
-CREATE OR REPLACE FUNCTION naksha_uuid_extract(the_uuid uuid)
+CREATE OR REPLACE FUNCTION naksha.uuid_extract(the_uuid uuid)
     RETURNS TABLE
             (
-                year    int8,
-                month   int8,
-                day     int8,
-                hour    int8,
-                minute  int8,
-                txid    int8,
-                txn     int8,
-                i       int8
+                object_id int8,
+                year      int,
+                month     int,
+                day       int,
+                type      int,
+                db_id     int8
             )
     LANGUAGE 'plpgsql' IMMUTABLE
 AS
 $BODY$
 DECLARE
-    i int8;
-    txn int8;
     raw_uuid bytea;
+    object_id int8;
+    ts timestamptz;
+    type int;
+    db_id int8;
+    year int;
+    month int;
+    day int;
 BEGIN
-    raw_uuid := naksha_uuid_to_bytes(the_uuid);
-    txn := naksha_uuid_txn(raw_uuid);
-    i := naksha_uuid_i(raw_uuid);
-    RETURN QUERY SELECT 2000 + ((txn >> 52) & x'ff'::int8)  as "year",
-                        ((txn >> 48) & x'f'::int8)          as "month",
-                        ((txn >> 43) & x'1f'::int8)         as "day",
-                        (txn >> 38) & x'1f'::int8           as "hour",
-                        (txn >> 32) & x'3f'::int8           as "minute",
-                        (txn >> 16) & x'ffff'::int8         as "millis",
-                        (txn & x'0fff'::int8)               as "txid",
-                        txn                                 as "txn",
-                        i                                   as "i";
-END
-$BODY$;
-
--- Returns the transaction number encoded in a UUID, given as raw bytes.
-CREATE OR REPLACE FUNCTION naksha_uuid_txn(raw_uuid bytea)
-    RETURNS int8
-    LANGUAGE 'plpgsql' IMMUTABLE
-AS
-$BODY$
-BEGIN
-    return ((get_byte(raw_uuid, 0)::int8) << 56)
-               | ((get_byte(raw_uuid, 1)::int8) << 48)
-               | ((get_byte(raw_uuid, 2)::int8) << 40)
-               | ((get_byte(raw_uuid, 3)::int8) << 32)
-               | ((get_byte(raw_uuid, 4)::int8) << 24)
-               | ((get_byte(raw_uuid, 5)::int8) << 16)
-               | ((get_byte(raw_uuid, 6)::int8) << 8)
-               | ((get_byte(raw_uuid, 7)::int8));
-END
-$BODY$;
-
--- Returns the transaction number encoded in a UUID, given as raw bytes.
-CREATE OR REPLACE FUNCTION naksha_uuid_i(raw_uuid bytea)
-    RETURNS int8
-    LANGUAGE 'plpgsql' IMMUTABLE
-AS
-$BODY$
-BEGIN
-    return ((get_byte(raw_uuid, 8)::int8 & x'3f'::int8) << 56)
-               | ((get_byte(raw_uuid, 9)::int8) << 48)
-               | ((get_byte(raw_uuid, 10)::int8) << 40)
-               | ((get_byte(raw_uuid, 11)::int8) << 32)
-               | ((get_byte(raw_uuid, 12)::int8) << 24)
-               | ((get_byte(raw_uuid, 13)::int8) << 16)
-               | ((get_byte(raw_uuid, 14)::int8) << 8)
-        | ((get_byte(raw_uuid, 15)::int8));
+    raw_uuid := naksha.uuid_to_bytes(the_uuid);
+    object_id := naksha.uuid_object_id(raw_uuid);
+    ts := naksha.uuid_ts(raw_uuid);
+    year := EXTRACT(year FROM ts);
+    month := EXTRACT(month FROM ts);
+    day := EXTRACT(day FROM ts);
+    type := naksha.uuid_type(raw_uuid);
+    db_id := naksha.uuid_db_id(raw_uuid);
+    RETURN QUERY SELECT object_id as "object_id",
+                        year      as "year",
+                        month     as "month",
+                        day       as "day",
+                        type      as "type",
+                        db_id     as "db_id";
 END
 $BODY$;
 
@@ -361,8 +418,8 @@ AS $BODY$
 DECLARE
     raw_uuid bytea;
 BEGIN
-    raw_uuid := naksha_uuid_to_bytes((f->'properties'->'@ns:com:here:xyz'->>'uuid')::uuid);
-    return naksha_uuid_txn(raw_uuid);
+    raw_uuid := naksha.uuid_to_bytes((f->'properties'->'@ns:com:here:xyz'->>'uuid')::uuid);
+    return "naksha.uuid_txn"(raw_uuid);
 END
 $BODY$;
 
@@ -373,8 +430,8 @@ AS $BODY$
 DECLARE
     raw_uuid bytea;
 BEGIN
-    raw_uuid := naksha_uuid_to_bytes((f->'properties'->'@ns:com:here:xyz'->>'uuid')::uuid);
-    return naksha_uuid_i(raw_uuid);
+    raw_uuid := naksha.uuid_to_bytes((f->'properties'->'@ns:com:here:xyz'->>'uuid')::uuid);
+    return "naksha.uuid_i"(raw_uuid);
 END
 $BODY$;
 
@@ -466,7 +523,7 @@ BEGIN
     txid := txid_current();
     txn := naksha_txn_of(current_timestamp, txid);
     i = nextval('"'||TG_TABLE_SCHEMA||'"."'||TG_TABLE_NAME||'_i_seq"');
-    new_uuid := naksha_uuid_of(txn, i);
+    new_uuid := "naksha.uuid_of"(txn, i);
 
     IF TG_OP = 'INSERT' THEN
        xyz := NEW.jsondata->'properties'->'@ns:com:here:xyz';
@@ -527,7 +584,7 @@ BEGIN
     txid := txid_current();
     txn := naksha_txn_of(current_timestamp, txid);
     i = nextval('"'||TG_TABLE_SCHEMA||'"."'||TG_TABLE_NAME||'_i_seq"');
-    new_uuid := naksha_uuid_of(txn, i);
+    new_uuid := "naksha.uuid_of"(txn, i);
 
     -- We do these updates, because in the "after-trigger" we only write into history.
     xyz := OLD.jsondata->'properties'->'@ns:com:here:xyz';
