@@ -615,9 +615,11 @@ public abstract class DatabaseHandler extends StorageConnector {
 
                 // Write Transaction Log into separate tables (xyz_txn, xyz_txn_data)
                 if (transactional) {
-                    final TransactionLog txnLog = prepareTransactionDetails(inserts, updates, deletes, oldFeatures, table);
-                    //DatabaseWriter.insertTransactionDetails(this, schema, traceItem, txnLog, connection);
-                    DatabaseWriter.insertTransactionDetails(this, MaintenanceSQL.XYZ_OPS_SCHEMA, traceItem, txnLog, connection);
+                    /** NOTE : W.e.f. Mar '23, we are using trigger based transactions. Hence, below txn logging is commented.
+                            Relevant code can be removed in longer run.
+                    */
+                    //final TransactionLog txnLog = prepareTransactionDetails(inserts, updates, deletes, oldFeatures, table);
+                    //DatabaseWriter.insertTransactionDetails(this, MaintenanceSQL.XYZ_OPS_SCHEMA, traceItem, txnLog, connection);
 
                     /** Commit SQLS in one transaction */
                     connection.commit();
