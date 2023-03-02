@@ -691,7 +691,7 @@ BEGIN
                || 'FOR VALUES FROM (%L::timestamptz) TO (%L::timestamptz);',
                   _schema, hst_part_name, hst_name,
                   from_day, to_day);
-    RAISE NOTICE '%', sql;
+    --RAISE NOTICE '%', sql;
     EXECUTE sql;
 
     -- Note: The history table is updated only for one day and then never touched again, therefore
@@ -705,7 +705,7 @@ BEGIN
                || 'INCLUDE (i) '
                || 'WITH (fillfactor=90) ',
                   format('%s_uuid_idx', hst_part_name), _schema, hst_part_name);
-    RAISE NOTICE '%', sql;
+    --RAISE NOTICE '%', sql;
     EXECUTE sql;
 
     -- Indices that can be delayed in creation.
@@ -714,7 +714,7 @@ BEGIN
                 || 'INCLUDE (i) '
                 || 'WITH (fillfactor=90) ',
                   format('%s_id_idx', hst_part_name), _schema, hst_part_name);
-    RAISE NOTICE '%', sql;
+    --RAISE NOTICE '%', sql;
     EXECUTE sql;
 
     sql := format('CREATE INDEX IF NOT EXISTS %I ON %I.%I '
@@ -722,7 +722,7 @@ BEGIN
                || 'INCLUDE (i) '
                || 'WITH (buffering=ON,fillfactor=90) ',
                   format('%s_geo_idx', hst_part_name), _schema, hst_part_name);
-    RAISE NOTICE '%', sql;
+    --RAISE NOTICE '%', sql;
     EXECUTE sql;
 
     sql := format('CREATE INDEX IF NOT EXISTS %I ON %I.%I '
@@ -730,7 +730,7 @@ BEGIN
                || 'INCLUDE (i) '
                || 'WITH (fillfactor=90) ',
                   format('%s_txn_idx', hst_part_name), _schema, hst_part_name);
-    RAISE NOTICE '%', sql;
+    --RAISE NOTICE '%', sql;
     EXECUTE sql;
 
     sql := format('CREATE INDEX IF NOT EXISTS %I ON %I.%I '
@@ -738,7 +738,7 @@ BEGIN
                || 'INCLUDE (i) '
                || 'WITH (fillfactor=90) ',
                   format('%s_createdAt_idx', hst_part_name), _schema, hst_part_name);
-    RAISE NOTICE '%', sql;
+    --RAISE NOTICE '%', sql;
     EXECUTE sql;
 
     sql := format('CREATE INDEX IF NOT EXISTS %I ON %I.%I '
@@ -746,7 +746,7 @@ BEGIN
                 || 'INCLUDE (i) '
                 || 'WITH (fillfactor=90) ',
                   format('%s_updatedAt_idx', hst_part_name), _schema, hst_part_name);
-    RAISE NOTICE '%', sql;
+    --RAISE NOTICE '%', sql;
     EXECUTE sql;
 
     sql := format('CREATE INDEX IF NOT EXISTS %I ON %I.%I '
@@ -756,7 +756,7 @@ BEGIN
                || 'INCLUDE (i) '
                || 'WITH (fillfactor=90) ',
                   format('%s_lastUpdatedBy_idx', hst_part_name), _schema, hst_part_name);
-    RAISE NOTICE '%', sql;
+    --RAISE NOTICE '%', sql;
     EXECUTE sql;
 END
 $BODY$;
