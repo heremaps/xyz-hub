@@ -403,6 +403,15 @@ select * from exp_build_sql_inhabited(true, '12201201011111', 15, 'public."56bd4
 select * from exp_build_sql_inhabited(false, '1202011320', 14, 'public."56bd42b1a81b8f2753e8f2f6a235d2a8"'::regclass, 3) 
 select * from exp_build_sql_inhabited(true, '12201201011111', 15, 'public."56bd42b1a81b8f2753e8f2f6a235d2a8"'::regclass, 3) 
 
+sample usage:
+
+select 
+ (aws_s3.query_export_to_s3( o.s3sql , 'iml-http-connector-sit-s3bucket-9bnjg7jo97un', format('test-mnah-499/space/%s/%s/%s-%s', replace(o._tble::text,'"','') ,o.qk,o.bucket,o.nrbuckets) ,'eu-west-1','format text')).* ,
+ o.*
+from 
+ exp_build_sql_inhabited(false, '1202011320', 14, 'public."56bd42b1a81b8f2753e8f2f6a235d2a8"'::regclass, 13) o
+
+
 */
 
 
