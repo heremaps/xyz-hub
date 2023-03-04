@@ -180,7 +180,7 @@
     </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>xyz-publishers</artifactId>
+      <artifactId>xyz-txn-handler</artifactId>
     </dependency>
 
     <!-- Logging libraries -->

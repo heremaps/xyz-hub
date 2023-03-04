@@ -37,10 +37,10 @@
         </license>
     </licenses>
 
-    <name>XYZ Publishers</name>
-    <description>For publishing XYZ Space/Content change notifications</description>
+    <name>XYZ Transaction Handler</name>
+    <description>For sequencing and publishing XYZ Feature change notifications</description>
 
-    <artifactId>xyz-publishers</artifactId>
+    <artifactId>xyz-txn-handler</artifactId>
     <packaging>jar</packaging>
 
     <properties>

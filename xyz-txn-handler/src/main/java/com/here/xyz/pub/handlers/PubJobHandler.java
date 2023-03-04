@@ -28,6 +28,7 @@ public class PubJobHandler implements Runnable {
     // Called once per job execution, to fetch and process all "active" subscriptions
     @Override
     public void run() {
+        Thread.currentThread().setName("pub-job");
         logger.debug("Starting publisher job...");
         try {
 
@@ -67,10 +68,10 @@ public class PubJobHandler implements Runnable {
                     new ThreadPoolExecutor.CallerRunsPolicy()); // on reaching queue limit, caller thread itself is used for execution
         }
         // distribute subscritions to thread pool
-        List<Future> fList = new ArrayList<Future>(subList.size());
+        final List<Future> fList = new ArrayList<Future>(subList.size());
         for (final Subscription sub : subList) {
             logger.debug("Subscription to be submitted to thread for subId : {}", sub.getId());
-            final Future f = subHandlingPool.submit(new PubSubscriptionHandler(pubCfg, adminDBConnParams, sub));
+            final Future f = subHandlingPool.submit(new PubSubscriptionHandler(adminDBConnParams, sub));
             fList.add(f);
             logger.debug("Subscription submitted to thread for subId : {}", sub.getId());
         }

@@ -16,12 +16,10 @@ import java.util.List;
 public class PubSubscriptionHandler implements Runnable{
     private static final Logger logger = LogManager.getLogger();
 
-    private PubConfig pubCfg;
     private JdbcConnectionParams adminDBConnParams;
     private Subscription sub;
 
-    public PubSubscriptionHandler(final PubConfig pubCfg, final JdbcConnectionParams adminDBConnParams, final Subscription sub) {
-        this.pubCfg = pubCfg;
+    public PubSubscriptionHandler(final JdbcConnectionParams adminDBConnParams, final Subscription sub) {
         this.adminDBConnParams = adminDBConnParams;
         this.sub = sub;
     }
@@ -32,6 +30,7 @@ public class PubSubscriptionHandler implements Runnable{
         final String subId = sub.getId();
         boolean lockAcquired = false;
         Connection lockConn = null;
+        Thread.currentThread().setName("pub-job-subId-"+subId);
 
         // TODO : Debug
         logger.info("Starting publisher for subscription Id [{}]...", subId);

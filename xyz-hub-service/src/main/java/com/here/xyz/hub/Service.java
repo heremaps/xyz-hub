@@ -45,7 +45,7 @@ import com.here.xyz.hub.util.metrics.base.CWBareValueMetricPublisher;
 import com.here.xyz.hub.util.metrics.base.MetricPublisher;
 import com.here.xyz.hub.util.metrics.net.ConnectionMetrics;
 import com.here.xyz.hub.util.metrics.net.ConnectionMetrics.HubMetricsFactory;
-import com.here.xyz.pub.XYZTransactionPublisher;
+import com.here.xyz.pub.XYZTransactionHandler;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.DeploymentOptions;
@@ -206,7 +206,7 @@ public class Service extends Core {
         });
         subscriptionConfigClient.init(subscriptionConfigReady -> {
           if (subscriptionConfigReady.succeeded()) {
-            XYZTransactionPublisher.getInstance(rawConfiguration).start();
+            XYZTransactionHandler.getInstance(rawConfiguration).start();
           } else {
             die(1, "Subscription config client failed", subscriptionConfigReady.cause());
           }

@@ -50,7 +50,7 @@
     <module>xyz-models</module>
     <module>xyz-connectors</module>
     <module>xyz-psql-connector</module>
-    <module>xyz-publishers</module>
+    <module>xyz-txn-handler</module>
   </modules>
 
   <scm>
@@ -220,7 +220,7 @@
       </dependency>
       <dependency>
         <groupId>${project.groupId}</groupId>
-        <artifactId>xyz-publishers</artifactId>
+        <artifactId>xyz-txn-handler</artifactId>
         <version>${project.version}</version>
       </dependency>
 

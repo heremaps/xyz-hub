@@ -241,7 +241,7 @@
           </elementProp>
           <elementProp name="SPACE_ID" elementType="Argument">
             <stringProp name="Argument.name">SPACE_ID</stringProp>
-            <stringProp name="Argument.value">39ZVK252</stringProp>
+            <stringProp name="Argument.value">utm-dev:maptask</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
             <stringProp name="Argument.desc">39ZVK252</stringProp>
           </elementProp>

@@ -2,9 +2,7 @@ package com.here.xyz.pub.db;
 
 import com.here.xyz.models.hub.Subscription;
 import com.here.xyz.psql.config.PSQLConfig;
-import com.here.xyz.pub.models.JdbcConnectionParams;
-import com.here.xyz.pub.models.PubConfig;
-import com.here.xyz.pub.models.PubTransactionData;
+import com.here.xyz.pub.models.*;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import org.apache.logging.log4j.LogManager;
@@ -12,10 +10,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.security.GeneralSecurityException;
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 public class PubDatabaseHandler {
     private static final Logger logger = LogManager.getLogger();
@@ -62,6 +57,31 @@ public class PubDatabaseHandler {
             "INSERT INTO xyz_ops.xyz_txn_pub (subscription_id, last_txn_id, updated_at) " +
             "VALUES (? , ? , now()) ";
 
+    final private static String FETCH_CONNECTORS_AND_SPACES =
+            "SELECT st.id AS connectorId, st.config->'params'->>'ecps' AS ecps, st.config->'remoteFunctions'->'local'->'env'->>'ECPS_PHRASE' AS pswd," +
+            "       array_agg(sp.id) AS spaceIds, array_agg(COALESCE(sp.config->'storage'->'params'->>'tableName', sp.id)) AS tableNames " +
+            "FROM "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_space sp, "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_storage st " +
+            "WHERE sp.config->'storage'->>'id' = st.id " +
+            "AND st.id != ? " +
+            "GROUP BY connectorId, ecps, pswd";
+
+    final private static String SPACE_UNION_CLAUSE = "{{SPACE_UNION_CLAUSE}}";
+    final private static String UPDATE_TXN_SEQUENCE =
+            "WITH sel AS ( " +
+            "       "+SPACE_UNION_CLAUSE+" " +
+            "    ), " +
+            "    ranked_seq AS ( " +
+            "        SELECT i, rank() OVER (ORDER BY txn ASC, i ASC) seq " +
+            "        FROM "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".transactions " +
+            "        WHERE id IS NULL ORDER BY txn ASC, i ASC " +
+            "    ) " +
+            "UPDATE "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".transactions t " +
+            "SET space = sel.sname, " +
+            "    id = (SELECT COALESCE(max(id),0) FROM "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".transactions)+ranked_seq.seq, " +
+            "    ts = now() " +
+            "FROM sel, ranked_seq " +
+            "WHERE t.\"schema\" = sel.skima AND t.\"table\" = sel.tname " +
+            "AND t.i = ranked_seq.i AND t.id IS null ";
 
 
 
@@ -212,6 +232,95 @@ public class PubDatabaseHandler {
                 stmt.executeUpdate();
             }
             conn.commit();
+        }
+    }
+
+
+    public static List<ConnectorDTO> fetchConnectorsAndSpaces(final JdbcConnectionParams spaceDBConnParams,
+            final String exclConnectorId) throws SQLException, GeneralSecurityException {
+        List<ConnectorDTO> connectorList = null;
+
+        try (final Connection conn = PubJdbcConnectionPool.getConnection(spaceDBConnParams);
+             final PreparedStatement stmt = conn.prepareStatement(FETCH_CONNECTORS_AND_SPACES);
+        ) {
+            stmt.setString(1, exclConnectorId);
+            final ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                final ConnectorDTO dto = new ConnectorDTO();
+                final String ecps = rs.getString("ecps");
+                final String pswd = rs.getString("pswd");
+                // Decrypt ecps into JSON string
+                // You get back string like this:
+                // {"PSQL_HOST":"database-host.com","PSQL_PORT":"5432","PSQL_DB":"postgresdb","PSQL_USER":"pg_user","PSQL_PASSWORD":"pg_pswd","PSQL_SCHEMA":"pg_schema"}
+                final String decodedJsonStr = new PSQLConfig.AESGCMHelper(pswd).decrypt(ecps);
+                // Transform JSON string and extract connection details
+                final Map<String, Object> jsonMap = new JsonObject(decodedJsonStr).getMap();
+                final String dbUrl = "jdbc:postgresql://"+jsonMap.get("PSQL_HOST")+":"+jsonMap.get("PSQL_PORT")+"/"+jsonMap.get("PSQL_DB");
+                // Store connector details
+                dto.setId(rs.getString("connectorId"));
+                dto.setDbUrl(dbUrl);
+                dto.setUser(jsonMap.get("PSQL_USER").toString());
+                dto.setPswd(jsonMap.get("PSQL_PASSWORD").toString());
+                dto.setSchema(jsonMap.get("PSQL_SCHEMA").toString());
+                final String spaceIds[] = (String[])rs.getArray("spaceIds").getArray();
+                dto.setSpaceIds(Arrays.asList(spaceIds));
+                final String tableNames[] = (String[])rs.getArray("tableNames").getArray();
+                dto.setTableNames(Arrays.asList(tableNames));
+                // add to the list
+                if (connectorList == null) {
+                    connectorList = new ArrayList<>();
+                }
+                connectorList.add(dto);
+            }
+            rs.close();
+        }
+        return connectorList;
+    }
+
+
+    /*
+    ** Function updates space, id and ts in xyz_config.transactions table for newer entries (where id is null).
+    **      - Space is updated by matching respective "schema" and "table"
+    **      - Id is updated in a sequence number in order of txn
+    */
+    public static void updateTransactionSequence(final JdbcConnectionParams spaceDBConnParams,
+                                                 final SeqJobRequest seqJobRequest) throws SQLException {
+        int rowCnt = 0;
+
+        try (final Connection conn = PubJdbcConnectionPool.getConnection(spaceDBConnParams)) {
+            // Prepare union clause out of all spaces available in present request, like:
+            //      SELECT 'xyz_spaces' skima, '39ZVK252_table' tname, '39ZVK252' sname
+            //      UNION ALL SELECT 'xyz_spaces' skima, 'naksha_test_table' tname, 'naksha_test' sname
+            //      ....
+            final List<String> spaceIdList = seqJobRequest.getSpaceIds();
+            final List<String> tableNameList = seqJobRequest.getTableNames();
+            final List<String> schemaList = seqJobRequest.getSchemas();
+            final StringBuilder strBuilder = new StringBuilder("");
+            for (int i=0; i < spaceIdList.size(); i++) {
+                if (i>0) {
+                    strBuilder.append("UNION ALL ");
+                }
+                strBuilder.append("SELECT '");
+                strBuilder.append(schemaList.get(i));
+                strBuilder.append("' AS skima, '");
+                strBuilder.append(tableNameList.get(i));
+                strBuilder.append("' AS tname, '");
+                strBuilder.append(spaceIdList.get(i));
+                strBuilder.append("' AS sname \n");
+            }
+            final String UPD_STMT_STR = UPDATE_TXN_SEQUENCE.replace(SPACE_UNION_CLAUSE, strBuilder.toString());
+            logger.debug("Transaction Sequencer statement for DB [{}] is [{}]", spaceDBConnParams.getDbUrl(), UPD_STMT_STR);
+
+            final long startTS = System.currentTimeMillis();
+            try (final PreparedStatement stmt = conn.prepareStatement(UPD_STMT_STR)) {
+                rowCnt = stmt.executeUpdate();
+            }
+            if (rowCnt > 0) {
+                conn.commit();
+            }
+            final long endTS = System.currentTimeMillis();
+            logger.debug("Transaction Sequencer DB update for [{}] took {}ms", spaceDBConnParams.getDbUrl(), endTS-startTS);
+            return;
         }
     }
 
