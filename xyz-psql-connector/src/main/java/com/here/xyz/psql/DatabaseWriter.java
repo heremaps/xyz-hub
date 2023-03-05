@@ -24,8 +24,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Geometry;
-import com.here.xyz.models.txn.TransactionLog;
-import com.here.xyz.psql.factory.MaintenanceSQL;
 import com.vividsolutions.jts.geom.Coordinate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -119,27 +117,8 @@ public class DatabaseWriter {
         return createStatement(connection, SQLQueryBuilder.versionedDeleteStmtSQL(schema,table,handleUUID));
     }
 
-    protected static PreparedStatement createInsertStatementForTxnLog(Connection connection, String schema, String table)
-            throws SQLException {
-        return createStatement(connection, SQLQueryBuilder.insertStmtSQLForTxnLog(schema, table));
-    }
-
-    protected static PreparedStatement createInsertStatementForTxnData(Connection connection, String schema, String table)
-            throws SQLException {
-        return createStatement(connection, SQLQueryBuilder.insertStmtSQLForTxnData(schema, table));
-    }
-
     protected  static void setAutocommit(Connection connection, boolean isActive) throws SQLException {
         connection.setAutoCommit(isActive);
-    }
-
-    protected static void insertTransactionDetails(DatabaseHandler dbh, String schema, TraceItem traceItem,
-                               TransactionLog txnLog, Connection connection) throws SQLException, JsonProcessingException {
-        if (txnLog.getTxnDataList().isEmpty())
-            return;
-        setAutocommit(connection,false);
-        DatabaseTransactionalWriter.insertTransactionLog(dbh, schema, MaintenanceSQL.XYZ_OPS_TXN_TABLE, traceItem, txnLog, connection);
-        DatabaseTransactionalWriter.insertTransactionData(dbh, schema, MaintenanceSQL.XYZ_OPS_TXN_DATA_TABLE, traceItem, txnLog, connection);
     }
 
     protected static FeatureCollection insertFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem, FeatureCollection collection,

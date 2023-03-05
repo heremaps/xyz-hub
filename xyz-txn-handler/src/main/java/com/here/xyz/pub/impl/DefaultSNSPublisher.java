@@ -2,6 +2,7 @@ package com.here.xyz.pub.impl;
 
 import com.here.xyz.models.hub.Subscription;
 import com.here.xyz.pub.models.PubTransactionData;
+import com.here.xyz.pub.models.PublishEntryDTO;
 import com.here.xyz.pub.util.AwsUtil;
 import com.here.xyz.pub.util.MessageUtil;
 import com.here.xyz.pub.util.PubUtil;
@@ -21,23 +22,21 @@ public class DefaultSNSPublisher implements IPublisher {
 
     // Convert and publish transactions to desired SNS Topic
     @Override
-    public long publishTransactions(final Subscription sub,
-            final List<PubTransactionData> txnList, long lastStoredTxnId) {
+    public PublishEntryDTO publishTransactions(final Subscription sub, final List<PubTransactionData> txnList,
+                                               long lastStoredTxnId, long lastStoredTxnRecId) throws Exception {
         final String subId = sub.getId();
         final String spaceId = sub.getSource();
         final String snsTopic = PubUtil.getSnsTopicARN(sub);
         final long lotStartTS = System.currentTimeMillis();
         // local counters
+        final PublishEntryDTO pubDTO = new PublishEntryDTO(lastStoredTxnId, lastStoredTxnRecId);
         long publishedRecCnt = 0;
-        long crtTxnId = 0;
-        long prevTxnId = lastStoredTxnId;
-        // final counter to be returned
-        long lastCompletedTxnId = prevTxnId;
 
         try {
             // Publish all transactions on SNS Topic (in the same order they were fetched)
             for (final PubTransactionData txnData : txnList) {
-                crtTxnId = txnData.getTxnId();
+                final long crtTxnId = txnData.getTxnId();
+                final long crtTxnRecId = txnData.getTxnRecId();
                 final long startTS = System.currentTimeMillis();
                 // Convert transaction payload into expected publishable format
                 final String pubFormat = MessageUtil.getMsgMapperInstance(sub).mapToPublishableFormat(sub, txnData);
@@ -62,29 +61,21 @@ public class DefaultSNSPublisher implements IPublisher {
                 publishedRecCnt++;
                 final long timeTaken = System.currentTimeMillis() - startTS;
                 // TODO : Debug
-                logger.info("Message [{}], txnId={} published in {}ms to SNS [{}] for subId [{}]. Status is {}.",
-                        publishedRecCnt, crtTxnId, timeTaken, snsTopic, subId, result.sdkHttpResponse().statusCode());
+                logger.info("Message no. [{}], txnId={}, txnRecId={}, published in {}ms to SNS [{}] for subId [{}]. Status is {}.",
+                        publishedRecCnt, crtTxnId, crtTxnRecId, timeTaken, snsTopic, subId, result.sdkHttpResponse().statusCode());
 
-                // Record last successfully published txn_id
-                // NOTE : Same txn_id can have multiple messages,
-                //      hence we need to check if all messages with prevTxnId got published or not
-                //      and then only move the counter
-                if (crtTxnId != prevTxnId) {
-                    lastCompletedTxnId = prevTxnId;
-                    prevTxnId = crtTxnId;
-                }
+                // Record last successfully published transaction Id's
+                pubDTO.setLastTxnId(crtTxnId);
+                pubDTO.setLastTxnRecId(crtTxnRecId);
             }
         }
-        catch (Exception ex) {
-            throw new RuntimeException(ex);
-        } finally {
-            lastCompletedTxnId = prevTxnId;
+        finally {
             final long lotTimeTaken = System.currentTimeMillis() - lotStartTS;
-            logger.info("Published [{}] records in {}ms to SNS [{}] for subId [{}], space [{}]. Last published txnId was [{}]",
-                    publishedRecCnt, lotTimeTaken, snsTopic, subId, spaceId, lastCompletedTxnId);
+            logger.info("Published [{}] records in {}ms to SNS [{}] for subId [{}], space [{}]. Last published txn was [{}]",
+                    publishedRecCnt, lotTimeTaken, snsTopic, subId, spaceId, pubDTO);
         }
 
-        return lastCompletedTxnId;
+        return pubDTO;
     }
 
 

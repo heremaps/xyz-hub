@@ -4,6 +4,7 @@ package com.here.xyz.pub.models;
 // POJO for holding Transaction Data which is to be published
 public class PubTransactionData {
     private long txnId;
+    private long txnRecId;
     private String action;
     private String jsonData;
 
@@ -13,6 +14,14 @@ public class PubTransactionData {
 
     public void setTxnId(long txnId) {
         this.txnId = txnId;
+    }
+
+    public long getTxnRecId() {
+        return txnRecId;
+    }
+
+    public void setTxnRecId(long txnRecId) {
+        this.txnRecId = txnRecId;
     }
 
     public String getAction() {
@@ -34,9 +43,11 @@ public class PubTransactionData {
     @Override
     public String toString() {
         return "PubTransactionData{" +
-                "txnId='" + txnId + '\'' +
+                "txnId=" + txnId +
+                ", txnRecId=" + txnRecId +
                 ", action='" + action + '\'' +
                 ", jsonData='" + jsonData + '\'' +
                 '}';
     }
+
 }

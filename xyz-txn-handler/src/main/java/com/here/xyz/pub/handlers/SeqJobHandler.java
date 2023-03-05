@@ -94,9 +94,9 @@ public class SeqJobHandler implements Runnable {
             logger.debug("SeqJob entry to be submitted to thread for DB : {}", dbUrl);
             final Future f = connHandlingPool.submit(new SeqJobRequestHandler(adminDBConnParams, jobRequestMap.get(dbUrl)));
             fList.add(f);
-            logger.debug("SeqJob entry submitted to thread for DB : {}", dbUrl);
         }
         // Wait for thread completion
+        // TODO : Need to add a timeout to ensure one long thread doesn't hold up processing of others
         for (Future f : fList) {
             f.get();
         }

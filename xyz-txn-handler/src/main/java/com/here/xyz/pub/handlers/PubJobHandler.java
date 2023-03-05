@@ -46,7 +46,7 @@ public class PubJobHandler implements Runnable {
             distributeSubscriptionProcessing(subList);
 
             // TODO : Debug
-            logger.info("All subscriptions were submitted");
+            logger.info("All subscription processing completed");
         }
         catch (Exception ex) {
             logger.error("Exception while running Publisher job. ", ex);
@@ -73,9 +73,9 @@ public class PubJobHandler implements Runnable {
             logger.debug("Subscription to be submitted to thread for subId : {}", sub.getId());
             final Future f = subHandlingPool.submit(new PubSubscriptionHandler(adminDBConnParams, sub));
             fList.add(f);
-            logger.debug("Subscription submitted to thread for subId : {}", sub.getId());
         }
         // Wait for thread completion
+        // TODO : Need to add a timeout to ensure one long thread doesn't hold up processing of others
         for (Future f : fList) {
             f.get();
         }

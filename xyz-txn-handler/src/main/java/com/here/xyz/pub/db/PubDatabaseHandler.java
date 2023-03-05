@@ -7,10 +7,10 @@ import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
 import java.security.GeneralSecurityException;
 import java.sql.*;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 public class PubDatabaseHandler {
     private static final Logger logger = LogManager.getLogger();
@@ -26,36 +26,37 @@ public class PubDatabaseHandler {
                     "FROM "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_subscription s " +
                     "WHERE s.status->>'state' = 'ACTIVE'";
 
-    // TODO : Change to xyz_config (i.e. PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA)
     final private static String FETCH_TXN_ID_FOR_SUBSCRIPTION =
-            "SELECT t.last_txn_id FROM xyz_ops.xyz_txn_pub t WHERE t.subscription_id = ?";
+            "SELECT t.last_txn_id, t.last_txn_rec_id FROM "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_txn_pub t WHERE t.subscription_id = ?";
 
     final private static String FETCH_CONN_DETAILS_FOR_SPACE =
-            "SELECT st.config->'params'->>'ecps' AS ecps, st.config->'remoteFunctions'->'local'->'env'->>'ECPS_PHRASE' AS pswd " +
-            "FROM "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_storage st " +
-            "WHERE st.id = (SELECT s.config->'storage'->>'id' FROM "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_space s WHERE s.id = ?)";
+            "SELECT st.config->'params'->>'ecps' AS ecps, " +
+            "       st.config->'remoteFunctions'->'local'->'env'->>'ECPS_PHRASE' AS pswd, " +
+            "       COALESCE(sp.config->'storage'->'params'->>'tableName', sp.id) AS tableName " +
+            "FROM "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_storage st, "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_space sp " +
+            "WHERE st.id = sp.config->'storage'->>'id' AND sp.id = ? ";
 
-    // TODO : Change to xyz_config (i.e. PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA)
     // TODO : LIMIT can split transactional data into multiple fetches.
     //      It may require a fix in future, if it needs to be transactional batch publish.
+    final private static String SCHEMA_STR = "{{SCHEMA}}";
+    final private static String TABLE_STR = "{{TABLE}}";
     final private static String FETCH_TXNS_FROM_SPACEDB =
-            "SELECT t.txn_id, d.operation, d.jsondata " +
-            "FROM xyz_ops.xyz_txn t, xyz_ops.xyz_txn_data d " +
-            "WHERE d.uuid = ANY(t.uuids) " +
-            "AND t.txn_id > ? AND t.space_id = ? " +
-            "ORDER BY t.txn_id asc, t.op_timestamp asc " +
+            "SELECT t.id, h.i, h.jsondata, h.jsondata->'properties'->'@ns:com:here:xyz'->>'action' AS action " +
+            "FROM "+SCHEMA_STR+".\""+TABLE_STR+"\" h, "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".transactions t " +
+            "WHERE "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".naksha_json_txn(h.jsondata) = t.txn " +
+            "AND "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".naksha_json_txn_ts(h.jsondata) = "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".naksha_uuid_ts("+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".naksha_uuid_to_bytes(t.txn)) " +
+            "AND t.space = ? AND (t.id > ? OR (t.id = ? AND h.i > ?)) " +
+            "ORDER BY t.id ASC, h.i ASC " +
             "LIMIT 50";
 
-    // TODO : Change to xyz_config (i.e. PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA)
     final private static String UPDATE_PUB_TXN_ID =
-            "UPDATE xyz_ops.xyz_txn_pub " +
-            "SET last_txn_id = ? , updated_at = now() " +
+            "UPDATE "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_txn_pub " +
+            "SET last_txn_id = ? , last_txn_rec_id = ? , updated_at = now() " +
             "WHERE subscription_id = ? ";
 
-    // TODO : Change to xyz_config (i.e. PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA)
     final private static String INSERT_PUB_TXN_ID =
-            "INSERT INTO xyz_ops.xyz_txn_pub (subscription_id, last_txn_id, updated_at) " +
-            "VALUES (? , ? , now()) ";
+            "INSERT INTO "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_txn_pub (subscription_id, last_txn_id, last_txn_rec_id, updated_at) " +
+            "VALUES (? , ? , ? , now()) ";
 
     final private static String FETCH_CONNECTORS_AND_SPACES =
             "SELECT st.id AS connectorId, st.config->'params'->>'ecps' AS ecps, st.config->'remoteFunctions'->'local'->'env'->>'ECPS_PHRASE' AS pswd," +
@@ -65,10 +66,10 @@ public class PubDatabaseHandler {
             "AND st.id != ? " +
             "GROUP BY connectorId, ecps, pswd";
 
-    final private static String SPACE_UNION_CLAUSE = "{{SPACE_UNION_CLAUSE}}";
+    final private static String SPACE_UNION_CLAUSE_STR = "{{SPACE_UNION_CLAUSE}}";
     final private static String UPDATE_TXN_SEQUENCE =
             "WITH sel AS ( " +
-            "       "+SPACE_UNION_CLAUSE+" " +
+            "       "+ SPACE_UNION_CLAUSE_STR +" " +
             "    ), " +
             "    ranked_seq AS ( " +
             "        SELECT i, rank() OVER (ORDER BY txn ASC, i ASC) seq " +
@@ -132,9 +133,9 @@ public class PubDatabaseHandler {
         return subList;
     }
 
-    // Fetch last_txn_id from AdminDB::xyz_config::xyz_txn_pub table
-    public static long fetchLastTxnIdForSubId(final String subId, final JdbcConnectionParams dbConnParams) throws SQLException {
-        long lastTxnId = -1;
+    // Fetch last_txn_id, last_txn_rec_id from AdminDB::xyz_config::xyz_txn_pub table
+    public static PublishEntryDTO fetchLastTxnIdForSubId(final String subId, final JdbcConnectionParams dbConnParams) throws SQLException {
+        final PublishEntryDTO dto = new PublishEntryDTO(-1, -1);
 
         try (final Connection conn = PubJdbcConnectionPool.getConnection(dbConnParams);
              final PreparedStatement stmt = conn.prepareStatement(FETCH_TXN_ID_FOR_SUBSCRIPTION);
@@ -142,11 +143,12 @@ public class PubDatabaseHandler {
             stmt.setString(1, subId);
             final ResultSet rs = stmt.executeQuery();
             if (rs.next()) {
-                lastTxnId = rs.getLong("last_txn_id");
+                dto.setLastTxnId(rs.getLong("last_txn_id"));
+                dto.setLastTxnRecId(rs.getLong("last_txn_rec_id"));
             }
             rs.close();
         }
-        return lastTxnId;
+        return dto;
     }
 
     // Fetch DB Connection details for a given spaceId
@@ -162,6 +164,7 @@ public class PubDatabaseHandler {
             if (rs.next()) {
                 final String ecps = rs.getString("ecps");
                 final String pswd = rs.getString("pswd");
+                final String tableName = rs.getString("tableName");
                 // Decrypt ecps into JSON string
                 // You get back string like this:
                 // {"PSQL_HOST":"database-host.com","PSQL_PORT":"5432","PSQL_DB":"postgresdb","PSQL_USER":"pg_user","PSQL_PASSWORD":"pg_pswd","PSQL_SCHEMA":"pg_schema"}
@@ -174,6 +177,8 @@ public class PubDatabaseHandler {
                 spaceDBConnParams.setDbUrl(dbUrl);
                 spaceDBConnParams.setUser(jsonMap.get("PSQL_USER").toString());
                 spaceDBConnParams.setPswd(jsonMap.get("PSQL_PASSWORD").toString());
+                spaceDBConnParams.setSchema(jsonMap.get("PSQL_SCHEMA").toString());
+                spaceDBConnParams.setTableName(tableName);
             }
             rs.close();
         }
@@ -181,42 +186,59 @@ public class PubDatabaseHandler {
     }
 
     public static List<PubTransactionData> fetchPublishableTransactions(
-            final JdbcConnectionParams spaceDBConnParams, final String spaceId, final long lastTxnId) throws SQLException {
+            final JdbcConnectionParams spaceDBConnParams, final String spaceId, final PublishEntryDTO lastTxn) throws SQLException {
         List<PubTransactionData> txnList = null;
 
-        try (final Connection conn = PubJdbcConnectionPool.getConnection(spaceDBConnParams);
-             final PreparedStatement stmt = conn.prepareStatement(FETCH_TXNS_FROM_SPACEDB);
-        ) {
-            stmt.setLong(1, lastTxnId);
-            stmt.setString(2, spaceId);
-            final ResultSet rs = stmt.executeQuery();
-            while (rs.next()) {
-                final PubTransactionData pubTxnData = new PubTransactionData();
-                pubTxnData.setTxnId(rs.getLong("txn_id"));
-                pubTxnData.setAction(rs.getString("operation"));
-                pubTxnData.setJsonData(rs.getString("jsonData"));
-                // add to the list
-                if (txnList == null) {
-                    txnList = new ArrayList<>();
+        try (final Connection conn = PubJdbcConnectionPool.getConnection(spaceDBConnParams);) {
+            final String SEL_STMT_STR = FETCH_TXNS_FROM_SPACEDB.replace(SCHEMA_STR, spaceDBConnParams.getSchema())
+                                            .replace(TABLE_STR, spaceDBConnParams.getTableName()+"_hst");
+            // TODO : Debug
+            logger.info("Fetch Transactions statement for spaceId [{}] is [{}]", spaceId, SEL_STMT_STR);
+
+            final long startTS = System.currentTimeMillis();
+            int rowCnt = 0;
+            try (final PreparedStatement stmt = conn.prepareStatement(SEL_STMT_STR)) {
+                stmt.setString(1, spaceId);
+                stmt.setLong(2, lastTxn.getLastTxnId());
+                stmt.setLong(3, lastTxn.getLastTxnId());
+                stmt.setLong(4, lastTxn.getLastTxnRecId());
+                final ResultSet rs = stmt.executeQuery();
+                while (rs.next()) {
+                    final PubTransactionData pubTxnData = new PubTransactionData();
+                    pubTxnData.setTxnId(rs.getLong("id"));
+                    pubTxnData.setTxnRecId(rs.getLong("i"));
+                    pubTxnData.setJsonData(rs.getString("jsonData"));
+                    pubTxnData.setAction(rs.getString("action"));
+                    // add to the list
+                    if (txnList == null) {
+                        txnList = new ArrayList<>();
+                    }
+                    txnList.add(pubTxnData);
+                    rowCnt++;
                 }
-                txnList.add(pubTxnData);
+                rs.close();
             }
-            rs.close();
+            final long duration = System.currentTimeMillis() - startTS;
+            if (duration > TimeUnit.SECONDS.toMillis(5) || logger.isDebugEnabled()) {
+                logger.info("Publisher took {}ms to fetch {} publishable transactions for space {}.",
+                        duration, rowCnt, spaceId);
+            }
         }
         return txnList;
     }
 
 
     public static void saveLastTxnId(
-            final JdbcConnectionParams spaceDBConnParams, final String subId, final long lastTxnId) throws SQLException {
+            final JdbcConnectionParams spaceDBConnParams, final String subId, final PublishEntryDTO lastTxn) throws SQLException {
         int rowCnt = 0;
 
         // UPDATE or INSERT into xyz_txn_pub table
         try (final Connection conn = PubJdbcConnectionPool.getConnection(spaceDBConnParams)) {
             // First try UPDATE
             try (final PreparedStatement stmt = conn.prepareStatement(UPDATE_PUB_TXN_ID)) {
-                stmt.setLong(1, lastTxnId);
-                stmt.setString(2, subId);
+                stmt.setLong(1, lastTxn.getLastTxnId());
+                stmt.setLong(2, lastTxn.getLastTxnRecId());
+                stmt.setString(3, subId);
                 rowCnt = stmt.executeUpdate();
             }
             if (rowCnt > 0) {
@@ -228,7 +250,8 @@ public class PubDatabaseHandler {
             // UPDATE was unsuccessful, try INSERT
             try (final PreparedStatement stmt = conn.prepareStatement(INSERT_PUB_TXN_ID)) {
                 stmt.setString(1, subId);
-                stmt.setLong(2, lastTxnId);
+                stmt.setLong(2, lastTxn.getLastTxnId());
+                stmt.setLong(3, lastTxn.getLastTxnRecId());
                 stmt.executeUpdate();
             }
             conn.commit();
@@ -308,7 +331,7 @@ public class PubDatabaseHandler {
                 strBuilder.append(spaceIdList.get(i));
                 strBuilder.append("' AS sname \n");
             }
-            final String UPD_STMT_STR = UPDATE_TXN_SEQUENCE.replace(SPACE_UNION_CLAUSE, strBuilder.toString());
+            final String UPD_STMT_STR = UPDATE_TXN_SEQUENCE.replace(SPACE_UNION_CLAUSE_STR, strBuilder.toString());
             logger.debug("Transaction Sequencer statement for DB [{}] is [{}]", spaceDBConnParams.getDbUrl(), UPD_STMT_STR);
 
             final long startTS = System.currentTimeMillis();
@@ -318,8 +341,11 @@ public class PubDatabaseHandler {
             if (rowCnt > 0) {
                 conn.commit();
             }
-            final long endTS = System.currentTimeMillis();
-            logger.debug("Transaction Sequencer DB update for [{}] took {}ms", spaceDBConnParams.getDbUrl(), endTS-startTS);
+            final long duration = System.currentTimeMillis() - startTS;
+            if (duration > TimeUnit.SECONDS.toMillis(1) || logger.isDebugEnabled()) {
+                logger.info("Transaction Sequencer DB update for [{}] took {}ms and updated {} records",
+                        spaceDBConnParams.getDbUrl(), duration, rowCnt);
+            }
             return;
         }
     }

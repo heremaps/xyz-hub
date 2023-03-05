@@ -4,13 +4,16 @@ import java.util.Objects;
 
 // POJO for holding Database connection parameters
 public class JdbcConnectionParams {
+    // Add default value to avoid equals() function failing with NPE during object comparison
     // XYZ Space id, useful to cache/distinguish multiple Datasource's
-    private String spaceId;
-    // Hikari connection pool configuration
+    private String spaceId = "";
+    private String tableName = "";
+    // DB connection details
     private String driveClass = "org.postgresql.Driver";
-    private String dbUrl;
-    private String user;
-    private String pswd;
+    private String dbUrl = "";
+    private String schema = "";
+    private String user = "";
+    private String pswd = "";
     // Hikari connection pool configuration
     private long connTimeout = 30000;
     private int maxPoolSize = 10;
@@ -23,6 +26,14 @@ public class JdbcConnectionParams {
 
     public void setSpaceId(String spaceId) {
         this.spaceId = spaceId;
+    }
+
+    public String getTableName() {
+        return tableName;
+    }
+
+    public void setTableName(String tableName) {
+        this.tableName = tableName;
     }
 
     public String getDriveClass() {
@@ -39,6 +50,14 @@ public class JdbcConnectionParams {
 
     public void setDbUrl(String dbUrl) {
         this.dbUrl = dbUrl;
+    }
+
+    public String getSchema() {
+        return schema;
+    }
+
+    public void setSchema(String schema) {
+        this.schema = schema;
     }
 
     public String getUser() {
@@ -94,20 +113,22 @@ public class JdbcConnectionParams {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         JdbcConnectionParams that = (JdbcConnectionParams) o;
-        return connTimeout == that.connTimeout && maxPoolSize == that.maxPoolSize && minPoolSize == that.minPoolSize && idleTimeout == that.idleTimeout && spaceId.equals(that.spaceId) && driveClass.equals(that.driveClass) && dbUrl.equals(that.dbUrl) && user.equals(that.user) && pswd.equals(that.pswd);
+        return connTimeout == that.connTimeout && maxPoolSize == that.maxPoolSize && minPoolSize == that.minPoolSize && idleTimeout == that.idleTimeout && spaceId.equals(that.spaceId) && tableName.equals(that.tableName) && driveClass.equals(that.driveClass) && dbUrl.equals(that.dbUrl) && schema.equals(that.schema) && user.equals(that.user) && pswd.equals(that.pswd);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(spaceId, driveClass, dbUrl, user, pswd, connTimeout, maxPoolSize, minPoolSize, idleTimeout);
+        return Objects.hash(spaceId, tableName, driveClass, dbUrl, schema, user, pswd, connTimeout, maxPoolSize, minPoolSize, idleTimeout);
     }
 
     @Override
     public String toString() {
         return "JdbcConnectionParams{" +
                 "spaceId='" + spaceId + '\'' +
+                ", tableName='" + tableName + '\'' +
                 ", driveClass='" + driveClass + '\'' +
                 ", dbUrl='" + dbUrl + '\'' +
+                ", schema='" + schema + '\'' +
                 ", user='" + user + '\'' +
                 ", connTimeout=" + connTimeout +
                 ", maxPoolSize=" + maxPoolSize +

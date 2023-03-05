@@ -143,12 +143,10 @@ public class DatabaseMaintainer {
             if (rs.next()) {
                 final boolean mainSchema = rs.getBoolean("main_schema");
                 boolean configSchema = rs.getBoolean("config_schema");
-                final boolean opsSchema = rs.getBoolean("ops_schema");
                 final boolean idx_table = rs.getBoolean("idx_table");
                 final boolean db_status_table = rs.getBoolean("db_status_table");
                 final boolean space_meta_table = rs.getBoolean("space_meta_table");
-                final boolean txn_table = rs.getBoolean("txn_table");
-                final boolean txn_data_table = rs.getBoolean("txn_data_table");
+                final boolean txn_pub_table = rs.getBoolean("txn_pub_table");
 
                 try {
                     /** Create Missing Schemas */
@@ -160,11 +158,6 @@ public class DatabaseMaintainer {
                     if (!configSchema && hasPropertySearch) {
                         logger.debug("{} Create missing Schema {} on database: {} / {}@{}", traceItem, MaintenanceSQL.XYZ_CONFIG_SCHEMA, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost());
                         stmt.execute(MaintenanceSQL.configSchemaAndSystemTablesSQL);
-                    }
-
-                    if (!opsSchema) {
-                        logger.debug("{} Create missing Schema {} on database: {} / {}@{}", traceItem, MaintenanceSQL.XYZ_OPS_SCHEMA, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost());
-                        stmt.execute(MaintenanceSQL.opsSchemaSQL);
                     }
 
                     if (!idx_table && hasPropertySearch) {
@@ -182,14 +175,9 @@ public class DatabaseMaintainer {
                         stmt.execute(MaintenanceSQL.createSpaceMetaTable);
                     }
 
-                    if (!txn_table) {
-                        /** Create Missing Txn Table */
-                        stmt.execute(MaintenanceSQL.createTxnTableSQL);
-                    }
-
-                    if (!txn_data_table) {
-                        /** Create Missing Txn_data Table */
-                        stmt.execute(MaintenanceSQL.createTxnDataTableSQL);
+                    if (!txn_pub_table) {
+                        /** Create Missing Txn Pub Table */
+                        stmt.execute(MaintenanceSQL.createTxnPubTableSQL);
                     }
                 } catch (Exception e) {
                     logger.warn("{} Failed to create missing Schema(s) on database: {} / {}@{} '{}'", traceItem, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost(), e);
