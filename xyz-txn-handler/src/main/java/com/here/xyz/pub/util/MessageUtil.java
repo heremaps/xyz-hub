@@ -5,10 +5,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.models.hub.Subscription;
 import com.here.xyz.pub.mapper.DefaultPubMsgMapper;
 import com.here.xyz.pub.mapper.IPubMsgMapper;
+import com.jayway.jsonpath.Configuration;
+import com.jayway.jsonpath.JsonPath;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.services.sns.model.MessageAttributeValue;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Base64;
@@ -52,9 +53,23 @@ public class MessageUtil {
     }
 
 
-    public static void addtoAttributeMap(final Map<String, MessageAttributeValue> msgAttrMap,
+    public static void addToAttributeMap(final Map<String, MessageAttributeValue> msgAttrMap,
                                          final String key, final String value) {
         msgAttrMap.put(key, MessageAttributeValue.builder().dataType("String").stringValue(value).build());
+    }
+
+
+    public static void addCustomFieldsToAttributeMap(final Map<String, MessageAttributeValue> msgAttrMap,
+                                                     final Subscription sub, final String jsonData) {
+        // TODO : Accept this from subscription configuration
+        // Add featureId, featureType, status (properties.status)
+        final Object document = Configuration.defaultConfiguration().jsonProvider().parse(jsonData);
+        final String featureId = JsonPath.read(document, "$.id");
+        final String featureType = JsonPath.read(document, "$.properties.featureType");
+        final String status = JsonPath.read(document, "$.properties.status");
+        addToAttributeMap(msgAttrMap, "featureId", featureId);
+        addToAttributeMap(msgAttrMap, "featureType", featureType);
+        addToAttributeMap(msgAttrMap, "status", status);
     }
 
     public static String compressAndEncodeToString(final String data) throws IOException {

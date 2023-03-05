@@ -50,6 +50,7 @@
         <!-- library versions -->
         <hikari-cp.version>4.0.3</hikari-cp.version>
         <aws-sdk.version>2.20.11</aws-sdk.version>
+        <jayway-json.version>2.7.0</jayway-json.version>
     </properties>
 
     <!-- Release settings -->
@@ -162,6 +163,12 @@
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>sns</artifactId>
             <version>${aws-sdk.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.jayway.jsonpath</groupId>
+            <artifactId>json-path</artifactId>
+            <version>${jayway-json.version}</version>
         </dependency>
     </dependencies>
 

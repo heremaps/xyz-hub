@@ -30,8 +30,7 @@ public class SeqJobRequestHandler implements Runnable{
         Connection lockConn = null;
         Thread.currentThread().setName("seq-job-db-"+dbUrl);
 
-        // TODO : Debug
-        logger.info("Starting sequencer for DB [{}]...", dbUrl);
+        logger.debug("Starting sequencer for DB [{}]...", dbUrl);
         try {
             // Prepare connDBParams for SpaceDB
             final JdbcConnectionParams spaceDBConnParams = new JdbcConnectionParams();
@@ -45,8 +44,7 @@ public class SeqJobRequestHandler implements Runnable{
             lockConn = PubJdbcConnectionPool.getConnection(spaceDBConnParams);
             lockAcquired = PubDatabaseHandler.advisoryLock(distinguisher, lockConn);
             if (!lockAcquired) {
-                // TODO : Debug
-                logger.warn("Couldn't acquire sequencer lock for DB [{}]. Some other thread might be processing the same.", dbUrl);
+                logger.debug("Couldn't acquire sequencer lock for DB [{}]. Some other thread might be processing the same.", dbUrl);
                 return;
             }
 
@@ -79,8 +77,7 @@ public class SeqJobRequestHandler implements Runnable{
                 logger.warn("Exception while releasing sequencer lock for DB [{}]. If problem persist, it might need manual intervention.", dbUrl);
             }
         }
-        // TODO : Debug
-        logger.info("Sequencer job completed for DB [{}]...", dbUrl);
+        logger.debug("Sequencer job completed for DB [{}]...", dbUrl);
         return;
     }
 

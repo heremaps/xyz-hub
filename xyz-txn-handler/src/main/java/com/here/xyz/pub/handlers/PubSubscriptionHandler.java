@@ -34,30 +34,26 @@ public class PubSubscriptionHandler implements Runnable{
         Connection lockConn = null;
         Thread.currentThread().setName("pub-job-subId-"+subId);
 
-        // TODO : Debug
-        logger.info("Starting publisher for subscription Id [{}], spaceId [{}]...", subId, spaceId);
+        logger.debug("Starting publisher for subscription Id [{}], spaceId [{}]...", subId, spaceId);
         try {
             // Acquire distributed lock against subscription Id
             // If unsuccessful, then return gracefully (likely another thread is processing this subscription)
             lockConn = PubJdbcConnectionPool.getConnection(adminDBConnParams);
             lockAcquired = PubDatabaseHandler.advisoryLock(subId, lockConn);
             if (!lockAcquired) {
-                // TODO : Debug
-                logger.warn("Couldn't acquire lock for subscription Id [{}]. Some other thread might be processing the same.", subId);
+                logger.debug("Couldn't acquire lock for subscription Id [{}]. Some other thread might be processing the same.", subId);
                 return;
             }
 
             // Fetch last txn_id from AdminDB::xyz_config::xyz_txn_pub table
             // if no entry found, then start with -1
             PublishEntryDTO lastTxn = PubDatabaseHandler.fetchLastTxnIdForSubId(subId, adminDBConnParams);
-            // TODO : Debug
-            logger.info("For subscription Id [{}], spaceId [{}], the LastTxnId obtained as [{}]", subId, spaceId, lastTxn);
+            logger.debug("For subscription Id [{}], spaceId [{}], the LastTxnId obtained as [{}]", subId, spaceId, lastTxn);
 
             // Fetch SpaceDB Connection details from AdminDB::xyz_config::xyz_space and xyz_storage tables
             // if no entry found, then log error and return
             JdbcConnectionParams spaceDBConnParams = PubDatabaseHandler.fetchDBConnParamsForSpaceId(spaceId, adminDBConnParams);
-            // TODO : Debug
-            logger.info("Subscription Id [{}], spaceId [{}], to be processed against database {} with user {}",
+            logger.debug("Subscription Id [{}], spaceId [{}], to be processed against database {} with user {}",
                     subId, spaceId, spaceDBConnParams.getDbUrl(), spaceDBConnParams.getUser());
 
             // Fetch all new transactions (in right order) from SpaceDB::xyz_config::xyz_transactions and space tables
@@ -79,8 +75,7 @@ public class PubSubscriptionHandler implements Runnable{
                 PubDatabaseHandler.saveLastTxnId(adminDBConnParams, subId, lastTxn);
             }
             if (!txnFound) {
-                // TODO : Debug
-                logger.info("No publishable transactions found for subId [{}], space [{}]", subId, spaceId);
+                logger.debug("No publishable transactions found for subId [{}], space [{}]", subId, spaceId);
                 // No transaction found. Make an insert into publisher table with lastTxnId as -1
                 PubDatabaseHandler.saveLastTxnId(adminDBConnParams, subId, lastTxn);
             }
@@ -102,8 +97,7 @@ public class PubSubscriptionHandler implements Runnable{
                 logger.warn("Exception while releasing publisher lock for subscription Id [{}]. If problem persist, it might need manual intervention.", subId);
             }
         }
-        // TODO : Debug
-        logger.info("Publisher job completed for subscription Id [{}], spaceId [{}]...", subId, spaceId);
+        logger.debug("Publisher job completed for subscription Id [{}], spaceId [{}]...", subId, spaceId);
         return;
     }
 

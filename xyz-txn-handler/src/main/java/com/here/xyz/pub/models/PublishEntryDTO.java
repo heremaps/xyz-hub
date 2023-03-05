@@ -35,7 +35,7 @@ public class PublishEntryDTO {
 
     @Override
     public String toString() {
-        return "PublishEntryDTO{" +
+        return "{" +
                 "lastTxnId=" + lastTxnId +
                 ", lastTxnRecId=" + lastTxnRecId +
                 '}';

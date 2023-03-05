@@ -60,12 +60,10 @@ public class SeqJobHandler implements Runnable {
                 jobReq.copyConnectorDTO(connector);
                 jobRequestMap.put(connector.getDbUrl(), jobReq);
             }
-            // TODO : Debug
-            logger.info("{} sequencer requests to be processed.", jobRequestMap.size());
+            logger.debug("{} sequencer requests to be processed.", jobRequestMap.size());
             // Distribute SeqJobRequest's amongst thread pool to perform parallel sequencing (configurable poolSize e.g. 10 threads)
             distributeSeqJobRequestProcessing(jobRequestMap);
-            // TODO : Debug
-            logger.info("All sequencer requests processed");
+            logger.debug("All sequencer requests processed");
         }
         catch (Exception ex) {
             logger.error("Exception while running Sequencer job. ", ex);

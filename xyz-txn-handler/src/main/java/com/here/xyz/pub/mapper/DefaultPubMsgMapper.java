@@ -15,7 +15,7 @@ public class DefaultPubMsgMapper implements IPubMsgMapper {
         final Map<String, Object> msgMap = new HashMap<>();
         msgMap.put("action", action);
         msgMap.put("space", sub.getSource());
-        // TODO : populate featureId
+        msgMap.put("featureId", txnData.getFeatureId());
         if ("DELETE".equalsIgnoreCase(action)) {
             msgMap.put("oldValuesMap", jsonDataMap);
         }

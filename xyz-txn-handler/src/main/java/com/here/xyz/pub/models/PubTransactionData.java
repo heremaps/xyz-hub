@@ -7,6 +7,7 @@ public class PubTransactionData {
     private long txnRecId;
     private String action;
     private String jsonData;
+    private String featureId;
 
     public long getTxnId() {
         return txnId;
@@ -40,6 +41,14 @@ public class PubTransactionData {
         this.jsonData = jsonData;
     }
 
+    public String getFeatureId() {
+        return featureId;
+    }
+
+    public void setFeatureId(String featureId) {
+        this.featureId = featureId;
+    }
+
     @Override
     public String toString() {
         return "PubTransactionData{" +
@@ -47,6 +56,7 @@ public class PubTransactionData {
                 ", txnRecId=" + txnRecId +
                 ", action='" + action + '\'' +
                 ", jsonData='" + jsonData + '\'' +
+                ", featureId='" + featureId + '\'' +
                 '}';
     }
 

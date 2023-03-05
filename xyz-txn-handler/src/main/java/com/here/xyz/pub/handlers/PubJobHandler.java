@@ -39,14 +39,12 @@ public class PubJobHandler implements Runnable {
                 return;
             }
 
-            // TODO : Debug
-            logger.info("{} active subscriptions to be processed.", subList.size());
+            logger.debug("{} active subscriptions to be processed.", subList.size());
 
             // Distribute subscriptions amongst thread pool to perform parallel publish (configurable poolSize e.g. 10 threads)
             distributeSubscriptionProcessing(subList);
 
-            // TODO : Debug
-            logger.info("All subscription processing completed");
+            logger.debug("All subscription processing completed");
         }
         catch (Exception ex) {
             logger.error("Exception while running Publisher job. ", ex);
@@ -67,7 +65,7 @@ public class PubJobHandler implements Runnable {
                     new SynchronousQueue<>(), // queue with zero capacity
                     new ThreadPoolExecutor.CallerRunsPolicy()); // on reaching queue limit, caller thread itself is used for execution
         }
-        // distribute subscritions to thread pool
+        // distribute subscriptions to thread pool
         final List<Future> fList = new ArrayList<Future>(subList.size());
         for (final Subscription sub : subList) {
             logger.debug("Subscription to be submitted to thread for subId : {}", sub.getId());

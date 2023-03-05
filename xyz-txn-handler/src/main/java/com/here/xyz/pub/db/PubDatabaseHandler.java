@@ -41,7 +41,7 @@ public class PubDatabaseHandler {
     final private static String SCHEMA_STR = "{{SCHEMA}}";
     final private static String TABLE_STR = "{{TABLE}}";
     final private static String FETCH_TXNS_FROM_SPACEDB =
-            "SELECT t.id, h.i, h.jsondata, h.jsondata->'properties'->'@ns:com:here:xyz'->>'action' AS action " +
+            "SELECT t.id, h.i, h.jsondata, h.jsondata->'properties'->'@ns:com:here:xyz'->>'action' AS action, h.jsondata->>'id' AS featureId " +
             "FROM "+SCHEMA_STR+".\""+TABLE_STR+"\" h, "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".transactions t " +
             "WHERE "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".naksha_json_txn(h.jsondata) = t.txn " +
             "AND "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".naksha_json_txn_ts(h.jsondata) = "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".naksha_uuid_ts("+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".naksha_uuid_to_bytes(t.txn)) " +
@@ -192,8 +192,7 @@ public class PubDatabaseHandler {
         try (final Connection conn = PubJdbcConnectionPool.getConnection(spaceDBConnParams);) {
             final String SEL_STMT_STR = FETCH_TXNS_FROM_SPACEDB.replace(SCHEMA_STR, spaceDBConnParams.getSchema())
                                             .replace(TABLE_STR, spaceDBConnParams.getTableName()+"_hst");
-            // TODO : Debug
-            logger.info("Fetch Transactions statement for spaceId [{}] is [{}]", spaceId, SEL_STMT_STR);
+            logger.debug("Fetch Transactions statement for spaceId [{}] is [{}]", spaceId, SEL_STMT_STR);
 
             final long startTS = System.currentTimeMillis();
             int rowCnt = 0;
@@ -209,6 +208,7 @@ public class PubDatabaseHandler {
                     pubTxnData.setTxnRecId(rs.getLong("i"));
                     pubTxnData.setJsonData(rs.getString("jsonData"));
                     pubTxnData.setAction(rs.getString("action"));
+                    pubTxnData.setFeatureId(rs.getString("featureId"));
                     // add to the list
                     if (txnList == null) {
                         txnList = new ArrayList<>();

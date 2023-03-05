@@ -44,9 +44,10 @@ public class DefaultSNSPublisher implements IPublisher {
                 // Prepare SNS Notification message
                 final String msg = MessageUtil.compressAndEncodeToString(pubFormat);
                 final Map<String, MessageAttributeValue> msgAttrMap = new HashMap<>();
-                // TODO : Add featureId, featureType, status (properties.status)
-                MessageUtil.addtoAttributeMap(msgAttrMap, "action", txnData.getAction());
-                MessageUtil.addtoAttributeMap(msgAttrMap, "space", spaceId);
+                MessageUtil.addToAttributeMap(msgAttrMap, "action", txnData.getAction());
+                MessageUtil.addToAttributeMap(msgAttrMap, "space", spaceId);
+                // Add other custom attributes
+                MessageUtil.addCustomFieldsToAttributeMap(msgAttrMap, sub, txnData.getJsonData());
 
                 // Publish message to SNS Topic
                 // TODO : Avoid hardcoded region and obtain it from configuration
@@ -60,8 +61,7 @@ public class DefaultSNSPublisher implements IPublisher {
                 final PublishResponse result = futureResponse.join();
                 publishedRecCnt++;
                 final long timeTaken = System.currentTimeMillis() - startTS;
-                // TODO : Debug
-                logger.info("Message no. [{}], txnId={}, txnRecId={}, published in {}ms to SNS [{}] for subId [{}]. Status is {}.",
+                logger.debug("Message no. [{}], txnId={}, txnRecId={}, published in {}ms to SNS [{}] for subId [{}]. Status is {}.",
                         publishedRecCnt, crtTxnId, crtTxnRecId, timeTaken, snsTopic, subId, result.sdkHttpResponse().statusCode());
 
                 // Record last successfully published transaction Id's
