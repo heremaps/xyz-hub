@@ -93,11 +93,12 @@ public class SeqJobHandler implements Runnable {
             final Future f = connHandlingPool.submit(new SeqJobRequestHandler(adminDBConnParams, jobRequestMap.get(dbUrl)));
             fList.add(f);
         }
-        // Wait for thread completion
-        // TODO : Need to add a timeout to ensure one long thread doesn't hold up processing of others
+        // NOTE : We should not wait for completion of all threads, otherwise one buzy/long thread
+        // can hold up restart of the entire job (thereby delaying other sequencer jobs as well)
+        /*
         for (Future f : fList) {
             f.get();
-        }
+        }*/
     }
 
 }
