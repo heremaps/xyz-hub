@@ -3226,7 +3226,7 @@ BEGIN
 
 	IF min_tag_version >= 0 THEN
 		-- Tag has priority. Delete nothing below the minTagVersion!
-		calculated_min_version := least(min_tag_version - 1, calculated_min_version);
+		calculated_min_version := least(min_tag_version , calculated_min_version);
     END IF;
 
 	RAISE NOTICE 'PURGE - max_version:% min_available_version:% user_min_version:% calculated_min_version:%',
