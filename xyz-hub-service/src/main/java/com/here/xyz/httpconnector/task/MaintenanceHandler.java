@@ -163,6 +163,17 @@ public class MaintenanceHandler {
     }
   }
 
+  public static void purgeOldVersions(String connectorId, String ecps, String passphrase, String spaceId, Integer versionsToKeep, Long minTagVersion,
+                                     Handler<AsyncResult<XyzResponse>> handler) {
+
+    try {
+      CService.maintenanceClient.purgeOldVersions(connectorId, ecps, passphrase, spaceId, versionsToKeep, minTagVersion);
+      handler.handle(Future.succeededFuture(new SuccessResponse().withStatus("Ok")));
+    }catch (SQLException e){
+        checkException(e, handler, connectorId);
+    }
+  }
+
   public static void getMaintenanceStatusOfSpace(String connectorId, String ecps, String passphrase, String spaceId,
                                                  Handler<AsyncResult<XyzResponse>> handler) {
     try {

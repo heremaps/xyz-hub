@@ -18,6 +18,7 @@
  */
 package com.here.xyz.httpconnector.config;
 
+import static com.here.xyz.psql.DatabaseHandler.PARTITION_SIZE;
 import static com.here.xyz.psql.config.DatabaseSettings.PSQL_DB;
 import static com.here.xyz.psql.config.DatabaseSettings.PSQL_HOST;
 import static com.here.xyz.psql.config.DatabaseSettings.PSQL_PASSWORD;
@@ -286,6 +287,22 @@ public class MaintenanceClient {
             logger.info("{}: Start maintaining history '{}'..", connectorId, spaceId);
             executeQueryWithoutResults(q, source);
         }
+    }
+
+    public void purgeOldVersions(String connectorId, String ecps, String passphrase, String spaceId, Integer versionsToKeep, Long minTagVersion) throws SQLException,DecodeException {
+        MaintenanceInstance dbInstance = getClient(connectorId, ecps, passphrase);
+        DatabaseSettings dbSettings = dbInstance.getDbSettings();
+        DataSource source = dbInstance.getSource();
+
+        SQLQuery q =  new SQLQuery("SELECT xyz_advanced_delete_changesets(#{schema}, #{table}, #{partitionSize}, #{versionsToKeep}, #{minTagVersion}, #{pw})")
+            .withNamedParameter("schema",dbSettings.getSchema())
+            .withNamedParameter("table", spaceId)
+            .withNamedParameter("partitionSize", PARTITION_SIZE)
+            .withNamedParameter("versionsToKeep", versionsToKeep)
+            .withNamedParameter("minTagVersion", minTagVersion)
+            .withNamedParameter("pw", dbSettings.getPassword());
+
+        executeQueryWithoutResults(q.substitute(), source);
     }
 
     public synchronized MaintenanceInstance getClient(String connectorId, String ecps, String passphrase) throws DecodeException{

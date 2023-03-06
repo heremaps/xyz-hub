@@ -33,23 +33,8 @@ public final class IterateChangesetsEvent extends SearchForFeaturesEvent<Iterate
   @JsonInclude(JsonInclude.Include.NON_DEFAULT)
   private Long endVersion;
 
-  private Long minTagVersion;
-  private long minSpaceVersion;
   private int versionsToKeep;
   private boolean useCollection;
-
-  public Long getMinTagVersion() {
-    return minTagVersion;
-  }
-
-  public void setMinTagVersion(Long minTagVersion) {
-    this.minTagVersion = minTagVersion;
-  }
-
-  public IterateChangesetsEvent withMinTagVersion(Long minTag) {
-    setMinTagVersion(minTag);
-    return this;
-  }
 
   public Long getStartVersion() {
     return startVersion;
@@ -90,19 +75,6 @@ public final class IterateChangesetsEvent extends SearchForFeaturesEvent<Iterate
   @SuppressWarnings("unused")
   public IterateChangesetsEvent withPageToken(String pageToken) {
     setPageToken(pageToken);
-    return this;
-  }
-
-  public long getMinSpaceVersion() {
-    return minSpaceVersion;
-  }
-
-  public void setMinSpaceVersion(long minSpaceVersion) {
-    this.minSpaceVersion = minSpaceVersion;
-  }
-
-  public IterateChangesetsEvent withMinSpaceVersion(long minSpaceVersion) {
-    setMinSpaceVersion(minSpaceVersion);
     return this;
   }
 

@@ -244,7 +244,7 @@ public class ApiParam {
      * @param alt The alternative value for the optional query parameter
      * @return The parsed long value
      */
-    static Long getLong(RoutingContext context, String param, Long alt) {
+    public static Long getLong(RoutingContext context, String param, Long alt) {
       try {
         return Long.parseLong(getString(context, param, null));
       }
