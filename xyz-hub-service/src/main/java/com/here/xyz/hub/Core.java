@@ -125,7 +125,7 @@ public class Core {
     } else {
       final String userHome = System.getProperty("user.home");
       if (userHome != null) {
-        filePath = Paths.get(userHome, ".xyz-hub", filename).toAbsolutePath();
+        filePath = Paths.get(userHome, ".config", "xyz-hub", filename).toAbsolutePath();
       } else {
         filePath = null;
       }
@@ -226,7 +226,9 @@ public class Core {
     } else {
       final String userHome = System.getProperty("user.home");
       if (userHome != null) {
-        final File configFile = new File(userHome + File.separatorChar + ".xyz-hub" + File.separatorChar + configFilename);
+        final String test =
+            userHome + File.separatorChar + ".config" + File.separatorChar + "xyz-hub" + File.separatorChar + configFilename;
+        final File configFile = new File(test);
         if (configFile.exists() && configFile.isFile()) {
           configFilename = configFile.toPath().toAbsolutePath().toString();
           if (!configFile.canRead()) {
@@ -235,6 +237,7 @@ public class Core {
         }
       }
     }
+    logger.info("Config file location: {}", configFilename);
 
     Configurator.initialize("default", CONSOLE_LOG_CONFIG);
     final ConfigStoreOptions fileStore = new ConfigStoreOptions().setType("file").setConfig(new JsonObject().put("path", configFilename));
