@@ -17,10 +17,12 @@ import java.util.List;
 public class PubSubscriptionHandler implements Runnable{
     private static final Logger logger = LogManager.getLogger();
 
+    private PubConfig pubCfg;
     private JdbcConnectionParams adminDBConnParams;
     private Subscription sub;
 
-    public PubSubscriptionHandler(final JdbcConnectionParams adminDBConnParams, final Subscription sub) {
+    public PubSubscriptionHandler(final PubConfig pubCfg, final JdbcConnectionParams adminDBConnParams, final Subscription sub) {
+        this.pubCfg = pubCfg;
         this.adminDBConnParams = adminDBConnParams;
         this.sub = sub;
     }
@@ -69,7 +71,7 @@ public class PubSubscriptionHandler implements Runnable{
                         txnList.size(), subId, spaceId);
                 txnFound = true;
                 // Handover transactions to appropriate Publisher (e.g. DefaultSNSPublisher)
-                lastTxn = PubUtil.getPubInstance(sub).publishTransactions(sub, txnList, lastTxn.getLastTxnId(), lastTxn.getLastTxnRecId());
+                lastTxn = PubUtil.getPubInstance(sub).publishTransactions(pubCfg, sub, txnList, lastTxn.getLastTxnId(), lastTxn.getLastTxnRecId());
 
                 // Update last txn_id in AdminDB::xyz_config::xyz_txn_pub table
                 PubDatabaseHandler.saveLastTxnId(adminDBConnParams, subId, lastTxn);

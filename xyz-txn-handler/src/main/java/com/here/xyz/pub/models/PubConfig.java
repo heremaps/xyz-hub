@@ -19,6 +19,10 @@ public class PubConfig {
     public int TXN_PUB_TPOOL_CORE_SIZE;
     public int TXN_PUB_TPOOL_MAX_SIZE;
     public long TXN_PUB_TPOOL_KEEP_ALIVE_SEC;
+    // AWS connection
+    public String AWS_ACCESS_KEY_ID;
+    public String AWS_SECRET_ACCESS_KEY;
+    public String AWS_DEFAULT_REGION = "us-east-1";  // default region
 
     // Transaction Sequencer specific configuration
     public boolean ENABLE_TXN_SEQUENCER;
@@ -29,6 +33,5 @@ public class PubConfig {
     public int TXN_SEQ_TPOOL_MAX_SIZE;
     public long TXN_SEQ_TPOOL_KEEP_ALIVE_SEC;
 
-    // XYZ Config Schema
-    public static String XYZ_ADMIN_DB_CFG_SCHEMA = "xyz_config";
+    public static String XYZ_ADMIN_DB_CFG_SCHEMA = "xyz_config"; // default config schema
 }

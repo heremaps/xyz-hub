@@ -55,8 +55,12 @@
   "TXN_PUB_JOB_INITIAL_DELAY_MS": 15000,
   "TXN_PUB_JOB_SUBSEQUENT_DELAY_MS" : 2000,
   "TXN_PUB_TPOOL_CORE_SIZE" : 1,
-  "TXN_PUB_TPOOL_MAX_SIZE" : 10,
+  "TXN_PUB_TPOOL_MAX_SIZE" : 100,
   "TXN_PUB_TPOOL_KEEP_ALIVE_SEC" : 60,
+
+  "AWS_ACCESS_KEY_ID": "<<some-valid-value-for-publisher>>",
+  "AWS_SECRET_ACCESS_KEY": "<<some-valid-value-for-publisher>>",
+  "AWS_DEFAULT_REGION": "us-east-1",
 
   "ENABLE_TXN_SEQUENCER" : true,
   "TXN_SEQ_JOB_INITIAL_DELAY_MS": 15000,

@@ -1,6 +1,7 @@
 package com.here.xyz.pub.impl;
 
 import com.here.xyz.models.hub.Subscription;
+import com.here.xyz.pub.models.PubConfig;
 import com.here.xyz.pub.models.PubTransactionData;
 import com.here.xyz.pub.models.PublishEntryDTO;
 import com.here.xyz.pub.util.AwsUtil;
@@ -22,7 +23,8 @@ public class DefaultSNSPublisher implements IPublisher {
 
     // Convert and publish transactions to desired SNS Topic
     @Override
-    public PublishEntryDTO publishTransactions(final Subscription sub, final List<PubTransactionData> txnList,
+    public PublishEntryDTO publishTransactions(final PubConfig pubCfg, final Subscription sub,
+                                               final List<PubTransactionData> txnList,
                                                long lastStoredTxnId, long lastStoredTxnRecId) throws Exception {
         final String subId = sub.getId();
         final String spaceId = sub.getSource();
@@ -50,8 +52,9 @@ public class DefaultSNSPublisher implements IPublisher {
                 MessageUtil.addCustomFieldsToAttributeMap(msgAttrMap, sub, txnData.getJsonData());
 
                 // Publish message to SNS Topic
-                // TODO : Avoid hardcoded region and obtain it from configuration
-                final SnsAsyncClient snsClient = AwsUtil.getSnsAsyncClient("us-east-1");
+                // TODO : Support multi-region based on subscription configuration.
+                // We may require region specific publisher job for the respective subscriptions.
+                final SnsAsyncClient snsClient = AwsUtil.getSnsAsyncClient(pubCfg.AWS_DEFAULT_REGION);
                 final PublishRequest request = PublishRequest.builder()
                         .message(msg)
                         .messageAttributes(msgAttrMap)

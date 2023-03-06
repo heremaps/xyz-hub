@@ -57,6 +57,9 @@ public class XYZTransactionHandler {
         adminDBConnParams.setDbUrl(pubCfg.STORAGE_DB_URL);
         adminDBConnParams.setUser(pubCfg.STORAGE_DB_USER);
         adminDBConnParams.setPswd(pubCfg.STORAGE_DB_PASSWORD);
+        // Set AWS account access details
+        System.setProperty("aws.accessKeyId", pubCfg.AWS_ACCESS_KEY_ID);
+        System.setProperty("aws.secretAccessKey", pubCfg.AWS_SECRET_ACCESS_KEY);
     }
 
 

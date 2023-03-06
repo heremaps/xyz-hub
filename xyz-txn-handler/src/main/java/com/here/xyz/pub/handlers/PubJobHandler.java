@@ -42,7 +42,7 @@ public class PubJobHandler implements Runnable {
             logger.debug("{} active subscriptions to be processed.", subList.size());
 
             // Distribute subscriptions amongst thread pool to perform parallel publish (configurable poolSize e.g. 10 threads)
-            distributeSubscriptionProcessing(subList);
+            distributeSubscriptionProcessing(pubCfg, subList);
 
             logger.debug("All subscription processing completed");
         }
@@ -55,7 +55,7 @@ public class PubJobHandler implements Runnable {
 
 
     // Blocking function which distributes subscriptions to a thread pool and waits for all threads to complete
-    private void distributeSubscriptionProcessing(final List<Subscription> subList) throws InterruptedException, ExecutionException {
+    private void distributeSubscriptionProcessing(final PubConfig pubCfg, final List<Subscription> subList) throws InterruptedException, ExecutionException {
         // create thread pool (if doesn't exist already)
         if (subHandlingPool == null) {
             subHandlingPool = new ThreadPoolExecutor(pubCfg.TXN_PUB_TPOOL_CORE_SIZE,
@@ -69,7 +69,7 @@ public class PubJobHandler implements Runnable {
         final List<Future> fList = new ArrayList<Future>(subList.size());
         for (final Subscription sub : subList) {
             logger.debug("Subscription to be submitted to thread for subId : {}", sub.getId());
-            final Future f = subHandlingPool.submit(new PubSubscriptionHandler(adminDBConnParams, sub));
+            final Future f = subHandlingPool.submit(new PubSubscriptionHandler(pubCfg, adminDBConnParams, sub));
             fList.add(f);
         }
         // NOTE : We should not wait for completion of all threads, otherwise one buzy/long thread
