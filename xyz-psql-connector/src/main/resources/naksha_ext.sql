@@ -25,38 +25,6 @@ CREATE EXTENSION IF NOT EXISTS postgis_topology;
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 -- CREATE EXTENSION pldbgapi;
 
--- Notice:
--- When service starts, check all connectors and their schemas if they are up-to-date with ext-version
--- When a new connector is created/updated, synchronously check the database and schema and extension
---   - Should we reject connector create/update, if the database is not accessible or anything fails?
---   - I think we make it optionally like: ?failOrError=false
--- After a certain time period, e.g. every 4 hours, check connectors and especially ensure that history tables exist!
--- Clarify: What happens when the space is modified and the "tableName" is changed?
---    First solution: Do not allow tableName change after creation (review later!)
--- TODO: Add versioning!
--- TODO: Add function to create config-schema!
--- TODO: In long term, maintenance thread needs to clear history (drop too old tables!)
--- TODO: For each space, ask to TTL of history (per space!)
--- TODO: Add notifications for new transactions and then in the publisher ID updated, listen to them to avoid polling for new transactions
--- TODO: tomorrow:
---   Use Token API in Wikvaya Proxy!
---   Deploy new Wikvaya and new XYZ-Hub to E2E!
---   Create ADMIN Tokens
---   Fix that owner is set correctly in Token and used by XYZ-Hub
--- TODO: Change namespace from xyz-e2e ... to naksha-e2e ...
--- TODO: Fix space creation in XYZ-Hub to use the naksha extension
--- Ticket: https://confluence.in.here.com/pages/viewpage.action?pageId=1585083118
--- Modify transaction number in simply drawing from a sequence and cache the number in
--- a config variable
--- This will not be persisted when the transactions ends!
--- SELECT SET_CONFIG('naksha.txn', 'some value', true);
--- This is empty at every transaction!
--- SELECT current_setting('xyz_config.naksha_txn', true);
-
-
--- We use function to prevent typos when accessing the config schema.
--- Additionally we can change the config schema this way.
--- Note: There can be only one central config schema in every database.
 CREATE SCHEMA IF NOT EXISTS xyz_config;
 
 CREATE OR REPLACE FUNCTION xyz_config.naksha_config_db_id() RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
@@ -478,6 +446,8 @@ CREATE OR REPLACE FUNCTION xyz_config.naksha_space_before_trigger()
     LANGUAGE 'plpgsql' STABLE
 AS $BODY$
 DECLARE
+    author text;
+    app_id text;
     new_uuid uuid;
     txn uuid;
     ts_millis int8;
@@ -490,14 +460,18 @@ BEGIN
     txn := xyz_config.naksha_tx_current();
     i = nextval('"'||TG_TABLE_SCHEMA||'"."'||TG_TABLE_NAME||'_i_seq"');
     new_uuid := xyz_config.naksha_uuid_feature_number(i, current_timestamp);
+    app_id := xyz_config.naksha_tx_get_app_id();
 
     IF TG_OP = 'INSERT' THEN
+       author := xyz_config.naksha_tx_get_author();
        xyz := NEW.jsondata->'properties'->'@ns:com:here:xyz';
        IF xyz IS NULL THEN
          xyz := '{}'::jsonb;
        END IF;
        xyz := jsonb_set(xyz, '{"action"}', ('"CREATE"')::jsonb, true);
        xyz := jsonb_set(xyz, '{"version"}', '1'::jsonb, true);
+       xyz := jsonb_set(xyz, '{"author"}', format('%L',coalesce(author, 'null'))::jsonb, true);
+       xyz := jsonb_set(xyz, '{"appId"}', format('%L',coalesce(app_id, 'null'))::jsonb, true);
        xyz := jsonb_set(xyz, '{"puuid"}', ('null')::jsonb, true);
        xyz := jsonb_set(xyz, '{"uuid"}', ('"'||((new_uuid)::text)||'"')::jsonb, true);
        xyz := jsonb_set(xyz, '{"txn"}', ('"'||((txn)::text)||'"')::jsonb, true);
@@ -511,9 +485,12 @@ BEGIN
     END IF;
 
     IF TG_OP = 'UPDATE' THEN
+       author := xyz_config.naksha_tx_get_author(OLD);
        xyz := NEW.jsondata->'properties'->'@ns:com:here:xyz';
        xyz := jsonb_set(xyz, '{"action"}', ('"UPDATE"')::jsonb, true);
        xyz := jsonb_set(xyz, '{"version"}', (''||(xyz_config.naksha_json_version(OLD.jsondata)+1::int8))::jsonb, true);
+       xyz := jsonb_set(xyz, '{"author"}', format('%L',coalesce(author, 'null'))::jsonb, true);
+       xyz := jsonb_set(xyz, '{"appId"}', format('%L',coalesce(app_id, 'null'))::jsonb, true);
        xyz := jsonb_set(xyz, '{"puuid"}', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'uuid', true);
        xyz := jsonb_set(xyz, '{"uuid"}', ('"'||((new_uuid)::text)||'"')::jsonb, true);
        xyz := jsonb_set(xyz, '{"txn"}', ('"'||((txn)::text)||'"')::jsonb, true);
@@ -536,6 +513,8 @@ CREATE OR REPLACE FUNCTION xyz_config.naksha_space_after_trigger()
     LANGUAGE 'plpgsql' VOLATILE
 AS $BODY$
 DECLARE
+    author text;
+    app_id text;
     new_uuid uuid;
     txn uuid;
     ts_millis int8;
@@ -557,6 +536,8 @@ BEGIN
     txn := xyz_config.naksha_tx_current();
     i = nextval('"'||TG_TABLE_SCHEMA||'"."'||TG_TABLE_NAME||'_i_seq"');
     new_uuid := xyz_config.naksha_uuid_feature_number(i, current_timestamp);
+    author := xyz_config.naksha_tx_get_author(OLD);
+    app_id := xyz_config.naksha_tx_get_app_id();
 
     -- We do these updates, because in the "after-trigger" we only write into history.
     xyz := OLD.jsondata->'properties'->'@ns:com:here:xyz';
@@ -565,6 +546,8 @@ BEGIN
     END IF;
     xyz := jsonb_set(xyz, '{"action"}', ('"DELETE"')::jsonb, true);
     xyz := jsonb_set(xyz, '{"version"}', (''||(xyz_config.naksha_json_version(OLD.jsondata)+1::int8))::jsonb, true);
+    xyz := jsonb_set(xyz, '{"author"}', format('%L',coalesce(author, 'null'))::jsonb, true);
+    xyz := jsonb_set(xyz, '{"appId"}', format('%L',coalesce(app_id, 'null'))::jsonb, true);
     xyz := jsonb_set(xyz, '{"puuid"}', xyz->'uuid', true);
     xyz := jsonb_set(xyz, '{"uuid"}', ('"'||((new_uuid)::text)||'"')::jsonb, true);
     xyz := jsonb_set(xyz, '{"txn"}', ('"'||((txn)::text)||'"')::jsonb, true);
@@ -798,6 +781,103 @@ BEGIN
     EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I.%I', after_name, _schema, _table);
 END
 $BODY$;
+
+-- Return the application-id to be added into the XYZ namespace (transaction local variable).
+-- Returns NULL if no app_id is set.
+CREATE OR REPLACE FUNCTION xyz_config.naksha_tx_get_app_id()
+    RETURNS text
+    LANGUAGE 'plpgsql' STABLE
+AS $$
+DECLARE
+    value  text;
+BEGIN
+    value := coalesce(current_setting('naksha.appid', true), '');
+    IF value = '' THEN
+        RETURN NULL;
+    END IF;
+    RETURN value;
+END
+$$;
+
+-- Set the application-id to be added into the XYZ namespace, can be set to null.
+-- Returns the previously set value that was replaced or NULL, if no value was set.
+CREATE OR REPLACE FUNCTION xyz_config.naksha_tx_set_app_id(app_id text)
+    RETURNS text
+    LANGUAGE 'plpgsql' STABLE
+AS $$
+DECLARE
+    old text;
+    sql text;
+BEGIN
+    old := coalesce(current_setting('naksha.appid', true), '');
+    app_id := coalesce(app_id, '');
+    sql := format('SELECT SET_CONFIG(%L, %L::text, true)', 'naksha.appid', app_id, true);
+    EXECUTE sql;
+    IF old = '' THEN
+        RETURN NULL;
+    END IF;
+    RETURN old;
+END
+$$;
+
+-- Return the author to be added into the XYZ namespace (transaction local variable).
+-- Returns NULL if no author is set.
+CREATE OR REPLACE FUNCTION xyz_config.naksha_tx_get_author()
+    RETURNS text
+    LANGUAGE 'plpgsql' STABLE
+AS $$
+DECLARE
+    value  text;
+BEGIN
+    value := coalesce(current_setting('naksha.author', true), '');
+    IF value = '' THEN
+        RETURN NULL;
+    END IF;
+    RETURN value;
+END
+$$;
+
+-- Return the author to be added into the XYZ namespace (transaction local variable).
+-- This version only returns NULL, if neither the author is set nor an old author is in the given jsonb.
+CREATE OR REPLACE FUNCTION xyz_config.naksha_tx_get_author(old jsonb)
+    RETURNS text
+    LANGUAGE 'plpgsql' STABLE
+AS $$
+DECLARE
+    value  text;
+BEGIN
+    value := coalesce(current_setting('naksha.author', true), '');
+    IF value = '' THEN
+        IF old IS NOT NULL THEN
+            RETURN old->'properties'->'@ns:com:here:xyz'->>'author';
+        END IF;
+        RETURN NULL;
+    END IF;
+    RETURN value;
+END
+$$;
+
+
+-- Set the author to be added into the XYZ namespace, can be set to null.
+-- Returns the previously set value that was replaced or NULL, if no value was set.
+CREATE OR REPLACE FUNCTION xyz_config.naksha_tx_set_author(author text)
+    RETURNS text
+    LANGUAGE 'plpgsql' STABLE
+AS $$
+DECLARE
+    old text;
+    sql text;
+BEGIN
+    old := coalesce(current_setting('naksha.author', true), '');
+    author := coalesce(author, '');
+    sql := format('SELECT SET_CONFIG(%L, %L::text, true)', 'naksha.author', author, true);
+    EXECUTE sql;
+    IF old = '' THEN
+        RETURN NULL;
+    END IF;
+    RETURN old;
+END
+$$;
 
 -- Return the unique transaction number for the current transaction. If no transaction number is
 -- yet acquired, it acquire a new one.
