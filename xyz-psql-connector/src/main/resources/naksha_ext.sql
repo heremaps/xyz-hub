@@ -628,6 +628,7 @@ $BODY$;
 
 -- Ensures that the given schema and table exist as storage location for a space, including the
 -- needed history tables and partitions.
+-- This method does NOT enable the history, this has to be done as an own action.
 CREATE OR REPLACE FUNCTION xyz_config.naksha_space_ensure_with_history(_schema text, _table text)
     RETURNS void
     LANGUAGE 'plpgsql' VOLATILE
@@ -649,7 +650,6 @@ BEGIN
     PERFORM xyz_config.naksha_space_ensure_with_history__partitionForDay(_schema, _table, ts);
     PERFORM xyz_config.naksha_space_ensure_with_history__partitionForDay(_schema, _table, ts + '1 day'::interval);
     PERFORM xyz_config.naksha_space_ensure_with_history__partitionForDay(_schema, _table, ts + '2 day'::interval);
-    PERFORM xyz_config.naksha_space_enable_history(_schema, _table);
 END
 $BODY$;
 
@@ -838,7 +838,8 @@ END
 $$;
 
 -- Return the author to be added into the XYZ namespace (transaction local variable).
--- This version only returns NULL, if neither the author is set nor an old author is in the given jsonb.
+-- This version only returns NULL, if neither the author is set, nor an old author is in the given
+-- jsonb nor an application identifier is set (which must never happen).
 CREATE OR REPLACE FUNCTION xyz_config.naksha_tx_get_author(old jsonb)
     RETURNS text
     LANGUAGE 'plpgsql' STABLE
@@ -849,9 +850,12 @@ BEGIN
     value := coalesce(current_setting('naksha.author', true), '');
     IF value = '' THEN
         IF old IS NOT NULL THEN
-            RETURN old->'properties'->'@ns:com:here:xyz'->>'author';
+            value := old->'properties'->'@ns:com:here:xyz'->>'author';
         END IF;
-        RETURN NULL;
+        IF value IS NULL THEN
+            value := xyz_config.naksha_tx_get_app_id();
+        END IF;
+        RETURN value;
     END IF;
     RETURN value;
 END
