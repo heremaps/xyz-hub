@@ -45,11 +45,13 @@ public class GetChangesetStatistics extends XyzQueryRunner<GetChangesetStatistic
   @Override
   protected SQLQuery buildQuery(GetChangesetStatisticsEvent event) {
     SQLQuery query =new SQLQuery(
-            "SELECT max(version) as max" +
-                    "   from  ${schema}.${table} ");
+            "SELECT (SELECT max(version) FROM ${schema}.${table}) as max," +
+                    " (SELECT meta->'minAvailableVersion' " +
+                    " FROM xyz_config.space_meta WHERE h_id=#{table}) as min;");
 
     query.setVariable(SCHEMA, getSchema());
     query.setVariable(TABLE, getDefaultTable(event));
+    query.setNamedParameter(TABLE, getDefaultTable(event));
 
     return query;
   }
@@ -58,19 +60,15 @@ public class GetChangesetStatistics extends XyzQueryRunner<GetChangesetStatistic
   public ChangesetsStatisticsResponse handle(ResultSet rs) throws SQLException {
     ChangesetsStatisticsResponse csr = new ChangesetsStatisticsResponse();
     if(rs.next()){
-      String mV = rs.getString("max");
-      long maxVersion = (mV == null ? -1 : Long.parseLong(mV));
+      String maxV = rs.getString("max");
+      String minV = rs.getString("min");
+      long maxVersion = (maxV == null ? -1 : Long.parseLong(maxV));
+      long minVersion = (minV == null ? 0 : Long.parseLong(minV));
+
       csr.setMaxVersion(maxVersion);
-      csr.setMinVersion(mV == null ? -1 : calculateMinVersion(maxVersion));
+      csr.setMinVersion(maxVersion == -1 ? -1 : minVersion);
+      csr.setTagMinVersion(minTagVersion);
     }
     return csr;
-  }
-
-  private long calculateMinVersion(long maxVersion){
-    if(minTagVersion != null){
-      /** versionsToKeep doesn't matter. minSpaceVersion is always smaller than minTagVersion */
-      return minSpaceVersion;
-    }
-    return Math.max(minSpaceVersion, maxVersion-versionsToKeep);
   }
 }

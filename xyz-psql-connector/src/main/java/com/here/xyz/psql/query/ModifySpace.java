@@ -50,7 +50,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, XyzResponse> {
     public static final String IDX_STATUS_TABLE = "xyz_idxs_status";
 
     public static final String IDX_STATUS_TABLE_FQN = XYZ_CONFIG_SCHEMA + "." + IDX_STATUS_TABLE;
-    private static final String SPACE_META_TABLE = "xyz_config.space_meta";
+    public static final String SPACE_META_TABLE = "xyz_config.space_meta";
     public ModifySpace(ModifySpaceEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
         super(event, dbHandler);
         setUseReadReplica(false);

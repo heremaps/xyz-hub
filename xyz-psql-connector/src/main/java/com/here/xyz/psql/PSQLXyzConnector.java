@@ -22,6 +22,7 @@ package com.here.xyz.psql;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
+import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.DeleteChangesetsEvent;
@@ -367,7 +368,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processDeleteChangesetsEvent(DeleteChangesetsEvent event) throws Exception {
     try {
       logger.info("{} Received " + event.getClass().getSimpleName(), traceItem);
-      return new DeleteChangesets(event, this).run();
+      int write = new DeleteChangesets(event, this).write();
+      if(write == 0)
+        throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Version < '"+event.getRequestedMinVersion()+"' is already deleted!");
+      return new SuccessResponse();
     }
     catch (SQLException e) {
       return checkSQLException(e, config.readTableFromEvent(event));
