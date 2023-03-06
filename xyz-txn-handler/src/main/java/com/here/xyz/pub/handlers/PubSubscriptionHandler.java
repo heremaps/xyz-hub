@@ -55,6 +55,10 @@ public class PubSubscriptionHandler implements Runnable{
             // Fetch SpaceDB Connection details from AdminDB::xyz_config::xyz_space and xyz_storage tables
             // if no entry found, then log error and return
             JdbcConnectionParams spaceDBConnParams = PubDatabaseHandler.fetchDBConnParamsForSpaceId(spaceId, adminDBConnParams);
+            if (spaceDBConnParams==null) {
+                logger.error("Can't process subscription [{}] for spaceId [{}], as SpaceDB details couldn't be found", subId, spaceId);
+                return;
+            }
             logger.debug("Subscription Id [{}], spaceId [{}], to be processed against database {} with user {}",
                     subId, spaceId, spaceDBConnParams.getDbUrl(), spaceDBConnParams.getUser());
 
