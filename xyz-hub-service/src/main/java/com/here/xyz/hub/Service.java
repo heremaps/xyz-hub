@@ -148,7 +148,7 @@ public class Service extends Core {
   private static String hostname;
   public static final boolean IS_USING_ZGC = isUsingZgc();
 
-  private static final List<MetricPublisher> metricPublishers = new LinkedList<>();
+  private static final List<MetricPublisher<?>> metricPublishers = new LinkedList<>();
 
   private static Router globalRouter;
 
