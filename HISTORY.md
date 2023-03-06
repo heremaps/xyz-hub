@@ -43,6 +43,8 @@ or updating an existing feature in the **head** table. This namespace now looks 
 
 - **action**: The operation has been performed being `CREATE`, `UPDATE`, `DELETE` or `PURGE`.
 - **version**: The version of the features, a sequentially consistent numbering.
+- **author**: The author of the feature; if any.
+- **app_id**: The application-id of the application that created the feature state; if any.
 - **puuid**: The UUID of the previous state, `null` if `CREATE`.
 - **uuid**: The unique state identifier, stored as UUID (must not be `null`).
 - **txn**: The transaction number, being as well a UUID (must not be `null`).
@@ -60,6 +62,15 @@ long running transaction.
 
 We do not support searching for the real-time, it is informative only. The reason is the
 partitioning by the **updatedAt** time.
+
+The application identifier and optionally the author must be set by the client for any transaction 
+as first actions via: 
+- `SELECT xyz_config.naksha_tx_set_app_id('{userMapHubId}');`
+- `SELECT xyz_config.naksha_tx_set_author('{userMapHubId}');`
+
+Note that only the author can set to `null` (or not set), the application identifier **must not** 
+be `null`. If the author is `null`, then the current author stays the author for updates or deletes 
+and for new objects, the application gains authorship.
 
 ## UUIDs
 
@@ -172,8 +183,12 @@ CREATE TABLE IF NOT EXISTS xyz_config.transactions
 ## Create history
 
 To manage the history we will add a “before” trigger, and an “after” trigger to all spaces. The
-“before” trigger will ensure that the XYZ namespace is filled correctly while the “after” trigger
-is optional and will write the transaction.
+“before” trigger will ensure that the XYZ namespace filled correctly while the “after” trigger
+is optional and will write the transaction into the history and transaction table.
+
+The history can be enabled and disabled for every space using the following methods:
+- `xyz_config.naksha_space_disable_history(_schema, _table)`
+- `xyz_config.naksha_space_enable_history(_schema, _table)`
 
 ## Transaction Fix Job
 
