@@ -279,7 +279,7 @@
           </elementProp>
           <elementProp name="XYZ_HOST_URL" elementType="Argument">
             <stringProp name="Argument.name">XYZ_HOST_URL</stringProp>
-            <stringProp name="Argument.value">xyz-e2e.ext.mapcreator.here.com</stringProp>
+            <stringProp name="Argument.value">naksha-e2e.ext.mapcreator.here.com</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
             <stringProp name="Argument.desc">xyz-e2e-kotori.ext.mapcreator.here.com,xyz-e2e-kasa.ext.mapcreator.here.com</stringProp>
           </elementProp>
@@ -295,18 +295,18 @@
           </elementProp>
           <elementProp name="SPACE_ID" elementType="Argument">
             <stringProp name="Argument.name">SPACE_ID</stringProp>
-            <stringProp name="Argument.value">39ZVK252</stringProp>
+            <stringProp name="Argument.value">utm-dev:maptask</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
             <stringProp name="Argument.desc">39ZVK252</stringProp>
           </elementProp>
           <elementProp name="WR_API_KEY" elementType="Argument">
             <stringProp name="Argument.name">WR_API_KEY</stringProp>
-            <stringProp name="Argument.value">write</stringProp>
+            <stringProp name="Argument.value">AKeEo5K-ltLzrN8hoDmVFlc</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
           <elementProp name="RD_API_KEY" elementType="Argument">
             <stringProp name="Argument.name">RD_API_KEY</stringProp>
-            <stringProp name="Argument.value">read</stringProp>
+            <stringProp name="Argument.value">AKUG5kC6peRn01oB66dy2C8</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
           <elementProp name="CONN_API_KEY" elementType="Argument">
@@ -317,7 +317,7 @@
           </elementProp>
           <elementProp name="SPACE_API_KEY" elementType="Argument">
             <stringProp name="Argument.name">SPACE_API_KEY</stringProp>
-            <stringProp name="Argument.value">manage</stringProp>
+            <stringProp name="Argument.value">APQtnzlw1OdsOmfW_sbDoIM</stringProp>
             <stringProp name="Argument.desc">Manage Space API Key</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
@@ -5620,7 +5620,7 @@ else {
           <stringProp name="HTTPSampler.port"></stringProp>
           <stringProp name="HTTPSampler.protocol"></stringProp>
           <stringProp name="HTTPSampler.contentEncoding"></stringProp>
-          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/spaces/39ZVK252?access_token=${SPACE_API_KEY}</stringProp>
+          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/spaces/utm_dummy_space_3?access_token=admin</stringProp>
           <stringProp name="HTTPSampler.method">DELETE</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
