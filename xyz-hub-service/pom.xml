@@ -33,7 +33,7 @@
       <comments>SPDX-License-Identifier: Apache-2.0</comments>
       <distribution>repo</distribution>
       <name>Apache License, Version 2.0</name>
-      <url>http://www.apache.org/licenses/LICENSE-2.0</url>
+      <url>https://www.apache.org/licenses/LICENSE-2.0</url>
     </license>
   </licenses>
 
@@ -167,13 +167,16 @@
   </profiles>
 
   <dependencies>
+    <dependency>
+      <groupId>org.jetbrains</groupId>
+      <artifactId>annotations</artifactId>
+    </dependency>
 
     <!-- XYZ libraries -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>xyz-models</artifactId>
     </dependency>
-    <!-- Embedded xyz lambdas -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>xyz-psql-connector</artifactId>

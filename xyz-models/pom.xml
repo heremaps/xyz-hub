@@ -24,7 +24,6 @@
   <parent>
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
-    <relativePath>../</relativePath>
     <version>1.26.8-SNAPSHOT</version>
   </parent>
 
@@ -33,7 +32,7 @@
       <comments>SPDX-License-Identifier: Apache-2.0</comments>
       <distribution>repo</distribution>
       <name>Apache License, Version 2.0</name>
-      <url>http://www.apache.org/licenses/LICENSE-2.0</url>
+      <url>https://www.apache.org/licenses/LICENSE-2.0</url>
     </license>
   </licenses>
 
@@ -71,6 +70,10 @@
     <dependency>
       <groupId>com.google.flatbuffers</groupId>
       <artifactId>flatbuffers-java</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.jetbrains</groupId>
+      <artifactId>annotations</artifactId>
     </dependency>
   </dependencies>
 </project>

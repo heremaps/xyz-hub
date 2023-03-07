@@ -30,7 +30,7 @@
       <comments>SPDX-License-Identifier: Apache-2.0</comments>
       <distribution>repo</distribution>
       <name>Apache License, Version 2.0</name>
-      <url>http://www.apache.org/licenses/LICENSE-2.0</url>
+      <url>https://www.apache.org/licenses/LICENSE-2.0</url>
     </license>
   </licenses>
 
@@ -63,10 +63,12 @@
   <distributionManagement>
     <snapshotRepository>
       <id>snapshot</id>
+      <!--suppress UnresolvedMavenProperty -->
       <url>${distributionManagemment.snapshotRepository.url}</url>
     </snapshotRepository>
     <repository>
       <id>release</id>
+      <!--suppress UnresolvedMavenProperty -->
       <url>${distributionManagemment.repository.url}</url>
     </repository>
   </distributionManagement>
@@ -89,11 +91,11 @@
     <maven.compiler.target>1.8</maven.compiler.target>
 
     <!-- Dependencies versions -->
-    <aws-sdk-version>1.12.128</aws-sdk-version>
-    <vertx-version>4.1.7</vertx-version>
+    <aws-sdk-version>1.12.420</aws-sdk-version>
+    <vertx-version>4.4.0</vertx-version>
     <geo-tools-version>19.1</geo-tools-version>
     <jts-version>1.14.0</jts-version>
-    <jackson-version>2.13.4</jackson-version>
+    <jackson-version>2.14.2</jackson-version>
     <lambda-core-version>1.2.1</lambda-core-version>
     <log4j-version>2.17.1</log4j-version>
     <aws-log4j-version>1.5.1</aws-log4j-version>
@@ -197,6 +199,11 @@
 
   <dependencyManagement>
     <dependencies>
+      <dependency>
+        <groupId>org.jetbrains</groupId>
+        <artifactId>annotations</artifactId>
+        <version>23.0.0</version>
+      </dependency>
 
       <!-- Modules versions -->
       <dependency>
@@ -451,6 +458,11 @@
       </dependency>
 
       <!-- Logging -->
+      <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-api</artifactId>
+        <version>2.0.6</version>
+      </dependency>
       <dependency>
         <groupId>org.apache.logging.log4j</groupId>
         <artifactId>log4j-slf4j-impl</artifactId>
