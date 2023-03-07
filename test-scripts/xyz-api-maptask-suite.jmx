@@ -87,17 +87,17 @@
           </elementProp>
           <elementProp name="DUMMY_SPACE_ID_1" elementType="Argument">
             <stringProp name="Argument.name">DUMMY_SPACE_ID_1</stringProp>
-            <stringProp name="Argument.value">utm_dummy_space_1</stringProp>
+            <stringProp name="Argument.value">utm-dev:dummy_space_1</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
           <elementProp name="DUMMY_SPACE_ID_2" elementType="Argument">
             <stringProp name="Argument.name">DUMMY_SPACE_ID_2</stringProp>
-            <stringProp name="Argument.value">utm_dummy_space_2</stringProp>
+            <stringProp name="Argument.value">utm-dev:dummy_space_2</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
           <elementProp name="DUMMY_SPACE_ID_3" elementType="Argument">
             <stringProp name="Argument.name">DUMMY_SPACE_ID_3</stringProp>
-            <stringProp name="Argument.value">utm_dummy_space_3</stringProp>
+            <stringProp name="Argument.value">utm-dev:dummy_space_3</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
           <elementProp name="DUMMY_CONNECTOR" elementType="Argument">
