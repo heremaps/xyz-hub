@@ -19,7 +19,7 @@
     },
     "loggers": {
       "root": {
-        "level": "debug",
+        "level": "info",
         "AppenderRef": {
           "ref": "STDOUT"
         }
