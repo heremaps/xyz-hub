@@ -344,6 +344,12 @@
       <version>2.0.0</version>
     </dependency>
 
+    <!-- Jackson -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.dataformat</groupId>
+      <artifactId>jackson-dataformat-yaml</artifactId>
+    </dependency>
+
     <!-- Test -->
     <dependency>
       <artifactId>junit</artifactId>

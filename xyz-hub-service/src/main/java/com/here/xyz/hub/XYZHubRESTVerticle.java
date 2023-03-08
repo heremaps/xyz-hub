@@ -48,6 +48,7 @@ import io.vertx.ext.auth.jwt.JWTAuthOptions;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.AuthenticationHandler;
+import io.vertx.ext.web.handler.CorsHandler;
 import io.vertx.ext.web.handler.StaticHandler;
 import io.vertx.ext.web.openapi.RouterBuilder;
 import io.vertx.ext.web.openapi.RouterBuilderOptions;
@@ -148,7 +149,11 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
             res.end();
           }));
 
+          // https://github.com/vert-x3/vertx-web/issues/2182
+          System.setProperty("io.vertx.web.router.setup.lenient", "true");
+
           //Static resources
+          final CorsHandler corsHandler = createCorsHandler();
           router.route("/hub/static/*")
               .handler(
                   new DelegatingHandler<>(StaticHandler.create().setIndexPage("index.html"), context -> context.addHeadersEndHandler(v -> {
@@ -161,7 +166,7 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
                       }
                     }
                   }), null))
-              .handler(createCorsHandler());
+              .handler(corsHandler);
           if (Service.configuration.FS_WEB_ROOT != null) {
             logger.debug("Serving extra web-root folder in file-system with location: {}", Service.configuration.FS_WEB_ROOT);
             //noinspection ResultOfMethodCallIgnored
