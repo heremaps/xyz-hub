@@ -311,7 +311,7 @@
           </elementProp>
           <elementProp name="CONN_API_KEY" elementType="Argument">
             <stringProp name="Argument.name">CONN_API_KEY</stringProp>
-            <stringProp name="Argument.value">write</stringProp>
+            <stringProp name="Argument.value">upm.6A2srka5acvQQFrz</stringProp>
             <stringProp name="Argument.desc">Manage Connector API Key</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
@@ -464,8 +464,7 @@ var requestStr = {
       &quot;text&quot;: &quot;A road has been CREATED&quot;
     }],
     &quot;status&quot;: &quot;OPEN&quot;
-  },
-  &quot;momType&quot;: &quot;Road&quot;
+  }
 };
 
 
@@ -963,8 +962,7 @@ var requestObj = {
       &quot;text&quot;: &quot;A road has been CREATED&quot;
     }],
     &quot;status&quot;: &quot;OPEN&quot;
-  },
-  &quot;momType&quot;: &quot;Road&quot;
+  }
 };
 
 
@@ -1350,7 +1348,6 @@ var expectedResObj = {
   &quot;type&quot;: &quot;FeatureCollection&quot;,
   &quot;features&quot;: [{
     &quot;type&quot;: &quot;Feature&quot;,
-    &quot;momType&quot;: &quot;Road&quot;,
     &quot;properties&quot;: {
       &quot;due&quot;: 0,
       &quot;status&quot;: &quot;OPEN&quot;,
@@ -1411,7 +1408,6 @@ var expectedResObj = {
     }
   }, {
     &quot;type&quot;: &quot;Feature&quot;,
-    &quot;momType&quot;: &quot;Road&quot;,
     &quot;properties&quot;: {
       &quot;due&quot;: 0,
       &quot;status&quot;: &quot;OPEN&quot;,
@@ -1593,7 +1589,6 @@ var expectedResObj = {
   &quot;type&quot;: &quot;FeatureCollection&quot;,
   &quot;features&quot;: [{
     &quot;type&quot;: &quot;Feature&quot;,
-    &quot;momType&quot;: &quot;Road&quot;,
     &quot;properties&quot;: {
       &quot;due&quot;: 0,
       &quot;status&quot;: &quot;OPEN&quot;,
@@ -1654,7 +1649,6 @@ var expectedResObj = {
     }
   }, {
     &quot;type&quot;: &quot;Feature&quot;,
-    &quot;momType&quot;: &quot;Road&quot;,
     &quot;properties&quot;: {
       &quot;due&quot;: 0,
       &quot;status&quot;: &quot;OPEN&quot;,
@@ -1972,8 +1966,7 @@ var requestObj = {
       &quot;text&quot;: &quot;A road has been CREATED&quot;
     }],
     &quot;status&quot;: &quot;OPEN&quot;
-  },
-  &quot;momType&quot;: &quot;Road&quot;
+  }
 };
 
 // Save task before adding new tag
@@ -2428,8 +2421,7 @@ var requestStr = {
       &quot;text&quot;: &quot;A road has been CREATED&quot;
     }],
     &quot;status&quot;: &quot;OPEN&quot;
-  },
-  &quot;momType&quot;: &quot;Road&quot;
+  }
 };
 
 
@@ -2583,7 +2575,6 @@ prev.setSuccessful(false);
 var expectedResObj = {
   &quot;id&quot;: &quot;${TASK_ID_P04_01}&quot;,
   &quot;type&quot;: &quot;Feature&quot;,
-  &quot;momType&quot;: &quot;Road&quot;,
   &quot;properties&quot;: {
     &quot;due&quot;: 0,
     &quot;status&quot;: &quot;OPEN&quot;,
@@ -2805,7 +2796,6 @@ else {
       }],&#xd;
       &quot;status&quot;: &quot;OPEN&quot;&#xd;
     },&#xd;
-    &quot;momType&quot;: &quot;Road&quot;,&#xd;
     &quot;geometry&quot;: {&#xd;
       &quot;type&quot;: &quot;Point&quot;,&#xd;
       &quot;coordinates&quot;: [&#xd;
@@ -2907,6 +2897,115 @@ else {
           </ResponseAssertion>
           <hashTree/>
         </hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Pos5.4 - GET Connector with Read Key (failure)" enabled="true">
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
+          <stringProp name="HTTPSampler.domain"></stringProp>
+          <stringProp name="HTTPSampler.port"></stringProp>
+          <stringProp name="HTTPSampler.protocol"></stringProp>
+          <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/connectors?access_token=${RD_API_KEY}</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+          <stringProp name="HTTPSampler.connect_timeout"></stringProp>
+          <stringProp name="HTTPSampler.response_timeout"></stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Code" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="51511">403</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">true</boolProp>
+            <intProp name="Assertion.test_type">8</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Body" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="-857009810">&quot;type&quot;:&quot;ErrorResponse&quot;,&quot;error&quot;:&quot;Exception&quot;,&quot;errorMessage&quot;:&quot;Insufficient rights. Token access</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">2</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+        </hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Pos5.5 - Create Connector with Read Key (failure)" enabled="true">
+          <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">{&#xd;
+  &quot;id&quot;: &quot;${DUMMY_CONNECTOR}&quot;,&#xd;
+  &quot;owner&quot;: &quot;ANONYMOUS&quot;,&#xd;
+  &quot;active&quot;: true,&#xd;
+  &quot;params&quot;: {&#xd;
+    &quot;ecps&quot;: &quot;3ZAzLlvfz8KV5NMAifpyUC5C/GtUdE+fm3XIdoS4AV+AYD1SvQS/b+A1tWhABe0O0hfDoFZGxuCqS85z6rf8GBYazv1Gu2FmKO9vhWzwGAc/53LTRVmS5Mv+/JSKJq6D8RqSe8Rt5GTFaLYmMuNj7JSEp9Mxib1C5efdVkvQIPcPdIXO9RwkPVsnQVZxMJ6qqgCxXyVsJEG8pmQ4p7V1ezosAWSVcSNED10hSpkoblqHsTGAnunaMgH/I8Vcqq6Pb1CUNK/CHvLmKw/d2D8py7j64U1LOuTGMHijdVui4zDrEXYiBp+W4w==&quot;,&#xd;
+    &quot;connectorId&quot;: &quot;${DUMMY_CONNECTOR}&quot;&#xd;
+  },&#xd;
+  &quot;contactEmails&quot;: [&#xd;
+    &quot;hiren.patel@here.com&quot;&#xd;
+  ],&#xd;
+  &quot;remoteFunctions&quot;: {&#xd;
+    &quot;local&quot;: {&#xd;
+      &quot;id&quot;: &quot;xyz-psql-local&quot;,&#xd;
+      &quot;env&quot;: {&#xd;
+        &quot;ECPS_PHRASE&quot;: &quot;utm!pa55phr4s3&quot;&#xd;
+      },&#xd;
+      &quot;type&quot;: &quot;Embedded&quot;,&#xd;
+      &quot;className&quot;: &quot;com.here.xyz.psql.PSQLXyzConnector&quot;,&#xd;
+      &quot;timeoutMs&quot;: 0&#xd;
+    }&#xd;
+  }&#xd;
+}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
+          <stringProp name="HTTPSampler.domain"></stringProp>
+          <stringProp name="HTTPSampler.port"></stringProp>
+          <stringProp name="HTTPSampler.protocol"></stringProp>
+          <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/connectors?access_token=${RD_API_KEY}</stringProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+          <stringProp name="HTTPSampler.connect_timeout"></stringProp>
+          <stringProp name="HTTPSampler.response_timeout"></stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Code" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="51511">403</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">true</boolProp>
+            <intProp name="Assertion.test_type">8</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Body" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="-857009810">&quot;type&quot;:&quot;ErrorResponse&quot;,&quot;error&quot;:&quot;Exception&quot;,&quot;errorMessage&quot;:&quot;Insufficient rights. Token access</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">2</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+        </hashTree>
       </hashTree>
       <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Pos6 - Write Access Control (wikvaya)" enabled="false">
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
@@ -2946,6 +3045,115 @@ else {
           <stringProp name="HTTPSampler.protocol"></stringProp>
           <stringProp name="HTTPSampler.contentEncoding"></stringProp>
           <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/spaces?access_token=${WR_API_KEY}</stringProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+          <stringProp name="HTTPSampler.connect_timeout"></stringProp>
+          <stringProp name="HTTPSampler.response_timeout"></stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Code" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="51511">403</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">true</boolProp>
+            <intProp name="Assertion.test_type">8</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Body" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="-857009810">&quot;type&quot;:&quot;ErrorResponse&quot;,&quot;error&quot;:&quot;Exception&quot;,&quot;errorMessage&quot;:&quot;Insufficient rights. Token access</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">2</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+        </hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Pos6.2 - GET Connector with Write Key (failure)" enabled="true">
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
+          <stringProp name="HTTPSampler.domain"></stringProp>
+          <stringProp name="HTTPSampler.port"></stringProp>
+          <stringProp name="HTTPSampler.protocol"></stringProp>
+          <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/connectors?access_token=${WR_API_KEY}</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+          <stringProp name="HTTPSampler.connect_timeout"></stringProp>
+          <stringProp name="HTTPSampler.response_timeout"></stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Code" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="51511">403</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">true</boolProp>
+            <intProp name="Assertion.test_type">8</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Body" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="-857009810">&quot;type&quot;:&quot;ErrorResponse&quot;,&quot;error&quot;:&quot;Exception&quot;,&quot;errorMessage&quot;:&quot;Insufficient rights. Token access</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">2</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+        </hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Pos6.3 - Create Connector with Write Key (failure)" enabled="true">
+          <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">{&#xd;
+  &quot;id&quot;: &quot;${DUMMY_CONNECTOR}&quot;,&#xd;
+  &quot;owner&quot;: &quot;ANONYMOUS&quot;,&#xd;
+  &quot;active&quot;: true,&#xd;
+  &quot;params&quot;: {&#xd;
+    &quot;ecps&quot;: &quot;3ZAzLlvfz8KV5NMAifpyUC5C/GtUdE+fm3XIdoS4AV+AYD1SvQS/b+A1tWhABe0O0hfDoFZGxuCqS85z6rf8GBYazv1Gu2FmKO9vhWzwGAc/53LTRVmS5Mv+/JSKJq6D8RqSe8Rt5GTFaLYmMuNj7JSEp9Mxib1C5efdVkvQIPcPdIXO9RwkPVsnQVZxMJ6qqgCxXyVsJEG8pmQ4p7V1ezosAWSVcSNED10hSpkoblqHsTGAnunaMgH/I8Vcqq6Pb1CUNK/CHvLmKw/d2D8py7j64U1LOuTGMHijdVui4zDrEXYiBp+W4w==&quot;,&#xd;
+    &quot;connectorId&quot;: &quot;${DUMMY_CONNECTOR}&quot;&#xd;
+  },&#xd;
+  &quot;contactEmails&quot;: [&#xd;
+    &quot;hiren.patel@here.com&quot;&#xd;
+  ],&#xd;
+  &quot;remoteFunctions&quot;: {&#xd;
+    &quot;local&quot;: {&#xd;
+      &quot;id&quot;: &quot;xyz-psql-local&quot;,&#xd;
+      &quot;env&quot;: {&#xd;
+        &quot;ECPS_PHRASE&quot;: &quot;utm!pa55phr4s3&quot;&#xd;
+      },&#xd;
+      &quot;type&quot;: &quot;Embedded&quot;,&#xd;
+      &quot;className&quot;: &quot;com.here.xyz.psql.PSQLXyzConnector&quot;,&#xd;
+      &quot;timeoutMs&quot;: 0&#xd;
+    }&#xd;
+  }&#xd;
+}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
+          <stringProp name="HTTPSampler.domain"></stringProp>
+          <stringProp name="HTTPSampler.port"></stringProp>
+          <stringProp name="HTTPSampler.protocol"></stringProp>
+          <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/connectors?access_token=${WR_API_KEY}</stringProp>
           <stringProp name="HTTPSampler.method">POST</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
@@ -3081,8 +3289,7 @@ var requestStr = {
       &quot;text&quot;: &quot;A road has been CREATED&quot;
     }],
     &quot;status&quot;: &quot;OPEN&quot;
-  },
-  &quot;momType&quot;: &quot;Road&quot;
+  }
 };
 
 
@@ -3467,7 +3674,7 @@ else {
           <hashTree/>
         </hashTree>
       </hashTree>
-      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Pos8 - Connector Operations (local)" enabled="true">
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Pos8 - Connector Operations (wikvaya)" enabled="false">
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
@@ -4085,8 +4292,7 @@ var requestObj = {
       &quot;text&quot;: &quot;A road has been CREATED&quot;
     }],
     &quot;status&quot;: &quot;OPEN&quot;
-  },
-  &quot;momType&quot;: &quot;Road&quot;
+  }
 };
 
 
@@ -4697,7 +4903,6 @@ else {
       }],&#xd;
       &quot;status&quot;: &quot;OPEN&quot;&#xd;
     },&#xd;
-    &quot;momType&quot;: &quot;Road&quot;,&#xd;
     &quot;geometry&quot;: {&#xd;
       &quot;type&quot;: &quot;Point&quot;,&#xd;
       &quot;coordinates&quot;: [&#xd;
@@ -4832,8 +5037,7 @@ var requestObj = {
       &quot;text&quot;: &quot;A road has been CREATED&quot;
     }],
     &quot;status&quot;: &quot;OPEN&quot;
-  },
-  &quot;momType&quot;: &quot;Road&quot;
+  }
 };
 
 
@@ -5184,8 +5388,7 @@ var requestObj = {
       &quot;text&quot;: &quot;A road has been CREATED&quot;
     }],
     &quot;status&quot;: &quot;OPEN&quot;
-  },
-  &quot;momType&quot;: &quot;Road&quot;
+  }
 };
 
 

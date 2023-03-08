@@ -32,6 +32,7 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.json.DecodeException;
+import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
@@ -221,7 +222,9 @@ public class ConnectorApi extends Api {
       final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
       List<CompletableFuture<Void>> futureList = connectorIds == null ? Collections.emptyList()
           : connectorIds.stream().map(connectorId -> checkConnector(context, requestRights, connectorId)).collect(Collectors.toList());
-
+      if (connectorIds==null || connectorIds.isEmpty()) {
+        requestRights.manageConnectors(new XyzHubAttributeMap()); // "manageConnectors" access required for <all> connectors
+      }
       CompletableFuture.allOf(futureList.toArray(new CompletableFuture[0]))
           .thenRun(() -> {
             try {
