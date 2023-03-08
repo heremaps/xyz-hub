@@ -27,7 +27,7 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
-import com.here.xyz.psql.query.helpers.versioning.GetHeadVersion;
+import com.here.xyz.psql.query.helpers.versioning.GetMinAvailableVersion;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;
@@ -61,17 +61,10 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
 
   @Override
   public XyzResponse run() throws SQLException, ErrorResponseException {
-    long headVersion = new GetHeadVersion<>(event, dbHandler).run();
-    long minVersion;
+    long min = new GetMinAvailableVersion<>(event, dbHandler).run();
 
-    if(event.getMinTagVersion() == null) {
-      minVersion= Math.max(event.getMinSpaceVersion(), headVersion - event.getVersionsToKeep());
-    }else{
-      minVersion = event.getMinSpaceVersion();
-    }
-
-    if (start < minVersion)
-      throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Min Version = " + minVersion);
+    if (start < min)
+      throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Min Version=" + min);
 
     return super.run();
   }

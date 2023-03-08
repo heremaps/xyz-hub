@@ -158,6 +158,38 @@ paths:
           description : OK
         '400':
           $ref: '#/components/responses/ErrorResponse400'
+  '/psql/maintain/space/{spaceId}/purge':
+    post:
+      tags:
+        - Purge Versions
+      summary: Purge old versions of a space
+      description: Delete outdated versions
+      operationId: postPurgeVersions
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/ConnectorId'
+        - $ref: '#/components/parameters/ECPS'
+        - $ref: '#/components/parameters/EnableHashedSpaceId'
+        - $ref: '#/components/parameters/Passphrase'
+        - name: versionsToKeep
+          in: query
+          description: >-
+            maxVersionsToKeep
+          required: true
+          schema:
+            type: integer
+        - name: minTagVersion
+          in: query
+          description: >-
+            minTagVersion
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description : OK
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
   '/psql/maintain/space/{spaceId}/history':
     post:
       tags:

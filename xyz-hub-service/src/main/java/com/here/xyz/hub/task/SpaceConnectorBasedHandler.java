@@ -70,23 +70,24 @@ public class SpaceConnectorBasedHandler {
       Promise<Space> p = Promise.promise();
 
       if (e instanceof GetChangesetStatisticsEvent || e instanceof DeleteChangesetsEvent || e instanceof IterateChangesetsEvent) {
-          getMinTag(marker, space.getId())
-                  .onSuccess(minTag -> {
-                      if (e instanceof DeleteChangesetsEvent)
-                          ((DeleteChangesetsEvent) e).setMinTagVersion(minTag);
-                      else if(e instanceof GetChangesetStatisticsEvent) {
-                          ((GetChangesetStatisticsEvent) e).setVersionsToKeep(space.getVersionsToKeep());
-                          ((GetChangesetStatisticsEvent) e).setMinSpaceVersion(space.getMinVersion());
-                          ((GetChangesetStatisticsEvent) e).setMinTagVersion(minTag);
-                      }else  if (e instanceof IterateChangesetsEvent) {
-                          ((IterateChangesetsEvent) e).setVersionsToKeep(space.getVersionsToKeep());
-                          ((IterateChangesetsEvent) e).setMinSpaceVersion(space.getMinVersion());
-                          ((IterateChangesetsEvent) e).setMinTagVersion(minTag);
-                      }
-                      p.complete(space);
-                  }).onFailure(
-                      t -> p.fail(new HttpException(BAD_GATEWAY, "Unexpected problem!"))
-                  );
+          if(e instanceof DeleteChangesetsEvent || e instanceof  GetChangesetStatisticsEvent) {
+              getMinTag(marker, space.getId())
+                      .onSuccess(minTag -> {
+                          if (e instanceof DeleteChangesetsEvent)
+                              ((DeleteChangesetsEvent) e).setMinTagVersion(minTag);
+                          else if (e instanceof GetChangesetStatisticsEvent) {
+                              ((GetChangesetStatisticsEvent) e).setVersionsToKeep(space.getVersionsToKeep());
+                              ((GetChangesetStatisticsEvent) e).setMinSpaceVersion(space.getMinVersion());
+                              ((GetChangesetStatisticsEvent) e).setMinTagVersion(minTag);
+                          }
+                          p.complete(space);
+                      }).onFailure(
+                              t -> p.fail(new HttpException(BAD_GATEWAY, "Unexpected problem!"))
+                      );
+          }else{
+              ((IterateChangesetsEvent) e).setVersionsToKeep(space.getVersionsToKeep());
+              p.complete(space);
+          }
       }else
           p.complete(space);
       return p.future();

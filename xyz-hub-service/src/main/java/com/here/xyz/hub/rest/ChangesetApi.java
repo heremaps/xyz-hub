@@ -165,7 +165,7 @@ public class ChangesetApi extends SpaceBasedApi {
               space -> ChangesetAuthorization.authorize(context, space).map(space),
               new DeleteChangesetsEvent()
                   .withSpace(spaceId)
-                  .withMinVersion(minVersion))
+                  .withRequestedMinVersion(minVersion))
           .onSuccess(result -> {
             this.sendResponse(context, HttpResponseStatus.NO_CONTENT, null);
             Marker marker = Api.Context.getMarker(context);

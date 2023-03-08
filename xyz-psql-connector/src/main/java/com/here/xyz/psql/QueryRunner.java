@@ -50,8 +50,8 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
     return dbHandler.executeQueryWithRetry(prepareQuery(), this, useReadReplica);
   }
 
-  public void write() throws SQLException, ErrorResponseException {
-    dbHandler.executeUpdateWithRetry(prepareQuery());
+  public int write() throws SQLException, ErrorResponseException {
+    return dbHandler.executeUpdateWithRetry(prepareQuery());
   }
 
   private SQLQuery prepareQuery() {

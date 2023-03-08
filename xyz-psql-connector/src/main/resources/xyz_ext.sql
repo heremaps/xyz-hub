@@ -110,7 +110,7 @@ DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 159
+ select 160
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -1665,30 +1665,6 @@ $BODY$
 			INSERT INTO xyz_config.xyz_idxs_status (spaceid,count) VALUES ('idx_in_progress','0');
 		END IF;
 
-		FOR xyz_spaces IN
-			SELECT spaceid
-				FROM xyz_config.xyz_idxs_status C
-					LEFT JOIN pg_class A ON (A.relname = C.spaceid)
-					LEFT JOIN pg_tables D ON (D.tablename = C.spaceid)
-				WHERE (
-						D.tablename is null
-						AND C.spaceid != 'idx_in_progress'
-						AND C.count IS NOT NULL
-					)
-				    OR (
-						(COALESCE(reltuples,0) < min_table_count OR C.count IS NULL)
-						AND (idx_manual IS NULL OR idx_manual = '{}')
-                        AND auto_indexing IS NULL
-						AND C.spaceid != 'idx_in_progress'
-                    )OR (
-                        substring(C.spaceid,length(C.spaceid)-3) = '_hst'
-                    )
-		LOOP
-			RAISE NOTICE 'Remove deleted space %',xyz_spaces.spaceid;
-			DELETE FROM xyz_config.xyz_idxs_status
-				WHERE spaceid = xyz_spaces.spaceid;
-		END LOOP;
-
 		xyz_spaces := NULL;
 
 		FOR xyz_spaces IN
@@ -3213,6 +3189,64 @@ BEGIN
 
     -- Purge the remainder in the new oldest partition
     EXECUTE 'DELETE FROM "' || schema || '"."' || tableName || '" WHERE next_version <= ' || minVersion;
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_advanced_delete_changesets(
+	schema text,
+	tablename text,
+	partitionsize bigint,
+	versions_to_keep bigint,
+	min_tag_version bigint,
+	pw text)
+RETURNS void AS
+$BODY$
+DECLARE
+    statistic RECORD;
+	calculated_min_version BIGINT;
+BEGIN
+    execute format('select '
+                   || 'meta->''minAvailableVersion'' as min_available_version, '
+                   || '(meta->''userMinVersion'')::BIGINT as user_min_version, '
+                   || '(select max(version) from "%1$s"."%2$s") as max_version, '
+                   || '%3$L::bigint as versions_to_keep '
+                   || 'from xyz_config.space_meta '
+                   || 'where '
+                   || 'h_id=%2$L', schema, tablename, versions_to_keep )
+    INTO statistic;
+
+    IF statistic IS NULL THEN
+		-- Table not found in space_meta table - abort!
+		RETURN;
+    END IF;
+
+	calculated_min_version := greatest(statistic.user_min_version, statistic.max_version - statistic.versions_to_keep + 1);
+
+	IF min_tag_version >= 0 THEN
+		-- Tag has priority. Delete nothing below the minTagVersion!
+		calculated_min_version := least(min_tag_version , calculated_min_version);
+    END IF;
+
+	RAISE NOTICE 'PURGE - max_version:% min_available_version:% user_min_version:% calculated_min_version:%',
+		statistic.max_version, statistic.min_available_version, statistic.user_min_version, calculated_min_version;
+
+	IF calculated_min_version < 0 THEN
+		RAISE NOTICE 'calculated_min_version is negative - ignore!';
+		RETURN;
+    END IF;
+
+	IF statistic.min_available_version::BIGINT >= calculated_min_version THEN
+		RAISE NOTICE 'PURGE - Requested versions are already deleted!';
+		RETURN;
+    END IF;
+
+	PERFORM asyncify('SELECT xyz_delete_changesets(''' || schema || ''', ''' || tableName || ''', ' ||  partitionSize || ', ' || calculated_min_version || ')', pw);
+
+    update xyz_config.space_meta
+        set meta = meta || jsonb_build_object('minAvailableVersion', calculated_min_version)
+    where h_id = tablename;
 END
 $BODY$
 LANGUAGE plpgsql VOLATILE;
