@@ -54,9 +54,9 @@ public class XYZTransactionHandler {
         // Read AdminDB connection params
         adminDBConnParams = new JdbcConnectionParams();
         adminDBConnParams.setSpaceId("XYZ_ADMIN_DB");
-        adminDBConnParams.setDbUrl(pubCfg.STORAGE_DB_URL);
-        adminDBConnParams.setUser(pubCfg.STORAGE_DB_USER);
-        adminDBConnParams.setPswd(pubCfg.STORAGE_DB_PASSWORD);
+        adminDBConnParams.setDbUrl(pubCfg.STORAGE_DB_URL());
+        adminDBConnParams.setUser(pubCfg.STORAGE_DB_USER());
+        adminDBConnParams.setPswd(pubCfg.STORAGE_DB_PASSWORD());
         // Set AWS account access details
         if (pubCfg.AWS_ACCESS_KEY_ID != null && pubCfg.AWS_SECRET_ACCESS_KEY != null) {
             System.setProperty("aws.accessKeyId", pubCfg.AWS_ACCESS_KEY_ID);

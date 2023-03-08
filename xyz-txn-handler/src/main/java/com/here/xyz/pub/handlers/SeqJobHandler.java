@@ -33,7 +33,7 @@ public class SeqJobHandler implements Runnable {
         logger.debug("Starting sequencer job...");
         try {
             // Fetch Connector details for all SpaceDBs (i.e. excluding XYZ's own AdminDB)
-            List<ConnectorDTO> connectorList = PubDatabaseHandler.fetchConnectorsAndSpaces(adminDBConnParams, pubCfg.DEFAULT_STORAGE_ID);
+            List<ConnectorDTO> connectorList = PubDatabaseHandler.fetchConnectorsAndSpaces(adminDBConnParams, pubCfg.DEFAULT_STORAGE_ID());
             if (connectorList == null || connectorList.isEmpty()) {
                 logger.debug("No connectors to be processed.");
                 return;
