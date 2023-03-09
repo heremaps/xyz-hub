@@ -80,7 +80,7 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
   private SQLQuery generateCombinedQuery(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery) {
     final SQLQuery query = new SQLQuery(
         "SELECT ${{selection}}, ${{geo}}"
-            + "    FROM ${schema}.${table} ${{tableSample}}"
+            + "    FROM ${schema}.${table_head} ${{tableSample}}"
             + "    WHERE ${{filterWhereClause}} ${{orderBy}} ${{limit}}"
     );
 
@@ -462,7 +462,7 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
 
      query.append(DhString.format(",%s as geo",tweaksgeo));
 
-     query.append( DhString.format("FROM ${schema}.${table} %s WHERE",tSample) );
+     query.append( DhString.format("FROM ${schema}.${table_head} %s WHERE",tSample) );
      query.append(indexedQuery);
 
      if( searchQuery != null )
