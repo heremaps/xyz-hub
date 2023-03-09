@@ -5,7 +5,7 @@
       <stringProp name="TestPlan.comments"></stringProp>
       <boolProp name="TestPlan.functional_mode">false</boolProp>
       <boolProp name="TestPlan.tearDown_on_shutdown">true</boolProp>
-      <boolProp name="TestPlan.serialize_threadgroups">true</boolProp>
+      <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
       <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
         <collectionProp name="Arguments.arguments"/>
       </elementProp>
@@ -108,6 +108,11 @@
           <elementProp name="DEF_CONNECTOR_ID" elementType="Argument">
             <stringProp name="Argument.name">DEF_CONNECTOR_ID</stringProp>
             <stringProp name="Argument.value">psql</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="LOOP_COUNT" elementType="Argument">
+            <stringProp name="Argument.name">LOOP_COUNT</stringProp>
+            <stringProp name="Argument.value">1</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
         </collectionProp>
@@ -241,7 +246,7 @@
           </elementProp>
           <elementProp name="SPACE_ID" elementType="Argument">
             <stringProp name="Argument.name">SPACE_ID</stringProp>
-            <stringProp name="Argument.value">naksha_test</stringProp>
+            <stringProp name="Argument.value">local:space_1</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
             <stringProp name="Argument.desc">39ZVK252</stringProp>
           </elementProp>
@@ -385,7 +390,7 @@
         <stringProp name="ThreadGroup.on_sample_error">stoptestnow</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -873,7 +878,7 @@ else {
         <stringProp name="ThreadGroup.on_sample_error">stopthread</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -1486,6 +1491,8 @@ actualResObj.features.forEach(function(feature) {
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].rtcts;
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].rtuts;
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].action;
+	delete feature.properties[&quot;@ns:com:here:xyz&quot;].appId;
+	delete feature.properties[&quot;@ns:com:here:xyz&quot;].author;
 });
 
 // Remove unwanted fields from EXPECTED object, before actual v/s expected comparison
@@ -1727,6 +1734,8 @@ actualResObj.features.forEach(function(feature) {
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].rtcts;
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].rtuts;
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].action;
+	delete feature.properties[&quot;@ns:com:here:xyz&quot;].appId;
+	delete feature.properties[&quot;@ns:com:here:xyz&quot;].author;
 });
 
 // Remove unwanted fields from EXPECTED object, before actual v/s expected comparison
@@ -1887,7 +1896,7 @@ else {
         <stringProp name="ThreadGroup.on_sample_error">stopthread</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -2342,7 +2351,7 @@ else {
         <stringProp name="ThreadGroup.on_sample_error">stopthread</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -2657,6 +2666,8 @@ delete feature.properties[&quot;@ns:com:here:xyz&quot;].txn;
 delete feature.properties[&quot;@ns:com:here:xyz&quot;].rtcts;
 delete feature.properties[&quot;@ns:com:here:xyz&quot;].rtuts;
 delete feature.properties[&quot;@ns:com:here:xyz&quot;].action;
+delete feature.properties[&quot;@ns:com:here:xyz&quot;].appId;
+delete feature.properties[&quot;@ns:com:here:xyz&quot;].author;
 
 // Compare actual v/s expected
 var modifiedActualResString = JSON.stringify(feature);
@@ -2721,7 +2732,7 @@ else {
         <stringProp name="ThreadGroup.on_sample_error">stopthread</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -3011,7 +3022,7 @@ else {
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -3190,7 +3201,7 @@ else {
         <stringProp name="ThreadGroup.on_sample_error">stopthread</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -3678,7 +3689,7 @@ else {
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -3957,7 +3968,7 @@ else {
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -4158,7 +4169,7 @@ else {
         <stringProp name="ThreadGroup.on_sample_error">stopthread</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -4213,7 +4224,7 @@ else {
         <stringProp name="ThreadGroup.on_sample_error">stopthread</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -4828,7 +4839,7 @@ else {
         <stringProp name="ThreadGroup.on_sample_error">stopthread</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -4958,7 +4969,7 @@ else {
         <stringProp name="ThreadGroup.on_sample_error">stopthread</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -5657,6 +5668,46 @@ else {
           </ResponseAssertion>
           <hashTree/>
         </hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Neg4.12 - Delete Task" enabled="true">
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
+          <stringProp name="HTTPSampler.domain"></stringProp>
+          <stringProp name="HTTPSampler.port"></stringProp>
+          <stringProp name="HTTPSampler.protocol"></stringProp>
+          <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/spaces/${SPACE_ID}/features/${TASK_ID_N04_01}?access_token=${WR_API_KEY}</stringProp>
+          <stringProp name="HTTPSampler.method">DELETE</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+          <stringProp name="HTTPSampler.connect_timeout"></stringProp>
+          <stringProp name="HTTPSampler.response_timeout"></stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Code" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="49590">204</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">8</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Body" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="1468">.*</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">5</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+        </hashTree>
       </hashTree>
       <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Space Connector Operations (manual)" enabled="false">
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
@@ -5679,11 +5730,11 @@ else {
               <elementProp name="" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
                 <stringProp name="Argument.value">{&#xd;
-  &quot;id&quot;: &quot;psql-task-mgmt&quot;,&#xd;
+  &quot;id&quot;: &quot;psql-local&quot;,&#xd;
   &quot;owner&quot;: &quot;ANONYMOUS&quot;,&#xd;
   &quot;active&quot;: true,&#xd;
   &quot;params&quot;: {&#xd;
-    &quot;ecps&quot;: &quot;ZXS9ucMODwI+EJe7u0Mlj6GqI1NOjh7lOd83f8PES4ajhk2Bd06lqNpeHzSzSKRmNjDaVGoge/RsnBkDDy1mjgMKIts7BN3mmC1tVusScjASPUA1ytMTSm7JwF6PAGnrcQ1/DraP2duXeTt0fNc4DGwxKrnFPe9JKc05syOQuLxTj1ieqEQ9jPpOjznUAnkw5s4Z/DClAreqmHeFIaJLN03iVK/zZjisd6C78fvsSI8DF7pwZBzwqloQw29SJfrtCLrT2nswz92Z54Oz+lN9dieLIl3WkRcVCmRp8PAVb/rtPeCnTBgrbTXXmGVv1L4=&quot;,&#xd;
+    &quot;ecps&quot;: &quot;AzDrbETtkM3BanpPPMr1qYi156NbWJfb5D6u0DMh+ZuOuubgQTl9vxmKE1gmu4dD/fG7pIsu2rh5MOfZg9Slx4r5TMskOMWCWCeo42v1dmAPze8kEBbyQ88v5i6tgaz3dvRTJwlFIgT+1t0Ppe8nvPN9QFJkcQx0JY8B4RJ+zRsRHy/PeUP0gz310MjvVPKnzb9BnrxUXgH9+ppkedtTINF45eo=&quot;,&#xd;
     &quot;connectorId&quot;: &quot;psql-task-mgmt&quot;&#xd;
   },&#xd;
   &quot;contactEmails&quot;: [&#xd;
@@ -5693,7 +5744,7 @@ else {
     &quot;local&quot;: {&#xd;
       &quot;id&quot;: &quot;xyz-psql-local&quot;,&#xd;
       &quot;env&quot;: {&#xd;
-        &quot;ECPS_PHRASE&quot;: &quot;Z4qvr+cA2-vMmJeR&quot;&#xd;
+        &quot;ECPS_PHRASE&quot;: &quot;local&quot;&#xd;
       },&#xd;
       &quot;type&quot;: &quot;Embedded&quot;,&#xd;
       &quot;className&quot;: &quot;com.here.xyz.psql.PSQLXyzConnector&quot;,&#xd;
@@ -5767,11 +5818,11 @@ else {
               <elementProp name="" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
                 <stringProp name="Argument.value">{&#xd;
-	&quot;id&quot;: &quot;utm-dev:campaign&quot;,&#xd;
-	&quot;title&quot;: &quot;UTM Campaign - Dev&quot;,&#xd;
-	&quot;description&quot;: &quot;UTM Campaign space for Dev environment&quot;,&#xd;
+	&quot;id&quot;: &quot;local:space_1&quot;,&#xd;
+	&quot;title&quot;: &quot;Test Space - Local&quot;,&#xd;
+	&quot;description&quot;: &quot;Test space for Local environment&quot;,&#xd;
 	&quot;storage&quot;: {&#xd;
-		&quot;id&quot;: &quot;psql-task-mgmt&quot;&#xd;
+		&quot;id&quot;: &quot;psql-local&quot;&#xd;
 	},&#xd;
 	&quot;enableUUID&quot;: true&#xd;
 }</stringProp>
