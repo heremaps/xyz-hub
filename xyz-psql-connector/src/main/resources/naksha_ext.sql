@@ -470,8 +470,8 @@ BEGIN
        END IF;
        xyz := jsonb_set(xyz, '{"action"}', ('"CREATE"')::jsonb, true);
        xyz := jsonb_set(xyz, '{"version"}', '1'::jsonb, true);
-       xyz := jsonb_set(xyz, '{"author"}', format('%L',coalesce(author, 'null'))::jsonb, true);
-       xyz := jsonb_set(xyz, '{"appId"}', format('%L',coalesce(app_id, 'null'))::jsonb, true);
+       xyz := jsonb_set(xyz, '{"author"}', coalesce(author, 'null')::jsonb, true);
+       xyz := jsonb_set(xyz, '{"appId"}', coalesce(app_id, 'null')::jsonb, true);
        xyz := jsonb_set(xyz, '{"puuid"}', ('null')::jsonb, true);
        xyz := jsonb_set(xyz, '{"uuid"}', ('"'||((new_uuid)::text)||'"')::jsonb, true);
        xyz := jsonb_set(xyz, '{"txn"}', ('"'||((txn)::text)||'"')::jsonb, true);
@@ -485,12 +485,12 @@ BEGIN
     END IF;
 
     IF TG_OP = 'UPDATE' THEN
-       author := xyz_config.naksha_tx_get_author(OLD);
+       author := xyz_config.naksha_tx_get_author(OLD.jsondata);
        xyz := NEW.jsondata->'properties'->'@ns:com:here:xyz';
        xyz := jsonb_set(xyz, '{"action"}', ('"UPDATE"')::jsonb, true);
        xyz := jsonb_set(xyz, '{"version"}', (''||(xyz_config.naksha_json_version(OLD.jsondata)+1::int8))::jsonb, true);
-       xyz := jsonb_set(xyz, '{"author"}', format('%L',coalesce(author, 'null'))::jsonb, true);
-       xyz := jsonb_set(xyz, '{"appId"}', format('%L',coalesce(app_id, 'null'))::jsonb, true);
+       xyz := jsonb_set(xyz, '{"author"}', coalesce(author, 'null')::jsonb, true);
+       xyz := jsonb_set(xyz, '{"appId"}', coalesce(app_id, 'null')::jsonb, true);
        xyz := jsonb_set(xyz, '{"puuid"}', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'uuid', true);
        xyz := jsonb_set(xyz, '{"uuid"}', ('"'||((new_uuid)::text)||'"')::jsonb, true);
        xyz := jsonb_set(xyz, '{"txn"}', ('"'||((txn)::text)||'"')::jsonb, true);
@@ -536,7 +536,7 @@ BEGIN
     txn := xyz_config.naksha_tx_current();
     i = nextval('"'||TG_TABLE_SCHEMA||'"."'||TG_TABLE_NAME||'_i_seq"');
     new_uuid := xyz_config.naksha_uuid_feature_number(i, current_timestamp);
-    author := xyz_config.naksha_tx_get_author(OLD);
+    author := xyz_config.naksha_tx_get_author(OLD.jsondata);
     app_id := xyz_config.naksha_tx_get_app_id();
 
     -- We do these updates, because in the "after-trigger" we only write into history.
@@ -546,8 +546,8 @@ BEGIN
     END IF;
     xyz := jsonb_set(xyz, '{"action"}', ('"DELETE"')::jsonb, true);
     xyz := jsonb_set(xyz, '{"version"}', (''||(xyz_config.naksha_json_version(OLD.jsondata)+1::int8))::jsonb, true);
-    xyz := jsonb_set(xyz, '{"author"}', format('%L',coalesce(author, 'null'))::jsonb, true);
-    xyz := jsonb_set(xyz, '{"appId"}', format('%L',coalesce(app_id, 'null'))::jsonb, true);
+    xyz := jsonb_set(xyz, '{"author"}', coalesce(author, 'null')::jsonb, true);
+    xyz := jsonb_set(xyz, '{"appId"}', coalesce(app_id, 'null')::jsonb, true);
     xyz := jsonb_set(xyz, '{"puuid"}', xyz->'uuid', true);
     xyz := jsonb_set(xyz, '{"uuid"}', ('"'||((new_uuid)::text)||'"')::jsonb, true);
     xyz := jsonb_set(xyz, '{"txn"}', ('"'||((txn)::text)||'"')::jsonb, true);
