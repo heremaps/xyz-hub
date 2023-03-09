@@ -279,6 +279,7 @@ public class MaintenanceSQL {
             "( " +
             "  subscription_id text NOT NULL, " +
             "  last_txn_id int8 NOT NULL, " +
+            "  last_txn_rec_id int8 NOT NULL, " +
             "  updated_at TIMESTAMPTZ NOT NULL DEFAULT now() " +
             "); " +
             "CREATE UNIQUE INDEX IF NOT EXISTS \"idx_xyz_txn_pub_id\" ON "+XYZ_CONFIG_SCHEMA+"."+XYZ_CONFIG_TXN_PUB_TABLE+" USING btree (subscription_id); ";
