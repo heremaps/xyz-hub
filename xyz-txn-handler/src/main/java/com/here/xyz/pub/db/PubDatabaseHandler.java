@@ -176,7 +176,7 @@ public class PubDatabaseHandler {
                 final String dbUrl = "jdbc:postgresql://"+jsonMap.get("PSQL_HOST")+":"+jsonMap.get("PSQL_PORT")+"/"+jsonMap.get("PSQL_DB");
                 spaceDBConnParams.setDbUrl(dbUrl);
                 spaceDBConnParams.setUser(jsonMap.get("PSQL_USER").toString());
-                spaceDBConnParams.setPswd(jsonMap.get("PSQL_PASSWORD").toString());
+                spaceDBConnParams.setPswd(jsonMap.get("PSQL_PASSWORD")==null ? "" : jsonMap.get("PSQL_PASSWORD").toString());
                 spaceDBConnParams.setSchema(jsonMap.get("PSQL_SCHEMA").toString());
                 spaceDBConnParams.setTableName(tableName);
             }
@@ -283,7 +283,7 @@ public class PubDatabaseHandler {
                 dto.setId(rs.getString("connectorId"));
                 dto.setDbUrl(dbUrl);
                 dto.setUser(jsonMap.get("PSQL_USER").toString());
-                dto.setPswd(jsonMap.get("PSQL_PASSWORD").toString());
+                dto.setPswd(jsonMap.get("PSQL_PASSWORD")==null ? "" : jsonMap.get("PSQL_PASSWORD").toString());
                 dto.setSchema(jsonMap.get("PSQL_SCHEMA").toString());
                 final String spaceIds[] = (String[])rs.getArray("spaceIds").getArray();
                 dto.setSpaceIds(Arrays.asList(spaceIds));
