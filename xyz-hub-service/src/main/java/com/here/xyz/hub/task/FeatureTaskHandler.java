@@ -949,6 +949,7 @@ public class FeatureTaskHandler {
   }
 
   static <X extends FeatureTask> void throttle(final X task, final Callback<X> callback) {
+    /*
     Connector storage = task.storage;
     final long GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE = (long) Service.configuration.GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE_MB * 1024 * 1024;
     float usedMemoryPercent = Service.getUsedMemoryPercent() / 100f;
@@ -982,6 +983,7 @@ public class FeatureTaskHandler {
       callback.exception(e);
       return;
     }
+    */
     callback.call(task);
   }
 

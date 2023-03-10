@@ -45,12 +45,9 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
-import com.here.xyz.models.txn.TransactionLog;
-import com.here.xyz.models.txn.TransactionData;
 import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.config.DatabaseSettings;
 import com.here.xyz.psql.config.PSQLConfig;
-import com.here.xyz.psql.factory.MaintenanceSQL;
 import com.here.xyz.psql.query.ExtendedSpace;
 import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.helpers.FetchExistingIds;
@@ -563,10 +560,10 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         try {
           /** Include Old states */
-          if (includeOldStates || transactional) {
+          if (includeOldStates) {
             String[] idsToFetch = getAllIds(inserts, updates, upserts, deletes).stream().filter(Objects::nonNull).toArray(String[]::new);
             oldFeatures = fetchOldStates(idsToFetch);
-            if (oldFeatures != null && includeOldStates) {
+            if (oldFeatures != null) {
               collection.setOldFeatures(oldFeatures);
             }
           }
@@ -613,12 +610,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                     DatabaseWriter.updateFeatures(this, schema, table, traceItem, collection, fails, updates, connection, transactional, handleUUID, version, forExtendingSpace);
                 }
 
-                // Write Transaction Log into separate tables (xyz_txn, xyz_txn_data)
                 if (transactional) {
-                    final TransactionLog txnLog = prepareTransactionDetails(inserts, updates, deletes, oldFeatures, table);
-                    //DatabaseWriter.insertTransactionDetails(this, schema, traceItem, txnLog, connection);
-                    DatabaseWriter.insertTransactionDetails(this, MaintenanceSQL.XYZ_OPS_SCHEMA, traceItem, txnLog, connection);
-
                     /** Commit SQLS in one transaction */
                     connection.commit();
                 }
@@ -735,70 +727,6 @@ public abstract class DatabaseHandler extends StorageConnector {
 
             return collection;
         }
-    }
-
-    private TransactionLog prepareTransactionDetails(final List<Feature> inserts, final List<Feature> updates,
-                                                     final Map<String, String> deletes, final List<Feature> oldFeatures, final String spaceId) {
-        final List<String> uuidList = new ArrayList<>();
-        final List<TransactionData> txnDataList = new ArrayList<>();
-
-        // Add inserts to transaction list
-        if (inserts.size() > 0) {
-            for (final Feature f : inserts) {
-                populateTransactionDataFromFeature(f, "SAVE", uuidList, txnDataList);
-            }
-        }
-
-        // Add updates to transaction list
-        if (updates.size() > 0) {
-            for (final Feature f : updates) {
-                populateTransactionDataFromFeature(f, "UPDATE", uuidList, txnDataList);
-            }
-        }
-
-        // Add deletes to transaction list
-        if (deletes.size() > 0) {
-            final Set<String> idsToDelete = deletes.keySet();
-            // for each deleted ID
-            for (final String id : idsToDelete) {
-                boolean found = false;
-                // Find entry from oldFeatures which was deleted
-                if (oldFeatures != null) {
-                    for (final Feature f : oldFeatures) {
-                        if (id.equals(f.getId())) {
-                            populateTransactionDataFromFeature(f, "DELETE", uuidList, txnDataList);
-                            found = true;
-                            break;
-                        }
-                    }
-                }
-                // Put defaults if oldFeature entry not found
-                if (!found) {
-                    populateTransactionDataFromFeature(null, "DELETE", uuidList, txnDataList);
-                }
-            }
-        }
-
-        // prepare and return Transaction object
-        final TransactionLog txnLog = new TransactionLog();
-        txnLog.setSpace_id(spaceId);
-        txnLog.setUuids(uuidList);
-        txnLog.setTxnDataList(txnDataList);
-        return txnLog;
-    }
-
-    private void populateTransactionDataFromFeature(final Feature f, final String operation,
-                        final List<String> uuidList, final List<TransactionData> txnDataList) {
-        final String uuid_suffix = operation.equals("DELETE") ? "_deleted" : "";
-        final String uuid = (f == null) ? UUID.randomUUID().toString() : f.getProperties().getXyzNamespace().getUuid();
-        final String jsondata = (f == null) ? null : f.serialize();
-        final TransactionData txnData = TransactionData
-                .build()
-                .withUuid(uuid + uuid_suffix)
-                .withOperation(operation)
-                .withJsondata(jsondata);
-        uuidList.add(txnData.getUuid());
-        txnDataList.add(txnData);
     }
 
     private List<String> getAllIds(List<Feature> inserts, List<Feature> updates, List<Feature> upserts, Map<String, ?> deletes) {

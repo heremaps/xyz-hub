@@ -2,11 +2,12 @@
 
 This document describes the new feature of implementing a real-time logical replicable history. The
 history allows to review every state a feature in a space had in the past and to rewind back to any
-previous state. It supports layer views (which effectively is branching) and tagging.
+previous state. It supports snapshots (including database wide snapshots), tagging, branching and
+views.
 
 ## Table layout
 
-To enable versioning we modify the table layout, currently space tables created like:
+The table layout is 100% compatible with what previously existed in XYZ-Hub:
 
 ```sql
 CREATE TABLE IF NOT EXISTS ${schema}.${table}
@@ -17,119 +18,131 @@ CREATE TABLE IF NOT EXISTS ${schema}.${table}
 );
 ```
 
-This is optionally appended by `deleted BOOLEAN DEFAULT FALSE`. We will change this statement like:
+This was optionally appended by `deleted BOOLEAN DEFAULT FALSE`, what is no longer supported.
+
+For new tables the only minor change is that `i` becomes a primary key and is not auto-sequence
+any longer, because a trigger now does the job. It will not harm if it is an auto-sequence, just 
+this will consume one additional number not needed otherwise. The new table therefore looks like:
 
 ```sql
 CREATE TABLE IF NOT EXISTS "${schema}"."${table}"
 (
     jsondata      jsonb,
     geo           geometry(GeometryZ, 4326),
-    i             int8 PRIMARY KEY NOT NULL,
-    "action"      int2 CONSTRAINT NOT NULL CHECK ("action" >= 0 AND "action" <= 3),
-    tnx           int8             NOT NULL,
-    ts            timestamptz      NOT NULL,
-    id            text COLLATE "C" NOT NULL,
-    uuid          uuid             NOT NULL,
-    puuid         uuid,
-    lastUpdatedBy text COLLATE "C"
+    i             int8 PRIMARY KEY NOT NULL
 );
-CREATE SEQUENCE IF NOT EXISTS "${schema}"."${table}_i_all_seq" AS int8 OWNED BY "${schema}"."${table}";
-CREATE INDEX IF NOT EXISTS "${schema}"."${table}_tnx_idx" ON "${schema}"."${table}" USING btree (tnx DESC);
-CREATE INDEX IF NOT EXISTS "${schema}"."${table}_ts_idx" ON "${schema}"."${table}" USING btree (ts DESC);
-CREATE INDEX IF NOT EXISTS "${schema}"."${table}_id_idx" ON "${schema}"."${table}" USING btree (id ASC);
-CREATE UNIQUE INDEX IF NOT EXISTS "${schema}"."${table}_uuid_idx" ON "${schema}"."${table}" USING btree (uuid DESC);
-CREATE INDEX IF NOT EXISTS "${schema}"."${table}_lub_idx" ON "${schema}"."${table}" USING btree (lastUpdatedBy ASC);
+CREATE SEQUENCE IF NOT EXISTS "${schema}"."${table}_i_seq" AS int8 OWNED BY "${table}".i;
 ```
 
-**Note**: We name the new `i` sequence `i_all_seq` by intension to stay downward compatible to old
-spaces that should not be updated to new table layout. For these spaces, there then will be the 
-old `i_seq` used for the automatically created `BIGSERIAL`, so the new `i_all_seq` does not 
-conflict.
+The sequence has the same name as before, therefore not impacting the existing tables.
 
-Possible actions are:
+## @ns:com:here:xyz
 
-- `0`: CREATE
-- `1`: UPDATE
-- `2`: DELETE
-- `3`: PURGE
+Every space now has at least a trigger attached, that modifies the XYZ namespace before inserting
+or updating an existing feature in the **head** table. This namespace now looks like following:
 
-The values for `i`, `action`, `tnx`, `ts`, `id`, `uuid` and `lastUpdatedBy` will be set
-automatically by triggers, therefore they should not impact correct old insert statements.
+- **action**: The operation has been performed being `CREATE`, `UPDATE`, `DELETE` or `PURGE`.
+- **version**: The version of the features, a sequentially consistent numbering.
+- **author**: The author of the feature; if any.
+- **app_id**: The application-id of the application that created the feature state; if any.
+- **puuid**: The UUID of the previous state, `null` if `CREATE`.
+- **uuid**: The unique state identifier, stored as UUID (must not be `null`).
+- **txn**: The transaction number, being as well a UUID (must not be `null`).
+- **createdAt**: The unix epoch timestamp in millis of when the feature has been created.
+- **updatedAt**: The unix epoch timestamp in millis of when this state has been created.
+- **rtcts**: The real-time unix epoch timestamp in millis of when the feature has been created.
+- **rtuts**: The real-time unix epoch timestamp in millis of when this state has been created.
 
-**Note**: We allow downward compatible old tables where `i` is a `BIGSERIAL`, in that case other
-triggers will be attached that will use a different `i` value in history than in **HEAD** table.
-These old tables that are not updated will have a couple of not supported features, like they can't
-act as overlays (delta-spaces) for views, because they are missing the `action` attribute. 
-Additionally, they will not report the transaction identifiers and the `i` encoded in the **UUID**
-will not be the same as the one taken from the **HEAD** table.
+The difference between **createdAt**/**updatedAt** and **rtcts**/**rtuts** is that the former 
+reflect the transaction time. This time is searchable and reflects in which partition the row
+is stored, while the latter reflects the clock time, when the update was really performed. 
+Therefore, all creations and updates in the same transaction have the same **createdAt** and
+**updatedAt** time, while their **rtcts**/**rtuts** can differ drastically, when looking at a 
+long running transaction.
 
-## Transaction Identifiers
+We do not support searching for the real-time, it is informative only. The reason is the
+partitioning by the **updatedAt** time.
 
-Within every space we need all changes to have the same unique transaction identifier. The
-transaction identifier used here will only be locally unique, so within a given space, but not
-globally. For globally unique transaction identifiers, the transaction can be queries in the global
-transaction table, where a unique `id` is generated.
+The application identifier and optionally the author must be set by the client for any transaction 
+as first actions via: 
+- `SELECT xyz_config.naksha_tx_set_app_id('{userMapHubId}');`
+- `SELECT xyz_config.naksha_tx_set_author('{userMapHubId}');`
 
-The full qualified transaction identifier is created in a trigger, the layout of the 64-bit integer
-is:
-
-```
-YYYY_YYYY-YYYY_MMMM-DDDD_DHHH-HHMM_MMMM--XXXX_XXXX-XXXX_XXXX-VVVV_xxxx-xxxx_xxxx
-
-YYYY::12 (<<52) = biased year (year - 2000), resulting in possible years 2000 to 4047.
-MMMM::4  (<<48) = month of the year (1 to 12)
-DDDD::5  (<<43) = day of the month (1 to 31)
-HHHH::5  (<<38) = hour of the day (0 to 23)
-MMMM::6  (<<32) = minute of the hour (0 to 59)
-XXXX::16 (<<16) = the bit 12 to 23 of of the current PostgresQL transaction id (high 16 bits)
-VVVV::4  (<<12) = the fixed 4-bit binary value 4 (binary 1000), added to be compatible with UUID
-xxxx::12        = the bit 0 to 11 of the current PostgresQL transaction id (low 12 bit)
-```
-
-Basically, the current PostgresQL transaction identifier will be read by the trigger via
-`txid_current()` and then masked for the lower 28 bit, for example
-`(txid_current() & x'fffffff'::int8)`.
-
-We are aware of the problem of a 
-[transaction wrap-around](https://www.postgresql.org/docs/current/routine-vacuuming.html), however, 
-as we only rely upon the transaction number to create a unique identifier within a minute we expect
-that even when a transaction wrap-around happens in a minute, we do not get any duplicates, except
-there a billion of transactions per minute happen.
+Note that only the author can set to `null` (or not set), the application identifier **must not** 
+be `null`. If the author is `null`, then the current author stays the author for updates or deletes 
+and for new objects, the application gains authorship.
 
 ## UUIDs
 
-The `UUID`s which are used by XYZ-Hub to uniquely identify features, is generated by triggers. We
-modified this behavior to be done by the trigger to ensure that even queries executed in the 
-database directly update the `UUID` of the features.
+XYZ-Hub uses `UUID`s to uniquely identify every state of a feature stored in a database.
 
-The **UUID** will be a [random UUID](https://en.wikipedia.org/wiki/Universally_unique_identifier),
-so being version 4, variant 1 (big endian encoded). This matches perfectly well with how PostgresQL
-does [compare UUIDs](https://doxygen.postgresql.org/uuid_8c.html#aae2aef5e86c79c563f02a5cee13d1708).
+Naksha-Hub does use `UUID`s too, but for two purpose. To uniquely identify features and 
+transactions. Both are generated using triggers to ensure that even queries executed in the 
+database directly update the `UUID` of the features and transactions.
+
+The **UUID** will be in the format of a
+[random UUID](https://en.wikipedia.org/wiki/Universally_unique_identifier), so being version 4,
+variant 1 (big endian encoded). However, they are not random, but reflect a guaranteed unique
+identifier. The format chosen matches perfectly well with how PostgresQL  
+[compares UUIDs](https://doxygen.postgresql.org/uuid_8c.html#aae2aef5e86c79c563f02a5cee13d1708).
+
 As seen in the source code, the compare of **UUID**s is done as:
 
 ```C
 return memcmp(arg1->data, arg2->data, UUID_LEN);
 ```
 
-[memcp](https://cplusplus.com/reference/cstring/memcmp/) does compare simply the bytes in order 
-(so basically using big-endian order). This is the binary layout of the generated **UUID**s is
-therefore:
+[memcp](https://cplusplus.com/reference/cstring/memcmp/) does compare simply the bytes in order
+(so basically using big-endian order).
+
+All **UUID**s being will basically encode the following values:
 
 ```
-   1   2     3    e    4    5    6    7 -   e    8    9    b-   4    2    d    3 -   a    4    5    6-   4    2    6    6     1    4    1    7    4    0    0    0
-|          time low                   |  |    time mid     | |v | | time high  |  a||  clock_seq     |              node                                          |
-7654_3210-7654_3210-7654_3210-7654_3210--7654_3210-7654_3210-7654_3210-7654_3210--7654_3210-7654_3210-7654_3210-7654_3210--7654_3210-7654_3210-7654_3210-7654_3210
-YYYY_YYYY-YYYY_MMMM-DDDD_DHHH-HHMM_MMMM--XXXX_XXXX-XXXX_XXXX-1000_XXXX-XXXX_XXXX--10ii_iiii-iiii_iiii-iiii_iiii-iiii_iiii--iiii_iiii-iiii_iiii-iiii_iiii-iiii_iiii
-| year       | |mo| |day ||hour||min  |  |    tnx high     | |v | | tnx low    |  a||                      i (60 bit)                                             |
-                                                              =4                  =1
+   1   2     3    e    4    5    6    7 -   e    8    9    b-   4    2    d    3  -   a    4    5     6-   4    2    6    6     1    4    1    7    4    0    0    0
+|          time low                   |  |    time mid     | |ve| | time high  |    va|  clock_seq     |              node                                         |
+7654_3210-7654_3210-7654_3210-7654_3210--7654_3210-7654_3210-7654_3210-7654_3210----7654_3210-7654_3210-7654_3210-7654_3210--7654_3210-7654_3210-7654_3210-7654_3210
+iiii_iiii-iiii_iiii-iiii_iiii-iiii_iiii--iiii_iiii-iiii_iiii-1000_iiii-iiii_iiii----10YY_YYYY-YYYY_mmmm-DDDD_Dttt-dddd_dddd--dddd_dddd-dddd_dddd-dddd_dddd-dddd_dddd
+[                   id                                     ] ver  [    id      ]    va[   year   ][mon ][day ][t] [                 db-id                          ] 
+                                                             =4                     =1
+
+iiii::60 = The object identifier.
+ver ::4  = The fixed UUID version, 4-bit binary value 4 (binary 1000).
+va  ::2  = The fixed variant, 2-bit binary value 2 (binary 10).
+YYYY::10 = The biased year (year - 2000), resulting in possible years 2000 to 3023.
+mmmm::4  = The month of the year (1 to 12).
+DDDD::5  = The day of the month (1 to 31).
+t   ::3  = The object type. 
+dddd::40 = The database identifier.
 ```
 
 **Note**:
-- The version (`v`) is always four with value being 4 (binary `1000`).
-- The variant (`a`) is always variant one (big endian) with value being decimal 2 (binary `10`).
+- The version (`ver`) is always four with value being 4 (binary `1000`).
+- The variant (`va`) is always variant one (big endian) with value being decimal 2 (binary `10`).
 
-We can create a byte array with this layout in our trigger and then cast it into a real version 4,
-variant 1 **UUID** via: `CAST(ENCODE(bytes, 'hex') AS UUID)`.
+Therefore, every Naksha **UUID** refers to a specific object of a specific type in a specific 
+globally registered database at a given time.
+
+The objects that can be a target are currently only two:
+
+- `0`: Transaction
+- `1`: Feature
+
+## Transaction UUID
+
+All changes being part of the same transaction need to have the same unique transaction number. 
+Transaction numbers are globally unique.
+
+Naksha requires within the target database a single special schema named `xyz_config`. In this 
+schema certain maintenance spaces will be created, together with a couple of sequences and 
+functions used to generate the unique transaction number.
+
+The date is used to find the features of the transaction in the history partition. 
+
+## Feature UUID
+
+Every state of every feature stored in a space will have a globally unique UUID. 
+
+The date is used to find the features of the transaction in the history partition.
 
 ## Transaction History
 
@@ -138,170 +151,49 @@ To enable the history we need a shared transaction table in the `xyz_config` sch
 ```sql
 CREATE TABLE IF NOT EXISTS xyz_config.transactions
 (
-    i           BIGSERIAL PRIMARY KEY,
-    id          int8,
-    tnx         int8             NOT NULL,
-    "schema"    text COLLATE "C" NOT NULL,
-    "table"     text COLLATE "C" NOT NULL,
-    ts          timestamptz      NOT NULL,
-    space       text COLLATE "C" UNIQUE,
+    i           BIGSERIAL PRIMARY KEY NOT NULL,
+    txid        int8                  NOT NULL,
+    txi         int8                  NOT NULL,
+    txts        timestamptz           NOT NULL,
+    txdb        int8                  NOT NULL,
+    txn         uuid                  NOT NULL,
+    "schema"    text COLLATE "C"      NOT NULL,
+    "table"     text COLLATE "C"      NOT NULL,
     commit_msg  text COLLATE "C",
-    commit_json jsonb
+    commit_json jsonb,
+    -- Columns managed by the transaction fix job. 
+    space       text COLLATE "C",
+    id          int8,
+    ts          timestamptz
 );
-CREATE SEQUENCE IF NOT EXISTS xyz_config.transactions_id_seq AS int8 OWNED BY xyz_config.transactions;
-CREATE UNIQUE INDEX IF NOT EXISTS xyz_config.transactions_is_idx
-    ON xyz_config.transactions USING btree ("id" DESC, "space" DESC);
-CREATE UNIQUE INDEX IF NOT EXISTS xyz_config.transactions_tst_idx
-    ON xyz_config.transactions USING btree ("tnx" DESC, "schema" ASC, "table" ASC);
-CREATE UNIQUE INDEX IF NOT EXISTS xyz_config.transactions_id_idx
-    ON xyz_config.transactions USING btree (id DESC);
-CREATE INDEX IF NOT EXISTS xyz_config.transactions_tnx_idx 
-    ON xyz_config.transactions USING btree (tnx DESC);
-CREATE INDEX IF NOT EXISTS xyz_config.transactions_ts_idx 
-    ON xyz_config.transactions USING btree (ts DESC);
 ```
+
+- `i`: Unique index of the row.
+- `txid`: The PostgresQL transaction id, can be used to review if previous transactions are still 
+          pending to detect eventual consistency.
+- `txi`: The unique transaction identifier encoded in the `txn` as **object_id**.
+- `txts`: The full timestamp when the transaction started, the year, month and day encoded as well 
+          in the `txn`.
+- `txn`: The UUID of the transaction as stored in the XYZ namespace property `txn`.
+- `schema` + `table`: The schema and table affected by the transaction.
+- `commit_msg` + `commit_json`: Arbitrary commit messages, they all have `schema` set to `COMMIT_MSG`. 
+- `space`: The space, set by the transaction fix job as soon as the transaction becomes visible.
+- `id`: The unique sequential identifier, set by the transaction fix job as soon as the transaction becomes visible.
+- `ts`: The timestamp of when the transaction became visible for the transaction fix job.
 
 ## Create history
 
-To manage the history we will add triggers to all spaces. Basically, there are two variants of the
-triggers, a downward compatible one, which will expect the old **HEAD** table layout and a new 
-one, that expects the new table layout.
+To manage the history we will add a “before” trigger, and an “after” trigger to all spaces. The
+“before” trigger will ensure that the XYZ namespace filled correctly while the “after” trigger
+is optional and will write the transaction into the history and transaction table.
 
-To be downward compatible to Map Creator Middleware, the triggers will ensure at least some 
-[property modifications](https://confluence.in.here.com/pages/viewpage.action?pageId=800919496#property-modification-done-by-the-map-creator-middleware) 
-done by the middleware. To be exact, we will set 
-`jsondata->'properties'->'@ns:com:here:mom:meta'->'lastUpdatedTS'` and, if appropriate, the
-`jsondata->'properties'->'@ns:com:here:mom:meta'->'createdTS'` to 
+The history can be enabled and disabled for every space using the following methods:
+- `xyz_config.naksha_space_disable_history(_schema, _table)`
+- `xyz_config.naksha_space_enable_history(_schema, _table)`
 
-to keep it in sync with the `ts` column.
+## Transaction Fix Job
 
-The triggers will as well maintain the XYZ namespace, so they will set in
-`jsondata->'properties'->'@ns:com:here:xyz'` the following properties:
-- **uuid** to the calculated UUID, the same value is written into the `uuid` column.
-- **puuid** to the previous UUID, the same value is written into the `puuid` column.
-- **createAt** to the [clock_timestamp()](https://www.postgresql.org/docs/8.2/functions-datetime.html#FUNCTIONS-DATETIME-CURRENT), if this is an `INSERT`.
-- **updatedAt** to the [clock_timestamp()](https://www.postgresql.org/docs/8.2/functions-datetime.html#FUNCTIONS-DATETIME-CURRENT), if this is an `UPDATE` or `DELETE`.
+The last step is a background job added into Naksha-Hub that will fix the transaction table. It
+will set the `space`, `id` and `ts` to signal the visibility of a transaction and to generate a 
+sequential numeric identifier, that has no holes, for every transaction.
 
-### Triggers code
-
-Note, the triggers for downward compatibility will be the same, except that they are missing 
-
-```sql
--- Create a transaction number from the given UTC timestamp and the given transaction id.
-CREATE OR REPLACE FUNCTION xyz_txn_of(ts timestamptz, txid int8)
-    RETURNS int8
-    LANGUAGE plpgsql IMMUTABLE 
-    AS $$
-DECLARE
-    r record;
-    tid int8 := (txid & x'fffffff'::int8);
-BEGIN
-    WITH parts AS (SELECT EXTRACT(year from ts)::int8   as "year",
-                          EXTRACT(month from ts)::int8  as "month",
-                          EXTRACT(day from ts)::int8    as "day",
-                          EXTRACT(hour from ts)::int8   as "hour",
-                          EXTRACT(minute from ts)::int8 as "minute")
-    SELECT parts.* INTO r FROM parts;
-    RETURN ((r.year - 2000) << 52)
-               | (r.month << 48)
-               | (r.day << 43)
-               | (r.hour << 38)
-               | (r.minute << 32)
-               | ((tid >> 12) << 16)
-               | (4::int8 << 12)
-               | (tid & x'fff'::int8);
-END;
-$$;
-
--- Create the minimal transaction number for the given UTC timestamp.
-CREATE OR REPLACE FUNCTION xyz_txn_min(ts timestamptz)
-    RETURNS int8
-    LANGUAGE 'plpgsql' IMMUTABLE
-AS $$
-BEGIN
-    RETURN xyz_txn_of(ts, 0::int8);
-END
-$$;
-
--- Create the maximal transaction number for the given UTC timestamp.
-CREATE OR REPLACE FUNCTION xyz_txn_max(ts timestamptz)
-    RETURNS int8
-    LANGUAGE 'plpgsql' IMMUTABLE
-AS $$
-BEGIN
-    RETURN xyz_txn_of(ts, x'7fffffffffffffff'::int8);
-END
-$$;
-
--- Create the unique transaction number for the current transaction.
-CREATE OR REPLACE FUNCTION xyz_txn_current()
-    RETURNS int8
-    LANGUAGE 'plpgsql' STABLE
-    AS $$
-BEGIN
-    RETURN xyz_txn_of(current_timestamp, txid_current());
-END
-$$;
-
--- Split the given unique transaction number into its part.
-CREATE OR REPLACE FUNCTION xyz_txn_extract(txn int8)
-    RETURNS TABLE
-            (
-                year    int8,
-                month   int8,
-                day     int8,
-                hour    int8,
-                minute  int8,
-                txid    int8
-            )
-    LANGUAGE 'plpgsql' IMMUTABLE 
-AS
-$$
-BEGIN
-    RETURN QUERY SELECT 2000 + ((txn >> 52) & x'ff'::int8)                           as "year",
-                        ((txn >> 48) & x'f'::int8)                                   as "month",
-                        ((txn >> 43) & x'1f'::int8)                                  as "day",
-                        (txn >> 38) & x'1f'::int8                                    as "hour",
-                        (txn >> 32) & x'3f'::int8                                    as "minute",
-                        (((txn >> 16) & x'ffff'::int8) << 12 | (txn & x'fff'::int8)) as "txid";
-END;
-$$;
-
--- Create a UUID from the given transaction number and the given identifier.
-CREATE OR REPLACE FUNCTION xyz_uuid_of(txn int8, i int8)
-    RETURNS uuid
-    LANGUAGE 'plpgsql' IMMUTABLE
-    AS
-$BODY$
-DECLARE
-    raw_uuid bytea; 
-BEGIN
-    raw_uuid := set_byte('\x00000000000000000000000000000000'::bytea, 0, ((txn >> 56) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 1, ((txn >> 48) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 2, ((txn >> 40) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 3, ((txn >> 32) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 4, ((txn >> 24) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 5, ((txn >> 16) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 6, ((txn >> 8) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 7, (txn & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 8, (((i >> 56) & x'3f'::int8) | 128)::int);
-    raw_uuid := set_byte(raw_uuid, 9, ((i >> 48) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 10, ((i >> 40) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 11, ((i >> 32) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 12, ((i >> 24) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 13, ((i >> 16) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 14, ((i >> 8) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 15, (i & x'ff'::int8)::int);
-    RETURN CAST(ENCODE(raw_uuid, 'hex') AS UUID);
-END
-$BODY$;
-```
-
-## Transaction Fixation Job
-
-The last step is a background job added into XYZ-Hub that will fix the global transaction table.
-it need to guarantee a unique sequential `id` for all transactions. 
-
-## Fix HRN
-
-Add "default HRN" to space table, so that identifiers in tables never have this prefix.

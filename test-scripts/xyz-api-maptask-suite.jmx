@@ -5,7 +5,7 @@
       <stringProp name="TestPlan.comments"></stringProp>
       <boolProp name="TestPlan.functional_mode">false</boolProp>
       <boolProp name="TestPlan.tearDown_on_shutdown">true</boolProp>
-      <boolProp name="TestPlan.serialize_threadgroups">true</boolProp>
+      <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
       <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
         <collectionProp name="Arguments.arguments"/>
       </elementProp>
@@ -87,17 +87,17 @@
           </elementProp>
           <elementProp name="DUMMY_SPACE_ID_1" elementType="Argument">
             <stringProp name="Argument.name">DUMMY_SPACE_ID_1</stringProp>
-            <stringProp name="Argument.value">utm_dummy_space_1</stringProp>
+            <stringProp name="Argument.value">utm-dev:dummy_space_1</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
           <elementProp name="DUMMY_SPACE_ID_2" elementType="Argument">
             <stringProp name="Argument.name">DUMMY_SPACE_ID_2</stringProp>
-            <stringProp name="Argument.value">utm_dummy_space_2</stringProp>
+            <stringProp name="Argument.value">utm-dev:dummy_space_2</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
           <elementProp name="DUMMY_SPACE_ID_3" elementType="Argument">
             <stringProp name="Argument.name">DUMMY_SPACE_ID_3</stringProp>
-            <stringProp name="Argument.value">utm_dummy_space_3</stringProp>
+            <stringProp name="Argument.value">utm-dev:dummy_space_3</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
           <elementProp name="DUMMY_CONNECTOR" elementType="Argument">
@@ -108,6 +108,11 @@
           <elementProp name="DEF_CONNECTOR_ID" elementType="Argument">
             <stringProp name="Argument.name">DEF_CONNECTOR_ID</stringProp>
             <stringProp name="Argument.value">psql</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="LOOP_COUNT" elementType="Argument">
+            <stringProp name="Argument.name">LOOP_COUNT</stringProp>
+            <stringProp name="Argument.value">1</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
         </collectionProp>
@@ -241,7 +246,7 @@
           </elementProp>
           <elementProp name="SPACE_ID" elementType="Argument">
             <stringProp name="Argument.name">SPACE_ID</stringProp>
-            <stringProp name="Argument.value">39ZVK252</stringProp>
+            <stringProp name="Argument.value">local:space_1</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
             <stringProp name="Argument.desc">39ZVK252</stringProp>
           </elementProp>
@@ -279,7 +284,7 @@
           </elementProp>
           <elementProp name="XYZ_HOST_URL" elementType="Argument">
             <stringProp name="Argument.name">XYZ_HOST_URL</stringProp>
-            <stringProp name="Argument.value">xyz-e2e.ext.mapcreator.here.com</stringProp>
+            <stringProp name="Argument.value">naksha-e2e.ext.mapcreator.here.com</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
             <stringProp name="Argument.desc">xyz-e2e-kotori.ext.mapcreator.here.com,xyz-e2e-kasa.ext.mapcreator.here.com</stringProp>
           </elementProp>
@@ -295,29 +300,29 @@
           </elementProp>
           <elementProp name="SPACE_ID" elementType="Argument">
             <stringProp name="Argument.name">SPACE_ID</stringProp>
-            <stringProp name="Argument.value">39ZVK252</stringProp>
+            <stringProp name="Argument.value">utm-dev:maptask</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
             <stringProp name="Argument.desc">39ZVK252</stringProp>
           </elementProp>
           <elementProp name="WR_API_KEY" elementType="Argument">
             <stringProp name="Argument.name">WR_API_KEY</stringProp>
-            <stringProp name="Argument.value">write</stringProp>
+            <stringProp name="Argument.value">AKeEo5K-ltLzrN8hoDmVFlc</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
           <elementProp name="RD_API_KEY" elementType="Argument">
             <stringProp name="Argument.name">RD_API_KEY</stringProp>
-            <stringProp name="Argument.value">read</stringProp>
+            <stringProp name="Argument.value">AKUG5kC6peRn01oB66dy2C8</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
           <elementProp name="CONN_API_KEY" elementType="Argument">
             <stringProp name="Argument.name">CONN_API_KEY</stringProp>
-            <stringProp name="Argument.value">write</stringProp>
+            <stringProp name="Argument.value">upm.6A2srka5acvQQFrz</stringProp>
             <stringProp name="Argument.desc">Manage Connector API Key</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
           <elementProp name="SPACE_API_KEY" elementType="Argument">
             <stringProp name="Argument.name">SPACE_API_KEY</stringProp>
-            <stringProp name="Argument.value">manage</stringProp>
+            <stringProp name="Argument.value">APQtnzlw1OdsOmfW_sbDoIM</stringProp>
             <stringProp name="Argument.desc">Manage Space API Key</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
@@ -385,7 +390,7 @@
         <stringProp name="ThreadGroup.on_sample_error">stoptestnow</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -464,8 +469,7 @@ var requestStr = {
       &quot;text&quot;: &quot;A road has been CREATED&quot;
     }],
     &quot;status&quot;: &quot;OPEN&quot;
-  },
-  &quot;momType&quot;: &quot;Road&quot;
+  }
 };
 
 
@@ -595,6 +599,7 @@ delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 
 // Compare actual v/s expected
 var modifiedActualResString = JSON.stringify(actualResObj);
@@ -757,6 +762,7 @@ delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 
 // Remove unwanted fields from EXPECTED object, before actual v/s expected comparison
 var expectedResString = JSON.stringify(${V_Update_Request_Str});
@@ -767,6 +773,7 @@ delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 
 // Compare actual v/s expected
 var modifiedActualResString = JSON.stringify(actualResObj);
@@ -871,7 +878,7 @@ else {
         <stringProp name="ThreadGroup.on_sample_error">stopthread</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -960,8 +967,7 @@ var requestObj = {
       &quot;text&quot;: &quot;A road has been CREATED&quot;
     }],
     &quot;status&quot;: &quot;OPEN&quot;
-  },
-  &quot;momType&quot;: &quot;Road&quot;
+  }
 };
 
 
@@ -1129,6 +1135,7 @@ actualResObj.features.forEach(function(feature) {
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].space;
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+	delete feature.properties[&quot;@ns:com:here:xyz&quot;].version;
 });
 
 // Compare actual v/s expected
@@ -1242,6 +1249,7 @@ actualResObj.features.forEach(function(feature) {
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].space;
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+	delete feature.properties[&quot;@ns:com:here:xyz&quot;].version;
 });
 
 // Remove unwanted fields from EXPECTED object, before actual v/s expected comparison
@@ -1252,6 +1260,7 @@ expectedResObj.features.forEach(function(feature) {
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].space;
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+	delete feature.properties[&quot;@ns:com:here:xyz&quot;].version;
 });
 
 // Compare actual v/s expected
@@ -1344,7 +1353,6 @@ var expectedResObj = {
   &quot;type&quot;: &quot;FeatureCollection&quot;,
   &quot;features&quot;: [{
     &quot;type&quot;: &quot;Feature&quot;,
-    &quot;momType&quot;: &quot;Road&quot;,
     &quot;properties&quot;: {
       &quot;due&quot;: 0,
       &quot;status&quot;: &quot;OPEN&quot;,
@@ -1405,7 +1413,6 @@ var expectedResObj = {
     }
   }, {
     &quot;type&quot;: &quot;Feature&quot;,
-    &quot;momType&quot;: &quot;Road&quot;,
     &quot;properties&quot;: {
       &quot;due&quot;: 0,
       &quot;status&quot;: &quot;OPEN&quot;,
@@ -1479,6 +1486,13 @@ actualResObj.features.forEach(function(feature) {
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].space;
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+	delete feature.properties[&quot;@ns:com:here:xyz&quot;].version;
+	delete feature.properties[&quot;@ns:com:here:xyz&quot;].txn;
+	delete feature.properties[&quot;@ns:com:here:xyz&quot;].rtcts;
+	delete feature.properties[&quot;@ns:com:here:xyz&quot;].rtuts;
+	delete feature.properties[&quot;@ns:com:here:xyz&quot;].action;
+	delete feature.properties[&quot;@ns:com:here:xyz&quot;].appId;
+	delete feature.properties[&quot;@ns:com:here:xyz&quot;].author;
 });
 
 // Remove unwanted fields from EXPECTED object, before actual v/s expected comparison
@@ -1489,6 +1503,7 @@ expectedResObj.features.forEach(function(feature) {
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].space;
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+	delete feature.properties[&quot;@ns:com:here:xyz&quot;].version;
 });
 
 // Compare actual v/s expected
@@ -1581,7 +1596,6 @@ var expectedResObj = {
   &quot;type&quot;: &quot;FeatureCollection&quot;,
   &quot;features&quot;: [{
     &quot;type&quot;: &quot;Feature&quot;,
-    &quot;momType&quot;: &quot;Road&quot;,
     &quot;properties&quot;: {
       &quot;due&quot;: 0,
       &quot;status&quot;: &quot;OPEN&quot;,
@@ -1642,7 +1656,6 @@ var expectedResObj = {
     }
   }, {
     &quot;type&quot;: &quot;Feature&quot;,
-    &quot;momType&quot;: &quot;Road&quot;,
     &quot;properties&quot;: {
       &quot;due&quot;: 0,
       &quot;status&quot;: &quot;OPEN&quot;,
@@ -1716,6 +1729,13 @@ actualResObj.features.forEach(function(feature) {
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].space;
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+	delete feature.properties[&quot;@ns:com:here:xyz&quot;].version;
+	delete feature.properties[&quot;@ns:com:here:xyz&quot;].txn;
+	delete feature.properties[&quot;@ns:com:here:xyz&quot;].rtcts;
+	delete feature.properties[&quot;@ns:com:here:xyz&quot;].rtuts;
+	delete feature.properties[&quot;@ns:com:here:xyz&quot;].action;
+	delete feature.properties[&quot;@ns:com:here:xyz&quot;].appId;
+	delete feature.properties[&quot;@ns:com:here:xyz&quot;].author;
 });
 
 // Remove unwanted fields from EXPECTED object, before actual v/s expected comparison
@@ -1726,6 +1746,7 @@ expectedResObj.features.forEach(function(feature) {
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].space;
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+	delete feature.properties[&quot;@ns:com:here:xyz&quot;].version;
 });
 
 // Compare actual v/s expected
@@ -1875,7 +1896,7 @@ else {
         <stringProp name="ThreadGroup.on_sample_error">stopthread</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -1954,8 +1975,7 @@ var requestObj = {
       &quot;text&quot;: &quot;A road has been CREATED&quot;
     }],
     &quot;status&quot;: &quot;OPEN&quot;
-  },
-  &quot;momType&quot;: &quot;Road&quot;
+  }
 };
 
 // Save task before adding new tag
@@ -2088,6 +2108,7 @@ delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 
 // Compare actual v/s expected
 var modifiedActualResString = JSON.stringify(actualResObj);
@@ -2176,6 +2197,7 @@ delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 
 // Remove unwanted fields from EXPECTED object, before actual v/s expected comparison
 var expectedResString = JSON.stringify(${V_Expected_Task_Str});
@@ -2186,6 +2208,7 @@ delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 
 // Compare actual v/s expected
 var modifiedActualResString = JSON.stringify(actualResObj);
@@ -2252,6 +2275,7 @@ delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 
 // Remove unwanted fields from EXPECTED object, before actual v/s expected comparison
 var expectedResString = JSON.stringify(${V_Expected_Task_Str});
@@ -2262,6 +2286,7 @@ delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 
 // Compare actual v/s expected
 var modifiedActualResString = JSON.stringify(actualResObj);
@@ -2326,7 +2351,7 @@ else {
         <stringProp name="ThreadGroup.on_sample_error">stopthread</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -2405,8 +2430,7 @@ var requestStr = {
       &quot;text&quot;: &quot;A road has been CREATED&quot;
     }],
     &quot;status&quot;: &quot;OPEN&quot;
-  },
-  &quot;momType&quot;: &quot;Road&quot;
+  }
 };
 
 
@@ -2469,6 +2493,7 @@ delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 
 // Compare actual v/s expected
 var modifiedActualResString = JSON.stringify(actualResObj);
@@ -2559,7 +2584,6 @@ prev.setSuccessful(false);
 var expectedResObj = {
   &quot;id&quot;: &quot;${TASK_ID_P04_01}&quot;,
   &quot;type&quot;: &quot;Feature&quot;,
-  &quot;momType&quot;: &quot;Road&quot;,
   &quot;properties&quot;: {
     &quot;due&quot;: 0,
     &quot;status&quot;: &quot;OPEN&quot;,
@@ -2637,6 +2661,13 @@ delete feature.properties[&quot;@ns:com:here:xyz&quot;].puuid;
 delete feature.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete feature.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete feature.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete feature.properties[&quot;@ns:com:here:xyz&quot;].version;
+delete feature.properties[&quot;@ns:com:here:xyz&quot;].txn;
+delete feature.properties[&quot;@ns:com:here:xyz&quot;].rtcts;
+delete feature.properties[&quot;@ns:com:here:xyz&quot;].rtuts;
+delete feature.properties[&quot;@ns:com:here:xyz&quot;].action;
+delete feature.properties[&quot;@ns:com:here:xyz&quot;].appId;
+delete feature.properties[&quot;@ns:com:here:xyz&quot;].author;
 
 // Compare actual v/s expected
 var modifiedActualResString = JSON.stringify(feature);
@@ -2701,7 +2732,7 @@ else {
         <stringProp name="ThreadGroup.on_sample_error">stopthread</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -2776,7 +2807,6 @@ else {
       }],&#xd;
       &quot;status&quot;: &quot;OPEN&quot;&#xd;
     },&#xd;
-    &quot;momType&quot;: &quot;Road&quot;,&#xd;
     &quot;geometry&quot;: {&#xd;
       &quot;type&quot;: &quot;Point&quot;,&#xd;
       &quot;coordinates&quot;: [&#xd;
@@ -2878,12 +2908,121 @@ else {
           </ResponseAssertion>
           <hashTree/>
         </hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Pos5.4 - GET Connector with Read Key (failure)" enabled="true">
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
+          <stringProp name="HTTPSampler.domain"></stringProp>
+          <stringProp name="HTTPSampler.port"></stringProp>
+          <stringProp name="HTTPSampler.protocol"></stringProp>
+          <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/connectors?access_token=${RD_API_KEY}</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+          <stringProp name="HTTPSampler.connect_timeout"></stringProp>
+          <stringProp name="HTTPSampler.response_timeout"></stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Code" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="51511">403</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">true</boolProp>
+            <intProp name="Assertion.test_type">8</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Body" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="-857009810">&quot;type&quot;:&quot;ErrorResponse&quot;,&quot;error&quot;:&quot;Exception&quot;,&quot;errorMessage&quot;:&quot;Insufficient rights. Token access</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">2</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+        </hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Pos5.5 - Create Connector with Read Key (failure)" enabled="true">
+          <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">{&#xd;
+  &quot;id&quot;: &quot;${DUMMY_CONNECTOR}&quot;,&#xd;
+  &quot;owner&quot;: &quot;ANONYMOUS&quot;,&#xd;
+  &quot;active&quot;: true,&#xd;
+  &quot;params&quot;: {&#xd;
+    &quot;ecps&quot;: &quot;3ZAzLlvfz8KV5NMAifpyUC5C/GtUdE+fm3XIdoS4AV+AYD1SvQS/b+A1tWhABe0O0hfDoFZGxuCqS85z6rf8GBYazv1Gu2FmKO9vhWzwGAc/53LTRVmS5Mv+/JSKJq6D8RqSe8Rt5GTFaLYmMuNj7JSEp9Mxib1C5efdVkvQIPcPdIXO9RwkPVsnQVZxMJ6qqgCxXyVsJEG8pmQ4p7V1ezosAWSVcSNED10hSpkoblqHsTGAnunaMgH/I8Vcqq6Pb1CUNK/CHvLmKw/d2D8py7j64U1LOuTGMHijdVui4zDrEXYiBp+W4w==&quot;,&#xd;
+    &quot;connectorId&quot;: &quot;${DUMMY_CONNECTOR}&quot;&#xd;
+  },&#xd;
+  &quot;contactEmails&quot;: [&#xd;
+    &quot;hiren.patel@here.com&quot;&#xd;
+  ],&#xd;
+  &quot;remoteFunctions&quot;: {&#xd;
+    &quot;local&quot;: {&#xd;
+      &quot;id&quot;: &quot;xyz-psql-local&quot;,&#xd;
+      &quot;env&quot;: {&#xd;
+        &quot;ECPS_PHRASE&quot;: &quot;utm!pa55phr4s3&quot;&#xd;
+      },&#xd;
+      &quot;type&quot;: &quot;Embedded&quot;,&#xd;
+      &quot;className&quot;: &quot;com.here.xyz.psql.PSQLXyzConnector&quot;,&#xd;
+      &quot;timeoutMs&quot;: 0&#xd;
+    }&#xd;
+  }&#xd;
+}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
+          <stringProp name="HTTPSampler.domain"></stringProp>
+          <stringProp name="HTTPSampler.port"></stringProp>
+          <stringProp name="HTTPSampler.protocol"></stringProp>
+          <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/connectors?access_token=${RD_API_KEY}</stringProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+          <stringProp name="HTTPSampler.connect_timeout"></stringProp>
+          <stringProp name="HTTPSampler.response_timeout"></stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Code" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="51511">403</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">true</boolProp>
+            <intProp name="Assertion.test_type">8</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Body" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="-857009810">&quot;type&quot;:&quot;ErrorResponse&quot;,&quot;error&quot;:&quot;Exception&quot;,&quot;errorMessage&quot;:&quot;Insufficient rights. Token access</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">2</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+        </hashTree>
       </hashTree>
       <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Pos6 - Write Access Control (wikvaya)" enabled="false">
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -2948,12 +3087,121 @@ else {
           </ResponseAssertion>
           <hashTree/>
         </hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Pos6.2 - GET Connector with Write Key (failure)" enabled="true">
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
+          <stringProp name="HTTPSampler.domain"></stringProp>
+          <stringProp name="HTTPSampler.port"></stringProp>
+          <stringProp name="HTTPSampler.protocol"></stringProp>
+          <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/connectors?access_token=${WR_API_KEY}</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+          <stringProp name="HTTPSampler.connect_timeout"></stringProp>
+          <stringProp name="HTTPSampler.response_timeout"></stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Code" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="51511">403</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">true</boolProp>
+            <intProp name="Assertion.test_type">8</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Body" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="-857009810">&quot;type&quot;:&quot;ErrorResponse&quot;,&quot;error&quot;:&quot;Exception&quot;,&quot;errorMessage&quot;:&quot;Insufficient rights. Token access</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">2</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+        </hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Pos6.3 - Create Connector with Write Key (failure)" enabled="true">
+          <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">{&#xd;
+  &quot;id&quot;: &quot;${DUMMY_CONNECTOR}&quot;,&#xd;
+  &quot;owner&quot;: &quot;ANONYMOUS&quot;,&#xd;
+  &quot;active&quot;: true,&#xd;
+  &quot;params&quot;: {&#xd;
+    &quot;ecps&quot;: &quot;3ZAzLlvfz8KV5NMAifpyUC5C/GtUdE+fm3XIdoS4AV+AYD1SvQS/b+A1tWhABe0O0hfDoFZGxuCqS85z6rf8GBYazv1Gu2FmKO9vhWzwGAc/53LTRVmS5Mv+/JSKJq6D8RqSe8Rt5GTFaLYmMuNj7JSEp9Mxib1C5efdVkvQIPcPdIXO9RwkPVsnQVZxMJ6qqgCxXyVsJEG8pmQ4p7V1ezosAWSVcSNED10hSpkoblqHsTGAnunaMgH/I8Vcqq6Pb1CUNK/CHvLmKw/d2D8py7j64U1LOuTGMHijdVui4zDrEXYiBp+W4w==&quot;,&#xd;
+    &quot;connectorId&quot;: &quot;${DUMMY_CONNECTOR}&quot;&#xd;
+  },&#xd;
+  &quot;contactEmails&quot;: [&#xd;
+    &quot;hiren.patel@here.com&quot;&#xd;
+  ],&#xd;
+  &quot;remoteFunctions&quot;: {&#xd;
+    &quot;local&quot;: {&#xd;
+      &quot;id&quot;: &quot;xyz-psql-local&quot;,&#xd;
+      &quot;env&quot;: {&#xd;
+        &quot;ECPS_PHRASE&quot;: &quot;utm!pa55phr4s3&quot;&#xd;
+      },&#xd;
+      &quot;type&quot;: &quot;Embedded&quot;,&#xd;
+      &quot;className&quot;: &quot;com.here.xyz.psql.PSQLXyzConnector&quot;,&#xd;
+      &quot;timeoutMs&quot;: 0&#xd;
+    }&#xd;
+  }&#xd;
+}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
+          <stringProp name="HTTPSampler.domain"></stringProp>
+          <stringProp name="HTTPSampler.port"></stringProp>
+          <stringProp name="HTTPSampler.protocol"></stringProp>
+          <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/connectors?access_token=${WR_API_KEY}</stringProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+          <stringProp name="HTTPSampler.connect_timeout"></stringProp>
+          <stringProp name="HTTPSampler.response_timeout"></stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Code" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="51511">403</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">true</boolProp>
+            <intProp name="Assertion.test_type">8</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Body" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="-857009810">&quot;type&quot;:&quot;ErrorResponse&quot;,&quot;error&quot;:&quot;Exception&quot;,&quot;errorMessage&quot;:&quot;Insufficient rights. Token access</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">2</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+        </hashTree>
       </hashTree>
       <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Pos7 - Patch Operation" enabled="true">
         <stringProp name="ThreadGroup.on_sample_error">stopthread</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -3052,8 +3300,7 @@ var requestStr = {
       &quot;text&quot;: &quot;A road has been CREATED&quot;
     }],
     &quot;status&quot;: &quot;OPEN&quot;
-  },
-  &quot;momType&quot;: &quot;Road&quot;
+  }
 };
 
 
@@ -3116,6 +3363,7 @@ delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 
 // Compare actual v/s expected
 var modifiedActualResString = JSON.stringify(actualResObj);
@@ -3183,6 +3431,7 @@ delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 
 // Compare actual v/s expected
 var modifiedActualResString = JSON.stringify(actualResObj);
@@ -3286,6 +3535,7 @@ delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 
 // Remove unwanted fields from EXPECTED object, before actual v/s expected comparison
 var expectedResString = JSON.stringify(${V_Patched_Task_Str});
@@ -3296,6 +3546,7 @@ delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 
 
 // Compare actual v/s expected
@@ -3362,6 +3613,7 @@ delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 
 // Remove unwanted fields from EXPECTED object, before actual v/s expected comparison
 var expectedResString = JSON.stringify(${V_Patched_Task_Str});
@@ -3372,6 +3624,7 @@ delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 
 // Compare actual v/s expected
 var modifiedActualResString = JSON.stringify(actualResObj);
@@ -3432,11 +3685,11 @@ else {
           <hashTree/>
         </hashTree>
       </hashTree>
-      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Pos8 - Connector Operations (local)" enabled="true">
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Pos8 - Connector Operations (wikvaya)" enabled="false">
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -3715,7 +3968,7 @@ else {
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -3916,7 +4169,7 @@ else {
         <stringProp name="ThreadGroup.on_sample_error">stopthread</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -3971,7 +4224,7 @@ else {
         <stringProp name="ThreadGroup.on_sample_error">stopthread</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -4050,8 +4303,7 @@ var requestObj = {
       &quot;text&quot;: &quot;A road has been CREATED&quot;
     }],
     &quot;status&quot;: &quot;OPEN&quot;
-  },
-  &quot;momType&quot;: &quot;Road&quot;
+  }
 };
 
 
@@ -4135,6 +4387,7 @@ actualResObj.features.forEach(function(feature) {
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].space;
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+	delete feature.properties[&quot;@ns:com:here:xyz&quot;].version;
 });
 
 // Compare actual v/s expected
@@ -4256,6 +4509,7 @@ delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 
 // Compare actual v/s expected
 var modifiedActualResString = JSON.stringify(actualResObj);
@@ -4343,6 +4597,7 @@ delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 
 // Remove unwanted fields from EXPECTED object, before actual v/s expected comparison
 var expectedResString = JSON.stringify(${V_Update_Request_Str});
@@ -4353,6 +4608,7 @@ delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 
 // Compare actual v/s expected
 var modifiedActualResString = JSON.stringify(actualResObj);
@@ -4466,6 +4722,7 @@ delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 
 // Remove unwanted fields from EXPECTED object, before actual v/s expected comparison
 var expectedResString = JSON.stringify(${V_Update_Request_Str});
@@ -4477,6 +4734,7 @@ delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 
 // Compare actual v/s expected
 var modifiedActualResString = JSON.stringify(actualResObj);
@@ -4581,7 +4839,7 @@ else {
         <stringProp name="ThreadGroup.on_sample_error">stopthread</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -4656,7 +4914,6 @@ else {
       }],&#xd;
       &quot;status&quot;: &quot;OPEN&quot;&#xd;
     },&#xd;
-    &quot;momType&quot;: &quot;Road&quot;,&#xd;
     &quot;geometry&quot;: {&#xd;
       &quot;type&quot;: &quot;Point&quot;,&#xd;
       &quot;coordinates&quot;: [&#xd;
@@ -4712,7 +4969,7 @@ else {
         <stringProp name="ThreadGroup.on_sample_error">stopthread</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -4791,8 +5048,7 @@ var requestObj = {
       &quot;text&quot;: &quot;A road has been CREATED&quot;
     }],
     &quot;status&quot;: &quot;OPEN&quot;
-  },
-  &quot;momType&quot;: &quot;Road&quot;
+  }
 };
 
 
@@ -4970,6 +5226,7 @@ actualResObj.features.forEach(function(feature) {
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].space;
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 	delete feature.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+	delete feature.properties[&quot;@ns:com:here:xyz&quot;].version;
 });
 
 // Compare actual v/s expected
@@ -5038,6 +5295,7 @@ delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 
 // Compare actual v/s expected
 var modifiedActualResString = JSON.stringify(actualResObj);
@@ -5141,8 +5399,7 @@ var requestObj = {
       &quot;text&quot;: &quot;A road has been CREATED&quot;
     }],
     &quot;status&quot;: &quot;OPEN&quot;
-  },
-  &quot;momType&quot;: &quot;Road&quot;
+  }
 };
 
 
@@ -5209,6 +5466,7 @@ delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 
 // Remove unwanted fields from EXPECTED object, before actual v/s expected comparison
 var expectedResString = JSON.stringify(${V_Update_Request_Str});
@@ -5219,6 +5477,7 @@ delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 
 // Compare actual v/s expected
 var modifiedActualResString = JSON.stringify(actualResObj);
@@ -5338,6 +5597,7 @@ delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 
 // Remove unwanted fields from EXPECTED object, before actual v/s expected comparison
 var expectedResString = JSON.stringify(${V_Update_Request_Str});
@@ -5348,6 +5608,7 @@ delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 
 // Compare actual v/s expected
 var modifiedActualResString = JSON.stringify(actualResObj);
@@ -5407,6 +5668,46 @@ else {
           </ResponseAssertion>
           <hashTree/>
         </hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Neg4.12 - Delete Task" enabled="true">
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
+          <stringProp name="HTTPSampler.domain"></stringProp>
+          <stringProp name="HTTPSampler.port"></stringProp>
+          <stringProp name="HTTPSampler.protocol"></stringProp>
+          <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/spaces/${SPACE_ID}/features/${TASK_ID_N04_01}?access_token=${WR_API_KEY}</stringProp>
+          <stringProp name="HTTPSampler.method">DELETE</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+          <stringProp name="HTTPSampler.connect_timeout"></stringProp>
+          <stringProp name="HTTPSampler.response_timeout"></stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Code" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="49590">204</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">8</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Body" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="1468">.*</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">5</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+        </hashTree>
       </hashTree>
       <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Space Connector Operations (manual)" enabled="false">
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
@@ -5422,19 +5723,19 @@ else {
         <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
       </ThreadGroup>
       <hashTree>
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Create Connector" enabled="true">
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Create Connector" enabled="false">
           <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
             <collectionProp name="Arguments.arguments">
               <elementProp name="" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
                 <stringProp name="Argument.value">{&#xd;
-  &quot;id&quot;: &quot;psql-utm-2&quot;,&#xd;
+  &quot;id&quot;: &quot;psql-local&quot;,&#xd;
   &quot;owner&quot;: &quot;ANONYMOUS&quot;,&#xd;
   &quot;active&quot;: true,&#xd;
   &quot;params&quot;: {&#xd;
-    &quot;ecps&quot;: &quot;3ZAzLlvfz8KV5NMAifpyUC5C/GtUdE+fm3XIdoS4AV+AYD1SvQS/b+A1tWhABe0O0hfDoFZGxuCqS85z6rf8GBYazv1Gu2FmKO9vhWzwGAc/53LTRVmS5Mv+/JSKJq6D8RqSe8Rt5GTFaLYmMuNj7JSEp9Mxib1C5efdVkvQIPcPdIXO9RwkPVsnQVZxMJ6qqgCxXyVsJEG8pmQ4p7V1ezosAWSVcSNED10hSpkoblqHsTGAnunaMgH/I8Vcqq6Pb1CUNK/CHvLmKw/d2D8py7j64U1LOuTGMHijdVui4zDrEXYiBp+W4w==&quot;,&#xd;
-    &quot;connectorId&quot;: &quot;psql-utm-2&quot;&#xd;
+    &quot;ecps&quot;: &quot;AzDrbETtkM3BanpPPMr1qYi156NbWJfb5D6u0DMh+ZuOuubgQTl9vxmKE1gmu4dD/fG7pIsu2rh5MOfZg9Slx4r5TMskOMWCWCeo42v1dmAPze8kEBbyQ88v5i6tgaz3dvRTJwlFIgT+1t0Ppe8nvPN9QFJkcQx0JY8B4RJ+zRsRHy/PeUP0gz310MjvVPKnzb9BnrxUXgH9+ppkedtTINF45eo=&quot;,&#xd;
+    &quot;connectorId&quot;: &quot;psql-task-mgmt&quot;&#xd;
   },&#xd;
   &quot;contactEmails&quot;: [&#xd;
     &quot;hiren.patel@here.com&quot;&#xd;
@@ -5443,7 +5744,7 @@ else {
     &quot;local&quot;: {&#xd;
       &quot;id&quot;: &quot;xyz-psql-local&quot;,&#xd;
       &quot;env&quot;: {&#xd;
-        &quot;ECPS_PHRASE&quot;: &quot;utm!pa55phr4s3&quot;&#xd;
+        &quot;ECPS_PHRASE&quot;: &quot;local&quot;&#xd;
       },&#xd;
       &quot;type&quot;: &quot;Embedded&quot;,&#xd;
       &quot;className&quot;: &quot;com.here.xyz.psql.PSQLXyzConnector&quot;,&#xd;
@@ -5510,18 +5811,18 @@ else {
           </JSR223PostProcessor>
           <hashTree/>
         </hashTree>
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Create Space" enabled="true">
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Create Space" enabled="false">
           <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
             <collectionProp name="Arguments.arguments">
               <elementProp name="" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
                 <stringProp name="Argument.value">{&#xd;
-	&quot;id&quot;: &quot;maptask_2&quot;,&#xd;
-	&quot;title&quot;: &quot;UTM Dummy Space&quot;,&#xd;
-	&quot;description&quot;: &quot;Dummy Space created for testing purpose&quot;,&#xd;
+	&quot;id&quot;: &quot;local:space_1&quot;,&#xd;
+	&quot;title&quot;: &quot;Test Space - Local&quot;,&#xd;
+	&quot;description&quot;: &quot;Test space for Local environment&quot;,&#xd;
 	&quot;storage&quot;: {&#xd;
-		&quot;id&quot;: &quot;psql-utm-2&quot;&#xd;
+		&quot;id&quot;: &quot;psql-local&quot;&#xd;
 	},&#xd;
 	&quot;enableUUID&quot;: true&#xd;
 }</stringProp>
@@ -5547,6 +5848,46 @@ else {
           <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Code" enabled="true">
             <collectionProp name="Asserion.test_strings">
               <stringProp name="49586">200</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">8</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Body" enabled="false">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="-857009810">&quot;type&quot;:&quot;ErrorResponse&quot;,&quot;error&quot;:&quot;Exception&quot;,&quot;errorMessage&quot;:&quot;Insufficient rights. Token access</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">2</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+        </hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Delete Space" enabled="false">
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
+          <stringProp name="HTTPSampler.domain"></stringProp>
+          <stringProp name="HTTPSampler.port"></stringProp>
+          <stringProp name="HTTPSampler.protocol"></stringProp>
+          <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/spaces/utm_dummy_space_3?access_token=admin</stringProp>
+          <stringProp name="HTTPSampler.method">DELETE</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+          <stringProp name="HTTPSampler.connect_timeout"></stringProp>
+          <stringProp name="HTTPSampler.response_timeout"></stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Code" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="49590">204</stringProp>
             </collectionProp>
             <stringProp name="Assertion.custom_message"></stringProp>
             <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>

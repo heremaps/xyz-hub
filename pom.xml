@@ -50,6 +50,7 @@
     <module>xyz-models</module>
     <module>xyz-connectors</module>
     <module>xyz-psql-connector</module>
+    <module>xyz-txn-handler</module>
   </modules>
 
   <scm>
@@ -96,6 +97,7 @@
     <lambda-core-version>1.2.1</lambda-core-version>
     <log4j-version>2.17.1</log4j-version>
     <aws-log4j-version>1.5.1</aws-log4j-version>
+    <jayway-jsonpath.version>2.7.0</jayway-jsonpath.version>
   </properties>
 
   <!-- Release settings -->
@@ -217,6 +219,11 @@
         <artifactId>xyz-psql-connector</artifactId>
         <version>${project.version}</version>
       </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>xyz-txn-handler</artifactId>
+        <version>${project.version}</version>
+      </dependency>
 
       <!-- Vertx -->
       <dependency>
@@ -295,6 +302,11 @@
         <groupId>com.fasterxml.jackson.core</groupId>
         <artifactId>jackson-databind</artifactId>
         <version>${jackson-version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.jayway.jsonpath</groupId>
+        <artifactId>json-path</artifactId>
+        <version>${jayway-jsonpath.version}</version>
       </dependency>
 
       <!-- FlatBuffers -->
@@ -471,12 +483,6 @@
         <groupId>junit</groupId>
         <scope>test</scope>
         <version>4.13.2</version>
-      </dependency>
-      <dependency>
-        <groupId>com.jayway.jsonpath</groupId>
-        <artifactId>json-path</artifactId>
-        <version>2.4.0</version>
-        <scope>test</scope>
       </dependency>
       <dependency>
         <artifactId>rest-assured</artifactId>

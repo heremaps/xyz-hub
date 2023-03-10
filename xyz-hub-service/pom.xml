@@ -168,16 +168,21 @@
 
   <dependencies>
 
+    <!-- XYZ libraries -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>xyz-models</artifactId>
     </dependency>
-
     <!-- Embedded xyz lambdas -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>xyz-psql-connector</artifactId>
     </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>xyz-txn-handler</artifactId>
+    </dependency>
+
     <!-- Logging libraries -->
     <dependency>
       <artifactId>log4j-slf4j-impl</artifactId>

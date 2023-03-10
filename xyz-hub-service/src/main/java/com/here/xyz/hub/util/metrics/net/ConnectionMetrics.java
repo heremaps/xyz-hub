@@ -114,44 +114,44 @@ public class ConnectionMetrics {
     }).addValue(valueToAggregate);
   }
 
-  public static Collection<MetricPublisher> startConnectionMetricPublishers() {
-    List<MetricPublisher> publishers = new ArrayList<>();
+  public static Collection<MetricPublisher<?>> startConnectionMetricPublishers() {
+    List<MetricPublisher<?>> publishers = new ArrayList<>();
     //HTTP client queueing time
     publishers.add(new CWAggregatedValuesPublisher(
         httpClientQueueingTime = new AggregatingMetric("HttpClientQueueingTime", MILLISECONDS)));
 
     //Open outbound TCP connections by remote target
-    publishers.add(new CWAttributedMetricCollectionPublisher(new CurrentTcpConnections()));
+    publishers.add(new CWAttributedMetricCollectionPublisher<>(new CurrentTcpConnections()));
 
     //New outbound TCP connections by remote target
-    publishers.add(new CWAttributedMetricCollectionPublisher(new NewTcpConnections()));
+    publishers.add(new CWAttributedMetricCollectionPublisher<>(new NewTcpConnections()));
 
     //TCP connection errors by remote target
-    publishers.add(new CWAttributedMetricCollectionPublisher(new TcpErrors()));
+    publishers.add(new CWAttributedMetricCollectionPublisher<>(new TcpErrors()));
 
     //Read bytes through TCP connections by remote target
-    publishers.add(new CWAttributedMetricCollectionPublisher(
-        tcpReadBytes = new AttributedMetricCollection(TCP_READ_BYTES_METRIC_NAME, BYTES)));
+    publishers.add(new CWAttributedMetricCollectionPublisher<>(
+        tcpReadBytes = new AttributedMetricCollection<>(TCP_READ_BYTES_METRIC_NAME, BYTES)));
 
     //Written bytes through TCP connections by remote target
-    publishers.add(new CWAttributedMetricCollectionPublisher(
-        tcpWrittenBytes = new AttributedMetricCollection(TCP_WRITTEN_BYTES_METRIC_NAME, BYTES)));
+    publishers.add(new CWAttributedMetricCollectionPublisher<>(
+        tcpWrittenBytes = new AttributedMetricCollection<>(TCP_WRITTEN_BYTES_METRIC_NAME, BYTES)));
 
     //Reset HTTP requests count by remote target
-    publishers.add(new CWAttributedMetricCollectionPublisher(new ResetHttpRequests()));
+    publishers.add(new CWAttributedMetricCollectionPublisher<>(new ResetHttpRequests()));
 
     //HTTP request latency by remote target
-    publishers.add(new CWAttributedMetricCollectionPublisher(
-        httpRequestLatency = new AttributedMetricCollection(HTTP_REQUEST_LATENCY_METRIC_NAME, MILLISECONDS)));
+    publishers.add(new CWAttributedMetricCollectionPublisher<>(
+        httpRequestLatency = new AttributedMetricCollection<>(HTTP_REQUEST_LATENCY_METRIC_NAME, MILLISECONDS)));
 
     //New HTTP requests by remote target
-    publishers.add(new CWAttributedMetricCollectionPublisher(new HttpRequests()));
+    publishers.add(new CWAttributedMetricCollectionPublisher<>(new HttpRequests()));
     
     //Inflight HTTP requests by remote target
-    publishers.add(new CWAttributedMetricCollectionPublisher(new HttpRequestsInflight()));
+    publishers.add(new CWAttributedMetricCollectionPublisher<>(new HttpRequestsInflight()));
 
     //Current HTTP connection pool utilization by remote target
-    publishers.add(new CWAttributedMetricCollectionPublisher(new HttpPoolUtilization()));
+    publishers.add(new CWAttributedMetricCollectionPublisher<>(new HttpPoolUtilization()));
     
     return publishers;
   }
