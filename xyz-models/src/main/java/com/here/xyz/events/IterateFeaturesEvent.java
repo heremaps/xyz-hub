@@ -32,6 +32,7 @@ public final class IterateFeaturesEvent extends SearchForFeaturesEvent<IterateFe
   private Integer v;
   private List<String> sort;
   private Integer[] part;
+  private boolean enableGlobalVersioning;
 
   @Deprecated
   public Integer getV() {
@@ -94,6 +95,19 @@ public final class IterateFeaturesEvent extends SearchForFeaturesEvent<IterateFe
   @SuppressWarnings("unused")
   public IterateFeaturesEvent withPart(Integer[] part) {
     setPart(part);
+    return this;
+  }
+
+  public boolean isEnableGlobalVersioning() {
+    return enableGlobalVersioning;
+  }
+
+  public void setEnableGlobalVersioning(boolean enableGlobalVersioning) {
+    this.enableGlobalVersioning = enableGlobalVersioning;
+  }
+
+  public IterateFeaturesEvent withEnableGlobalVersioning(boolean enableGlobalVersioning) {
+    setEnableGlobalVersioning(enableGlobalVersioning);
     return this;
   }
 }

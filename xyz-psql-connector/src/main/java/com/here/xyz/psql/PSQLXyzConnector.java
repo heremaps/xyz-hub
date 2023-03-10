@@ -186,7 +186,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       if (isOrderByEvent(event))
         return IterateFeatures.findFeaturesSort(event, this);
-      if (event.getV() != null)
+      if (event.getV() != null && event.isEnableGlobalVersioning())
         return iterateVersions(event);
 
       return new IterateFeatures(event, this).run();

@@ -19,7 +19,6 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.jayway.restassured.RestAssured.given;
 
 import com.google.common.base.Strings;
@@ -32,7 +31,6 @@ public class TestWithSpaceCleanup extends RestAssuredTest {
 
   protected static void removeSpace(String spaceId) {
     given().
-        accept(APPLICATION_JSON).
         headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL)).
         when().
         delete(getSpacesPath() + "/" + spaceId);
