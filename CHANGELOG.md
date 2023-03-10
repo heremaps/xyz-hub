@@ -4,6 +4,7 @@
 - Introduced new **Transaction logging** with help of Postgres triggers (with transactional atomicity).
 - Added Background Transaction Handler jobs to sequence and publish the SpaceDB transactions on desired AWS SNS topic, **with "Atleast-Once" messaging guarantee**.
 - Segregated use of DB instances i.e. Naksha AdminDB v/s Foreign SpaceDBs.
+- SNS Feature Publisher supports additional message attribues as per Subscription config params `customMsgAttributes`
 - Bug fixes: 
     - GET /connectors API authorization fixed to correctly validate request-rights against `manageConnectors` token-rights.
 
