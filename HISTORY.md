@@ -85,6 +85,7 @@ The **UUID** will be in the format of a
 variant 1 (big endian encoded). However, they are not random, but reflect a guaranteed unique
 identifier. The format chosen matches perfectly well with how PostgresQL  
 [compares UUIDs](https://doxygen.postgresql.org/uuid_8c.html#aae2aef5e86c79c563f02a5cee13d1708).
+
 As seen in the source code, the compare of **UUID**s is done as:
 
 ```C
@@ -193,5 +194,6 @@ The history can be enabled and disabled for every space using the following meth
 ## Transaction Fix Job
 
 The last step is a background job added into Naksha-Hub that will fix the transaction table. It
-will set the `seqid` and `seqts` to signal the visibility of a transaction and to generate a 
+will set the `space`, `id` and `ts` to signal the visibility of a transaction and to generate a 
 sequential numeric identifier, that has no holes, for every transaction.
+
