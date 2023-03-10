@@ -249,7 +249,7 @@ public class TweaksSQL
 
    estimateCountByBboxesSql_A = //flavour1: calc _postgis_selectivity with partitions and sum up
      " with indata as "
-    +" ( select '${schema}' as schema, '${table}' as space, array[ %1$s ] as tiles, 'geo' as colname ), "
+    +" ( select '${schema}' as schema, '${table_head}' as space, array[ %1$s ] as tiles, 'geo' as colname ), "
     +" iindata as ( %2$s ),"
     +" iiidata as "
     +" ( select ii.tid, string_agg(  ii.reltuples::bigint || '~' || ii.tblname,',' ) as rtup, sum( case when ii.bstats then ii.reltuples * xyz_postgis_selectivity(format('%%s.%%I', ii.schema, ii.tblname)::regclass, ii.colname, ii.tile) else 0.0 end ) estim "
