@@ -768,6 +768,7 @@ paths:
         - $ref: '#/components/parameters/TweaksParams'
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
+        - $ref: '#/components/parameters/Version'
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionResponse'
@@ -813,6 +814,7 @@ paths:
         - $ref: '#/components/parameters/Mode'
         - $ref: '#/components/parameters/VizSampling'
         - $ref: '#/components/parameters/Context'
+        - $ref: '#/components/parameters/Version'
       responses:
         '200':
           $ref: '#/components/responses/TileResponse'
@@ -851,6 +853,7 @@ paths:
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/SkipCache'
         - $ref: '#/components/parameters/Force2D'
+        - $ref: '#/components/parameters/Version'
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionResponse'
@@ -881,6 +884,7 @@ paths:
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/SkipCache'
         - $ref: '#/components/parameters/Force2D'
+        - $ref: '#/components/parameters/Version'
       requestBody:
         $ref: '#/components/requestBodies/GeometryRequest'
       responses:
@@ -913,6 +917,8 @@ paths:
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/SkipCache'
         - $ref: '#/components/parameters/Force2D'
+        - $ref: '#/components/parameters/Version'
+        - $ref: '#/components/parameters/Author'
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionResponse'
@@ -949,6 +955,7 @@ paths:
         - $ref: '#/components/parameters/SkipCache'
         - $ref: '#/components/parameters/Handle'
         - $ref: '#/components/parameters/Force2D'
+        - $ref: '#/components/parameters/Version'
       responses:
         '200':
           $ref: '#/components/responses/IterateResponse'
