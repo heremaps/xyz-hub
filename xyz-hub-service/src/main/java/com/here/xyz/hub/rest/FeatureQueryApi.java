@@ -95,9 +95,9 @@ public class FeatureQueryApi extends SpaceBasedApi {
       final String author = Query.getString(context, Query.F_PREFIX + Query.AUTHOR, null);
 
       final SearchForFeaturesEvent event = new SearchForFeaturesEvent();
-      event.withLimit(getLimit(context))
-          .withTags(Query.getTags(context))
+      event.withTags(Query.getTags(context))
           .withPropertiesQuery(propertiesQuery)
+          .withLimit(getLimit(context))
           .withRef(version)
           .withAuthor(author)
           .withForce2D(force2D)
@@ -139,8 +139,6 @@ public class FeatureQueryApi extends SpaceBasedApi {
         IterateFeaturesEvent event = new IterateFeaturesEvent();
         event.withLimit(getLimit(context))
             .withForce2D(force2D)
-            .withTags(Query.getTags(context))
-            .withPropertiesQuery(propertiesQuery)
             .withSelection(Query.getSelection(context))
             .withSort(sort)
             .withPart(part)
@@ -156,7 +154,6 @@ public class FeatureQueryApi extends SpaceBasedApi {
       IterateFeaturesEvent event = new IterateFeaturesEvent()
           .withLimit(getLimit(context))
           .withForce2D(force2D)
-          .withTags(Query.getTags(context))
           .withSelection(Query.getSelection(context))
           .withV(version)
           .withHandle(Query.getString(context, Query.HANDLE, null))
@@ -249,9 +246,9 @@ public class FeatureQueryApi extends SpaceBasedApi {
             .withClusteringParams(Query.getAdditionalParams(context,Query.CLUSTERING))
             .withTweakType(Query.getString(context, Query.TWEAKS, null))
             .withTweakParams(Query.getAdditionalParams(context, Query.TWEAKS))
-            .withLimit(getLimit(context))
             .withTags(Query.getTags(context))
             .withPropertiesQuery(Query.getPropertiesQuery(context))
+            .withLimit(getLimit(context))
             .withSelection(Query.getSelection(context))
             .withAuthor(author)
             .withContext(spaceContext);
