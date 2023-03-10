@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,6 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
-import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
@@ -42,7 +41,6 @@ import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
 import com.here.xyz.events.ModifySubscriptionEvent;
-import com.here.xyz.events.QueryEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.FeatureAuthorization;
@@ -226,7 +224,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
   }
 
-  abstract static class ReadQuery<T extends QueryEvent<?>, X extends FeatureTask<T, ?>> extends FeatureTask<T, X> {
+  abstract static class ReadQuery<T extends com.here.xyz.events.SearchForFeaturesEvent<?>, X extends FeatureTask<T, ?>> extends FeatureTask<T, X> {
 
     private ReadQuery(T event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
       super(event, context, apiResponseTypeType, skipCache);
@@ -567,22 +565,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
               .then(FeatureTaskHandler::validate)
               .then(FeatureTaskHandler::invoke)
               .then(FeatureTaskHandler::writeCache);
-    }
-  }
-
-  public static class DeleteOperation extends FeatureTask<DeleteFeaturesByTagEvent, DeleteOperation> {
-
-    public DeleteOperation(DeleteFeaturesByTagEvent event, RoutingContext context, ApiResponseType apiResponseTypeType) {
-      super(event, context, apiResponseTypeType, true);
-    }
-
-    @Override
-    public TaskPipeline<DeleteOperation> createPipeline() {
-      return TaskPipeline.create(this)
-          .then(FeatureTaskHandler::resolveSpace)
-          .then(FeatureTaskHandler::checkPreconditions)
-          .then(FeatureAuthorization::authorize)
-          .then(FeatureTaskHandler::invoke);
     }
   }
 

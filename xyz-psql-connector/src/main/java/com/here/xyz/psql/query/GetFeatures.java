@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE_HIDE_COMP
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
-import com.here.xyz.events.QueryEvent;
+import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.DatabaseWriter.ModificationType;
@@ -248,7 +248,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   //TODO: Can be removed after completion of refactoring
   @Deprecated
-  public static SQLQuery buildSelectionFragmentBWC(QueryEvent event) {
+  public static SQLQuery buildSelectionFragmentBWC(SearchForFeaturesEvent event) {
     SQLQuery selectionFragment = buildSelectionFragment(event);
     selectionFragment.replaceNamedParameters();
     return selectionFragment;

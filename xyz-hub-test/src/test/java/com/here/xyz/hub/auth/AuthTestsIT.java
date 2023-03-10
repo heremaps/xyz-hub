@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -79,11 +79,9 @@ public class AuthTestsIT extends RestAssuredTest {
         && !"x-auth-test-space".equals(cleanUpId)
         && !"x-auth-test-space-shared".equals(cleanUpId)
     ) removeSpace(cleanUpId);
-
   }
 
-  private static boolean zeroSpaces()
-  {
+  private static boolean zeroSpaces() {
     int nrCurrentSpaces =
      getSpacesList("*", AuthProfile.ACCESS_ALL)
       .statusCode(OK.code())

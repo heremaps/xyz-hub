@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@
 package com.here.xyz.connectors;
 
 import com.here.xyz.Payload;
-import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
@@ -141,12 +140,6 @@ public abstract class ProcessorConnector extends AbstractConnectorHandler {
     if ((ModifyFeaturesEvent.class.getSimpleName() + RESPONSE).equals(eventType)) {
       return wrapResponse(processModifyFeatures((FeatureCollection) notification.getEvent(), notificationParams));
     }
-    if ((DeleteFeaturesByTagEvent.class.getSimpleName() + REQUEST).equals(eventType)) {
-      return wrapEvent(processDeleteFeaturesByTag((DeleteFeaturesByTagEvent) notification.getEvent(), notificationParams));
-    }
-    if ((DeleteFeaturesByTagEvent.class.getSimpleName() + RESPONSE).equals(eventType)) {
-      return wrapResponse(processDeleteFeaturesByTag((FeatureCollection) notification.getEvent(), notificationParams));
-    }
 
     // if any of the events were caught, throws an error.
     throw new ErrorResponseException(streamId, XyzError.NOT_IMPLEMENTED, "Unknown event type '" + eventType + "'");
@@ -216,11 +209,6 @@ public abstract class ProcessorConnector extends AbstractConnectorHandler {
   }
 
   protected FeatureCollection processSearchForFeatures(FeatureCollection response, NotificationParams notificationParams) throws Exception {
-    throw new ErrorResponseException(streamId, XyzError.NOT_IMPLEMENTED, "Not implemented by this processor");
-  }
-
-  protected DeleteFeaturesByTagEvent processDeleteFeaturesByTag(DeleteFeaturesByTagEvent event, NotificationParams notificationParams)
-      throws Exception {
     throw new ErrorResponseException(streamId, XyzError.NOT_IMPLEMENTED, "Not implemented by this processor");
   }
 

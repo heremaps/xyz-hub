@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,11 +27,8 @@ import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.FeatureTask;
 import com.here.xyz.hub.task.FeatureTask.ConditionalOperation;
-import com.here.xyz.hub.task.FeatureTask.DeleteOperation;
 import com.here.xyz.hub.task.FeatureTask.GeometryQuery;
-import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
-import com.here.xyz.models.geojson.implementation.Feature;
 
 public class FeatureAuthorization extends Authorization {
 
@@ -39,8 +36,6 @@ public class FeatureAuthorization extends Authorization {
   public static <X extends FeatureTask> void authorize(X task, Callback<X> callback) {
     if (task instanceof ConditionalOperation) {
       authorizeConditionalOp((ConditionalOperation) task, (Callback<ConditionalOperation>) callback);
-    } else if (task instanceof DeleteOperation) {
-      authorizeDeleteOperation((DeleteOperation) task, (Callback<DeleteOperation>) callback);
     } else {
       authorizeReadQuery(task, callback);
     }
@@ -102,15 +97,5 @@ public class FeatureAuthorization extends Authorization {
       requestRights.deleteFeatures(XyzHubAttributeMap.forValues(task.space.getOwner(), task.space.getId(), task.space.getPackages()));
 
     evaluateRights(requestRights, tokenRights, task, callback);
-  }
-
-  /**
-   * Authorizes a delete operation.
-   */
-  private static void authorizeDeleteOperation(DeleteOperation task, Callback<DeleteOperation> callback) {
-    final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
-    requestRights.deleteFeatures(XyzHubAttributeMap.forValues(task.space.getOwner(), task.space.getId(), task.space.getPackages()));
-
-    evaluateRights(requestRights, task.getJwt().getXyzHubMatrix(), task, callback);
   }
 }

@@ -35,7 +35,6 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.connectors.SimulatedContext;
 import com.here.xyz.connectors.StorageConnector;
-import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
@@ -796,21 +795,6 @@ public abstract class DatabaseHandler extends StorageConnector {
       ids.addAll(deletes.keySet());
 
       return ids;
-    }
-
-    @Deprecated
-    protected XyzResponse executeDeleteFeaturesByTag(DeleteFeaturesByTagEvent event) throws SQLException {
-        boolean includeOldStates = event.getParams() != null
-                && event.getParams().get(INCLUDE_OLD_STATES) == Boolean.TRUE;
-
-        final SQLQuery searchQuery = GetFeaturesByBBox.generateSearchQueryBWC(event);
-        final SQLQuery query = SQLQueryBuilder.buildDeleteFeaturesByTagQuery(includeOldStates, searchQuery);
-
-        //TODO: check in detail what we want to return
-        if (searchQuery != null && includeOldStates)
-            return executeQueryWithRetry(query, this::oldStatesResultSetHandler,false);
-
-        return new FeatureCollection().withCount((long) executeUpdateWithRetry(query));
     }
 
     private boolean canRetryAttempt() throws Exception {
