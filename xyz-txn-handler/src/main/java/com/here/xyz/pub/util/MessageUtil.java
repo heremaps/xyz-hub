@@ -7,6 +7,8 @@ import com.here.xyz.pub.mapper.DefaultPubMsgMapper;
 import com.here.xyz.pub.mapper.IPubMsgMapper;
 import com.jayway.jsonpath.Configuration;
 import com.jayway.jsonpath.JsonPath;
+import com.jayway.jsonpath.Option;
+import com.jayway.jsonpath.PathNotFoundException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.services.sns.model.MessageAttributeValue;
@@ -61,15 +63,29 @@ public class MessageUtil {
 
     public static void addCustomFieldsToAttributeMap(final Map<String, MessageAttributeValue> msgAttrMap,
                                                      final Subscription sub, final String jsonData) {
-        // TODO : Accept this from subscription configuration
-        // Add featureId, featureType, status (properties.status)
-        final Object document = Configuration.defaultConfiguration().jsonProvider().parse(jsonData);
-        final String featureId = JsonPath.read(document, "$.id");
-        final String featureType = JsonPath.read(document, "$.properties.featureType");
-        final String status = JsonPath.read(document, "$.properties.status");
-        addToAttributeMap(msgAttrMap, "featureId", featureId);
-        addToAttributeMap(msgAttrMap, "featureType", featureType);
-        addToAttributeMap(msgAttrMap, "status", status);
+        // Add custom message attributes as per subscription configuration
+        if (sub.getConfig()!=null && sub.getConfig().getParams()!=null) {
+            final Map<String, Object> attrMap = (Map<String, Object>) sub.getConfig().getParams().get("customMsgAttributes");
+            if (attrMap!=null) {
+                final Object document = Configuration.defaultConfiguration().jsonProvider().parse(jsonData); // parse one time per document
+                for (final String attrKey : attrMap.keySet()) {
+                    final Object jsonPathExpression = attrMap.get(attrKey);
+                    if (jsonPathExpression!=null) {
+                        try {
+                            final String attrValue = JsonPath.read(document, jsonPathExpression.toString());
+                            if (attrValue!=null) {
+                                addToAttributeMap(msgAttrMap, attrKey, attrValue);
+                            }
+                        } // skip this attribute in case it is not found
+                        catch (PathNotFoundException ex) {
+                            logger.trace("Exception extracting attribute [{}] using jsonpath [{}] from jsondata. ",
+                                    attrKey, jsonPathExpression, ex);
+                        }
+                    }
+                }
+
+            }
+        }
     }
 
     public static String compressAndEncodeToString(final String data) throws IOException {

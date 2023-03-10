@@ -48,6 +48,7 @@ public class DefaultSNSPublisher implements IPublisher {
                 final Map<String, MessageAttributeValue> msgAttrMap = new HashMap<>();
                 MessageUtil.addToAttributeMap(msgAttrMap, "action", txnData.getAction());
                 MessageUtil.addToAttributeMap(msgAttrMap, "space", spaceId);
+                MessageUtil.addToAttributeMap(msgAttrMap, "featureId", txnData.getFeatureId());
                 // Add other custom attributes
                 MessageUtil.addCustomFieldsToAttributeMap(msgAttrMap, sub, txnData.getJsonData());
 
