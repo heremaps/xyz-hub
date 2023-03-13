@@ -69,15 +69,4 @@ public class TestCompositeSpace extends TestSpaceWithFeature {
         .body("id", equalTo(extensionId))
         .body("extends.spaceId", equalTo(extendingSpaceId));
   }
-
-  protected void modifyComposite(String spaceId, String newExtendingId) {
-    given()
-        .contentType(APPLICATION_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"extends\":{\"spaceId\":\"" + newExtendingId + "\"}}")
-        .when()
-        .patch("/spaces/" + spaceId)
-        .then()
-        .statusCode(OK.code());
-  }
 }

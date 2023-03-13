@@ -68,7 +68,8 @@ public class VersioningIT extends TestSpaceWithFeature {
 
   public void updateFeature(String spaceId) {
     // update a feature
-    postFeature(spaceId, new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("name", "updated name")));
+    postFeature(spaceId, new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("name", "updated name")),
+        AuthProfile.ACCESS_OWNER_1_ADMIN);
   }
 
   @After
@@ -566,8 +567,8 @@ public class VersioningIT extends TestSpaceWithFeature {
         .then()
         .statusCode(NO_CONTENT.code());
 
-    postFeature(SPACE_ID_2_UUID, new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("name", "updated name 2")));
+    postFeature(SPACE_ID_2_UUID, new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("name", "updated name 2")), AuthProfile.ACCESS_OWNER_1_ADMIN);
 
-    postFeature(SPACE_ID_2_UUID, new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("name", "updated name 3")));
+    postFeature(SPACE_ID_2_UUID, new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("name", "updated name 3")), AuthProfile.ACCESS_OWNER_1_ADMIN);
   }
 }

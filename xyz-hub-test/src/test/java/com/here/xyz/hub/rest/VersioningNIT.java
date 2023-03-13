@@ -105,17 +105,6 @@ public class VersioningNIT extends TestSpaceWithFeature {
         .post(getSpacesPath() + "/"+ SPACE_ID +"/features");
   }
 
-  public void createSpaceWithVersionsToKeep(String spaceId, int versionsToKeep) {
-    given()
-        .contentType(APPLICATION_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body("{\"id\":\""+spaceId+"\",\"title\":\"" + spaceId + "\",\"versionsToKeep\":"+versionsToKeep+",\"enableUUID\":\"true\"}")
-        .when()
-        .post(getCreateSpacePath())
-        .then()
-        .statusCode(OK.code());
-  }
-
   @Test
   public void testCreateNoVersion() {
     given()

@@ -44,63 +44,25 @@ import org.junit.runners.MethodSorters;
 @Category(RestTests.class)
 public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
 
-  private static final String SPACE_ID = "spacev2k1000";
-  private static final String AUTHOR_1 = "XYZ-01234567-89ab-cdef-0123-456789aUSER1";
-  private static final String AUTHOR_2 = "XYZ-01234567-89ab-cdef-0123-456789aUSER2";
+  protected static final String SPACE_ID = "spacev2k1000";
+  protected static final String AUTHOR_1 = "XYZ-01234567-89ab-cdef-0123-456789aUSER1";
+  protected static final String AUTHOR_2 = "XYZ-01234567-89ab-cdef-0123-456789aUSER2";
 
   @Before
   public void before() {
     removeSpace(SPACE_ID);
     createSpaceWithVersionsToKeep("spacev2k1000", 1000);
-    postFeature(newFeature());
-    postFeature(newFeature()
+    postFeature(SPACE_ID, newFeature(), AuthProfile.ACCESS_OWNER_1_ADMIN);
+    postFeature(SPACE_ID, newFeature()
         .withGeometry(new Point().withCoordinates(new PointCoordinates(50,50)))
-        .withProperties(new Properties().with("key2", "value2"))
+        .withProperties(new Properties().with("key2", "value2")),
+        AuthProfile.ACCESS_OWNER_1_ADMIN
     );
   }
 
   @After
   public void after() {
     removeSpace(SPACE_ID);
-  }
-
-  public static void postFeature(Feature feature) {
-    postFeature(feature, AuthProfile.ACCESS_OWNER_1_ADMIN);
-  }
-
-  public static void postFeature(Feature feature, AuthProfile authProfile) {
-    given()
-        .contentType(APPLICATION_GEO_JSON)
-        .headers(getAuthHeaders(authProfile))
-        .body(feature.serialize())
-        .when()
-        .post(getSpacesPath() + "/"+ SPACE_ID +"/features");
-  }
-
-  public static void postFeatures(FeatureCollection features) {
-    given()
-        .contentType(APPLICATION_GEO_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body(features.serialize())
-        .when()
-        .post(getSpacesPath() + "/"+ SPACE_ID +"/features");
-  }
-
-  public static void createSpaceWithVersionsToKeep(String spaceId, int versionsToKeep) {
-    given()
-        .contentType(APPLICATION_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body("{\"id\":\""+spaceId+"\",\"title\":\"" + spaceId + "\",\"versionsToKeep\":"+versionsToKeep+",\"enableUUID\":\"true\"}")
-        .when()
-        .post(getCreateSpacePath())
-        .then()
-        .statusCode(OK.code());
-  }
-
-  public static Feature newFeature() {
-    return new Feature().withId("f1")
-        .withGeometry(new Point().withCoordinates(new PointCoordinates(0,0)))
-        .withProperties(new Properties().with("key1", "value1"));
   }
 
   @Test
@@ -315,7 +277,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
 
   @Test
   public void testGetIteratePagingWithVersion() {
-    postFeatures(new FeatureCollection().withFeatures(new ArrayList<Feature>() {{
+    postFeatures(SPACE_ID, new FeatureCollection().withFeatures(new ArrayList<Feature>() {{
       add(new Feature()
           .withId("IT1")
           .withGeometry(new Point().withCoordinates(new PointCoordinates(1,1)))
@@ -330,7 +292,8 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
           .withId("IT3")
           .withGeometry(new Point().withCoordinates(new PointCoordinates(3,3)))
           .withProperties(new Properties().with("it3", "it3")));
-    }}));
+    }}),
+        AuthProfile.ACCESS_OWNER_1_ADMIN);
 
     String handle = given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
@@ -355,7 +318,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
 
   @Test
   public void testGetSearchWithAuthor() {
-    postFeature(newFeature().withProperties(new Properties().with("population", 5000)), AuthProfile.ACCESS_OWNER_2_ALL);
+    postFeature(SPACE_ID, newFeature().withProperties(new Properties().with("population", 5000)), AuthProfile.ACCESS_OWNER_2_ALL);
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))

@@ -84,6 +84,10 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
             .body("storage.id", equalTo((usedStorageId)));
   }
 
+  protected static String createSpaceWithId(String spaceId) {
+    return createSpaceWithCustomStorage(spaceId, "psql", null, 1);
+  }
+
   protected static String createSpaceWithCustomStorage(String spaceId, String storageId, JsonObject storageParams) {
     return createSpaceWithCustomStorage(spaceId, storageId, storageParams, 1);
   }
@@ -336,10 +340,6 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .statusCode(NO_CONTENT.code());
   }
 
-  public void postFeature(String spaceId, Feature feature) {
-    postFeature(spaceId, feature, AuthProfile.ACCESS_OWNER_1_ADMIN);
-  }
-
   public void postFeature(String spaceId, Feature feature, AuthProfile authProfile) {
     given()
         .contentType(APPLICATION_GEO_JSON)
@@ -350,5 +350,42 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .then()
         .statusCode(OK.code())
         .body("features[0].id", equalTo(feature.getId()));
+  }
+
+  public static void createSpaceWithVersionsToKeep(String spaceId, int versionsToKeep) {
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body("{\"id\":\""+spaceId+"\",\"title\":\"" + spaceId + "\",\"versionsToKeep\":"+versionsToKeep+",\"enableUUID\":\"true\"}")
+        .when()
+        .post(getCreateSpacePath())
+        .then()
+        .statusCode(OK.code());
+  }
+
+  public static Feature newFeature() {
+    return new Feature().withId("f1")
+        .withGeometry(new Point().withCoordinates(new PointCoordinates(0,0)))
+        .withProperties(new Properties().with("key1", "value1"));
+  }
+
+  public static void postFeatures(String spaceId, FeatureCollection features, AuthProfile authProfile) {
+    given()
+        .contentType(APPLICATION_GEO_JSON)
+        .headers(getAuthHeaders(authProfile))
+        .body(features.serialize())
+        .when()
+        .post(getSpacesPath() + "/"+ spaceId +"/features");
+  }
+
+  protected static void modifyComposite(String spaceId, String newExtendingId) {
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body("{\"extends\":{\"spaceId\":\"" + newExtendingId + "\"}}")
+        .when()
+        .patch("/spaces/" + spaceId)
+        .then()
+        .statusCode(OK.code());
   }
 }
