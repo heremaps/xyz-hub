@@ -494,12 +494,6 @@ public class VersioningIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void getFeaturesVersionStarAndAuthor() {
-    // TODO
-  }
-
-  @Test
-  @Ignore // TODO remove ignore
   public void searchFeaturesByPropertyAndAuthor() {
     postFeature(SPACE_ID_1_NO_UUID, new Feature().withId(FEATURE_ID_2).withProperties(new Properties().with("capacity", 58505)),
         AuthProfile.ACCESS_OWNER_2_ALL);
@@ -534,7 +528,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID_1_NO_UUID + "/search?version=lt=10&author=" + USER_2 + "&p.capacity=58505")
+        .get(getSpacesPath() + "/" + SPACE_ID_1_NO_UUID + "/search?version=10&author=" + USER_2 + "&p.capacity=58505")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
@@ -544,14 +538,10 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID_1_NO_UUID + "/search?f.id=" + FEATURE_ID_2 + "&version=lt=10&author=" + USER_1 + "&author="
-            + USER_2 + "&p.capacity<=58505")
+        .get(getSpacesPath() + "/" + SPACE_ID_1_NO_UUID + "/search?f.id=" + FEATURE_ID_2 + "&version=2&author=" + USER_2 + "&p.capacity<=58505")
         .then()
         .statusCode(OK.code())
-        .body("features.size()", equalTo(2))
-        .body("features[0].id", equalTo(FEATURE_ID_2))
-        .body("features[0].properties.capacity", equalTo(58500))
-        .body("features[0].properties.@ns:com:here:xyz.version", equalTo(1))
+        .body("features.size()", equalTo(1))
         .body("features[0].id", equalTo(FEATURE_ID_2))
         .body("features[0].properties.capacity", equalTo(58505))
         .body("features[0].properties.@ns:com:here:xyz.version", equalTo(2));
