@@ -37,7 +37,7 @@ import org.junit.Test;
 
 public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
 
-  private static Feature newFeature() {
+  public static Feature newFeature() {
     return new Feature()
         .withId(RandomStringUtils.randomAlphanumeric(3));
   }
