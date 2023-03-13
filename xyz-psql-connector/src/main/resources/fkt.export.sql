@@ -248,7 +248,7 @@ begin
  for lastDigit in 0..3 loop
   qk = iqk || lastDigit;
   
-  execute format( 'select exists ( select 1 from %1$s r where r.geo && htile_bbox( %2$L ) and st_intersects(r.geo, htile_bbox( %2$L )))', _tbl, qk ) into bFound;
+  execute format( 'select exists ( select 1 from %1$s r where st_intersects(r.geo, htile_bbox( %2$L )))', _tbl, qk ) into bFound;
 
   if bFound then
    if length( qk ) >= mlevel then
@@ -275,7 +275,7 @@ begin
  for lastDigit in 0..3 loop
   qk = iqk || lastDigit;
   
-  execute format( 'select exists ( select 1 from %1$s r where r.geo && xyz_qk_qk2bbox( %2$L ) and st_intersects(r.geo, xyz_qk_qk2bbox( %2$L )))', _tbl, qk ) into bFound;
+  execute format( 'select exists ( select 1 from %1$s r where st_intersects(r.geo, xyz_qk_qk2bbox( %2$L )))', _tbl, qk ) into bFound;
 
   if bFound then
    if length( qk ) >= mlevel then
