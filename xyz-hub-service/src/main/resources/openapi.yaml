@@ -426,7 +426,7 @@ paths:
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
-        - $ref: '#/components/parameters/Version'
+        - $ref: '#/components/parameters/VersionStar'
         - $ref: '#/components/parameters/Author'
       responses:
         '200':
@@ -637,7 +637,7 @@ paths:
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
-        - $ref: '#/components/parameters/Version'
+        - $ref: '#/components/parameters/VersionStar'
         - $ref: '#/components/parameters/Author'
       responses:
         '200':
@@ -951,7 +951,6 @@ paths:
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/Sort'
         - $ref: '#/components/parameters/Part'
-        - $ref: '#/components/parameters/VersionIterate'
         - $ref: '#/components/parameters/SkipCache'
         - $ref: '#/components/parameters/Handle'
         - $ref: '#/components/parameters/Force2D'
@@ -1715,7 +1714,7 @@ components:
 
 
         Properties initiated with 'f.' are used to access values which are added by default in the
-        stored feature. The possible values are: 'f.id', 'f.createdAt', 'f.updatedAt', 'f.version' and 'f.author'
+        stored feature. The possible values are: 'f.id', 'f.createdAt', 'f.updatedAt'.
 
 
         Properties initiated with 'p.' are used to access values in the stored feature which are
@@ -1982,10 +1981,7 @@ components:
       name: version
       in: query
       description: >-
-        The query parameter used to specify one specific version or all versions when '*' is used.
-        The supported values for this field are:
-          - the char '*', e.g. ?version=*
-          - an integer e.g. ?versions=5
+        The query parameter used to specify the version of a feature or feature collection to be loaded.
       required: false
       schema:
         type: string
@@ -1997,13 +1993,24 @@ components:
       required: true
       schema:
         type: string
-    VersionIterate:
+    VersionStar:
       name: version
       in: query
-      description: Define a version [feature version <= query version].
+      description: >-
+        The query parameter used to specify the version of a feature or feature collection to be loaded.
+        
+        
+        Multiple versions of the same feature can be loaded when the value star '*' is used. Example:
+        
+        
+        /features?id=F1,F2&version=*
+        
+        or
+        
+        /features/F1?version=*
       required: false
       schema:
-        type: integer
+        type: string
     VizSampling:
       name: vizSampling
       in: query
