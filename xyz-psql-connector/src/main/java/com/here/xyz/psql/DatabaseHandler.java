@@ -490,6 +490,11 @@ public abstract class DatabaseHandler extends StorageConnector {
             else if(event.getOperation() == Operation.UPDATE)
                 //Update HistoryTrigger to apply maxVersionCount.
                 updateHistoryTrigger(event, maxVersionCount, compactHistory, isEnableGlobalVersioning);
+        }else if(event.getSpaceDefinition() != null && !event.getSpaceDefinition().isEnableHistory()){
+            if (event.getOperation() == Operation.CREATE) {
+                //Create Space Table
+                ensureSpace();
+            }
         }
 
         new ModifySpace(event, this).write();
