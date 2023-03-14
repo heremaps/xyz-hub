@@ -60,7 +60,7 @@ public class StorageReportingApiIT extends TestSpaceWithFeature {
         .statusCode(OK.code())
         .body("type", equalTo("StorageStatistics"))
         .body("createdAt", greaterThan(0L))
-        .body("byteSizes.x-psql-test.contentBytes.value", equalTo(0));
+        .body("byteSizes.x-psql-test.contentBytes.value", equalTo(8192));
   }
 
   @Test
