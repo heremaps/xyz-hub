@@ -300,7 +300,7 @@
           </elementProp>
           <elementProp name="SPACE_ID" elementType="Argument">
             <stringProp name="Argument.name">SPACE_ID</stringProp>
-            <stringProp name="Argument.value">utm-dev:maptask</stringProp>
+            <stringProp name="Argument.value">utm-dev:campaign</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
             <stringProp name="Argument.desc">39ZVK252</stringProp>
           </elementProp>
@@ -4849,7 +4849,122 @@ else {
         <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
       </ThreadGroup>
       <hashTree>
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Neg3.1 - GET with Invalid API key" enabled="true">
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Neg3.1 - GET without API Key (failure)" enabled="true">
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
+          <stringProp name="HTTPSampler.domain"></stringProp>
+          <stringProp name="HTTPSampler.port"></stringProp>
+          <stringProp name="HTTPSampler.protocol"></stringProp>
+          <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/spaces/${SPACE_ID}/features/unknown-task-id</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+          <stringProp name="HTTPSampler.connect_timeout"></stringProp>
+          <stringProp name="HTTPSampler.response_timeout"></stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Code" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="51509">401</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">true</boolProp>
+            <intProp name="Assertion.test_type">8</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Body" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="-147781174">{&quot;type&quot;:&quot;error&quot;,&quot;statusCode&quot;:401,&quot;reasonPhrase&quot;:&quot;Unauthorized&quot;,&quot;message&quot;:&quot;Missing auth credentials.&quot;,&quot;streamId&quot;</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">2</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+        </hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Neg3.2 - Create without API key (failure)" enabled="true">
+          <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">{&#xd;
+  &quot;type&quot;: &quot;FeatureCollection&quot;,&#xd;
+  &quot;features&quot;: [{&#xd;
+    &quot;type&quot;: &quot;Feature&quot;,&#xd;
+    &quot;id&quot;: &quot;${TASK_ID_N03_01}&quot;,&#xd;
+    &quot;properties&quot;: {&#xd;
+      &quot;description&quot;: [{&#xd;
+        &quot;lang&quot;: &quot;en&quot;,&#xd;
+        &quot;text&quot;: &quot;A  Road has been CREATED, Please check this task for reference!&quot;&#xd;
+      }],&#xd;
+      &quot;priority&quot;: 1,&#xd;
+      &quot;taskType&quot;: &quot;COLLECT&quot;,&#xd;
+      &quot;featureType&quot;: &quot;MapTask&quot;,&#xd;
+      &quot;headline&quot;: [{&#xd;
+        &quot;lang&quot;: &quot;en&quot;,&#xd;
+        &quot;text&quot;: &quot;A road has been CREATED&quot;&#xd;
+      }],&#xd;
+      &quot;status&quot;: &quot;OPEN&quot;&#xd;
+    },&#xd;
+    &quot;geometry&quot;: {&#xd;
+      &quot;type&quot;: &quot;Point&quot;,&#xd;
+      &quot;coordinates&quot;: [&#xd;
+        8.68872,&#xd;
+        50.0561,&#xd;
+        0&#xd;
+      ]&#xd;
+    }&#xd;
+  }]&#xd;
+}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
+          <stringProp name="HTTPSampler.domain"></stringProp>
+          <stringProp name="HTTPSampler.port"></stringProp>
+          <stringProp name="HTTPSampler.protocol"></stringProp>
+          <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/spaces/${SPACE_ID}/features</stringProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+          <stringProp name="HTTPSampler.connect_timeout"></stringProp>
+          <stringProp name="HTTPSampler.response_timeout"></stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Code" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="51509">401</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">true</boolProp>
+            <intProp name="Assertion.test_type">8</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Body" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="-147781174">{&quot;type&quot;:&quot;error&quot;,&quot;statusCode&quot;:401,&quot;reasonPhrase&quot;:&quot;Unauthorized&quot;,&quot;message&quot;:&quot;Missing auth credentials.&quot;,&quot;streamId&quot;</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">2</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+        </hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Neg3.3 - GET with Invalid API key (failure)" enabled="true">
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
             <collectionProp name="Arguments.arguments"/>
           </elementProp>
@@ -4889,7 +5004,7 @@ else {
           </ResponseAssertion>
           <hashTree/>
         </hashTree>
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Neg3.2 - Create with Invalid API key" enabled="true">
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Neg3.4 - Create with Invalid API key (failure)" enabled="true">
           <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
             <collectionProp name="Arguments.arguments">
