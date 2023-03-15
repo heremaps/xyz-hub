@@ -14,7 +14,7 @@ begin
 	END IF;
 
     lev = length(qk);
-	RAISE NOTICE 'test % ',lev;
+--	RAISE NOTICE 'test % ',lev;
     hkey = htiles_convert_qk_to_longk(qk);
 
     /** Remove first level bit and convert to x */
@@ -57,7 +57,7 @@ begin
     maxX = width * (colX + 1) - 180;
     maxY = height * (rowY + 1) - 90;
 	
-	RAISE NOTICE '% % % % ',minX,minY,maxX,maxY;
+--	RAISE NOTICE '% % % % ',minX,minY,maxX,maxY;
 	return ST_MakeEnvelope( minX, minY, maxX, maxY );
 end
 $$;
@@ -100,7 +100,7 @@ begin
 	
 	FOR i IN 1 .. level
 	LOOP		
-		RAISE NOTICE '% %',i,substring(qk,level-(i-1),1)::integer;
+		-- RAISE NOTICE '% %',i,substring(qk,level-(i-1),1)::integer;
 		hkey = hkey+ (substring(qk,level-(i-1),1)::integer << (i-1) * 2);		
 	END LOOP;
 	RETURN hkey | (1 << (level * 2));		 
@@ -151,7 +151,7 @@ begin
 	end if;
 
 	 
-	RAISE NOTICE 'HKey %',num;
+	-- RAISE NOTICE 'HKey %',num;
 	return num;
 end
 $$;
@@ -310,9 +310,9 @@ begin
 		execute format(
 				'SELECT %4$L,'
 				||'	CASE WHEN %1$L THEN'
-				||'		translate(encode(replace(jsonb_build_object('
+				||'		regexp_replace(encode(replace(jsonb_build_object('
 				||'		''type'',     ''FeatureCollection'','
-				||'		''features'', jsonb_agg(feature))::text,''\'',''\\'')::bytea,''base64''),E''\n'', '''''''')'
+				||'		''features'', jsonb_agg(feature))::text,''\'',''\\'')::bytea,''base64''),''\n'','''',''g'')'
 				||'	ELSE'
 				||'		jsonb_build_object('
 				||'			''type'',     ''FeatureCollection'','
