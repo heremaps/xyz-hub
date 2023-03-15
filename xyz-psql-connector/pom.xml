@@ -24,7 +24,6 @@
   <parent>
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
-    <relativePath>../</relativePath>
     <version>1.26.8-SNAPSHOT</version>
   </parent>
 
@@ -92,7 +91,7 @@
         <configuration>
           <transformers>
             <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-              <mainClass>com.here.xyz.psql.PSQLXyzConnector</mainClass>
+              <mainClass>com.here.xyz.psql.PsqlEventProcessor</mainClass>
             </transformer>
             <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
           </transformers>
@@ -212,6 +211,10 @@
     </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
+      <artifactId>xyz-psql</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
       <artifactId>xyz-connectors</artifactId>
     </dependency>
 
@@ -237,7 +240,7 @@
       <artifactId>aws-lambda-java-log4j2</artifactId>
     </dependency>
 
-    <!-- -->
+    <!-- Database -->
     <dependency>
       <groupId>commons-dbutils</groupId>
       <artifactId>commons-dbutils</artifactId>

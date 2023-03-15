@@ -19,7 +19,7 @@
 
 package com.here.xyz.responses;
 
-public abstract class ModifiedPayloadResponse<T extends ModifiedPayloadResponse> extends XyzResponse<T> {
+public abstract class ModifiedPayloadResponse<EVENT extends ModifiedPayloadResponse<EVENT>> extends XyzResponse<EVENT> {
 
   private String eventType;
 
@@ -34,9 +34,9 @@ public abstract class ModifiedPayloadResponse<T extends ModifiedPayloadResponse>
   }
 
   @SuppressWarnings("unused")
-  public T withEventType(String eventType) {
+  public EVENT withEventType(String eventType) {
     setEventType(eventType);
     //noinspection unchecked
-    return (T) this;
+    return (EVENT) this;
   }
 }

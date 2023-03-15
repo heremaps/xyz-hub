@@ -22,12 +22,12 @@ package com.here.xyz.psql;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import com.here.mapcreator.ext.naksha.NPsqlConnectorParams;
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.AbstractConnectorHandler;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import java.util.HashMap;
@@ -41,7 +41,7 @@ import org.junit.Test;
 public class PSQLResponseSizeIT extends PSQLAbstractIT {
 
   static Map<String, Object> connectorParams = new HashMap<String,Object>(){{
-    put(ConnectorParameters.CONNECTOR_ID, "test-connector");
+    put(NPsqlConnectorParams.CONNECTOR_ID, "test-connector");
   }};
 
   @BeforeClass

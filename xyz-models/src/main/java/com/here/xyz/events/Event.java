@@ -19,30 +19,40 @@
 
 package com.here.xyz.events;
 
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.NanoTime;
 import com.here.xyz.Payload;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import org.apache.commons.lang3.RandomStringUtils;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * The base class of all events that are sent by the XYZ Hub to a "procedure". All events extend this event. All "procedures" can be sure to
  * receive events that extend this class and need to respond with any {@link com.here.xyz.responses.XyzResponse}.
  *
- * It's not defined if that procedure is embedded into the XYZ Hub or located at a remote host nor is any assumption being made about how the
- * event or response are transferred. Basically the event-response model just describes what events the XYZ hub may trigger and how the
- * processing "procedures" must respond.
+ * <p>It's not defined if that procedure is embedded into the XYZ Hub or located at a remote host
+ * nor is any assumption being made about how the event or response are transferred. Basically the event-response model just describes what
+ * events the XYZ hub may trigger and how the processing "procedures" must respond.
  *
- * A "procedure" is defined as
+ * <p>A "procedure" is defined as
  *
- * Every event is basically encoded into a binary using a "procedure encoder". Be aware that this event is translated into some protocol
- * using a corresponding encoder. Only the remote procedure client will receive this event. It's not necessary that
- * the remote procedure itself uses this event class to communicate. Rather the remote procedure client needs to accept the event, translate
- * it into an arbitrary binary (byte[]), which is then sent to a remote service that processes the event.
+ * <p>Every event is basically encoded into a binary using a "procedure encoder". Be aware that this
+ * event is translated into some protocol using a corresponding encoder. Only the remote procedure client will receive this event. It's not
+ * necessary that the remote procedure itself uses this event class to communicate. Rather the remote procedure client needs to accept the
+ * event, translate it into an arbitrary binary (byte[]), which is then sent to a remote service that processes the event.
  */
+@SuppressWarnings("unused")
 @JsonSubTypes({
     @JsonSubTypes.Type(value = ModifySpaceEvent.class, name = "ModifySpaceEvent"),
     @JsonSubTypes.Type(value = ModifySubscriptionEvent.class, name = "ModifySubscriptionEvent"),
@@ -63,31 +73,142 @@ import java.util.Map;
     @JsonSubTypes.Type(value = GetFeaturesByIdEvent.class, name = "GetFeaturesByIdEvent"),
     @JsonSubTypes.Type(value = LoadFeaturesEvent.class, name = "LoadFeaturesEvent"),
     @JsonSubTypes.Type(value = IterateHistoryEvent.class, name = "IterateHistoryEvent"),
-    @JsonSubTypes.Type(value = ContentModifiedNotification.class, name = "ContentModifiedNotification"),
+    @JsonSubTypes.Type(
+        value = ContentModifiedNotification.class,
+        name = "ContentModifiedNotification"),
     @JsonSubTypes.Type(value = RevisionEvent.class, name = "RevisionEvent")
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
-public abstract class Event<T extends Event> extends Payload {
+public abstract class Event<SELF extends Event<SELF>> extends Payload {
+
+  protected Event() {
+  }
+
+  /**
+   * The time when the event started processed.
+   */
+  @JsonIgnore
+  private long startNanos = NanoTime.now();
+
+  @JsonIgnore
+  public long startNanos() {
+    return startNanos;
+  }
+
+  @JsonIgnore
+  public @NotNull SELF withStartNanos(long nanos) {
+    this.startNanos = nanos;
+    return self();
+  }
+
+  /**
+   * Returns the microseconds passed since the start of the event processing.
+   *
+   * @return the microseconds passed since the start of the event processing.
+   */
+  @JsonIgnore
+  public final long micros() {
+    return NanoTime.timeSince(startNanos, MICROSECONDS);
+  }
+
+  /**
+   * Returns the milliseconds passed since the start of the event processing.
+   *
+   * @return the milliseconds passed since the start of the event processing.
+   */
+  @JsonIgnore
+  public final long millis() {
+    return NanoTime.timeSince(startNanos, TimeUnit.MILLISECONDS);
+  }
+
+  private static final long DEFAULT_TTL_MICROS = TimeUnit.MINUTES.toMicros(1);
+
+  /**
+   * Returns the amount of time remaining for this event to be processed.
+   *
+   * @param timeUnit the time-unit in which to return the remaining time.
+   * @return the remaining time, minimally 0.
+   */
+  @JsonIgnore
+  public long remaining(@NotNull TimeUnit timeUnit) {
+    final long remaining = MICROSECONDS.convert(Math.max(DEFAULT_TTL_MICROS - micros(), 0), timeUnit);
+    assert remaining >= 0L;
+    return remaining;
+  }
+
+  @JsonIgnore
+  public final @NotNull String logId() {
+    return getConnectorId();
+  }
+
+  @JsonIgnore
+  public final @NotNull String logStream() {
+    return getStreamId();
+  }
+
+  @JsonIgnore
+  public final long logTime() {
+    return micros();
+  }
+
+  /**
+   * Returns this, typed correctly.
+   *
+   * @return this, typed correctly.
+   */
+  @JsonIgnore
+  @SuppressWarnings("unchecked")
+  protected final @NotNull SELF self() {
+    return (SELF) this;
+  }
 
   @JsonView(ExcludeFromHash.class)
-  private Map<String, Object> connectorParams;
+  private @Nullable Map<@NotNull String, @Nullable Object> connectorParams;
+
   @JsonView(ExcludeFromHash.class)
   private String streamId;
+
   @JsonView(ExcludeFromHash.class)
   private String ifNoneMatch;
+
   @JsonView(ExcludeFromHash.class)
   private Boolean preferPrimaryDataSource;
+
   @JsonView(ExcludeFromHash.class)
   private Map<String, Object> params;
+
   private TrustedParams trustedParams;
+
+  /**
+   * The unique space identifier.
+   */
+  @JsonProperty
   private String space;
+
+  /**
+   * The unique connector identifier.
+   */
+  @JsonProperty
+  private String connectorId;
+
+  /**
+   * The unique database identifier. In fact the same database can be used by multiple connectors and for unique UUIDs the database
+   * identifier is more important than the connector that was used to access the database.
+   */
+  @JsonProperty
+  private long dbId;
+
   private Map<String, Object> metadata;
+
   @JsonView(ExcludeFromHash.class)
   private String tid;
+
   @JsonView(ExcludeFromHash.class)
   private String jwt;
+
   @JsonView(ExcludeFromHash.class)
   private String aid;
+
   @JsonView(ExcludeFromHash.class)
   @JsonInclude(Include.ALWAYS)
   private String version = VERSION;
@@ -97,25 +218,48 @@ public abstract class Event<T extends Event> extends Payload {
    *
    * @return the identifier of the space.
    */
-  public String getSpace() {
+  @JsonIgnore
+  public @NotNull String getSpace() {
+    if (space == null) {
+      throw new IllegalStateException("Missing 'space' property");
+    }
     return this.space;
   }
 
-  @SuppressWarnings("unused")
-  public void setSpace(String space) {
+  @JsonIgnore
+  public void setSpace(@NotNull String space) {
     this.space = space;
   }
 
-  @SuppressWarnings("unused")
-  public T withSpace(String space) {
+  @JsonIgnore
+  public @NotNull SELF withSpace(@NotNull String space) {
     setSpace(space);
-    //noinspection unchecked
-    return (T) this;
+    return self();
   }
 
   /**
-   * A map with arbitrary parameters configured in the XYZ Hub service for each space. Therefore, each space can have different
-   * parameters.
+   * The identifier of the space.
+   *
+   * @return the identifier of the space.
+   */
+  @JsonIgnore
+  public long getDbId() {
+    return this.dbId;
+  }
+
+  @JsonIgnore
+  public void setDbId(long dbId) {
+    this.dbId = dbId;
+  }
+
+  @JsonIgnore
+  public @NotNull SELF withDbId(long dbId) {
+    setDbId(dbId);
+    return self();
+  }
+
+  /**
+   * A map with arbitrary parameters configured in the XYZ Hub service for each space. Therefore, each space can have different parameters.
    *
    * @return a map with arbitrary parameters defined for the space.
    */
@@ -129,15 +273,14 @@ public abstract class Event<T extends Event> extends Payload {
   }
 
   @SuppressWarnings("unused")
-  public T withParams(Map<String, Object> params) {
+  public SELF withParams(Map<String, Object> params) {
     setParams(params);
-    //noinspection unchecked
-    return (T) this;
+    return self();
   }
 
   /**
-   * A parameter map which may contains sensitive information such as identities and is forwarded only to connectors
-   * marked with "trusted" flag.
+   * A parameter map which may contains sensitive information such as identities and is forwarded only to connectors marked with "trusted"
+   * flag.
    *
    * @return a map with arbitrary parameters.
    */
@@ -151,10 +294,9 @@ public abstract class Event<T extends Event> extends Payload {
   }
 
   @SuppressWarnings("unused")
-  public T withTrustedParams(TrustedParams trustedParams) {
+  public @NotNull SELF withTrustedParams(TrustedParams trustedParams) {
     setTrustedParams(trustedParams);
-    //noinspection unchecked
-    return (T) this;
+    return self();
   }
 
   /**
@@ -164,19 +306,35 @@ public abstract class Event<T extends Event> extends Payload {
    *
    * @return the stream identifier.
    */
-  public String getStreamId() {
-    return this.streamId;
+  @JsonIgnore
+  public @NotNull String getStreamId() {
+    withStreamId();
+    return streamId;
   }
 
+  @JsonIgnore
   @SuppressWarnings("UnusedReturnValue")
-  public void setStreamId(String streamId) {
+  public void setStreamId(@NotNull String streamId) {
     this.streamId = streamId;
   }
 
-  public T withStreamId(String streamId) {
-    this.streamId = streamId;
-    //noinspection unchecked
-    return (T) this;
+  @JsonIgnore
+  public @NotNull SELF withStreamId(@NotNull String streamId) {
+    setStreamId(streamId);
+    return self();
+  }
+
+  /**
+   * Ensure that a stream-id is set, if it is not, generate a new random one.
+   *
+   * @return this.
+   */
+  @JsonIgnore
+  public @NotNull SELF withStreamId() {
+    if (streamId == null) {
+      streamId = RandomStringUtils.randomAlphanumeric(12);
+    }
+    return self();
   }
 
   /**
@@ -194,29 +352,79 @@ public abstract class Event<T extends Event> extends Payload {
   }
 
   @SuppressWarnings("unused")
-  public T withIfNoneMatch(String ifNoneMatch) {
+  public SELF withIfNoneMatch(String ifNoneMatch) {
     setIfNoneMatch(ifNoneMatch);
     //noinspection unchecked
-    return (T) this;
+    return (SELF) this;
   }
 
   /**
    * The connector parameters.
    */
-  public Map<String, Object> getConnectorParams() {
+  public @Nullable Map<@NotNull String, @Nullable Object> getConnectorParams() {
     return this.connectorParams;
   }
 
   @SuppressWarnings("WeakerAccess")
-  public void setConnectorParams(Map<String, Object> connectorParams) {
+  public void setConnectorParams(@Nullable Map<@NotNull String, @Nullable Object> connectorParams) {
     this.connectorParams = connectorParams;
   }
 
   @SuppressWarnings("unused")
-  public T withConnectorParams(Map<String, Object> connectorParams) {
+  public SELF withConnectorParams(@Nullable Map<@NotNull String, @Nullable Object> connectorParams) {
     setConnectorParams(connectorParams);
     //noinspection unchecked
-    return (T) this;
+    return (SELF) this;
+  }
+
+  /**
+   * Returns the "connectorId" property from the {@link #getConnectorParams() connector parameters}.
+   *
+   * @return the "connectorId" property; if set.
+   */
+  public @NotNull String getConnectorId() {
+    String connectorId = this.connectorId;
+    if (connectorId != null) {
+      return connectorId;
+    }
+    final Map<@NotNull String, @Nullable Object> params = getConnectorParams();
+    if (params != null) {
+      final Object raw = params.get("connectorId");
+      if (raw instanceof String) {
+        return this.connectorId = (String) raw;
+      }
+    }
+    this.connectorId = connectorId = getClass().getName();
+    logger.warn("{}:{}:{} - Missing 'connectorId' and 'connectorParams.connectorId' in event", logId(), logStream(), logTime());
+    return connectorId;
+  }
+
+  /**
+   * Sets the "connectorId" property in the {@link #getConnectorParams() connector parameters}. If no params exists yet, new params are
+   * created, and the connector-id is set in it.
+   *
+   * @param id the connector ID to be set.
+   */
+  public void setConnectorId(@NotNull String id) {
+    this.connectorId = id;
+    Map<@NotNull String, @Nullable Object> params = getConnectorParams();
+    if (params == null) {
+      params = new HashMap<>();
+      setConnectorParams(params);
+    }
+    params.put("connectorId", id);
+  }
+
+  /**
+   * Sets the "connectorId" property in the {@link #getConnectorParams() connector parameters}. If no params exists yet, new params are
+   * created, and the connector-id is set in it.
+   *
+   * @param id the connector ID to be set.
+   * @return this.
+   */
+  public @NotNull SELF withConnectorId(@NotNull String id) {
+    setConnectorId(id);
+    return self();
   }
 
   /**
@@ -235,10 +443,10 @@ public abstract class Event<T extends Event> extends Payload {
   }
 
   @SuppressWarnings("unused")
-  public T withMetadata(Map<String, Object> metadata) {
+  public SELF withMetadata(Map<String, Object> metadata) {
     setMetadata(metadata);
     //noinspection unchecked
-    return (T) this;
+    return (SELF) this;
   }
 
   /**
@@ -254,10 +462,10 @@ public abstract class Event<T extends Event> extends Payload {
   }
 
   @SuppressWarnings("unused")
-  public T withTid(String tid) {
+  public SELF withTid(String tid) {
     setTid(tid);
     //noinspection unchecked
-    return (T) this;
+    return (SELF) this;
   }
 
   /**
@@ -273,10 +481,10 @@ public abstract class Event<T extends Event> extends Payload {
   }
 
   @SuppressWarnings("unused")
-  public T withJwt(String jwt) {
+  public SELF withJwt(String jwt) {
     setJwt(jwt);
     //noinspection unchecked
-    return (T) this;
+    return (SELF) this;
   }
 
   /**
@@ -293,10 +501,10 @@ public abstract class Event<T extends Event> extends Payload {
   }
 
   @SuppressWarnings("unused")
-  public T withAid(String aid) {
+  public SELF withAid(String aid) {
     setAid(aid);
     //noinspection unchecked
-    return (T) this;
+    return (SELF) this;
   }
 
   /**
@@ -316,10 +524,10 @@ public abstract class Event<T extends Event> extends Payload {
   }
 
   @SuppressWarnings("unused")
-  public T withPreferPrimaryDataSource(Boolean preferPrimaryDataSource) {
+  public SELF withPreferPrimaryDataSource(Boolean preferPrimaryDataSource) {
     setPreferPrimaryDataSource(preferPrimaryDataSource);
     //noinspection unchecked
-    return (T) this;
+    return (SELF) this;
   }
 
   /**
@@ -337,13 +545,14 @@ public abstract class Event<T extends Event> extends Payload {
   }
 
   @SuppressWarnings("unused")
-  public T withVersion(String version) {
+  public SELF withVersion(String version) {
     setVersion(version);
     //noinspection unchecked
-    return (T) this;
+    return (SELF) this;
   }
 
   public static class TrustedParams extends HashMap<String, Object> {
+
     public static final String COOKIES = "cookies";
     public static final String HEADERS = "headers";
     public static final String QUERY_PARAMS = "queryParams";
@@ -354,17 +563,23 @@ public abstract class Event<T extends Event> extends Payload {
     }
 
     public void setCookies(Map<String, String> cookies) {
-      if (cookies == null) return;
+      if (cookies == null) {
+        return;
+      }
       put(COOKIES, cookies);
     }
 
     public void putCookie(String name, String value) {
-      if (!containsKey(COOKIES)) put(COOKIES, new HashMap<String, String>());
+      if (!containsKey(COOKIES)) {
+        put(COOKIES, new HashMap<String, String>());
+      }
       getCookies().put(name, value);
     }
 
     public String getCookie(String name) {
-      if (containsKey(COOKIES)) return getCookies().get(name);
+      if (containsKey(COOKIES)) {
+        return getCookies().get(name);
+      }
       return null;
     }
 
@@ -374,17 +589,23 @@ public abstract class Event<T extends Event> extends Payload {
     }
 
     public void setHeaders(Map<String, String> headers) {
-      if (headers == null) return;
+      if (headers == null) {
+        return;
+      }
       put(HEADERS, headers);
     }
 
     public void putHeader(String name, String value) {
-      if (!containsKey(HEADERS)) put(HEADERS, new HashMap<String, String>());
+      if (!containsKey(HEADERS)) {
+        put(HEADERS, new HashMap<String, String>());
+      }
       getHeaders().put(name, value);
     }
 
     public String getHeader(String name) {
-      if (containsKey(HEADERS)) return getHeaders().get(name);
+      if (containsKey(HEADERS)) {
+        return getHeaders().get(name);
+      }
       return null;
     }
 
@@ -394,17 +615,23 @@ public abstract class Event<T extends Event> extends Payload {
     }
 
     public void setQueryParams(Map<String, String> queryParams) {
-      if (queryParams == null) return;
+      if (queryParams == null) {
+        return;
+      }
       put(QUERY_PARAMS, queryParams);
     }
 
     public void putQueryParam(String name, String value) {
-      if (!containsKey(QUERY_PARAMS)) put(QUERY_PARAMS, new HashMap<String, String>());
+      if (!containsKey(QUERY_PARAMS)) {
+        put(QUERY_PARAMS, new HashMap<String, String>());
+      }
       getQueryParams().put(name, value);
     }
 
     public String getQueryParam(String name) {
-      if (containsKey(QUERY_PARAMS)) return getQueryParams().get(name);
+      if (containsKey(QUERY_PARAMS)) {
+        return getQueryParams().get(name);
+      }
       return null;
     }
   }

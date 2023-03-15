@@ -41,7 +41,7 @@ import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.util.ARN;
-import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.psql.SQLQueryExt;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -361,7 +361,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
           conjunctions.forEach(conj -> {
             conj.getValues().forEach(v -> {
               int size = contentUpdatedAtConjunctions.size();
-              contentUpdatedAtConjunctions.add("contentUpdatedAt " + SQLQuery.getOperation(conj.getOperation()) + " :" + size);
+              contentUpdatedAtConjunctions.add("contentUpdatedAt " + SQLQueryExt.getOperation(conj.getOperation()) + " :" + size);
               expressionAttributeValues.put(":" + size, v );
             });
           });

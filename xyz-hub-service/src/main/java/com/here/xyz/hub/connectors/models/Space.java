@@ -80,9 +80,6 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
   @JsonView({Internal.class, Static.class})
   public double volatilityAtLastContentUpdate = 0;
 
-  @JsonIgnore
-  private Map<ConnectorType, Map<String, List<ResolvableListenerConnectorRef>>> resolvedConnectorRefs;
-
   public static Future<Space> resolveSpace(Marker marker, String spaceId) {
     return Service.spaceConfigClient.get(marker, spaceId);
   }
@@ -145,63 +142,6 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
     // update the average interval value
     averageInterval = (interval * interval + (slidingWindow - interval) * averageInterval) / slidingWindow;
     return (1 - averageInterval / slidingWindow);
-  }
-
-  @JsonIgnore
-  public Map<String, List<ResolvableListenerConnectorRef>> getEventTypeConnectorRefsMap(ConnectorType connectorType) {
-    if (resolvedConnectorRefs == null) {
-      resolvedConnectorRefs = new ConcurrentHashMap<>();
-    }
-    resolvedConnectorRefs.computeIfAbsent(connectorType, k -> {
-      List<Space.ListenerConnectorRef> connectorRefs = getConnectorRefs(connectorType);
-
-      //"Explode" the resolved connector list into a map (by event-type) and remember it for later
-      final Map<String, List<ResolvableListenerConnectorRef>> organizedRefs = new HashMap<>();
-      connectorRefs.forEach(c -> {
-        if (c.getEventTypes() != null) {
-          c.getEventTypes().forEach(et -> {
-            organizedRefs.computeIfAbsent(et, dummy -> new ArrayList<>());
-            // hopefully this works
-            organizedRefs.get(et).add((ResolvableListenerConnectorRef) c);
-          });
-        }
-      });
-      return organizedRefs;
-    });
-    return resolvedConnectorRefs.get(connectorType);
-  }
-
-  @JsonIgnore
-  public Map<String, List<Space.ListenerConnectorRef>> getConnectorRefsMap(final ConnectorType connectorType) {
-    if (connectorType == ConnectorType.LISTENER) {
-      if (getListeners() == null) {
-        return Collections.emptyMap();
-      }
-      return getListeners();
-    } else if (connectorType == ConnectorType.PROCESSOR) {
-      if (getProcessors() == null) {
-        return Collections.emptyMap();
-      }
-      return getProcessors();
-    } else {
-      throw new RuntimeException("Unknown connector type"); //Will never happen if nobody extends the ConnectorType enum :)
-    }
-  }
-
-  @JsonIgnore
-  private List<Space.ListenerConnectorRef> getConnectorRefs(final ConnectorType connectorType) {
-    return getConnectorRefsMap(connectorType)
-        .values()
-        .stream()
-        .flatMap(Collection::stream)
-        .collect(Collectors.toList());
-  }
-
-  public boolean hasRequestListeners() {
-    if (getListeners() == null || getListeners().isEmpty()) return false;
-    List<Space.ListenerConnectorRef> listeners = getConnectorRefs(ConnectorType.LISTENER);
-    return listeners.stream().anyMatch(l -> l.getEventTypes() != null &&
-        l.getEventTypes().stream().anyMatch(et -> et.endsWith(".request")));
   }
 
   @JsonIgnore
@@ -270,15 +210,6 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
     public List<String> rights;
   }
 
-  // Dirty Hack: Suppress output of IDs when serializing ResolvableListenerConnectorRefs
-  // This is only needed when we return connectors as Map and not as List
-  @JsonIgnoreProperties(value = {"id"}, ignoreUnknown = true)
-  public static class ResolvableListenerConnectorRef extends com.here.xyz.models.hub.Space.ListenerConnectorRef {
-
-    @JsonIgnore
-    public Connector resolvedConnector;
-  }
-
   public static class CacheProfile {
 
     @JsonIgnore
@@ -314,10 +245,6 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
     }
   }
 
-  /**
-   * Used for logging purposes.
-   * @return
-   */
   @Override
   public String toString() {
     return Json.encode(this);

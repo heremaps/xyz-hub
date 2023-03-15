@@ -22,6 +22,7 @@ package com.here.xyz.responses;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.xyz.Payload;
+import com.here.xyz.StringHelper;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;
@@ -29,6 +30,8 @@ import com.here.xyz.responses.changesets.CompactChangeset;
 import com.here.xyz.responses.maintenance.ConnectorStatus;
 import com.here.xyz.responses.maintenance.SpaceStatus;
 import com.here.xyz.util.Hasher;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * All classes that represent a valid response of any remote procedure to the XYZ Hub need to extend this class.
@@ -52,7 +55,7 @@ import com.here.xyz.util.Hasher;
     @JsonSubTypes.Type(value = ConnectorStatus.class, name = "ConnectorStatus"),
     @JsonSubTypes.Type(value = SpaceStatus.class, name = "SpaceStatus")
 })
-public abstract class XyzResponse<T extends XyzResponse> extends Payload {
+public abstract class XyzResponse<SELF extends XyzResponse<SELF>> extends Payload {
 
   private String etag;
 
@@ -77,26 +80,39 @@ public abstract class XyzResponse<T extends XyzResponse> extends Payload {
   }
 
   @SuppressWarnings({"unused", "UnusedReturnValue"})
-  public T withEtag(String etag) {
+  public @NotNull SELF withEtag(String etag) {
     setEtag(etag);
     //noinspection unchecked
-    return (T) this;
+    return (SELF) this;
   }
 
-  public static String calculateEtagFor(byte[] bytes) {
+  /**
+   * Calculate the hash of the given bytes. Returns a strong e-tag.
+   * @param bytes the bytes to hash.
+   * @return the strong e-tag.
+   */
+  public static @NotNull String calculateEtagFor(byte @NotNull[] bytes) {
     return "\"" + Hasher.getHash(bytes) + "\"";
   }
 
-  public static boolean etagMatches(String ifNoneMatch, String etag) {
-    if (ifNoneMatch == null || etag == null) return false;
-    return stripEtag(ifNoneMatch).equals(stripEtag(etag));
+  public static boolean etagMatches(@Nullable String ifNoneMatch, @Nullable String etag) {
+    if (ifNoneMatch == null || ifNoneMatch.length() == 0 || etag == null || etag.length() == 0) return false;
+    // Note: Be resilient against clients that do not follow the spec accordingly.
+    //       Some clients may not add the quotation marks around e-tags or use weak e-tags.
+    //       We currently treat weak and normal e-tags the same, so ignore W/ and leading/ending quotes.
+    // See:  https://en.wikipedia.org/wiki/HTTP_ETag
+    int etagStart = 0;
+    int etagEnd = etag.length();
+    if (etag.startsWith("W/") || etag.startsWith("w/")) etagStart += 2;
+    if (etagStart < etag.length() && etag.charAt(etagStart) == '"') etagStart += 1;
+    if (etag.charAt(etagEnd-1) == '"') etagEnd -= 1;
+
+    int inmStart = 0;
+    int inmEnd = ifNoneMatch.length();
+    if (ifNoneMatch.startsWith("W/") || ifNoneMatch.startsWith("w/")) inmStart += 2;
+    if (inmStart < ifNoneMatch.length() && ifNoneMatch.charAt(inmStart) == '"') inmStart += 1;
+    if (ifNoneMatch.charAt(inmEnd-1) == '"') inmEnd -= 1;
+    return StringHelper.equals(etag, etagStart, etagEnd, ifNoneMatch, inmStart, inmEnd);
   }
 
-  private static String stripEtag(String etag) {
-    if (etag.startsWith("W/")) etag = etag.substring(2);
-    //Be resilient against clients which do not follow the spec accordingly
-    if (etag.startsWith("\"")) etag = etag.substring(1);
-    if (etag.endsWith("\"")) etag = etag.substring(0, etag.length() - 1);
-    return etag;
-  }
 }

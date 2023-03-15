@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.psql.factory;
+package com.here.mapcreator.ext.naksha.sql;
 
 import com.here.xyz.models.geojson.coordinates.BBox;
 

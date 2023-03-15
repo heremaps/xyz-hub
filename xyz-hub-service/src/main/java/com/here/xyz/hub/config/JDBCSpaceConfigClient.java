@@ -25,7 +25,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.connectors.models.Space;
-import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.psql.SQLQueryExt;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -66,7 +66,7 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
   }
 
 
-  private Future<Void> updateWithParams(Space modifiedObject, SQLQuery query) {
+  private Future<Void> updateWithParams(Space modifiedObject, SQLQueryExt query) {
     Promise<Void> p = Promise.promise();
     client.updateWithParams(query.text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded())
@@ -80,7 +80,7 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
   @Override
   public Future<Space> getSpace(Marker marker, String spaceId) {
     Promise<Space> p = Promise.promise();
-    SQLQuery query = new SQLQuery("SELECT config FROM " + SPACE_TABLE + " WHERE id = ?", spaceId);
+    SQLQueryExt query = new SQLQueryExt("SELECT config FROM " + SPACE_TABLE + " WHERE id = ?", spaceId);
     client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
         Optional<String> config = out.result().getRows().stream().map(r -> r.getString("config")).findFirst();
@@ -99,9 +99,9 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
 
   @Override
   protected Future<Void> storeSpace(Marker marker, Space space) {
-    SQLQuery query = null;
+    SQLQueryExt query = null;
     try {
-      query = new SQLQuery(
+      query = new SQLQueryExt(
           "INSERT INTO " + SPACE_TABLE + " (id, owner, cid, config) VALUES (?, ?, ?, cast(? as JSONB)) ON CONFLICT (id) DO UPDATE SET owner = excluded.owner, cid = excluded.cid, config = excluded.config",
           space.getId(), space.getOwner(), space.getCid(), XyzSerializable.STATIC_MAPPER.get().writeValueAsString(space));
       return updateWithParams(space, query).mapEmpty();
@@ -113,7 +113,7 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
 
   @Override
   protected Future<Space> deleteSpace(Marker marker, String spaceId) {
-    SQLQuery query = new SQLQuery("DELETE FROM " + SPACE_TABLE + " WHERE id = ?", spaceId);
+    SQLQueryExt query = new SQLQueryExt("DELETE FROM " + SPACE_TABLE + " WHERE id = ?", spaceId);
     return get(marker, spaceId).compose(space -> updateWithParams(space, query).map(space));
   }
 
@@ -144,7 +144,7 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
         List<String> contentUpdatedAtConjunctions = new ArrayList<>();
         conjunctions.forEach(conj -> {
             conj.getValues().forEach(v -> {
-              contentUpdatedAtConjunctions.add("(cast(config->>'contentUpdatedAt' AS TEXT) "+ SQLQuery.getOperation(conj.getOperation()) + "'" +v + "' )");
+              contentUpdatedAtConjunctions.add("(cast(config->>'contentUpdatedAt' AS TEXT) "+ SQLQueryExt.getOperation(conj.getOperation()) + "'" +v + "' )");
             });
         });
         whereConjunctions.add(StringUtils.join(contentUpdatedAtConjunctions, " OR "));

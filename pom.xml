@@ -49,6 +49,7 @@
     <module>xyz-hub-test</module>
     <module>xyz-models</module>
     <module>xyz-connectors</module>
+    <module>xyz-psql</module>
     <module>xyz-psql-connector</module>
     <module>xyz-txn-handler</module>
   </modules>
@@ -209,6 +210,11 @@
       <dependency>
         <groupId>${project.groupId}</groupId>
         <artifactId>xyz-models</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>xyz-psql</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>

@@ -24,6 +24,7 @@ import com.google.flatbuffers.FlatBufferBuilder;
 import com.here.xyz.Payload;
 import com.here.xyz.bin.ConnectorPayload;
 import java.nio.ByteBuffer;
+import javax.annotation.Nonnull;
 
 /**
  * A wrapper class which is based on {@link XyzResponse} for binary responses from connectors.
@@ -88,6 +89,7 @@ public class BinaryResponse extends XyzResponse<BinaryResponse> {
     etagNeedsRecalculation = false;
   }
 
+  @Nonnull
   @Override
   public byte[] toByteArray() {
     FlatBufferBuilder builder = new FlatBufferBuilder();

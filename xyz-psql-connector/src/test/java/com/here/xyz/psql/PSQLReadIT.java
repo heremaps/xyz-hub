@@ -493,7 +493,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         invokeLambda(mfevent.serialize());
 
         /* Needed to trigger update on pg_stat*/
-        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+        try (final Connection connection = dataSource().getConnection()) {
             Statement stmt = connection.createStatement();
             stmt.execute("ANALYZE \"foo\";");
         }

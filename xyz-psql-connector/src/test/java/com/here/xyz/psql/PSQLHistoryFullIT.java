@@ -18,13 +18,13 @@
  */
 package com.here.xyz.psql;
 
+import com.here.mapcreator.ext.naksha.NPsqlConnectorParams;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.*;
 import com.here.xyz.models.hub.Space;
-import com.here.xyz.psql.config.ConnectorParameters;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -43,9 +43,9 @@ import static org.junit.Assert.assertTrue;
 public class PSQLHistoryFullIT extends PSQLAbstractIT {
 
     static Map<String, Object> connectorParams = new HashMap<String,Object>(){
-        {   put(ConnectorParameters.CONNECTOR_ID, "test-connector");
-            put(ConnectorParameters.COMPACT_HISTORY, false);
-            put(ConnectorParameters.PROPERTY_SEARCH, true);
+        {   put(NPsqlConnectorParams.CONNECTOR_ID, "test-connector");
+            put(NPsqlConnectorParams.COMPACT_HISTORY, false);
+            put(NPsqlConnectorParams.PROPERTY_SEARCH, true);
         }
     };
 
@@ -109,7 +109,7 @@ public class PSQLHistoryFullIT extends PSQLAbstractIT {
         setPUUID(collection);
         invokeLambda(mfevent.serialize());
 
-        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+        try (final Connection connection = dataSource().getConnection()) {
             Statement stmt = connection.createStatement();
             String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'foo', jsondata->'properties'->'@ns:com:here:xyz'->'deleted' desc";
 
@@ -151,7 +151,7 @@ public class PSQLHistoryFullIT extends PSQLAbstractIT {
 
         invokeLambda(mse.serialize());
 
-        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+        try (final Connection connection = dataSource().getConnection()) {
             Statement stmt = connection.createStatement();
             String sql = "SELECT pg_get_triggerdef(oid) as trigger_def " +
                     "FROM pg_trigger " +

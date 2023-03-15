@@ -27,7 +27,7 @@ public class SQLQueryTests {
 
   @Test
   public void testVariableInheritance() {
-    SQLQuery q = new SQLQuery("${{someFragment}} ${someVariable}");
+    SQLQueryExt q = new SQLQueryExt("${{someFragment}} ${someVariable}");
     q.setVariable("someVariable", "someValue");
     q.setQueryFragment("someFragment", "${someVariable} ==");
     q.substitute();
@@ -36,7 +36,7 @@ public class SQLQueryTests {
 
   @Test
   public void testParameterInheritance() {
-    SQLQuery q = new SQLQuery("${{someFragment}} #{someParameter}");
+    SQLQueryExt q = new SQLQueryExt("${{someFragment}} #{someParameter}");
     q.setNamedParameter("someParameter", "someValue");
     q.setQueryFragment("someFragment", "#{someParameter} ==");
     q.substitute();
@@ -48,9 +48,9 @@ public class SQLQueryTests {
 
   @Test
   public void testFragmentInheritance() {
-    SQLQuery q = new SQLQuery("${{someInnerFragment}} ${{abc}}");
+    SQLQueryExt q = new SQLQueryExt("${{someInnerFragment}} ${{abc}}");
     q.setQueryFragment("abc", "someValue");
-    q.setQueryFragment("someInnerFragment", new SQLQuery("${{abc}} =="));
+    q.setQueryFragment("someInnerFragment", new SQLQueryExt("${{abc}} =="));
     q.substitute();
     assertEquals("someValue == someValue", q.text());
   }

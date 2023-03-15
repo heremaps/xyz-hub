@@ -62,7 +62,6 @@ public class EventTest {
     assertEquals(((IterateFeaturesEvent) event).getLimit(), ((IterateFeaturesEvent) clone).getLimit());
   }
 
-
   @Test
   public void getFeaturesByTileEventTest() throws Exception {
     final InputStream is = LazyParsedFeatureCollectionTest.class.getResourceAsStream("/com/here/xyz/test/GetFeaturesByTileEvent.json");

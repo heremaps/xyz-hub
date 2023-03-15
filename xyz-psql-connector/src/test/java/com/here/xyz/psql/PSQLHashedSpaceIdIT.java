@@ -23,10 +23,10 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import com.here.mapcreator.ext.naksha.NPsqlConnectorParams;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
-import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.tools.FeatureGenerator;
 import com.here.xyz.util.Hasher;
 import java.sql.Connection;
@@ -43,9 +43,9 @@ import org.junit.Test;
 public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
 
   protected static Map<String, Object> connectorParams = new HashMap<String,Object>(){
-        {   put(ConnectorParameters.CONNECTOR_ID, "test-connector");
-            put(ConnectorParameters.ENABLE_HASHED_SPACEID, true);
-            put(ConnectorParameters.AUTO_INDEXING, true);
+        {   put(NPsqlConnectorParams.CONNECTOR_ID, "test-connector");
+            put(NPsqlConnectorParams.ENABLE_HASHED_SPACEID, true);
+            put(NPsqlConnectorParams.AUTO_INDEXING, true);
         }
   };
 
@@ -74,7 +74,7 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
 
     /** Needed to trigger update on pg_stat */
     try (
-            final Connection connection = LAMBDA.dataSource.getConnection();
+            final Connection connection = dataSource().getConnection();
             final Statement stmt = connection.createStatement();
             final ResultSet rs = stmt.executeQuery("SELECT table_name FROM information_schema.tables WHERE table_name='" + hashedSpaceId + "'");
     ) {
@@ -98,7 +98,7 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
     invokeLambda(mfevent.serialize());
 
     /** Needed to trigger update on pg_stat */
-    try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+    try (final Connection connection = dataSource().getConnection()) {
       Statement stmt = connection.createStatement();
       stmt.execute("DELETE FROM xyz_config.xyz_idxs_status WHERE spaceid='" + hashedSpaceId + "';");
       stmt.execute("ANALYZE \"" + hashedSpaceId + "\";");
@@ -107,7 +107,7 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
     //Triggers dbMaintenance
     invokeLambdaFromFile("/events/HealthCheckWithEnableHashedSpaceIdEvent.json");
 
-    try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+    try (final Connection connection = dataSource().getConnection()) {
       Statement stmt = connection.createStatement();
       // check for the index status
       try (ResultSet rs = stmt.executeQuery("SELECT * FROM xyz_config.xyz_idxs_status where spaceid = '" + hashedSpaceId + "';")) {

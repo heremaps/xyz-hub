@@ -35,6 +35,7 @@ public class HealthStatus extends XyzResponse<HealthStatus> {
 
   public HealthStatus() {
     super();
+    this.status = "OK";
   }
 
   public String getStatus() {

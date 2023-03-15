@@ -21,7 +21,7 @@ package com.here.xyz.hub.config;
 
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.connectors.models.Space;
-import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.psql.SQLQueryExt;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -83,7 +83,7 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
       propsQuery.forEach(conjunctions -> {
         conjunctions.forEach(conj -> {
             conj.getValues().forEach(v -> {
-              String operator = SQLQuery.getOperation(conj.getOperation());
+              String operator = SQLQueryExt.getOperation(conj.getOperation());
               contentUpdatedAtList.add(operator);
               contentUpdatedAtList.add(v.toString());
             });

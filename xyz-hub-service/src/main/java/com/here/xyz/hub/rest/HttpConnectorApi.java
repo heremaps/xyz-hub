@@ -52,7 +52,6 @@ public class HttpConnectorApi extends Api {
     rb.operation("postEvent").handler(this::postEvent);
     rb.operation("getHealthCheck").handler(this::getHealthCheck);
 
-    rb.operation("getStatus").handler(this::getConnectorStatus);
     rb.operation("postInitialization").handler(this::postDatabaseInitialization);
     rb.operation("postMaintainIndices").handler(this::postMaintainIndices);
 
@@ -110,24 +109,6 @@ public class HttpConnectorApi extends Api {
 
     try {
       HttpConnectorTaskHandler.maintainIndices(params[0],params[1], params[2], autoIndexing, ar -> {
-        if (ar.failed()) {
-          this.sendErrorResponse(context, ar.cause());
-        }
-        else {
-          this.sendResponse(context, OK, ar.result());
-        }
-      });
-    }
-    catch (Exception e) {
-      sendErrorResponse(context, e);
-    }
-  }
-
-  private void getConnectorStatus(final RoutingContext context) {
-    String[] params = parseMainParams(context);
-
-    try {
-      HttpConnectorTaskHandler.getConnectorStatus(params[0],params[1], params[2], ar -> {
         if (ar.failed()) {
           this.sendErrorResponse(context, ar.cause());
         }

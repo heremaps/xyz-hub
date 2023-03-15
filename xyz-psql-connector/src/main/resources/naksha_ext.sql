@@ -20,12 +20,12 @@
 --     RAISE NOTICE 'Hello';
 -- and then switch to Output tab (Ctrl+Shift+O)
 --
-CREATE EXTENSION IF NOT EXISTS postgis;
-CREATE EXTENSION IF NOT EXISTS postgis_topology;
-CREATE EXTENSION IF NOT EXISTS btree_gist;
 -- CREATE EXTENSION pldbgapi;
 
-CREATE SCHEMA IF NOT EXISTS xyz_config;
+-- CREATE EXTENSION IF NOT EXISTS postgis SCHEMA publish;
+-- CREATE EXTENSION IF NOT EXISTS postgis_topology;
+-- CREATE EXTENSION IF NOT EXISTS btree_gist;
+-- CREATE SCHEMA IF NOT EXISTS xyz_config;
 
 CREATE OR REPLACE FUNCTION xyz_config.naksha_config_db_id() RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
 BEGIN
@@ -536,7 +536,7 @@ BEGIN
     txn := xyz_config.naksha_tx_current();
     i = nextval('"'||TG_TABLE_SCHEMA||'"."'||TG_TABLE_NAME||'_i_seq"');
     new_uuid := xyz_config.naksha_uuid_feature_number(i, current_timestamp);
-    author := xyz_config.naksha_tx_get_author(OLD);
+    author := xyz_config.naksha_tx_get_author(OLD.jsondata);
     app_id := xyz_config.naksha_tx_get_app_id();
 
     -- We do these updates, because in the "after-trigger" we only write into history.

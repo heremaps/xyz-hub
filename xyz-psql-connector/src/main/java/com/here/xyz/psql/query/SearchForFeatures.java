@@ -19,35 +19,37 @@
 
 package com.here.xyz.psql.query;
 
+import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.QueryEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.TagsQuery;
-import com.here.xyz.psql.DatabaseHandler;
-import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.psql.PsqlEventProcessor;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import javax.annotation.Nonnull;
+import org.jetbrains.annotations.NotNull;
 
 /*
 NOTE: All subclasses of QueryEvent are deprecated except SearchForFeaturesEvent.
 Once refactoring is complete, all members of SearchForFeaturesEvent can be pulled up to QueryEvent and QueryEvent
 can be renamed to SearchForFeaturesEvent again.
  */
-public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeatures<E> {
+public class SearchForFeatures<E extends SearchForFeaturesEvent<E>> extends GetFeatures<E> {
 
   protected boolean hasSearch;
 
-  public SearchForFeatures(E event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+  public SearchForFeatures(@NotNull E event, @NotNull PsqlEventProcessor psqlConnector) throws SQLException, ErrorResponseException {
+    super(event, psqlConnector);
   }
 
   @Override
-  protected SQLQuery buildQuery(E event) throws SQLException {
+  protected @NotNull SQLQuery buildQuery(@Nonnull E event) throws SQLException {
     SQLQuery query = super.buildQuery(event);
 
     SQLQuery searchQuery = buildSearchFragment(event);

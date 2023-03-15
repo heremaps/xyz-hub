@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
 @JsonInclude(Include.NON_DEFAULT)
-public abstract class ContextAwareEvent<T extends ContextAwareEvent> extends Event<T> {
+public abstract class ContextAwareEvent<SELF extends ContextAwareEvent<SELF>> extends Event<SELF> {
 
   @JsonInclude(Include.NON_DEFAULT)
   private SpaceContext context = SpaceContext.DEFAULT;
@@ -41,9 +41,9 @@ public abstract class ContextAwareEvent<T extends ContextAwareEvent> extends Eve
     this.context = context;
   }
 
-  public T withContext(SpaceContext context) {
+  public SELF withContext(SpaceContext context) {
     setContext(context);
-    return (T) this;
+    return (SELF) this;
   }
 
 }

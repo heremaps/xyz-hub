@@ -18,15 +18,15 @@
  */
 package com.here.xyz.psql;
 
+import com.here.mapcreator.ext.naksha.NPsqlConnectorParams;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.models.hub.Space;
-import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.tools.FeatureGenerator;
 import com.here.xyz.responses.*;
-import com.here.xyz.psql.tools.DhString;
+import com.here.mapcreator.ext.naksha.sql.DhString;
 
 import org.junit.After;
 import org.junit.BeforeClass;
@@ -46,9 +46,9 @@ import static org.junit.Assert.assertEquals;
 public class PSQLIndexIT extends PSQLAbstractIT {
 
     static Map<String, Object> connectorParams = new HashMap<String,Object>(){
-        {   put(ConnectorParameters.CONNECTOR_ID, "test-connector");
-            put(ConnectorParameters.AUTO_INDEXING, true);
-            put(ConnectorParameters.PROPERTY_SEARCH, true);
+        {   put(NPsqlConnectorParams.CONNECTOR_ID, "test-connector");
+            put(NPsqlConnectorParams.AUTO_INDEXING, true);
+            put(NPsqlConnectorParams.PROPERTY_SEARCH, true);
         }
     };
 
@@ -98,7 +98,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
         assertEquals("OK",response.getStatus());
 
         /** Increase to 5 allowed Indices */
-        connectorParams.put(ConnectorParameters.ON_DEMAND_IDX_LIMIT, 5);
+        connectorParams.put(NPsqlConnectorParams.ON_DEMAND_IDX_LIMIT, 5);
         /** deactivated ones does not get into account - result will be 5 which are required */
         searchableProperties.put("foo5",true);
         searchableProperties.put("foo6",false);
@@ -115,7 +115,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
         response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
         assertEquals("OK",response.getStatus());
 
-        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+        try (final Connection connection = dataSource().getConnection()) {
             /** Default System Indices */
             List<String> systemIndices = new ArrayList<String>(){{
                 add("createdAt");
@@ -172,7 +172,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
         SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
         assertEquals("OK",response.getStatus());
 
-        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+        try (final Connection connection = dataSource().getConnection()) {
             /** Default System Indices */
             List<String> systemIndices = new ArrayList<String>(){{
                 add("createdAt");
@@ -235,7 +235,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
         }};
 
         /** Increase to 5 allowed Indices */
-        connectorParams.put(ConnectorParameters.ON_DEMAND_IDX_LIMIT, 5);
+        connectorParams.put(NPsqlConnectorParams.ON_DEMAND_IDX_LIMIT, 5);
 
         ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent().withSpace("foo")
                 .withOperation(ModifySpaceEvent.Operation.UPDATE)
@@ -251,7 +251,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
         SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
         assertEquals("OK",response.getStatus());
 
-        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+        try (final Connection connection = dataSource().getConnection()) {
             Statement stmt = connection.createStatement();
             stmt.execute("select xyz_maintain_idxs_for_space('public', 'foo');");
 
@@ -314,7 +314,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
         invokeLambda(mfevent.serialize());
 
         /** Needed to trigger update on pg_stat */
-        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+        try (final Connection connection = dataSource().getConnection()) {
             Statement stmt = connection.createStatement();
             stmt.execute("DELETE FROM xyz_config.xyz_idxs_status WHERE spaceid='foo';");
             stmt.execute("ANALYZE \"foo\";");

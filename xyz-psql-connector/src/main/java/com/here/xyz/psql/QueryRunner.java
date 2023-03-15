@@ -19,10 +19,14 @@
 
 package com.here.xyz.psql;
 
+import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.xyz.connectors.ErrorResponseException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import org.apache.commons.dbutils.ResultSetHandler;
+import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This class provides the utility to run a single database query which is described by an incoming object
@@ -32,39 +36,41 @@ import org.apache.commons.dbutils.ResultSetHandler;
  * @param <E> The incoming object type, describing the query
  * @param <R> The outgoing object response type
  */
-public abstract class QueryRunner<E extends Object, R extends Object> implements ResultSetHandler<R> {
+public abstract class QueryRunner<E, R> implements ResultSetHandler<R> {
+
+  protected static final Logger logger = LoggerFactory.getLogger(QueryRunner.class);
 
   //TODO: Make protected again after refactoring is complete
   public static final String SCHEMA = "schema";
   public static final String TABLE = "table";
 
-  private final SQLQuery query;
+  private final @NotNull SQLQuery query;
   private boolean useReadReplica;
-  protected DatabaseHandler dbHandler;
+  protected final @NotNull PsqlEventProcessor processor;
 
-  public QueryRunner(E input, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-    this.dbHandler = dbHandler;
+  public QueryRunner(@NotNull E input, final @NotNull PsqlEventProcessor processor) throws SQLException, ErrorResponseException {
+    this.processor = processor;
     query = buildQuery(input);
   }
 
   public R run() throws SQLException {
     prepareQuery();
-    return dbHandler.executeQueryWithRetry(query, this, useReadReplica);
+    return processor.executeQueryWithRetry(query, this, useReadReplica);
   }
 
   public void write() throws SQLException {
     prepareQuery();
-    dbHandler.executeUpdateWithRetry(query);
+    processor.executeUpdateWithRetry(query);
   }
 
   private void prepareQuery() {
     query.substitute();
   }
 
-  protected abstract SQLQuery buildQuery(E input) throws SQLException, ErrorResponseException;
+  protected abstract @NotNull SQLQuery buildQuery(@NotNull E input) throws SQLException, ErrorResponseException;
 
   @Override
-  public abstract R handle(ResultSet rs) throws SQLException;
+  public abstract @NotNull R handle(@NotNull ResultSet rs) throws SQLException;
 
   public boolean isUseReadReplica() {
     return useReadReplica;
@@ -74,7 +80,4 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
     this.useReadReplica = useReadReplica;
   }
 
-  protected String getSchema() {
-    return dbHandler.config.getDatabaseSettings().getSchema();
-  }
 }

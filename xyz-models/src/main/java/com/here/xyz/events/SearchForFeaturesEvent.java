@@ -24,7 +24,7 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "SearchForFeaturesEvent")
-public class SearchForFeaturesEvent<T extends SearchForFeaturesEvent> extends QueryEvent<T> {
+public class SearchForFeaturesEvent<SELF extends SearchForFeaturesEvent<SELF>> extends QueryEvent<SELF> {
 
   private static final long DEFAULT_LIMIT = 1_000L;
   private static final long MAX_LIMIT = 100_000L;
@@ -41,9 +41,9 @@ public class SearchForFeaturesEvent<T extends SearchForFeaturesEvent> extends Qu
   }
 
   @SuppressWarnings("unused")
-  public T withLimit(long limit) {
+  public SELF withLimit(long limit) {
     setLimit(limit);
     //noinspection unchecked
-    return (T) this;
+    return (SELF) this;
   }
 }

@@ -36,8 +36,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 public interface XyzSerializable {
+
+  // https://www.baeldung.com/jackson-json-view-annotation
+  // mapper.disable(MapperFeature.DEFAULT_VIEW_INCLUSION);
 
   ThreadLocal<ObjectMapper> DEFAULT_MAPPER = ThreadLocal.withInitial(() -> new ObjectMapper().setSerializationInclusion(Include.NON_NULL));
   ThreadLocal<ObjectMapper> SORTED_MAPPER = ThreadLocal.withInitial(() ->
@@ -64,22 +69,22 @@ public interface XyzSerializable {
   }
 
   @SuppressWarnings("unchecked")
-  static <T extends Typed> T deserialize(InputStream is) throws JsonProcessingException {
+  static <T extends Typed> @Nullable T deserialize(@NotNull InputStream is) throws JsonProcessingException {
     return (T) deserialize(is, Typed.class);
   }
 
-  static <T> T deserialize(InputStream is, Class<T> klass) throws JsonProcessingException {
-    try (Scanner scanner = new java.util.Scanner(is)) {
+  static <T> @Nullable T deserialize(@NotNull InputStream is, @NotNull Class<T> klass) throws JsonProcessingException {
+    try (final Scanner scanner = new java.util.Scanner(is)) {
       return deserialize(scanner.useDelimiter("\\A").next(), klass);
     }
   }
 
-  static <T extends Typed> T deserialize(String string) throws JsonProcessingException {
+  static <T extends Typed> @Nullable T deserialize(@NotNull String string) throws JsonProcessingException {
     //noinspection unchecked
     return (T) deserialize(string, Typed.class);
   }
 
-  static <T> T deserialize(String string, Class<T> klass) throws JsonProcessingException {
+  static <T> @Nullable T deserialize(@NotNull String string, @NotNull Class<T> klass) throws JsonProcessingException {
     // Jackson always wraps larger strings, with a string reader, which hides the original string from the lazy raw deserializer.
     // To circumvent that wrap the source string with a custom string reader, which provides access to the input string.
     try {
@@ -130,11 +135,15 @@ public interface XyzSerializable {
     return DEFAULT_MAPPER.get().convertValue(map, klass);
   }
 
-  default byte[] toByteArray() {
+  static <T> @NotNull T fromAnyMap(@NotNull Map<@NotNull String, @Nullable Object> map, @NotNull Class<T> klass) {
+    return DEFAULT_MAPPER.get().convertValue(map, klass);
+  }
+
+  default byte @NotNull [] toByteArray() {
     return serialize().getBytes();
   }
 
-  default String serialize() {
+  default @NotNull String serialize() {
     return serialize(DEFAULT_MAPPER.get(), false);
   }
 

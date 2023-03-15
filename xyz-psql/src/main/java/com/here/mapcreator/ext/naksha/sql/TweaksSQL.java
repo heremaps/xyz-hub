@@ -17,9 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.psql.factory;
-
-import com.here.xyz.psql.tools.DhString;
+package com.here.mapcreator.ext.naksha.sql;
 
 public class TweaksSQL
 {

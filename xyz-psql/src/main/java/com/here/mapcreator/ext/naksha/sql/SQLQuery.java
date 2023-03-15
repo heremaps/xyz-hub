@@ -17,13 +17,10 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.psql;
-
-import static com.here.xyz.psql.DatabaseHandler.HISTORY_TABLE_SUFFIX;
+package com.here.mapcreator.ext.naksha.sql;
 
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.QueryEvent;
-import com.here.xyz.psql.query.GetFeatures;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -199,9 +196,9 @@ public class SQLQuery {
     SQLQuery q = new SQLQuery(query)
         .withVariable(VAR_SCHEMA, schema)
         .withVariable(VAR_TABLE, table)
-        .withVariable(VAR_HST_TABLE, table + HISTORY_TABLE_SUFFIX)
+        .withVariable(VAR_HST_TABLE, table + "_hst")
         .withVariable(VAR_TABLE_SEQ, table != null ? table.replaceAll("-", "_") + "_i_seq\";" : "")
-        .withVariable(VAR_HST_TABLE_SEQ, table != null ? (table + HISTORY_TABLE_SUFFIX + "_seq").replaceAll("-", "_") : " ");
+        .withVariable(VAR_HST_TABLE_SEQ, table != null ? (table + "_hst_seq").replaceAll("-", "_") : " ");
     q.substitute();
     return q.text();
   }
@@ -228,7 +225,7 @@ public class SQLQuery {
 
   //TODO: Replace usages by calls to #substitute()
   @Deprecated
-  protected static String replaceVars(String query, Map<String, String> replacements, String schema, String table) {
+  public static String replaceVars(String query, Map<String, String> replacements, String schema, String table) {
     return replaceVars(replaceVars(query, schema, table), replacements);
   }
 
@@ -327,11 +324,6 @@ public class SQLQuery {
       setNamedParameter(paramName, paramValue);
       setText(text().replaceFirst(Pattern.quote("?"), "#{" + paramName + "}"));
     }
-  }
-
-  @Deprecated
-  public static SQLQuery selectJson(QueryEvent event) {
-    return GetFeatures.buildSelectionFragmentBWC(event);
   }
 
   public static String getOperation(PropertyQuery.QueryOperation op) {

@@ -19,7 +19,6 @@
 
 package com.here.xyz.hub;
 
-import com.here.xyz.hub.config.MaintenanceClient;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.VertxOptions;
 import io.vertx.core.json.JsonObject;
@@ -30,11 +29,6 @@ import org.apache.logging.log4j.Logger;
 import java.util.concurrent.TimeUnit;
 
 public class HttpConnector extends Core {
-
-  /**
-   * The client to access databases for maintenanceTasks
-   */
-  public static MaintenanceClient maintenanceClient;
 
   private static final Logger logger = LogManager.getLogger();
 
@@ -47,8 +41,6 @@ public class HttpConnector extends Core {
   }
 
   private static void onConfigLoaded(JsonObject jsonConfig) {
-    maintenanceClient = new MaintenanceClient();
-
     final DeploymentOptions options = new DeploymentOptions()
             .setConfig(jsonConfig)
             .setWorker(false)

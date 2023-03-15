@@ -22,14 +22,12 @@ package com.here.xyz.hub;
 import static io.vertx.core.http.HttpHeaders.CONTENT_LENGTH;
 
 import com.google.common.io.ByteStreams;
-import com.here.xyz.connectors.AbstractConnectorHandler;
 import com.here.xyz.hub.rest.HttpConnectorApi;
-import com.here.xyz.psql.PSQLXyzConnector;
+import com.here.xyz.psql.PsqlEventProcessor;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Promise;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.ext.web.Router;
-import java.util.HashMap;
 import java.util.Map;
 import io.vertx.ext.web.openapi.RouterBuilder;
 import java.util.concurrent.ConcurrentHashMap;
@@ -41,8 +39,6 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
 
   private static final Logger logger = LogManager.getLogger();
   private static final ConcurrentHashMap<String, String> envMap = new ConcurrentHashMap<>();
-
-  private AbstractConnectorHandler connector;
 
   private static String LOCATION = "openapi-http-connector.yaml";
   private static String API;
@@ -75,7 +71,7 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
 
   @Override
   public void start(Promise<Void> startPromise) throws Exception {
-    connector = new PSQLXyzConnector();
+    connector = new PsqlEventProcessor();
 
     RouterBuilder.create(vertx, LOCATION).onComplete(ar -> {
       if (ar.succeeded()) {

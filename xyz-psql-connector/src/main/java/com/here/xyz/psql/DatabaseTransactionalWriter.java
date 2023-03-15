@@ -27,6 +27,7 @@ import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.io.WKBWriter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.postgresql.util.PGobject;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -43,11 +44,13 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
     private static final int TYPE_UPDATE = 2;
     private static final int TYPE_DELETE = 3;
 
-    public static FeatureCollection insertFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem,
+    public static FeatureCollection insertFeatures(@NotNull PsqlEventProcessor processor,
                 FeatureCollection collection, List<FeatureCollection.ModificationFailure> fails,
                 List<Feature> inserts, Connection connection, Integer version, boolean forExtendedSpace)
             throws SQLException, JsonProcessingException {
 
+        final String schema = processor.spaceSchema();
+        final String table = processor.spaceTable();
         final PreparedStatement insertStmt = createInsertStatement(connection, schema, table, forExtendedSpace);
         final PreparedStatement insertWithoutGeometryStmt = createInsertWithoutGeometryStatement(connection, schema, table, forExtendedSpace);
 
@@ -82,17 +85,18 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
             collection.getFeatures().add(feature);
         }
 
-        executeBatchesAndCheckOnFailures(dbh, insertIdList, insertWithoutGeometryIdList,
-                insertStmt, insertWithoutGeometryStmt, fails, false, TYPE_INSERT, traceItem);
+        executeBatchesAndCheckOnFailures(processor, insertIdList, insertWithoutGeometryIdList,
+                insertStmt, insertWithoutGeometryStmt, fails, false, TYPE_INSERT);
 
         return collection;
     }
 
-    public static FeatureCollection updateFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem, FeatureCollection collection,
+    public static FeatureCollection updateFeatures(@NotNull PsqlEventProcessor processor, FeatureCollection collection,
                                                    List<FeatureCollection.ModificationFailure> fails, List<Feature> updates,
                                                    Connection connection, boolean handleUUID, Integer version, boolean forExtendedSpace)
             throws SQLException, JsonProcessingException {
-
+        final String schema = processor.spaceSchema();
+        final String table = processor.spaceTable();
         final PreparedStatement updateStmt = createUpdateStatement(connection, schema, table, handleUUID, forExtendedSpace);
         final PreparedStatement updateWithoutGeometryStmt = createUpdateWithoutGeometryStatement(connection,schema,table,handleUUID, forExtendedSpace);
 
@@ -139,22 +143,23 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
             collection.getFeatures().add(feature);
         }
 
-        executeBatchesAndCheckOnFailures(dbh, updateIdList, updateWithoutGeometryIdList,
-                updateStmt, updateWithoutGeometryStmt, fails, handleUUID, TYPE_UPDATE, traceItem);
+        executeBatchesAndCheckOnFailures(processor, updateIdList, updateWithoutGeometryIdList,
+                updateStmt, updateWithoutGeometryStmt, fails, handleUUID, TYPE_UPDATE);
 
         if(fails.size() > 0) {
-            logException(null, traceItem, LOG_EXCEPTION_UPDATE, table);
+            logException(null, processor, LOG_EXCEPTION_UPDATE, table);
             throw new SQLException(UPDATE_ERROR_GENERAL);
         }
 
         return collection;
     }
 
-    protected static void deleteFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem,
+    protected static void deleteFeatures(@NotNull PsqlEventProcessor processor,
                                          List<FeatureCollection.ModificationFailure> fails, Map<String, String> deletes,
                                          Connection connection, boolean handleUUID, Integer version)
             throws SQLException {
-
+        final String schema = processor.spaceSchema();
+        final String table = processor.spaceTable();
         final PreparedStatement batchDeleteStmt = deleteStmtSQLStatement(connection,schema,table,handleUUID);
         final PreparedStatement batchDeleteStmtWithoutUUID = deleteStmtSQLStatement(connection,schema,table,false);
 
@@ -203,40 +208,40 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
             }
         }
         if(version != null){
-            executeBatchesAndCheckOnFailures(dbh, deleteIdList, deleteIdListWithoutUUID,
-                    batchDeleteStmtVersioned, batchDeleteStmtVersionedWithoutUUID, fails, handleUUID, TYPE_DELETE, traceItem);
+            executeBatchesAndCheckOnFailures(processor, deleteIdList, deleteIdListWithoutUUID,
+                    batchDeleteStmtVersioned, batchDeleteStmtVersionedWithoutUUID, fails, handleUUID, TYPE_DELETE);
 
         }else{
-            executeBatchesAndCheckOnFailures(dbh, deleteIdList, deleteIdListWithoutUUID,
-                batchDeleteStmt, batchDeleteStmtWithoutUUID, fails, handleUUID, TYPE_DELETE, traceItem);
+            executeBatchesAndCheckOnFailures(processor, deleteIdList, deleteIdListWithoutUUID,
+                batchDeleteStmt, batchDeleteStmtWithoutUUID, fails, handleUUID, TYPE_DELETE);
         }
 
         if(fails.size() > 0) {
-            logException(null, traceItem, LOG_EXCEPTION_DELETE, table);
+            logException(null, processor, LOG_EXCEPTION_DELETE, table);
             throw new SQLException(DELETE_ERROR_GENERAL);
         }
     }
 
-    private static void executeBatchesAndCheckOnFailures(DatabaseHandler dbh, List<String> idList, List<String> idList2,
+    private static void executeBatchesAndCheckOnFailures(@NotNull PsqlEventProcessor processor, List<String> idList, List<String> idList2,
                                                          PreparedStatement batchStmt, PreparedStatement batchStmt2,
                                                          List<FeatureCollection.ModificationFailure> fails,
-                                                         boolean handleUUID, int type, TraceItem traceItem) throws SQLException {
+                                                         boolean handleUUID, int type) throws SQLException {
         int[] batchStmtResult;
         int[] batchStmtResult2;
 
         try {
             if (idList.size() > 0) {
-                logger.debug("{} batch execution [{}]: {} ", traceItem, type, batchStmt);
+                logger.debug("{}:{} - batch execution [{}]: {} ", processor.logId(), processor.logTime(), type, batchStmt);
 
-                batchStmt.setQueryTimeout(dbh.calculateTimeout());
+                batchStmt.setQueryTimeout((int)processor.calculateTimeout());
                 batchStmtResult = batchStmt.executeBatch();
                 fillFailList(batchStmtResult, fails, idList, handleUUID, type);
             }
 
             if (idList2.size() > 0) {
-                logger.debug("{} batch2 execution [{}]: {} ", traceItem, type, batchStmt2);
+                logger.debug("{}:{} - batch2 execution [{}]: {} ", processor.logId(), processor.logTime(), type, batchStmt2);
 
-                batchStmt2.setQueryTimeout(dbh.calculateTimeout());
+                batchStmt2.setQueryTimeout((int)processor.calculateTimeout());
                 batchStmtResult2 = batchStmt2.executeBatch();
                 fillFailList(batchStmtResult2, fails, idList2, handleUUID, type);
             }

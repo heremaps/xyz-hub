@@ -26,7 +26,7 @@ import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "GetFeaturesByBBoxEvent")
-public class GetFeaturesByBBoxEvent<T extends GetFeaturesByBBoxEvent> extends SpatialQueryEvent<T> {
+public class GetFeaturesByBBoxEvent<SELF extends GetFeaturesByBBoxEvent<SELF>> extends SpatialQueryEvent<SELF> {
 
   private BBox bbox;
   private String clusteringType;
@@ -45,10 +45,10 @@ public class GetFeaturesByBBoxEvent<T extends GetFeaturesByBBoxEvent> extends Sp
   }
 
   @SuppressWarnings("unused")
-  public T withBbox(BBox bbox) {
+  public SELF withBbox(BBox bbox) {
     setBbox(bbox);
     //noinspection unchecked
-    return (T) this;
+    return (SELF) this;
   }
 
   @SuppressWarnings("unused")
@@ -62,10 +62,10 @@ public class GetFeaturesByBBoxEvent<T extends GetFeaturesByBBoxEvent> extends Sp
   }
 
   @SuppressWarnings("unused")
-  public T withClusteringType(String clusteringType) {
+  public SELF withClusteringType(String clusteringType) {
     setClusteringType(clusteringType);
     //noinspection unchecked
-    return (T) this;
+    return (SELF) this;
   }
 
   @SuppressWarnings("unused")
@@ -78,9 +78,9 @@ public class GetFeaturesByBBoxEvent<T extends GetFeaturesByBBoxEvent> extends Sp
   }
 
   @SuppressWarnings({"unused", "unchecked"})
-  public T withClusteringParams(Map<String, Object> clusteringParams) {
+  public SELF withClusteringParams(Map<String, Object> clusteringParams) {
     setClusteringParams(clusteringParams);
-    return (T) this;
+    return (SELF) this;
   }
 
   @SuppressWarnings("unused")
@@ -94,10 +94,10 @@ public class GetFeaturesByBBoxEvent<T extends GetFeaturesByBBoxEvent> extends Sp
   }
 
   @SuppressWarnings("unused")
-  public T withTweakType(String tweakType) {
+  public SELF withTweakType(String tweakType) {
     setTweakType(tweakType);
     //noinspection unchecked
-    return (T) this;
+    return (SELF) this;
   }
 
   @SuppressWarnings("unused")
@@ -110,9 +110,9 @@ public class GetFeaturesByBBoxEvent<T extends GetFeaturesByBBoxEvent> extends Sp
   }
 
   @SuppressWarnings({"unused", "unchecked"})
-  public T withTweakParams(Map<String, Object> tweakParams) {
+  public SELF withTweakParams(Map<String, Object> tweakParams) {
     setTweakParams(tweakParams);
-    return (T) this;
+    return (SELF) this;
   }
 
   @SuppressWarnings("unused")
@@ -126,10 +126,10 @@ public class GetFeaturesByBBoxEvent<T extends GetFeaturesByBBoxEvent> extends Sp
   }
 
   @SuppressWarnings("unused")
-  public T withOptimizationMode(String optimizationMode) {
+  public SELF withOptimizationMode(String optimizationMode) {
     setOptimizationMode(optimizationMode);
     //noinspection unchecked
-    return (T) this;
+    return (SELF) this;
   }
 
   @SuppressWarnings("unused")
@@ -143,9 +143,9 @@ public class GetFeaturesByBBoxEvent<T extends GetFeaturesByBBoxEvent> extends Sp
   }
 
   @SuppressWarnings("unused")
-  public T withVizSampling(String vizSampling) {
+  public SELF withVizSampling(String vizSampling) {
     setVizSampling(vizSampling);
     //noinspection unchecked
-    return (T) this;
+    return (SELF) this;
   }
 }

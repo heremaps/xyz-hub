@@ -18,7 +18,7 @@
  */
 package com.here.xyz.psql;
 
-import com.here.xyz.psql.config.ConnectorParameters;
+import com.here.mapcreator.ext.naksha.NPsqlConnectorParams;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -33,8 +33,8 @@ import static org.junit.Assert.*;
 
 public class PSQLMetaTableIT extends PSQLAbstractIT {
     protected static Map<String, Object> connectorParams = new HashMap<String,Object>(){
-        {   put(ConnectorParameters.CONNECTOR_ID, "test-connector");
-            put(ConnectorParameters.ENABLE_HASHED_SPACEID, true);
+        {   put(NPsqlConnectorParams.CONNECTOR_ID, "test-connector");
+            put(NPsqlConnectorParams.ENABLE_HASHED_SPACEID, true);
         }
     };
 
@@ -50,7 +50,7 @@ public class PSQLMetaTableIT extends PSQLAbstractIT {
 
         invokeCreateTestSpace(connectorParams,TEST_SPACE_ID);
 
-        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+        try (final Connection connection = dataSource().getConnection()) {
             Statement stmt = connection.createStatement();
             ResultSet resultSet = stmt.executeQuery(q);
 
@@ -64,7 +64,7 @@ public class PSQLMetaTableIT extends PSQLAbstractIT {
         // Delete Space
         invokeDeleteTestSpace(connectorParams);
 
-        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+        try (final Connection connection = dataSource().getConnection()) {
             Statement stmt = connection.createStatement();
             /** Check Meta if record is deleted*/
             ResultSet resultSet = stmt.executeQuery(q);

@@ -21,22 +21,24 @@ package com.here.xyz.psql.query;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 
+import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.LoadFeaturesEvent;
-import com.here.xyz.psql.DatabaseHandler;
-import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.psql.PsqlEventProcessor;
 import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Map;
+import javax.annotation.Nonnull;
+import org.jetbrains.annotations.NotNull;
 
 public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
 
-  public LoadFeatures(LoadFeaturesEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+  public LoadFeatures(@NotNull LoadFeaturesEvent event, @NotNull PsqlEventProcessor psqlConnector) throws SQLException, ErrorResponseException {
+    super(event, psqlConnector);
   }
 
   @Override
-  protected SQLQuery buildQuery(LoadFeaturesEvent event) throws SQLException {
+  protected @NotNull SQLQuery buildQuery(@Nonnull LoadFeaturesEvent event) throws SQLException {
     final Map<String, String> idMap = event.getIdsMap();
 
     SQLQuery filterWhereClause = new SQLQuery("jsondata->>'id' = ANY(#{ids})")
@@ -47,7 +49,7 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
 
     SQLQuery query = headQuery;
     if (event.getEnableHistory() && (!isExtendedSpace(event) || event.getContext() != DEFAULT)) {
-      final boolean compactHistory = !event.getEnableGlobalVersioning() && dbHandler.getConfig().getConnectorParams().isCompactHistory();
+      final boolean compactHistory = !event.getEnableGlobalVersioning() && processor.connectorParams().isCompactHistory();
       if (compactHistory)
         //History does not contain Inserts
         query = new SQLQuery("${{headQuery}} UNION ${{historyQuery}}");
@@ -75,7 +77,7 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
         + ")");
     historyQuery.setQueryFragment("geo", buildGeoFragment(event));
     historyQuery.setNamedParameter("uuids", uuids.toArray(new String[0]));
-    historyQuery.setVariable("hsttable", dbHandler.getConfig().readTableFromEvent(event) + DatabaseHandler.HISTORY_TABLE_SUFFIX);
+    historyQuery.setVariable("hsttable", processor.spaceHistoryTable());
     return historyQuery;
   }
 }

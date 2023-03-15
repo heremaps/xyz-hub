@@ -18,13 +18,13 @@
  */
 package com.here.xyz.psql;
 
+import com.here.mapcreator.ext.naksha.NPsqlConnectorParams;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.*;
 import com.here.xyz.models.hub.Space;
-import com.here.xyz.psql.config.ConnectorParameters;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -43,8 +43,8 @@ import static org.junit.Assert.assertTrue;
 public class PSQLHistoryCompactIT extends PSQLAbstractIT {
 
     static Map<String, Object> connectorParams = new HashMap<String,Object>(){
-        {   put(ConnectorParameters.CONNECTOR_ID, "test-connector");
-            put(ConnectorParameters.COMPACT_HISTORY, true);put(ConnectorParameters.PROPERTY_SEARCH, true);
+        {   put(NPsqlConnectorParams.CONNECTOR_ID, "test-connector");
+            put(NPsqlConnectorParams.COMPACT_HISTORY, true);put(NPsqlConnectorParams.PROPERTY_SEARCH, true);
         }
     };
 
@@ -67,7 +67,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
 
         invokeLambda(mse.serialize());
 
-        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+        try (final Connection connection = dataSource().getConnection()) {
             Statement stmt = connection.createStatement();
             String sql = "SELECT pg_get_triggerdef(oid)," +
                     "(SELECT (to_regclass('\"foo\"') IS NOT NULL) as hst_table_exists) " +
@@ -132,7 +132,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
             invokeLambda(mfevent.serialize());
         }
 
-        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+        try (final Connection connection = dataSource().getConnection()) {
             Statement stmt = connection.createStatement();
             String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'foo'";
 
@@ -171,7 +171,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
             invokeLambda(mfevent.serialize());
         }
 
-        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+        try (final Connection connection = dataSource().getConnection()) {
             Statement stmt = connection.createStatement();
             String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'foo'";
 
@@ -209,7 +209,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
         setPUUID(collection);
         invokeLambda(mfevent.serialize());
 
-        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+        try (final Connection connection = dataSource().getConnection()) {
             Statement stmt = connection.createStatement();
             String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'foo'";
 
@@ -273,7 +273,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
         mfevent.setDeleteFeatures(new HashMap<String,String>(){{put("1234",null);}});
         invokeLambda(mfevent.serialize());
 
-        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+        try (final Connection connection = dataSource().getConnection()) {
             Statement stmt = connection.createStatement();
             String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt' DESC LIMIT 1;";
 
@@ -301,7 +301,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
 
         invokeLambda(mse.serialize());
 
-        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+        try (final Connection connection = dataSource().getConnection()) {
             Statement stmt = connection.createStatement();
             String sql = "SELECT pg_get_triggerdef(oid) as trigger_def " +
                     "FROM pg_trigger " +

@@ -19,13 +19,11 @@
 
 package com.here.xyz.psql.query;
 
-import static com.here.xyz.psql.DatabaseHandler.HISTORY_TABLE_SUFFIX;
-
+import com.here.mapcreator.ext.naksha.NPsqlSpace;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetStorageStatisticsEvent;
-import com.here.xyz.psql.DatabaseHandler;
-import com.here.xyz.psql.QueryRunner;
-import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.psql.PsqlEventProcessor;
+import com.here.xyz.psql.SQLQueryExt;
 import com.here.xyz.responses.StatisticsResponse.Value;
 import com.here.xyz.responses.StorageStatistics;
 import com.here.xyz.responses.StorageStatistics.SpaceByteSizes;
@@ -37,8 +35,11 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
+import org.jetbrains.annotations.NotNull;
 
-public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEvent, StorageStatistics> {
+public class GetStorageStatistics
+    extends XyzQueryRunner<GetStorageStatisticsEvent, StorageStatistics> {
 
   private static final String TABLE_NAME = "table_name";
   private static final String TABLE_BYTES = "table_bytes";
@@ -47,59 +48,79 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
   private final List<String> remainingSpaceIds;
   private Map<String, String> tableName2SpaceId;
 
-  public GetStorageStatistics(GetStorageStatisticsEvent event, DatabaseHandler dbHandler)
+  public GetStorageStatistics(
+      @NotNull GetStorageStatisticsEvent event, @NotNull PsqlEventProcessor psqlConnector)
       throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+    super(event, psqlConnector);
     setUseReadReplica(true);
     remainingSpaceIds = new LinkedList<>(event.getSpaceIds());
   }
 
   @Override
-  protected SQLQuery buildQuery(GetStorageStatisticsEvent event) {
-    List<String> tableNames = new ArrayList<>(event.getSpaceIds().size() * 2);
-    event.getSpaceIds().forEach(spaceId -> {
-      String tableName = resolveTableName(spaceId);
-      tableNames.add(tableName);
-      tableNames.add(tableName + HISTORY_TABLE_SUFFIX);
-    });
-    return new SQLQuery( "SELECT relname                                                AS " + TABLE_NAME + ","
-                            + "       pg_indexes_size(c.oid)                                 AS " + INDEX_BYTES + ","
-                            + "       pg_total_relation_size(c.oid) - pg_indexes_size(c.oid) AS " + TABLE_BYTES
-                            + " FROM pg_class c"
-                            + "         LEFT JOIN pg_namespace n ON n.oid = c.relnamespace "
-                            + " WHERE relkind = 'r'"
-                            + " AND nspname = '" + getSchema() + "'"
-                            + " AND relname IN (" + tableNames
-                                                      .stream()
-                                                      .map(tableName -> "'" + tableName + "'")
-                                                      .collect(Collectors.joining(",")) + ")");
-  }
-
-  private String resolveTableName(String spaceId) {
-    if (tableName2SpaceId == null)
-      tableName2SpaceId = new HashMap<>();
-    String tableName = dbHandler.getConfig().getTableNameForSpaceId(spaceId);
-    if (!spaceId.equals(tableName))
-      tableName2SpaceId.put(tableName, spaceId);
-    return tableName;
+  protected @NotNull SQLQueryExt buildQuery(@Nonnull GetStorageStatisticsEvent event) {
+    final List<@NotNull String> tableNames = new ArrayList<>(event.getSpaceIds().size() * 2);
+    final String schema = processor.spaceSchema();
+    event
+        .getSpaceIds()
+        .forEach(
+            spaceId -> {
+              final NPsqlSpace space = processor.getSpaceById(spaceId);
+              if (space == null) {
+                logger.info("{}:{} - Unknown space: {}", processor.logId(), processor.logTime(), spaceId);
+              } else if (!schema.equals(space.schema)) {
+                logger.error(
+                    "{}:{} - The given space '{}' is located in schema '{}', but this connector is"
+                        + " bound to schema '{}', ignore space",
+                    processor.logId(),
+                    processor.logTime(),
+                    spaceId,
+                    space.schema,
+                    schema);
+              } else {
+                tableNames.add(space.table);
+                tableNames.add(space.historyTable);
+              }
+            });
+    return new SQLQueryExt(
+        "SELECT relname                                                AS "
+            + TABLE_NAME
+            + ","
+            + "       pg_indexes_size(c.oid)                                 AS "
+            + INDEX_BYTES
+            + ","
+            + "       pg_total_relation_size(c.oid) - pg_indexes_size(c.oid) AS "
+            + TABLE_BYTES
+            + " FROM pg_class c"
+            + "         LEFT JOIN pg_namespace n ON n.oid = c.relnamespace "
+            + " WHERE relkind = 'r'"
+            + " AND nspname = '"
+            + schema
+            + "'"
+            + " AND relname IN ("
+            + tableNames.stream()
+                .map(tableName -> "'" + tableName + "'")
+                .collect(Collectors.joining(","))
+            + ")");
   }
 
   @Override
-  public StorageStatistics handle(ResultSet rs) throws SQLException {
-    Map<String, SpaceByteSizes> byteSizes = new HashMap<>();
-    StorageStatistics stats = new StorageStatistics()
-        .withCreatedAt(System.currentTimeMillis())
-        .withByteSizes(byteSizes);
+  public @NotNull StorageStatistics handle(@NotNull ResultSet rs) throws SQLException {
+    final Map<@NotNull String, SpaceByteSizes> byteSizes = new HashMap<>();
+    StorageStatistics stats =
+        new StorageStatistics().withCreatedAt(System.currentTimeMillis()).withByteSizes(byteSizes);
 
-    //Read the space / history info from the returned ResultSet
+    // Read the space / history info from the returned ResultSet
     while (rs.next()) {
       String tableName = rs.getString(TABLE_NAME);
-      boolean isHistoryTable = tableName.endsWith(HISTORY_TABLE_SUFFIX);
-      tableName = isHistoryTable ? tableName.substring(0, tableName.length() - HISTORY_TABLE_SUFFIX.length()) : tableName;
-      String spaceId = tableName2SpaceId.containsKey(tableName) ? tableName2SpaceId.get(tableName) : tableName;
+      boolean isHistoryTable = tableName.endsWith(PsqlEventProcessor.HISTORY_TABLE_SUFFIX);
+      tableName =
+          isHistoryTable
+              ? tableName.substring(0, tableName.length() - PsqlEventProcessor.HISTORY_TABLE_SUFFIX.length())
+              : tableName;
+      String spaceId =
+          tableName2SpaceId.containsKey(tableName) ? tableName2SpaceId.get(tableName) : tableName;
 
-      long tableBytes = rs.getLong(TABLE_BYTES),
-           indexBytes = rs.getLong(INDEX_BYTES);
+      long tableBytes = rs.getLong(TABLE_BYTES), indexBytes = rs.getLong(INDEX_BYTES);
 
       SpaceByteSizes sizes = byteSizes.computeIfAbsent(spaceId, k -> new SpaceByteSizes());
       if (isHistoryTable)
@@ -111,9 +132,12 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
       }
     }
 
-    //For non-existing tables (no features written to the space yet), set all values to zero
-    remainingSpaceIds.forEach(spaceId -> byteSizes.computeIfAbsent(spaceId, k -> new SpaceByteSizes())
-          .withContentBytes(new Value<>(0L).withEstimated(true)));
+    // For non-existing tables (no features written to the space yet), set all values to zero
+    remainingSpaceIds.forEach(
+        spaceId ->
+            byteSizes
+                .computeIfAbsent(spaceId, k -> new SpaceByteSizes())
+                .withContentBytes(new Value<>(0L).withEstimated(true)));
 
     return stats;
   }

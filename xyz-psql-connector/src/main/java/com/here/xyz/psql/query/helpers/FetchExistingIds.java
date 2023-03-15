@@ -20,33 +20,36 @@
 package com.here.xyz.psql.query.helpers;
 
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.psql.DatabaseHandler;
+import com.here.xyz.psql.PsqlEventProcessor;
 import com.here.xyz.psql.QueryRunner;
-import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.psql.SQLQueryExt;
 import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import javax.annotation.Nonnull;
+import org.jetbrains.annotations.NotNull;
 
 public class FetchExistingIds extends QueryRunner<FetchIdsInput, List<String>> {
 
-  public FetchExistingIds(FetchIdsInput input, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-    super(input, dbHandler);
+  public FetchExistingIds(@Nonnull FetchIdsInput input, @NotNull PsqlEventProcessor processor) throws SQLException, ErrorResponseException {
+    super(input, processor);
   }
 
   @Override
-  protected SQLQuery buildQuery(FetchIdsInput input) throws SQLException, ErrorResponseException {
-    SQLQuery query = new SQLQuery("SELECT jsondata->>'id' id FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(#{ids})");
-    query.setVariable(SCHEMA, getSchema());
+  protected @NotNull SQLQueryExt buildQuery(@Nonnull FetchIdsInput input) throws SQLException, ErrorResponseException {
+    SQLQueryExt query = new SQLQueryExt("SELECT jsondata->>'id' id FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(#{ids})");
+    query.setVariable(SCHEMA, processor.spaceSchema());
     query.setVariable(TABLE, input.targetTable);
     query.setNamedParameter("ids", input.idsToFetch.toArray(new String[0]));
     return query;
   }
 
+  @Nonnull
   @Override
-  public List<String> handle(ResultSet rs) throws SQLException {
+  public List<String> handle(@Nonnull ResultSet rs) throws SQLException {
     final ArrayList<String> result = new ArrayList<>();
     while (rs.next())
       result.add(rs.getString("id"));

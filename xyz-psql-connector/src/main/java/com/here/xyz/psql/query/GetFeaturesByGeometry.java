@@ -19,21 +19,23 @@
 
 package com.here.xyz.psql.query;
 
+import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
-import com.here.xyz.psql.DatabaseHandler;
-import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.psql.PsqlEventProcessor;
 import java.sql.SQLException;
+import javax.annotation.Nonnull;
+import org.jetbrains.annotations.NotNull;
 
 public class GetFeaturesByGeometry extends Spatial<GetFeaturesByGeometryEvent> {
 
-  public GetFeaturesByGeometry(GetFeaturesByGeometryEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+  public GetFeaturesByGeometry(@NotNull GetFeaturesByGeometryEvent event, @NotNull PsqlEventProcessor psqlConnector) throws SQLException, ErrorResponseException {
+    super(event, psqlConnector);
   }
 
   @Override
-  protected SQLQuery buildQuery(GetFeaturesByGeometryEvent event) throws SQLException {
+  protected @NotNull SQLQuery buildQuery(@Nonnull GetFeaturesByGeometryEvent event) throws SQLException {
     final int radius = event.getRadius();
 
     SQLQuery geoFilter = event.getH3Index() != null

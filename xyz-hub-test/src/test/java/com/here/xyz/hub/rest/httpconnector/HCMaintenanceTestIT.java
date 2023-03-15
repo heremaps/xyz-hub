@@ -21,8 +21,8 @@ package com.here.xyz.hub.rest.httpconnector;
 
 import com.here.xyz.hub.PsqlHttpVerticle;
 import com.here.xyz.hub.auth.TestAuthenticator;
-import com.here.xyz.hub.config.MaintenanceClient;
-import com.here.xyz.psql.SQLQuery;
+import com.here.mapcreator.ext.naksha.NakshaManageDb;
+import com.here.xyz.psql.SQLQueryExt;
 import com.here.xyz.psql.config.PSQLConfig;
 import io.vertx.core.json.JsonObject;
 import org.junit.*;
@@ -41,7 +41,7 @@ public class HCMaintenanceTestIT {
   private static String ecps;
   private final static String connectorUri = config().fullHttpConnectorUri;
   private static String defaultConnector;
-  private static MaintenanceClient mc;
+  private static NakshaManageDb mc;
   private static HashMap<String, String> authHeaders;
 
   private static final String testSpace = "x-psql-test";
@@ -70,7 +70,7 @@ public class HCMaintenanceTestIT {
     deleteTestResources();
   }
 
-  public static MaintenanceClient initMaintenanceClient() {
+  public static NakshaManageDb initMaintenanceClient() {
     PsqlHttpVerticle.DB_INITIAL_POOL_SIZE = 1;
     PsqlHttpVerticle.DB_MIN_POOL_SIZE = 1;
     PsqlHttpVerticle.DB_MAX_POOL_SIZE = 1;
@@ -81,16 +81,16 @@ public class HCMaintenanceTestIT {
     PsqlHttpVerticle.DB_CHECKOUT_TIMEOUT = 10;
     PsqlHttpVerticle.DB_TEST_CONNECTION_ON_CHECKOUT = true;
 
-    return new MaintenanceClient();
+    return new NakshaManageDb();
   }
 
   public static void deleteTestResources() throws Exception {
     final String ecpsPhrase = config().ecpsPhrase;
     final String ecpsJson = config().ecpsJson;
     final String ecpsEncrypted = PSQLConfig.encryptECPS(ecpsJson, ecpsPhrase);
-    MaintenanceClient.MaintenanceInstance dbInstance = mc.getClient(
+    NakshaManageDb.MaintenanceInstance dbInstance = mc.getClient(
         defaultConnector, ecpsEncrypted, ecpsPhrase);
-    SQLQuery query = new SQLQuery("DELETE from xyz_config.db_status where connector_id='TestConnector'");
+    SQLQueryExt query = new SQLQueryExt("DELETE from xyz_config.db_status where connector_id='TestConnector'");
 
     //delete connector entry
     mc.executeQueryWithoutResults(query, dbInstance.getSource());

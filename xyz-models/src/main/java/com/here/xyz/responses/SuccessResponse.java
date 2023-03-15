@@ -26,6 +26,10 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 @JsonTypeName(value = "SuccessResponse")
 public class SuccessResponse extends XyzResponse<SuccessResponse> {
 
+  public SuccessResponse() {
+    setStatus("OK");
+  }
+
   private String status;
 
   public String getStatus() {

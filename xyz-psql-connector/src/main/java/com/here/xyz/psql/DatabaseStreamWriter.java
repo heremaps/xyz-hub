@@ -24,6 +24,7 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.io.WKBWriter;
+import org.jetbrains.annotations.NotNull;
 import org.postgresql.util.PGobject;
 
 import java.sql.Connection;
@@ -34,11 +35,13 @@ import java.util.Map;
 
 public class DatabaseStreamWriter extends DatabaseWriter{
 
-    protected static FeatureCollection insertFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem, FeatureCollection collection,
+    protected static FeatureCollection insertFeatures(@NotNull PsqlEventProcessor processor, FeatureCollection collection,
                                                       List<FeatureCollection.ModificationFailure> fails,
                                                       List<Feature> inserts, Connection connection, boolean forExtendedSpace)
             throws SQLException {
 
+        final String schema = processor.spaceSchema();
+        final String table = processor.spaceTable();
         final PreparedStatement insertStmt = createInsertStatement(connection, schema, table, forExtendedSpace);
         final PreparedStatement insertWithoutGeometryStmt = createInsertWithoutGeometryStatement(connection, schema, table, forExtendedSpace);
 
@@ -56,7 +59,7 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                     insertWithoutGeometryStmt.setObject(1, jsonbObject);
                     if (forExtendedSpace)
                         insertWithoutGeometryStmt.setBoolean(2, getDeletedFlagFromFeature(feature));
-                    insertWithoutGeometryStmt.setQueryTimeout(dbh.calculateTimeout());
+                    insertWithoutGeometryStmt.setQueryTimeout(processor.calculateTimeout());
                     rows = insertWithoutGeometryStmt.executeUpdate();
                 } else {
                     insertStmt.setObject(1, jsonbObject);
@@ -67,7 +70,7 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                     insertStmt.setBytes(2, wkbWriter.write(jtsGeometry));
                     if (forExtendedSpace)
                         insertStmt.setBoolean(3, getDeletedFlagFromFeature(feature));
-                    insertStmt.setQueryTimeout(dbh.calculateTimeout());
+                    insertStmt.setQueryTimeout(processor.calculateTimeout());
                     rows = insertStmt.executeUpdate();
                 }
 
@@ -85,7 +88,7 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                 }
 
                 fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage(INSERT_ERROR_GENERAL));
-                logException(e, traceItem, LOG_EXCEPTION_INSERT, table);
+                logException(e, processor, LOG_EXCEPTION_INSERT, table);
             }
         }
 
@@ -95,12 +98,14 @@ public class DatabaseStreamWriter extends DatabaseWriter{
         return collection;
     }
 
-    protected static FeatureCollection updateFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem, FeatureCollection collection,
+    protected static FeatureCollection updateFeatures(@NotNull PsqlEventProcessor processor, FeatureCollection collection,
                                                       List<FeatureCollection.ModificationFailure> fails,
                                                       List<Feature> updates, Connection connection,
                                                       boolean handleUUID, boolean forExtendedSpace)
             throws SQLException {
 
+        final String schema = processor.spaceSchema();
+        final String table = processor.spaceTable();
         final PreparedStatement updateStmt = createUpdateStatement(connection, schema, table, handleUUID, forExtendedSpace);
         final PreparedStatement updateWithoutGeometryStmt = createUpdateWithoutGeometryStatement(connection,schema,table,handleUUID, forExtendedSpace);
 
@@ -134,7 +139,7 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                     if (handleUUID)
                         updateWithoutGeometryStmt.setString(++paramIdx, puuid);
 
-                    updateWithoutGeometryStmt.setQueryTimeout(dbh.calculateTimeout());
+                    updateWithoutGeometryStmt.setQueryTimeout(processor.calculateTimeout());
                     rows = updateWithoutGeometryStmt.executeUpdate();
                 } else {
                     updateStmt.setObject(++paramIdx, jsonbObject);
@@ -149,7 +154,7 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                     if (handleUUID)
                         updateStmt.setString(++paramIdx, puuid);
 
-                    updateStmt.setQueryTimeout(dbh.calculateTimeout());
+                    updateStmt.setQueryTimeout(processor.calculateTimeout());
                     rows = updateStmt.executeUpdate();
                 }
 
@@ -160,7 +165,7 @@ public class DatabaseStreamWriter extends DatabaseWriter{
 
             } catch (Exception e) {
                 fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage(UPDATE_ERROR_GENERAL));
-                logException(e, traceItem, LOG_EXCEPTION_UPDATE, table);
+                logException(e, processor, LOG_EXCEPTION_UPDATE, table);
             }
         }
 
@@ -170,11 +175,13 @@ public class DatabaseStreamWriter extends DatabaseWriter{
         return collection;
     }
 
-    protected static void deleteFeatures( DatabaseHandler dbh, String schema, String table, TraceItem traceItem,
+    protected static void deleteFeatures(@NotNull PsqlEventProcessor processor,
                                          List<FeatureCollection.ModificationFailure> fails, Map<String, String> deletes,
                                          Connection connection, boolean handleUUID)
             throws SQLException {
 
+        final String schema = processor.spaceSchema();
+        final String table = processor.spaceTable();
         final PreparedStatement deleteStmt = deleteStmtSQLStatement(connection,schema,table,handleUUID);
         final PreparedStatement deleteStmtWithoutUUID = deleteStmtSQLStatement(connection,schema,table,false);
 
@@ -185,14 +192,14 @@ public class DatabaseStreamWriter extends DatabaseWriter{
 
                 if(handleUUID && puuid == null){
                     deleteStmtWithoutUUID.setString(1, deleteId);
-                    deleteStmtWithoutUUID.setQueryTimeout(dbh.calculateTimeout());
+                    deleteStmtWithoutUUID.setQueryTimeout(processor.calculateTimeout());
                     rows += deleteStmtWithoutUUID.executeUpdate();
                 }else{
                     deleteStmt.setString(1, deleteId);
                     if(handleUUID) {
                         deleteStmt.setString(2, puuid);
                     }
-                    deleteStmt.setQueryTimeout(dbh.calculateTimeout());
+                    deleteStmt.setQueryTimeout(processor.calculateTimeout());
                     rows += deleteStmt.executeUpdate();
                 }
 
@@ -202,7 +209,7 @@ public class DatabaseStreamWriter extends DatabaseWriter{
 
             } catch (Exception e) {
                 fails.add(new FeatureCollection.ModificationFailure().withId(deleteId).withMessage(DELETE_ERROR_GENERAL));
-                logException(e, traceItem, LOG_EXCEPTION_DELETE, table);
+                logException(e, processor, LOG_EXCEPTION_DELETE, table);
             }
         }
 

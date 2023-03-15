@@ -18,13 +18,13 @@
  */
 package com.here.xyz.psql;
 
+import com.here.mapcreator.ext.naksha.NPsqlConnectorParams;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.models.hub.Space;
-import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.tools.FeatureGenerator;
 import com.here.xyz.responses.SuccessResponse;
@@ -52,9 +52,9 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
     private static List<String> spaces = new ArrayList<String>(){{add(BASE1);add(BASE2);add(DELTA1);add(DELTA2);}};
 
     protected static Map<String, Object> connectorParams = new HashMap<String,Object>(){
-        {   put(ConnectorParameters.CONNECTOR_ID, "test-connector");
-            put(ConnectorParameters.AUTO_INDEXING, true);
-            put(ConnectorParameters.PROPERTY_SEARCH, true);
+        {   put(NPsqlConnectorParams.CONNECTOR_ID, "test-connector");
+            put(NPsqlConnectorParams.AUTO_INDEXING, true);
+            put(NPsqlConnectorParams.PROPERTY_SEARCH, true);
         }
     };
 
@@ -197,7 +197,7 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
                 delta1_ref = base2_ref;
         }
 
-        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+        try (final Connection connection = dataSource().getConnection()) {
             Statement stmt = connection.createStatement();
             ResultSet resultSet = stmt.executeQuery(q);
             int i = 0;
@@ -247,7 +247,7 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
                 "COMMENT ON INDEX public.idx_base_test_foo_a" +
                 "    IS 'foo';";
 
-        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+        try (final Connection connection = dataSource().getConnection()) {
             Statement stmt = connection.createStatement();
             stmt.execute(q);
         }

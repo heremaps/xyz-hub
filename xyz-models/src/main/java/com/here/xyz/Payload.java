@@ -35,29 +35,33 @@ import java.io.OutputStream;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipException;
+import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @JsonSubTypes({
-    @JsonSubTypes.Type(value = Event.class),
-    @JsonSubTypes.Type(value = XyzResponse.class)
+  @JsonSubTypes.Type(value = Event.class),
+  @JsonSubTypes.Type(value = XyzResponse.class)
 })
 public class Payload implements Typed {
 
+  protected static final Logger logger = LoggerFactory.getLogger(Payload.class);
+
   public static final String VERSION = "0.6.0";
 
-  public static InputStream prepareInputStream(InputStream input) throws IOException {
+  public static @NotNull InputStream prepareInputStream(@NotNull InputStream input)
+      throws IOException {
     if (!input.markSupported()) {
       input = new BufferedInputStream(input);
     }
-
     if (isCompressed(input)) {
       input = gunzip(input);
     }
-
     return input;
   }
 
   @SuppressWarnings("WeakerAccess")
-  public static InputStream gunzip(InputStream is) throws IOException {
+  public static @NotNull InputStream gunzip(@NotNull InputStream is) throws IOException {
     try {
       return new BufferedInputStream(new GZIPInputStream(is));
     } catch (ZipException z) {
@@ -65,7 +69,7 @@ public class Payload implements Typed {
     }
   }
 
-  public static OutputStream gzip(OutputStream os) throws IOException {
+  public static @NotNull OutputStream gzip(@NotNull OutputStream os) throws IOException {
     try {
       return new GZIPOutputStream(os);
     } catch (ZipException z) {
@@ -74,21 +78,22 @@ public class Payload implements Typed {
   }
 
   /**
-   * Determines if a byte array is compressed. The java.util.zip GZip implementation does not expose the GZip header so it is difficult to
-   * determine if a string is compressed.
+   * Determines if a byte array is compressed. The java.util.zip GZip implementation does not expose
+   * the GZip header so it is difficult to determine if a string is compressed.
    *
    * @param is an input stream
    * @return true if the array is compressed or false otherwise
    */
-  public static boolean isCompressed(InputStream is) {
+  public static boolean isCompressed(@NotNull InputStream is) {
     try {
       if (!is.markSupported()) {
         is = new BufferedInputStream(is);
       }
-
-      byte[] bytes = new byte[2];
+      final byte[] bytes = new byte[2];
       is.mark(2);
-      is.read(bytes);
+      if (is.read(bytes) < bytes.length) {
+        return false;
+      }
       is.reset();
       return isGzipped(bytes);
     } catch (Exception e) {
@@ -96,48 +101,52 @@ public class Payload implements Typed {
     }
   }
 
-  public static boolean isGzipped(byte[] bytes) {
-    return bytes != null && bytes.length >= 2 && GZIPInputStream.GZIP_MAGIC == (((int) bytes[0] & 0xff) | ((bytes[1] << 8) & 0xff00));
+  public static boolean isGzipped(byte @NotNull [] bytes) {
+    return bytes.length >= 2
+        && GZIPInputStream.GZIP_MAGIC == (((int) bytes[0] & 0xff) | ((bytes[1] << 8) & 0xff00));
   }
 
-  public static byte[] compress(byte[] bytes) {
+  public static byte @NotNull [] compress(byte @NotNull [] bytes) {
     final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-
-    try (GZIPOutputStream gos = new GZIPOutputStream(baos)) {
+    try (final GZIPOutputStream gos = new GZIPOutputStream(baos)) {
       gos.write(bytes);
+      gos.flush();
+      baos.flush();
+      return baos.toByteArray();
     } catch (IOException e) {
-      return null;
+      logger.error("Unexpected exception while trying to GZIP given bytes", e);
+      return bytes;
     }
-
-    return baos.toByteArray();
   }
 
-  public static byte[] decompress(final byte[] bytes) throws IOException {
+  public static byte @NotNull [] decompress(final byte @NotNull [] bytes) throws IOException {
     return ByteStreams.toByteArray(Payload.prepareInputStream(new ByteArrayInputStream(bytes)));
   }
 
   /**
    * @param versionA
    * @param versionB
-   * @return -1 if versionA is smaller than versionB, 0 if versionA equals versionB, 1 if versionA is larger than versionB.
+   * @return -1 if versionA is smaller than versionB, 0 if versionA equals versionB, 1 if versionA
+   *     is larger than versionB.
    */
   public static int compareVersions(String versionA, String versionB) {
     String[] partsA = versionA.split(".");
     String[] partsB = versionB.split(".");
-    if (partsA.length != partsB.length) throw new IllegalArgumentException("Incompatible version strings.");
+    if (partsA.length != partsB.length) {
+      throw new IllegalArgumentException("Incompatible version strings.");
+    }
     for (int i = 0; i < partsA.length; i++) {
       int versionPartA = Integer.parseInt(partsA[i]), versionPartB = Integer.parseInt(partsB[i]);
-      if (versionPartA < versionPartB)
+      if (versionPartA < versionPartB) {
         return -1;
-      else if (versionPartA > versionPartB)
+      } else if (versionPartA > versionPartB) {
         return 1;
+      }
     }
     return 0;
   }
 
-  /**
-   * Returns the hash of the event as a base64 string.
-   */
+  /** Returns the hash of the event as a base64 string. */
   @JsonIgnore
   public String getHash() {
     try {
@@ -150,9 +159,12 @@ public class Payload implements Typed {
   @SuppressWarnings("WeakerAccess")
   @JsonIgnore
   public String getCacheString() throws JsonProcessingException {
-    return SORTED_MAPPER.get()
-        // Adding .writerWithView(Object.class) will serialize all properties, which do not have a view annotation. Any properties, which
-        // are not used as an input to generate the response(e.g. the request log stream Id) and do not result in a change of the response
+    return SORTED_MAPPER
+        .get()
+        // Adding .writerWithView(Object.class) will serialize all properties, which do not have a
+        // view annotation. Any properties, which
+        // are not used as an input to generate the response(e.g. the request log stream Id) and do
+        // not result in a change of the response
         // must be annotated with a view ( e.g. @JsonView(ExcludeFromHash.class) )
         .writerWithView(Object.class)
         .writeValueAsString(this);
@@ -163,7 +175,5 @@ public class Payload implements Typed {
     return serialize();
   }
 
-  protected static class ExcludeFromHash {
-
-  }
+  protected static class ExcludeFromHash {}
 }

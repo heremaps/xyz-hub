@@ -19,7 +19,7 @@
 
 package com.here.xyz.events;
 
-public abstract class QueryEvent<T extends QueryEvent> extends SelectiveEvent<T> {
+public abstract class QueryEvent<SELF extends QueryEvent<SELF>> extends SelectiveEvent<SELF> {
 
   private TagsQuery tags;
   private PropertiesQuery propertiesQuery;
@@ -33,9 +33,9 @@ public abstract class QueryEvent<T extends QueryEvent> extends SelectiveEvent<T>
   }
 
   @SuppressWarnings("unused")
-  public T withTags(TagsQuery tags) {
+  public SELF withTags(TagsQuery tags) {
     setTags(tags);
-    return (T)this;
+    return (SELF)this;
   }
 
   @SuppressWarnings("unused")
@@ -49,8 +49,8 @@ public abstract class QueryEvent<T extends QueryEvent> extends SelectiveEvent<T>
   }
 
   @SuppressWarnings("unused")
-  public T withPropertiesQuery(PropertiesQuery propertiesQuery) {
+  public SELF withPropertiesQuery(PropertiesQuery propertiesQuery) {
     setPropertiesQuery(propertiesQuery);
-    return (T)this;
+    return (SELF)this;
   }
 }

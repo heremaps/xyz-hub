@@ -20,7 +20,7 @@
 package com.here.xyz.hub.config;
 
 import com.here.xyz.models.hub.Subscription;
-import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.psql.SQLQueryExt;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -69,7 +69,7 @@ public class JDBCSubscriptionConfigClient extends SubscriptionConfigClient {
   @Override
   protected Future<Subscription> getSubscription(final Marker marker, final String subscriptionId) {
     Promise<Subscription> p = Promise.promise();
-    final SQLQuery query = new SQLQuery("SELECT config FROM " + SUBSCRIPTION_TABLE + " WHERE id = ?", subscriptionId);
+    final SQLQueryExt query = new SQLQueryExt("SELECT config FROM " + SUBSCRIPTION_TABLE + " WHERE id = ?", subscriptionId);
     client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
         final Optional<String> config = out.result().getRows().stream().map(r -> r.getString("config")).findFirst();
@@ -92,7 +92,7 @@ public class JDBCSubscriptionConfigClient extends SubscriptionConfigClient {
   @Override
   protected Future<List<Subscription>> getSubscriptionsBySource(Marker marker, String source) {
     Promise<List<Subscription>> p = Promise.promise();
-    final SQLQuery query = new SQLQuery("SELECT config FROM " + SUBSCRIPTION_TABLE + " WHERE source = ?", source);
+    final SQLQueryExt query = new SQLQueryExt("SELECT config FROM " + SUBSCRIPTION_TABLE + " WHERE source = ?", source);
     client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
         final Stream<String> config = out.result().getRows().stream().map(r -> r.getString("config"));
@@ -134,7 +134,7 @@ public class JDBCSubscriptionConfigClient extends SubscriptionConfigClient {
 
   @Override
   protected Future<Void> storeSubscription(Marker marker, Subscription subscription) {
-    final SQLQuery query = new SQLQuery("INSERT INTO " + SUBSCRIPTION_TABLE + " (id, source, config) VALUES (?, ?, cast(? as JSONB)) " +
+    final SQLQueryExt query = new SQLQueryExt("INSERT INTO " + SUBSCRIPTION_TABLE + " (id, source, config) VALUES (?, ?, cast(? as JSONB)) " +
         "ON CONFLICT (id) DO " +
         "UPDATE SET id = ?, source = ?, config = cast(? as JSONB)",
         subscription.getId(), subscription.getSource(), Json.encode(subscription),
@@ -144,11 +144,11 @@ public class JDBCSubscriptionConfigClient extends SubscriptionConfigClient {
 
   @Override
   protected Future<Subscription> deleteSubscription(Marker marker, String subscriptionId) {
-    final SQLQuery query = new SQLQuery("DELETE FROM " + SUBSCRIPTION_TABLE + " WHERE id = ?", subscriptionId);
+    final SQLQueryExt query = new SQLQueryExt("DELETE FROM " + SUBSCRIPTION_TABLE + " WHERE id = ?", subscriptionId);
     return get(marker, subscriptionId).compose(subscription -> updateWithParams(subscription, query).map(subscription));
   }
 
-  private Future<Void> updateWithParams(Subscription modifiedObject, SQLQuery query) {
+  private Future<Void> updateWithParams(Subscription modifiedObject, SQLQueryExt query) {
     Promise<Void> p = Promise.promise();
     client.updateWithParams(query.text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {

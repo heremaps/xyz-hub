@@ -19,16 +19,17 @@
 
 package com.here.xyz.psql.query;
 
+import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.SpatialQueryEvent;
-import com.here.xyz.psql.DatabaseHandler;
-import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.psql.PsqlEventProcessor;
 import java.sql.SQLException;
+import org.jetbrains.annotations.NotNull;
 
-public abstract class Spatial<E extends SpatialQueryEvent> extends SearchForFeatures<E> {
+public abstract class Spatial<E extends SpatialQueryEvent<E>> extends SearchForFeatures<E> {
 
-  public Spatial(E event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+  public Spatial(@NotNull E event, @NotNull PsqlEventProcessor psqlConnector) throws SQLException, ErrorResponseException {
+    super(event, psqlConnector);
   }
 
   /**

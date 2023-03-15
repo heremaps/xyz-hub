@@ -21,7 +21,7 @@ package com.here.xyz.events;
 
 import java.util.List;
 
-public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<T> {
+public class SelectiveEvent<SELF extends SelectiveEvent<SELF>> extends ContextAwareEvent<SELF> {
 
   private List<String> selection;
   private boolean force2D;
@@ -41,9 +41,9 @@ public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<
   }
 
   @SuppressWarnings("unused")
-  public T withSelection(List<String> selection) {
+  public SELF withSelection(List<String> selection) {
     setSelection(selection);
-    return (T) this;
+    return (SELF) this;
   }
 
   public String getRef() {
@@ -54,9 +54,9 @@ public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<
     this.ref = ref;
   }
 
-  public T withRef(String ref) {
+  public SELF withRef(String ref) {
     setRef(ref);
-    return (T) this;
+    return (SELF) this;
   }
 
   public String getAuthor() {
@@ -67,9 +67,9 @@ public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<
     this.author = author;
   }
 
-  public T withAuthor(String author) {
+  public SELF withAuthor(String author) {
     setAuthor(author);
-    return (T) this;
+    return (SELF) this;
   }
 
   @SuppressWarnings("WeakerAccess")
@@ -83,9 +83,9 @@ public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<
   }
 
   @SuppressWarnings("unused")
-  public T withForce2D(boolean force2D) {
+  public SELF withForce2D(boolean force2D) {
     setForce2D(force2D);
     //noinspection unchecked
-    return (T) this;
+    return (SELF) this;
   }
 }

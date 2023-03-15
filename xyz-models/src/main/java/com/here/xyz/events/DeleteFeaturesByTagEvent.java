@@ -24,7 +24,6 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "DeleteFeaturesByTagEvent")
-@Deprecated
 public final class DeleteFeaturesByTagEvent extends QueryEvent<DeleteFeaturesByTagEvent> {
 
 }

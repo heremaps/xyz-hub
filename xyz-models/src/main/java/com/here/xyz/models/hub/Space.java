@@ -23,12 +23,10 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.fasterxml.jackson.annotation.JsonIncludeProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.here.xyz.XyzSerializable;
 import java.util.Arrays;
 import java.util.List;
@@ -98,24 +96,6 @@ public class Space {
    */
   @JsonView({WithConnectors.class, Static.class})
   private ConnectorRef storage;
-
-  /**
-   * The event listeners configuration. A listening connector get's only *informed* about events, but the XYZ hub doesn't expect / wait for
-   * any response.
-   */
-  @JsonInclude(Include.NON_NULL)
-  @JsonView({WithConnectors.class, Static.class})
-  @JsonDeserialize(using = ConnectorDeserializer.class)
-  private Map<String, List<ListenerConnectorRef>> listeners;
-
-  /**
-   * The event processors configuration. A processing connector get's the specified events and can re-process them synchronously. The XYZ
-   * Hub waits for a response.
-   */
-  @JsonInclude(Include.NON_NULL)
-  @JsonView({WithConnectors.class, Static.class})
-  @JsonDeserialize(using = ConnectorDeserializer.class)
-  private Map<String, List<ListenerConnectorRef>> processors;
 
   /**
    * The identifier of the owner of this space, most likely the HERE account ID.
@@ -346,32 +326,6 @@ public class Space {
 
   public Space withStorage(final ConnectorRef storage) {
     setStorage(storage);
-    return this;
-  }
-
-  public Map<String, List<ListenerConnectorRef>> getListeners() {
-    return listeners;
-  }
-
-  public void setListeners(final Map<String, List<ListenerConnectorRef>> listeners) {
-    this.listeners = listeners;
-  }
-
-  public Space withListeners(final Map<String, List<ListenerConnectorRef>> listeners) {
-    setListeners(listeners);
-    return this;
-  }
-
-  public Map<String, List<ListenerConnectorRef>> getProcessors() {
-    return processors;
-  }
-
-  public void setProcessors(final Map<String, List<ListenerConnectorRef>> processors) {
-    this.processors = processors;
-  }
-
-  public Space withProcessors(final Map<String, List<ListenerConnectorRef>> processors) {
-    setProcessors(processors);
     return this;
   }
 
@@ -689,50 +643,6 @@ public class Space {
     }
   }
 
-  @JsonIgnoreProperties(ignoreUnknown = true)
-  public static class ListenerConnectorRef extends ConnectorRef {
-
-    /**
-     * The types of events the listener-connector is registered for.
-     */
-    private List<String> eventTypes;
-
-    /**
-     * The order of when the listener-connector is called.
-     */
-    @JsonInclude(Include.NON_NULL)
-    private Integer order;
-
-    @SuppressWarnings("WeakerAccess")
-    public List<String> getEventTypes() {
-      return eventTypes;
-    }
-
-    public void setEventTypes(final List<String> eventTypes) {
-      this.eventTypes = eventTypes;
-    }
-
-    @SuppressWarnings("WeakerAccess")
-    public ListenerConnectorRef withEventTypes(final List<String> eventTypes) {
-      setEventTypes(eventTypes);
-      return this;
-    }
-
-    public Integer getOrder() {
-      return order;
-    }
-
-    @SuppressWarnings("WeakerAccess")
-    public void setOrder(final Integer  order) {
-      this.order = order;
-    }
-
-    @SuppressWarnings("WeakerAccess")
-    public ListenerConnectorRef withOrder(final Integer order) {
-      setOrder(order);
-      return this;
-    }
-  }
 
   /**
    * The copyright information object.

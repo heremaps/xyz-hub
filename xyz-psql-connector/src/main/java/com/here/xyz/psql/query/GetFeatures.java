@@ -21,29 +21,30 @@ package com.here.xyz.psql.query;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 
+import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.QueryEvent;
 import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.DatabaseHandler;
-import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.psql.PsqlEventProcessor;
 import com.here.xyz.psql.SQLQueryBuilder;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import javax.annotation.Nonnull;
+import org.jetbrains.annotations.NotNull;
 
-public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedSpace<E, FeatureCollection> {
+public abstract class GetFeatures<E extends ContextAwareEvent<E>> extends ExtendedSpace<E, FeatureCollection> {
 
-  public GetFeatures(E event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+  public GetFeatures(@NotNull E event, final @NotNull PsqlEventProcessor psqlConnector) throws SQLException, ErrorResponseException {
+    super(event, psqlConnector);
     setUseReadReplica(true);
   }
 
   @Override
-  protected SQLQuery buildQuery(E event) throws SQLException {
+  protected @NotNull SQLQuery buildQuery(@Nonnull E event) throws SQLException {
     boolean isExtended = isExtendedSpace(event) && event.getContext() == DEFAULT;
     SQLQuery query;
     if (isExtended) {
@@ -67,7 +68,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
     }
 
     if (event instanceof SelectiveEvent)
-      query.setQueryFragment("selection", buildSelectionFragment((SelectiveEvent) event));
+      query.setQueryFragment("selection", buildSelectionFragment((SelectiveEvent<?>) event));
     else
       query.setQueryFragment("selection", "jsondata");
 
@@ -75,8 +76,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
     query.setQueryFragment("iColumn", ""); //NOTE: This can be overridden by implementing subclasses
     query.setQueryFragment("limit", ""); //NOTE: This can be overridden by implementing subclasses
 
-    query.setVariable(SCHEMA, getSchema());
-    query.setVariable(TABLE, getDefaultTable(event));
+    query.setVariable(SCHEMA, processor.spaceSchema());
+    query.setVariable(TABLE, processor.spaceTable());
 
     if (isExtended) {
       query.setQueryFragment("iColumnExtension", ""); //NOTE: This can be overridden by implementing subclasses
@@ -123,9 +124,10 @@ public abstract class GetFeatures<E extends ContextAwareEvent> extends ExtendedS
     return query;
   }
 
+  @Nonnull
   @Override
-  public FeatureCollection handle(ResultSet rs) throws SQLException {
-    return dbHandler.defaultFeatureResultSetHandler(rs);
+  public FeatureCollection handle(@Nonnull ResultSet rs) throws SQLException {
+    return processor.defaultFeatureResultSetHandler(rs);
   }
 
   protected static SQLQuery buildSelectionFragment(SelectiveEvent event) {

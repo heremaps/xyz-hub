@@ -22,7 +22,7 @@ package com.here.xyz.hub.config;
 import static com.here.xyz.hub.config.JDBCConfig.CONNECTOR_TABLE;
 
 import com.here.xyz.hub.connectors.models.Connector;
-import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.psql.SQLQueryExt;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -66,7 +66,7 @@ public class JDBCConnectorConfigClient extends ConnectorConfigClient {
 
   @Override
   protected void getConnector(final Marker marker, final String connectorId, final Handler<AsyncResult<Connector>> handler) {
-    final SQLQuery query = new SQLQuery("SELECT config FROM " + CONNECTOR_TABLE + " WHERE id = ?", connectorId);
+    final SQLQueryExt query = new SQLQueryExt("SELECT config FROM " + CONNECTOR_TABLE + " WHERE id = ?", connectorId);
     client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
         final Optional<String> config = out.result().getRows().stream().map(r -> r.getString("config")).findFirst();
@@ -87,7 +87,7 @@ public class JDBCConnectorConfigClient extends ConnectorConfigClient {
 
   @Override
   protected void getConnectorsByOwner(Marker marker, String ownerId, Handler<AsyncResult<List<Connector>>> handler) {
-    final SQLQuery query = new SQLQuery("SELECT config FROM " + CONNECTOR_TABLE + " WHERE owner = ?", ownerId);
+    final SQLQueryExt query = new SQLQueryExt("SELECT config FROM " + CONNECTOR_TABLE + " WHERE owner = ?", ownerId);
     client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
         final Stream<String> config = out.result().getRows().stream().map(r -> r.getString("config"));
@@ -110,7 +110,7 @@ public class JDBCConnectorConfigClient extends ConnectorConfigClient {
 
   @Override
   protected void storeConnector(Marker marker, Connector connector, Handler<AsyncResult<Connector>> handler) {
-    final SQLQuery query = new SQLQuery("INSERT INTO " + CONNECTOR_TABLE + " (id, owner, config) VALUES (?, ?, cast(? as JSONB)) " +
+    final SQLQueryExt query = new SQLQueryExt("INSERT INTO " + CONNECTOR_TABLE + " (id, owner, config) VALUES (?, ?, cast(? as JSONB)) " +
         "ON CONFLICT (id) DO " +
         "UPDATE SET id = ?, owner = ?, config = cast(? as JSONB)",
         connector.id, connector.owner, Json.encode(connector),
@@ -120,7 +120,7 @@ public class JDBCConnectorConfigClient extends ConnectorConfigClient {
 
   @Override
   protected void deleteConnector(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler) {
-    final SQLQuery query = new SQLQuery("DELETE FROM " + CONNECTOR_TABLE + " WHERE id = ?", connectorId);
+    final SQLQueryExt query = new SQLQueryExt("DELETE FROM " + CONNECTOR_TABLE + " WHERE id = ?", connectorId);
     get(marker, connectorId, ar -> {
       if (ar.succeeded()) {
         updateWithParams(ar.result(), query, handler);
@@ -131,7 +131,7 @@ public class JDBCConnectorConfigClient extends ConnectorConfigClient {
     });
   }
 
-  private void updateWithParams(Connector modifiedObject, SQLQuery query, Handler<AsyncResult<Connector>> handler) {
+  private void updateWithParams(Connector modifiedObject, SQLQueryExt query, Handler<AsyncResult<Connector>> handler) {
     client.updateWithParams(query.text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
         handler.handle(Future.succeededFuture(modifiedObject));

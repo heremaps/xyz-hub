@@ -25,7 +25,6 @@ import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
-import com.here.xyz.psql.tools.ECPSTool;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -240,23 +239,6 @@ public abstract class ConnectorConfigClient implements Initializable {
     if (connector == null) {
       return;
     }
-
-    replaceVarsInMap(connector.params, ecpsJson -> {
-      String ecpsPhrase = Service.configuration.DEFAULT_ECPS_PHRASE;
-      if (ecpsPhrase == null) return null;
-      //Replace vars in the ECPS JSON
-      JsonObject ecpsValues = new JsonObject(ecpsJson);
-      Map<String, String> varValues = getPsqlVars();
-      replaceVarsInMap(ecpsValues.getMap(), varName -> varValues.get(varName), "${", "}");
-      ecpsJson = ecpsValues.toString();
-      //Encrypt the ECPS JSON
-      try {
-        return ECPSTool.encrypt(ecpsPhrase, ecpsJson);
-      }
-      catch (GeneralSecurityException | UnsupportedEncodingException e) {
-        return null;
-      }
-    }, "$encrypt(", ")");
 
     if (connector.getRemoteFunction() instanceof Embedded) {
       Map<String, String> varValues = getPsqlVars();

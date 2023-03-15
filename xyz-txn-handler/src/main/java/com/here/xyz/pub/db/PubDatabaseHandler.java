@@ -1,10 +1,12 @@
 package com.here.xyz.pub.db;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.mapcreator.ext.naksha.NPsqlPoolConfig;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.hub.Subscription;
-import com.here.xyz.psql.config.PSQLConfig;
+import com.here.mapcreator.ext.naksha.NPsqlConnectorParams;
 import com.here.xyz.pub.models.*;
 import io.vertx.core.json.Json;
-import io.vertx.core.json.JsonObject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import java.security.GeneralSecurityException;
@@ -30,9 +32,10 @@ public class PubDatabaseHandler {
             "SELECT t.last_txn_id, t.last_txn_rec_id FROM "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_txn_pub t WHERE t.subscription_id = ?";
 
     final private static String FETCH_CONN_DETAILS_FOR_SPACE =
-            "SELECT st.config->'params'->>'ecps' AS ecps, " +
-            "       st.config->'remoteFunctions'->'local'->'env'->>'ECPS_PHRASE' AS pswd, " +
-            "       COALESCE(sp.config->'storage'->'params'->>'tableName', sp.id) AS tableName " +
+            "SELECT " +
+            "  st.id AS id, " + // 1
+            "  COALESCE(sp.config->'storage'->'params'->>'tableName', sp.id) AS tableName " + // 2
+            "  st.config->'params' AS params " + // 3
             "FROM "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_storage st, "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_space sp " +
             "WHERE st.id = sp.config->'storage'->>'id' AND sp.id = ? ";
 
@@ -59,12 +62,14 @@ public class PubDatabaseHandler {
             "VALUES (? , ? , ? , now()) ";
 
     final private static String FETCH_CONNECTORS_AND_SPACES =
-            "SELECT st.id AS connectorId, st.config->'params'->>'ecps' AS ecps, st.config->'remoteFunctions'->'local'->'env'->>'ECPS_PHRASE' AS pswd," +
-            "       array_agg(sp.id) AS spaceIds, array_agg(COALESCE(sp.config->'storage'->'params'->>'tableName', sp.id)) AS tableNames " +
+            "SELECT " +
+            "  st.id AS connectorId, " + // 1
+            "  st.config->'params' AS params, " + // 2
+            "  array_agg(sp.id) AS spaceIds, "+ // 3
+            "  array_agg(COALESCE(sp.config->'storage'->'params'->>'tableName', sp.id)) AS tableNames " + // 4
             "FROM "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_space sp, "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_storage st " +
-            "WHERE sp.config->'storage'->>'id' = st.id " +
-            "AND st.id != ? " +
-            "GROUP BY connectorId, ecps, pswd";
+            "WHERE sp.config->'storage'->>'id' = st.id AND st.id != ? " +
+            "GROUP BY connectorId";
 
     final private static String SPACE_UNION_CLAUSE_STR = "{{SPACE_UNION_CLAUSE}}";
     final private static String UPDATE_TXN_SEQUENCE =
@@ -155,32 +160,32 @@ public class PubDatabaseHandler {
     public static JdbcConnectionParams fetchDBConnParamsForSpaceId(final String spaceId,
                            final JdbcConnectionParams dbConnParams) throws SQLException, GeneralSecurityException {
         JdbcConnectionParams spaceDBConnParams = null;
-
         try (final Connection conn = PubJdbcConnectionPool.getConnection(dbConnParams);
              final PreparedStatement stmt = conn.prepareStatement(FETCH_CONN_DETAILS_FOR_SPACE);
         ) {
             stmt.setString(1, spaceId);
-            final ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                final String ecps = rs.getString("ecps");
-                final String pswd = rs.getString("pswd");
-                final String tableName = rs.getString("tableName");
-                // Decrypt ecps into JSON string
-                // You get back string like this:
-                // {"PSQL_HOST":"database-host.com","PSQL_PORT":"5432","PSQL_DB":"postgresdb","PSQL_USER":"pg_user","PSQL_PASSWORD":"pg_pswd","PSQL_SCHEMA":"pg_schema"}
-                final String decodedJsonStr = new PSQLConfig.AESGCMHelper(pswd).decrypt(ecps);
-                // Transform JSON string and extract connection details
-                final Map<String, Object> jsonMap = new JsonObject(decodedJsonStr).getMap();
-                spaceDBConnParams = new JdbcConnectionParams();
-                spaceDBConnParams.setSpaceId(spaceId);
-                final String dbUrl = "jdbc:postgresql://"+jsonMap.get("PSQL_HOST")+":"+jsonMap.get("PSQL_PORT")+"/"+jsonMap.get("PSQL_DB");
-                spaceDBConnParams.setDbUrl(dbUrl);
-                spaceDBConnParams.setUser(jsonMap.get("PSQL_USER").toString());
-                spaceDBConnParams.setPswd(jsonMap.get("PSQL_PASSWORD").toString());
-                spaceDBConnParams.setSchema(jsonMap.get("PSQL_SCHEMA").toString());
-                spaceDBConnParams.setTableName(tableName);
+            try (final ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    final String id = rs.getString(1);
+                    final String tableName = rs.getString(2);
+                    try {
+                        final String rawParams = rs.getString(3);
+                        final NPsqlConnectorParams params = XyzSerializable.deserialize(rawParams, NPsqlConnectorParams.class);
+                        if (params == null)
+                            throw new NullPointerException("params");
+                        final NPsqlPoolConfig dbConfig = params.getDbConfig();
+                        spaceDBConnParams = new JdbcConnectionParams();
+                        spaceDBConnParams.setSpaceId(spaceId);
+                        spaceDBConnParams.setDbUrl(dbConfig.url);
+                        spaceDBConnParams.setUser(dbConfig.user);
+                        spaceDBConnParams.setPswd(dbConfig.password);
+                        spaceDBConnParams.setSchema(params.getSpaceSchema());
+                        spaceDBConnParams.setTableName(tableName);
+                    } catch (JsonProcessingException | NullPointerException e) {
+                        logger.error("Failed to parse the configuration of connector {}", id);
+                    }
+                }
             }
-            rs.close();
         }
         return spaceDBConnParams;
     }
@@ -261,33 +266,34 @@ public class PubDatabaseHandler {
 
     public static List<ConnectorDTO> fetchConnectorsAndSpaces(final JdbcConnectionParams spaceDBConnParams,
             final String exclConnectorId) throws SQLException, GeneralSecurityException {
-        List<ConnectorDTO> connectorList = null;
 
+        List<ConnectorDTO> connectorList = null;
         try (final Connection conn = PubJdbcConnectionPool.getConnection(spaceDBConnParams);
              final PreparedStatement stmt = conn.prepareStatement(FETCH_CONNECTORS_AND_SPACES);
         ) {
             stmt.setString(1, exclConnectorId);
             final ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
-                final ConnectorDTO dto = new ConnectorDTO();
-                final String ecps = rs.getString("ecps");
-                final String pswd = rs.getString("pswd");
-                // Decrypt ecps into JSON string
-                // You get back string like this:
-                // {"PSQL_HOST":"database-host.com","PSQL_PORT":"5432","PSQL_DB":"postgresdb","PSQL_USER":"pg_user","PSQL_PASSWORD":"pg_pswd","PSQL_SCHEMA":"pg_schema"}
-                final String decodedJsonStr = new PSQLConfig.AESGCMHelper(pswd).decrypt(ecps);
-                // Transform JSON string and extract connection details
-                final Map<String, Object> jsonMap = new JsonObject(decodedJsonStr).getMap();
-                final String dbUrl = "jdbc:postgresql://"+jsonMap.get("PSQL_HOST")+":"+jsonMap.get("PSQL_PORT")+"/"+jsonMap.get("PSQL_DB");
-                // Store connector details
-                dto.setId(rs.getString("connectorId"));
-                dto.setDbUrl(dbUrl);
-                dto.setUser(jsonMap.get("PSQL_USER").toString());
-                dto.setPswd(jsonMap.get("PSQL_PASSWORD").toString());
-                dto.setSchema(jsonMap.get("PSQL_SCHEMA").toString());
-                final String spaceIds[] = (String[])rs.getArray("spaceIds").getArray();
+                final ConnectorDTO dto;
+                final String connectorId = rs.getString(1);
+                try {
+                    final String rawParams = rs.getString(2);
+                    final NPsqlConnectorParams params = XyzSerializable.deserialize(rawParams, NPsqlConnectorParams.class);
+                    if (params == null) throw new NullPointerException("params");
+                    final NPsqlPoolConfig dbConfig = params.getDbConfig();
+                    dto = new ConnectorDTO();
+                    dto.setDbUrl(dbConfig.url);
+                    dto.setUser(dbConfig.user);
+                    dto.setPswd(dbConfig.password);
+                    dto.setSchema(params.getSpaceSchema());
+                } catch (JsonProcessingException|NullPointerException e) {
+                    logger.error("Failed to parse the configuration of connector {}", connectorId);
+                    continue;
+                }
+                dto.setId(connectorId);
+                final String[] spaceIds = (String[]) rs.getArray(3).getArray();
                 dto.setSpaceIds(Arrays.asList(spaceIds));
-                final String tableNames[] = (String[])rs.getArray("tableNames").getArray();
+                final String[] tableNames = (String[]) rs.getArray(4).getArray();
                 dto.setTableNames(Arrays.asList(tableNames));
                 // add to the list
                 if (connectorList == null) {
