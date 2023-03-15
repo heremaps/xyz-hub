@@ -3,14 +3,14 @@ package com.here.mapcreator.ext.naksha;
 import java.lang.ref.WeakReference;
 import org.jetbrains.annotations.NotNull;
 
-public final class NThreadLocal {
+public final class NakshaThreadLocal {
 
-  private NThreadLocal() {
+  private NakshaThreadLocal() {
   }
 
-  private static final class NakshaLocalWeakRef extends WeakReference<NThreadLocal> {
+  private static final class NakshaLocalWeakRef extends WeakReference<NakshaThreadLocal> {
 
-    public NakshaLocalWeakRef(@NotNull NThreadLocal referent) {
+    public NakshaLocalWeakRef(@NotNull NakshaThreadLocal referent) {
       super(referent);
     }
   }
@@ -19,11 +19,11 @@ public final class NThreadLocal {
 
     @Override
     protected NakshaLocalWeakRef initialValue() {
-      return new NakshaLocalWeakRef(new NThreadLocal());
+      return new NakshaLocalWeakRef(new NakshaThreadLocal());
     }
 
-    @NotNull NThreadLocal update() {
-      final NThreadLocal local = new NThreadLocal();
+    @NotNull NakshaThreadLocal update() {
+      final NakshaThreadLocal local = new NakshaThreadLocal();
       final NakshaLocalWeakRef ref = new NakshaLocalWeakRef(local);
       set(ref);
       return local;
@@ -41,9 +41,9 @@ public final class NThreadLocal {
    *
    * @return the current thread local Naksha local.
    */
-  public static @NotNull NThreadLocal get() {
+  public static @NotNull NakshaThreadLocal get() {
     @NotNull NakshaLocalWeakRef ref = threadLocal.get();
-    NThreadLocal local = ref.get();
+    NakshaThreadLocal local = ref.get();
     return local != null ? local : threadLocal.update();
   }
 

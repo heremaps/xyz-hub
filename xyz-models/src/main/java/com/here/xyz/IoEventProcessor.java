@@ -98,6 +98,8 @@ public class IoEventProcessor<PROCESSOR extends IEventProcessor> {
         rawEvent = null;
         // Note: We explicitly set the rawEvent to null to ensure that the garbage collector can collect the variables.
         //       Not doing so, could theoretically allow the compiler to keep a reference to the memory until the method left.
+        final XyzResponse<?> response = processor.processEvent(event);
+        writeDataOut(output, response, event.getIfNoneMatch());
       } catch (Exception e) {
         logger.warn("{}:{}:{} - Exception while parsing the event", logId, logStream, logTime(), e);
         final ErrorResponse errorResponse =

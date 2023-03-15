@@ -32,18 +32,18 @@ import static com.here.xyz.responses.XyzError.EXCEPTION;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.here.mapcreator.ext.naksha.NPsqlConnectorSpaceAdmin;
-import com.here.mapcreator.ext.naksha.NPsqlConnectorSpaceReplica;
+import com.here.mapcreator.ext.naksha.PsqlConnectorSpaceAdmin;
+import com.here.mapcreator.ext.naksha.PsqlConnectorSpaceReplica;
 import com.here.mapcreator.ext.naksha.Naksha;
-import com.here.mapcreator.ext.naksha.NPsqlConnectorSpaceMaster;
-import com.here.mapcreator.ext.naksha.NPsqlConnectorParams;
+import com.here.mapcreator.ext.naksha.PsqlConnectorSpaceMaster;
+import com.here.xyz.models.hub.psql.PsqlProcessorParams;
 import com.here.mapcreator.ext.naksha.sql.H3SQL;
 import com.here.mapcreator.ext.naksha.sql.QuadbinSQL;
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.mapcreator.ext.naksha.sql.TweaksSQL;
 import com.here.xyz.IEventProcessor;
 import com.here.xyz.NanoTime;
-import com.here.mapcreator.ext.naksha.NPsqlSpace;
+import com.here.mapcreator.ext.naksha.PsqlSpace;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.DeleteFeaturesByTagEvent;
@@ -128,17 +128,17 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 @SuppressWarnings("NotNullFieldNotInitialized")
-public class PsqlEventProcessor implements IEventProcessor {
+public class PsqlProcessor implements IEventProcessor {
 
-  public PsqlEventProcessor() {
+  public PsqlProcessor() {
   }
 
   private @NotNull Event<?> event;
   private @NotNull String applicationName;
-  private @NotNull NPsqlConnectorParams connectorParams;
-  private @NotNull NPsqlConnectorSpaceAdmin adminDataSource;
-  private @NotNull NPsqlConnectorSpaceMaster masterDataSource;
-  private @NotNull NPsqlConnectorSpaceReplica replicaDataSource;
+  private @NotNull PsqlProcessorParams connectorParams;
+  private @NotNull PsqlConnectorSpaceAdmin adminDataSource;
+  private @NotNull PsqlConnectorSpaceMaster masterDataSource;
+  private @NotNull PsqlConnectorSpaceReplica replicaDataSource;
   private @NotNull String spaceId;
   private @NotNull String table;
   private @NotNull String historyTable;
@@ -151,7 +151,7 @@ public class PsqlEventProcessor implements IEventProcessor {
     if (raw == null) {
       throw new NullPointerException("connectorParams");
     }
-    connectorParams = new NPsqlConnectorParams(raw, event.logId());
+    connectorParams = new PsqlProcessorParams(raw, event.logId());
     applicationName = event.getConnectorId() + ":" + event.getStreamId();
     spaceId = event.getSpace();
     table = spaceId;
@@ -163,9 +163,9 @@ public class PsqlEventProcessor implements IEventProcessor {
       }
     }
     historyTable = table + "_hst";
-    masterDataSource = new NPsqlConnectorSpaceMaster(connectorParams, applicationName, spaceId, table, historyTable);
-    replicaDataSource = new NPsqlConnectorSpaceReplica(connectorParams, applicationName, spaceId, table, historyTable);
-    adminDataSource = new NPsqlConnectorSpaceAdmin(connectorParams, applicationName);
+    masterDataSource = new PsqlConnectorSpaceMaster(connectorParams, applicationName, spaceId, table, historyTable);
+    replicaDataSource = new PsqlConnectorSpaceReplica(connectorParams, applicationName, spaceId, table, historyTable);
+    adminDataSource = new PsqlConnectorSpaceAdmin(connectorParams, applicationName);
 
     replacements.put("idx_deleted", "idx_" + table + "_deleted");
     replacements.put("idx_serial", "idx_" + table + "_serial");
@@ -215,7 +215,7 @@ public class PsqlEventProcessor implements IEventProcessor {
     return replicaDataSource;
   }
 
-  public final @Nullable NPsqlSpace getSpaceById(@Nullable CharSequence spaceId) {
+  public final @Nullable PsqlSpace getSpaceById(@Nullable CharSequence spaceId) {
     throw new UnsupportedOperationException("getSpaceById");
   }
 
@@ -235,7 +235,7 @@ public class PsqlEventProcessor implements IEventProcessor {
     return historyTable;
   }
 
-  public final @NotNull NPsqlConnectorParams connectorParams() {
+  public final @NotNull PsqlProcessorParams connectorParams() {
     return connectorParams;
   }
 
@@ -932,7 +932,7 @@ public class PsqlEventProcessor implements IEventProcessor {
   }
 
   private void validateModifySpaceEvent(@NotNull ModifySpaceEvent event) throws Exception {
-    final NPsqlConnectorParams params = connectorParams();
+    final PsqlProcessorParams params = connectorParams();
     final boolean connectorSupportsAI = params.isAutoIndexing();
 
     if ((ModifySpaceEvent.Operation.UPDATE == event.getOperation()

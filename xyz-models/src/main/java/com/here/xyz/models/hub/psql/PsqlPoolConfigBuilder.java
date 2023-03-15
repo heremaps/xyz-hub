@@ -1,4 +1,4 @@
-package com.here.mapcreator.ext.naksha;
+package com.here.xyz.models.hub.psql;
 
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
@@ -7,9 +7,9 @@ import org.jetbrains.annotations.NotNull;
  * Configuration builder.
  */
 @SuppressWarnings("unused")
-public class NPsqlPoolConfigBuilder {
+public class PsqlPoolConfigBuilder {
 
-  public NPsqlPoolConfigBuilder() {
+  public PsqlPoolConfigBuilder() {
   }
 
   String driverClass = "org.postgresql.Driver";
@@ -18,7 +18,6 @@ public class NPsqlPoolConfigBuilder {
   String db;
   String user;
   String password;
-  boolean readReplica;
 
   // Hikari connection pool configuration
   long connTimeout;
@@ -36,7 +35,7 @@ public class NPsqlPoolConfigBuilder {
     this.driverClass = driverClass;
   }
 
-  public NPsqlPoolConfigBuilder withDriveClass(String driveClass) {
+  public PsqlPoolConfigBuilder withDriveClass(String driveClass) {
     setDriverClass(driveClass);
     return this;
   }
@@ -49,7 +48,7 @@ public class NPsqlPoolConfigBuilder {
     this.host = host;
   }
 
-  public @NotNull NPsqlPoolConfigBuilder withHost(String host) {
+  public @NotNull PsqlPoolConfigBuilder withHost(String host) {
     setHost(host);
     return this;
   }
@@ -62,7 +61,7 @@ public class NPsqlPoolConfigBuilder {
     this.port = port;
   }
 
-  public @NotNull NPsqlPoolConfigBuilder withPort(int port) {
+  public @NotNull PsqlPoolConfigBuilder withPort(int port) {
     setPort(port);
     return this;
   }
@@ -75,7 +74,7 @@ public class NPsqlPoolConfigBuilder {
     this.db = db;
   }
 
-  public @NotNull NPsqlPoolConfigBuilder withDb(String db) {
+  public @NotNull PsqlPoolConfigBuilder withDb(String db) {
     setDb(db);
     return this;
   }
@@ -88,7 +87,7 @@ public class NPsqlPoolConfigBuilder {
     this.user = user;
   }
 
-  public @NotNull NPsqlPoolConfigBuilder withUser(String user) {
+  public @NotNull PsqlPoolConfigBuilder withUser(String user) {
     setUser(user);
     return this;
   }
@@ -101,21 +100,8 @@ public class NPsqlPoolConfigBuilder {
     this.password = password;
   }
 
-  public @NotNull NPsqlPoolConfigBuilder withPassword(String password) {
+  public @NotNull PsqlPoolConfigBuilder withPassword(String password) {
     setPassword(password);
-    return this;
-  }
-
-  public boolean isReadReplica() {
-    return readReplica;
-  }
-
-  public void setReadReplica(boolean readReplica) {
-    this.readReplica = readReplica;
-  }
-
-  public @NotNull NPsqlPoolConfigBuilder withReadReplica(boolean readReplica) {
-    setReadReplica(readReplica);
     return this;
   }
 
@@ -127,7 +113,7 @@ public class NPsqlPoolConfigBuilder {
     this.connTimeout = TimeUnit.MILLISECONDS.convert(connTimeout, timeUnit);
   }
 
-  public @NotNull NPsqlPoolConfigBuilder withConnTimeout(long connTimeout, @NotNull TimeUnit timeUnit) {
+  public @NotNull PsqlPoolConfigBuilder withConnTimeout(long connTimeout, @NotNull TimeUnit timeUnit) {
     setConnTimeout(connTimeout, timeUnit);
     return this;
   }
@@ -140,7 +126,7 @@ public class NPsqlPoolConfigBuilder {
     this.stmtTimeout = TimeUnit.MILLISECONDS.convert(stmtTimeout, timeUnit);
   }
 
-  public @NotNull NPsqlPoolConfigBuilder withStatementTimeout(long stmtTimeout, @NotNull TimeUnit timeUnit) {
+  public @NotNull PsqlPoolConfigBuilder withStatementTimeout(long stmtTimeout, @NotNull TimeUnit timeUnit) {
     setStatementTimeout(stmtTimeout, timeUnit);
     return this;
   }
@@ -153,7 +139,7 @@ public class NPsqlPoolConfigBuilder {
     this.lockTimeout = TimeUnit.MILLISECONDS.convert(lockTimeout, timeUnit);
   }
 
-  public @NotNull NPsqlPoolConfigBuilder withLockTimeout(long lockTimeout, @NotNull TimeUnit timeUnit) {
+  public @NotNull PsqlPoolConfigBuilder withLockTimeout(long lockTimeout, @NotNull TimeUnit timeUnit) {
     setLockTimeout(lockTimeout, timeUnit);
     return this;
   }
@@ -166,7 +152,7 @@ public class NPsqlPoolConfigBuilder {
     this.minPoolSize = minPoolSize;
   }
 
-  public @NotNull NPsqlPoolConfigBuilder withMinPoolSize(int minPoolSize) {
+  public @NotNull PsqlPoolConfigBuilder withMinPoolSize(int minPoolSize) {
     setMinPoolSize(minPoolSize);
     return this;
   }
@@ -179,7 +165,7 @@ public class NPsqlPoolConfigBuilder {
     this.maxPoolSize = maxPoolSize;
   }
 
-  public @NotNull NPsqlPoolConfigBuilder withMaxPoolSize(int maxPoolSize) {
+  public @NotNull PsqlPoolConfigBuilder withMaxPoolSize(int maxPoolSize) {
     setMaxPoolSize(maxPoolSize);
     return this;
   }
@@ -192,12 +178,12 @@ public class NPsqlPoolConfigBuilder {
     this.idleTimeout = TimeUnit.MILLISECONDS.convert(idleTimeout, timeUnit);
   }
 
-  public @NotNull NPsqlPoolConfigBuilder withIdleTimeout(long idleTimeout, @NotNull TimeUnit timeUnit) {
+  public @NotNull PsqlPoolConfigBuilder withIdleTimeout(long idleTimeout, @NotNull TimeUnit timeUnit) {
     setIdleTimeout(idleTimeout, timeUnit);
     return this;
   }
 
-  public @NotNull NPsqlPoolConfig build() throws NullPointerException {
+  public @NotNull PsqlPoolConfig build() throws NullPointerException {
     if (db == null) {
       throw new NullPointerException("db");
     }
@@ -207,13 +193,12 @@ public class NPsqlPoolConfigBuilder {
     if (password == null) {
       throw new NullPointerException("password");
     }
-    return new NPsqlPoolConfig(
+    return new PsqlPoolConfig(
         host,
         port,
         db,
         user,
         password,
-        readReplica,
         connTimeout,
         stmtTimeout,
         lockTimeout,

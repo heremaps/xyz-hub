@@ -30,6 +30,8 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.NanoTime;
 import com.here.xyz.Payload;
+import com.here.xyz.models.hub.Connector;
+import com.here.xyz.models.hub.Space.ConnectorRef;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -259,9 +261,7 @@ public abstract class Event<SELF extends Event<SELF>> extends Payload {
   }
 
   /**
-   * A map with arbitrary parameters configured in the XYZ Hub service for each space. Therefore, each space can have different parameters.
-   *
-   * @return a map with arbitrary parameters defined for the space.
+   * The parameters as {@link ConnectorRef#getParams()} configured in the space}.
    */
   public Map<String, Object> getParams() {
     return this.params;
@@ -359,7 +359,7 @@ public abstract class Event<SELF extends Event<SELF>> extends Payload {
   }
 
   /**
-   * The connector parameters.
+   * The parameters as {@link Connector#params configured in the connector}.
    */
   public @Nullable Map<@NotNull String, @Nullable Object> getConnectorParams() {
     return this.connectorParams;

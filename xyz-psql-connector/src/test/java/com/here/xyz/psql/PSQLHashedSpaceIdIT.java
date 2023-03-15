@@ -23,7 +23,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import com.here.mapcreator.ext.naksha.NPsqlConnectorParams;
+import com.here.xyz.models.hub.psql.PsqlProcessorParams;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
@@ -43,9 +43,9 @@ import org.junit.Test;
 public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
 
   protected static Map<String, Object> connectorParams = new HashMap<String,Object>(){
-        {   put(NPsqlConnectorParams.CONNECTOR_ID, "test-connector");
-            put(NPsqlConnectorParams.ENABLE_HASHED_SPACEID, true);
-            put(NPsqlConnectorParams.AUTO_INDEXING, true);
+        {   put(PsqlProcessorParams.ID, "test-connector");
+            put(PsqlProcessorParams.ENABLE_HASHED_SPACEID, true);
+            put(PsqlProcessorParams.AUTO_INDEXING, true);
         }
   };
 

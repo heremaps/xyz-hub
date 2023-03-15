@@ -27,7 +27,7 @@ import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.QueryEvent;
 import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.PsqlEventProcessor;
+import com.here.xyz.psql.PsqlProcessor;
 import com.here.xyz.psql.SQLQueryBuilder;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -38,7 +38,7 @@ import org.jetbrains.annotations.NotNull;
 
 public abstract class GetFeatures<E extends ContextAwareEvent<E>> extends ExtendedSpace<E, FeatureCollection> {
 
-  public GetFeatures(@NotNull E event, final @NotNull PsqlEventProcessor psqlConnector) throws SQLException, ErrorResponseException {
+  public GetFeatures(@NotNull E event, final @NotNull PsqlProcessor psqlConnector) throws SQLException, ErrorResponseException {
     super(event, psqlConnector);
     setUseReadReplica(true);
   }

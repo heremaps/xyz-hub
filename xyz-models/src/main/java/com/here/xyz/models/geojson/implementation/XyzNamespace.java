@@ -27,7 +27,10 @@ import com.here.xyz.XyzSerializable;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+@SuppressWarnings("unused")
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class XyzNamespace implements XyzSerializable {
 
@@ -56,7 +59,7 @@ public class XyzNamespace implements XyzSerializable {
   private long updatedAt;
 
   /**
-   * The uuid of the feature. When the client modifies the feature it must not modify the uuid.
+   * The uuid of the feature, when the client modifies the feature, it must not modify the uuid.
    */
   private String uuid;
 
@@ -66,7 +69,7 @@ public class XyzNamespace implements XyzSerializable {
   private String puuid;
 
   /**
-   * The uuid of the merged feature, in case a merge was performed.
+   * The merge uuid of the feature.
    */
   private String muuid;
 
@@ -77,33 +80,34 @@ public class XyzNamespace implements XyzSerializable {
   private List<String> tags;
 
   /**
-   * A flag indicating the object should be treated as being deleted. This flag is only informative and is not relevant for the XYZ Hub
-   * rather it could be interpreted by clients or processors & listeners.
+   * The operation that lead to the current state of the namespace. Should be a value from {@link Action}.
    */
-  @JsonInclude(Include.NON_DEFAULT)
-  private boolean deleted;
+  @JsonInclude(Include.NON_NULL)
+  private String action;
 
   /**
-   * The space-version of the feature within the history of its space.
-   * Multiple features could be part of a single space-version if they have been edited in one transaction.
-   */
-  @Deprecated
-  @JsonInclude(Include.NON_EMPTY)
-  private Integer version;
-
-  /**
-   * The revision number of the feature within the space's revisions.
-   * Multiple features share the same revision number if they have been edited in one transaction.
+   * The version of the feature, the first version (1) will always be in the state CREATED.
    */
   @JsonInclude(Include.NON_DEFAULT)
-  private int revision;
+  private long version = 0L;
 
   /**
    * The author that changed the feature in the current revision.
-   * Multiple features share the same author if they have been edited in one transaction.
    */
   @JsonInclude(Include.NON_EMPTY)
   private String author;
+
+  /**
+   * The application that changed the feature in the current revision.
+   */
+  @JsonInclude(Include.NON_EMPTY)
+  private String app_id;
+
+  /**
+   * The identifier of the owner of this connector.
+   */
+  @JsonInclude(Include.NON_EMPTY)
+  private String owner;
 
   /**
    * A method to normalize and lower case a tag.
@@ -144,7 +148,7 @@ public class XyzNamespace implements XyzSerializable {
   @SuppressWarnings("unused")
   public static List<String> normalizeTags(final List<String> tags) {
     if (tags != null) {
-      for (int i = 0; i < tags.size(); i++) {
+      for (int SIZE = tags.size(), i = 0; i < SIZE; i++) {
         tags.set(i, normalizeTag(tags.get(i)));
       }
     }
@@ -157,7 +161,7 @@ public class XyzNamespace implements XyzSerializable {
    * may have semantic meaning when not being URI encoded and MUST be URI encoded to take away the meaning. Therefore there normally must be
    * a way to detect if a reserved character in a query parameter was originally URI encoded or not, because in the later case it may have a
    * semantic meaning.
-   *
+   * <p>
    * As many frameworks fail to follow this very important detail, this method fixes tags for all those frameworks, effectively it removes
    * the commas from tags and splits the tags by the comma. Therefore a comma is not allowed as part of a tag.
    *
@@ -235,6 +239,30 @@ public class XyzNamespace implements XyzSerializable {
   @SuppressWarnings("unused")
   public XyzNamespace withSpace(String space) {
     setSpace(space);
+    return this;
+  }
+
+  public @Nullable String getAction() {
+    return action;
+  }
+
+  public void setAction(String action) {
+    this.action = action;
+  }
+
+  public void setAction(@NotNull Action action) {
+    this.action = action.toString();
+  }
+
+  @SuppressWarnings("unused")
+  public XyzNamespace withAction(String action) {
+    setAction(action);
+    return this;
+  }
+
+  @SuppressWarnings("unused")
+  public XyzNamespace withAction(@NotNull Action action) {
+    setAction(action);
     return this;
   }
 
@@ -368,11 +396,13 @@ public class XyzNamespace implements XyzSerializable {
 
   @SuppressWarnings("unused")
   public boolean isDeleted() {
-    return deleted;
+    return Action.DELETE.equals(getAction());
   }
 
   public void setDeleted(boolean deleted) {
-    this.deleted = deleted;
+    if (deleted) {
+      setAction(Action.DELETE);
+    }
   }
 
   @SuppressWarnings("unused")
@@ -381,31 +411,17 @@ public class XyzNamespace implements XyzSerializable {
     return this;
   }
 
-  public Integer getVersion() {
+  public long getVersion() {
     return version;
   }
 
-  public void setVersion(Integer version) {
+  public void setVersion(long version) {
     this.version = version;
   }
 
   @SuppressWarnings("unused")
-  public XyzNamespace withVersion(int version) {
+  public XyzNamespace withVersion(long version) {
     setVersion(version);
-    return this;
-  }
-
-  public int getRevision() {
-    return revision;
-  }
-
-  public void setRevision(int revision) {
-    this.revision = revision;
-  }
-
-  @SuppressWarnings("unused")
-  public XyzNamespace withRevision(int revision) {
-    setRevision(revision);
     return this;
   }
 
@@ -420,6 +436,34 @@ public class XyzNamespace implements XyzSerializable {
   @SuppressWarnings("unused")
   public XyzNamespace withAuthor(String author) {
     setAuthor(author);
+    return this;
+  }
+
+  public String getAppId() {
+    return app_id;
+  }
+
+  public void setAppId(String app_id) {
+    this.app_id = app_id;
+  }
+
+  @SuppressWarnings("unused")
+  public XyzNamespace withAppId(String app_id) {
+    setAppId(app_id);
+    return this;
+  }
+
+  public String getOwner() {
+    return owner;
+  }
+
+  public void setOwner(String owner) {
+    this.owner = owner;
+  }
+
+  @SuppressWarnings("unused")
+  public XyzNamespace withOwner(String owner) {
+    setOwner(owner);
     return this;
   }
 }

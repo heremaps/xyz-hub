@@ -18,7 +18,7 @@
  */
 package com.here.xyz.psql;
 
-import com.here.mapcreator.ext.naksha.NPsqlConnectorParams;
+import com.here.xyz.models.hub.psql.PsqlProcessorParams;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
@@ -52,9 +52,9 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
     private static List<String> spaces = new ArrayList<String>(){{add(BASE1);add(BASE2);add(DELTA1);add(DELTA2);}};
 
     protected static Map<String, Object> connectorParams = new HashMap<String,Object>(){
-        {   put(NPsqlConnectorParams.CONNECTOR_ID, "test-connector");
-            put(NPsqlConnectorParams.AUTO_INDEXING, true);
-            put(NPsqlConnectorParams.PROPERTY_SEARCH, true);
+        {   put(PsqlProcessorParams.ID, "test-connector");
+            put(PsqlProcessorParams.AUTO_INDEXING, true);
+            put(PsqlProcessorParams.PROPERTY_SEARCH, true);
         }
     };
 

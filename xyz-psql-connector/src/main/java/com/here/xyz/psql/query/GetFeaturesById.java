@@ -22,13 +22,13 @@ package com.here.xyz.psql.query;
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByIdEvent;
-import com.here.xyz.psql.PsqlEventProcessor;
+import com.here.xyz.psql.PsqlProcessor;
 import java.sql.SQLException;
 import org.jetbrains.annotations.NotNull;
 
 public class GetFeaturesById extends GetFeatures<GetFeaturesByIdEvent> {
 
-  public GetFeaturesById(@NotNull GetFeaturesByIdEvent event, @NotNull PsqlEventProcessor psqlConnector) throws SQLException, ErrorResponseException {
+  public GetFeaturesById(@NotNull GetFeaturesByIdEvent event, @NotNull PsqlProcessor psqlConnector) throws SQLException, ErrorResponseException {
     super(event, psqlConnector);
   }
 

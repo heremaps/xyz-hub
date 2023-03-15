@@ -9,12 +9,12 @@ import org.slf4j.LoggerFactory;
  */
 public class NakshaManagementClient {
 
-  public NakshaManagementClient(@NotNull NPsqlManagementDataSource dataSource) {
+  public NakshaManagementClient(@NotNull PsqlManagementDataSource dataSource) {
     this.dataSource = dataSource;
   }
 
   protected static final Logger logger = LoggerFactory.getLogger(NakshaManagementClient.class);
 
-  protected final @NotNull NPsqlManagementDataSource dataSource;
+  protected final @NotNull PsqlManagementDataSource dataSource;
 
 }

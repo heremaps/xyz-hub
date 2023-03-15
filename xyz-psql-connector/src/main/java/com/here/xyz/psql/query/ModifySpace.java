@@ -31,7 +31,7 @@ import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
 import com.here.xyz.models.hub.Space;
-import com.here.xyz.psql.PsqlEventProcessor;
+import com.here.xyz.psql.PsqlProcessor;
 import com.here.xyz.responses.SuccessResponse;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -47,7 +47,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
   public static final String IDX_STATUS_TABLE = "xyz_config.xyz_idxs_status";
   private static final String SPACE_META_TABLE = "xyz_config.space_meta";
 
-  public ModifySpace(@NotNull ModifySpaceEvent event, @NotNull PsqlEventProcessor psqlConnector)
+  public ModifySpace(@NotNull ModifySpaceEvent event, @NotNull PsqlProcessor psqlConnector)
       throws SQLException, ErrorResponseException {
     super(event, psqlConnector);
     setUseReadReplica(false);

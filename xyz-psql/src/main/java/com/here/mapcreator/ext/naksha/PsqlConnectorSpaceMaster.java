@@ -1,19 +1,20 @@
 package com.here.mapcreator.ext.naksha;
 
+import com.here.xyz.models.hub.psql.PsqlProcessorParams;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
  * The master (writable) data-source of a Naksha space.
  */
-public class NPsqlConnectorSpaceMaster extends NPsqlConnectorSpaceSource {
+public class PsqlConnectorSpaceMaster extends PsqlConnectorSpaceSource {
 
-  public NPsqlConnectorSpaceMaster(@NotNull NPsqlConnectorParams params, @NotNull String applicationName, @NotNull String spaceId) {
+  public PsqlConnectorSpaceMaster(@NotNull PsqlProcessorParams params, @NotNull String applicationName, @NotNull String spaceId) {
     super(params, applicationName, spaceId, false, null, null);
   }
 
-  public NPsqlConnectorSpaceMaster(
-      @NotNull NPsqlConnectorParams params,
+  public PsqlConnectorSpaceMaster(
+      @NotNull PsqlProcessorParams params,
       @NotNull String applicationName,
       @NotNull String spaceId,
       @Nullable String table,

@@ -11,13 +11,13 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class NPsqlSpaceParams {
+public class PsqlSpaceParams {
 
-  public static @NotNull NPsqlSpaceParams of(@Nullable Map<@NotNull String, @Nullable Object> map) {
+  public static @NotNull PsqlSpaceParams of(@Nullable Map<@NotNull String, @Nullable Object> map) {
     if (map == null) {
-      return new NPsqlSpaceParams();
+      return new PsqlSpaceParams();
     }
-    return XyzSerializable.fromAnyMap(map, NPsqlSpaceParams.class);
+    return XyzSerializable.fromAnyMap(map, PsqlSpaceParams.class);
   }
 
   @JsonProperty

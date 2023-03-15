@@ -19,7 +19,6 @@
 
 package com.here.xyz.psql;
 
-import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -44,7 +43,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
     private static final int TYPE_UPDATE = 2;
     private static final int TYPE_DELETE = 3;
 
-    public static FeatureCollection insertFeatures(@NotNull PsqlEventProcessor processor,
+    public static FeatureCollection insertFeatures(@NotNull PsqlProcessor processor,
                 FeatureCollection collection, List<FeatureCollection.ModificationFailure> fails,
                 List<Feature> inserts, Connection connection, Integer version, boolean forExtendedSpace)
             throws SQLException, JsonProcessingException {
@@ -91,7 +90,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         return collection;
     }
 
-    public static FeatureCollection updateFeatures(@NotNull PsqlEventProcessor processor, FeatureCollection collection,
+    public static FeatureCollection updateFeatures(@NotNull PsqlProcessor processor, FeatureCollection collection,
                                                    List<FeatureCollection.ModificationFailure> fails, List<Feature> updates,
                                                    Connection connection, boolean handleUUID, Integer version, boolean forExtendedSpace)
             throws SQLException, JsonProcessingException {
@@ -154,7 +153,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         return collection;
     }
 
-    protected static void deleteFeatures(@NotNull PsqlEventProcessor processor,
+    protected static void deleteFeatures(@NotNull PsqlProcessor processor,
                                          List<FeatureCollection.ModificationFailure> fails, Map<String, String> deletes,
                                          Connection connection, boolean handleUUID, Integer version)
             throws SQLException {
@@ -222,7 +221,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         }
     }
 
-    private static void executeBatchesAndCheckOnFailures(@NotNull PsqlEventProcessor processor, List<String> idList, List<String> idList2,
+    private static void executeBatchesAndCheckOnFailures(@NotNull PsqlProcessor processor, List<String> idList, List<String> idList2,
                                                          PreparedStatement batchStmt, PreparedStatement batchStmt2,
                                                          List<FeatureCollection.ModificationFailure> fails,
                                                          boolean handleUUID, int type) throws SQLException {

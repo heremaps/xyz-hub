@@ -17,28 +17,26 @@
  * License-Filename: LICENSE
  */
 
-package com.here.mapcreator.ext.naksha;
+package com.here.xyz.models.hub.psql;
 
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.models.hub.ProcessorParams;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * The PostgresQL connector parameters.
  */
 @SuppressWarnings("unused")
-public class NPsqlConnectorParams {
-
-  private static final Logger logger = LoggerFactory.getLogger(NPsqlConnectorParams.class);
+public class PsqlProcessorParams extends ProcessorParams {
 
   /**
    * Paramters
    */
+  public final static String ID = "id";
   public final static String CONNECTOR_ID = "connectorId";
   public final static String PROPERTY_SEARCH = "propertySearch";
   public final static String MVT_SUPPORT = "mvtSupport";
@@ -49,8 +47,8 @@ public class NPsqlConnectorParams {
   public final static String HRN_SHORTENING = "hrnShortening";
   public final static String IGNORE_CREATE_MSE = "ignoreCreateMse";
 
-  private final @NotNull String connectorId;
-  private final long dbId;
+  private final @NotNull String id;
+  private final long connectorId;
   private final boolean propertySearch;
   private final boolean mvtSupport;
   private final boolean autoIndexing;
@@ -60,84 +58,61 @@ public class NPsqlConnectorParams {
   private final boolean hrnShortening;
   private final boolean ignoreCreateMse;
 
-  private final @NotNull NPsqlPoolConfig dbConfig;
-  private final @NotNull List<@NotNull NPsqlPoolConfig> dbReplicas;
+  private final @NotNull PsqlPoolConfig dbConfig;
+  private final @NotNull List<@NotNull PsqlPoolConfig> dbReplicas;
   private final @NotNull String spaceRole;
   private final @NotNull String spaceSchema;
   private final @NotNull String adminRole;
   private final @NotNull String adminSchema;
 
-  private final @NotNull String logId;
-
-  private static final String THROW_NPE = null;
-
   @SuppressWarnings("unchecked")
-  public NPsqlConnectorParams(@NotNull Map<@NotNull String, @Nullable Object> connectorParams, @NotNull String logId)
+  public PsqlProcessorParams(@NotNull Map<@NotNull String, @Nullable Object> connectorParams, @NotNull String logId)
       throws NullPointerException {
-    this.logId = logId;
+    super(logId);
     Object raw = connectorParams.get("dbConfig");
     if (!(raw instanceof Map)) {
       throw new IllegalArgumentException("dbConfig");
     }
-    this.dbConfig = XyzSerializable.fromAnyMap((Map<String, Object>) raw, NPsqlPoolConfig.class);
+    this.dbConfig = XyzSerializable.fromAnyMap((Map<String, Object>) raw, PsqlPoolConfig.class);
     raw = connectorParams.get("dbReplicas");
-    final ArrayList<@NotNull NPsqlPoolConfig> replicas;
+    final ArrayList<@NotNull PsqlPoolConfig> replicas;
     if (raw instanceof List) {
       final List<Object> rawList = (List<Object>) raw;
       final int SIZE = rawList.size();
       replicas = new ArrayList<>(SIZE);
       for (final Object o : rawList) {
         if (o instanceof Map) {
-          replicas.add(XyzSerializable.fromAnyMap((Map<String, Object>) o, NPsqlPoolConfig.class));
+          replicas.add(XyzSerializable.fromAnyMap((Map<String, Object>) o, PsqlPoolConfig.class));
         }
       }
     } else {
       replicas = new ArrayList<>();
     }
-    this.dbReplicas = replicas;
-    this.spaceRole = parseValue(connectorParams, String.class, dbConfig.user, "spaceRole");
-    this.adminRole = parseValue(connectorParams, String.class, spaceRole, "adminRole");
-    this.spaceSchema = parseValue(connectorParams, String.class, Naksha.SPACE_SCHEMA, "spaceSchema");
-    this.adminSchema = parseValue(connectorParams, String.class, Naksha.ADMIN_SCHEMA, "adminSchema");
-    this.connectorId = parseValue(connectorParams, String.class, THROW_NPE, CONNECTOR_ID);
-    this.dbId = parseValue(connectorParams, Long.class, 0L, "dbId");
-    if (dbId <= 0L) {
-      logger.warn("{} - Missing or illegal database ID: {}", logId, connectorParams.get("dbId"));
+    dbReplicas = replicas;
+    spaceRole = parseValue(connectorParams, "spaceRole", dbConfig.user);
+    adminRole = parseValue(connectorParams, "adminRole", spaceRole);
+    spaceSchema = parseValue(connectorParams, "spaceSchema", "naksha_spaces");
+    adminSchema = parseValue(connectorParams, "adminSchema", "naksha_admin");
+    id = parseValue(connectorParams, ID, String.class);
+    connectorId = parseValue(connectorParams, CONNECTOR_ID, Long.class);
+    if (connectorId <= 0L) {
+      logger.warn("{} - Illegal cid: {}", logId, connectorParams.get(CONNECTOR_ID));
     }
-    this.autoIndexing = parseValue(connectorParams, Boolean.class, false, AUTO_INDEXING);
-    this.propertySearch = parseValue(connectorParams, Boolean.class, false, PROPERTY_SEARCH);
-    this.mvtSupport = parseValue(connectorParams, Boolean.class, false, MVT_SUPPORT);
-    this.enableHashedSpaceId = parseValue(connectorParams, Boolean.class, false, ENABLE_HASHED_SPACEID);
-    this.compactHistory = parseValue(connectorParams, Boolean.class, true, COMPACT_HISTORY);
-    this.onDemandIdxLimit = parseValue(connectorParams, Integer.class, 4, ON_DEMAND_IDX_LIMIT);
-    this.hrnShortening = parseValue(connectorParams, Boolean.class, false, HRN_SHORTENING);
-    this.ignoreCreateMse = parseValue(connectorParams, Boolean.class, false, IGNORE_CREATE_MSE);
+    autoIndexing = parseValue(connectorParams, AUTO_INDEXING, false);
+    propertySearch = parseValue(connectorParams, PROPERTY_SEARCH, false);
+    mvtSupport = parseValue(connectorParams, MVT_SUPPORT, false);
+    enableHashedSpaceId = parseValue(connectorParams, ENABLE_HASHED_SPACEID, false);
+    compactHistory = parseValue(connectorParams, COMPACT_HISTORY, true);
+    onDemandIdxLimit = parseValue(connectorParams, ON_DEMAND_IDX_LIMIT, 4);
+    hrnShortening = parseValue(connectorParams, HRN_SHORTENING, false);
+    ignoreCreateMse = parseValue(connectorParams, IGNORE_CREATE_MSE, false);
   }
 
-  private <T> @NotNull T parseValue(
-      @NotNull Map<@NotNull String, @Nullable Object> connectorParams,
-      @NotNull Class<T> type,
-      @Nullable T defaultValue,
-      @NotNull String parameter
-  ) throws NullPointerException {
-    final Object value = connectorParams.get(parameter);
-    if (value == null) {
-      if (defaultValue == null) {
-        throw new NullPointerException(parameter);
-      }
-      return defaultValue;
-    }
-    if (value.getClass() != type) {
-      logger.warn("{} - Cannot set value {}={}. Load default '{}'", logId, parameter, value, defaultValue);
-      if (defaultValue == null) {
-        throw new NullPointerException(parameter);
-      }
-      return defaultValue;
-    }
-    return type.cast(value);
+  public @NotNull String getId() {
+    return id;
   }
 
-  public @NotNull String getConnectorId() {
+  public long getConnectorId() {
     return connectorId;
   }
 
@@ -214,7 +189,7 @@ public class NPsqlConnectorParams {
    *
    * @return the master database configuration.
    */
-  public @NotNull NPsqlPoolConfig getDbConfig() {
+  public @NotNull PsqlPoolConfig getDbConfig() {
     return dbConfig;
   }
 
@@ -223,7 +198,7 @@ public class NPsqlConnectorParams {
    *
    * @return all configured replicas; the returned list may be empty.
    */
-  public @NotNull List<@NotNull NPsqlPoolConfig> getDbReplicas() {
+  public @NotNull List<@NotNull PsqlPoolConfig> getDbReplicas() {
     return dbReplicas;
   }
 

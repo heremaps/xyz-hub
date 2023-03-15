@@ -2,12 +2,12 @@ package com.here.mapcreator.ext.naksha;
 
 import org.jetbrains.annotations.NotNull;
 
-public class NPsqlSpace {
-  public NPsqlSpace(@NotNull String spaceId, @NotNull String schema, @NotNull String table) {
+public class PsqlSpace {
+  public PsqlSpace(@NotNull String spaceId, @NotNull String schema, @NotNull String table) {
     this(spaceId, schema, table, table + "_hst");
   }
 
-  public NPsqlSpace(
+  public PsqlSpace(
       @NotNull String spaceId,
       @NotNull String schema,
       @NotNull String table,

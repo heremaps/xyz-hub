@@ -18,7 +18,7 @@
  */
 package com.here.xyz.psql;
 
-import com.here.mapcreator.ext.naksha.NPsqlConnectorParams;
+import com.here.xyz.models.hub.psql.PsqlProcessorParams;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
@@ -43,9 +43,9 @@ import static org.junit.Assert.assertTrue;
 public class PSQLHistoryFullIT extends PSQLAbstractIT {
 
     static Map<String, Object> connectorParams = new HashMap<String,Object>(){
-        {   put(NPsqlConnectorParams.CONNECTOR_ID, "test-connector");
-            put(NPsqlConnectorParams.COMPACT_HISTORY, false);
-            put(NPsqlConnectorParams.PROPERTY_SEARCH, true);
+        {   put(PsqlProcessorParams.ID, "test-connector");
+            put(PsqlProcessorParams.COMPACT_HISTORY, false);
+            put(PsqlProcessorParams.PROPERTY_SEARCH, true);
         }
     };
 

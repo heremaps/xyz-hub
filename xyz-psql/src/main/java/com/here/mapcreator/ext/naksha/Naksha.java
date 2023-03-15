@@ -4,7 +4,10 @@ import static com.here.mapcreator.ext.naksha.sql.MaintenanceSQL.XYZ_CONFIG;
 
 import com.here.mapcreator.ext.naksha.sql.MaintenanceSQL;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.models.hub.psql.PsqlProcessorParams;
+import com.here.xyz.models.hub.psql.PsqlPoolConfig;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -75,7 +78,7 @@ public final class Naksha {
    * @param applicationName The name of the Naksha instance.
    * @throws SQLException if any error occurred.
    */
-  public static synchronized void init(@NotNull NPsqlPoolConfig config, @NotNull String applicationName) throws SQLException {
+  public static synchronized void init(@NotNull PsqlPoolConfig config, @NotNull String applicationName) throws SQLException {
     if (initialized) {
       if (Naksha.managementPsqlPool.config != config) {
         throw new SQLException("Naksha.init has already been called");
@@ -86,25 +89,25 @@ public final class Naksha {
     Naksha.initialized = true;
     Naksha.applicationName = applicationName;
     Naksha.threadGroup = new ThreadGroup("Naksha");
-    Naksha.managementPsqlPool = NPsqlPool.get(config);
-    Naksha.managementDataSource = new NPsqlManagementDataSource(Naksha.managementPsqlPool, applicationName).withSchema(ADMIN_SCHEMA);
+    Naksha.managementPsqlPool = PsqlPool.get(config);
+    Naksha.managementDataSource = new PsqlManagementDataSource(Naksha.managementPsqlPool, applicationName).withSchema(ADMIN_SCHEMA);
     Naksha.runMaintenanceThread();
   }
 
   static volatile boolean initialized;
   static ThreadGroup threadGroup;
-  static NPsqlPool managementPsqlPool;
-  static NPsqlManagementDataSource managementDataSource;
+  static PsqlPool managementPsqlPool;
+  static PsqlManagementDataSource managementDataSource;
   static String applicationName;
 
   /**
    * Returns the management pool of Naksha.
    *
    * @return the management pool of Naksha.
-   * @throws SQLException if {@link #init(NPsqlPoolConfig, String)} has not been called.
+   * @throws SQLException if {@link #init(PsqlPoolConfig, String)} has not been called.
    */
-  public static @NotNull NPsqlPool managementPsqlPool() throws SQLException {
-    final NPsqlPool pool = Naksha.managementPsqlPool;
+  public static @NotNull PsqlPool managementPsqlPool() throws SQLException {
+    final PsqlPool pool = Naksha.managementPsqlPool;
     if (pool == null) {
       throw new SQLException("Naksha.init not called");
     }
@@ -115,10 +118,10 @@ public final class Naksha {
    * Returns the management data-source of Naksha.
    *
    * @return the management data-source of Naksha.
-   * @throws SQLException if {@link #init(NPsqlPoolConfig, String)} has not been called.
+   * @throws SQLException if {@link #init(PsqlPoolConfig, String)} has not been called.
    */
-  public static @NotNull NPsqlManagementDataSource managementDataSource() throws SQLException {
-    final NPsqlManagementDataSource dataSource = Naksha.managementDataSource;
+  public static @NotNull PsqlManagementDataSource managementDataSource() throws SQLException {
+    final PsqlManagementDataSource dataSource = Naksha.managementDataSource;
     if (dataSource == null) {
       throw new SQLException("Naksha.init not called");
     }
@@ -129,7 +132,7 @@ public final class Naksha {
    * Returns the application name of Naksha.
    *
    * @return the application name of Naksha.
-   * @throws SQLException if {@link #init(NPsqlPoolConfig, String)} has not been called.
+   * @throws SQLException if {@link #init(PsqlPoolConfig, String)} has not been called.
    */
   public static @NotNull String applicationName() throws SQLException {
     final String applicationName = Naksha.applicationName;
@@ -231,11 +234,11 @@ public final class Naksha {
    * @throws SQLException If any error occurred.
    * @throws IOException  If reading the SQL extensions from the resources fail.
    */
-  public static void ensureSpaceDb(@NotNull NPsqlConnectorSpaceAdmin dataSource) throws SQLException, IOException {
-    final StringBuilder sb = NThreadLocal.get().sb();
+  public static void ensureSpaceDb(@NotNull PsqlConnectorSpaceAdmin dataSource) throws SQLException, IOException {
+    final StringBuilder sb = NakshaThreadLocal.get().sb();
     String SQL;
 
-    final NPsqlConnectorParams connectorParams = dataSource.connectorParams;
+    final PsqlProcessorParams connectorParams = dataSource.connectorParams;
     sb.setLength(0);
     final String ADMIN_SCHEMA = escapeId(connectorParams.getAdminSchema(), sb).toString();
     sb.setLength(0);
@@ -293,7 +296,7 @@ public final class Naksha {
    * @param spaceId    the space identifier.
    * @param table      the table name of the space.
    */
-  public static void ensureSpace(@NotNull NPsqlConnectorSpaceAdmin dataSource, @NotNull String spaceId, @NotNull String table) {
+  public static void ensureSpace(@NotNull PsqlConnectorSpaceAdmin dataSource, @NotNull String spaceId, @NotNull String table) {
 
   }
 
@@ -304,7 +307,7 @@ public final class Naksha {
    * @param spaceId    the space identifier.
    * @param table      the table name of the space.
    */
-  public static void ensureSpaceWithHistory(@NotNull NPsqlConnectorSpaceAdmin dataSource, @NotNull String spaceId, @NotNull String table) {
+  public static void ensureSpaceWithHistory(@NotNull PsqlConnectorSpaceAdmin dataSource, @NotNull String spaceId, @NotNull String table) {
 
   }
 
@@ -315,7 +318,7 @@ public final class Naksha {
    * @param spaceId    the space identifier.
    * @param table      the table name of the space.
    */
-  public static void enableHistory(@NotNull NPsqlConnectorSpaceAdmin dataSource, @NotNull String spaceId, @NotNull String table) {
+  public static void enableHistory(@NotNull PsqlConnectorSpaceAdmin dataSource, @NotNull String spaceId, @NotNull String table) {
 
   }
 
@@ -326,7 +329,7 @@ public final class Naksha {
    * @param spaceId    the space identifier.
    * @param table      the table name of the space.
    */
-  public static void disableHistory(@NotNull NPsqlConnectorSpaceAdmin dataSource, @NotNull String spaceId, @NotNull String table) {
+  public static void disableHistory(@NotNull PsqlConnectorSpaceAdmin dataSource, @NotNull String spaceId, @NotNull String table) {
 
   }
 
@@ -336,8 +339,8 @@ public final class Naksha {
    * @param dataSource the data-source, but which (management-db or space-db)?
    * @throws SQLException if any error occurred.
    */
-  public static void setupH3(@NotNull APsqlDataSource<?> dataSource) throws SQLException {
-    final NPsqlPoolConfig config = dataSource.getConfig();
+  public static void setupH3(@NotNull AbstractPsqlDataSource<?> dataSource) throws SQLException {
+    final PsqlPoolConfig config = dataSource.getConfig();
     try (final Connection connection = dataSource.getConnection();
         final Statement stmt = connection.createStatement()) {
       boolean needUpdate = false;
@@ -382,13 +385,13 @@ public final class Naksha {
   /**
    * All spaces, beware to modify this map or any of its values. This is a read-only map!
    */
-  public static final ConcurrentHashMap<@NotNull String, @NotNull Object> spaces = new ConcurrentHashMap<>();
+  public static final ConcurrentHashMap<@NotNull String, @NotNull Space> spaces = new ConcurrentHashMap<>();
   private static final AtomicLong spacesLast = new AtomicLong(-1);
 
   /**
    * All connectors, beware to modify this map or any of its values. This is a read-only map!
    */
-  public static final ConcurrentHashMap<@NotNull String, @NotNull Space> connectors = new ConcurrentHashMap<>();
+  public static final ConcurrentHashMap<@NotNull String, @NotNull Connector> connectors = new ConcurrentHashMap<>();
   private static final AtomicLong connectorsLast = new AtomicLong(-1);
 
   // -----------------------------------------------------------------------------------------------------------------------------------
@@ -432,7 +435,7 @@ public final class Naksha {
       }
 
       try {
-        final StringBuilder sb = NThreadLocal.get().sb();
+        final StringBuilder sb = NakshaThreadLocal.get().sb();
         String SQL;
         try (final Connection conn = managementDataSource.getConnection()) {
           sb.setLength(0);
@@ -496,7 +499,7 @@ public final class Naksha {
   //
 
   private static void installNakshaExtension() throws SQLException {
-    final StringBuilder sb = NThreadLocal.get().sb();
+    final StringBuilder sb = NakshaThreadLocal.get().sb();
     String SQL;
 
     sb.setLength(0);

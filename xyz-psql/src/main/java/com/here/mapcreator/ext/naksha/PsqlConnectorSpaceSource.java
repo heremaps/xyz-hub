@@ -1,5 +1,7 @@
 package com.here.mapcreator.ext.naksha;
 
+import com.here.xyz.models.hub.psql.PsqlProcessorParams;
+import com.here.xyz.models.hub.psql.PsqlPoolConfig;
 import java.util.List;
 import org.apache.commons.lang3.RandomUtils;
 import org.jetbrains.annotations.NotNull;
@@ -8,18 +10,18 @@ import org.jetbrains.annotations.Nullable;
 /**
  * The data-source to a Naksha space.
  */
-public class NPsqlConnectorSpaceSource extends APsqlDataSource<NPsqlConnectorSpaceSource> {
+public class PsqlConnectorSpaceSource extends AbstractPsqlDataSource<PsqlConnectorSpaceSource> {
 
-  private static @NotNull NPsqlPool readOnlyPool(@NotNull NPsqlConnectorParams params) {
-    final List<@NotNull NPsqlPoolConfig> dbReplicas = params.getDbReplicas();
+  private static @NotNull PsqlPool readOnlyPool(@NotNull PsqlProcessorParams params) {
+    final List<@NotNull PsqlPoolConfig> dbReplicas = params.getDbReplicas();
     final int SIZE = dbReplicas.size();
     if (SIZE == 0) {
-      final NPsqlPoolConfig dbConfig = params.getDbConfig();
-      return NPsqlPool.get(dbConfig);
+      final PsqlPoolConfig dbConfig = params.getDbConfig();
+      return PsqlPool.get(dbConfig);
     }
     final int replicaIndex = RandomUtils.nextInt(0, SIZE);
-    final NPsqlPoolConfig dbConfig = dbReplicas.get(replicaIndex);
-    return NPsqlPool.get(dbConfig);
+    final PsqlPoolConfig dbConfig = dbReplicas.get(replicaIndex);
+    return PsqlPool.get(dbConfig);
   }
 
   /**
@@ -32,14 +34,14 @@ public class NPsqlConnectorSpaceSource extends APsqlDataSource<NPsqlConnectorSpa
    * @param table the database table; if null the space-id is used.
    * @param historyTable the history table; if null table plus "_hst".
    */
-  public NPsqlConnectorSpaceSource(
-      @NotNull NPsqlConnectorParams params,
+  public PsqlConnectorSpaceSource(
+      @NotNull PsqlProcessorParams params,
       @NotNull String applicationName,
       @NotNull String spaceId,
       boolean readOnly,
       @Nullable String table,
       @Nullable String historyTable) {
-    super(readOnly ? readOnlyPool(params) : NPsqlPool.get(params.getDbConfig()), applicationName);
+    super(readOnly ? readOnlyPool(params) : PsqlPool.get(params.getDbConfig()), applicationName);
     this.readOnly = readOnly;
     this.connectorParams = params;
     setSchema(params.getSpaceSchema());
@@ -52,7 +54,7 @@ public class NPsqlConnectorSpaceSource extends APsqlDataSource<NPsqlConnectorSpa
   /**
    * The connector parameters used to create this data source.
    */
-  public final @NotNull NPsqlConnectorParams connectorParams;
+  public final @NotNull PsqlProcessorParams connectorParams;
 
   /**
    * The space identifier.

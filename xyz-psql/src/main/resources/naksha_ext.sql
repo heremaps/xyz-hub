@@ -1153,6 +1153,7 @@ BEGIN
     --EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS xyz_storage_i_idx ON xyz_storage USING btree (i ASC)';
     --EXECUTE 'CREATE INDEX IF NOT EXISTS xyz_storage_owner_idx ON xyz_storage USING btree (owner ASC)';
 
+
     PERFORM naksha_table_ensure_with_history(_schema, 'publication');
     PERFORM naksha_table_enable_history(_schema, 'publication');
     -- xyz_txn_pub

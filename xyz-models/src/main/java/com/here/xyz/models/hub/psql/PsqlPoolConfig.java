@@ -1,4 +1,4 @@
-package com.here.mapcreator.ext.naksha;
+package com.here.xyz.models.hub.psql;
 
 import static java.lang.Math.max;
 import static java.util.concurrent.TimeUnit.MINUTES;
@@ -7,37 +7,61 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Objects;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Immutable POJO for holding database pool configuration.
+ * Immutable POJO for holding PostgresQL database pool configuration.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @SuppressWarnings("unused")
-public final class NPsqlPoolConfig {
+public final class PsqlPoolConfig {
 
   @JsonIgnore
   public final String driverClass = "org.postgresql.Driver";
 
+  /**
+   * The database host to connect against.
+   */
   @JsonProperty
   public final @NotNull String host;
-  @JsonProperty
+
+  /**
+   * The database port, defaults to 5432.
+   */
+  @JsonProperty(defaultValue = "5432")
+  @JsonInclude(Include.NON_DEFAULT)
   public final int port;
+
+  /**
+   * The database to open.
+   */
   @JsonProperty
   public final @NotNull String db;
+
+  /**
+   * The user.
+   */
   @JsonProperty
   public final @NotNull String user;
+
+  /**
+   * The password.
+   */
   @JsonProperty
   public final @NotNull String password;
-  @JsonProperty
-  public final boolean readReplica;
 
   // Check: https://www.postgresql.org/docs/current/runtime-config-client.html
 
+  /**
+   * The timeout in milliseconds when trying to establish a new connection to the database.
+   */
   @JsonProperty
   public final long connTimeout;
+
   /**
    * Abort any statement that takes more than the specified amount of milliseconds. A value of zero (the default) disables the timeout.
    * <p>
@@ -48,6 +72,7 @@ public final class NPsqlPoolConfig {
    */
   @JsonProperty
   public final long stmtTimeout;
+
   /**
    * Abort any statement that waits longer than the specified amount of milliseconds while attempting to acquire a lock on a table, index,
    * row, or other database object. The time limit applies separately to each lock acquisition attempt. The limit applies both to explicit
@@ -61,8 +86,16 @@ public final class NPsqlPoolConfig {
    * Setting lock_timeout in postgresql.conf is not recommended because it would affect all sessions.
    */
   public final long lockTimeout;
+
+  /**
+   * The minimal connections to keep alive.
+   */
   @JsonProperty
   public final int minPoolSize;
+
+  /**
+   * The maximal connections to use.
+   */
   @JsonProperty
   public final int maxPoolSize;
 
@@ -77,17 +110,17 @@ public final class NPsqlPoolConfig {
 
   @JsonIgnore
   public final @NotNull String url;
+
   @JsonIgnore
   private final int hashCode;
 
   @JsonCreator
-  NPsqlPoolConfig(
+  PsqlPoolConfig(
       @JsonProperty @NotNull String host,
       @JsonProperty Integer port,
       @JsonProperty @NotNull String db,
       @JsonProperty @NotNull String user,
       @JsonProperty @NotNull String password,
-      @JsonProperty Boolean readReplica,
       @JsonProperty Long connTimeout,
       @JsonProperty Long stmtTimeout,
       @JsonProperty Long lockTimeout,
@@ -100,7 +133,6 @@ public final class NPsqlPoolConfig {
     this.db = db;
     this.user = user;
     this.password = password;
-    this.readReplica = Boolean.TRUE.equals(readReplica);
     this.connTimeout = connTimeout != null && connTimeout > 0L ? max(connTimeout, 1000L) : SECONDS.toMillis(15);
     this.stmtTimeout = stmtTimeout != null && stmtTimeout > 0L ? max(stmtTimeout, 1000L) : SECONDS.toMillis(60);
     this.lockTimeout = lockTimeout != null && lockTimeout > 0L ? max(lockTimeout, 1000L) : SECONDS.toMillis(15);
@@ -112,7 +144,6 @@ public final class NPsqlPoolConfig {
         url,
         this.user,
         this.password,
-        this.readReplica,
         this.connTimeout,
         this.stmtTimeout,
         this.lockTimeout,
@@ -130,11 +161,10 @@ public final class NPsqlPoolConfig {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    NPsqlPoolConfig that = (NPsqlPoolConfig) o;
+    PsqlPoolConfig that = (PsqlPoolConfig) o;
     return url.equals(that.url)
         && user.equals(that.user)
         && password.equals(that.password)
-        && readReplica == that.readReplica
         && connTimeout == that.connTimeout
         && stmtTimeout == that.stmtTimeout
         && lockTimeout == that.lockTimeout
@@ -155,7 +185,6 @@ public final class NPsqlPoolConfig {
         + "driverClass='" + driverClass + "'"
         + ",url='" + url + "'"
         + ",user='" + user + "'"
-        + ",readReplica=" + readReplica
         + ",connTimeout=" + connTimeout
         + ",maxPoolSize=" + maxPoolSize
         + ",minPoolSize=" + minPoolSize

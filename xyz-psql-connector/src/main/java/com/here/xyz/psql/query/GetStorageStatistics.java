@@ -19,10 +19,10 @@
 
 package com.here.xyz.psql.query;
 
-import com.here.mapcreator.ext.naksha.NPsqlSpace;
+import com.here.mapcreator.ext.naksha.PsqlSpace;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetStorageStatisticsEvent;
-import com.here.xyz.psql.PsqlEventProcessor;
+import com.here.xyz.psql.PsqlProcessor;
 import com.here.xyz.psql.SQLQueryExt;
 import com.here.xyz.responses.StatisticsResponse.Value;
 import com.here.xyz.responses.StorageStatistics;
@@ -49,7 +49,7 @@ public class GetStorageStatistics
   private Map<String, String> tableName2SpaceId;
 
   public GetStorageStatistics(
-      @NotNull GetStorageStatisticsEvent event, @NotNull PsqlEventProcessor psqlConnector)
+      @NotNull GetStorageStatisticsEvent event, @NotNull PsqlProcessor psqlConnector)
       throws SQLException, ErrorResponseException {
     super(event, psqlConnector);
     setUseReadReplica(true);
@@ -64,7 +64,7 @@ public class GetStorageStatistics
         .getSpaceIds()
         .forEach(
             spaceId -> {
-              final NPsqlSpace space = processor.getSpaceById(spaceId);
+              final PsqlSpace space = processor.getSpaceById(spaceId);
               if (space == null) {
                 logger.info("{}:{} - Unknown space: {}", processor.logId(), processor.logTime(), spaceId);
               } else if (!schema.equals(space.schema)) {
@@ -112,10 +112,10 @@ public class GetStorageStatistics
     // Read the space / history info from the returned ResultSet
     while (rs.next()) {
       String tableName = rs.getString(TABLE_NAME);
-      boolean isHistoryTable = tableName.endsWith(PsqlEventProcessor.HISTORY_TABLE_SUFFIX);
+      boolean isHistoryTable = tableName.endsWith(PsqlProcessor.HISTORY_TABLE_SUFFIX);
       tableName =
           isHistoryTable
-              ? tableName.substring(0, tableName.length() - PsqlEventProcessor.HISTORY_TABLE_SUFFIX.length())
+              ? tableName.substring(0, tableName.length() - PsqlProcessor.HISTORY_TABLE_SUFFIX.length())
               : tableName;
       String spaceId =
           tableName2SpaceId.containsKey(tableName) ? tableName2SpaceId.get(tableName) : tableName;

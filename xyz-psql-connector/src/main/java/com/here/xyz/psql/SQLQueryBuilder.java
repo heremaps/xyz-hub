@@ -20,7 +20,6 @@ package com.here.xyz.psql;
 
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.GEO_JSON;
 
-import com.here.mapcreator.ext.naksha.NPsqlSpace;
 import com.here.mapcreator.ext.naksha.sql.H3SQL;
 import com.here.mapcreator.ext.naksha.sql.QuadbinSQL;
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
@@ -51,7 +50,7 @@ public class SQLQueryBuilder {
   public static final long GEOMETRY_DECIMAL_DIGITS = 8;
   private static final Integer BIG_SPACE_THRESHOLD = 10000;
 
-  public static @NotNull SQLQuery buildGetStatisticsQuery(@NotNull PsqlEventProcessor processor, boolean historyMode) {
+  public static @NotNull SQLQuery buildGetStatisticsQuery(@NotNull PsqlProcessor processor, boolean historyMode) {
     String function;
     if (processor.event() instanceof GetHistoryStatisticsEvent) function = "xyz_statistic_history";
     else function = "xyz_statistic_space";

@@ -4,6 +4,7 @@ import static com.here.mapcreator.ext.naksha.Naksha.NAKSHA_SEARCH_PATH;
 import static com.here.mapcreator.ext.naksha.Naksha.SPACE_SCHEMA;
 import static com.here.mapcreator.ext.naksha.Naksha.escapeId;
 
+import com.here.xyz.models.hub.psql.PsqlPoolConfig;
 import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -16,7 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A wrapper that forwards data-source calls to the underlying {@link NPsqlPool pool}. This is necessary, because the default way to acquire
+ * A wrapper that forwards data-source calls to the underlying {@link PsqlPool pool}. This is necessary, because the default way to acquire
  * a new connection is to invoke the {@link #getConnection()} method without any parameter. This means we don't have enough information to
  * initialize the new connection and not even the chance to call an initializer, so we miss setting timeouts and the <a
  * href="https://www.postgresql.org/docs/current/ddl-schemas.html#DDL-SCHEMAS-PATH">search_path</a>.
@@ -26,9 +27,9 @@ import org.slf4j.LoggerFactory;
  * @param <SELF> The type of the extending class.
  */
 @SuppressWarnings("unused")
-public class APsqlDataSource<SELF extends APsqlDataSource<SELF>> implements DataSource {
+public class AbstractPsqlDataSource<SELF extends AbstractPsqlDataSource<SELF>> implements DataSource {
 
-  protected static final Logger logger = LoggerFactory.getLogger(APsqlDataSource.class);
+  protected static final Logger logger = LoggerFactory.getLogger(AbstractPsqlDataSource.class);
 
   /**
    * Create a new data source for the given connection pool and application.
@@ -36,7 +37,7 @@ public class APsqlDataSource<SELF extends APsqlDataSource<SELF>> implements Data
    * @param pool            the connection pool to wrap.
    * @param applicationName the application name.
    */
-  protected APsqlDataSource(@NotNull NPsqlPool pool, @NotNull String applicationName) {
+  protected AbstractPsqlDataSource(@NotNull PsqlPool pool, @NotNull String applicationName) {
     this.applicationName = applicationName;
     this.pool = pool;
     this.schema = SPACE_SCHEMA;
@@ -51,7 +52,7 @@ public class APsqlDataSource<SELF extends APsqlDataSource<SELF>> implements Data
   /**
    * The PostgresQL connection pool to get connections from.
    */
-  protected final @NotNull NPsqlPool pool;
+  protected final @NotNull PsqlPool pool;
 
   /**
    * The bound application name.
@@ -73,11 +74,11 @@ public class APsqlDataSource<SELF extends APsqlDataSource<SELF>> implements Data
    */
   protected @NotNull String searchPath;
 
-  public final @NotNull NPsqlPool getPool() {
+  public final @NotNull PsqlPool getPool() {
     return pool;
   }
 
-  public final @NotNull NPsqlPoolConfig getConfig() {
+  public final @NotNull PsqlPoolConfig getConfig() {
     return pool.config;
   }
 
@@ -199,7 +200,7 @@ public class APsqlDataSource<SELF extends APsqlDataSource<SELF>> implements Data
   public final @NotNull Connection initConnection(@NotNull Connection conn) throws SQLException {
     conn.setAutoCommit(false);
     try (final Statement stmt = conn.createStatement()) {
-      final StringBuilder sb = NThreadLocal.get().sb();
+      final StringBuilder sb = NakshaThreadLocal.get().sb();
       initSession(sb);
       final String sql = sb.toString();
       logger.debug("{} - Init connection: {}", applicationName, sql);

@@ -20,7 +20,6 @@
 package com.here.xyz.psql;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Geometry;
@@ -150,7 +149,7 @@ public class DatabaseWriter {
   }
 
   protected static FeatureCollection insertFeatures(
-      @NotNull PsqlEventProcessor processor,
+      @NotNull PsqlProcessor processor,
       FeatureCollection collection,
       List<FeatureCollection.ModificationFailure> fails,
       List<Feature> inserts,
@@ -175,7 +174,7 @@ public class DatabaseWriter {
   }
 
   protected static FeatureCollection updateFeatures(
-      @NotNull PsqlEventProcessor processor,
+      @NotNull PsqlProcessor processor,
       FeatureCollection collection,
       List<FeatureCollection.ModificationFailure> fails,
       List<Feature> updates,
@@ -209,7 +208,7 @@ public class DatabaseWriter {
   }
 
   protected static void deleteFeatures(
-      @NotNull PsqlEventProcessor processor,
+      @NotNull PsqlProcessor processor,
       List<FeatureCollection.ModificationFailure> fails,
       Map<String, String> deletes,
       Connection connection,
@@ -235,7 +234,7 @@ public class DatabaseWriter {
 
   protected static void logException(
       @Nullable Exception e,
-      @NotNull PsqlEventProcessor processor,
+      @NotNull PsqlProcessor processor,
       @Nullable String action,
       @NotNull String table) {
     if (e != null && e.getMessage() != null && e.getMessage().contains("does not exist")) {

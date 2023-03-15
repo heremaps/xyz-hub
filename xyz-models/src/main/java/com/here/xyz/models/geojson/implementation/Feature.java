@@ -25,8 +25,6 @@ import com.here.xyz.Extensible;
 import com.here.xyz.Typed;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
 
 @JsonIgnoreProperties(ignoreUnknown = true)

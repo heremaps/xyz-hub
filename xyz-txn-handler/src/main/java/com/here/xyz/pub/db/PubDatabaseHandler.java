@@ -1,10 +1,10 @@
 package com.here.xyz.pub.db;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.mapcreator.ext.naksha.NPsqlPoolConfig;
+import com.here.xyz.models.hub.psql.PsqlPoolConfig;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.hub.Subscription;
-import com.here.mapcreator.ext.naksha.NPsqlConnectorParams;
+import com.here.xyz.models.hub.psql.PsqlProcessorParams;
 import com.here.xyz.pub.models.*;
 import io.vertx.core.json.Json;
 import org.apache.logging.log4j.LogManager;
@@ -170,10 +170,10 @@ public class PubDatabaseHandler {
                     final String tableName = rs.getString(2);
                     try {
                         final String rawParams = rs.getString(3);
-                        final NPsqlConnectorParams params = XyzSerializable.deserialize(rawParams, NPsqlConnectorParams.class);
+                        final PsqlProcessorParams params = XyzSerializable.deserialize(rawParams, PsqlProcessorParams.class);
                         if (params == null)
                             throw new NullPointerException("params");
-                        final NPsqlPoolConfig dbConfig = params.getDbConfig();
+                        final PsqlPoolConfig dbConfig = params.getDbConfig();
                         spaceDBConnParams = new JdbcConnectionParams();
                         spaceDBConnParams.setSpaceId(spaceId);
                         spaceDBConnParams.setDbUrl(dbConfig.url);
@@ -278,9 +278,9 @@ public class PubDatabaseHandler {
                 final String connectorId = rs.getString(1);
                 try {
                     final String rawParams = rs.getString(2);
-                    final NPsqlConnectorParams params = XyzSerializable.deserialize(rawParams, NPsqlConnectorParams.class);
+                    final PsqlProcessorParams params = XyzSerializable.deserialize(rawParams, PsqlProcessorParams.class);
                     if (params == null) throw new NullPointerException("params");
-                    final NPsqlPoolConfig dbConfig = params.getDbConfig();
+                    final PsqlPoolConfig dbConfig = params.getDbConfig();
                     dto = new ConnectorDTO();
                     dto.setDbUrl(dbConfig.url);
                     dto.setUser(dbConfig.user);
