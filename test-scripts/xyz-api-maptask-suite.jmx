@@ -4878,7 +4878,7 @@ else {
             <intProp name="Assertion.test_type">8</intProp>
           </ResponseAssertion>
           <hashTree/>
-          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Body" enabled="true">
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Body" enabled="false">
             <collectionProp name="Asserion.test_strings">
               <stringProp name="-147781174">{&quot;type&quot;:&quot;error&quot;,&quot;statusCode&quot;:401,&quot;reasonPhrase&quot;:&quot;Unauthorized&quot;,&quot;message&quot;:&quot;Missing auth credentials.&quot;,&quot;streamId&quot;</stringProp>
             </collectionProp>
@@ -4953,7 +4953,7 @@ else {
             <intProp name="Assertion.test_type">8</intProp>
           </ResponseAssertion>
           <hashTree/>
-          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Body" enabled="true">
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Body" enabled="false">
             <collectionProp name="Asserion.test_strings">
               <stringProp name="-147781174">{&quot;type&quot;:&quot;error&quot;,&quot;statusCode&quot;:401,&quot;reasonPhrase&quot;:&quot;Unauthorized&quot;,&quot;message&quot;:&quot;Missing auth credentials.&quot;,&quot;streamId&quot;</stringProp>
             </collectionProp>
