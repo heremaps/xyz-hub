@@ -133,7 +133,7 @@ public abstract class PSQLAbstractIT extends Helper {
     ByteArrayOutputStream os = new ByteArrayOutputStream();
     final IoEventProcessor<PsqlProcessor> eventContext = new IoEventProcessor<>(new PsqlProcessor());
     assert jsonStream != null;
-    eventContext.process(jsonStream, os);
+    eventContext.processEvent(jsonStream, os);
     String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
     LOGGER.info("Response from lambda - {}", response);
     return response;
@@ -144,7 +144,7 @@ public abstract class PSQLAbstractIT extends Helper {
     InputStream jsonStream = new ByteArrayInputStream(request.getBytes(StandardCharsets.UTF_8));
     ByteArrayOutputStream os = new ByteArrayOutputStream();
     final IoEventProcessor<PsqlProcessor> eventContext = new IoEventProcessor<>(new PsqlProcessor());
-    eventContext.process(jsonStream, os);
+    eventContext.processEvent(jsonStream, os);
     String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
     LOGGER.info("Response from lambda - {}", response);
     return response;

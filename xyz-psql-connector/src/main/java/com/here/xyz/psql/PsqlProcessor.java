@@ -36,6 +36,7 @@ import com.here.mapcreator.ext.naksha.PsqlConnectorSpaceAdmin;
 import com.here.mapcreator.ext.naksha.PsqlConnectorSpaceReplica;
 import com.here.mapcreator.ext.naksha.Naksha;
 import com.here.mapcreator.ext.naksha.PsqlConnectorSpaceMaster;
+import com.here.xyz.IExtendedEventProcessor;
 import com.here.xyz.models.hub.psql.PsqlProcessorParams;
 import com.here.mapcreator.ext.naksha.sql.H3SQL;
 import com.here.mapcreator.ext.naksha.sql.QuadbinSQL;
@@ -122,16 +123,18 @@ import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.commons.dbutils.StatementConfiguration;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("NotNullFieldNotInitialized")
-public class PsqlProcessor implements IEventProcessor {
+public class PsqlProcessor implements IExtendedEventProcessor {
 
   public PsqlProcessor() {
   }
+
+  private static final Logger logger = LoggerFactory.getLogger(PsqlProcessor.class);
 
   private @NotNull Event<?> event;
   private @NotNull String applicationName;
@@ -142,6 +145,11 @@ public class PsqlProcessor implements IEventProcessor {
   private @NotNull String spaceId;
   private @NotNull String table;
   private @NotNull String historyTable;
+
+  @Override
+  public @NotNull Logger logger() {
+    return logger;
+  }
 
   @Override
   public void initialize(@NotNull Event<?> event) {
@@ -242,8 +250,6 @@ public class PsqlProcessor implements IEventProcessor {
   void maintainSpace() {
     // TODO: Ensure that table and history is correct, garbage collect history.
   }
-
-  private static final Logger logger = LogManager.getLogger();
 
   @Override
   public @NotNull XyzResponse<?> processHealthCheckEvent(@NotNull HealthCheckEvent event) {
@@ -1372,7 +1378,7 @@ public class PsqlProcessor implements IEventProcessor {
           return new FeatureCollection().withCount(1L);
         } else {
           return new FeatureCollection()
-              .withCount((long)executeUpdateWithRetry(SQLQueryBuilder.buildRemoveSubscriptionQuery(spaceId(), spaceSchema())));
+              .withCount((long) executeUpdateWithRetry(SQLQueryBuilder.buildRemoveSubscriptionQuery(spaceId(), spaceSchema())));
         }
 
       default:

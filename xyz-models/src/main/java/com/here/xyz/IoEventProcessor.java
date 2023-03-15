@@ -40,7 +40,7 @@ public class IoEventProcessor<PROCESSOR extends IEventProcessor> {
   protected int ETAG_THRESHOLD_SIZE = 32 * 1024;
 
   /**
-   * Create a new IO bound event context. Requires invoking {@link #process(InputStream, OutputStream)} to start the event processing.
+   * Create a new IO bound event context. Requires invoking {@link #processEvent(InputStream, OutputStream)} to start the event processing.
    *
    * @param processor the event processor to which to forward the event.
    */
@@ -71,7 +71,7 @@ public class IoEventProcessor<PROCESSOR extends IEventProcessor> {
    * @param output the output stream to write the response to.
    * @throws IllegalStateException if this method has already been called.
    */
-  public void process(@NotNull InputStream input, @NotNull OutputStream output) {
+  public void processEvent(@NotNull InputStream input, @NotNull OutputStream output) {
     if (processCalled.compareAndSet(false, true)) {
       throw new IllegalStateException("process must not be called multiple times");
     }
