@@ -1,6 +1,5 @@
 package com.here.xyz.models.geojson.implementation;
 
-import org.checkerframework.checker.nullness.qual.AssertNonNullIfNonNull;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

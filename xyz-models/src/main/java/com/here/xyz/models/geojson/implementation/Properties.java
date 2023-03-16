@@ -26,8 +26,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.xyz.Extensible;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-@SuppressWarnings("WeakerAccess")
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Properties extends Extensible<Properties> {
 
@@ -35,25 +36,28 @@ public class Properties extends Extensible<Properties> {
   @JsonInclude(Include.NON_NULL)
   private XyzNamespace xyzNamespace;
 
-  @SuppressWarnings("WeakerAccess")
-  public XyzNamespace getXyzNamespace() {
-    return this.xyzNamespace;
+  public @Nullable XyzNamespace getXyzNamespace() {
+    return xyzNamespace;
   }
 
-  @SuppressWarnings("WeakerAccess")
-  public void setXyzNamespace(XyzNamespace xyzNamespace) {
+  public void setXyzNamespace(@Nullable XyzNamespace xyzNamespace) {
     this.xyzNamespace = xyzNamespace;
   }
 
-  @SuppressWarnings("WeakerAccess")
-  public Properties withXyzNamespace(XyzNamespace xyzNamespace) {
+  public @NotNull XyzNamespace useXyzNamespace() {
+    if (xyzNamespace == null) {
+      xyzNamespace = new XyzNamespace();
+    }
+    return xyzNamespace;
+  }
+
+  public @NotNull Properties withXyzNamespace(@Nullable XyzNamespace xyzNamespace) {
     this.xyzNamespace = xyzNamespace;
     return this;
   }
 
-  @SuppressWarnings("unused")
-  public Set<String> keySet() {
-    LinkedHashSet<String> keySet = new LinkedHashSet<>(getAdditionalProperties().keySet());
+  public @NotNull Set<@NotNull String> keySet() {
+    LinkedHashSet<String> keySet = new LinkedHashSet<>(additionalProperties().keySet());
     keySet.add(XyzNamespace.XYZ_NAMESPACE);
     return keySet;
   }

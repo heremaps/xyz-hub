@@ -36,7 +36,6 @@ import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
-import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.base.Strings;
@@ -46,7 +45,6 @@ import com.here.xyz.events.ContentModifiedNotification;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.Event.TrustedParams;
-import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.GetStatisticsEvent;
@@ -117,7 +115,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -1059,7 +1056,7 @@ public class FeatureTaskHandler {
           }
 
           boolean isInsert = entry.head == null;
-          processNamespace(task, entry, result.getProperties().getXyzNamespace(), isInsert, i);
+          processNamespace(task, entry, result.useProperties().getXyzNamespace(), isInsert, i);
           (isInsert ? insert : update).add(result);
         }
 
@@ -1119,7 +1116,7 @@ public class FeatureTaskHandler {
 
     // Timestamp fields
     long now = Core.currentTimeMillis();
-    nsXyz.setCreatedAt(isInsert ? now : entry.head.getProperties().getXyzNamespace().getCreatedAt());
+    nsXyz.setCreatedAt(isInsert ? now : entry.head.useProperties().getXyzNamespace().getCreatedAt());
     nsXyz.setUpdatedAt(now);
 
     // UUID fields

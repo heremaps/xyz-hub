@@ -21,6 +21,8 @@ package com.here.xyz.models.hub;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.View;
 import com.here.xyz.events.Event;
 import com.here.xyz.models.hub.Space.ConnectorRef;
 import java.util.List;
@@ -43,6 +45,7 @@ public class Connector {
    * The unique identifier of this connector configuration.
    */
   @JsonProperty
+  @JsonView(View.All.class)
   public String id;
 
   /**
@@ -50,6 +53,7 @@ public class Connector {
    * respond with an error.
    */
   @JsonProperty
+  @JsonView(View.All.class)
   public boolean active = true;
 
   /**
@@ -58,6 +62,7 @@ public class Connector {
    * }</pre>
    */
   @JsonProperty
+  @JsonView(View.All.class)
   public String processor;
 
   /**
@@ -67,17 +72,22 @@ public class Connector {
    * {@link ConnectorRef#getParams() parameters of the space} in {@link Event#getParams()}.
    */
   @JsonProperty
+  @JsonView(View.Protected.class)
   public @Nullable Map<@NotNull String, @NotNull Object> params;
 
   /**
    * A list of email addresses of responsible owners for this connector. These email addresses will be used to send potential health
    * warnings and other notifications.
    */
+  @JsonProperty
+  @JsonView(View.All.class)
   public List<String> contactEmails;
 
   /**
    * An object containing the list of different HTTP headers, cookies and query parameters, and their names, that should be forwarded from
    * Hub to the connector; if anything should be forwarded.
    */
+  @JsonProperty
+  @JsonView(View.All.class)
   public ConnectorForward forward;
 }

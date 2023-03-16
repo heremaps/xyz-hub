@@ -1,5 +1,6 @@
 package com.here.xyz.models.hub;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.here.xyz.models.hub.psql.PsqlProcessorParams;
 import java.util.Map;
 import org.jetbrains.annotations.NotNull;
@@ -24,6 +25,7 @@ public abstract class ProcessorParams {
    * logger.info("{} - Some Message", logId);
    * }</pre>
    */
+  @JsonIgnore
   protected final @NotNull String logId;
 
   /**

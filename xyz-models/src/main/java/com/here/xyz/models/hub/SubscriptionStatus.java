@@ -1,6 +1,11 @@
 package com.here.xyz.models.hub;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.View;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class SubscriptionStatus {
@@ -8,8 +13,13 @@ public class SubscriptionStatus {
   /**
    * The type of the subscription
    */
+  @JsonProperty
+  @JsonView(View.All.class)
   private State state;
 
+  @JsonProperty
+  @JsonView(View.All.class)
+  @JsonInclude(Include.NON_NULL)
   private String stateReason;
 
   public State getState() {

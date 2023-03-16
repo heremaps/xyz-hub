@@ -66,7 +66,7 @@ public class AbstractConnectorHandlerTest {
               .withGeometry(
                   new Point().withCoordinates(new PointCoordinates(360d * random.nextDouble() - 180d, 180d * random.nextDouble() - 90d)))
               .withProperties(new Properties());
-          pKeys.forEach(p -> f.getProperties().put(p, RandomStringUtils.randomAlphanumeric(8)));
+          pKeys.forEach(p -> f.useProperties().put(p, RandomStringUtils.randomAlphanumeric(8)));
           return f;
         }).limit(featureCount).collect(Collectors.toList()));
     return collection;

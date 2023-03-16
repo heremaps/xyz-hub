@@ -20,21 +20,42 @@
 package com.here.xyz.models.geojson.implementation;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Extensible;
 import com.here.xyz.Typed;
+import com.here.xyz.View;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import java.util.UUID;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "Feature")
 @SuppressWarnings({"unused", "WeakerAccess"})
 public class Feature extends Extensible<Feature> implements Typed {
 
+  @JsonProperty
+  @JsonView(View.All.class)
   private String id;
+
+  @JsonProperty
+  @JsonView(View.All.class)
+  @JsonInclude(Include.NON_NULL)
   private BBox bbox;
+
+  @JsonProperty
+  @JsonView(View.All.class)
+  @JsonInclude(Include.NON_NULL)
   private Geometry geometry;
+
+  @JsonProperty
+  @JsonView(View.All.class)
+  @JsonInclude(Include.NON_NULL)
   private Properties properties;
 
   /**
@@ -72,65 +93,65 @@ public class Feature extends Extensible<Feature> implements Typed {
       }
       xyzNamespace.setUuid(UUID.randomUUID().toString());
     }
-    xyzNamespace.setInputPosition(null);
   }
 
-  public String getId() {
+  public @Nullable String getId() {
     return id;
   }
 
-  public void setId(String id) {
+  public void setId(@Nullable String id) {
     this.id = id;
   }
 
-  public Feature withId(String id) {
+  public @NotNull Feature withId(@Nullable String id) {
     setId(id);
     return this;
   }
 
-  public Feature withProperties(final Properties properties) {
+  public @NotNull Feature withProperties(@Nullable Properties properties) {
     setProperties(properties);
     return this;
   }
 
-  public BBox getBbox() {
+  public @Nullable BBox getBbox() {
     return bbox;
   }
 
-  public BBox setBbox(BBox bbox) {
-    BBox old = this.bbox;
+  public void setBbox(@Nullable BBox bbox) {
     this.bbox = bbox;
-    return old;
   }
 
-  public Feature withBbox(final BBox bbox) {
+  public @NotNull Feature withBbox(@Nullable BBox bbox) {
     setBbox(bbox);
     return this;
   }
 
-  public Geometry getGeometry() {
+  public @Nullable Geometry getGeometry() {
     return geometry;
   }
 
-  public Geometry setGeometry(Geometry geometry) {
-    Geometry old = this.geometry;
+  public void setGeometry(@Nullable Geometry geometry) {
     this.geometry = geometry;
-    return old;
   }
 
-  public Feature withGeometry(final Geometry geometry) {
+  public @NotNull Feature withGeometry(@Nullable Geometry geometry) {
     setGeometry(geometry);
     return this;
   }
 
-  public Properties getProperties() {
+  public @Nullable Properties getProperties() {
     return properties;
   }
 
-  public Properties setProperties(Properties properties) {
-    Properties old = this.properties;
+  public void setProperties(@Nullable Properties properties) {
     this.properties = properties;
-    return old;
+  }
+
+  public @NotNull Properties useProperties() {
+    if (properties == null) {
+      properties = new Properties();
+    }
+    return properties;
   }
 
   public void calculateAndSetBbox(boolean recalculateBBox) {

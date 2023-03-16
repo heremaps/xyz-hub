@@ -28,7 +28,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.LazyParsable.ProxyStringReader;
-import com.here.xyz.models.hub.Space.Static;
 import com.here.xyz.responses.ErrorResponse;
 import java.io.IOException;
 import java.io.InputStream;
@@ -43,12 +42,13 @@ public interface XyzSerializable {
 
   // https://www.baeldung.com/jackson-json-view-annotation
   // mapper.disable(MapperFeature.DEFAULT_VIEW_INCLUSION);
+  // Support View.Public, View.All and View.Internal
 
   ThreadLocal<ObjectMapper> DEFAULT_MAPPER = ThreadLocal.withInitial(() -> new ObjectMapper().setSerializationInclusion(Include.NON_NULL));
   ThreadLocal<ObjectMapper> SORTED_MAPPER = ThreadLocal.withInitial(() ->
       new ObjectMapper().configure(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY, true).setSerializationInclusion(Include.NON_NULL));
   ThreadLocal<ObjectMapper> STATIC_MAPPER = ThreadLocal.withInitial(() -> new ObjectMapper().setConfig(
-      DEFAULT_MAPPER.get().getSerializationConfig().withView(Static.class)));
+      DEFAULT_MAPPER.get().getSerializationConfig().withView(View.Protected.class)));
 
   @SuppressWarnings("unused")
   static <T extends Typed> String serialize(T object) {
@@ -60,7 +60,7 @@ public interface XyzSerializable {
   }
 
   @SuppressWarnings("unused")
-  static String serialize(Object object, TypeReference typeReference) {
+  static @NotNull String serialize(@Nullable Object object, @NotNull TypeReference<?> typeReference) {
     try {
       return DEFAULT_MAPPER.get().writerFor(typeReference).writeValueAsString(object);
     } catch (JsonProcessingException e) {
@@ -122,7 +122,7 @@ public interface XyzSerializable {
   }
 
   @SuppressWarnings("unchecked")
-  static <T extends XyzSerializable> T copy(T serializable) {
+  static <T extends XyzSerializable> @NotNull T copy(@NotNull T serializable) {
     try {
       return (T) XyzSerializable.deserialize(serializable.serialize(), serializable.getClass());
     } catch (Exception e) {
@@ -148,16 +148,16 @@ public interface XyzSerializable {
   }
 
   @SuppressWarnings("unused")
-  default String serialize(boolean pretty) {
+  default @NotNull String serialize(boolean pretty) {
     return serialize(DEFAULT_MAPPER.get(), pretty);
   }
 
   @SuppressWarnings("unused")
-  default String serialize(ObjectMapper mapper) {
+  default @NotNull String serialize(@NotNull ObjectMapper mapper) {
     return serialize(mapper, false);
   }
 
-  default String serialize(ObjectMapper mapper, boolean pretty) {
+  default @NotNull String serialize(@NotNull ObjectMapper mapper, boolean pretty) {
     try {
       return pretty ? mapper.writerWithDefaultPrettyPrinter().writeValueAsString(this) : mapper.writeValueAsString(this);
     } catch (JsonProcessingException e) {
@@ -165,11 +165,10 @@ public interface XyzSerializable {
     }
   }
 
-  default <T extends XyzSerializable> T copy() {
+  default <T extends XyzSerializable> @NotNull T copy() {
     try {
       //noinspection unchecked
       return (T) XyzSerializable.copy(this);
-
     } catch (Exception e) {
       return null;
     }

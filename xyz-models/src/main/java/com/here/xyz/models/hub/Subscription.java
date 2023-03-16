@@ -20,96 +20,112 @@
 package com.here.xyz.models.hub;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.View;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Subscription {
 
-    /**
-     * The unique identifier of the subscription
-      */
-    private String id;
+  /**
+   * The unique identifier of the subscription.
+   */
+  @JsonProperty
+  @JsonView(View.All.class)
+  private String id;
 
-    /**
-     * The source of the subscribed notification (usually the space)
-     */
-    private String source;
+  /**
+   * The source of the subscribed notification (usually the space).
+   */
+  @JsonProperty
+  @JsonView(View.All.class)
+  private String source;
 
-    /**
-     * The destination of the subscribe notification
-     */
-    private String destination;
+  /**
+   * The destination of the subscribe notification.
+   */
+  @JsonProperty
+  @JsonView(View.All.class)
+  private String destination;
 
-    /**
-     * The configuration of the subscription
-     */
-    private SubscriptionConfig config;
+  /**
+   * The configuration of the subscription.
+   */
+  @JsonProperty
+  @JsonView(View.All.class)
+  private SubscriptionConfig config;
 
-    private SubscriptionStatus status;
+  @JsonProperty
+  @JsonView(View.All.class)
+  @JsonInclude(Include.NON_NULL)
+  private SubscriptionStatus status;
 
-    public String getId() {
-        return id;
-    }
+  public String getId() {
+    return id;
+  }
 
-    public void setId(String id) {
-        this.id = id;
-    }
+  public void setId(String id) {
+    this.id = id;
+  }
 
-    public Subscription withId(String id) {
-        this.id = id;
-        return this;
-    }
+  public Subscription withId(String id) {
+    this.id = id;
+    return this;
+  }
 
-    public String getSource() {
-        return source;
-    }
+  public String getSource() {
+    return source;
+  }
 
-    public void setSource(String source) {
-        this.source = source;
-    }
+  public void setSource(String source) {
+    this.source = source;
+  }
 
-    public Subscription withSource(String source) {
-        this.source = source;
-        return this;
-    }
+  public Subscription withSource(String source) {
+    this.source = source;
+    return this;
+  }
 
-    public String getDestination() {
-        return destination;
-    }
+  public String getDestination() {
+    return destination;
+  }
 
-    public void setDestination(String destination) {
-        this.destination = destination;
-    }
+  public void setDestination(String destination) {
+    this.destination = destination;
+  }
 
-    public Subscription withDestination(String destination) {
-        this.destination = destination;
-        return this;
-    }
+  public Subscription withDestination(String destination) {
+    this.destination = destination;
+    return this;
+  }
 
-    public SubscriptionConfig getConfig() {
-        return config;
-    }
+  public SubscriptionConfig getConfig() {
+    return config;
+  }
 
-    public void setConfig(SubscriptionConfig config) {
-        this.config = config;
-    }
+  public void setConfig(SubscriptionConfig config) {
+    this.config = config;
+  }
 
-    public Subscription withConfig(SubscriptionConfig config) {
-        this.config = config;
-        return this;
-    }
+  public Subscription withConfig(SubscriptionConfig config) {
+    this.config = config;
+    return this;
+  }
 
-    public SubscriptionStatus getStatus() {
-        return status;
-    }
+  public SubscriptionStatus getStatus() {
+    return status;
+  }
 
-    public void setStatus(SubscriptionStatus status) {
-        this.status = status;
-    }
+  public void setStatus(SubscriptionStatus status) {
+    this.status = status;
+  }
 
-    public Subscription withStatus(SubscriptionStatus status) {
-        this.status = status;
-        return this;
-    }
+  public Subscription withStatus(SubscriptionStatus status) {
+    this.status = status;
+    return this;
+  }
 
 }
 

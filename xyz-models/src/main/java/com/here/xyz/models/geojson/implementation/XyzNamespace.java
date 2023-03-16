@@ -23,11 +23,12 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.View;
 import com.here.xyz.XyzSerializable;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -37,83 +38,101 @@ public class XyzNamespace implements XyzSerializable {
 
   public static final String XYZ_NAMESPACE = "@ns:com:here:xyz";
 
-  @JsonProperty("_inputPosition")
-  @JsonInclude(Include.NON_NULL)
-  private Long inputPosition;
-
   /**
    * The space ID the feature belongs to.
    */
-  @JsonInclude(Include.NON_NULL)
+  @JsonProperty
+  @JsonView(View.All.class)
   private String space;
 
   /**
    * The timestamp, when a feature was created.
    */
-  @JsonInclude(Include.NON_DEFAULT)
+  @JsonProperty
+  @JsonView(View.All.class)
   private long createdAt;
 
   /**
    * The timestamp, when a feature was last updated.
    */
-  @JsonInclude(Include.NON_DEFAULT)
+  @JsonProperty
+  @JsonView(View.All.class)
   private long updatedAt;
 
   /**
    * The transaction number of this state.
    */
-  @JsonInclude(Include.NON_NULL)
+  @JsonProperty
+  @JsonView(View.All.class)
   private String txn;
 
   /**
    * The uuid of the feature, when the client modifies the feature, it must not modify the uuid.
    */
+  @JsonProperty
+  @JsonView(View.All.class)
   private String uuid;
 
   /**
    * The previous uuid of the feature.
    */
+  @JsonProperty
+  @JsonView(View.All.class)
+  @JsonInclude(Include.NON_NULL)
   private String puuid;
 
   /**
    * The merge uuid of the feature.
    */
+  @JsonProperty
+  @JsonView(View.All.class)
+  @JsonInclude(Include.NON_NULL)
   private String muuid;
 
   /**
-   * The list of tags being attached to the feature.
+   * The list of tags attached to the feature.
    */
-  @JsonInclude(Include.NON_NULL)
-  private List<String> tags;
+  @JsonProperty
+  @JsonView(View.All.class)
+  @JsonInclude(Include.NON_EMPTY)
+  private List<@NotNull String> tags;
 
   /**
    * The operation that lead to the current state of the namespace. Should be a value from {@link Action}.
    */
-  @JsonInclude(Include.NON_NULL)
+  @JsonProperty
+  @JsonView(View.All.class)
   private String action;
 
   /**
    * The version of the feature, the first version (1) will always be in the state CREATED.
    */
-  @JsonInclude(Include.NON_DEFAULT)
+  @JsonProperty
+  @JsonView(View.All.class)
   private long version = 0L;
 
   /**
    * The author that changed the feature in the current revision.
    */
-  @JsonInclude(Include.NON_EMPTY)
+  @JsonProperty
+  @JsonView(View.All.class)
+  @JsonInclude(Include.NON_NULL)
   private String author;
 
   /**
    * The application that changed the feature in the current revision.
    */
-  @JsonInclude(Include.NON_EMPTY)
+  @JsonProperty
+  @JsonView(View.All.class)
+  @JsonInclude(Include.NON_NULL)
   private String app_id;
 
   /**
    * The identifier of the owner of this connector.
    */
-  @JsonInclude(Include.NON_EMPTY)
+  @JsonProperty
+  @JsonView(View.All.class)
+  @JsonInclude(Include.NON_NULL)
   private String owner;
 
   /**
@@ -220,21 +239,6 @@ public class XyzNamespace implements XyzSerializable {
     }
   }
 
-  @SuppressWarnings("unused")
-  public Long getInputPosition() {
-    return inputPosition;
-  }
-
-  @SuppressWarnings("WeakerAccess")
-  public void setInputPosition(Long inputPosition) {
-    this.inputPosition = inputPosition;
-  }
-
-  public XyzNamespace withInputPosition(Long inputPosition) {
-    setInputPosition(inputPosition);
-    return this;
-  }
-
   public String getSpace() {
     return space;
   }
@@ -304,6 +308,21 @@ public class XyzNamespace implements XyzSerializable {
   }
 
   @SuppressWarnings("WeakerAccess")
+  public String getTxn() {
+    return txn;
+  }
+
+  @SuppressWarnings("WeakerAccess")
+  public void setTnx(String txn) {
+    this.txn = txn;
+  }
+
+  public @NotNull XyzNamespace withTxn(String txn) {
+    setTnx(txn);
+    return this;
+  }
+
+  @SuppressWarnings("WeakerAccess")
   public String getUuid() {
     return uuid;
   }
@@ -352,7 +371,7 @@ public class XyzNamespace implements XyzSerializable {
 
   public void setTags(List<String> tags) {
     if (tags != null) {
-      for (int i = 0; i < tags.size(); i++) {
+      for (int SIZE = tags.size(), i = 0; i < SIZE; i++) {
         tags.set(i, normalizeTag(tags.get(i)));
       }
     }

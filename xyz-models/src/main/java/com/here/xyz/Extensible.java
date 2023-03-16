@@ -26,33 +26,49 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import java.util.HashMap;
 import java.util.Map;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 @JsonInclude(Include.NON_NULL)
-public abstract class Extensible<T> implements XyzSerializable {
+public abstract class Extensible<SELF extends Extensible<SELF>> implements XyzSerializable {
 
   @JsonIgnore
-  @JsonAnySetter
-  private Map<String, Object> additionalProperties = new HashMap<>();
+  private @Nullable Map<@NotNull String, @Nullable Object> additionalProperties;
 
   @JsonAnyGetter
-  protected Map<String, Object> getAdditionalProperties() {
+  protected final @Nullable Map<@NotNull String, @Nullable Object> jsonAnyGetter() {
+    return additionalProperties;
+  }
+
+  @SuppressWarnings("unchecked")
+  public <V> @Nullable V get(@NotNull Object key) {
+    if (key instanceof String) {
+      return (V) additionalProperties().get(key);
+    }
+    return null;
+  }
+
+  @JsonAnySetter
+  public void put(@NotNull String key, @Nullable Object value) {
+    additionalProperties().put(key, value);
+  }
+
+  protected final @NotNull Map<@NotNull String, @Nullable Object> additionalProperties() {
     if (this.additionalProperties == null) {
       this.additionalProperties = new HashMap<>();
     }
     return additionalProperties;
   }
 
-  public <V> V get(Object key) {
-    //noinspection unchecked
-    return (V) this.getAdditionalProperties().get(key);
-  }
-
-  public void put(String key, Object value) {
-    this.getAdditionalProperties().put(key, value);
-  }
-
-  public T with(String key, Object value) {
+  @SuppressWarnings("unchecked")
+  public @NotNull SELF with(@NotNull String key, @Nullable Object value) {
     put(key, value);
-    return (T) this;
+    return (SELF) this;
+  }
+
+  @SuppressWarnings("unchecked")
+  public @NotNull SELF remove(@NotNull String key) {
+    additionalProperties().remove(key);
+    return (SELF) this;
   }
 }

@@ -2,27 +2,20 @@ package com.here.xyz.models.hub;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.View;
+import java.util.List;
+import org.jetbrains.annotations.NotNull;
 
-/**
- * A commit messages attached to a transaction.
- */
+@JsonTypeName(value = "All")
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class TransactionCommitMessage extends TransactionElement {
+public class ConstraintAll {
 
   /**
-   * A commit message.
+   * The constraints that all need to hold true (AND).
    */
   @JsonProperty
   @JsonView(View.All.class)
-  public String commit_msg;
-
-  /**
-   * The commit JSON.
-   */
-  @JsonProperty
-  @JsonView(View.All.class)
-  public Object commit_json;
-
+  public List<@NotNull Constraint> of;
 }

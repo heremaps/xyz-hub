@@ -1,65 +1,66 @@
 package com.here.xyz.models.hub;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.View;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 
+/**
+ * The basic properties that all transactions will have.
+ */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @SuppressWarnings("unused")
 public class TransactionElement {
-
   /**
    * The unique transaction identifier.
    */
   @JsonProperty
+  @JsonView(View.All.class)
   public long txi;
+
+  /**
+   * The transaction connector-id, so the identifier of the connector that created the transaction.
+   */
+  @JsonProperty
+  @JsonView(View.All.class)
+  public long txcid;
 
   /**
    * The Epoch timestamp in milliseconds when the transaction started.
    */
   @JsonProperty
+  @JsonView(View.All.class)
   public long txts;
 
   /**
-   * The transaction number as it will be stored within the {@link XyzNamespace}.
+   * The transaction number (UUID) as it will be stored within the XYZ namespace {@link XyzNamespace#getTxn() txn} property.
    */
   @JsonProperty
+  @JsonView(View.All.class)
   public String txn;
 
   /**
-   * The space, set by the transaction fix job as soon as the transaction becomes visible.
+   * The space identifier, set as soon as the transaction becomes visible.
    */
   @JsonProperty
+  @JsonView(View.All.class)
   public String space;
 
   /**
-   * The unique sequential identifier, set by the transaction fix job as soon as the transaction becomes visible. This is a sequential
-   * number without holes.
+   * The unique sequential identifier, set as soon as the transaction becomes visible. This is a sequential number without holes with the
+   * lowest valid number being 1.
    */
   @JsonProperty
+  @JsonView(View.All.class)
   public long id;
 
   /**
-   * The Epoch timestamp in milliseconds of when the transaction became visible for the transaction fix job.
+   * The Epoch timestamp in milliseconds of when the transaction became visible (end of transaction).
    */
   @JsonProperty
+  @JsonView(View.All.class)
   public long ts;
-
-
-//  ||'i           BIGSERIAL PRIMARY KEY NOT NULL, '
-//      ||'txid        int8 NOT NULL, '
-//      ||'txi         int8 NOT NULL, '
-//      ||'txcid       int8 NOT NULL, '
-//      ||'txts        timestamptz NOT NULL, '
-//      ||'txn         uuid NOT NULL, '
-//      ||'"schema"    text COLLATE "C" NOT NULL, '
-//      ||'"table"     text COLLATE "C" NOT NULL, '
-//      ||'commit_msg  text COLLATE "C", '
-//      ||'commit_json jsonb, '
-//      ||'space       text COLLATE "C", '
-//      ||'id          int8, '
-//      ||'ts          timestamptz'
 }
 
 /*

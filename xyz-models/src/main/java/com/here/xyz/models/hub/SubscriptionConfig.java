@@ -1,17 +1,26 @@
 package com.here.xyz.models.hub;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.View;
 import java.util.Map;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class SubscriptionConfig {
 
   /**
-   * The type of the subscription
+   * The type of the subscription.
    */
+  @JsonProperty
+  @JsonView(View.All.class)
   private SubscriptionType type;
 
-  private Map<String, Object> params;
+  @JsonProperty
+  @JsonView(View.Protected.class)
+  private Map<@NotNull String, @Nullable Object> params;
 
   public SubscriptionType getType() {
     return type;
@@ -21,20 +30,20 @@ public class SubscriptionConfig {
     this.type = type;
   }
 
-  public SubscriptionConfig withType(SubscriptionType type) {
+  public @NotNull SubscriptionConfig withType(SubscriptionType type) {
     this.type = type;
     return this;
   }
 
-  public Map<String, Object> getParams() {
+  public Map<@NotNull String, @Nullable Object> getParams() {
     return params;
   }
 
-  public void setParams(Map<String, Object> params) {
+  public void setParams(Map<@NotNull String, @Nullable Object> params) {
     this.params = params;
   }
 
-  public SubscriptionConfig withParams(Map<String, Object> params) {
+  public @NotNull SubscriptionConfig withParams(Map<@NotNull String, @Nullable Object> params) {
     this.params = params;
     return this;
   }

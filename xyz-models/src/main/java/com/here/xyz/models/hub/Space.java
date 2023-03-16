@@ -19,18 +19,19 @@
 
 package com.here.xyz.models.hub;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.XyzSerializable;
-import java.util.Arrays;
+import com.here.xyz.View;
+import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import java.util.List;
 import java.util.Map;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * The space configuration.
@@ -48,182 +49,120 @@ public class Space {
   /**
    * The unique identifier of the space.
    */
-  @JsonView({Public.class, Static.class})
+  @JsonProperty
+  @JsonView(View.All.class)
   private String id;
 
   /**
-   * A human readable title of the space.
+   * A human-readable title of the space.
    */
-  @JsonView({Public.class, Static.class})
+  @JsonProperty
+  @JsonView(View.All.class)
+  @JsonInclude(Include.NON_NULL)
   private String title;
 
   /**
-   * A human readable description of the space and it's content.
+   * A human-readable description of the space, and its content.
    */
-  @JsonView({Public.class, Static.class})
+  @JsonProperty
+  @JsonView(View.All.class)
+  @JsonInclude(Include.NON_NULL)
   private String description;
 
   /**
    * If set to true, every authenticated user can read the features in the space.
    */
+  @JsonProperty
+  @JsonView(View.All.class)
   @JsonInclude(Include.NON_DEFAULT)
-  @JsonView({Public.class, Static.class})
   private boolean shared = false;
 
   /**
    * Copyright information for the data in the space.
    */
+  @JsonProperty
+  @JsonView(View.All.class)
   @JsonInclude(Include.NON_EMPTY)
-  @JsonView({Public.class, Static.class})
   private List<Copyright> copyright;
 
   /**
    * Information about the license bound to the data within the space. For valid keywords see {@link License}.
    */
+  @JsonProperty
+  @JsonView(View.All.class)
   @JsonInclude(Include.NON_EMPTY)
-  @JsonView({Public.class, Static.class})
   private License license;
-
-  /**
-   * The space extension configuration which allows the space's content to override another space's content.
-   */
-  @JsonView({Public.class, Static.class})
-  @JsonProperty("extends")
-  private Extension extension;
 
   /**
    * The storage connector configuration.
    */
-  @JsonView({WithConnectors.class, Static.class})
+  @JsonProperty
+  @JsonView(View.All.class)
   private ConnectorRef storage;
 
   /**
    * The identifier of the owner of this space, most likely the HERE account ID.
    */
-  @JsonView({Public.class, Static.class})
+  @JsonProperty
+  @JsonView(View.All.class)
   private String owner;
 
   /**
-   * The maximum amount of seconds of how long to hold objects of this Space in a cache.
+   * Allows to temporary or permanently disable history.
    */
-  @JsonInclude(Include.NON_DEFAULT)
-  @JsonView({Internal.class, Static.class})
-  private int cacheTTL = -1;
+  @JsonProperty
+  @JsonView(View.All.class)
+  private boolean enableHistory = true;
 
   /**
-   * An arbitrary client configuration with hints or settings for the client, for example rendering instructions.
+   * The maximum days of history to keep; {@code null} means forever.
    */
-  @JsonView({Public.class, Static.class})
-  @JsonInclude(Include.NON_EMPTY)
-  private Map<String, Object> client;
-
-  /**
-   * If true, every state of the feature, will be assigned a UUID value.
-   */
-  @JsonView({Public.class, Static.class})
-  @JsonInclude(Include.NON_DEFAULT)
-  @Deprecated
-  private boolean enableUUID = false;
-
-  /**
-   * If true, history gets created
-   */
-  @JsonView({Public.class, Static.class})
-  @JsonInclude(Include.NON_DEFAULT)
-  @Deprecated
-  private boolean enableHistory = false;
-
-  /**
-   * If true, global versioning gets activated
-   */
-  @JsonView({Public.class, Static.class})
-  @JsonInclude(Include.NON_DEFAULT)
-  @Deprecated
-  private boolean enableGlobalVersioning = false;
-
-  /**
-   * Can be used to control how many versions should get hold in the history. -1 means infinite
-   */
-  @JsonView({Public.class, Static.class})
-  @JsonInclude(Include.NON_EMPTY)
-  @Deprecated
-  private Integer maxVersionCount;
-
-  /**
-   * Defines how many revisions will be kept before the automatic purging of old revisions is starting.
-   * By default this value will be set to 1. That means there will be only one
-   * (HEAD) state of the space and no further revisions will be kept.
-   */
-  @JsonView({Public.class, Static.class})
-  private int revisionsToKeep = 0;
-
-  /**
-   * If false, auto-indexing gets disabled
-   */
-  @JsonView({Public.class, Static.class})
+  @JsonProperty
+  @JsonView(View.All.class)
   @JsonInclude(Include.NON_NULL)
-  private Boolean enableAutoSearchableProperties = null;
+  private Integer maxHistoryDays;
 
   /**
    * List of packages that this space belongs to.
    */
+  @JsonProperty
+  @JsonView(View.All.class)
   @JsonInclude(Include.NON_EMPTY)
-  @JsonView({Public.class, Static.class})
-  private List<String> packages;
+  private List<@NotNull String> packages;
 
   /**
-   * An additional identifier specifying a context of the owner.
+   * Arbitrary properties added to the space, this includes the standard {@link XyzNamespace}.
    */
-  @JsonView({Public.class, Static.class})
-  @JsonInclude(Include.NON_NULL)
-  private String cid;
-
-  /**
-   * The list of tags to describe this Space.
-   */
-  @JsonView({Public.class, Static.class})
-  @JsonInclude(Include.NON_EMPTY)
-  private List<String> tags;
-
-  /**
-   * The creation timestamp.
-   */
-  @JsonView({Public.class, Static.class})
-  private long createdAt = DEFAULT_TIMESTAMP;
-
-  /**
-   * The last update timestamp.
-   */
-  @JsonView({Public.class, Static.class})
-  private long updatedAt = DEFAULT_TIMESTAMP;
+  @JsonProperty
+  @JsonView(View.All.class)
+  private Properties properties;
 
   /**
    * Indicates if the space is in a read-only mode.
    */
+  @JsonProperty
+  @JsonView(View.All.class)
   @JsonInclude(Include.NON_DEFAULT)
-  @JsonView({Public.class, Static.class})
   private boolean readOnly = false;
 
   /**
-   * A map defined by the user which tells which of the feature-properties to make searchable. The key is the name of the property and the
-   * value is a boolean flag telling whether the property should be searchable or not. Also nested properties can be referenced by
-   * specifying a path with dots (e.g. "my.prop"). Setting the value to {@code false} the property won't be made searchable at all. (even if
-   * some auto-indexing algorithm would chose the property to be searchable)
+   * A map defined by the user to index feature-properties to make them searchable and sortable. The key is the name of the index to create,
+   * the value describes the properties to index including their ordering in the index. Properties not being indexes still can be searched,
+   * but the result can be bad.
    */
+  @JsonProperty
+  @JsonView(View.All.class)
   @JsonInclude(Include.NON_EMPTY)
-  @JsonView({Public.class, Static.class})
-  private Map<String, Boolean> searchableProperties;
-
-  @JsonInclude(Include.NON_EMPTY)
-  @JsonView({Public.class, Static.class})
-  private List<List<Object>> sortableProperties;
+  private Map<@NotNull String, @NotNull Index> indices;
 
   /**
-   * Controls whether during feature creation, the operation succeeds when the payload contains UUID or fails with 409. Default is true.
+   * A map defined by the user to apply constraints on feature-properties to prevent illegal values. Note that creating constraints later
+   * will fail, if the space does not fulfill the constraint.
    */
-  @JsonInclude(Include.NON_DEFAULT)
-  @JsonView({Internal.class, Static.class})
-  private boolean allowFeatureCreationWithUUID = false;
+  @JsonProperty
+  @JsonView(View.All.class)
+  @JsonInclude(Include.NON_EMPTY)
+  private Map<@NotNull String, @NotNull Constraint> constraints;
 
   public String getId() {
     return id;
@@ -233,7 +172,7 @@ public class Space {
     this.id = id;
   }
 
-  public Space withId(final String id) {
+  public @NotNull Space withId(final String id) {
     setId(id);
     return this;
   }
@@ -246,7 +185,7 @@ public class Space {
     this.title = title;
   }
 
-  public Space withTitle(final String title) {
+  public @NotNull Space withTitle(final String title) {
     setTitle(title);
     return this;
   }
@@ -259,7 +198,7 @@ public class Space {
     this.description = description;
   }
 
-  public Space withDescription(final String description) {
+  public @NotNull Space withDescription(final String description) {
     setDescription(description);
     return this;
   }
@@ -272,7 +211,7 @@ public class Space {
     this.shared = shared;
   }
 
-  public Space withShared(final boolean shared) {
+  public @NotNull Space withShared(final boolean shared) {
     setShared(shared);
     return this;
   }
@@ -285,7 +224,7 @@ public class Space {
     this.copyright = copyright;
   }
 
-  public Space withCopyright(final List<Copyright> copyright) {
+  public @NotNull Space withCopyright(final List<Copyright> copyright) {
     setCopyright(copyright);
     return this;
   }
@@ -298,21 +237,8 @@ public class Space {
     this.license = license;
   }
 
-  public Space withLicense(final License license) {
+  public @NotNull Space withLicense(final License license) {
     setLicense(license);
-    return this;
-  }
-
-  public Extension getExtension() {
-    return extension;
-  }
-
-  public void setExtension(final Extension extension) {
-    this.extension = extension;
-  }
-
-  public Space withExtension(final Extension extension) {
-    setExtension(extension);
     return this;
   }
 
@@ -324,7 +250,7 @@ public class Space {
     this.storage = storage;
   }
 
-  public Space withStorage(final ConnectorRef storage) {
+  public @NotNull Space withStorage(final ConnectorRef storage) {
     setStorage(storage);
     return this;
   }
@@ -337,189 +263,60 @@ public class Space {
     this.owner = owner;
   }
 
-  public Space withOwner(final String owner) {
+  public @NotNull Space withOwner(final String owner) {
     setOwner(owner);
     return this;
   }
 
-  public int getCacheTTL() {
-    return cacheTTL;
-  }
-
-  public void setCacheTTL(final int cacheTTL) {
-    this.cacheTTL = cacheTTL;
-  }
-
-  public Space withCacheTTL(final int cacheTTL) {
-    setCacheTTL(cacheTTL);
-    return this;
-  }
-
-  public Map<String, Object> getClient() {
-    return client;
-  }
-
-  public void setClient(final Map<String, Object> client) {
-    this.client = client;
-  }
-
-  public Space withClient(final Map<String, Object> client) {
-    setClient(client);
-    return this;
-  }
-
-  @Deprecated
-  public boolean isEnableUUID() {
-    return enableUUID;
-  }
-
-  @Deprecated
-  public void setEnableUUID(final boolean enableUUID) {
-    this.enableUUID = enableUUID;
-  }
-
-  @Deprecated
-  public Space withEnableUUID(final boolean enableUUID) {
-    setEnableUUID(enableUUID);
-    return this;
-  }
-
-  @Deprecated
   public boolean isEnableHistory() {
     return enableHistory;
   }
 
-  @Deprecated
   public void setEnableHistory(final boolean enableHistory) {
     this.enableHistory = enableHistory;
   }
 
-  @Deprecated
-  public Space withEnableHistory(final boolean enableHistory) {
+  public @NotNull Space withEnableHistory(final boolean enableHistory) {
     setEnableHistory(enableHistory);
     return this;
   }
 
-  @Deprecated
-  public boolean isEnableGlobalVersioning() {
-    return enableGlobalVersioning;
+  public @Nullable Integer getMaxHistoryDays() {
+    return maxHistoryDays;
   }
 
-  @Deprecated
-  public void setEnableGlobalVersioning(final boolean enableGlobalVersioning) {
-    this.enableGlobalVersioning = enableGlobalVersioning;
+  public void setMaxHistoryDays(@Nullable Integer days) {
+    this.maxHistoryDays = days;
   }
 
-  @Deprecated
-  public Space withEnableGlobalVersioning(final boolean enableGlobalVersioning) {
-    setEnableGlobalVersioning(enableGlobalVersioning);
+  public @NotNull Space withMaxHistoryDays(@Nullable Integer days) {
+    setMaxHistoryDays(days);
     return this;
   }
 
-  @Deprecated
-  public Integer getMaxVersionCount() {
-    return maxVersionCount;
-  }
-
-  @Deprecated
-  public void setMaxVersionCount(final Integer maxVersionCount) {
-    this.maxVersionCount = maxVersionCount;
-  }
-
-  @Deprecated
-  public Space withMaxVersionCount(final Integer maxVersionCount) {
-    setMaxVersionCount(maxVersionCount);
-    return this;
-  }
-
-  public int getRevisionsToKeep() {
-    return revisionsToKeep;
-  }
-
-  public void setRevisionsToKeep(int revisionsToKeep) {
-    this.revisionsToKeep = revisionsToKeep;
-  }
-
-  public Space withRevisionsToKeep(int revisionsToKeep) {
-    setRevisionsToKeep(revisionsToKeep);
-    return this;
-  }
-
-  public Boolean isEnableAutoSearchableProperties() {
-    return enableAutoSearchableProperties;
-  }
-
-  public void setEnableAutoSearchableProperties(final Boolean enableAutoSearchableProperties) {
-    this.enableAutoSearchableProperties = enableAutoSearchableProperties;
-  }
-
-  public Space withEnableAutoSearchableProperties(final Boolean enableAutoSearchableProperties) {
-    setEnableAutoSearchableProperties(enableAutoSearchableProperties);
-    return this;
-  }
-
-  public List<String> getPackages() {
+  public List<@NotNull String> getPackages() {
     return packages;
   }
 
-  public void setPackages(final List<String> packages) {
+  public void setPackages(final List<@NotNull String> packages) {
     this.packages = packages;
   }
 
-  public Space withPackages(final List<String> packages) {
+  public @NotNull Space withPackages(final List<@NotNull String> packages) {
     setPackages(packages);
     return this;
   }
 
-  public String getCid() {
-    return cid;
+  public Properties getProperties() {
+    return properties;
   }
 
-  public void setCid(final String cid) {
-    this.cid = cid;
+  public void setProperties(@Nullable Properties properties) {
+    this.properties = properties;
   }
 
-  public Space withCid(final String cid) {
-    setCid(cid);
-    return this;
-  }
-
-  public List<String> getTags() {
-    return tags;
-  }
-
-  public void setTags(final List<String> tags) {
-    this.tags = tags;
-  }
-
-  public Space withTags(final List<String> tags) {
-    setTags(tags);
-    return this;
-  }
-
-  public long getCreatedAt() {
-    return createdAt;
-  }
-
-  public void setCreatedAt(final long createdAt) {
-    this.createdAt = createdAt;
-  }
-
-  public Space withCreatedAt(final long createdAt) {
-    setCreatedAt(createdAt);
-    return this;
-  }
-
-  public long getUpdatedAt() {
-    return updatedAt;
-  }
-
-  public void setUpdatedAt(final long updatedAt) {
-    this.updatedAt = updatedAt;
-  }
-
-  public Space withUpdatedAt(final long updatedAt) {
-    setUpdatedAt(updatedAt);
+  public @NotNull Space withProperties(@Nullable Properties properties) {
+    setProperties(properties);
     return this;
   }
 
@@ -531,70 +328,35 @@ public class Space {
     this.readOnly = readOnly;
   }
 
-  public Space withReadOnly(final boolean readOnly) {
+  public @NotNull Space withReadOnly(final boolean readOnly) {
     setReadOnly(readOnly);
     return this;
   }
 
-  public Map<String, Boolean> getSearchableProperties() {
-    return searchableProperties;
+  public Map<@NotNull String, @NotNull Index> getIndices() {
+    return indices;
   }
 
-  public void setSearchableProperties(final Map<String, Boolean> searchableProperties) {
-    this.searchableProperties = searchableProperties;
+  public void setIndices(Map<@NotNull String, @NotNull Index> indices) {
+    this.indices = indices;
   }
 
-  public Space withSearchableProperties(final Map<String, Boolean> searchableProperties) {
-    setSearchableProperties(searchableProperties);
+  public @NotNull Space withIndices(Map<@NotNull String, @NotNull Index> indices) {
+    setIndices(indices);
     return this;
   }
 
-  public List<List<Object>> getSortableProperties() {
-    return sortableProperties;
+  public Map<@NotNull String, @NotNull Constraint> getConstraints() {
+    return constraints;
   }
 
-  public void setSortableProperties(final List<List<Object>> sortableProperties) {
-    this.sortableProperties = sortableProperties;
+  public void setConstraints(Map<@NotNull String, @NotNull Constraint> constraints) {
+    this.constraints = constraints;
   }
 
-  public Space withSortableProperties(final List<List<Object>> sortableProperties) {
-    setSortableProperties(sortableProperties);
+  public @NotNull Space withConstraints(Map<@NotNull String, @NotNull Constraint> constraints) {
+    setConstraints(constraints);
     return this;
-  }
-
-  public boolean isAllowFeatureCreationWithUUID() {
-    return allowFeatureCreationWithUUID;
-  }
-
-  public void setAllowFeatureCreationWithUUID(final boolean allowFeatureCreationWithUUID) {
-    this.allowFeatureCreationWithUUID = allowFeatureCreationWithUUID;
-  }
-
-  public Space withAllowFeatureCreationWithUUID(final boolean allowFeatureCreationWithUUID) {
-    setAllowFeatureCreationWithUUID(allowFeatureCreationWithUUID);
-    return this;
-  }
-
-
-  @SuppressWarnings("WeakerAccess")
-  public static class Public {
-
-  }
-
-  @SuppressWarnings("WeakerAccess")
-  public static class WithConnectors extends Public {
-
-  }
-
-  public static class Internal extends WithConnectors {
-
-  }
-
-  /**
-   * Used for properties which are intended to be persisted.
-   */
-  public static class Static {
-
   }
 
   /**
@@ -606,12 +368,17 @@ public class Space {
     /**
      * The ID of the connector to be used.
      */
+    @JsonProperty
     @JsonInclude(Include.NON_NULL)
+    @JsonView(View.All.class)
     private String id;
 
     /**
      * Arbitrary parameters to be provided to the connector.
      */
+    @JsonProperty
+    @JsonInclude(Include.NON_NULL)
+    @JsonView(View.Protected.class)
     private Map<String, Object> params;
 
     public String getId() {
@@ -623,153 +390,25 @@ public class Space {
     }
 
     @SuppressWarnings("WeakerAccess")
-    public ConnectorRef withId(final String id) {
+    public @NotNull ConnectorRef withId(final String id) {
       setId(id);
       return this;
     }
 
-    public Map<String, Object> getParams() {
+    public @Nullable Map<@NotNull String, @Nullable Object> getParams() {
       return params;
     }
 
-    public void setParams(final Map<String, Object> params) {
+    public void setParams(final @Nullable Map<@NotNull String, @Nullable Object> params) {
       this.params = params;
     }
 
     @SuppressWarnings("WeakerAccess")
-    public ConnectorRef withParams(final Map<String, Object> params) {
+    public @NotNull ConnectorRef withParams(final @Nullable Map<@NotNull String, @Nullable Object> params) {
       setParams(params);
       return this;
     }
   }
 
 
-  /**
-   * The copyright information object.
-   */
-  @JsonIgnoreProperties(ignoreUnknown = true)
-  public static class Copyright {
-
-    /**
-     * The copyright label to be displayed by the client.
-     */
-    @JsonInclude(Include.NON_NULL)
-    private String label;
-
-    /**
-     * The description text for the label to be displayed by the client.
-     */
-    @JsonInclude(Include.NON_NULL)
-    private String alt;
-
-    public String getLabel() {
-      return label;
-    }
-
-    public void setLabel(final String label) {
-      this.label = label;
-    }
-
-    public Copyright withLabel(final String label) {
-      setLabel(label);
-      return this;
-    }
-
-    public String getAlt() {
-      return alt;
-    }
-
-    public void setAlt(final String alt) {
-      this.alt = alt;
-    }
-
-    public Copyright withAlt(final String alt) {
-      setAlt(alt);
-      return this;
-    }
-  }
-
-  public static class License {
-
-    //Source: https://github.com/shinnn/spdx-license-ids/blob/master/index.json
-    //Information about the licenses can be found here: https://spdx.org/licenses/ OR https://choosealicense.com/licenses/<keyword>
-    private static List<String> allowedKeywords = Arrays.asList(
-        "AFL-3.0",
-        "Apache-2.0",
-        "Artistic-2.0",
-        "BSL-1.0",
-        "BSD-2-Clause",
-        "BSD-3-Clause",
-        "BSD-3-Clause-Clear",
-        "CC0-1.0",
-        "CC-BY-4.0",
-        "CC-BY-SA-4.0",
-        "WTFPL",
-        "ECL-1.0",
-        "ECL-2.0",
-        "EUPL-1.1",
-        "AGPL-3.0-only",
-        "GPL-2.0-only",
-        "GPL-3.0-only",
-        "LGPL-2.1-only",
-        "LGPL-3.0-only",
-        "ISC",
-        "LPPL-1.3c",
-        "MS-PL",
-        "MIT",
-        "MPL-2.0",
-        "OSL-3.0",
-        "PostgreSQL",
-        "OFL-1.1",
-        "NCSA",
-        "Unlicense",
-        "Zlib",
-        "ODbL-1.0"
-    );
-
-    @JsonValue
-    private String keyword;
-
-    public String getKeyword() {
-      return keyword;
-    }
-
-    public void setKeyword(final String keyword) {
-      this.keyword = keyword;
-    }
-
-    public License withKeyword(final String keyword) {
-      setKeyword(keyword);
-      return this;
-    }
-
-    @JsonCreator
-    public static License forKeyword(String keyword) {
-      License l = new License();
-      if (!allowedKeywords.contains(keyword)) {
-        throw new IllegalArgumentException(
-            "\"" + keyword + "\" is not a valid license keyword. Allowed keywords are: " + String.join(", ", allowedKeywords));
-      }
-      l.keyword = keyword;
-      return l;
-    }
-  }
-
-  public static class Extension implements XyzSerializable {
-
-    private String spaceId;
-
-    public String getSpaceId() {
-      return spaceId;
-    }
-
-    public void setSpaceId(final String spaceId) {
-      this.spaceId = spaceId;
-    }
-
-    public Extension withSpaceId(final String spaceId) {
-      setSpaceId(spaceId);
-      return this;
-    }
-  }
 }
