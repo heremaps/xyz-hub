@@ -1,6 +1,7 @@
 package com.here.xyz.pub.db;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.models.hub.SubscriptionConfig;
 import com.here.xyz.models.hub.psql.PsqlPoolConfig;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.hub.Subscription;
@@ -126,7 +127,7 @@ public class PubDatabaseHandler {
             while (rs.next()) {
                 final String cfgJsonStr = rs.getString("config");
                 final Subscription sub = new Subscription();
-                sub.setConfig(Json.decodeValue(cfgJsonStr, Subscription.SubscriptionConfig.class));
+                sub.setConfig(Json.decodeValue(cfgJsonStr, SubscriptionConfig.class));
                 sub.setId(rs.getString("id"));
                 sub.setSource(rs.getString("source"));
                 if (subList == null) {

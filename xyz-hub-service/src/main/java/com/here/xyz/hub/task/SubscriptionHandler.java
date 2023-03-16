@@ -27,6 +27,7 @@ import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.FeatureTask.ModifySubscriptionQuery;
 import com.here.xyz.models.hub.Subscription;
+import com.here.xyz.models.hub.SubscriptionStatus;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -89,7 +90,7 @@ public class SubscriptionHandler {
 
     public static void createSubscription(RoutingContext context, Subscription subscription, Handler<AsyncResult<Subscription>> handler) {
         Marker marker = Api.Context.getMarker(context);
-        subscription.setStatus(new Subscription.SubscriptionStatus().withState(Subscription.SubscriptionStatus.State.ACTIVE));
+        subscription.setStatus(new SubscriptionStatus().withState(SubscriptionStatus.State.ACTIVE));
         Service.subscriptionConfigClient.get(marker, subscription.getId()).onComplete(ar -> {
             if (ar.failed()) {
                 // Send ModifySubscriptionEvent to the connector
@@ -113,7 +114,7 @@ public class SubscriptionHandler {
 
         // Set status to 'ACTIVE' only when status is not present
         if(subscription.getStatus() == null || subscription.getStatus().getState() == null) {
-            subscription.setStatus(new Subscription.SubscriptionStatus().withState(Subscription.SubscriptionStatus.State.ACTIVE));
+            subscription.setStatus(new SubscriptionStatus().withState(SubscriptionStatus.State.ACTIVE));
         }
 
         Service.subscriptionConfigClient.get(marker, subscription.getId()).onComplete(ar -> {
@@ -152,7 +153,7 @@ public class SubscriptionHandler {
                 boolean hasActiveSubscriptions = ar.result().stream()
                         .anyMatch(s -> !s.getId().equals(subscription.getId()) &&
                                 s.getStatus() != null &&
-                                s.getStatus().getState() == Subscription.SubscriptionStatus.State.ACTIVE);
+                                s.getStatus().getState() == SubscriptionStatus.State.ACTIVE);
 
                 sendEvent(context, Operation.DELETE, subscription, !hasActiveSubscriptions, marker, eventAr -> {
                     if(eventAr.failed()) {

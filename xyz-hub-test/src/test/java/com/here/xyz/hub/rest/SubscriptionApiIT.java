@@ -1,6 +1,7 @@
 package com.here.xyz.hub.rest;
 
 import com.here.xyz.models.hub.Subscription;
+import com.here.xyz.models.hub.SubscriptionStatus;
 import com.jayway.restassured.response.ValidatableResponse;
 import org.junit.After;
 import org.junit.Before;
@@ -139,7 +140,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
 
         Subscription subscription = addTestSubscription();
 
-        subscription.getStatus().withState(Subscription.SubscriptionStatus.State.INACTIVE).withStateReason("Test Inactive State");
+        subscription.getStatus().withState(SubscriptionStatus.State.INACTIVE).withStateReason("Test Inactive State");
 
         given()
                 .accept(APPLICATION_JSON)
@@ -156,7 +157,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
     @Test
     public void updateSubscriptionByIdWithAnotherSpaceAccess() {
         Subscription subscription = addTestSubscription();
-        subscription.getStatus().withState(Subscription.SubscriptionStatus.State.INACTIVE).withStateReason("Test Inactive State");
+        subscription.getStatus().withState(SubscriptionStatus.State.INACTIVE).withStateReason("Test Inactive State");
 
         given()
                 .accept(APPLICATION_JSON)
