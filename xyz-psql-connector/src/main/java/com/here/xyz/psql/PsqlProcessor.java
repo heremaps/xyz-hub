@@ -32,17 +32,16 @@ import static com.here.xyz.responses.XyzError.EXCEPTION;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.here.mapcreator.ext.naksha.PsqlConnectorSpaceAdmin;
-import com.here.mapcreator.ext.naksha.PsqlConnectorSpaceReplica;
+import com.here.mapcreator.ext.naksha.PsqlSpaceAdminDataSource;
+import com.here.mapcreator.ext.naksha.PsqlSpaceReplicaDataSource;
 import com.here.mapcreator.ext.naksha.Naksha;
-import com.here.mapcreator.ext.naksha.PsqlConnectorSpaceMaster;
+import com.here.mapcreator.ext.naksha.PsqlSpaceMasterDataSource;
 import com.here.xyz.IExtendedEventProcessor;
 import com.here.xyz.models.hub.psql.PsqlProcessorParams;
 import com.here.mapcreator.ext.naksha.sql.H3SQL;
 import com.here.mapcreator.ext.naksha.sql.QuadbinSQL;
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.mapcreator.ext.naksha.sql.TweaksSQL;
-import com.here.xyz.IEventProcessor;
 import com.here.xyz.NanoTime;
 import com.here.mapcreator.ext.naksha.PsqlSpace;
 import com.here.xyz.XyzSerializable;
@@ -139,9 +138,9 @@ public class PsqlProcessor implements IExtendedEventProcessor {
   private @NotNull Event<?> event;
   private @NotNull String applicationName;
   private @NotNull PsqlProcessorParams connectorParams;
-  private @NotNull PsqlConnectorSpaceAdmin adminDataSource;
-  private @NotNull PsqlConnectorSpaceMaster masterDataSource;
-  private @NotNull PsqlConnectorSpaceReplica replicaDataSource;
+  private @NotNull PsqlSpaceAdminDataSource adminDataSource;
+  private @NotNull PsqlSpaceMasterDataSource masterDataSource;
+  private @NotNull PsqlSpaceReplicaDataSource replicaDataSource;
   private @NotNull String spaceId;
   private @NotNull String table;
   private @NotNull String historyTable;
@@ -171,9 +170,9 @@ public class PsqlProcessor implements IExtendedEventProcessor {
       }
     }
     historyTable = table + "_hst";
-    masterDataSource = new PsqlConnectorSpaceMaster(connectorParams, applicationName, spaceId, table, historyTable);
-    replicaDataSource = new PsqlConnectorSpaceReplica(connectorParams, applicationName, spaceId, table, historyTable);
-    adminDataSource = new PsqlConnectorSpaceAdmin(connectorParams, applicationName);
+    masterDataSource = new PsqlSpaceMasterDataSource(connectorParams, applicationName, spaceId, table, historyTable);
+    replicaDataSource = new PsqlSpaceReplicaDataSource(connectorParams, applicationName, spaceId, table, historyTable);
+    adminDataSource = new PsqlSpaceAdminDataSource(connectorParams, applicationName);
 
     replacements.put("idx_deleted", "idx_" + table + "_deleted");
     replacements.put("idx_serial", "idx_" + table + "_serial");

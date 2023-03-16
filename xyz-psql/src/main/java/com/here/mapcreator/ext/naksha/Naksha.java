@@ -234,7 +234,7 @@ public final class Naksha {
    * @throws SQLException If any error occurred.
    * @throws IOException  If reading the SQL extensions from the resources fail.
    */
-  public static void ensureSpaceDb(@NotNull PsqlConnectorSpaceAdmin dataSource) throws SQLException, IOException {
+  public static void ensureSpaceDb(@NotNull PsqlSpaceAdminDataSource dataSource) throws SQLException, IOException {
     final StringBuilder sb = NakshaThreadLocal.get().sb();
     String SQL;
 
@@ -296,7 +296,7 @@ public final class Naksha {
    * @param spaceId    the space identifier.
    * @param table      the table name of the space.
    */
-  public static void ensureSpace(@NotNull PsqlConnectorSpaceAdmin dataSource, @NotNull String spaceId, @NotNull String table) {
+  public static void ensureSpace(@NotNull PsqlSpaceAdminDataSource dataSource, @NotNull String spaceId, @NotNull String table) {
 
   }
 
@@ -307,7 +307,7 @@ public final class Naksha {
    * @param spaceId    the space identifier.
    * @param table      the table name of the space.
    */
-  public static void ensureSpaceWithHistory(@NotNull PsqlConnectorSpaceAdmin dataSource, @NotNull String spaceId, @NotNull String table) {
+  public static void ensureSpaceWithHistory(@NotNull PsqlSpaceAdminDataSource dataSource, @NotNull String spaceId, @NotNull String table) {
 
   }
 
@@ -318,7 +318,7 @@ public final class Naksha {
    * @param spaceId    the space identifier.
    * @param table      the table name of the space.
    */
-  public static void enableHistory(@NotNull PsqlConnectorSpaceAdmin dataSource, @NotNull String spaceId, @NotNull String table) {
+  public static void enableHistory(@NotNull PsqlSpaceAdminDataSource dataSource, @NotNull String spaceId, @NotNull String table) {
 
   }
 
@@ -329,7 +329,7 @@ public final class Naksha {
    * @param spaceId    the space identifier.
    * @param table      the table name of the space.
    */
-  public static void disableHistory(@NotNull PsqlConnectorSpaceAdmin dataSource, @NotNull String spaceId, @NotNull String table) {
+  public static void disableHistory(@NotNull PsqlSpaceAdminDataSource dataSource, @NotNull String spaceId, @NotNull String table) {
 
   }
 

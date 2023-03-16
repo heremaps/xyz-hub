@@ -7,13 +7,13 @@ import org.jetbrains.annotations.Nullable;
 /**
  * The master (writable) data-source of a Naksha space.
  */
-public class PsqlConnectorSpaceMaster extends PsqlConnectorSpaceSource {
+public class PsqlSpaceMasterDataSource extends PsqlSpaceDataSource {
 
-  public PsqlConnectorSpaceMaster(@NotNull PsqlProcessorParams params, @NotNull String applicationName, @NotNull String spaceId) {
+  public PsqlSpaceMasterDataSource(@NotNull PsqlProcessorParams params, @NotNull String applicationName, @NotNull String spaceId) {
     super(params, applicationName, spaceId, false, null, null);
   }
 
-  public PsqlConnectorSpaceMaster(
+  public PsqlSpaceMasterDataSource(
       @NotNull PsqlProcessorParams params,
       @NotNull String applicationName,
       @NotNull String spaceId,

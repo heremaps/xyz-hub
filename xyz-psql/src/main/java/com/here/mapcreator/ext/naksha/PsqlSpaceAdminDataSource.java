@@ -6,7 +6,7 @@ import org.jetbrains.annotations.NotNull;
 /**
  * The data-source to a Naksha admin schema of a connector.
  */
-public class PsqlConnectorSpaceAdmin extends AbstractPsqlDataSource<PsqlConnectorSpaceAdmin> {
+public class PsqlSpaceAdminDataSource extends AbstractPsqlDataSource<PsqlSpaceAdminDataSource> {
 
   /**
    * Create a new data source for the given connector configuration and application name.
@@ -14,7 +14,7 @@ public class PsqlConnectorSpaceAdmin extends AbstractPsqlDataSource<PsqlConnecto
    * @param params          the PostgresQL connector parameters.
    * @param applicationName the application name.
    */
-  public PsqlConnectorSpaceAdmin(@NotNull PsqlProcessorParams params, @NotNull String applicationName) {
+  public PsqlSpaceAdminDataSource(@NotNull PsqlProcessorParams params, @NotNull String applicationName) {
     super(PsqlPool.get(params.getDbConfig()), applicationName);
     this.connectorParams = params;
     setSchema(params.getAdminSchema());

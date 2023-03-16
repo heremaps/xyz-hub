@@ -10,7 +10,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * The data-source to a Naksha space.
  */
-public class PsqlConnectorSpaceSource extends AbstractPsqlDataSource<PsqlConnectorSpaceSource> {
+public class PsqlSpaceDataSource extends AbstractPsqlDataSource<PsqlSpaceDataSource> {
 
   private static @NotNull PsqlPool readOnlyPool(@NotNull PsqlProcessorParams params) {
     final List<@NotNull PsqlPoolConfig> dbReplicas = params.getDbReplicas();
@@ -29,12 +29,12 @@ public class PsqlConnectorSpaceSource extends AbstractPsqlDataSource<PsqlConnect
    *
    * @param params          the PostgresQL connector parameters.
    * @param applicationName the application name.
-   * @param spaceId the space identifier.
-   * @param readOnly true if the connection should use a read-replica, if available; false otherwise.
-   * @param table the database table; if null the space-id is used.
-   * @param historyTable the history table; if null table plus "_hst".
+   * @param spaceId         the space identifier.
+   * @param readOnly        true if the connection should use a read-replica, if available; false otherwise.
+   * @param table           the database table; if null the space-id is used.
+   * @param historyTable    the history table; if null table plus "_hst".
    */
-  public PsqlConnectorSpaceSource(
+  public PsqlSpaceDataSource(
       @NotNull PsqlProcessorParams params,
       @NotNull String applicationName,
       @NotNull String spaceId,

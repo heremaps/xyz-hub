@@ -27,6 +27,7 @@ import com.here.xyz.XyzSerializable;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -57,6 +58,12 @@ public class XyzNamespace implements XyzSerializable {
    */
   @JsonInclude(Include.NON_DEFAULT)
   private long updatedAt;
+
+  /**
+   * The transaction number of this state.
+   */
+  @JsonInclude(Include.NON_NULL)
+  private String txn;
 
   /**
    * The uuid of the feature, when the client modifies the feature, it must not modify the uuid.
