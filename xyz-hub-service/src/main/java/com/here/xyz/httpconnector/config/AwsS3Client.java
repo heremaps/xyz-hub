@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,6 +58,10 @@ public class AwsS3Client {
         client = builder.build();
     }
 
+    public URL generateDownloadURL(String bucketName, String key) throws IOException {
+        return generatePresignedUrl(bucketName, key, HttpMethod.GET);
+    }
+
     public URL generateUploadURL(String bucketName, String key) throws IOException {
         return generatePresignedUrl(bucketName, key, HttpMethod.PUT);
     }
@@ -69,10 +73,6 @@ public class AwsS3Client {
                         .withExpiration(new Date(System.currentTimeMillis() + PRESIGNED_URL_EXPIRATION_SECONDS * 1000));
 
         return client.generatePresignedUrl(generatePresignedUrlRequest);
-    }
-
-    public URL generateDownloadUrl(String bucketName, String key) throws IOException {
-        return generatePresignedUrl(bucketName, key, HttpMethod.GET);
     }
 
     void deleteS3Folder(String bucketName, String folderPath) {
