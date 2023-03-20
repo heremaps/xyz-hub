@@ -291,7 +291,7 @@ end
 $_$;
 
 
-CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles(here_tile_qk boolean, tile_list text[], _tbl regclass, base64enc boolean, clipped boolean ) RETURNS TABLE(tile_id text, tile_content text)
+CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_v1(here_tile_qk boolean, tile_list text[], _tbl regclass, base64enc boolean, clipped boolean ) RETURNS TABLE(tile_id text, tile_content text)
     LANGUAGE plpgsql
     AS $_$
 declare
@@ -341,6 +341,49 @@ begin
 end
 $_$;
 
+CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_v2(here_tile_qk boolean, tile_list text[], _tbl regclass, base64enc boolean, clipped boolean ) RETURNS TABLE(tile_id text, tile_content text)
+    LANGUAGE plpgsql
+    AS $_$
+declare
+ fkt_qk2box text := 'xyz_qk_qk2bbox';
+ plainjs text    := 'jsonb_build_object(''type'',''FeatureCollection'',''features'', features )::text';
+ plaingeo text   := 'geo';
+begin
+
+  if here_tile_qk then
+   fkt_qk2box = 'htile_bbox';
+  end if;
+	
+	if clipped then
+	 plaingeo = 'ST_Intersection(ST_MakeValid(d.geo), bbox) as geo';
+	end if;
+	
+	if base64enc then
+	 plainjs = 'regexp_replace( encode( replace(' || plainjs || ',''\'',''\\'')::bytea, ''base64'' ),''\n'','''',''g'')';
+	end if;
+	
+	return query execute
+	 format(
+          ' select qk,' || plainjs
+       || ' from'
+       || ' ( select qk, jsonb_agg( jsonb_set(jsondata,''{geometry}'',ST_AsGeojson( geo )::jsonb ) ) as features'
+       || '   from'
+       || '   ( select qk, d.jsondata,' || plaingeo
+       || '     from'
+       || '      unnest( %2$L::text[] ) qk,'
+       || '      lateral ' || fkt_qk2box || '( qk ) bbox,'
+       || '      lateral ( select jsondata, geo from %1$s d where st_intersects( d.geo, bbox ) ) d'
+       || '   ) o'
+       || '   group by qk'
+       || ' ) oo' , _tbl, tile_list );
+end
+$_$;
+
+CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles(here_tile_qk boolean, tile_list text[], _tbl regclass, base64enc boolean, clipped boolean ) RETURNS TABLE(tile_id text, tile_content text)
+LANGUAGE sql
+AS $_$
+ select tile_id, tile_content from qk_s_get_fc_of_tiles_v1( here_tile_qk, tile_list, _tbl, base64enc, clipped ) 
+$_$;
 
 create or replace function exp_build_sql_inhabited(htile boolean, iqk text, mlevel integer, _tbl regclass) returns table(qk text, s3sql text)
 language plpgsql stable
