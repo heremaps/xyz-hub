@@ -74,7 +74,6 @@ public class Feature extends Extensible<Feature> implements Typed {
       }
       xyzNamespace.setUuid(UUID.randomUUID().toString());
     }
-    xyzNamespace.setInputPosition(null);
   }
 
   public String getId() {
