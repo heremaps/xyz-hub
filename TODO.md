@@ -24,3 +24,37 @@ Publisher (requires one thread per subscription part of xyz-txn-handler)
 -> getFeaturesOfTransaction(... limit 50) <-- List<Feature>
 -> publishing
 -> update our management database with what you have published
+
+## Processors
+
+We will implement processors as a pipeline, where each processor can handle the event going to the
+storage and handle the response coming from the storage. They must not store data in a database,
+except for caching or configuration purpose. We modify the IEventProcessor so that it receives
+a context instead of the event directly to allow this.
+
+Space change planed:
+
+```json
+{
+  "storage": {
+    "id": "psql",
+    "params": {},
+    "processors": [
+      {
+        "id": "utm",
+        "params": {}
+      },
+      {
+        "id": "validateSchema",
+        "params": {}
+      }
+    ]
+  }
+}
+```
+
+This builds up a pipeline like:
+
+`EventContext <-> Utm <-> EventContext <-> ValidateSchema <-> EventContext <-> PsqlProcessor` 
+
+
