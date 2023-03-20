@@ -17,6 +17,8 @@ import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import javax.annotation.Nonnull;
 import org.jetbrains.annotations.NotNull;
@@ -48,6 +50,20 @@ public class EventProcessor implements IExtendedEventHandler {
   protected Event<?> event;
   protected Logger logger;
   protected IEventContext ctx;
+
+  /**
+   * Creates an error response to return.
+   *
+   * @param error   the error type.
+   * @param message the error message.
+   * @return the generated error response.
+   */
+  protected @NotNull XyzResponse<?> errorResponse(@NotNull XyzError error, @NotNull CharSequence message) {
+    return new ErrorResponse()
+        .withStreamId(event.getStreamId())
+        .withError(error)
+        .withErrorMessage(message.toString());
+  }
 
   /**
    * Can be overridden to post-process any response.
