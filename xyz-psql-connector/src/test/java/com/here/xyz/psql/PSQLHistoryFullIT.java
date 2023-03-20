@@ -64,7 +64,6 @@ public class PSQLHistoryFullIT extends PSQLAbstractIT {
                 .withConnectorParams(connectorParams)
                 .withSpaceDefinition(new Space()
                         .withId("foo")
-                        .withEnableUUID(true)
                         .withEnableHistory(true)
                 );
 
@@ -144,9 +143,7 @@ public class PSQLHistoryFullIT extends PSQLAbstractIT {
                 .withConnectorParams(connectorParams)
                 .withSpaceDefinition(new Space()
                         .withId("foo")
-                        .withEnableUUID(true)
                         .withEnableHistory(true)
-                        .withMaxVersionCount(maxVersionCount)
                 );
 
         invokeLambda(mse.serialize());

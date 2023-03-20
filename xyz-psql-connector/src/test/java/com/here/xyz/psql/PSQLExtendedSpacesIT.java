@@ -84,8 +84,6 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
             .withSpaceDefinition(
                     new Space()
                             .withId(BASE1)
-                            .withSearchableProperties(searchableProperties)
-                            .withSortableProperties(sortableProperties)
             );
         SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
         assertEquals("OK",response.getStatus());
@@ -95,7 +93,6 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
 
         /** Change Base Layer */
         Map<String, Object> params = new HashMap<>();
-        params.put("extends",new Space.Extension().withSpaceId(BASE2));
 
         modifySpaceEvent = new ModifySpaceEvent()
                 .withSpace(DELTA1)
@@ -135,11 +132,9 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
                     break;
                 case DELTA1:
                     mockAutoIndexing();
-                    params.put("extends",new Space.Extension().withSpaceId(BASE1));
                     break;
                 case DELTA2:
                     extendsL2.put("spaceId",DELTA1);
-                    extendsL2.put("extends",new Space.Extension().withSpaceId(BASE1));
                     params.put("extends",extendsL2);
             }
 
@@ -151,8 +146,6 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
                     .withSpaceDefinition(
                             new Space()
                                 .withId(space)
-                                .withSearchableProperties(searchableProperties)
-                                .withSortableProperties(sortableProperties)
                     );
             SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
             assertEquals("OK",response.getStatus());

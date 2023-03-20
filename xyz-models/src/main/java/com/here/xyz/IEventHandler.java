@@ -1,6 +1,5 @@
 package com.here.xyz;
 
-import com.here.xyz.events.Event;
 import com.here.xyz.responses.XyzResponse;
 import org.jetbrains.annotations.NotNull;
 
@@ -12,7 +11,7 @@ import org.jetbrains.annotations.NotNull;
  * <p>Basically, this is a connection of a connector, an event bound to a host context to be able to
  * process the event.
  */
-public interface IEventProcessor {
+public interface IEventHandler {
 
   /**
    * The method invoked by the XYZ-Hub directly (embedded) or indirectly, when running in an HTTP vertx or as AWS lambda.
@@ -20,5 +19,5 @@ public interface IEventProcessor {
    * @param event the event context to process.
    * @return the response to send.
    */
-  @NotNull XyzResponse<?> processEvent(@NotNull Event<?> event);
+  @NotNull XyzResponse<?> processEvent(@NotNull IEventContext event);
 }

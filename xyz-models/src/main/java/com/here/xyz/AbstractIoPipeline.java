@@ -20,13 +20,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Wrapper for an event processor to read the event from an {@link InputStream} and to write the response to an {@link OutputStream}; using
- * JSON representation. This implementation handles all errors to ensure that a correct response is written to the output stream, even in an
- * error case. It can be extended on demand, for example when some extensions needed, like the context in AWS lambdas.
+ * Abstract base implementation for an event processor to read the event from an {@link InputStream} and write the response to an
+ * {@link OutputStream}; using JSON representation. This implementation handles all errors to ensure that a correct response is written to
+ * the output stream, even in an error case. It can be extended on demand, for example when some extensions needed, like the context in AWS
+ * lambdas.
  */
-public class IoEventProcessor<PROCESSOR extends IEventProcessor> {
+public abstract class AbstractIoPipeline {
 
-  protected static final @NotNull Logger logger = LoggerFactory.getLogger(IoEventProcessor.class);
+  protected static final @NotNull Logger logger = LoggerFactory.getLogger(AbstractIoPipeline.class);
 
   /**
    * The maximal size of uncompressed bytes, exceeding leads to the response getting gzipped.
@@ -41,17 +42,17 @@ public class IoEventProcessor<PROCESSOR extends IEventProcessor> {
 
   /**
    * Create a new IO bound event context. Requires invoking {@link #processEvent(InputStream, OutputStream)} to start the event processing.
-   *
-   * @param processor the event processor to which to forward the event.
    */
-  public IoEventProcessor(@NotNull PROCESSOR processor) {
-    this.processor = processor;
+  public AbstractIoPipeline() {
   }
 
   /**
-   * The bound processor.
+   * Returns the pipeline of handler to be used for the given event.
+   *
+   * @param event the event to process.
+   * @return the pipeline of handler to be used for the given event.
    */
-  protected final @NotNull PROCESSOR processor;
+  protected abstract @NotNull IEventHandler @NotNull [] pipeline(@NotNull Event<?> event);
 
   private final AtomicBoolean processCalled = new AtomicBoolean();
 
@@ -65,7 +66,7 @@ public class IoEventProcessor<PROCESSOR extends IEventProcessor> {
 
   /**
    * To be invoked to process the event. Start reading the event form the given input stream, invoke the
-   * {@link IEventProcessor#processEvent(Event)} method and then encode the response and write it to the output.
+   * {@link IEventHandler#processEvent(IEventContext)} method and then encode the response and write it to the output.
    *
    * @param input  the input stream to process.
    * @param output the output stream to write the response to.
@@ -98,7 +99,8 @@ public class IoEventProcessor<PROCESSOR extends IEventProcessor> {
         rawEvent = null;
         // Note: We explicitly set the rawEvent to null to ensure that the garbage collector can collect the variables.
         //       Not doing so, could theoretically allow the compiler to keep a reference to the memory until the method left.
-        final XyzResponse<?> response = processor.processEvent(event);
+        final @NotNull EventPipeline eventPipeline = new EventPipeline(event, pipeline(event));
+        final XyzResponse<?> response = eventPipeline.sendUpstream();
         writeDataOut(output, response, event.getIfNoneMatch());
       } catch (Exception e) {
         logger.warn("{}:{}:{} - Exception while parsing the event", logId, logStream, logTime(), e);
@@ -108,9 +110,7 @@ public class IoEventProcessor<PROCESSOR extends IEventProcessor> {
                 .withError(XyzError.EXCEPTION)
                 .withErrorMessage(e.getMessage());
         writeDataOut(output, errorResponse, null);
-        return;
       }
-      writeDataOut(output, processor.processEvent(event), event.getIfNoneMatch());
     } catch (Throwable t) {
       logger.error("{}:{}:{} - Fatal exception", logId, logStream, logTime(), t);
     }

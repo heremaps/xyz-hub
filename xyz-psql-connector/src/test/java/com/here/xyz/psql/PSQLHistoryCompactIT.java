@@ -62,7 +62,6 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
                 .withOperation(ModifySpaceEvent.Operation.CREATE)
                 .withConnectorParams(connectorParams)
                 .withSpaceDefinition(new Space().withId("foo")
-                        .withEnableUUID(true)
                         .withEnableHistory(true));
 
         invokeLambda(mse.serialize());
@@ -93,9 +92,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
                 .withConnectorParams(connectorParams)
                 .withSpaceDefinition(new Space()
                         .withId("foo")
-                        .withEnableUUID(true)
                         .withEnableHistory(true)
-                        .withMaxVersionCount(maxVersionCount)
                 );
 
         invokeLambda(mse.serialize());
@@ -157,9 +154,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
                 .withOperation(ModifySpaceEvent.Operation.UPDATE)
                 .withSpaceDefinition(new Space()
                         .withId("foo")
-                        .withEnableUUID(true)
                         .withEnableHistory(true)
-                        .withMaxVersionCount(-1)
                 );
         invokeLambda(mse.serialize());
 
@@ -197,9 +192,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
                 .withOperation(ModifySpaceEvent.Operation.UPDATE)
                 .withSpaceDefinition(new Space()
                         .withId("foo")
-                        .withEnableUUID(true)
                         .withEnableHistory(true)
-                        .withMaxVersionCount(2)
                 );
         invokeLambda(mse.serialize());
 
@@ -240,7 +233,6 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
                 .withConnectorParams(connectorParams)
                 .withSpaceDefinition(new Space()
                         .withId("foo")
-                        .withEnableUUID(true)
                         .withEnableHistory(true));
 
         String response = invokeLambda(mse.serialize());
@@ -294,9 +286,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
                 .withConnectorParams(connectorParams)
                 .withSpaceDefinition(new Space()
                         .withId("foo")
-                        .withEnableUUID(true)
                         .withEnableHistory(true)
-                        .withMaxVersionCount(maxVersionCount)
                 );
 
         invokeLambda(mse.serialize());

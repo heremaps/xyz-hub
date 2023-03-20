@@ -25,13 +25,13 @@ import com.here.xyz.responses.XyzResponse;
 import javax.annotation.Nonnull;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
- * An extended version of the standard {@link IEventProcessor} interface. This comes with a default implementation of the
- * {@link #processEvent(Event)} method and distributes to dedicated handlers, and has a basic exception handling.
+ * An extended version of the standard {@link IEventHandler} interface that is specifically for the event processors. This comes with a
+ * default implementation of the {@link #processEvent(IEventContext)} method and distributes to dedicated handlers, and has a basic
+ * exception handling.
  */
-public interface IExtendedEventProcessor extends IEventProcessor {
+public interface IExtendedEventHandler extends IEventHandler {
 
   /**
    * Returns the logger of the implementation.
@@ -43,77 +43,78 @@ public interface IExtendedEventProcessor extends IEventProcessor {
   /**
    * The method invoked by the XYZ-Hub directly (embedded) or indirectly, when running in an HTTP vertx or as AWS lambda.
    *
-   * @param event the event context to process.
+   * @param ctx the event context to process.
    * @return the response to send.
    */
-  default @NotNull XyzResponse<?> processEvent(@NotNull Event<?> event) {
+  default @NotNull XyzResponse<?> processEvent(@NotNull IEventContext ctx) {
+    final Event<?> event = ctx.event();
     try {
       if (event instanceof ModifySpaceEvent) {
-        initialize(event);
+        initialize(ctx);
         return processModifySpaceEvent((ModifySpaceEvent) event);
       }
       if (event instanceof ModifySubscriptionEvent) {
-        initialize(event);
+        initialize(ctx);
         return processModifySubscriptionEvent((ModifySubscriptionEvent) event);
       }
       if (event instanceof ModifyFeaturesEvent) {
-        initialize(event);
+        initialize(ctx);
         return processModifyFeaturesEvent((ModifyFeaturesEvent) event);
       }
       if (event instanceof DeleteFeaturesByTagEvent) {
-        initialize(event);
+        initialize(ctx);
         return processDeleteFeaturesByTagEvent((DeleteFeaturesByTagEvent) event);
       }
       if (event instanceof GetFeaturesByGeometryEvent) {
-        initialize(event);
+        initialize(ctx);
         return processGetFeaturesByGeometryEvent((GetFeaturesByGeometryEvent) event);
       }
       if (event instanceof GetFeaturesByTileEvent) {
-        initialize(event);
+        initialize(ctx);
         return processGetFeaturesByTileEvent((GetFeaturesByTileEvent) event);
       }
       if (event instanceof GetFeaturesByBBoxEvent) {
-        initialize(event);
+        initialize(ctx);
         return processGetFeaturesByBBoxEvent((GetFeaturesByBBoxEvent<?>) event);
       }
       if (event instanceof IterateFeaturesEvent) {
-        initialize(event);
+        initialize(ctx);
         return processIterateFeaturesEvent((IterateFeaturesEvent) event);
       }
       if (event instanceof IterateHistoryEvent) {
-        initialize(event);
+        initialize(ctx);
         return processIterateHistoryEvent((IterateHistoryEvent) event);
       }
       if (event instanceof SearchForFeaturesEvent) {
-        initialize(event);
+        initialize(ctx);
         return processSearchForFeaturesEvent((SearchForFeaturesEvent<?>) event);
       }
       if (event instanceof GetStatisticsEvent) {
-        initialize(event);
+        initialize(ctx);
         return processGetStatistics((GetStatisticsEvent) event);
       }
       if (event instanceof GetHistoryStatisticsEvent) {
-        initialize(event);
+        initialize(ctx);
         return processGetHistoryStatisticsEvent((GetHistoryStatisticsEvent) event);
       }
       if (event instanceof HealthCheckEvent) {
-        initialize(event);
+        initialize(ctx);
         return processHealthCheckEvent((HealthCheckEvent) event);
       }
       if (event instanceof GetFeaturesByIdEvent) {
-        initialize(event);
+        initialize(ctx);
         return processGetFeaturesByIdEvent((GetFeaturesByIdEvent) event);
       }
       if (event instanceof LoadFeaturesEvent) {
-        initialize(event);
+        initialize(ctx);
         return processLoadFeaturesEvent((LoadFeaturesEvent) event);
       }
       if (event instanceof GetStorageStatisticsEvent) {
-        initialize(event);
+        initialize(ctx);
         return processGetStorageStatisticsEvent((GetStorageStatisticsEvent) event);
       }
       if (event instanceof RevisionEvent) {
-        initialize(event);
+        initialize(ctx);
         return new SuccessResponse();
       }
       return new ErrorResponse()
@@ -121,7 +122,7 @@ public interface IExtendedEventProcessor extends IEventProcessor {
           .withError(XyzError.NOT_IMPLEMENTED)
           .withErrorMessage("Unknown event type '" + event.getClass().getSimpleName() + "'");
     } catch (Exception e) {
-      logger().error("{}:{}:{} - Uncaught exception in event processor", event.logId(), event.logStream(), event.logTime(), e);
+      ctx.logger().error("{}:{}:{} - Uncaught exception in event processor", event.logId(), event.logStream(), event.logTime(), e);
       return new ErrorResponse()
           .withStreamId(event.getStreamId())
           .withError(XyzError.EXCEPTION)
@@ -130,11 +131,11 @@ public interface IExtendedEventProcessor extends IEventProcessor {
   }
 
   /**
-   * Called from {@link #processEvent(Event)} before the real process method.
+   * Called from {@link #processEvent(IEventContext)} before the real process method.
    *
-   * @param event the context.
+   * @param ctx the context.
    */
-  void initialize(@NotNull Event<?> event);
+  void initialize(@NotNull IEventContext ctx);
 
   /**
    * Processes a HealthCheckEvent event.

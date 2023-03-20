@@ -21,8 +21,9 @@ package com.here.xyz.psql;
 
 import com.amazonaws.util.IOUtils;
 import com.here.mapcreator.ext.naksha.PsqlPool;
+import com.here.xyz.SimpleIoPipeline;
 import com.here.xyz.models.hub.psql.PsqlProcessorParams;
-import com.here.xyz.IoEventProcessor;
+import com.here.xyz.AbstractIoPipeline;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.HealthCheckEvent;
@@ -131,9 +132,9 @@ public abstract class PSQLAbstractIT extends Helper {
   protected String invokeLambdaFromFile(String file) throws Exception {
     InputStream jsonStream = PSQLAbstractIT.class.getResourceAsStream(file);
     ByteArrayOutputStream os = new ByteArrayOutputStream();
-    final IoEventProcessor<PsqlProcessor> eventContext = new IoEventProcessor<>(new PsqlProcessor());
+    final AbstractIoPipeline pipeline = new SimpleIoPipeline(new PsqlProcessor());
     assert jsonStream != null;
-    eventContext.processEvent(jsonStream, os);
+    pipeline.processEvent(jsonStream, os);
     String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
     LOGGER.info("Response from lambda - {}", response);
     return response;
@@ -143,8 +144,8 @@ public abstract class PSQLAbstractIT extends Helper {
     LOGGER.info("Request to lambda - {}", request);
     InputStream jsonStream = new ByteArrayInputStream(request.getBytes(StandardCharsets.UTF_8));
     ByteArrayOutputStream os = new ByteArrayOutputStream();
-    final IoEventProcessor<PsqlProcessor> eventContext = new IoEventProcessor<>(new PsqlProcessor());
-    eventContext.processEvent(jsonStream, os);
+    final AbstractIoPipeline pipeline = new SimpleIoPipeline(new PsqlProcessor());
+    pipeline.processEvent(jsonStream, os);
     String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
     LOGGER.info("Response from lambda - {}", response);
     return response;

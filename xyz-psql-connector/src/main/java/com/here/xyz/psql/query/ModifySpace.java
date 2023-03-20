@@ -125,28 +125,8 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
   }
 
   public SQLQuery buildSearchablePropertiesUpsertQuery(ModifySpaceEvent event) throws SQLException {
-    Space spaceDefinition = event.getSpaceDefinition();
-    Map<String, Boolean> searchableProperties = spaceDefinition.getSearchableProperties();
-    List<List<Object>> sortableProperties = spaceDefinition.getSortableProperties();
-    Boolean enableAutoIndexing = spaceDefinition.isEnableAutoSearchableProperties();
-    // Disable Autoindexing for spaces which are extending another space.
-    enableAutoIndexing = (isExtendedSpace(event) ? Boolean.FALSE : enableAutoIndexing);
-
-    String idx_manual_json;
-    SQLQuery q = new SQLQuery("${{upsertIDX}} ${{updateReferencedTables}}");
-    SQLQuery idx_q;
+    SQLQuery q = new SQLQuery("${{updateReferencedTables}}");
     SQLQuery idx_ext_q;
-
-    try {
-      /** sortable and searchableProperties taken from space-definition */
-      idx_manual_json =
-          (new ObjectMapper())
-              .writeValueAsString(new IdxManual(searchableProperties, sortableProperties));
-      idx_q = new SQLQuery("select (#{idx_manual})::jsonb");
-      idx_q.setNamedParameter("idx_manual", idx_manual_json);
-    } catch (JsonProcessingException e) {
-      throw new SQLException("buildSearchablePropertiesUpsertQuery", e);
-    }
 
     String sourceTable = isExtendedSpace(event) ? getExtendedTable(event) : processor.spaceTable();
 
@@ -165,23 +145,6 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
                 + "    WHERE spaceid=#{extended_table} ");
 
     idx_ext_q.setNamedParameter("extended_table", sourceTable);
-
-    /* update xyz_idx_status table with searchableProperties information */
-    SQLQuery upsertIDX =
-        new SQLQuery(
-            "INSERT INTO  "
-                + IDX_STATUS_TABLE
-                + " as x_s (spaceid, schem, idx_creation_finished, idx_manual, auto_indexing) 	"
-                + "	VALUES (#{table}, #{schema} , false, (${{idx_manual_sub}}), #{auto_indexing} )"
-                + " ON CONFLICT (spaceid) DO 		UPDATE SET schem=#{schema},     			idx_manual ="
-                + " (${{idx_manual_sub}}), 				idx_creation_finished = false,            "
-                + " auto_indexing = #{auto_indexing}		WHERE x_s.spaceid = #{table} AND"
-                + " x_s.schem=#{schema};");
-
-    upsertIDX.setQueryFragment("idx_manual_sub", !isExtendedSpace(event) ? idx_q : idx_ext_q);
-    upsertIDX.setNamedParameter("table", processor.spaceTable());
-    upsertIDX.setNamedParameter("schema", processor.spaceSchema());
-    upsertIDX.setNamedParameter("auto_indexing", enableAutoIndexing);
 
     SQLQuery updateReferencedTables = new SQLQuery();
     if (event.getOperation() == UPDATE) {
@@ -210,7 +173,6 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
       updateReferencedTables.setQueryFragment("idx_manual_sub2", idx_ext_q);
     }
 
-    q.setQueryFragment("upsertIDX", upsertIDX);
     q.setQueryFragment("updateReferencedTables", updateReferencedTables);
 
     return q;

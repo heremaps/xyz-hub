@@ -74,7 +74,6 @@ public class PSQLIndexIT extends PSQLAbstractIT {
             .withConnectorParams(connectorParams)
             .withSpaceDefinition(new Space()
                     .withId("foo")
-                    .withSearchableProperties(searchableProperties)
             );
         ErrorResponse error = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
         assertEquals(XyzError.ILLEGAL_ARGUMENT, error.getError());
@@ -88,10 +87,8 @@ public class PSQLIndexIT extends PSQLAbstractIT {
             .withConnectorParams(connectorParams)
             .withSpaceDefinition(new Space()
                     .withId("foo")
-                    .withSearchableProperties(searchableProperties)
                     /** Table gets created also without features */
                     .withEnableHistory(true)
-                    .withEnableUUID(true)
             );
 
         SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
@@ -109,7 +106,6 @@ public class PSQLIndexIT extends PSQLAbstractIT {
             .withConnectorParams(connectorParams)
             .withSpaceDefinition(new Space()
                     .withId("foo")
-                    .withSearchableProperties(searchableProperties)
             );
 
         response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
@@ -163,10 +159,8 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                 .withConnectorParams(connectorParams)
                 .withSpaceDefinition(new Space()
                         .withId("foo")
-                        .withSearchableProperties(searchableProperties)
                         /** Table gets created also without features */
                         .withEnableHistory(true)
-                        .withEnableUUID(true)
                 );
 
         SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
@@ -242,10 +236,8 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                 .withConnectorParams(connectorParams)
                 .withSpaceDefinition(new Space()
                         .withId("foo")
-                        .withSearchableProperties(searchableProperties)
                         /** Table gets created also without features */
                         .withEnableHistory(true)
-                        .withEnableUUID(true)
                 );
 
         SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
@@ -356,7 +348,6 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                 .withConnectorParams(connectorParams)
                 .withSpaceDefinition(new Space()
                         .withId("foo")
-                        .withEnableAutoSearchableProperties(false)
                 );
 
         // =========== Invoke ModifySpaceEvent ==========

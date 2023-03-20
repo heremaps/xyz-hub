@@ -1,6 +1,6 @@
 package com.here.xyz.models.hub;
 
-import com.here.xyz.IEventProcessor;
+import com.here.xyz.IEventHandler;
 import java.util.concurrent.ConcurrentHashMap;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -77,7 +77,7 @@ public class Processor {
    * @param id             the identifier for this processor.
    * @param processorClass the class implementing this processor.
    */
-  public Processor(@NotNull String id, @NotNull Class<? extends IEventProcessor> processorClass) {
+  public Processor(@NotNull String id, @NotNull Class<? extends IEventHandler> processorClass) {
     this.id = id;
     this.processorClass = processorClass;
     this.className = processorClass.getName();
@@ -96,19 +96,19 @@ public class Processor {
   /**
    * The processor class, will be bound by the application to the concrete implementation.
    */
-  private Class<? extends IEventProcessor> processorClass;
+  private Class<? extends IEventHandler> processorClass;
 
   /**
    * Returns the class implementing this processor.
    *
    * @return the class implementing this processor.
    */
-  public @NotNull Class<? extends IEventProcessor> getProcessorClass() {
-    Class<? extends IEventProcessor> processorClass = this.processorClass;
+  public @NotNull Class<? extends IEventHandler> getProcessorClass() {
+    Class<? extends IEventHandler> processorClass = this.processorClass;
     if (processorClass == null) {
       try {
         //noinspection unchecked
-        this.processorClass = processorClass = (Class<? extends IEventProcessor>) Class.forName(className);
+        this.processorClass = processorClass = (Class<? extends IEventHandler>) Class.forName(className);
       } catch (ClassNotFoundException e) {
         throw new Error("Process implementation requested, but class not found", e);
       }
@@ -122,7 +122,7 @@ public class Processor {
    *
    * @param processorClass the class to bind.
    */
-  public void setProcessorClass(@NotNull Class<? extends IEventProcessor> processorClass) {
+  public void setProcessorClass(@NotNull Class<? extends IEventHandler> processorClass) {
     this.processorClass = processorClass;
   }
 

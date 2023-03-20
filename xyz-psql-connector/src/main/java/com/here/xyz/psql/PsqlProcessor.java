@@ -36,7 +36,8 @@ import com.here.mapcreator.ext.naksha.PsqlSpaceAdminDataSource;
 import com.here.mapcreator.ext.naksha.PsqlSpaceReplicaDataSource;
 import com.here.mapcreator.ext.naksha.Naksha;
 import com.here.mapcreator.ext.naksha.PsqlSpaceMasterDataSource;
-import com.here.xyz.IExtendedEventProcessor;
+import com.here.xyz.IEventContext;
+import com.here.xyz.IExtendedEventHandler;
 import com.here.xyz.models.hub.psql.PsqlProcessorParams;
 import com.here.mapcreator.ext.naksha.sql.H3SQL;
 import com.here.mapcreator.ext.naksha.sql.QuadbinSQL;
@@ -128,7 +129,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("NotNullFieldNotInitialized")
-public class PsqlProcessor implements IExtendedEventProcessor {
+public class PsqlProcessor implements IExtendedEventHandler {
 
   public PsqlProcessor() {
   }
@@ -151,8 +152,8 @@ public class PsqlProcessor implements IExtendedEventProcessor {
   }
 
   @Override
-  public void initialize(@NotNull Event<?> event) {
-    this.event = event;
+  public void initialize(@NotNull IEventContext ctx) {
+    this.event = ctx.event();
     this.retryAttempted = false;
     Map<@NotNull String, @Nullable Object> raw = event.getConnectorParams();
     if (raw == null) {
@@ -867,8 +868,6 @@ public class PsqlProcessor implements IExtendedEventProcessor {
       if (connectorParams().isIgnoreCreateMse()) {
         return new SuccessResponse().withStatus("OK");
       }
-      this.validateModifySpaceEvent(event);
-
       return executeModifySpace(event);
     } catch (SQLException e) {
       return checkSQLException(e);
@@ -937,77 +936,6 @@ public class PsqlProcessor implements IExtendedEventProcessor {
   }
 
   private void validateModifySpaceEvent(@NotNull ModifySpaceEvent event) throws Exception {
-    final PsqlProcessorParams params = connectorParams();
-    final boolean connectorSupportsAI = params.isAutoIndexing();
-
-    if ((ModifySpaceEvent.Operation.UPDATE == event.getOperation()
-        || ModifySpaceEvent.Operation.CREATE == event.getOperation())
-        && params.isPropertySearch()) {
-
-      int onDemandLimit = params.getOnDemandIdxLimit();
-      int onDemandCounter = 0;
-      if (event.getSpaceDefinition().getSearchableProperties() != null) {
-
-        for (String property : event.getSpaceDefinition().getSearchableProperties().keySet()) {
-          if (event.getSpaceDefinition().getSearchableProperties().get(property) != null
-              && event.getSpaceDefinition().getSearchableProperties().get(property)
-              == Boolean.TRUE) {
-            onDemandCounter++;
-          }
-          if (onDemandCounter > onDemandLimit) {
-            throw new ErrorResponseException(
-                streamId(),
-                XyzError.ILLEGAL_ARGUMENT,
-                "On-Demand-Indexing - Maximum permissible: "
-                    + onDemandLimit
-                    + " searchable properties per space!");
-          }
-          if (property.contains("'")) {
-            throw new ErrorResponseException(
-                streamId(),
-                XyzError.ILLEGAL_ARGUMENT,
-                "On-Demand-Indexing [" + property + "] - Character ['] not allowed!");
-          }
-          if (property.contains("\\")) {
-            throw new ErrorResponseException(
-                streamId(),
-                XyzError.ILLEGAL_ARGUMENT,
-                "On-Demand-Indexing [" + property + "] - Character [\\] not allowed!");
-          }
-          if (event.getSpaceDefinition().isEnableAutoSearchableProperties() != null
-              && event.getSpaceDefinition().isEnableAutoSearchableProperties()
-              && !connectorSupportsAI) {
-            throw new ErrorResponseException(
-                streamId(), XyzError.ILLEGAL_ARGUMENT, "Connector does not support Auto-indexing!");
-          }
-        }
-      }
-
-      if (event.getSpaceDefinition().getSortableProperties() != null) {
-        /* todo: eval #index limits, parameter validation  */
-        if (event.getSpaceDefinition().getSortableProperties().size() + onDemandCounter
-            > onDemandLimit) {
-          throw new ErrorResponseException(
-              streamId(),
-              XyzError.ILLEGAL_ARGUMENT,
-              "On-Demand-Indexing - Maximum permissible: "
-                  + onDemandLimit
-                  + " sortable + searchable properties per space!");
-        }
-
-        for (List<Object> l : event.getSpaceDefinition().getSortableProperties()) {
-          for (Object p : l) {
-            String property = p.toString();
-            if (property.contains("\\") || property.contains("'")) {
-              throw new ErrorResponseException(
-                  streamId(),
-                  XyzError.ILLEGAL_ARGUMENT,
-                  "On-Demand-Indexing [" + property + "] - Characters ['\\] not allowed!");
-            }
-          }
-        }
-      }
-    }
   }
 
   private static final Pattern
@@ -1340,18 +1268,16 @@ public class PsqlProcessor implements IExtendedEventProcessor {
   protected @NotNull XyzResponse<?> executeModifySpace(@NotNull ModifySpaceEvent event)
       throws SQLException, ErrorResponseException {
     if (event.getSpaceDefinition() != null && event.getSpaceDefinition().isEnableHistory()) {
-      Integer maxVersionCount = event.getSpaceDefinition().getMaxVersionCount();
-      boolean isEnableGlobalVersioning = event.getSpaceDefinition().isEnableGlobalVersioning();
       boolean compactHistory = connectorParams().isCompactHistory();
 
       if (event.getOperation() == CREATE)
       // Create History Table
       {
-        ensureHistorySpace(maxVersionCount, compactHistory, isEnableGlobalVersioning);
+        ensureHistorySpace(null, compactHistory, false);
       } else if (event.getOperation() == UPDATE)
       // Update HistoryTrigger to apply maxVersionCount.
       {
-        updateHistoryTrigger(maxVersionCount, compactHistory, isEnableGlobalVersioning);
+        updateHistoryTrigger(null, compactHistory, false);
       }
     }
 
