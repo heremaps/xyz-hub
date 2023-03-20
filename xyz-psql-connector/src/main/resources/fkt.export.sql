@@ -290,7 +290,6 @@ begin
 end
 $_$;
 
-
 CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_v1(here_tile_qk boolean, tile_list text[], _tbl regclass, base64enc boolean, clipped boolean ) RETURNS TABLE(tile_id text, tile_content text)
     LANGUAGE plpgsql
     AS $_$
@@ -298,48 +297,44 @@ declare
  result record;
  tile text;
  fkt_qk2box text := 'xyz_qk_qk2bbox';
+ plainjs text    := 'jsonb_build_object(''type'',''FeatureCollection'',''features'', jsonb_agg(feature) )::text';
+ plaingeo text   := 'geo';
+ feature_count bigint := 0;
 begin
 
   if here_tile_qk then
    fkt_qk2box = 'htile_bbox';
   end if;
+	
+	if clipped then
+	 plaingeo = 'ST_Intersection(ST_MakeValid( geo ),' || fkt_qk2box || '((%2$L)))';
+	end if;
+	
+	if base64enc then
+	 plainjs = 'regexp_replace( encode( replace(' || plainjs || ',''\'',''\\'')::bytea, ''base64'' ),''\n'','''',''g'')';
+	end if;
 
-	FOREACH tile IN ARRAY tile_list
-	LOOP
-		BEGIN
-		execute format(
-				'SELECT %4$L,'
-				||'	CASE WHEN %1$L THEN'
-				||'		regexp_replace(encode(replace(jsonb_build_object('
-				||'		''type'',     ''FeatureCollection'','
-				||'		''features'', jsonb_agg(feature))::text,''\'',''\\'')::bytea,''base64''),''\n'','''',''g'')'
-				||'	ELSE'
-				||'		jsonb_build_object('
-				||'			''type'',     ''FeatureCollection'','
-				||'			''features'', jsonb_agg(feature)'
-				||'		)::text'
-				||'	END '
-				||'from( '
-					||'select '
-						||'jsonb_set(jsondata,''{geometry}'',ST_AsGeojson('
-						||'	CASE WHEN %2$L THEN'
-						||'		ST_Intersection(ST_MakeValid(geo),' || fkt_qk2box || '((%4$L)))'
-						||'	ELSE' 
-						||'		geo'
-						||'	END'
-						||')::jsonb) as feature'
-						||'	from %3$s '
-						||' where ST_Intersects(geo, ' || fkt_qk2box || '(%4$L))' 			
-				||') A', base64enc, clipped, _tbl, tile)
-				INTO tile_id, tile_content;
+	foreach tile in array tile_list
+	loop
+		begin
+		 execute format(
+				'SELECT %2$L,' || plainjs || ', count(1) as cnt'
+				||' from( '
+				||' select jsonb_set(jsondata,''{geometry}'',ST_AsGeojson(' || plaingeo ||')::jsonb) as feature'
+				||'	 from %1$s '
+				||'  where ST_Intersects(geo, ' || fkt_qk2box || '(%2$L))' 			
+				||' ) A', _tbl, tile)
+				INTO tile_id, tile_content, feature_count;
 				
-			--EXCEPTION WHEN OTHERS THEN
-			--	RAISE NOTICE 'ERROR ON %',tile;
-			RETURN NEXT;
-		END;
-	END LOOP;
+ 		 if feature_count > 0 then
+		  return next;
+		 end if; 
+			
+		end;
+	end loop;
 end
 $_$;
+
 
 CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_v2(here_tile_qk boolean, tile_list text[], _tbl regclass, base64enc boolean, clipped boolean ) RETURNS TABLE(tile_id text, tile_content text)
     LANGUAGE plpgsql
