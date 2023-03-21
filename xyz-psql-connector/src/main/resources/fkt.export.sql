@@ -638,34 +638,34 @@ begin
   return query 
 	 with 
 	  indata   as ( select exp_build_sql_inhabited_txt.iqk as iqk, 
-						   exp_build_sql_inhabited_txt.mlevel as mlevel, 
-						   exp_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_export_data, 
-						   coalesce( exp_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_qks,
-						   exp_build_sql_inhabited_txt.max_tiles as max_tiles 
-				  ),
+								         exp_build_sql_inhabited_txt.mlevel as mlevel, 
+							           exp_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_export_data, 
+							           coalesce( exp_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_qks,
+								         exp_build_sql_inhabited_txt.max_tiles as max_tiles 
+								),
     ibuckets as 
     ( select rr.bucket::integer, (count(1) over ())::integer as nrbuckets, count(1)::integer as nrsubtiles, rr.tiles_total::integer , array_agg(rr.qk) as tlist
       from ( select count(1) over () tiles_total, ((row_number() over ()) - 1) / i.max_tiles as bucket, r.qk from indata i, qk_s_inhabited_txt(i.iqk, i.mlevel, i.sql_qks ) r ) rr
 	    group by rr.bucket, rr.tiles_total
     )
-    select r.iqk as qk, r.mlevel, r.sql_with_jsondata_geo, r.max_tiles, l.*, format('select * from qk_s_get_fc_of_tiles_txt(false,%1$L::text[],%2$L,true,true)',l.tlist,r.sql_with_jsondata_geo) as s3sql
+    select r.iqk as qk, r.mlevel, r.sql_export_data, r.max_tiles, l.*, format('select * from qk_s_get_fc_of_tiles_txt(false,%1$L::text[],%2$L,true,true)',l.tlist,r.sql_export_data) as s3sql
     from ibuckets l, indata r
     order by bucket;
  else
   return query 
 	 with 
 	  indata   as ( select exp_build_sql_inhabited_txt.iqk as iqk, 
-						   exp_build_sql_inhabited_txt.mlevel as mlevel, 
-						   exp_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_export_data, 
-						   coalesce( exp_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_qks,
-						   exp_build_sql_inhabited_txt.max_tiles as max_tiles 
-			 	  ),
+								         exp_build_sql_inhabited_txt.mlevel as mlevel, 
+							           exp_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_export_data, 
+							           coalesce( exp_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_qks,
+								         exp_build_sql_inhabited_txt.max_tiles as max_tiles 
+								),
     ibuckets as 
     ( select rr.bucket::integer, (count(1) over ())::integer as nrbuckets, count(1)::integer as nrsubtiles, rr.tiles_total::integer , array_agg(rr.qk) as tlist
       from ( select count(1) over () tiles_total, ((row_number() over ()) - 1) / i.max_tiles as bucket, r.qk from indata i, htile_s_inhabited_txt(i.iqk, i.mlevel, i.sql_qks ) r ) rr
 	    group by rr.bucket, rr.tiles_total
     )
-    select r.iqk as qk, r.mlevel, r.sql_with_jsondata_geo, r.max_tiles, l.*, format('select * from qk_s_get_fc_of_tiles_txt(true,%1$L::text[],%2$L,true,true)',l.tlist,r.sql_with_jsondata_geo) as s3sql
+    select r.iqk as qk, r.mlevel, r.sql_export_data, r.max_tiles, l.*, format('select * from qk_s_get_fc_of_tiles_txt(true,%1$L::text[],%2$L,true,true)',l.tlist,r.sql_export_data) as s3sql
     from ibuckets l, indata r
     order by bucket;
  end if;
