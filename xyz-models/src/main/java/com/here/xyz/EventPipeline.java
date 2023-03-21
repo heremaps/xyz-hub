@@ -11,7 +11,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Default implementation of an event context based upon a given list of event handler.
+ * Default implementation of an event pipeline that by itself is an event context. This can be used to send events through a pipeline to be
+ * handled by {@link IEventHandler event handlers}.
  */
 public class EventPipeline implements IEventContext {
 

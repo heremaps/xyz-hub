@@ -20,10 +20,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Abstract base implementation for an event processor to read the event from an {@link InputStream} and write the response to an
+ * Abstract base implementation for an event pipeline wrapper that read the event from an {@link InputStream} and write the response to an
  * {@link OutputStream}; using JSON representation. This implementation handles all errors to ensure that a correct response is written to
- * the output stream, even in an error case. It can be extended on demand, for example when some extensions needed, like the context in AWS
- * lambdas.
+ * the output stream, even in an error case.
+ * <p>
+ * It needs to be extended to implement the generation of the {@link IEventHandler event handlers} that are added into the pipeline.
  */
 public abstract class AbstractIoPipeline {
 
