@@ -592,30 +592,44 @@ AS $_$
  select tile_id, tile_content from qk_s_get_fc_of_tiles_txt_v1( here_tile_qk, tile_list, sql_with_jsondata_geo, base64enc, clipped ) 
 $_$;
 
--- drop function exp_build_sql_inhabited_txt(htile boolean, iqk text, mlevel integer, sql_with_jsondata_geo text)
-create or replace function exp_build_sql_inhabited_txt(htile boolean, iqk text, mlevel integer, sql_with_jsondata_geo text) returns table(qk text, s3sql text)
+-- drop function exp_build_sql_inhabited_txt(htile boolean, iqk text, mlevel integer, sql_with_jsondata_geo text, sql_for_tiles_with_geo text)
+create or replace function exp_build_sql_inhabited_txt(htile boolean, iqk text, mlevel integer, sql_with_jsondata_geo text, sql_qk_tileqry_with_geo text) returns table(qk text, s3sql text)
 language plpgsql stable
 as $_$
 begin
  if not htile then
   return query 
 	 with 
-    indata as ( select exp_build_sql_inhabited_txt.iqk as iqk, exp_build_sql_inhabited_txt.mlevel as mlevel, exp_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_with_geo ),
-    qks as ( select r.qk, i.sql_with_geo from indata i, qk_s_inhabited_txt(i.iqk, i.mlevel, i.sql_with_geo ) r )
-   select o.qk, format('select %1L, jsondata,geo from ( %2$s ) i where st_intersects(geo, xyz_qk_qk2bbox( %1$L))',o.qk,o.sql_with_geo) as s3sql from qks o;
+    indata as ( select exp_build_sql_inhabited_txt.iqk as iqk, 
+					   exp_build_sql_inhabited_txt.mlevel as mlevel, 
+					   exp_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_export_data, 
+					   coalesce( exp_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_qks 
+		 	  ),
+    qks as ( select r.qk, i.sql_export_data from indata i, qk_s_inhabited_txt(i.iqk, i.mlevel, i.sql_qks ) r )
+   select o.qk, format('select %1L, jsondata,geo from ( %2$s ) i where st_intersects(geo, xyz_qk_qk2bbox( %1$L))',o.qk,o.sql_export_data) as s3sql from qks o;
  else
   return query 
 	 with 
-    indata as ( select exp_build_sql_inhabited_txt.iqk as iqk, exp_build_sql_inhabited_txt.mlevel as mlevel, exp_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_with_geo ),
-    qks as ( select r.qk, i.sql_with_geo from indata i, htile_s_inhabited_txt(i.iqk, i.mlevel, i.sql_with_geo ) r )
-   select o.qk, format('select %1L, jsondata,geo from ( %2$s ) i where st_intersects(geo, htile_bbox( %1$L))',o.qk,o.sql_with_geo) as s3sql from qks o;
+    indata as ( select exp_build_sql_inhabited_txt.iqk as iqk, 
+					   exp_build_sql_inhabited_txt.mlevel as mlevel, 
+					   exp_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_export_data, 
+					   coalesce( exp_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_qks 
+		 	  ),
+    qks as ( select r.qk, i.sql_export_data from indata i, htile_s_inhabited_txt(i.iqk, i.mlevel, i.sql_qks ) r )
+   select o.qk, format('select %1L, jsondata,geo from ( %2$s ) i where st_intersects(geo, htile_bbox( %1$L))',o.qk,o.sql_export_data) as s3sql from qks o;
  end if;
 end
 $_$;
 
+create or replace function exp_build_sql_inhabited_txt(htile boolean, iqk text, mlevel integer, sql_with_jsondata_geo text) returns table(qk text, s3sql text)
+language sql stable
+as $_$
+ select qk, s3sql from exp_build_sql_inhabited_txt(htile,iqk,mlevel,sql_with_jsondata_geo, null::text)
+$_$;
+
 -- drop function exp_build_sql_inhabited_txt(htile boolean, iqk text, mlevel integer, sql_with_jsondata_geo text, max_tiles integer) 
 
-create or replace function exp_build_sql_inhabited_txt(htile boolean, iqk text, mlevel integer, sql_with_jsondata_geo text, max_tiles integer) 
+create or replace function exp_build_sql_inhabited_txt(htile boolean, iqk text, mlevel integer, sql_with_jsondata_geo text, sql_qk_tileqry_with_geo text, max_tiles integer) 
  returns table(qk text, mlev integer, sql_with_jsdata_geo text, max_tls integer, bucket integer, nrbuckets integer, nrsubtiles integer, tiles_total integer, tile_list text[], s3sql text)
 language plpgsql stable
 as $_$
@@ -623,10 +637,15 @@ begin
  if not htile then
   return query 
 	 with 
-	  indata   as ( select exp_build_sql_inhabited_txt.iqk as iqk, exp_build_sql_inhabited_txt.mlevel as mlevel, exp_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_with_jsondata_geo, exp_build_sql_inhabited_txt.max_tiles as max_tiles ),
+	  indata   as ( select exp_build_sql_inhabited_txt.iqk as iqk, 
+						   exp_build_sql_inhabited_txt.mlevel as mlevel, 
+						   exp_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_export_data, 
+						   coalesce( exp_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_qks,
+						   exp_build_sql_inhabited_txt.max_tiles as max_tiles 
+				  ),
     ibuckets as 
     ( select rr.bucket::integer, (count(1) over ())::integer as nrbuckets, count(1)::integer as nrsubtiles, rr.tiles_total::integer , array_agg(rr.qk) as tlist
-      from ( select count(1) over () tiles_total, ((row_number() over ()) - 1) / i.max_tiles as bucket, r.qk from indata i, qk_s_inhabited_txt(i.iqk, i.mlevel, i.sql_with_jsondata_geo ) r ) rr
+      from ( select count(1) over () tiles_total, ((row_number() over ()) - 1) / i.max_tiles as bucket, r.qk from indata i, qk_s_inhabited_txt(i.iqk, i.mlevel, i.sql_qks ) r ) rr
 	    group by rr.bucket, rr.tiles_total
     )
     select r.iqk as qk, r.mlevel, r.sql_with_jsondata_geo, r.max_tiles, l.*, format('select * from qk_s_get_fc_of_tiles_txt(false,%1$L::text[],%2$L,true,true)',l.tlist,r.sql_with_jsondata_geo) as s3sql
@@ -635,10 +654,15 @@ begin
  else
   return query 
 	 with 
-	  indata   as ( select exp_build_sql_inhabited_txt.iqk as iqk, exp_build_sql_inhabited_txt.mlevel as mlevel, exp_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_with_jsondata_geo, exp_build_sql_inhabited_txt.max_tiles as max_tiles ),
+	  indata   as ( select exp_build_sql_inhabited_txt.iqk as iqk, 
+						   exp_build_sql_inhabited_txt.mlevel as mlevel, 
+						   exp_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_export_data, 
+						   coalesce( exp_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_qks,
+						   exp_build_sql_inhabited_txt.max_tiles as max_tiles 
+			 	  ),
     ibuckets as 
     ( select rr.bucket::integer, (count(1) over ())::integer as nrbuckets, count(1)::integer as nrsubtiles, rr.tiles_total::integer , array_agg(rr.qk) as tlist
-      from ( select count(1) over () tiles_total, ((row_number() over ()) - 1) / i.max_tiles as bucket, r.qk from indata i, htile_s_inhabited_txt(i.iqk, i.mlevel, i.sql_with_jsondata_geo ) r ) rr
+      from ( select count(1) over () tiles_total, ((row_number() over ()) - 1) / i.max_tiles as bucket, r.qk from indata i, htile_s_inhabited_txt(i.iqk, i.mlevel, i.sql_qks ) r ) rr
 	    group by rr.bucket, rr.tiles_total
     )
     select r.iqk as qk, r.mlevel, r.sql_with_jsondata_geo, r.max_tiles, l.*, format('select * from qk_s_get_fc_of_tiles_txt(true,%1$L::text[],%2$L,true,true)',l.tlist,r.sql_with_jsondata_geo) as s3sql
@@ -647,6 +671,14 @@ begin
  end if;
 end
 $_$;
+
+create or replace function exp_build_sql_inhabited_txt(htile boolean, iqk text, mlevel integer, sql_with_jsondata_geo text, max_tiles integer) 
+ returns table(qk text, mlev integer, sql_with_jsdata_geo text, max_tls integer, bucket integer, nrbuckets integer, nrsubtiles integer, tiles_total integer, tile_list text[], s3sql text)
+language sql stable
+as $_$
+ select qk, mlev, sql_with_jsdata_geo, max_tls, bucket, nrbuckets, nrsubtiles, tiles_total, tile_list, s3sql from exp_build_sql_inhabited_txt(htile, iqk, mlevel, sql_with_jsondata_geo, null::text, max_tiles) 
+$_$;
+
 
 /*
 Sample:
