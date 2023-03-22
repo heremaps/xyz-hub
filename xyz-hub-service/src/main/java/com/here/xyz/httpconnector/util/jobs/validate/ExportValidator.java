@@ -20,6 +20,7 @@ package com.here.xyz.httpconnector.util.jobs.validate;
 
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
+import com.here.xyz.models.geojson.coordinates.WKTHelper;
 
 public class ExportValidator extends Validator{
     protected static int VML_EXPORT_MIN_TARGET_LEVEL = 4;
@@ -50,6 +51,21 @@ public class ExportValidator extends Validator{
                 throw new Exception("Please specify targetLevel! Allowed range ["+ ExportValidator.VML_EXPORT_MIN_TARGET_LEVEL +":"+ ExportValidator.VML_EXPORT_MAX_TARGET_LEVEL +"]");
             if(job.getTargetLevel() < ExportValidator.VML_EXPORT_MIN_TARGET_LEVEL || job.getTargetLevel() > ExportValidator.VML_EXPORT_MAX_TARGET_LEVEL)
                 throw new Exception("Invalid targetLevel! Allowed range ["+ ExportValidator.VML_EXPORT_MIN_TARGET_LEVEL +":"+ ExportValidator.VML_EXPORT_MAX_TARGET_LEVEL +"]");
+        }
+
+        Export.Filters filters = job.getFilters();
+        if(filters != null){
+            if(filters.getSpatialFilter() != null){
+                if(filters.getSpatialFilter().getGeometry() == null)
+                    throw new Exception("Please specify a geometry for the spatial filter!");
+                else{
+                    try {
+                        WKTHelper.geometryToWKB(filters.getSpatialFilter().getGeometry());
+                    }catch (Exception e){
+                        throw new Exception("Cant parse filter geometry!");
+                    }
+                }
+            }
         }
     }
 }
