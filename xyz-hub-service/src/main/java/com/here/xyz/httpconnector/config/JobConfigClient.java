@@ -19,24 +19,16 @@
 
 package com.here.xyz.httpconnector.config;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.config.Initializable;
-import com.here.xyz.hub.rest.HttpException;
-import com.here.xyz.responses.StatisticsResponse;
 import io.vertx.core.Future;
-import io.vertx.core.Promise;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
-import java.nio.charset.Charset;
 import java.util.List;
-
-import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 
 /**
  * Client for reading and writing Jobs
@@ -94,47 +86,17 @@ public abstract class JobConfigClient implements Initializable {
     }
 
     public Future<Job> store(Marker marker, Job job) {
-        Promise<Job> p = Promise.promise();
-
         /** A newly created Job waits for an execution */
         if(job.getStatus() == null)
             job.setStatus(Job.Status.waiting);
 
-        /** Collect statistics which also ensures an existing table */
-        CService.webClient.getAbs(CService.configuration.HUB_ENDPOINT+"/spaces/"+job.getTargetSpaceId()+"/statistics?skipCache=true")
-                .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
-                .send()
-                .onSuccess(res -> {
-                            try {
-                                Object response = XyzSerializable.deserialize(res.bodyAsString());
-                                if(response instanceof StatisticsResponse) {
-                                    Long value = ((StatisticsResponse) response).getCount().getValue();
-                                    if(value != null && value != 0) {
-                                        p.fail(new HttpException(PRECONDITION_FAILED, "Layer is not empty!"));
-                                        return;
-                                    }
-
-                                    storeJob(marker, job, false)
-                                            .onSuccess(v -> {
-                                                logger.info(marker, "job[{}]: successfully stored!", job.getId());
-                                                p.complete(job);
-                                            })
-                                            .onFailure(t -> {
-                                                logger.error(marker, "job[{}]: failed to store!", job.getId(), t);
-                                                p.fail(t);
-                                            });
-                                }else
-                                    p.fail("Cant get space statistics!");
-                            } catch (JsonProcessingException e) {
-                                p.fail(e);
-                            }
-                        }
-                )
-                .onFailure(f -> {
-                        p.fail("Cant get space statistics!");
+        return storeJob(marker, job, false)
+                .onSuccess(v -> {
+                    logger.info(marker, "job[{}]: successfully stored!", job.getId());
+                })
+                .onFailure(t -> {
+                    logger.error(marker, "job[{}]: failed to store!", job.getId(), t);
                 });
-
-        return p.future();
     }
 
     public Future<Job> delete(Marker marker, String jobId) {
