@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,14 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.xyz.httpconnector.util.jobs;
+package com.here.xyz.httpconnector.util.jobs.validate;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.hub.Core;
+import com.here.xyz.httpconnector.util.jobs.Import;
+import com.here.xyz.httpconnector.util.jobs.ImportObject;
+import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.vividsolutions.jts.io.ParseException;
 import com.vividsolutions.jts.io.WKBReader;
@@ -34,10 +36,18 @@ import org.json.JSONObject;
 import java.io.UnsupportedEncodingException;
 import java.util.Map;
 
-public class ImportValidator {
+public class ImportValidator extends Validator{
     private static final Logger logger = LogManager.getLogger();
 
-    public static void validateCSVLine(String csvLine, Import.CSVFormat csvFormat) throws UnsupportedEncodingException {
+    public static void setImportDefaults(Import job){
+        setJobDefaults(job);
+    }
+
+    public static void validateImportCreation(Import job) throws Exception{
+        validateJobCreation(job);
+    }
+
+    public static void validateCSVLine(String csvLine, Job.CSVFormat csvFormat) throws UnsupportedEncodingException {
 
         if(csvLine != null && csvLine.endsWith("\r\n"))
             csvLine = csvLine.substring(0,csvLine.length()-4);
@@ -59,7 +69,7 @@ public class ImportValidator {
     private static void validateGEOJSON(String csvLine) throws UnsupportedEncodingException {
         try {
             /** Try to serialize JSON */
-            String geoJson = csvLine.substring(1,csvLine.length()-2).replaceAll("'\"","\"");
+            String geoJson = csvLine.substring(1,csvLine.length()).replaceAll("'\"","\"");
             XyzSerializable.deserialize(geoJson, Feature.class);
         } catch (JsonProcessingException e) {
             logger.info("Bad Encoding: ",e);
@@ -149,29 +159,5 @@ public class ImportValidator {
             job.setStatus(Job.Status.failed);
         else
             job.setStatus(Job.Status.validated);
-    }
-
-    private static void setJobDefaults(Job job){
-        job.setCreatedAt(Core.currentTimeMillis() / 1000L);
-        job.setUpdatedAt(Core.currentTimeMillis() / 1000L);
-
-        if(job.getErrorType() != null){
-            job.setErrorType(null);
-        }
-        if(job.getErrorDescription() != null){
-            job.setErrorDescription(null);
-        }
-    }
-
-    /** Check mandatory fields */
-    public static String validateImportCreation(Import job){
-        setJobDefaults(job);
-        if(job.getTargetSpaceId() == null){
-            return "Please specify 'targetSpaceId'!";
-        }
-        if(job.getCsvFormat() == null){
-            return "Please specify 'csvFormat'!";
-        }
-        return null;
     }
 }
