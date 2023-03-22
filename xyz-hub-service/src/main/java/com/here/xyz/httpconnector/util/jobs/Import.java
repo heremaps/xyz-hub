@@ -84,11 +84,6 @@ public class Import extends Job {
         this.enabledUUID = enabledUUID;
     }
 
-    public Job withEnabledUUID(Boolean enabledUUID) {
-        setEnabledUUID(enabledUUID);
-        return this;
-    }
-
     public Map<String,ImportObject> getImportObjects() {
         if(importObjects == null)
             importObjects = new HashMap<>();
@@ -99,8 +94,106 @@ public class Import extends Job {
         this.importObjects = importObjects;
     }
 
-    public Job withImportObjects(Map<String, ImportObject> importObjects) {
+    public List<String> getIdxList() {
+        return idxList;
+    }
+
+    public void setIdxList(List<String> idxList) {
+        this.idxList = idxList;
+    }
+
+    public Import withId(final String id) {
+        setId(id);
+        return this;
+    }
+
+    public Import withEnabledUUID(Boolean enabledUUID) {
+        setEnabledUUID(enabledUUID);
+        return this;
+    }
+
+    public Import withImportObjects(Map<String, ImportObject> importObjects) {
         setImportObjects(importObjects);
+        return this;
+    }
+
+    public Import withErrorDescription(final String errorDescription) {
+        setErrorDescription(errorDescription);
+        return this;
+    }
+
+    public Import withDescription(final String description) {
+        setDescription(description);
+        return this;
+    }
+
+    public Import withTargetSpaceId(final String targetSpaceId) {
+        setTargetSpaceId(targetSpaceId);
+        return this;
+    }
+
+    public Import withTargetTable(final String targetTable) {
+        setTargetTable(targetTable);
+        return this;
+    }
+
+    public Import withStatus(final Job.Status status) {
+        setStatus(status);
+        return this;
+    }
+
+    public Import withCsvFormat(CSVFormat csv_format) {
+        setCsvFormat(csv_format);
+        return this;
+    }
+
+    public Import withCsvFormat(Strategy importStrategy) {
+        setStrategy(importStrategy);
+        return this;
+    }
+
+    public Import withCreatedAt(final long createdAt) {
+        setCreatedAt(createdAt);
+        return this;
+    }
+
+    public Import withUpdatedAt(final long updatedAt) {
+        setUpdatedAt(updatedAt);
+        return this;
+    }
+
+    public Import withExecutedAt(final Long startedAt) {
+        setExecutedAt(startedAt);
+        return this;
+    }
+
+    public Import withFinalizedAt(final Long finalizedAt) {
+        setFinalizedAt(finalizedAt);
+        return this;
+    }
+
+    public Import withExp(final Long exp) {
+        setExp(exp);
+        return this;
+    }
+
+    public Import withTargetConnector(String targetConnector) {
+        setTargetConnector(targetConnector);
+        return this;
+    }
+
+    public Import withErrorType(String errorType) {
+        setErrorType(errorType);
+        return this;
+    }
+
+    public Import withSpaceVersion(final long spaceVersion) {
+        setSpaceVersion(spaceVersion);
+        return this;
+    }
+
+    public Import withAuthor(String author) {
+        setAuthor(author);
         return this;
     }
 
@@ -108,14 +201,6 @@ public class Import extends Job {
         if(this.importObjects == null)
             this.importObjects = new HashMap<>();
         this.importObjects.put(importObject.getFilename(), importObject);
-    }
-
-    public List<String> getIdxList() {
-        return idxList;
-    }
-
-    public void setIdxList(List<String> idxList) {
-        this.idxList = idxList;
     }
 
     public void addIdx(String idx){
