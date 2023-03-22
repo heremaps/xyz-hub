@@ -1,10 +1,10 @@
 package com.here.xyz.httpconnector.rest;
 
 import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.config.JDBCClients;
 import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.util.scheduler.ImportQueue;
 import com.here.xyz.httpconnector.util.status.RDSStatus;
-import com.mchange.v3.decode.CannotDecodeException;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.http.HttpMethod;
@@ -53,12 +53,18 @@ public class JobStatusApi {
 
         JSONObject status = new JSONObject();
         status.put("SYSTEM", this.system);
-        status.put("RUNNING_JOBS", ImportQueue.getQueue());
+        status.put("RUNNING_JOBS", ImportQueue.getQueue().stream().map(j ->{
+            JSONObject info = new JSONObject();
+            info.put("type", j.getClass().getSimpleName());
+            info.put("id", j.getId());
+            info.put("status", j.getStatus());
+            return info;
+        }).toArray());
 
         List<Future> statusFutures = new ArrayList<>();
-        JDBCImporter.getClientList().forEach(
+        JDBCClients.getClientList().forEach(
                 clientId -> {
-                    if(CService.supportedConnectors.indexOf(clientId) != -1)
+                    if(CService.supportedConnectors.indexOf(clientId) != -1 && !clientId.equals(JDBCClients.CONFIG_CLIENT_ID))
                         statusFutures.add(JDBCImporter.getRDSStatus(clientId));
                 }
         );

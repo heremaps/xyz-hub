@@ -413,7 +413,7 @@ public class ApiParam {
       return null;
     }
 
-    protected static PropertiesQuery parsePropertiesQuery(String query, String property, boolean spaceProperties) {
+    public static PropertiesQuery parsePropertiesQuery(String query, String property, boolean spaceProperties) {
       if (query == null || query.length() == 0) {
         return null;
       }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ package com.here.xyz.httpconnector;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.here.xyz.httpconnector.config.*;
+import com.here.xyz.httpconnector.util.scheduler.ExportQueue;
 import com.here.xyz.httpconnector.util.scheduler.ImportQueue;
 import com.here.xyz.hub.Core;
 import io.vertx.core.DeploymentOptions;
@@ -75,9 +76,14 @@ public class CService extends Core {
   public static JDBCImporter jdbcImporter;
 
   /**
-   * Queue for executed Jobs
+   * Queue for executed importJobs
    */
   public static ImportQueue importQueue;
+
+  /**
+   * Queue for executed exportJobs
+   */
+  public static ExportQueue exportQueue;
 
   /**
    * Service Configuration
@@ -136,8 +142,11 @@ public class CService extends Core {
         jobS3Client = new JobS3Client();
         jobCWClient = new AwsCWClient();
         importQueue = new ImportQueue();
-        /** Start Job-Scheduler */
+        exportQueue = new ExportQueue();
+
+        /** Start Job-Schedulers */
         importQueue.commence();
+        exportQueue.commence();
       }else
         logger.error("Cant reach jobAPI backend - JOB-API deactivated!");
     });

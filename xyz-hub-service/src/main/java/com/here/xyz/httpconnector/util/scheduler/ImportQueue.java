@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,22 +22,20 @@ import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.ImportObject;
-import com.here.xyz.httpconnector.util.jobs.ImportValidator;
+import com.here.xyz.httpconnector.util.jobs.validate.ImportValidator;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.status.RDSStatus;
 import com.here.xyz.hub.Core;
 import com.mchange.v3.decode.CannotDecodeException;
-import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
-import io.vertx.core.Promise;
-import io.vertx.core.json.JsonObject;
 import io.vertx.pgclient.PgException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.nio.charset.Charset;
 import java.util.*;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Job-Queue for IMPORT-Jobs (S3 -> RDS)
@@ -45,79 +43,26 @@ import java.util.*;
 public class ImportQueue extends JobQueue{
     private static final Logger logger = LogManager.getLogger();
     public static volatile long NODE_EXECUTED_IMPORT_MEMORY;
-    public static volatile HashMap<String, RDSStatus> RDS_STATUS_MAP = new HashMap<>();
-
-    protected Future<Void> isProcessingOnRDSPossible(Integer i, Job job){
-        Promise<Void> p = Promise.promise();
-
-        /** Check how many jobs are currently running */
-        if(i != null && i > CService.configuration.JOB_MAX_RUNNING_JOBS) {
-            logger.info("Maximum number of parallel running Jobs reached!");
-            p.complete();
-            return p.future();
-        }
-
-        /** Those statuses are always possible to process */
-        switch (job.getStatus()){
-
-            case queued:
-            case prepared:
-            case executed:
-            case aborted:
-                break;
-            default:
-                /** for all other states it's not relevant to check RDS resources */
-                //executing,preparing,validating,finalizing, finalized,partially_failed,failed,waiting,validated
-                p.complete();
-                return p.future();
-        }
-
-        logger.info("[{}] - Check if execution on RDS is possible.",job.getId());
-
-        JDBCImporter.getRDSStatus(job.getTargetConnector())
-                .onSuccess(rdsStatus -> {
-                    RDS_STATUS_MAP.put(job.getTargetConnector(), rdsStatus);
-
-                    if(rdsStatus.getCurrentMetrics().getCapacityUnits() > CService.configuration.JOB_MAX_RDS_CAPACITY) {
-                        p.fail("JOB_MAX_RDS_CAPACITY to high "+rdsStatus.getCurrentMetrics().getCapacityUnits()+" >"+CService.configuration.JOB_MAX_RDS_CAPACITY);
-                        return;
-                    }
-                    if(rdsStatus.getCurrentMetrics().getCpuLoad() > CService.configuration.JOB_MAX_RDS_CPU_LOAD) {
-                        p.fail("JOB_MAX_RDS_CPU_LOAD to high "+rdsStatus.getCurrentMetrics().getCpuLoad()+" > "+CService.configuration.JOB_MAX_RDS_CPU_LOAD);
-                        return;
-                    }
-                    if(rdsStatus.getCurrentMetrics().getTotalInflightImportBytes() > CService.configuration.JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES) {
-                        p.fail("JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES to high "+rdsStatus.getCurrentMetrics().getTotalInflightImportBytes()+" > "+CService.configuration.JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES);
-                        return;
-                    }
-                    if(rdsStatus.getCurrentMetrics().getTotalRunningIDXQueries() > CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IDX_CREATIONS) {
-                        p.fail("JOB_MAX_RDS_MAX_RUNNING_IDX_CREATIONS to high "+rdsStatus.getCurrentMetrics().getTotalInflightImportBytes()+" > "+CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IDX_CREATIONS);
-                        return;
-                    }
-                    if(rdsStatus.getCurrentMetrics().getTotalRunningImportQueries() > CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IMPORTS) {
-                        p.fail("JOB_MAX_RDS_MAX_RUNNING_IDX_CREATIONS to high "+rdsStatus.getCurrentMetrics().getTotalRunningImportQueries()+" > "+CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IMPORTS);
-                        return;
-                    }
-                    p.complete();
-                }).onFailure(f -> {
-                    p.fail("Cant get RDS Status! "+f.getMessage());
-                });
-
-        return p.future();
-    }
+    protected static ScheduledThreadPoolExecutor executorService = new ScheduledThreadPoolExecutor(CORE_POOL_SIZE, Core.newThreadFactory("import-queue"));
 
     protected void process() throws InterruptedException, CannotDecodeException {
         //@TODO CleanUp Jobs: Check all Jobs which are finished/failed and delete them after some time.
         //@TODO Lost Jobs: Find possible orphaned Jobs (system crash) and add them to the queue again
-
         HashSet<Job> queue = getQueue();
 
         if (!queue.isEmpty()){
             int i = 0;
             for(Job job : getQueue()){
+                if(!(job instanceof Import))
+                    return;
+
                 /** Check Capacity */
                 isProcessingOnRDSPossible(i++, job)
                         .onSuccess(ff -> {
+                            /** Check if JDBC Client is available */
+                            if(!isTargetJDBCClientLoaded(job))
+                                return;
+
                             /** Run first Job Queue (FIFO) */
                             Import importJob = (Import) job;
 
@@ -127,25 +72,18 @@ public class ImportQueue extends JobQueue{
                              * all stages can end up in failed
                              **/
 
-                            if(JDBCImporter.getClient(importJob.getTargetConnector()) == null) {
-                                /** Maybe client is not initialized - in this case job need to get restarted */
-                                //TODO: Check if we can retry automatically (problem: missing ECPS)
-                                importJob.setErrorType(Import.ERROR_TYPE_NO_DB_CONNECTION);
-                                updateJobStatus(importJob, Job.Status.failed);
-                                return;
-                            }
-
                             switch (importJob.getStatus()){
                                 case finalized:
                                     logger.info("JOB[{}] is finalized!", importJob.getId());
+                                    /** Remove Job from Queue */
                                     removeJob(importJob);
-                                    updateSpaceConfig(new JsonObject().put("readOnly", false), importJob);
+                                    releaseReadOnlyLockFromSpace(importJob);
                                     break;
                                 case failed:
                                     logger.info("JOB[{}] has failed!",importJob.getId());
                                     /** Remove Job from Queue - in some cases the user is able to retry */
                                     removeJob(importJob);
-                                    updateSpaceConfig(new JsonObject().put("readOnly", false), importJob);
+                                    releaseReadOnlyLockFromSpace(importJob);
                                     break;
                                 case waiting:
                                     updateJobStatus(importJob,Job.Status.validating)
@@ -157,8 +95,8 @@ public class ImportQueue extends JobQueue{
                                 case queued:
                                     updateJobStatus(importJob, Job.Status.preparing)
                                             .onSuccess(f ->
-                                                    updateSpaceConfig(new JsonObject().put("readOnly", true), importJob)
-                                                        .onSuccess(f2 -> prepareJob(importJob))
+                                                    addReadOnlyLockToSpace(importJob)
+                                                            .onSuccess(f2 -> prepareJob(importJob))
                                             );
                                     break;
                                 case prepared:
@@ -182,7 +120,7 @@ public class ImportQueue extends JobQueue{
     @Override
     protected void validateJob(Job job){
         ImportValidator.validateImportJob((Import)job);
-        updateJobStatus((Import)job, null);
+        updateJobStatus(job, null);
     }
 
     @Override
@@ -330,46 +268,33 @@ public class ImportQueue extends JobQueue{
         CService.jobConfigClient.update(null , j)
                 .onFailure(t -> logger.warn("JOB[{}] update failed!", j.getId()));
     }
-
-    protected Future<Void> updateSpaceConfig(JsonObject config, Job j){
-        Promise<Void> p = Promise.promise();
-        config.put("contentUpdatedAt", CService.currentTimeMillis());
-
-        CService.webClient.patchAbs(CService.configuration.HUB_ENDPOINT+"/spaces/"+j.getTargetSpaceId())
-                .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
-                .sendJsonObject(config)
-                .onSuccess(res -> {
-                    if(res.statusCode() != HttpResponseStatus.OK.code()) {
-                        j.setErrorDescription( Import.ERROR_DESCRIPTION_READONLY_MODE_FAILED);
-                        j.setStatus(Job.Status.failed);
-                        updateJobStatus((Import) j, Job.Status.failed);
-                        p.fail("ERROR_DESCRIPTION_READONLY_MODE_FAILED");
-                        return;
-                    }
-                    p.complete();
-                })
-                .onFailure(f -> {
-                    j.setErrorDescription(Import.ERROR_DESCRIPTION_READONLY_MODE_FAILED);
-                    j.setStatus(Job.Status.failed);
-                    updateJobStatus((Import) j, Job.Status.failed);
-                    p.fail("ERROR_DESCRIPTION_READONLY_MODE_FAILED");
-                });
-        return p.future();
+    /**
+     * Begins executing the JobQueue processing - periodically and asynchronously.
+     *
+     * @return This check for chaining
+     */
+    public JobQueue commence() {
+        if (!commenced) {
+            logger.info("Start!");
+            commenced = true;
+            this.executionHandle = this.executorService.scheduleWithFixedDelay(this, 0, CService.configuration.JOB_CHECK_QUEUE_INTERVAL_SECONDS, TimeUnit.SECONDS);
+        }
+        return this;
     }
 
-    protected Future<Future> updateJobStatus(Import j, Job.Status status){
-        Promise<Future> p = Promise.promise();
-        if(status != null)
-            j.setStatus(status);
-
-        CService.jobConfigClient.update(null , j)
-                .onFailure(t -> {
-                    logger.warn("Failed to update Job.",t);
-                    p.fail(t);
-                })
-                .onSuccess(f -> {
-                    p.complete();
-                });
-        return p.future();
+    @Override
+    public void run() {
+        try {
+            this.executorService.submit(() -> {
+                try {
+                    process();
+                }
+                catch (InterruptedException | CannotDecodeException ignored) {
+                    //Nothing to do here.
+                }
+            });
+        }catch (Exception e) {
+            logger.error("{}: Error when executing Job", this.getClass().getSimpleName(), e);
+        }
     }
 }

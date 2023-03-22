@@ -2060,7 +2060,8 @@ components:
       schema:
         type: string
         enum:
-          - import
+          - Import
+          - Export
     JobStatus:
       name: status
       in: query

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -112,11 +112,6 @@ public class HApiParam extends ApiParam {
         public static Job getJobInput(final RoutingContext context) throws HttpException{
             try {
                 Job job = Json.decodeValue(context.getBodyAsString(), Job.class);
-
-                /** Remove if Export is implemented */
-                if(!(job instanceof Import))
-                   throw new HttpException(NOT_IMPLEMENTED, null);
-
                 return job;
             }
             catch (DecodeException e) {

@@ -47,7 +47,7 @@ public abstract class Job {
                 return null;
             }
             try {
-                return valueOf(value.toUpperCase());
+                return valueOf(value);
             } catch (IllegalArgumentException e) {
                 return null;
             }

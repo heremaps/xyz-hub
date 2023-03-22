@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,21 +20,29 @@ package com.here.xyz.httpconnector.config;
 
 import com.amazonaws.AmazonServiceException;
 
-import com.amazonaws.services.s3.model.*;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.amazonaws.services.s3.model.GetObjectRequest;
+import com.amazonaws.services.s3.model.ListObjectsRequest;
+import com.amazonaws.services.s3.model.ObjectListing;
+import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.S3ObjectInputStream;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.ImportObject;
-import com.here.xyz.httpconnector.util.jobs.ImportValidator;
+import com.here.xyz.httpconnector.util.jobs.validate.ImportValidator;
 import com.here.xyz.httpconnector.util.jobs.Job;
+import com.here.xyz.httpconnector.util.jobs.Export;
+import com.here.xyz.httpconnector.util.jobs.ExportObject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.EOFException;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
+import java.io.ByteArrayInputStream;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -50,6 +58,7 @@ public class JobS3Client extends AwsS3Client{
 
     protected static final String IMPORT_MANUAL_UPLOAD_FOLDER = "manual";
     protected static final String IMPORT_UPLOAD_FOLDER = "imports";
+    public static final String EXPORT_DOWNLOAD_FOLDER = "exports";
 
     public URL generateUploadURL(String key) throws IOException {
         return generateUploadURL(CService.configuration.JOBS_S3_BUCKET, key);
@@ -231,5 +240,59 @@ public class JobS3Client extends AwsS3Client{
         }
         else
             throw new UnsupportedEncodingException("Not able to find EOL!");
+    }
+
+    public Map<String, ExportObject> scanExportPath(Job job, boolean createDownloadUrl){
+        /** if we cant find a upload url read from IMPORT_MANUAL_UPLOAD_FOLDER */
+        String path = EXPORT_DOWNLOAD_FOLDER +"/"+ job.getId();
+
+        return scanExportPath(path, CService.configuration.JOBS_S3_BUCKET, createDownloadUrl);
+    }
+
+    public Map<String,ExportObject> scanExportPath(String prefix, String bucketName, boolean createDownloadUrl){
+        Map<String, ExportObject> exportObjectList = new HashMap<>();
+        ListObjectsRequest listObjects = new ListObjectsRequest()
+                .withPrefix(prefix)
+                .withBucketName(bucketName);
+
+        ObjectListing objectListing = client.listObjects(listObjects);
+
+        for (S3ObjectSummary objectSummary : objectListing.getObjectSummaries()) {
+            ExportObject eo = new ExportObject(objectSummary.getKey(), objectSummary.getSize());
+            if(eo.getFilename().equalsIgnoreCase("manifest.json"))
+                continue;;
+
+            exportObjectList.put(eo.getFilename(), eo);
+            if(createDownloadUrl){
+                try {
+                    eo.setDownloadUrl(generateDownloadURL(bucketName, eo.getS3Key()));
+                }catch (IOException e){
+                    logger.error("[{}] Cant create download-url.{}", prefix, e);
+                }
+            }
+        }
+
+        return exportObjectList;
+    }
+
+    public void writeMetaFile(Export job){
+        writeMetaFile(job, CService.configuration.JOBS_S3_BUCKET);
+    }
+
+    public void writeMetaFile(Export job, String bucketName){
+        try {
+
+            String path = CService.jobS3Client.EXPORT_DOWNLOAD_FOLDER+"/"+job.getId()+"/manifest.json";
+
+            byte[] meta = new ObjectMapper().writeValueAsBytes(job);
+
+            ObjectMetadata omd = new ObjectMetadata();
+            omd.setContentLength(meta.length);
+            omd.setContentType("application/json");
+            client.putObject(bucketName, path, new ByteArrayInputStream(meta), omd);
+
+        } catch (AmazonServiceException | IOException e) {
+            logger.error("[{}] Cant write Metafile {}", job.getId(), e);
+        }
     }
 }
