@@ -264,7 +264,7 @@ public class JobProxyApi extends Api{
         if (res.statusCode() < 500) {
             try{
                 this.sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()),
-                        Json.decodeValue(DatabindCodec.mapper().writerWithView(Job.Public.class).writeValueAsString(res.bodyAsJson(List.class))));
+                        Json.decodeValue(DatabindCodec.mapper().writerWithView(Job.Public.class).writeValueAsString(res.bodyAsJson(Job[].class))));
                 return;
             }catch (Exception e){}
 
