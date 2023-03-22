@@ -1,5 +1,5 @@
 
-set search_path to tmp,public,topology
+set search_path = tmp, public, topology;
 
 CREATE OR REPLACE FUNCTION htile(qk text, isbase4encoded boolean) RETURNS TABLE(rowy integer, colx integer, lev integer, hkey bigint)
     LANGUAGE plpgsql
@@ -503,7 +503,7 @@ begin
 end
 $_$;
 
-CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_txt_v1(here_tile_qk boolean, sql_with_jsondata_geo text, base64enc boolean, clipped boolean ) RETURNS TABLE(tile_id text, tile_content text)
+CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_txt_v1(here_tile_qk boolean, tile_list text[], sql_with_jsondata_geo text, base64enc boolean, clipped boolean ) RETURNS TABLE(tile_id text, tile_content text)
     LANGUAGE plpgsql
     AS $_$
 declare
