@@ -581,4 +581,21 @@ public class SQLQuery {
         return key;
     return null;
   }
+
+  /** from ? to $1-$N */
+  public static SQLQuery substituteAndUseDollarSyntax(SQLQuery q){
+    q.substitute();
+
+    String translatedQuery = "";
+    int i = 1;
+    for (char c: q.text().toCharArray()) {
+      if(c == '?') {
+        translatedQuery += "$"+i++;
+      }else
+        translatedQuery += c;
+    }
+
+    q.setText(translatedQuery);
+    return q;
+  }
 }
