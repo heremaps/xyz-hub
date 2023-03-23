@@ -488,7 +488,7 @@ BEGIN
        author := xyz_config.naksha_tx_get_author(OLD.jsondata);
        xyz := NEW.jsondata->'properties'->'@ns:com:here:xyz';
        xyz := jsonb_set(xyz, '{"action"}', ('"UPDATE"')::jsonb, true);
-       xyz := jsonb_set(xyz, '{"version"}', (''||(xyz_config.naksha_json_version(OLD.jsondata)+1::int8))::jsonb, true);
+       xyz := jsonb_set(xyz, '{"version"}', coalesce((''||(xyz_config.naksha_json_version(OLD.jsondata)+1::int8)),'1')::jsonb, true);
        xyz := jsonb_set(xyz, '{"author"}', coalesce(author, 'null')::jsonb, true);
        xyz := jsonb_set(xyz, '{"appId"}', coalesce(app_id, 'null')::jsonb, true);
        xyz := jsonb_set(xyz, '{"puuid"}', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'uuid', true);
@@ -496,7 +496,7 @@ BEGIN
        xyz := jsonb_set(xyz, '{"txn"}', ('"'||((txn)::text)||'"')::jsonb, true);
        xyz := jsonb_set(xyz, '{"createdAt"}', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'createdAt', true);
        xyz := jsonb_set(xyz, '{"updatedAt"}', (ts_millis::text)::jsonb, true);
-       xyz := jsonb_set(xyz, '{"rtcts"}', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'rtcts', true);
+       xyz := jsonb_set(xyz, '{"rtcts"}', coalesce(OLD.jsondata->'properties'->'@ns:com:here:xyz'->'rtcts',OLD.jsondata->'properties'->'@ns:com:here:xyz'->'createdAt'), true);
        xyz := jsonb_set(xyz, '{"rtuts"}', (rts_millis::text)::jsonb, true);
        NEW.jsondata = jsonb_set(NEW.jsondata, '{"properties","@ns:com:here:xyz"}', xyz, true);
        NEW.i = i;
@@ -545,7 +545,7 @@ BEGIN
       xyz := '{}'::jsonb;
     END IF;
     xyz := jsonb_set(xyz, '{"action"}', ('"DELETE"')::jsonb, true);
-    xyz := jsonb_set(xyz, '{"version"}', (''||(xyz_config.naksha_json_version(OLD.jsondata)+1::int8))::jsonb, true);
+    xyz := jsonb_set(xyz, '{"version"}', coalesce((''||(xyz_config.naksha_json_version(OLD.jsondata)+1::int8)),'1')::jsonb, true);
     xyz := jsonb_set(xyz, '{"author"}', coalesce(author, 'null')::jsonb, true);
     xyz := jsonb_set(xyz, '{"appId"}', coalesce(app_id, 'null')::jsonb, true);
     xyz := jsonb_set(xyz, '{"puuid"}', xyz->'uuid', true);
