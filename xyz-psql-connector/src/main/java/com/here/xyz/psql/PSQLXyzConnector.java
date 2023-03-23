@@ -467,6 +467,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
          return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( "projection error" );
         if ( e.getMessage().indexOf("ERROR: encode_geometry: 'GeometryCollection'") != -1 )
          return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( "dataset contains invalid geometries" );
+        if ( e.getMessage().indexOf("ERROR: can not mix dimensionality in a geometry") != -1 )
+         return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( "can not mix dimensionality in a geometry" );
         //fall thru - timeout assuming timeout
 
      case "57014" : /* 57014 - query_canceled */
