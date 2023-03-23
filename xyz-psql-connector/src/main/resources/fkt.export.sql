@@ -58,7 +58,7 @@ begin
     maxY = height * (rowY + 1) - 90;
 	
 --	RAISE NOTICE '% % % % ',minX,minY,maxX,maxY;
-	return ST_MakeEnvelope( minX, minY, maxX, maxY );
+	return st_setsrid(ST_MakeEnvelope( minX, minY, maxX, maxY ),4326);
 end
 $$;
 
