@@ -179,6 +179,15 @@ public class SpaceTaskHandler {
       String cid = task.getJwt().cid;
       task.template = getSpaceTemplate(owner, cid);
 
+      String inputRegion = input.getString("region");
+      if (inputRegion != null) {
+        String regionalStorageId = Service.configuration.getDefaultStorageId(inputRegion);
+        if (regionalStorageId == null)
+          callback.exception(new HttpException(BAD_REQUEST, "No storage is available for the specified region."));
+        task.template.setStorage(new ConnectorRef().withId(regionalStorageId));
+      }
+
+
       //When the input explicitly contains {"owner": null}
       if (input.getString("owner") == null) {
         input.remove("owner");
@@ -393,7 +402,8 @@ public class SpaceTaskHandler {
   }
 
   private static Space getSpaceTemplate(String owner, String cid) {
-    Space space = new Space();
+    Space space = new Space()
+        .withRegion(Service.configuration.AWS_REGION);
     space.setId(RandomStringUtils.randomAlphanumeric(8));
     space.setOwner(owner);
     space.setCid(cid);

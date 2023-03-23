@@ -83,6 +83,8 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
   @JsonIgnore
   private Map<ConnectorType, Map<String, List<ResolvableListenerConnectorRef>>> resolvedConnectorRefs;
 
+  private String region;
+
   public static Future<Space> resolveSpace(Marker marker, String spaceId) {
     return Service.spaceConfigClient.get(marker, spaceId);
   }
@@ -254,6 +256,19 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
 
   public Space withContentUpdatedAt(long contentUpdatedAt) {
     setContentUpdatedAt(contentUpdatedAt);
+    return this;
+  }
+
+  public String getRegion() {
+    return region;
+  }
+
+  public void setRegion(String region) {
+    this.region = region;
+  }
+
+  public Space withRegion(String region) {
+    setRegion(region);
     return this;
   }
 

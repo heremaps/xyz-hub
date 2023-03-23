@@ -24,9 +24,9 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.cache.CacheClient;
 import com.here.xyz.hub.config.ConnectorConfigClient;
-import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.config.SubscriptionConfigClient;
+import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.connectors.BurstAndUpdateThread;
 import com.here.xyz.hub.connectors.WarmupRemoteFunctionThread;
 import com.here.xyz.hub.rest.admin.MessageBroker;
@@ -444,8 +444,16 @@ public class Service extends Core {
      *
      * @return the ID of one of the default storage connectors
      */
-    public String getDefaultStorageId(){
-      return defaultStorageIds.get( (int)(Math.random()*defaultStorageIds.size()) );
+    public String getDefaultStorageId() {
+      return getDefaultStorageId(AWS_REGION);
+    }
+
+    public String getDefaultStorageId(String region) {
+      List<String> storageIds = getDefaultStorageIds(region);
+      if (storageIds == null)
+        storageIds = defaultStorageIds;
+
+      return storageIds == null ? null : storageIds.get((int) (Math.random() * storageIds.size()));
     }
 
     /**
@@ -828,6 +836,17 @@ public class Service extends Core {
      * The PEM encoded certificate(-chain) to be used as truststore for client TLS authentication (mTLS) including header & footer.
      */
     public String XYZ_HUB_CLIENT_TLS_TRUSTSTORE;
+
+    /**
+     * A JSON String which holds the regional cluster mapping.
+     */
+    public Map<String, Object> XYZ_HUB_DEFAULT_STORAGE_REGION_MAPPING;
+
+    public List<String> getDefaultStorageIds(String region) {
+      if (XYZ_HUB_DEFAULT_STORAGE_REGION_MAPPING == null)
+        return null;
+      return (List<String>) XYZ_HUB_DEFAULT_STORAGE_REGION_MAPPING.get(region);
+    }
   }
 
   /**
