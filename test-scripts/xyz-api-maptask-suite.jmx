@@ -170,59 +170,7 @@
         </collectionProp>
       </Arguments>
       <hashTree/>
-      <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="Env variables - Alex XYZ" enabled="false">
-        <collectionProp name="Arguments.arguments">
-          <elementProp name="XYZ_API_PROTOCOL" elementType="Argument">
-            <stringProp name="Argument.name">XYZ_API_PROTOCOL</stringProp>
-            <stringProp name="Argument.value">https</stringProp>
-            <stringProp name="Argument.metadata">=</stringProp>
-          </elementProp>
-          <elementProp name="XYZ_HOST_URL" elementType="Argument">
-            <stringProp name="Argument.name">XYZ_HOST_URL</stringProp>
-            <stringProp name="Argument.value">xyz-hub.lowey.family</stringProp>
-            <stringProp name="Argument.metadata">=</stringProp>
-          </elementProp>
-          <elementProp name="XYZ_URI_PREFIX" elementType="Argument">
-            <stringProp name="Argument.name">XYZ_URI_PREFIX</stringProp>
-            <stringProp name="Argument.value">/hub</stringProp>
-            <stringProp name="Argument.metadata">=</stringProp>
-          </elementProp>
-          <elementProp name="XYZ_PORT" elementType="Argument">
-            <stringProp name="Argument.name">XYZ_PORT</stringProp>
-            <stringProp name="Argument.value">443</stringProp>
-            <stringProp name="Argument.metadata">=</stringProp>
-          </elementProp>
-          <elementProp name="SPACE_ID" elementType="Argument">
-            <stringProp name="Argument.name">SPACE_ID</stringProp>
-            <stringProp name="Argument.value">39ZVK252</stringProp>
-            <stringProp name="Argument.metadata">=</stringProp>
-          </elementProp>
-          <elementProp name="WR_API_KEY" elementType="Argument">
-            <stringProp name="Argument.name">WR_API_KEY</stringProp>
-            <stringProp name="Argument.value">write</stringProp>
-            <stringProp name="Argument.metadata">=</stringProp>
-          </elementProp>
-          <elementProp name="RD_API_KEY" elementType="Argument">
-            <stringProp name="Argument.name">RD_API_KEY</stringProp>
-            <stringProp name="Argument.value">read</stringProp>
-            <stringProp name="Argument.metadata">=</stringProp>
-          </elementProp>
-          <elementProp name="CONN_API_KEY" elementType="Argument">
-            <stringProp name="Argument.name">CONN_API_KEY</stringProp>
-            <stringProp name="Argument.value"></stringProp>
-            <stringProp name="Argument.desc">Manage Connector API Key</stringProp>
-            <stringProp name="Argument.metadata">=</stringProp>
-          </elementProp>
-          <elementProp name="SPACE_API_KEY" elementType="Argument">
-            <stringProp name="Argument.name">SPACE_API_KEY</stringProp>
-            <stringProp name="Argument.value"></stringProp>
-            <stringProp name="Argument.desc">Manage Space API Key</stringProp>
-            <stringProp name="Argument.metadata">=</stringProp>
-          </elementProp>
-        </collectionProp>
-      </Arguments>
-      <hashTree/>
-      <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="Env variables - Local XYZ" enabled="true">
+      <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="Env variables - Local" enabled="true">
         <collectionProp name="Arguments.arguments">
           <elementProp name="XYZ_API_PROTOCOL" elementType="Argument">
             <stringProp name="Argument.name">XYZ_API_PROTOCOL</stringProp>
@@ -275,7 +223,7 @@
         </collectionProp>
       </Arguments>
       <hashTree/>
-      <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="Env variables - Private XYZ" enabled="false">
+      <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="Env variables - E2E" enabled="false">
         <collectionProp name="Arguments.arguments">
           <elementProp name="XYZ_API_PROTOCOL" elementType="Argument">
             <stringProp name="Argument.name">XYZ_API_PROTOCOL</stringProp>
@@ -312,6 +260,59 @@
           <elementProp name="RD_API_KEY" elementType="Argument">
             <stringProp name="Argument.name">RD_API_KEY</stringProp>
             <stringProp name="Argument.value">AKUG5kC6peRn01oB66dy2C8</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="CONN_API_KEY" elementType="Argument">
+            <stringProp name="Argument.name">CONN_API_KEY</stringProp>
+            <stringProp name="Argument.value">upm.6A2srka5acvQQFrz</stringProp>
+            <stringProp name="Argument.desc">Manage Connector API Key</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="SPACE_API_KEY" elementType="Argument">
+            <stringProp name="Argument.name">SPACE_API_KEY</stringProp>
+            <stringProp name="Argument.value">APQtnzlw1OdsOmfW_sbDoIM</stringProp>
+            <stringProp name="Argument.desc">Manage Space API Key</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+        </collectionProp>
+      </Arguments>
+      <hashTree/>
+      <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="Env variables - E2E Demo" enabled="false">
+        <collectionProp name="Arguments.arguments">
+          <elementProp name="XYZ_API_PROTOCOL" elementType="Argument">
+            <stringProp name="Argument.name">XYZ_API_PROTOCOL</stringProp>
+            <stringProp name="Argument.value">https</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="XYZ_HOST_URL" elementType="Argument">
+            <stringProp name="Argument.name">XYZ_HOST_URL</stringProp>
+            <stringProp name="Argument.value">naksha-e2e.ext.mapcreator.here.com</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+            <stringProp name="Argument.desc">xyz-e2e-kotori.ext.mapcreator.here.com,xyz-e2e-kasa.ext.mapcreator.here.com</stringProp>
+          </elementProp>
+          <elementProp name="XYZ_URI_PREFIX" elementType="Argument">
+            <stringProp name="Argument.name">XYZ_URI_PREFIX</stringProp>
+            <stringProp name="Argument.value">/hub</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="XYZ_PORT" elementType="Argument">
+            <stringProp name="Argument.name">XYZ_PORT</stringProp>
+            <stringProp name="Argument.value">443</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="SPACE_ID" elementType="Argument">
+            <stringProp name="Argument.name">SPACE_ID</stringProp>
+            <stringProp name="Argument.value">demo:foo</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="WR_API_KEY" elementType="Argument">
+            <stringProp name="Argument.name">WR_API_KEY</stringProp>
+            <stringProp name="Argument.value">upm.vqubCxoHf28i9YOn</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="RD_API_KEY" elementType="Argument">
+            <stringProp name="Argument.name">RD_API_KEY</stringProp>
+            <stringProp name="Argument.value">upm.i6raAHfn879AHITy</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
           <elementProp name="CONN_API_KEY" elementType="Argument">
@@ -919,7 +920,7 @@ else {
           <hashTree/>
         </hashTree>
       </hashTree>
-      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Pos2 - Bulk Operations" enabled="true">
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Pos2 - Bulk Operations" enabled="false">
         <stringProp name="ThreadGroup.on_sample_error">stopthread</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
@@ -6200,11 +6201,11 @@ else {
               <elementProp name="" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
                 <stringProp name="Argument.value">{&#xd;
-	&quot;id&quot;: &quot;local:space_1&quot;,&#xd;
-	&quot;title&quot;: &quot;Test Space - Local&quot;,&#xd;
-	&quot;description&quot;: &quot;Test space for Local environment&quot;,&#xd;
+	&quot;id&quot;: &quot;demo:bar&quot;,&#xd;
+	&quot;title&quot;: &quot;Demo Space - Bar&quot;,&#xd;
+	&quot;description&quot;: &quot;Space for demo purpose&quot;,&#xd;
 	&quot;storage&quot;: {&#xd;
-		&quot;id&quot;: &quot;psql-local&quot;&#xd;
+		&quot;id&quot;: &quot;psql-task-mgmt&quot;&#xd;
 	},&#xd;
 	&quot;enableUUID&quot;: true,&#xd;
 	&quot;packages&quot;: [&#xd;
@@ -6255,7 +6256,7 @@ else {
           </ResponseAssertion>
           <hashTree/>
         </hashTree>
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Delete Space" enabled="false">
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Delete Space" enabled="true">
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
             <collectionProp name="Arguments.arguments"/>
           </elementProp>
@@ -6263,7 +6264,7 @@ else {
           <stringProp name="HTTPSampler.port"></stringProp>
           <stringProp name="HTTPSampler.protocol"></stringProp>
           <stringProp name="HTTPSampler.contentEncoding"></stringProp>
-          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/spaces/utm_dummy_space_3?access_token=admin</stringProp>
+          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/spaces/utm-dev:dummy_space_3</stringProp>
           <stringProp name="HTTPSampler.method">DELETE</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
