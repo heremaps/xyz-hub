@@ -28,6 +28,7 @@ import org.postgresql.util.PGobject;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
@@ -46,7 +47,9 @@ public class DatabaseStreamWriter extends DatabaseWriter{
 
             String fId = "";
             try {
-                int rows = 0;
+                //int rows = 0;
+                boolean success = false;
+                ResultSet rs = null;
                 final Feature feature = inserts.get(i);
                 fId = feature.getId();
 
@@ -57,7 +60,11 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                     if (forExtendedSpace)
                         insertWithoutGeometryStmt.setBoolean(2, getDeletedFlagFromFeature(feature));
                     insertWithoutGeometryStmt.setQueryTimeout(dbh.calculateTimeout());
-                    rows = insertWithoutGeometryStmt.executeUpdate();
+                    //rows = insertWithoutGeometryStmt.executeUpdate();
+                    success = insertWithoutGeometryStmt.execute();
+                    if (success) {
+                        rs = insertWithoutGeometryStmt.getResultSet();
+                    }
                 } else {
                     insertStmt.setObject(1, jsonbObject);
                     final WKBWriter wkbWriter = new WKBWriter(3);
@@ -65,16 +72,23 @@ public class DatabaseStreamWriter extends DatabaseWriter{
                     //Avoid NAN values
                     assure3d(jtsGeometry.getCoordinates());
                     insertStmt.setBytes(2, wkbWriter.write(jtsGeometry));
-                    if (forExtendedSpace)
-                        insertStmt.setBoolean(3, getDeletedFlagFromFeature(feature));
+                    /*if (forExtendedSpace)
+                        insertStmt.setBoolean(3, getDeletedFlagFromFeature(feature));*/
                     insertStmt.setQueryTimeout(dbh.calculateTimeout());
-                    rows = insertStmt.executeUpdate();
+                    //rows = insertStmt.executeUpdate();
+                    success = insertStmt.execute();
+                    if (success) {
+                        rs = insertStmt.getResultSet();
+                    }
                 }
 
-                if(rows == 0) {
-                    fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage(INSERT_ERROR_GENERAL));
-                }else
+                if(success && rs!=null && rs.next() && rs.getBoolean("success")) {
+                    saveXyzNamespaceInFeature(feature, rs.getString("xyz_ns"));
+                    rs.close();
                     collection.getFeatures().add(feature);
+                }else {
+                    fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage(INSERT_ERROR_GENERAL));
+                }
 
             } catch (Exception e) {
                 if((e instanceof SQLException && ((SQLException)e).getSQLState() != null
@@ -109,7 +123,9 @@ public class DatabaseStreamWriter extends DatabaseWriter{
             try {
                 final Feature feature = updates.get(i);
                 final String puuid = feature.getProperties().getXyzNamespace().getPuuid();
-                int rows = 0;
+                //int rows = 0;
+                boolean success = false;
+                ResultSet rs = null;
 
                 if (feature.getId() == null) {
                     fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage(UPDATE_ERROR_ID_MISSING));
@@ -127,36 +143,47 @@ public class DatabaseStreamWriter extends DatabaseWriter{
 
                 int paramIdx = 0;
                 if (feature.getGeometry() == null) {
-                    updateWithoutGeometryStmt.setObject(++paramIdx, jsonbObject);
-                    if (forExtendedSpace)
-                        updateWithoutGeometryStmt.setBoolean(++paramIdx, getDeletedFlagFromFeature(feature));
                     updateWithoutGeometryStmt.setString(++paramIdx, fId);
-                    if (handleUUID)
-                        updateWithoutGeometryStmt.setString(++paramIdx, puuid);
+                    //if (handleUUID)
+                    updateWithoutGeometryStmt.setString(++paramIdx, puuid);
+                    updateWithoutGeometryStmt.setObject(++paramIdx, jsonbObject);
+                    /*if (forExtendedSpace)
+                        updateWithoutGeometryStmt.setBoolean(++paramIdx, getDeletedFlagFromFeature(feature));*/
 
                     updateWithoutGeometryStmt.setQueryTimeout(dbh.calculateTimeout());
-                    rows = updateWithoutGeometryStmt.executeUpdate();
+                    //rows = updateWithoutGeometryStmt.executeUpdate();
+                    success = updateWithoutGeometryStmt.execute();
+                    if (success) {
+                        rs = updateWithoutGeometryStmt.getResultSet();
+                    }
                 } else {
+                    updateStmt.setString(++paramIdx, fId);
+                    //if (handleUUID)
+                    updateStmt.setString(++paramIdx, puuid);
                     updateStmt.setObject(++paramIdx, jsonbObject);
                     final WKBWriter wkbWriter = new WKBWriter(3);
                     Geometry jtsGeometry = feature.getGeometry().getJTSGeometry();
                     //Avoid NAN values
                     assure3d(jtsGeometry.getCoordinates());
                     updateStmt.setBytes(++paramIdx, wkbWriter.write(jtsGeometry));
-                    if (forExtendedSpace)
-                        updateStmt.setBoolean(++paramIdx, getDeletedFlagFromFeature(feature));
-                    updateStmt.setString(++paramIdx, fId);
-                    if (handleUUID)
-                        updateStmt.setString(++paramIdx, puuid);
+                    /*if (forExtendedSpace)
+                        updateStmt.setBoolean(++paramIdx, getDeletedFlagFromFeature(feature));*/
 
                     updateStmt.setQueryTimeout(dbh.calculateTimeout());
-                    rows = updateStmt.executeUpdate();
+                    //rows = updateStmt.executeUpdate();
+                    success = updateStmt.execute();
+                    if (success) {
+                        rs = updateStmt.getResultSet();
+                    }
                 }
 
-                if(rows == 0) {
-                    fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage((handleUUID ? UPDATE_ERROR_UUID : UPDATE_ERROR_NOT_EXISTS)));
-                }else
+                if(success && rs!=null && rs.next() && rs.getBoolean("success")) {
+                    saveXyzNamespaceInFeature(feature, rs.getString("xyz_ns"));
+                    rs.close();
                     collection.getFeatures().add(feature);
+                }else {
+                    fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage((handleUUID ? UPDATE_ERROR_UUID : UPDATE_ERROR_NOT_EXISTS)));
+                }
 
             } catch (Exception e) {
                 fails.add(new FeatureCollection.ModificationFailure().withId(fId).withMessage(UPDATE_ERROR_GENERAL));
@@ -181,24 +208,35 @@ public class DatabaseStreamWriter extends DatabaseWriter{
         for (String deleteId : deletes.keySet()) {
             try {
                 final String puuid = deletes.get(deleteId);
-                int rows = 0;
+                //int rows = 0;
+                boolean success = false;
+                ResultSet rs = null;
 
                 if(handleUUID && puuid == null){
                     deleteStmtWithoutUUID.setString(1, deleteId);
                     deleteStmtWithoutUUID.setQueryTimeout(dbh.calculateTimeout());
-                    rows += deleteStmtWithoutUUID.executeUpdate();
+                    //rows += deleteStmtWithoutUUID.executeUpdate();
+                    success = deleteStmtWithoutUUID.execute();
+                    if (success) {
+                        rs = deleteStmtWithoutUUID.getResultSet();
+                    }
                 }else{
                     deleteStmt.setString(1, deleteId);
                     if(handleUUID) {
                         deleteStmt.setString(2, puuid);
                     }
                     deleteStmt.setQueryTimeout(dbh.calculateTimeout());
-                    rows += deleteStmt.executeUpdate();
+                    //rows += deleteStmt.executeUpdate();
+                    success = deleteStmt.execute();
+                    if (success) {
+                        rs = deleteStmt.getResultSet();
+                    }
                 }
 
-                if(rows == 0) {
+                if(!success || (rs.next() && !rs.getBoolean("success"))) {
                     fails.add(new FeatureCollection.ModificationFailure().withId(deleteId).withMessage((handleUUID ? DELETE_ERROR_UUID : DELETE_ERROR_NOT_EXISTS)));
                 }
+                if (rs!=null) rs.close();
 
             } catch (Exception e) {
                 fails.add(new FeatureCollection.ModificationFailure().withId(deleteId).withMessage(DELETE_ERROR_GENERAL));

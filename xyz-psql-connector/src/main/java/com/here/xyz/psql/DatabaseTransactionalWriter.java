@@ -28,9 +28,8 @@ import com.vividsolutions.jts.io.WKBWriter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.postgresql.util.PGobject;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
+
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -61,8 +60,8 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
 
             if (feature.getGeometry() == null) {
                 insertWithoutGeometryStmt.setObject(1, jsonbObject);
-                if (forExtendedSpace)
-                    insertWithoutGeometryStmt.setBoolean(2, getDeletedFlagFromFeature(feature));
+                /*if (forExtendedSpace)
+                    insertWithoutGeometryStmt.setBoolean(2, getDeletedFlagFromFeature(feature));*/
                 insertWithoutGeometryStmt.addBatch();
                 insertWithoutGeometryIdList.add(feature.getId());
             } else {
@@ -73,8 +72,8 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
                 //Avoid NAN values
                 assure3d(jtsGeometry.getCoordinates());
                 insertStmt.setBytes(2, wkbWriter.write(jtsGeometry));
-                if (forExtendedSpace)
-                    insertStmt.setBoolean(3, getDeletedFlagFromFeature(feature));
+                /*if (forExtendedSpace)
+                    insertStmt.setBoolean(3, getDeletedFlagFromFeature(feature));*/
 
                 insertStmt.addBatch();
                 insertIdList.add(feature.getId());
@@ -83,7 +82,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         }
 
         executeBatchesAndCheckOnFailures(dbh, insertIdList, insertWithoutGeometryIdList,
-                insertStmt, insertWithoutGeometryStmt, fails, false, TYPE_INSERT, traceItem);
+                insertStmt, insertWithoutGeometryStmt, collection, fails, false, TYPE_INSERT, traceItem);
 
         return collection;
     }
@@ -111,27 +110,27 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
 
             int paramIdx = 0;
             if (feature.getGeometry() == null) {
-                updateWithoutGeometryStmt.setObject(++paramIdx, jsonbObject);
-                if (forExtendedSpace)
-                    updateWithoutGeometryStmt.setBoolean(++paramIdx, getDeletedFlagFromFeature(feature));
                 updateWithoutGeometryStmt.setString(++paramIdx, feature.getId());
-                if (handleUUID)
-                    updateWithoutGeometryStmt.setString(++paramIdx, puuid);
+                //if (handleUUID)
+                updateWithoutGeometryStmt.setString(++paramIdx, puuid);
+                updateWithoutGeometryStmt.setObject(++paramIdx, jsonbObject);
+                /*if (forExtendedSpace)
+                    updateWithoutGeometryStmt.setBoolean(++paramIdx, getDeletedFlagFromFeature(feature));*/
                 updateWithoutGeometryStmt.addBatch();
 
                 updateWithoutGeometryIdList.add(feature.getId());
             } else {
+                updateStmt.setString(++paramIdx, feature.getId());
+                //if (handleUUID)
+                updateStmt.setString(++paramIdx, puuid);
                 updateStmt.setObject(++paramIdx, jsonbObject);
                 final WKBWriter wkbWriter = new WKBWriter(3);
                 Geometry jtsGeometry = feature.getGeometry().getJTSGeometry();
                 //Avoid NAN values
                 assure3d(jtsGeometry.getCoordinates());
                 updateStmt.setBytes(++paramIdx, wkbWriter.write(jtsGeometry));
-                if (forExtendedSpace)
-                    updateStmt.setBoolean(++paramIdx, getDeletedFlagFromFeature(feature));
-                updateStmt.setString(++paramIdx, feature.getId());
-                if (handleUUID)
-                    updateStmt.setString(++paramIdx, puuid);
+                /*if (forExtendedSpace)
+                    updateStmt.setBoolean(++paramIdx, getDeletedFlagFromFeature(feature));*/
                 updateStmt.addBatch();
 
                 updateIdList.add(feature.getId());
@@ -140,7 +139,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         }
 
         executeBatchesAndCheckOnFailures(dbh, updateIdList, updateWithoutGeometryIdList,
-                updateStmt, updateWithoutGeometryStmt, fails, handleUUID, TYPE_UPDATE, traceItem);
+                updateStmt, updateWithoutGeometryStmt, collection, fails, handleUUID, TYPE_UPDATE, traceItem);
 
         if(fails.size() > 0) {
             logException(null, traceItem, LOG_EXCEPTION_UPDATE, table);
@@ -153,7 +152,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
     protected static void deleteFeatures(DatabaseHandler dbh, String schema, String table, TraceItem traceItem,
                                          List<FeatureCollection.ModificationFailure> fails, Map<String, String> deletes,
                                          Connection connection, boolean handleUUID, Integer version)
-            throws SQLException {
+            throws SQLException, JsonProcessingException {
 
         final PreparedStatement batchDeleteStmt = deleteStmtSQLStatement(connection,schema,table,handleUUID);
         final PreparedStatement batchDeleteStmtWithoutUUID = deleteStmtSQLStatement(connection,schema,table,false);
@@ -204,11 +203,11 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         }
         if(version != null){
             executeBatchesAndCheckOnFailures(dbh, deleteIdList, deleteIdListWithoutUUID,
-                    batchDeleteStmtVersioned, batchDeleteStmtVersionedWithoutUUID, fails, handleUUID, TYPE_DELETE, traceItem);
+                    batchDeleteStmtVersioned, batchDeleteStmtVersionedWithoutUUID, null, fails, handleUUID, TYPE_DELETE, traceItem);
 
         }else{
             executeBatchesAndCheckOnFailures(dbh, deleteIdList, deleteIdListWithoutUUID,
-                batchDeleteStmt, batchDeleteStmtWithoutUUID, fails, handleUUID, TYPE_DELETE, traceItem);
+                batchDeleteStmt, batchDeleteStmtWithoutUUID, null, fails, handleUUID, TYPE_DELETE, traceItem);
         }
 
         if(fails.size() > 0) {
@@ -218,9 +217,9 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
     }
 
     private static void executeBatchesAndCheckOnFailures(DatabaseHandler dbh, List<String> idList, List<String> idList2,
-                                                         PreparedStatement batchStmt, PreparedStatement batchStmt2,
-                                                         List<FeatureCollection.ModificationFailure> fails,
-                                                         boolean handleUUID, int type, TraceItem traceItem) throws SQLException {
+                                 PreparedStatement batchStmt, PreparedStatement batchStmt2,
+                                 final FeatureCollection collection, List<FeatureCollection.ModificationFailure> fails,
+                                 boolean handleUUID, int type, TraceItem traceItem) throws SQLException, JsonProcessingException {
         int[] batchStmtResult;
         int[] batchStmtResult2;
 
@@ -229,16 +228,22 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
                 logger.debug("{} batch execution [{}]: {} ", traceItem, type, batchStmt);
 
                 batchStmt.setQueryTimeout(dbh.calculateTimeout());
-                batchStmtResult = batchStmt.executeBatch();
-                fillFailList(batchStmtResult, fails, idList, handleUUID, type);
+                //batchStmtResult = batchStmt.executeBatch();
+                batchStmt.execute();
+                ResultSet rs = batchStmt.getResultSet();
+                fillFeatureListAndFailList(rs, collection, fails, idList, handleUUID, type);
+                if (rs!=null) rs.close();
             }
 
             if (idList2.size() > 0) {
                 logger.debug("{} batch2 execution [{}]: {} ", traceItem, type, batchStmt2);
 
                 batchStmt2.setQueryTimeout(dbh.calculateTimeout());
-                batchStmtResult2 = batchStmt2.executeBatch();
-                fillFailList(batchStmtResult2, fails, idList2, handleUUID, type);
+                //batchStmtResult2 = batchStmt2.executeBatch();
+                batchStmt2.execute();
+                ResultSet rs = batchStmt2.getResultSet();
+                fillFeatureListAndFailList(rs, collection, fails, idList2, handleUUID, type);
+                if (rs!=null) rs.close();
             }
         }finally {
             batchStmt.close();
@@ -246,8 +251,41 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         }
     }
 
-    private static void fillFailList(int[] batchResult, List<FeatureCollection.ModificationFailure> fails,  List<String> idList, boolean handleUUID, int type){
-        for (int i= 0; i < batchResult.length; i++) {
+    private static void fillFeatureListAndFailList(final ResultSet rs, final FeatureCollection collection,
+                        List<FeatureCollection.ModificationFailure> fails, List<String> idList,
+                        boolean handleUUID, int type) throws SQLException, JsonProcessingException {
+        // Function populates:
+        //      - xyz namespace as obtained from DB into feature "collection"
+        //      - creates "fails" list including features for which UPDATE got failed
+        if (rs == null) {
+            throw new SQLException("No result out of batch operation.");
+        }
+        int i = 0;
+        while (rs.next()) {
+            final Boolean success = rs.getBoolean("success");
+            if (!success) {
+                String message = TRANSACTION_ERROR_GENERAL;
+                switch (type){
+                    case TYPE_INSERT:
+                        message = INSERT_ERROR_GENERAL;
+                        break;
+                    case TYPE_UPDATE:
+                        message = handleUUID ? UPDATE_ERROR_UUID : UPDATE_ERROR_NOT_EXISTS;
+                        break;
+                    case TYPE_DELETE:
+                        message = handleUUID ? DELETE_ERROR_UUID : DELETE_ERROR_NOT_EXISTS;
+                        break;
+                }
+                if (collection!=null) {
+                    saveXyzNamespaceInFeature(collection.getFeatures().get(i), rs.getString("xyz_ns"));
+                }
+                fails.add(new FeatureCollection.ModificationFailure().withId(idList.get(i)).withMessage(message));
+            }
+            i++;
+        }
+
+
+        /*for (int i= 0; i < batchResult.length; i++) {
             if(batchResult[i] == 0 ) {
                 String message = TRANSACTION_ERROR_GENERAL;
                 switch (type){
@@ -264,6 +302,6 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
 
                 fails.add(new FeatureCollection.ModificationFailure().withId(idList.get(i)).withMessage(message));
             }
-        }
+        }*/
     }
 }
