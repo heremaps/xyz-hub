@@ -70,8 +70,6 @@ public class XYZTransactionHandler {
 
     // Starts the periodic publisher job (if enabled in config)
     public void start() {
-        // TODO : Remove
-        testArray();
         // Start sequencer job (if enabled)
         if (!pubCfg.ENABLE_TXN_SEQUENCER) {
             logger.warn("As per config, Transaction Sequencer is not enabled.");
@@ -105,32 +103,4 @@ public class XYZTransactionHandler {
         }
     }
 
-
-    private void testArray() {
-        final String inArr[] = new String[]{"Hello", "Hiren Patel"};
-        final String sqlStmt = "select * from xyz_config.naksha_returning_array ( ? )";
-        try (Connection conn = PubJdbcConnectionPool.getConnection(adminDBConnParams);
-             PreparedStatement stmt = conn.prepareStatement(sqlStmt);
-        ) {
-            stmt.setArray(1, conn.createArrayOf("TEXT", inArr));
-            final boolean success = stmt.execute();
-            if (success) {
-                final ResultSet rs = stmt.getResultSet();
-                while (rs.next()) {
-                    logger.info("success : {}", rs.getBoolean("success"));
-                    logger.info("outArray W/O transforming : {}", rs.getArray("out_array"));
-                    logger.info("outArray.array : {}", rs.getArray("out_array").getArray());
-                    logger.info("outArray.array.class : {}", rs.getArray("out_array").getArray().getClass());
-                    final String outArr[] = (String[])rs.getArray("out_array").getArray();
-                    for (int i=0; i<outArr.length; i++) {
-                        logger.info("outArray.array[{}] : {}", i, outArr[i]);
-                    }
-                }
-                rs.close();
-            }
-        }
-        catch (Exception ex) {
-            logger.error("Exception executing testArray. ", ex);
-        }
-    }
 }
