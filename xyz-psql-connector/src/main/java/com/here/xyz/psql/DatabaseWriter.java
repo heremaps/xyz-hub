@@ -24,7 +24,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.vividsolutions.jts.geom.Coordinate;
+import io.vertx.core.json.JsonObject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.postgresql.util.PGobject;
@@ -151,7 +153,7 @@ public class DatabaseWriter {
                                                       List<FeatureCollection.ModificationFailure> fails,
                                                       Map<String, String> deletes, Connection connection,
                                                       boolean transactional, boolean handleUUID, Integer version)
-            throws SQLException {
+            throws SQLException, JsonProcessingException {
         if(transactional) {
             setAutocommit(connection,false);
             DatabaseTransactionalWriter.deleteFeatures(dbh, schema, table, traceItem, fails, deletes, connection ,handleUUID, version);
@@ -176,4 +178,13 @@ public class DatabaseWriter {
         else
             logger.info("{} Failed to perform {} on table {} {}", traceItem, action, table, e);
     }
+
+    protected static void saveXyzNamespaceInFeature(final Feature f, final String xyzNsJson) {
+        if (xyzNsJson==null) return;
+        final XyzNamespace newXyzNsObj = new JsonObject(xyzNsJson).mapTo(XyzNamespace.class);
+        if (f.getProperties()!=null) {
+            f.getProperties().setXyzNamespace(newXyzNsObj);
+        }
+    }
+
 }

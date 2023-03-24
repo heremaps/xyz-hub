@@ -49,6 +49,7 @@ public class SQLQueryBuilder {
     public static final long GEOMETRY_DECIMAL_DIGITS = 8;
   private static final Integer BIG_SPACE_THRESHOLD = 10000;
 
+
     public static SQLQuery buildGetStatisticsQuery(Event event, PSQLConfig config, boolean historyMode) {
         String function;
         if(event instanceof GetHistoryStatisticsEvent)
@@ -734,66 +735,39 @@ public class SQLQueryBuilder {
     }
 
     protected static String insertStmtSQL(final String schema, final String table, boolean withDeletedColumn) {
-        String insertStmtSQL ="INSERT INTO ${schema}.${table} (jsondata, geo" + (withDeletedColumn ? ", deleted" : "")
-            + ") VALUES(?::jsonb, ST_Force3D(ST_GeomFromWKB(?,4326))" + (withDeletedColumn ? ", ?" : "") + ")";
-        return SQLQuery.replaceVars(insertStmtSQL, schema, table);
-    }
-
-    protected static String insertStmtSQLForTxnLog(final String schema, final String table) {
-        String insertStmtSQL ="INSERT INTO ${schema}.${table} (space_id, uuids) VALUES(?, ?)";
-        return SQLQuery.replaceVars(insertStmtSQL, schema, table);
-    }
-
-    protected static String insertStmtSQLForTxnData(final String schema, final String table) {
-        String insertStmtSQL ="INSERT INTO ${schema}.${table} (uuid, operation, jsondata)" +
-                " VALUES(?, ?, ?::jsonb)";
+        String insertStmtSQL = "SELECT success, xyz_ns, err_code, err_msg "
+                + "FROM xyz_config.naksha_bulk_insert( '"+schema+"', '"+table+"', ?, ? ) ";
         return SQLQuery.replaceVars(insertStmtSQL, schema, table);
     }
 
     protected static String insertWithoutGeometryStmtSQL(final String schema, final String table, boolean withDeletedColumn) {
-        String insertWithoutGeometryStmtSQL = "INSERT INTO ${schema}.${table} (jsondata, geo" + (withDeletedColumn ? ", deleted" : "")
-            + ") VALUES(?::jsonb, NULL" + (withDeletedColumn ? ", ?" : "") + ")";
+        String insertWithoutGeometryStmtSQL = "SELECT success, xyz_ns, err_code, err_msg "
+                + "FROM xyz_config.naksha_bulk_insert( '"+schema+"', '"+table+"', ?, NULL ) ";
         return SQLQuery.replaceVars(insertWithoutGeometryStmtSQL, schema, table);
     }
 
     protected static String updateStmtSQL(final String schema, final String table, final boolean handleUUID, boolean withDeletedColumn) {
-        String updateStmtSQL = "UPDATE ${schema}.${table} SET jsondata = ?::jsonb, geo=ST_Force3D(ST_GeomFromWKB(?,4326))"
-            + (withDeletedColumn ? ", deleted=?" : "") + " WHERE jsondata->>'id' = ?";
-        if (handleUUID)
-            updateStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ?";
+        String updateStmtSQL = "SELECT success, xyz_ns, err_code, err_msg "
+                + "FROM xyz_config.naksha_bulk_update( '"+schema+"', '"+table+"', ?, ?, ?, ? ) ";
         return SQLQuery.replaceVars(updateStmtSQL, schema, table);
     }
 
     protected static String updateWithoutGeometryStmtSQL(final String schema, final String table, final boolean handleUUID, boolean withDeletedColumn) {
-        String updateWithoutGeometryStmtSQL = "UPDATE ${schema}.${table} SET  jsondata = ?::jsonb, geo=NULL"
-            + (withDeletedColumn ? ", deleted=?" : "") + " WHERE jsondata->>'id' = ?";
-        if (handleUUID)
-            updateWithoutGeometryStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ?";
+        String updateWithoutGeometryStmtSQL = "SELECT success, xyz_ns, err_code, err_msg "
+                + "FROM xyz_config.naksha_bulk_update( '"+schema+"', '"+table+"', ?, ?, ?, NULL ) ";
         return SQLQuery.replaceVars(updateWithoutGeometryStmtSQL, schema, table);
     }
 
     protected static String deleteStmtSQL(final String schema, final String table, final boolean handleUUID){
-        String deleteStmtSQL = "DELETE FROM ${schema}.${table} WHERE jsondata->>'id' = ?";
-        if(handleUUID) {
-            deleteStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ?";
-        }
+        String deleteStmtSQL = "SELECT success, xyz_ns, err_code, err_msg "
+                + "FROM xyz_config.naksha_bulk_delete( '"+schema+"', '"+table+"', ?, "+ (handleUUID ? "?" : "null") +" ) ";
         return SQLQuery.replaceVars(deleteStmtSQL, schema, table);
     }
 
     protected static String versionedDeleteStmtSQL(final String schema, final String table, final boolean handleUUID){
         /** Use Update instead of Delete to inject a version. The delete gets performed afterwards from the trigger behind. */
-
-        String updateStmtSQL = "UPDATE  ${schema}.${table} "
-            +"SET jsondata = jsonb_set( jsondata, '{properties,@ns:com:here:xyz}', "
-                +"( (jsondata->'properties'->'@ns:com:here:xyz')::jsonb "
-                +"|| format('{\"uuid\": \"%s_deleted\"}',jsondata->'properties'->'@ns:com:here:xyz'->>'uuid')::jsonb ) "
-                +"|| format('{\"version\": %s}', ? )::jsonb "
-                +"|| format('{\"updatedAt\": %s}', (extract(epoch from now()) * 1000)::bigint )::jsonb "
-                +"|| '{\"deleted\": true }'::jsonb) "
-                +"where jsondata->>'id' = ? ";
-        if(handleUUID) {
-            updateStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ?";
-        }
+        String updateStmtSQL = "SELECT success, xyz_ns, err_code, err_msg "
+                + "FROM xyz_config.naksha_returning_soft_delete( '"+schema+"', '"+table+"', ?, ?, "+ (handleUUID ? "?" : "null") +" ) ";
         return SQLQuery.replaceVars(updateStmtSQL, schema, table);
     }
 

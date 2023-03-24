@@ -65,9 +65,14 @@
             <stringProp name="Argument.value">jmeter-test-task-n04-02</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
+          <elementProp name="TASK_ID_N05_01" elementType="Argument">
+            <stringProp name="Argument.name">TASK_ID_N05_01</stringProp>
+            <stringProp name="Argument.value">jmeter-test-task-n05-01</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
           <elementProp name="ALL_TASK_IDS" elementType="Argument">
             <stringProp name="Argument.name">ALL_TASK_IDS</stringProp>
-            <stringProp name="Argument.value">${TASK_ID_P01_01},${TASK_ID_P02_01},${TASK_ID_P02_02},${TASK_ID_P03_01},${TASK_ID_P04_01},${TASK_ID_P07_01},${TASK_ID_N02_01},${TASK_ID_N03_01},${TASK_ID_N04_01},${TASK_ID_N04_02}</stringProp>
+            <stringProp name="Argument.value">${TASK_ID_P01_01},${TASK_ID_P02_01},${TASK_ID_P02_02},${TASK_ID_P03_01},${TASK_ID_P04_01},${TASK_ID_P07_01},${TASK_ID_N02_01},${TASK_ID_N03_01},${TASK_ID_N04_01},${TASK_ID_N04_02},${TASK_ID_N05_01}</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
           <elementProp name="UTM_TAG_ID" elementType="Argument">
@@ -525,6 +530,7 @@ prev.setSuccessful(false);
 
 // Remove unwanted fields from RESPONSE object, before actual v/s expected comparison
 var actualResString = prev.getResponseDataAsString();
+vars.put(&quot;V_Create_Task_Response_Str&quot;, actualResString);	// save it for next test case i.e. &quot;GET Created Task&quot;
 var actualResObj = JSON.parse(actualResString);
 delete actualResObj.geometry.bbox;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].createdAt;
@@ -601,25 +607,10 @@ prev.setSuccessful(false);
 var actualResString = prev.getResponseDataAsString();
 vars.put(&quot;V_Created_Task_Str&quot;, actualResString);	// save it for next test case i.e. &quot;Update Task&quot;
 var actualResObj = JSON.parse(actualResString);
-delete actualResObj.geometry.bbox;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].createdAt;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].muuid;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].txn;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].rtcts;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].rtuts;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].action;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].appId;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].author;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].deleted;
 
 // Compare actual v/s expected
 var modifiedActualResString = JSON.stringify(actualResObj);
-var expectedResString = JSON.stringify(${V_Create_Request_Str});
+var expectedResString = JSON.stringify(${V_Create_Task_Response_Str});
 
 if ( expectedResString == modifiedActualResString ) {
 	prev.setSuccessful(true);
@@ -696,39 +687,32 @@ prev.setSuccessful(false);
 
 // Remove unwanted fields from RESPONSE object, before actual v/s expected comparison
 var actualResString = prev.getResponseDataAsString();
+vars.put(&quot;V_Update_Task_Response_Str&quot;, actualResString);	// save it for next test case i.e. &quot;GET Updated Task&quot;
 var actualResObj = JSON.parse(actualResString);
-//delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].createdAt;	// createdAt MUST match, hence not removing it
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].muuid;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].txn;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].rtcts;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].rtuts;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].action;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].appId;
 delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].author;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].deleted;
 
 // Remove unwanted fields from EXPECTED object, before actual v/s expected comparison
 var expectedResString = JSON.stringify(${V_Update_Request_Str});
 var expectedResObj = JSON.parse(expectedResString);
-//delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].createdAt;	// createdAt MUST match, hence not removing it
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].muuid;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
-delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].txn;
-delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].rtcts;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].rtuts;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].action;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].appId;
 delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].author;
-delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].deleted;
 
 // Compare actual v/s expected
 var modifiedActualResString = JSON.stringify(actualResObj);
@@ -788,38 +772,10 @@ prev.setSuccessful(false);
 // Remove unwanted fields from RESPONSE object, before actual v/s expected comparison
 var actualResString = prev.getResponseDataAsString();
 var actualResObj = JSON.parse(actualResString);
-//delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].createdAt;	// createdAt MUST match, hence not removing it
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].muuid;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].txn;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].rtcts;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].rtuts;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].action;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].appId;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].author;
-delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].deleted;
 
 // Remove unwanted fields from EXPECTED object, before actual v/s expected comparison
-var expectedResString = JSON.stringify(${V_Update_Request_Str});
+var expectedResString = JSON.stringify(${V_Update_Task_Response_Str});
 var expectedResObj = JSON.parse(expectedResString);
-//delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].createdAt;	// createdAt MUST match, hence not removing it
-delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].muuid;
-delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
-delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
-delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
-delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
-delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
-delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].txn;
-delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].rtcts;
-delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].rtuts;
-delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].action;
-delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].appId;
-delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].author;
-delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].deleted;
 
 // Compare actual v/s expected
 var modifiedActualResString = JSON.stringify(actualResObj);
@@ -920,7 +876,7 @@ else {
           <hashTree/>
         </hashTree>
       </hashTree>
-      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Pos2 - Bulk Operations" enabled="false">
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Pos2 - Bulk Operations" enabled="true">
         <stringProp name="ThreadGroup.on_sample_error">stopthread</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
@@ -6088,6 +6044,638 @@ else {
             <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
             <boolProp name="Assertion.assume_success">false</boolProp>
             <intProp name="Assertion.test_type">5</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+        </hashTree>
+      </hashTree>
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Neg5 - ID Control Tests" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">stoptestnow</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+          <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">1</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">1</stringProp>
+        <boolProp name="ThreadGroup.scheduler">false</boolProp>
+        <stringProp name="ThreadGroup.duration"></stringProp>
+        <stringProp name="ThreadGroup.delay"></stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+      </ThreadGroup>
+      <hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="Neg5.1 - Prepare Create Request" enabled="true">
+          <stringProp name="cacheKey">false</stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="script">
+var requestStr = {
+  &quot;type&quot;: &quot;Feature&quot;,
+  &quot;id&quot;: &quot;${TASK_ID_N05_01}&quot;,
+  &quot;geometry&quot;: {
+    &quot;type&quot;: &quot;Point&quot;,
+    &quot;coordinates&quot;: [
+      8.68872,
+      50.0561,
+      0
+    ]
+  },
+  &quot;properties&quot;: {
+    &quot;@ns:com:here:xyz&quot;: {
+      &quot;tags&quot;: [&quot;@admin1_deu&quot;, &quot;@admin2_hesse&quot;, &quot;@admin3_neu-isenburg&quot;, &quot;@adminlevels_deu_hesse_neu-isenburg&quot;, &quot;audience_internal&quot;, &quot;category_community_feedback_road&quot;, &quot;category_road_geometry&quot;, &quot;isocc_deu&quot;, &quot;otm_maptask&quot;, &quot;priority_1&quot;, &quot;quadkey_1202033022101121&quot;, &quot;skill_level_journeyman&quot;, &quot;source_mapedit&quot;, &quot;status_open&quot;, &quot;taskproducer_mcpt&quot;, &quot;tasktype_geometry&quot;, &quot;tool_mapcreator_moderation&quot;, &quot;tool_mapcreator_moderation_category_community_feedback_road_isocc_deu_user_type_normal&quot;, &quot;tool_mapcreator_moderation_category_road_geometry_isocc_deu_user_type_normal&quot;, &quot;user_type_normal&quot;, &quot;${UTM_TAG_ID}&quot;,&quot;1234567890123456789012345678901234567890123456789012345678901234567890123456789012345_100_1234567890123456789012345678901234567890123456789012345678901234567890123456789012345_200_1234567890123456789012345678901234567890123456789012345678901234567890123456789012345_300_&quot;]
+    },
+    &quot;references&quot;: [{
+      &quot;ids&quot;: [&quot;ad24b3d2-9f23-4b61-b007-4dc5aeea1bc0&quot;],
+      &quot;spaceId&quot;: &quot;QsZZzwyY&quot;,
+      &quot;featureType&quot;: &quot;Road&quot;
+    }],
+    &quot;@ns:com:here:utm&quot;: {
+      &quot;tags&quot;: [&quot;tool_mapcreator_moderation_category_community_feedback_road_isocc_deu_user_type_normal&quot;, &quot;tool_mapcreator_moderation_category_road_geometry_isocc_deu_user_type_normal&quot;]
+    },
+    &quot;isoCountryCode&quot;: &quot;DEU&quot;,
+    &quot;description&quot;: [{
+      &quot;lang&quot;: &quot;en&quot;,
+      &quot;text&quot;: &quot;A  Road has been CREATED, Please check this task for reference!&quot;
+    }],
+    &quot;priority&quot;: 1,
+    &quot;taskType&quot;: &quot;COLLECT&quot;,
+    &quot;due&quot;: 0,
+    &quot;options&quot;: [{
+      &quot;key&quot;: &quot;EDIT&quot;,
+      &quot;value&quot;: [{
+        &quot;lang&quot;: &quot;en&quot;,
+        &quot;text&quot;: &quot;Edit&quot;
+      }]
+    }, {
+      &quot;key&quot;: &quot;ENDORSED&quot;,
+      &quot;value&quot;: [{
+        &quot;lang&quot;: &quot;en&quot;,
+        &quot;text&quot;: &quot;Endorsed&quot;
+      }]
+    }, {
+      &quot;key&quot;: &quot;ROLLBACK_MANUALLY&quot;,
+      &quot;value&quot;: [{
+        &quot;lang&quot;: &quot;en&quot;,
+        &quot;text&quot;: &quot;Rollback - Code Manually&quot;
+      }]
+    }, {
+      &quot;key&quot;: &quot;ROLLBACK_REJECT&quot;,
+      &quot;value&quot;: [{
+        &quot;lang&quot;: &quot;en&quot;,
+        &quot;text&quot;: &quot;Rollback - Reject&quot;
+      }]
+    }],
+    &quot;featureType&quot;: &quot;MapTask&quot;,
+    &quot;audiences&quot;: [&quot;INTERNAL&quot;],
+    &quot;potentialValue&quot;: 0,
+    &quot;headline&quot;: [{
+      &quot;lang&quot;: &quot;en&quot;,
+      &quot;text&quot;: &quot;A road has been CREATED&quot;
+    }],
+    &quot;status&quot;: &quot;OPEN&quot;
+  }
+};
+
+
+vars.put(&quot;V_Create_Request_Str&quot;, JSON.stringify(requestStr));
+</stringProp>
+          <stringProp name="scriptLanguage">javascript</stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Neg5.2 - Update NonExisting Task (failure)" enabled="true">
+          <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">${V_Create_Request_Str}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
+          <stringProp name="HTTPSampler.domain"></stringProp>
+          <stringProp name="HTTPSampler.port"></stringProp>
+          <stringProp name="HTTPSampler.protocol"></stringProp>
+          <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/spaces/${SPACE_ID}/features?access_token=${WR_API_KEY}&amp;ne=error</stringProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+          <stringProp name="HTTPSampler.connect_timeout"></stringProp>
+          <stringProp name="HTTPSampler.response_timeout"></stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Code" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="51517">409</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">true</boolProp>
+            <intProp name="Assertion.test_type">8</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Body" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="2039767306">{&quot;type&quot;:&quot;ErrorResponse&quot;,&quot;error&quot;:&quot;Exception&quot;,&quot;errorMessage&quot;:&quot;The record does not exist.&quot;,&quot;streamId&quot;:&quot;</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">2</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+        </hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Neg5.3 - Create Task" enabled="true">
+          <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">${V_Create_Request_Str}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
+          <stringProp name="HTTPSampler.domain"></stringProp>
+          <stringProp name="HTTPSampler.port"></stringProp>
+          <stringProp name="HTTPSampler.protocol"></stringProp>
+          <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/spaces/${SPACE_ID}/features?access_token=${WR_API_KEY}&amp;ne=create&amp;e=error</stringProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+          <stringProp name="HTTPSampler.connect_timeout"></stringProp>
+          <stringProp name="HTTPSampler.response_timeout"></stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Code" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="49586">200</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">8</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+          <JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Validate Res Body" enabled="true">
+            <stringProp name="cacheKey">false</stringProp>
+            <stringProp name="filename"></stringProp>
+            <stringProp name="parameters"></stringProp>
+            <stringProp name="script">
+// Fail the test case (by default), unless it is found to have &quot;passed&quot; later on
+prev.setSuccessful(false);
+
+// Remove unwanted fields from RESPONSE object, before actual v/s expected comparison
+var actualResString = prev.getResponseDataAsString();
+var actualFeatureCollection = JSON.parse(actualResString);
+var actualResObj = actualFeatureCollection.features[0];
+delete actualResObj.geometry.bbox;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].createdAt;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].muuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].txn;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].rtcts;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].rtuts;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].action;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].appId;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].author;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].deleted;
+
+// Compare actual v/s expected
+var modifiedActualResString = JSON.stringify(actualResObj);
+var expectedResString = JSON.stringify(${V_Create_Request_Str});
+
+if (actualFeatureCollection.features.length != 1) {
+	prev.setSuccessful(false);
+	prev.setResponseMessage(&quot;:: ERROR :: Expected exactly one feature in the response. However, count doesn&apos;t match.&quot;);
+}
+else if ( expectedResString == modifiedActualResString ) {
+	prev.setSuccessful(true);
+}
+else {
+	prev.setSuccessful(false);
+	prev.setResponseMessage(&quot;:: ERROR :: Response body doesn&apos;t match. \n\nExpected : [&quot;+ expectedResString +&quot;]\n\nActual : [&quot;+ modifiedActualResString +&quot;]&quot;);
+}
+
+
+</stringProp>
+            <stringProp name="scriptLanguage">javascript</stringProp>
+          </JSR223PostProcessor>
+          <hashTree/>
+        </hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Neg5.4 - Create Task with same ID (failure)" enabled="true">
+          <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">${V_Create_Request_Str}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
+          <stringProp name="HTTPSampler.domain"></stringProp>
+          <stringProp name="HTTPSampler.port"></stringProp>
+          <stringProp name="HTTPSampler.protocol"></stringProp>
+          <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/spaces/${SPACE_ID}/features?access_token=${WR_API_KEY}&amp;ne=create&amp;e=error</stringProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+          <stringProp name="HTTPSampler.connect_timeout"></stringProp>
+          <stringProp name="HTTPSampler.response_timeout"></stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Code" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="51517">409</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">true</boolProp>
+            <intProp name="Assertion.test_type">8</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Body" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="-1731997190">{&quot;type&quot;:&quot;ErrorResponse&quot;,&quot;error&quot;:&quot;Exception&quot;,&quot;errorMessage&quot;:&quot;The record {${TASK_ID_N05_01}} exists.&quot;,&quot;streamId&quot;:&quot;</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">2</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+        </hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Pos1.3 - GET Created Task" enabled="false">
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
+          <stringProp name="HTTPSampler.domain"></stringProp>
+          <stringProp name="HTTPSampler.port"></stringProp>
+          <stringProp name="HTTPSampler.protocol"></stringProp>
+          <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/spaces/${SPACE_ID}/features/${TASK_ID_P01_01}?access_token=${WR_API_KEY}</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+          <stringProp name="HTTPSampler.connect_timeout"></stringProp>
+          <stringProp name="HTTPSampler.response_timeout"></stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Code" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="49586">200</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">8</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+          <JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Validate Res Body" enabled="true">
+            <stringProp name="cacheKey">false</stringProp>
+            <stringProp name="filename"></stringProp>
+            <stringProp name="parameters"></stringProp>
+            <stringProp name="script">
+// Fail the test case (by default), unless it is found to have &quot;passed&quot; later on
+prev.setSuccessful(false);
+
+// Remove unwanted fields from response, before actual v/s expected comparison
+var actualResString = prev.getResponseDataAsString();
+vars.put(&quot;V_Created_Task_Str&quot;, actualResString);	// save it for next test case i.e. &quot;Update Task&quot;
+var actualResObj = JSON.parse(actualResString);
+delete actualResObj.geometry.bbox;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].createdAt;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].muuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].txn;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].rtcts;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].rtuts;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].action;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].appId;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].author;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].deleted;
+
+// Compare actual v/s expected
+var modifiedActualResString = JSON.stringify(actualResObj);
+var expectedResString = JSON.stringify(${V_Create_Request_Str});
+
+if ( expectedResString == modifiedActualResString ) {
+	prev.setSuccessful(true);
+}
+else {
+	prev.setSuccessful(false);
+	prev.setResponseMessage(&quot;:: ERROR :: Response body doesn&apos;t match. \n\nExpected : [&quot;+ expectedResString +&quot;]\n\nActual : [&quot;+ modifiedActualResString +&quot;]&quot;);
+}
+
+
+</stringProp>
+            <stringProp name="scriptLanguage">javascript</stringProp>
+          </JSR223PostProcessor>
+          <hashTree/>
+        </hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="Pos1.4 - Prepare Update Request" enabled="false">
+          <stringProp name="cacheKey">false</stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="script">
+var createdTaskStr = vars.get(&quot;V_Created_Task_Str&quot;);
+var updateTaskObj = JSON.parse(createdTaskStr);
+updateTaskObj.properties[&quot;@ns:com:here:xyz&quot;].tags.push(&quot;${UTM_DUMMY_UPDATE_TAG}&quot;);
+
+
+vars.put(&quot;V_Update_Request_Str&quot;, JSON.stringify(updateTaskObj));
+</stringProp>
+          <stringProp name="scriptLanguage">javascript</stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Pos1.5 - Update Task" enabled="false">
+          <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">${V_Update_Request_Str}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
+          <stringProp name="HTTPSampler.domain"></stringProp>
+          <stringProp name="HTTPSampler.port"></stringProp>
+          <stringProp name="HTTPSampler.protocol"></stringProp>
+          <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/spaces/${SPACE_ID}/features/${TASK_ID_P01_01}?access_token=${WR_API_KEY}</stringProp>
+          <stringProp name="HTTPSampler.method">PUT</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+          <stringProp name="HTTPSampler.connect_timeout"></stringProp>
+          <stringProp name="HTTPSampler.response_timeout"></stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Code" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="49586">200</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">8</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+          <JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Validate Res Body" enabled="true">
+            <stringProp name="cacheKey">false</stringProp>
+            <stringProp name="filename"></stringProp>
+            <stringProp name="parameters"></stringProp>
+            <stringProp name="script">
+// Fail the test case (by default), unless it is found to have &quot;passed&quot; later on
+prev.setSuccessful(false);
+
+// Remove unwanted fields from RESPONSE object, before actual v/s expected comparison
+var actualResString = prev.getResponseDataAsString();
+var actualResObj = JSON.parse(actualResString);
+//delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].createdAt;	// createdAt MUST match, hence not removing it
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].muuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].txn;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].rtcts;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].rtuts;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].action;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].appId;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].author;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].deleted;
+
+// Remove unwanted fields from EXPECTED object, before actual v/s expected comparison
+var expectedResString = JSON.stringify(${V_Update_Request_Str});
+var expectedResObj = JSON.parse(expectedResString);
+//delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].createdAt;	// createdAt MUST match, hence not removing it
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].muuid;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].txn;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].rtcts;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].rtuts;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].action;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].appId;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].author;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].deleted;
+
+// Compare actual v/s expected
+var modifiedActualResString = JSON.stringify(actualResObj);
+var modifiedExpResString = JSON.stringify(expectedResObj);
+
+if ( modifiedExpResString == modifiedActualResString ) {
+	prev.setSuccessful(true);
+}
+else {
+	prev.setSuccessful(false);
+	prev.setResponseMessage(&quot;:: ERROR :: Response body doesn&apos;t match. \n\nExpected : [&quot;+ modifiedExpResString +&quot;]\n\nActual : [&quot;+ modifiedActualResString +&quot;]&quot;);
+}
+
+
+</stringProp>
+            <stringProp name="scriptLanguage">javascript</stringProp>
+          </JSR223PostProcessor>
+          <hashTree/>
+        </hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Pos1.6 - GET Updated Task" enabled="false">
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
+          <stringProp name="HTTPSampler.domain"></stringProp>
+          <stringProp name="HTTPSampler.port"></stringProp>
+          <stringProp name="HTTPSampler.protocol"></stringProp>
+          <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/spaces/${SPACE_ID}/features/${TASK_ID_P01_01}?access_token=${WR_API_KEY}</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+          <stringProp name="HTTPSampler.connect_timeout"></stringProp>
+          <stringProp name="HTTPSampler.response_timeout"></stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Code" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="49586">200</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">8</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+          <JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Validate Res Body" enabled="true">
+            <stringProp name="cacheKey">false</stringProp>
+            <stringProp name="filename"></stringProp>
+            <stringProp name="parameters"></stringProp>
+            <stringProp name="script">
+// Fail the test case (by default), unless it is found to have &quot;passed&quot; later on
+prev.setSuccessful(false);
+
+// Remove unwanted fields from RESPONSE object, before actual v/s expected comparison
+var actualResString = prev.getResponseDataAsString();
+var actualResObj = JSON.parse(actualResString);
+//delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].createdAt;	// createdAt MUST match, hence not removing it
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].muuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].txn;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].rtcts;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].rtuts;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].action;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].appId;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].author;
+delete actualResObj.properties[&quot;@ns:com:here:xyz&quot;].deleted;
+
+// Remove unwanted fields from EXPECTED object, before actual v/s expected comparison
+var expectedResString = JSON.stringify(${V_Update_Request_Str});
+var expectedResObj = JSON.parse(expectedResString);
+//delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].createdAt;	// createdAt MUST match, hence not removing it
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].muuid;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].puuid;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].space;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].updatedAt;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].uuid;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].version;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].txn;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].rtcts;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].rtuts;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].action;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].appId;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].author;
+delete expectedResObj.properties[&quot;@ns:com:here:xyz&quot;].deleted;
+
+// Compare actual v/s expected
+var modifiedActualResString = JSON.stringify(actualResObj);
+var modifiedExpResString = JSON.stringify(expectedResObj);
+
+if ( modifiedExpResString == modifiedActualResString ) {
+	prev.setSuccessful(true);
+}
+else {
+	prev.setSuccessful(false);
+	prev.setResponseMessage(&quot;:: ERROR :: Response body doesn&apos;t match. \n\nExpected : [&quot;+ modifiedExpResString +&quot;]\n\nActual : [&quot;+ modifiedActualResString +&quot;]&quot;);
+}
+
+
+</stringProp>
+            <stringProp name="scriptLanguage">javascript</stringProp>
+          </JSR223PostProcessor>
+          <hashTree/>
+        </hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Pos1.7 - Delete Task" enabled="false">
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
+          <stringProp name="HTTPSampler.domain"></stringProp>
+          <stringProp name="HTTPSampler.port"></stringProp>
+          <stringProp name="HTTPSampler.protocol"></stringProp>
+          <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/spaces/${SPACE_ID}/features/${TASK_ID_P01_01}?access_token=${WR_API_KEY}</stringProp>
+          <stringProp name="HTTPSampler.method">DELETE</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+          <stringProp name="HTTPSampler.connect_timeout"></stringProp>
+          <stringProp name="HTTPSampler.response_timeout"></stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Code" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="49590">204</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">8</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Body" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="1468">.*</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">5</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+        </hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Pos1.8 - GET Deleted Task" enabled="false">
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
+          <stringProp name="HTTPSampler.domain"></stringProp>
+          <stringProp name="HTTPSampler.port"></stringProp>
+          <stringProp name="HTTPSampler.protocol"></stringProp>
+          <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/spaces/${SPACE_ID}/features/${TASK_ID_P01_01}?access_token=${WR_API_KEY}</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+          <stringProp name="HTTPSampler.connect_timeout"></stringProp>
+          <stringProp name="HTTPSampler.response_timeout"></stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Code" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="51512">404</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">true</boolProp>
+            <intProp name="Assertion.test_type">8</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Validate Res Body" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="-351582124">&quot;type&quot;:&quot;ErrorResponse&quot;,&quot;error&quot;:&quot;Exception&quot;,&quot;errorMessage&quot;:&quot;The requested resource does not exist.&quot;,&quot;streamId&quot;:&quot;</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message"></stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">2</intProp>
           </ResponseAssertion>
           <hashTree/>
         </hashTree>
