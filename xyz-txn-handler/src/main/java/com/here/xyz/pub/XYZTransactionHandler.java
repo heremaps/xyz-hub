@@ -1,6 +1,5 @@
 package com.here.xyz.pub;
 
-import com.here.xyz.pub.db.PubJdbcConnectionPool;
 import com.here.xyz.pub.handlers.PubJobHandler;
 import com.here.xyz.pub.handlers.SeqJobHandler;
 import com.here.xyz.pub.models.JdbcConnectionParams;
@@ -8,10 +7,6 @@ import com.here.xyz.pub.models.PubConfig;
 import io.vertx.core.json.JsonObject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
