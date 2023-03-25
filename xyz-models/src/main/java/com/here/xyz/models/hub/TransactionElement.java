@@ -3,7 +3,7 @@ package com.here.xyz.models.hub;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.View;
+import com.here.xyz.View.All;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 
 /**
@@ -16,35 +16,35 @@ public class TransactionElement {
    * The unique transaction identifier.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   public long txi;
 
   /**
    * The transaction connector-id, so the identifier of the connector that created the transaction.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   public long txcid;
 
   /**
    * The Epoch timestamp in milliseconds when the transaction started.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   public long txts;
 
   /**
    * The transaction number (UUID) as it will be stored within the XYZ namespace {@link XyzNamespace#getTxn() txn} property.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   public String txn;
 
   /**
    * The space identifier, set as soon as the transaction becomes visible.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   public String space;
 
   /**
@@ -52,14 +52,14 @@ public class TransactionElement {
    * lowest valid number being 1.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   public long id;
 
   /**
    * The Epoch timestamp in milliseconds of when the transaction became visible (end of transaction).
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   public long ts;
 }
 

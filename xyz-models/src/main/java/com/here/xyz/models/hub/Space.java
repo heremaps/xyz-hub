@@ -26,10 +26,12 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.View;
+import com.here.xyz.View.All;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -42,6 +44,37 @@ import org.jetbrains.annotations.Nullable;
 public class Space {
 
   /**
+   * Create new blank space object.
+   */
+  public Space() {
+  }
+
+  /**
+   * Create new space initialized with the given identifier.
+   * @param id the identifier.
+   */
+  public Space(@NotNull String id) {
+    this.id = id;
+  }
+
+  /**
+   * All spaces, beware to modify this map or any of its values. This is a read-only map!
+   *
+   * <p>This map need to be updated by a background process of the host.
+   */
+  private static final ConcurrentHashMap<@NotNull String, @NotNull Space> spaces = new ConcurrentHashMap<>();
+
+  /**
+   * Returns the space with the given ID.
+   *
+   * @param id the space-id.
+   * @return The space with the given ID; if any.
+   */
+  public static @Nullable Space getSpace(@NotNull String id) {
+    return spaces.get(id);
+  }
+
+  /**
    * Beta release date: 2018-10-01T00:00Z[UTC]
    */
   private final long DEFAULT_TIMESTAMP = 1538352000000L;
@@ -50,14 +83,14 @@ public class Space {
    * The unique identifier of the space.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   private String id;
 
   /**
    * A human-readable title of the space.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   private String title;
 
@@ -65,7 +98,7 @@ public class Space {
    * A human-readable description of the space, and its content.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   private String description;
 
@@ -73,7 +106,7 @@ public class Space {
    * If set to true, every authenticated user can read the features in the space.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_DEFAULT)
   private boolean shared = false;
 
@@ -81,7 +114,7 @@ public class Space {
    * Copyright information for the data in the space.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   private List<Copyright> copyright;
 
@@ -89,36 +122,52 @@ public class Space {
    * Information about the license bound to the data within the space. For valid keywords see {@link License}.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   private License license;
 
   /**
-   * The storage connector configuration.
+   * Arbitrary parameters to be added into the event. They can be used by all event handlers in the pipeline.
    */
   @JsonProperty
-  @JsonView(View.All.class)
-  private ConnectorRef storage;
+  @JsonInclude(Include.NON_NULL)
+  @JsonView(View.Protected.class)
+  public Map<@NotNull String, Object> params;
+
+  /**
+   * The identifier of the storage connector to use.
+   */
+  @JsonProperty
+  @JsonView(All.class)
+  private String connectorId;
+
+  /**
+   * An optional list of connector IDs (configured event handlers) to be added in-front of the storage connector. They will be added in
+   * order.
+   */
+  @JsonProperty
+  @JsonView(All.class)
+  public @Nullable List<@Nullable String> processors;
 
   /**
    * The identifier of the owner of this space, most likely the HERE account ID.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   private String owner;
 
   /**
    * Allows to temporary or permanently disable history.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   private boolean enableHistory = true;
 
   /**
    * The maximum days of history to keep; {@code null} means forever.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   private Integer maxHistoryDays;
 
@@ -126,7 +175,7 @@ public class Space {
    * List of packages that this space belongs to.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   private List<@NotNull String> packages;
 
@@ -134,14 +183,14 @@ public class Space {
    * Arbitrary properties added to the space, this includes the standard {@link XyzNamespace}.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   private Properties properties;
 
   /**
    * Indicates if the space is in a read-only mode.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_DEFAULT)
   private boolean readOnly = false;
 
@@ -151,7 +200,7 @@ public class Space {
    * but the result can be bad.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   private Map<@NotNull String, @NotNull Index> indices;
 
@@ -160,7 +209,7 @@ public class Space {
    * will fail, if the space does not fulfill the constraint.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   private Map<@NotNull String, @NotNull Constraint> constraints;
 
@@ -242,17 +291,12 @@ public class Space {
     return this;
   }
 
-  public ConnectorRef getStorage() {
-    return storage;
+  public @Nullable String getConnectorId()  {
+    return this.connectorId;
   }
 
-  public void setStorage(final ConnectorRef storage) {
-    this.storage = storage;
-  }
-
-  public @NotNull Space withStorage(final ConnectorRef storage) {
-    setStorage(storage);
-    return this;
+  public void setConnectorId(@NotNull String connectorId) {
+    this.connectorId = connectorId;
   }
 
   public String getOwner() {
@@ -263,22 +307,12 @@ public class Space {
     this.owner = owner;
   }
 
-  public @NotNull Space withOwner(final String owner) {
-    setOwner(owner);
-    return this;
-  }
-
   public boolean isEnableHistory() {
     return enableHistory;
   }
 
   public void setEnableHistory(final boolean enableHistory) {
     this.enableHistory = enableHistory;
-  }
-
-  public @NotNull Space withEnableHistory(final boolean enableHistory) {
-    setEnableHistory(enableHistory);
-    return this;
   }
 
   public @Nullable Integer getMaxHistoryDays() {
@@ -289,11 +323,6 @@ public class Space {
     this.maxHistoryDays = days;
   }
 
-  public @NotNull Space withMaxHistoryDays(@Nullable Integer days) {
-    setMaxHistoryDays(days);
-    return this;
-  }
-
   public List<@NotNull String> getPackages() {
     return packages;
   }
@@ -302,22 +331,19 @@ public class Space {
     this.packages = packages;
   }
 
-  public @NotNull Space withPackages(final List<@NotNull String> packages) {
-    setPackages(packages);
-    return this;
+  public @Nullable Properties getProperties() {
+    return properties;
   }
 
-  public Properties getProperties() {
+  public @NotNull Properties withProperties() {
+    if (properties == null) {
+      properties = new Properties();
+    }
     return properties;
   }
 
   public void setProperties(@Nullable Properties properties) {
     this.properties = properties;
-  }
-
-  public @NotNull Space withProperties(@Nullable Properties properties) {
-    setProperties(properties);
-    return this;
   }
 
   public boolean isReadOnly() {
@@ -328,87 +354,19 @@ public class Space {
     this.readOnly = readOnly;
   }
 
-  public @NotNull Space withReadOnly(final boolean readOnly) {
-    setReadOnly(readOnly);
-    return this;
-  }
-
-  public Map<@NotNull String, @NotNull Index> getIndices() {
+  public @Nullable Map<@NotNull String, @NotNull Index> getIndices() {
     return indices;
   }
 
-  public void setIndices(Map<@NotNull String, @NotNull Index> indices) {
+  public void setIndices(@Nullable Map<@NotNull String, @NotNull Index> indices) {
     this.indices = indices;
   }
 
-  public @NotNull Space withIndices(Map<@NotNull String, @NotNull Index> indices) {
-    setIndices(indices);
-    return this;
-  }
-
-  public Map<@NotNull String, @NotNull Constraint> getConstraints() {
+  public @Nullable Map<@NotNull String, @NotNull Constraint> getConstraints() {
     return constraints;
   }
 
-  public void setConstraints(Map<@NotNull String, @NotNull Constraint> constraints) {
+  public void setConstraints(@Nullable Map<@NotNull String, @NotNull Constraint> constraints) {
     this.constraints = constraints;
   }
-
-  public @NotNull Space withConstraints(Map<@NotNull String, @NotNull Constraint> constraints) {
-    setConstraints(constraints);
-    return this;
-  }
-
-  /**
-   * The reference to a connector configuration.
-   */
-  @JsonIgnoreProperties(ignoreUnknown = true)
-  public static class ConnectorRef {
-
-    /**
-     * The ID of the connector to be used.
-     */
-    @JsonProperty
-    @JsonInclude(Include.NON_NULL)
-    @JsonView(View.All.class)
-    private String id;
-
-    /**
-     * Arbitrary parameters to be provided to the connector.
-     */
-    @JsonProperty
-    @JsonInclude(Include.NON_NULL)
-    @JsonView(View.Protected.class)
-    private Map<String, Object> params;
-
-    public String getId() {
-      return id;
-    }
-
-    public void setId(final String id) {
-      this.id = id;
-    }
-
-    @SuppressWarnings("WeakerAccess")
-    public @NotNull ConnectorRef withId(final String id) {
-      setId(id);
-      return this;
-    }
-
-    public @Nullable Map<@NotNull String, @Nullable Object> getParams() {
-      return params;
-    }
-
-    public void setParams(final @Nullable Map<@NotNull String, @Nullable Object> params) {
-      this.params = params;
-    }
-
-    @SuppressWarnings("WeakerAccess")
-    public @NotNull ConnectorRef withParams(final @Nullable Map<@NotNull String, @Nullable Object> params) {
-      setParams(params);
-      return this;
-    }
-  }
-
-
 }

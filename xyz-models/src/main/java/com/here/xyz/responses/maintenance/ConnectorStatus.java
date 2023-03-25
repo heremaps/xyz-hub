@@ -36,7 +36,7 @@ import java.util.Set;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "ConnectorStatus")
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
-public class ConnectorStatus extends XyzResponse<ConnectorStatus> {
+public class ConnectorStatus extends XyzResponse {
   public static final String AUTO_INDEXING = "AUTO_INDEXING";
 
   private boolean initialized;

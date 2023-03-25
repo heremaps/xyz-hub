@@ -19,24 +19,23 @@
 
 package com.here.xyz.connectors;
 
-import com.here.xyz.events.DeleteFeaturesByTagEvent;
+import com.here.xyz.events.feature.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
-import com.here.xyz.events.GetFeaturesByBBoxEvent;
-import com.here.xyz.events.GetFeaturesByGeometryEvent;
-import com.here.xyz.events.GetFeaturesByIdEvent;
-import com.here.xyz.events.GetFeaturesByTileEvent;
-import com.here.xyz.events.GetStatisticsEvent;
-import com.here.xyz.events.GetHistoryStatisticsEvent;
-import com.here.xyz.events.GetStorageStatisticsEvent;
-import com.here.xyz.events.HealthCheckEvent;
-import com.here.xyz.events.IterateFeaturesEvent;
-import com.here.xyz.events.LoadFeaturesEvent;
-import com.here.xyz.events.ModifyFeaturesEvent;
-import com.here.xyz.events.ModifySpaceEvent;
-import com.here.xyz.events.ModifySubscriptionEvent;
-import com.here.xyz.events.RevisionEvent;
-import com.here.xyz.events.SearchForFeaturesEvent;
-import com.here.xyz.events.IterateHistoryEvent;
+import com.here.xyz.events.feature.GetFeaturesByBBoxEvent;
+import com.here.xyz.events.feature.GetFeaturesByGeometryEvent;
+import com.here.xyz.events.feature.GetFeaturesByIdEvent;
+import com.here.xyz.events.feature.GetFeaturesByTileEvent;
+import com.here.xyz.events.info.GetStatisticsEvent;
+import com.here.xyz.events.info.GetHistoryStatisticsEvent;
+import com.here.xyz.events.info.GetStorageStatisticsEvent;
+import com.here.xyz.events.info.HealthCheckEvent;
+import com.here.xyz.events.feature.IterateFeaturesEvent;
+import com.here.xyz.events.feature.LoadFeaturesEvent;
+import com.here.xyz.events.feature.ModifyFeaturesEvent;
+import com.here.xyz.events.space.ModifySpaceEvent;
+import com.here.xyz.events.admin.ModifySubscriptionEvent;
+import com.here.xyz.events.feature.SearchForFeaturesEvent;
+import com.here.xyz.events.feature.history.IterateHistoryEvent;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
@@ -103,9 +102,6 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
     }
     if (event instanceof GetStorageStatisticsEvent) {
       return processGetStorageStatisticsEvent((GetStorageStatisticsEvent) event);
-    }
-    if (event instanceof RevisionEvent) {
-      return new SuccessResponse();
     }
 
     return new ErrorResponse()

@@ -19,7 +19,6 @@
 
 package com.here.xyz.hub;
 
-import static com.here.xyz.hub.task.Task.TASK;
 import static com.here.xyz.hub.util.OpenApiGenerator.generate;
 import static io.vertx.core.http.HttpHeaders.CONTENT_LENGTH;
 import static io.vertx.core.http.HttpHeaders.LOCATION;
@@ -30,6 +29,7 @@ import com.here.xyz.hub.auth.ExtendedJWTAuthHandler;
 import com.here.xyz.hub.auth.XyzAuthProvider;
 import com.here.xyz.hub.rest.AdminApi;
 import com.here.xyz.hub.rest.ConnectorApi;
+import com.here.xyz.hub.rest.Context;
 import com.here.xyz.hub.rest.FeatureApi;
 import com.here.xyz.hub.rest.FeatureQueryApi;
 import com.here.xyz.hub.rest.HistoryQueryApi;
@@ -53,7 +53,6 @@ import io.vertx.ext.web.handler.StaticHandler;
 import io.vertx.ext.web.openapi.RouterBuilder;
 import io.vertx.ext.web.openapi.RouterBuilderOptions;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.nio.charset.StandardCharsets;
 import java.util.Hashtable;
 import java.util.Objects;
@@ -92,7 +91,7 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
   @Override
   protected void onRequestCancelled(RoutingContext context) {
     super.onRequestCancelled(context);
-    Task task = context.get(TASK);
+    final Task<?,?> task = Context.task(context);
     if (task != null) {
       //Cancel all pending actions of the task which might be in progress
       task.cancel();

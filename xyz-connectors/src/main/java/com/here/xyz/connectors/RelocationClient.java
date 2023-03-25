@@ -24,7 +24,6 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.AmazonS3URI;
 import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.here.xyz.events.RelocatedEvent;
 import com.here.xyz.responses.XyzError;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -81,61 +80,8 @@ public class RelocationClient {
    * @return the serialized RelocatedEvent as bytes
    */
   public byte[] relocate(String streamId, byte[] bytes) {
-    String name = UUID.randomUUID().toString();
-    RelocatedEvent event = new RelocatedEvent().withStreamId(streamId);
-
-    if (runsAsConnectorWithRelocation())
-      event.setURI(createS3Uri(System.getenv("AWS_REGION"), bucket, S3_PATH + name));
-    else {
-      //Keep backward compatibility.
-      event
-          .withLocation(name)
-          .withURI(createS3Uri(bucket, S3_PATH + name))
-          .withRegion(System.getenv("AWS_REGION"));
-    }
-
-    logger.debug("{} - Relocating data to: {}", streamId, event.getURI());
-    uploadToS3(new AmazonS3URI(event.getURI()), bytes);
-
-    return event.toString().getBytes();
+    return null;
   }
-
-  /**
-   * Returns the input stream of the original event after unwrapping the relocated event.
-   *
-   * @param event the relocation event.
-   * @return the input stream of the original event
-   * @throws ErrorResponseException when any error occurred
-   */
-  public InputStream processRelocatedEvent(RelocatedEvent event) throws ErrorResponseException {
-    return processRelocatedEvent(event, null);
-  }
-
-  /**
-   * Returns the input stream of the original event after unwrapping the relocated event.
-   *
-   * @param event the relocation event.
-   * @param region if not null, the region from where to download the original content
-   * @return the input stream of the original event
-   * @throws ErrorResponseException when any error occurred
-   */
-  public InputStream processRelocatedEvent(RelocatedEvent event, String region) throws ErrorResponseException {
-    if (event.getURI() == null && event.getLocation() != null) {
-      event.setURI(createS3Uri(bucket, S3_PATH + event.getLocation()));
-      logger.warn("{}, the RelocatedEvent returned by the connector still uses the deprecated \"location\" field."
-          + "The connector should use the field \"URI\" instead.");
-    }
-    if (event.getRegion() != null && !event.getRegion().isEmpty())
-      region = event.getRegion();
-    logger.debug("{}, Found relocation event, loading original event from '{}'", event.getStreamId(), event.getURI());
-
-    if (event.getURI().startsWith("s3://") || event.getURI().startsWith("http")) {
-      return downloadFromS3(new AmazonS3URI(event.getURI()), region);
-    }
-
-    throw new ErrorResponseException(event.getStreamId(), XyzError.ILLEGAL_ARGUMENT, "Unsupported URI type");
-  }
-
   /**
    * Downloads the file from S3.
    */

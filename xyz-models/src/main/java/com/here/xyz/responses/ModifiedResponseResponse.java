@@ -25,7 +25,7 @@ import com.here.xyz.Payload;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "ModifiedResponseResponse")
-public class ModifiedResponseResponse extends ModifiedPayloadResponse<ModifiedResponseResponse> {
+public class ModifiedResponseResponse extends ModifiedPayloadResponse {
 
   private Payload response;
 

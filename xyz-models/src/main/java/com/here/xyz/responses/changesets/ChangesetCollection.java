@@ -30,7 +30,7 @@ import java.util.Map;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "ChangesetCollection")
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
-public class ChangesetCollection extends XyzResponse<ChangesetCollection> {
+public class ChangesetCollection extends XyzResponse {
     private int startVersion;
     private int endVersion;
 

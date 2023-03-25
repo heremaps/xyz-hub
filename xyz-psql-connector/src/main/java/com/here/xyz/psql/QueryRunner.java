@@ -38,8 +38,6 @@ import org.slf4j.LoggerFactory;
  */
 public abstract class QueryRunner<E, R> implements ResultSetHandler<R> {
 
-  protected static final Logger logger = LoggerFactory.getLogger(QueryRunner.class);
-
   //TODO: Make protected again after refactoring is complete
   public static final String SCHEMA = "schema";
   public static final String TABLE = "table";

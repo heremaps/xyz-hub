@@ -19,6 +19,8 @@
 
 package com.here.xyz.events;
 
+import static com.here.xyz.EventTask.currentTask;
+import static com.here.xyz.EventTask.currentTaskOrNull;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -30,8 +32,26 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.NanoTime;
 import com.here.xyz.Payload;
+import com.here.xyz.events.admin.ModifySubscriptionEvent;
+import com.here.xyz.events.feature.DeleteFeaturesByTagEvent;
+import com.here.xyz.events.feature.GetFeaturesByBBoxEvent;
+import com.here.xyz.events.feature.GetFeaturesByGeometryEvent;
+import com.here.xyz.events.feature.GetFeaturesByIdEvent;
+import com.here.xyz.events.feature.GetFeaturesByTileEvent;
+import com.here.xyz.events.feature.IterateFeaturesEvent;
+import com.here.xyz.events.feature.LoadFeaturesEvent;
+import com.here.xyz.events.feature.ModifyFeaturesEvent;
+import com.here.xyz.events.feature.history.IterateHistoryEvent;
+import com.here.xyz.events.feature.SearchForFeaturesEvent;
+import com.here.xyz.events.info.GetHistoryStatisticsEvent;
+import com.here.xyz.events.info.GetStatisticsEvent;
+import com.here.xyz.events.info.GetStorageStatisticsEvent;
+import com.here.xyz.events.info.HealthCheckEvent;
+import com.here.xyz.events.space.ModifySpaceEvent;
 import com.here.xyz.models.hub.Connector;
-import com.here.xyz.models.hub.Space.ConnectorRef;
+import com.here.xyz.models.hub.Space;
+import com.here.xyz.EventTask;
+import com.here.xyz.util.JsonUtils;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -59,9 +79,6 @@ import org.jetbrains.annotations.Nullable;
     @JsonSubTypes.Type(value = ModifySpaceEvent.class, name = "ModifySpaceEvent"),
     @JsonSubTypes.Type(value = ModifySubscriptionEvent.class, name = "ModifySubscriptionEvent"),
     @JsonSubTypes.Type(value = ModifyFeaturesEvent.class, name = "ModifyFeaturesEvent"),
-    @JsonSubTypes.Type(value = TransformEvent.class, name = "TransformEvent"),
-    @JsonSubTypes.Type(value = RelocatedEvent.class, name = "RelocatedEvent"),
-    @JsonSubTypes.Type(value = EventNotification.class, name = "EventNotification"),
     @JsonSubTypes.Type(value = DeleteFeaturesByTagEvent.class, name = "DeleteFeaturesByTagEvent"),
     @JsonSubTypes.Type(value = SearchForFeaturesEvent.class, name = "SearchForFeaturesEvent"),
     @JsonSubTypes.Type(value = IterateFeaturesEvent.class, name = "IterateFeaturesEvent"),
@@ -74,23 +91,48 @@ import org.jetbrains.annotations.Nullable;
     @JsonSubTypes.Type(value = HealthCheckEvent.class, name = "HealthCheckEvent"),
     @JsonSubTypes.Type(value = GetFeaturesByIdEvent.class, name = "GetFeaturesByIdEvent"),
     @JsonSubTypes.Type(value = LoadFeaturesEvent.class, name = "LoadFeaturesEvent"),
-    @JsonSubTypes.Type(value = IterateHistoryEvent.class, name = "IterateHistoryEvent"),
-    @JsonSubTypes.Type(
-        value = ContentModifiedNotification.class,
-        name = "ContentModifiedNotification"),
-    @JsonSubTypes.Type(value = RevisionEvent.class, name = "RevisionEvent")
+    @JsonSubTypes.Type(value = IterateHistoryEvent.class, name = "IterateHistoryEvent")
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
-public abstract class Event<SELF extends Event<SELF>> extends Payload {
+public abstract class Event extends Payload {
 
   protected Event() {
+    final EventTask context = currentTaskOrNull();
+    if (context != null) {
+      startNanos = context.startNanos;
+      streamId = context.streamId();
+    } else {
+      startNanos = NanoTime.now();
+    }
+  }
+
+  /**
+   * Initialize this event for the given space.
+   *
+   * @param space The space to initialize the event for.
+   * @throws IllegalStateException if the given space does refer to not existing connector or any other information is not valid.
+   */
+  public void initForSpace(@NotNull Space space) {
+    setSpace(space.getId());
+    final String connectorId = space.getConnectorId();
+    if (connectorId == null) {
+      throw new IllegalStateException("The given space does not have a connectorId");
+    }
+    final Connector connector = Connector.getConnector(connectorId);
+    if (connector == null) {
+      throw new IllegalStateException("The connector with the id " + connectorId + " does not exist");
+    }
+    setConnectorId(connector.id);
+    setConnectorNumber(connector.number);
+    setParams(JsonUtils.deepCopy(space.params));
+    setConnectorParams(JsonUtils.deepCopy(connectorParams));
   }
 
   /**
    * The time when the event started processed.
    */
   @JsonIgnore
-  private long startNanos = NanoTime.now();
+  private long startNanos;
 
   @JsonIgnore
   public long startNanos() {
@@ -98,9 +140,8 @@ public abstract class Event<SELF extends Event<SELF>> extends Payload {
   }
 
   @JsonIgnore
-  public @NotNull SELF withStartNanos(long nanos) {
+  public void setStartNanos(long nanos) {
     this.startNanos = nanos;
-    return self();
   }
 
   /**
@@ -138,32 +179,6 @@ public abstract class Event<SELF extends Event<SELF>> extends Payload {
     return remaining;
   }
 
-  @JsonIgnore
-  public final @NotNull String logId() {
-    return getConnectorId();
-  }
-
-  @JsonIgnore
-  public final @NotNull String logStream() {
-    return getStreamId();
-  }
-
-  @JsonIgnore
-  public final long logTime() {
-    return micros();
-  }
-
-  /**
-   * Returns this, typed correctly.
-   *
-   * @return this, typed correctly.
-   */
-  @JsonIgnore
-  @SuppressWarnings("unchecked")
-  protected final @NotNull SELF self() {
-    return (SELF) this;
-  }
-
   @JsonView(ExcludeFromHash.class)
   private @Nullable Map<@NotNull String, @Nullable Object> connectorParams;
 
@@ -187,19 +202,6 @@ public abstract class Event<SELF extends Event<SELF>> extends Payload {
   @JsonProperty
   private String space;
 
-  /**
-   * The unique connector identifier.
-   */
-  @JsonProperty
-  private String connectorId;
-
-  /**
-   * The unique database identifier. In fact the same database can be used by multiple connectors and for unique UUIDs the database
-   * identifier is more important than the connector that was used to access the database.
-   */
-  @JsonProperty
-  private long dbId;
-
   private Map<String, Object> metadata;
 
   @JsonView(ExcludeFromHash.class)
@@ -219,6 +221,7 @@ public abstract class Event<SELF extends Event<SELF>> extends Payload {
    * The identifier of the space.
    *
    * @return the identifier of the space.
+   * @throws IllegalStateException if the space is {@code null}.
    */
   @JsonIgnore
   public @NotNull String getSpace() {
@@ -233,49 +236,15 @@ public abstract class Event<SELF extends Event<SELF>> extends Payload {
     this.space = space;
   }
 
-  @JsonIgnore
-  public @NotNull SELF withSpace(@NotNull String space) {
-    setSpace(space);
-    return self();
-  }
-
   /**
-   * The identifier of the space.
-   *
-   * @return the identifier of the space.
+   * The space parameter from {@link Space#params}.
    */
-  @JsonIgnore
-  public long getDbId() {
-    return this.dbId;
-  }
-
-  @JsonIgnore
-  public void setDbId(long dbId) {
-    this.dbId = dbId;
-  }
-
-  @JsonIgnore
-  public @NotNull SELF withDbId(long dbId) {
-    setDbId(dbId);
-    return self();
-  }
-
-  /**
-   * The parameters as {@link ConnectorRef#getParams()} configured in the space}.
-   */
-  public Map<String, Object> getParams() {
+  public @Nullable Map<@NotNull String, Object> getParams() {
     return this.params;
   }
 
-  @SuppressWarnings("WeakerAccess")
-  public void setParams(Map<String, Object> params) {
+  public void setParams(@Nullable Map<@NotNull String, Object> params) {
     this.params = params;
-  }
-
-  @SuppressWarnings("unused")
-  public SELF withParams(Map<String, Object> params) {
-    setParams(params);
-    return self();
   }
 
   /**
@@ -293,12 +262,6 @@ public abstract class Event<SELF extends Event<SELF>> extends Payload {
     this.trustedParams = trustedParams;
   }
 
-  @SuppressWarnings("unused")
-  public @NotNull SELF withTrustedParams(TrustedParams trustedParams) {
-    setTrustedParams(trustedParams);
-    return self();
-  }
-
   /**
    * The stream identifier that should be used for logging purpose. In fact the XYZ Hub service will internally generate a unique stream
    * identifier for every request it receives and log everything that happens while processing this request using this stream identifier. Be
@@ -308,7 +271,14 @@ public abstract class Event<SELF extends Event<SELF>> extends Payload {
    */
   @JsonIgnore
   public @NotNull String getStreamId() {
-    withStreamId();
+    if (streamId == null) {
+      final EventTask context = currentTaskOrNull();
+      if (context != null) {
+        streamId = context.streamId();
+      } else {
+        streamId = RandomStringUtils.randomAlphanumeric(12);
+      }
+    }
     return streamId;
   }
 
@@ -316,25 +286,6 @@ public abstract class Event<SELF extends Event<SELF>> extends Payload {
   @SuppressWarnings("UnusedReturnValue")
   public void setStreamId(@NotNull String streamId) {
     this.streamId = streamId;
-  }
-
-  @JsonIgnore
-  public @NotNull SELF withStreamId(@NotNull String streamId) {
-    setStreamId(streamId);
-    return self();
-  }
-
-  /**
-   * Ensure that a stream-id is set, if it is not, generate a new random one.
-   *
-   * @return this.
-   */
-  @JsonIgnore
-  public @NotNull SELF withStreamId() {
-    if (streamId == null) {
-      streamId = RandomStringUtils.randomAlphanumeric(12);
-    }
-    return self();
   }
 
   /**
@@ -351,13 +302,6 @@ public abstract class Event<SELF extends Event<SELF>> extends Payload {
     this.ifNoneMatch = ifNoneMatch;
   }
 
-  @SuppressWarnings("unused")
-  public SELF withIfNoneMatch(String ifNoneMatch) {
-    setIfNoneMatch(ifNoneMatch);
-    //noinspection unchecked
-    return (SELF) this;
-  }
-
   /**
    * The parameters as {@link Connector#params configured in the connector}.
    */
@@ -365,17 +309,24 @@ public abstract class Event<SELF extends Event<SELF>> extends Payload {
     return this.connectorParams;
   }
 
+  /**
+   * The parameters as {@link Connector#params configured in the connector}.
+   */
+  public @NotNull Map<@NotNull String, @Nullable Object> withConnectorParams() {
+    if (connectorParams == null) {
+      connectorParams = new HashMap<>();
+    }
+    return connectorParams;
+  }
+
   @SuppressWarnings("WeakerAccess")
   public void setConnectorParams(@Nullable Map<@NotNull String, @Nullable Object> connectorParams) {
     this.connectorParams = connectorParams;
   }
 
-  @SuppressWarnings("unused")
-  public SELF withConnectorParams(@Nullable Map<@NotNull String, @Nullable Object> connectorParams) {
-    setConnectorParams(connectorParams);
-    //noinspection unchecked
-    return (SELF) this;
-  }
+  // TODO: Move connectorId and connectorNumber to root!
+  // Note: connectorParams are optional and only necessary when sending the event to a remove location.
+  //       This means, they are basically Virtual
 
   /**
    * Returns the "connectorId" property from the {@link #getConnectorParams() connector parameters}.
@@ -383,20 +334,15 @@ public abstract class Event<SELF extends Event<SELF>> extends Payload {
    * @return the "connectorId" property; if set.
    */
   public @NotNull String getConnectorId() {
-    String connectorId = this.connectorId;
-    if (connectorId != null) {
-      return connectorId;
-    }
     final Map<@NotNull String, @Nullable Object> params = getConnectorParams();
     if (params != null) {
       final Object raw = params.get("connectorId");
       if (raw instanceof String) {
-        return this.connectorId = (String) raw;
+        return (String) raw;
       }
     }
-    this.connectorId = connectorId = getClass().getName();
-    logger.warn("{}:{}:{} - Missing 'connectorId' and 'connectorParams.connectorId' in event", logId(), logStream(), logTime());
-    return connectorId;
+    currentTask().debug("Missing 'connectorParams.connectorId' in event");
+    return getClass().getName();
   }
 
   /**
@@ -406,25 +352,30 @@ public abstract class Event<SELF extends Event<SELF>> extends Payload {
    * @param id the connector ID to be set.
    */
   public void setConnectorId(@NotNull String id) {
-    this.connectorId = id;
-    Map<@NotNull String, @Nullable Object> params = getConnectorParams();
-    if (params == null) {
-      params = new HashMap<>();
-      setConnectorParams(params);
-    }
-    params.put("connectorId", id);
+    withConnectorParams().put("connectorId", id);
   }
 
   /**
-   * Sets the "connectorId" property in the {@link #getConnectorParams() connector parameters}. If no params exists yet, new params are
-   * created, and the connector-id is set in it.
+   * The identifier of the space.
    *
-   * @param id the connector ID to be set.
-   * @return this.
+   * @return the identifier of the space.
    */
-  public @NotNull SELF withConnectorId(@NotNull String id) {
-    setConnectorId(id);
-    return self();
+  @JsonIgnore
+  public long getConnectorNumber() {
+    final Map<@NotNull String, @Nullable Object> params = getConnectorParams();
+    if (params != null) {
+      final Object raw = params.get("connectorNumber");
+      if (raw instanceof Number) {
+        return ((Number) raw).longValue();
+      }
+    }
+    currentTask().debug("Missing 'connectorParams.connectorNumber' in event");
+    return 0L;
+  }
+
+  @JsonIgnore
+  public void setConnectorNumber(long connectorNumber) {
+    withConnectorParams().put("connectorNumber", connectorNumber);
   }
 
   /**
@@ -442,13 +393,6 @@ public abstract class Event<SELF extends Event<SELF>> extends Payload {
     this.metadata = metadata;
   }
 
-  @SuppressWarnings("unused")
-  public SELF withMetadata(Map<String, Object> metadata) {
-    setMetadata(metadata);
-    //noinspection unchecked
-    return (SELF) this;
-  }
-
   /**
    * The token ID of the token being used for the request. NOTE: This field will only be sent to "trusted" connectors.
    */
@@ -459,13 +403,6 @@ public abstract class Event<SELF extends Event<SELF>> extends Payload {
   @SuppressWarnings("WeakerAccess")
   public void setTid(String tid) {
     this.tid = tid;
-  }
-
-  @SuppressWarnings("unused")
-  public SELF withTid(String tid) {
-    setTid(tid);
-    //noinspection unchecked
-    return (SELF) this;
   }
 
   /**
@@ -480,13 +417,6 @@ public abstract class Event<SELF extends Event<SELF>> extends Payload {
     this.jwt = jwt;
   }
 
-  @SuppressWarnings("unused")
-  public SELF withJwt(String jwt) {
-    setJwt(jwt);
-    //noinspection unchecked
-    return (SELF) this;
-  }
-
   /**
    * The users account ID of the token being used for the request. NOTE: This field will only be sent to "trusted" connectors.
    */
@@ -498,13 +428,6 @@ public abstract class Event<SELF extends Event<SELF>> extends Payload {
   @SuppressWarnings({"unused", "WeakerAccess"})
   public void setAid(String aid) {
     this.aid = aid;
-  }
-
-  @SuppressWarnings("unused")
-  public SELF withAid(String aid) {
-    setAid(aid);
-    //noinspection unchecked
-    return (SELF) this;
   }
 
   /**
@@ -523,13 +446,6 @@ public abstract class Event<SELF extends Event<SELF>> extends Payload {
     this.preferPrimaryDataSource = preferPrimaryDataSource;
   }
 
-  @SuppressWarnings("unused")
-  public SELF withPreferPrimaryDataSource(Boolean preferPrimaryDataSource) {
-    setPreferPrimaryDataSource(preferPrimaryDataSource);
-    //noinspection unchecked
-    return (SELF) this;
-  }
-
   /**
    * The version of the event protocol.
    *
@@ -542,13 +458,6 @@ public abstract class Event<SELF extends Event<SELF>> extends Payload {
   @SuppressWarnings("unused")
   public void setVersion(String version) {
     this.version = version;
-  }
-
-  @SuppressWarnings("unused")
-  public SELF withVersion(String version) {
-    setVersion(version);
-    //noinspection unchecked
-    return (SELF) this;
   }
 
   public static class TrustedParams extends HashMap<String, Object> {

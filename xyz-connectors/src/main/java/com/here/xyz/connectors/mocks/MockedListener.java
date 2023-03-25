@@ -23,7 +23,7 @@ import com.here.xyz.Typed;
 import com.here.xyz.connectors.ListenerConnector;
 import com.here.xyz.connectors.NotificationParams;
 import com.here.xyz.events.Event;
-import com.here.xyz.events.ModifyFeaturesEvent;
+import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 
 @SuppressWarnings("unused")

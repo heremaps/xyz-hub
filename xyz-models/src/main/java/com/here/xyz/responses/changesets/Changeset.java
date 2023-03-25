@@ -26,7 +26,7 @@ import com.here.xyz.responses.XyzResponse;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "Changeset")
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
-public class Changeset extends XyzResponse<Changeset> {
+public class Changeset extends XyzResponse {
 
     @JsonTypeInfo( use = JsonTypeInfo.Id.NONE )
     private FeatureCollection inserted;

@@ -13,17 +13,17 @@ public class View {
   public static class All {}
 
   /**
-   * Exposed via REST API.
+   * Pure public properties are only available to externals, so only exposed via REST API (mainly virtual read-only).
    */
-  public static final class Public extends All {}
+  public static class Public extends All {}
 
   /**
-   * Exposed via REST API for owners only.
+   * Exposed via REST API, limited to owners only.
    */
-  public static final class Protected extends All {}
+  public static class Protected extends All {}
 
   /**
    * Used internally for storage in a database or while sending to microservices, processors and alike.
    */
-  public static final class Private extends All {}
+  public static class Private extends Protected {}
 }

@@ -22,7 +22,7 @@ package com.here.xyz.hub.connectors.test;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.connectors.NotificationParams;
 import com.here.xyz.connectors.ProcessorConnector;
-import com.here.xyz.events.ModifyFeaturesEvent;
+import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.responses.XyzError;
 
 public class ErrorPreProcessor extends ProcessorConnector {

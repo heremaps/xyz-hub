@@ -32,7 +32,6 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.json.DecodeException;
-import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
@@ -105,7 +104,7 @@ public class ConnectorApi extends Api {
               }
           );
         } else {
-          ConnectorHandler.getConnectors(context, Context.getJWT(context).aid, ar -> {
+          ConnectorHandler.getConnectors(context, Context.jwt(context).aid, ar -> {
                 if (ar.failed()) {
                   sendErrorResponse(context, ar.cause());
                 } else {
@@ -228,7 +227,7 @@ public class ConnectorApi extends Api {
       CompletableFuture.allOf(futureList.toArray(new CompletableFuture[0]))
           .thenRun(() -> {
             try {
-              evaluateRights(Context.getMarker(context), requestRights, Context.getJWT(context).getXyzHubMatrix());
+              evaluateRights(Context.getMarker(context), requestRights, Context.jwt(context).getXyzHubMatrix());
               handler.handle(Future.succeededFuture());
             } catch (HttpException e) {
               handler.handle(Future.failedFuture(e));
@@ -248,7 +247,7 @@ public class ConnectorApi extends Api {
           f.complete(null);
         } else {
           //If connector does not exist.
-          requestRights.manageConnectors(XyzHubAttributeMap.forIdValues(Context.getJWT(context).aid, connectorId));
+          requestRights.manageConnectors(XyzHubAttributeMap.forIdValues(Context.jwt(context).aid, connectorId));
           f.complete(null);
         }
       });
@@ -258,14 +257,14 @@ public class ConnectorApi extends Api {
     public static void validateAdminChanges(RoutingContext context, Difference.DiffMap diffMap) throws HttpException {
       //Is Admin change?
       if (!isAdmin(context)) {
-        checkParameterChange(diffMap.get("owner"), "owner", Api.Context.getJWT(context).aid);
+        checkParameterChange(diffMap.get("owner"), "owner", Context.jwt(context).aid);
         checkParameterChange(diffMap.get("skipAutoDisable"), "skipAutoDisable", false);
         checkParameterChange(diffMap.get("trusted"), "trusted", false);
       }
     }
 
     private static boolean isAdmin(RoutingContext context) {
-      XyzHubActionMatrix xyzHubActionMatrix = Api.Context.getJWT(context).getXyzHubMatrix();
+      XyzHubActionMatrix xyzHubActionMatrix = Context.jwt(context).getXyzHubMatrix();
       if (xyzHubActionMatrix == null) return false;
       List<AttributeMap> manageConnectorsRights = xyzHubActionMatrix.get(XyzHubActionMatrix.MANAGE_CONNECTORS);
       if (manageConnectorsRights != null) {

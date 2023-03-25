@@ -24,7 +24,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.here.xyz.models.hub.psql.PsqlProcessorParams;
-import com.here.xyz.events.ModifyFeaturesEvent;
+import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.psql.tools.FeatureGenerator;
@@ -65,11 +65,11 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
       add(FeatureGenerator.generateFeature(xyzNamespace, null));
     }};
 
-    ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent()
-            .withSpace(spaceId)
-            .withConnectorParams(connectorParams)
-            .withTransaction(true)
-            .withInsertFeatures(features);
+    ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
+    mfevent.setSpace(spaceId);
+    mfevent.setConnectorParams(connectorParams);
+    mfevent.setTransaction(true);
+    mfevent.setInsertFeatures(features);
     invokeLambda(mfevent.serialize());
 
     /** Needed to trigger update on pg_stat */
@@ -89,11 +89,11 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
     final String hashedSpaceId = Hasher.getHash(spaceId);
 
     final List<Feature> features = FeatureGenerator.get11kFeatureCollection().getFeatures();
-    ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent()
-            .withSpace(spaceId)
-            .withConnectorParams(connectorParams)
-            .withTransaction(true)
-            .withInsertFeatures(features);
+    ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
+    mfevent.setSpace(spaceId);
+    mfevent.setConnectorParams(connectorParams);
+    mfevent.setTransaction(true);
+    mfevent.setInsertFeatures(features);
 
     invokeLambda(mfevent.serialize());
 

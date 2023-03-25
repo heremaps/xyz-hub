@@ -19,241 +19,253 @@
 
 package com.here.xyz.hub.task;
 
-import java.util.concurrent.atomic.AtomicBoolean;
+import static com.here.xyz.hub.rest.Context.logStream;
+import static com.here.xyz.hub.rest.Context.logTime;
+
+import com.here.xyz.events.Event;
+import io.vertx.ext.web.RoutingContext;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.atomic.AtomicReference;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * A pipeline with functions to process a a task.
+ * A pipeline with functions to process a task.
  *
- * @param <V> the type of the task.
+ * @param <EVENT> the event type.
  */
-public class TaskPipeline<V> {
+public final class TaskPipeline<EVENT extends Event, TASK extends Task<EVENT, TASK>> {
 
-  private final TaskPipeline<V> first;
-  private final State<V> state;
-  private TaskPipeline<V> next;
-  private C2<V, Callback<V>> ifNotNull;
-  private C1<V> finish;
-  private C2<V, Throwable> finishException;
-  private AtomicBoolean consumed = new AtomicBoolean(false);
+  private static final Logger logger = LoggerFactory.getLogger(TaskPipeline.class);
+  private static final String logId = TaskPipeline.class.getSimpleName();
 
-  /**
-   * Creates a new pipeline step.
-   *
-   * @param first the first chain stage.
-   * @throws NullPointerException if the given chain stage is null or does not have a callback handler.
-   */
-  private TaskPipeline(TaskPipeline<V> first) throws NullPointerException {
-    this.first = first;
-    if (first.state == null)
-      throw new NullPointerException();
-    this.state = first.state;
-  }
+  private final class Step implements ICallback {
 
-  /**
-   * Creates a pipelines.
-   *
-   * @param task the initial chain value.
-   */
-  private TaskPipeline(V task) {
-    first = this;
-    state = new State<>();
-    state.next = this;
-    state.value = task;
-  }
+    private Step(@NotNull ITaskStep<EVENT, TASK> processor) {
+      this.processor = processor;
+    }
 
-  public static <V> TaskPipeline<V> create(V task) {
-    return new TaskPipeline<>(task);
-  }
+    private final @NotNull ITaskStep<EVENT, TASK> processor;
 
-  /**
-   * Invokes the method when the chain did not produce any exception and the chain value not null; otherwise the next stage is executed.
-   *
-   * @param nextFunction the method to be invoked.
-   * @return the next stage.
-   * @throws NullPointerException if the given method is null.
-   * @throws IllegalStateException if this chain stage has already been initialized.
-   */
-  public TaskPipeline<V> then(C2<V, Callback<V>> nextFunction) throws NullPointerException, IllegalStateException {
-    if (next != null)
-      throw new IllegalStateException("The chain stage is already initialized, the same stage can't be handled twice");
-    this.ifNotNull = nextFunction;
-    next = new TaskPipeline<>(first);
-    return next;
-  }
+    @SuppressWarnings("NotNullFieldNotInitialized")
+    private @NotNull Step next;
 
-  /**
-   * Registers a finishing state that will have the on-success method being invoked when the chain did not produce any exception. If the
-   * chain produced an exception or the success handler produced an exception, then the provided exception handler is invoked.
-   *
-   * @param onSuccess the method to be invoked when the chain successfully produced a result.
-   * @param onException the method to be invoked when the chain produced an exception or the on-success handler produced an exception.
-   * @return the first chain stage.
-   * @throws NullPointerException if the given method is null.
-   * @throws IllegalStateException if this chain stage has already been initialized.
-   */
-  public TaskPipeline<V> finish(C1<V> onSuccess, C2<V, Throwable> onException) throws NullPointerException, IllegalStateException {
-    if (onSuccess == null)
-      throw new NullPointerException("nextFunction");
-    if (next != null)
-      throw new IllegalStateException("The chain stage is already initialized, the same stage can't be handled twice");
-    this.finish = onSuccess;
-    this.finishException = onException;
-    return first;
-  }
+    @Override
+    public void throwException(@NotNull Throwable t) {
+      if (state.compareAndSet(State.EXECUTE, State.FAILED)) {
+        throwable = t;
+        callExceptionHandler();
+      } else {
+        logger.warn("{}:{}:{} - Unhandled exception", processor.getClass().getSimpleName(), logStream(context), logTime(context));
+      }
+    }
 
-  /**
-   * Execute the chain and return the first chain stage.
-   *
-   * @return the first chain stage.
-   * @throws IllegalStateException if the chain was already executed or if the chain was created uninitialized, so without an initial
-   * value.
-   */
-  public TaskPipeline<V> execute() throws IllegalStateException {
-    if (state.isExecuted)
-      throw new IllegalStateException("The chain was already executed");
-    if (first.state.value == null)
-      throw new IllegalStateException("The chain was not initialized with a value, please invoke execute(chainValue)");
-    state.isExecuted = true;
-    first._execute();
-    return first;
-  }
+    @Override
+    public void success() {
+      if (state.get() == State.EXECUTE) {
+        next.execute();
+      }
+    }
 
-  /**
-   * Execute the chain with the given initial value and return the first chain stage.
-   *
-   * @param chainValue the initial value with which to execute the chain.
-   * @return the first chain stage.
-   * @throws IllegalStateException if the chain was already executed or the chain was created with an initial value.
-   */
-  public TaskPipeline<V> execute(V chainValue) throws IllegalStateException {
-    if (state.isExecuted)
-      throw new IllegalStateException("The chain was already executed");
-    if (first.state.value != null)
-      throw new IllegalStateException("The chain is already initialized with a value");
-    state.isExecuted = true;
-    first.state.value = chainValue;
-    first._execute();
-    return first;
-  }
-
-  private void _execute() throws IllegalStateException {
-    if (!consumed.compareAndSet(false, true))
-      throw new IllegalStateException("This chain stage was already consumed");
-
-    state.next = next;
-
-    //If there is no exception present.
-    if (state.exception == null) {
+    private void execute() {
       try {
-        if (this.ifNotNull != null && state.value != null) {
-          this.ifNotNull.call(state.value, state);
-          return;
-        }
-
-        if (this.finish != null) {
-          this.finish.call(state.value);
-          return;
-        }
-      }
-      catch (Throwable e) {
-        state.exception = e;
+        processor.process(task, this);
+      } catch (Throwable t) {
+        throwException(t);
       }
     }
-
-    //If there is an exception present.
-    if (state.exception != null) {
-      if (this.finishException != null) {
-        try {
-          final Throwable theException = state.exception;
-          state.exception = null;
-          this.finishException.call(state.value, theException);
-          return;
-        }
-        catch (Throwable e) {
-          state.exception = e;
-        }
-      }
-    }
-
-    //Execute the next chain stage, if there is any.
-    if (next != null && !state.isCancelled)
-      next._execute();
   }
 
-  void cancel() {
-    state.isCancelled = true;
-    PipelineCancelledException e = new PipelineCancelledException();
+  /**
+   * The state of the pipeline.
+   */
+  public enum State {
+    /**
+     * The initial state after creating a new task pipeline.
+     */
+    NEW,
+    /**
+     * The state short before the execution starts.
+     */
+    PRE_EXECUTE,
+    /**
+     * The state while the pipeline executes.
+     */
+    EXECUTE,
+    /**
+     * The state while invoking the {@link #onSuccess(ISuccessHandler) success} handler, a cancellation in this state is impossible.
+     */
+    EXECUTE_SUCCESS_HANDLER,
+    /**
+     * When the execution failed due to an error.
+     */
+    FAILED,
+    /**
+     * When the execution succeeded.
+     */
+    SUCCEEDED
+  }
+
+  private final @NotNull RoutingContext context;
+  private final @NotNull TASK task;
+  private final AtomicReference<@NotNull State> state = new AtomicReference<>(State.NEW);
+  private Step first;
+  private Step last;
+  private Throwable throwable;
+  private ISuccessHandler<EVENT, TASK> successHandler;
+  private IErrorHandler<EVENT, TASK> errorHandler;
+
+  /**
+   * Creates a new initialized pipelines.
+   *
+   * @param context the routing context.
+   * @param task    the task to process.
+   */
+  TaskPipeline(final @NotNull RoutingContext context, final @NotNull TASK task) {
+    this.context = context;
+    this.task = task;
+  }
+
+  /**
+   * Invokes the method when the pipeline did not produce any error (exception).
+   *
+   * @param processor the processor to be invoked.
+   * @return this.
+   * @throws NullPointerException  if the given method is null.
+   * @throws IllegalStateException if this chain stage has already been initialized.
+   */
+  public @NotNull TaskPipeline<EVENT, TASK> then(@NotNull ITaskStep<EVENT, TASK> processor)
+      throws NullPointerException, IllegalStateException {
+    if (state.get() != State.NEW) {
+      throw new IllegalStateException("Modification of the pipeline only allowed in NEW state and only by a single thread");
+    }
+    final Step step = new Step(processor);
+    if (first == null) {
+      first = last = step;
+    } else {
+      last.next = step;
+      last = step;
+    }
+    return this;
+  }
+
+  /**
+   * Add a success handler.
+   *
+   * @param successHandler the handler to call when the pipeline finished successfully.
+   * @return this.
+   */
+  public @NotNull TaskPipeline<EVENT, TASK> onSuccess(@NotNull ISuccessHandler<EVENT, TASK> successHandler) {
+    if (state.get() != State.NEW) {
+      throw new IllegalStateException("Modification of the pipeline only allowed in NEW state and only by a single thread");
+    }
+    this.successHandler = successHandler;
+    return this;
+  }
+
+  /**
+   * Add an error handler.
+   *
+   * @param errorHandler the handler to call when the pipeline failed.
+   * @return this.
+   */
+  public @NotNull TaskPipeline<EVENT, TASK> onError(@NotNull IErrorHandler<EVENT, TASK> errorHandler) {
+    if (state.get() != State.NEW) {
+      throw new IllegalStateException("Modification of the pipeline only allowed in NEW state and only by a single thread");
+    }
+    this.errorHandler = errorHandler;
+    return this;
+  }
+
+  private void callExceptionHandler() {
+    assert state.get() == State.FAILED;
     try {
-      finishException.call(state.value, e);
-    }
-    catch (Throwable throwable) {
-      state.exception = e;
+      errorHandler.onError(task, throwable);
+    } catch (Throwable t) {
+      logger.error("{}:{}:{} - Uncaught exception in task-pipeline", logId, logStream(context), logTime(context));
     }
   }
 
-  public static class PipelineCancelledException extends RuntimeException {
-
+  private void callSuccessHandler() {
+    if (state.compareAndSet(State.EXECUTE, State.EXECUTE_SUCCESS_HANDLER)) {
+      try {
+        successHandler.onSuccess(task);
+        state.set(State.SUCCEEDED);
+      } catch (Throwable t) {
+        assert state.get() == State.EXECUTE_SUCCESS_HANDLER;
+        state.set(State.FAILED);
+        throwable = t;
+        callExceptionHandler();
+      }
+    }
   }
 
   /**
-   * The callback handler.
+   * Returns the current state of the pipeline.
    *
-   * @param <V> the type of the value of the chain.
+   * @return The current state of the pipeline.
    */
-  public interface Callback<V> {
-
-    /**
-     * Report an exception, the current chain value stays what it is.
-     *
-     * @param e the exception to report.
-     */
-    void exception(Throwable e);
-
-    /**
-     * Report a new chain value and clears the current exception.
-     *
-     * @param value the new value to report.
-     */
-    void call(V value);
-  }
-
-  @FunctionalInterface
-  public interface C1<A> {
-
-    void call(A a) throws Throwable;
-  }
-
-  @FunctionalInterface
-  public interface C2<A, B> {
-
-    void call(A a, B b) throws Throwable;
+  public @NotNull State getState() {
+    return state.get();
   }
 
   /**
-   * The state of the chain that implements as well the callback handler.
+   * Execute the pipeline.
    *
-   * @param <V> the type of the value of the chain.
+   * @return this.
+   * @throws IllegalStateException if the pipeline executed already.
    */
-  private static class State<V> implements Callback<V> {
-
-    private boolean isCancelled;
-    private boolean isExecuted;
-    private V value;
-    private Throwable exception;
-    private TaskPipeline<V> next;
-
-    @Override
-    public void exception(Throwable e) {
-      this.exception = e;
-      if (next != null && !isCancelled)
-        next._execute();
+  public @NotNull TaskPipeline<EVENT, TASK> execute() {
+    if (!state.compareAndSet(State.NEW, State.PRE_EXECUTE)) {
+      throw new IllegalStateException("Execution requires the state NEW, but was " + state.get());
     }
+    if (successHandler == null) {
+      state.set(State.FAILED);
+      throw new IllegalStateException("Missing success handler");
+    }
+    if (errorHandler == null) {
+      state.set(State.FAILED);
+      throw new IllegalStateException("Missing error handler");
+    }
+    state.set(State.EXECUTE);
+    if (first != null) {
+      last.next = new Step(this::last);
+      first.execute();
+    } else {
+      callSuccessHandler();
+    }
+    return this;
+  }
 
-    @Override
-    public void call(V value) {
-      this.value = value;
-      if (next != null && !isCancelled)
-        next._execute();
+  private void last(@NotNull TASK task, ICallback callback) {
+    assert this.task == task;
+    callSuccessHandler();
+  }
+
+  /**
+   * Cancel the pipeline, invokes the cancellation handler synchronously, if successful.
+   *
+   * @return true if the cancel was successful; false otherwise.
+   */
+  public boolean cancel() {
+    while (true) {
+      final State current = state.get();
+      if (current == State.PRE_EXECUTE) {
+        Thread.yield();
+        continue;
+      }
+      if (current != State.EXECUTE) {
+        return false;
+      }
+      if (state.compareAndSet(State.EXECUTE, State.FAILED)) {
+        throwable = new CancellationException();
+        callExceptionHandler();
+        return true;
+      }
+      return false;
     }
   }
+
 }

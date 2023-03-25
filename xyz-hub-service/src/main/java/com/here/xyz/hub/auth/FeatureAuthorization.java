@@ -20,27 +20,26 @@
 package com.here.xyz.hub.auth;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
+import static io.netty.handler.codec.http.HttpResponseStatus.UNAUTHORIZED;
 
-import com.here.xyz.events.GetFeaturesByBBoxEvent;
-import com.here.xyz.events.GetFeaturesByGeometryEvent;
-import com.here.xyz.hub.rest.Api;
+import com.here.xyz.events.Event;
+import com.here.xyz.events.feature.GetFeaturesByBBoxEvent;
+import com.here.xyz.hub.rest.Context;
 import com.here.xyz.hub.rest.HttpException;
-import com.here.xyz.hub.task.FeatureTask;
-import com.here.xyz.hub.task.FeatureTask.ConditionalOperation;
-import com.here.xyz.hub.task.FeatureTask.DeleteOperation;
-import com.here.xyz.hub.task.FeatureTask.GeometryQuery;
-import com.here.xyz.hub.task.ModifyOp.Entry;
-import com.here.xyz.hub.task.TaskPipeline.Callback;
-import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.hub.task.feature.FeatureTask;
+import com.here.xyz.hub.task.feature.ConditionalModifyFeaturesTask;
+import com.here.xyz.hub.task.feature.DeleteFeaturesByTagTask;
+import com.here.xyz.hub.task.feature.GetFeaturesByGeometryTask;
+import com.here.xyz.hub.task.ICallback;
+import org.jetbrains.annotations.NotNull;
 
 public class FeatureAuthorization extends Authorization {
 
-  @SuppressWarnings("unchecked")
-  public static <X extends FeatureTask> void authorize(X task, Callback<X> callback) {
-    if (task instanceof ConditionalOperation) {
-      authorizeConditionalOp((ConditionalOperation) task, (Callback<ConditionalOperation>) callback);
-    } else if (task instanceof DeleteOperation) {
-      authorizeDeleteOperation((DeleteOperation) task, (Callback<DeleteOperation>) callback);
+  public static <E extends Event, T extends FeatureTask<E, T>> void authorize(@NotNull T task, @NotNull ICallback callback) {
+    if (task instanceof ConditionalModifyFeaturesTask) {
+      authorizeConditionalOp((ConditionalModifyFeaturesTask) task, callback);
+    } else if (task instanceof DeleteFeaturesByTagTask) {
+      authorizeDeleteOperation((DeleteFeaturesByTagTask) task, callback);
     } else {
       authorizeReadQuery(task, callback);
     }
@@ -49,68 +48,89 @@ public class FeatureAuthorization extends Authorization {
   /**
    * Authorizes a query operation.
    */
-  private static <X extends FeatureTask> void authorizeReadQuery(X task, Callback<X> callback) {
-    //Check if anonymous token is being used
-    if (task.getJwt().anonymous) {
-      callback.exception(new HttpException(FORBIDDEN, "Accessing features isn't possible with an anonymous token."));
+  private static <E extends Event, T extends FeatureTask<E, T>> void authorizeReadQuery(@NotNull T task, @NotNull ICallback callback) {
+    final JWTPayload jwt = task.getJwt();
+    if (jwt == null) {
+      callback.throwException(new HttpException(UNAUTHORIZED, "Accessing features isn't possible without a JWT token."));
+      return;
+    }
+    if (jwt.anonymous) {
+      callback.throwException(new HttpException(FORBIDDEN, "Accessing features isn't possible with an anonymous token."));
       return;
     }
 
     if (task.space.isShared()) {
-      //User is trying to read a shared space this is allowed for any authenticated user
-      callback.call(task);
+      //User is trying to read a shared space this is allowed for any authenticated user.
+      callback.success();
       return;
     }
 
     final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
     requestRights.readFeatures(XyzHubAttributeMap.forValues(task.space.getOwner(), task.space.getId(), task.space.getPackages()));
 
-    if (task.getEvent() instanceof GetFeaturesByBBoxEvent) {
-      String clusteringType = ((GetFeaturesByBBoxEvent) task.getEvent()).getClusteringType();
+    final E event = task.getEvent();
+    if (event instanceof GetFeaturesByBBoxEvent) {
+      final String clusteringType = ((GetFeaturesByBBoxEvent) event).getClusteringType();
       if (clusteringType != null) {
         requestRights.useCapabilities(new AttributeMap().withValue("id", clusteringType + "Clustering"));
       }
+    } else if (task instanceof GetFeaturesByGeometryTask) {
+      final GetFeaturesByGeometryTask geometryQuery = (GetFeaturesByGeometryTask) task;
+      final XyzHubAttributeMap xyzHubAttributeMap = XyzHubAttributeMap.forValues(
+          geometryQuery.refSpace.getOwner(),
+          geometryQuery.refSpaceId,
+          geometryQuery.refSpace.getPackages()
+      );
+      requestRights.readFeatures(xyzHubAttributeMap);
     }
-    else if(task.getEvent() instanceof GetFeaturesByGeometryEvent) {
-      if(((GeometryQuery)task).refSpaceId != null)
-        requestRights.readFeatures(XyzHubAttributeMap.forValues( ((GeometryQuery)task).refSpace.getOwner(), ((GeometryQuery)task).refSpaceId , ((GeometryQuery)task).refSpace.getPackages()));
-    }
-
-    evaluateRights(requestRights, task.getJwt().getXyzHubMatrix(), task, callback);
+    evaluateRights(requestRights, jwt.getXyzHubMatrix(), task, callback);
   }
 
   /**
    * Authorizes a conditional operation.
    */
-  private static void authorizeConditionalOp(ConditionalOperation task, Callback<ConditionalOperation> callback) {
-    JWTPayload jwt = Api.Context.getJWT(task.context);
-
+  public static void authorizeConditionalOp(
+      @NotNull ConditionalModifyFeaturesTask task,
+      @NotNull ICallback callback
+  ) {
+    final JWTPayload jwt = Context.jwt(task.context);
+    if (jwt == null) {
+      callback.throwException(new HttpException(UNAUTHORIZED, "Missing JWT token"));
+      return;
+    }
     final ActionMatrix tokenRights = jwt.getXyzHubMatrix();
     final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
 
     //READ
-    if (!requestRights.containsKey(XyzHubActionMatrix.READ_FEATURES) && task.modifyOp.isRead())
+    if (!requestRights.containsKey(XyzHubActionMatrix.READ_FEATURES) && task.modifyOp.isRead()) {
       requestRights.readFeatures(XyzHubAttributeMap.forValues(task.space.getOwner(), task.space.getId(), task.space.getPackages()));
+    }
     //CREATE
-    else if (!requestRights.containsKey(XyzHubActionMatrix.CREATE_FEATURES) && task.modifyOp.isCreate())
+    else if (!requestRights.containsKey(XyzHubActionMatrix.CREATE_FEATURES) && task.modifyOp.isCreate()) {
       requestRights.createFeatures(XyzHubAttributeMap.forValues(task.space.getOwner(), task.space.getId(), task.space.getPackages()));
+    }
     //UPDATE
-    else if (!requestRights.containsKey(XyzHubActionMatrix.UPDATE_FEATURES) && task.modifyOp.isUpdate())
+    else if (!requestRights.containsKey(XyzHubActionMatrix.UPDATE_FEATURES) && task.modifyOp.isUpdate()) {
       requestRights.updateFeatures(XyzHubAttributeMap.forValues(task.space.getOwner(), task.space.getId(), task.space.getPackages()));
+    }
     //DELETE
-    else if (!requestRights.containsKey(XyzHubActionMatrix.DELETE_FEATURES) && task.modifyOp.isDelete())
+    else if (!requestRights.containsKey(XyzHubActionMatrix.DELETE_FEATURES) && task.modifyOp.isDelete()) {
       requestRights.deleteFeatures(XyzHubAttributeMap.forValues(task.space.getOwner(), task.space.getId(), task.space.getPackages()));
-
+    }
     evaluateRights(requestRights, tokenRights, task, callback);
   }
 
   /**
    * Authorizes a delete operation.
    */
-  private static void authorizeDeleteOperation(DeleteOperation task, Callback<DeleteOperation> callback) {
+  public static void authorizeDeleteOperation(@NotNull DeleteFeaturesByTagTask task, @NotNull ICallback callback) {
+    final JWTPayload jwt = Context.jwt(task.context);
+    if (jwt == null) {
+      callback.throwException(new HttpException(UNAUTHORIZED, "Missing JWT token"));
+      return;
+    }
     final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
     requestRights.deleteFeatures(XyzHubAttributeMap.forValues(task.space.getOwner(), task.space.getId(), task.space.getPackages()));
-
-    evaluateRights(requestRights, task.getJwt().getXyzHubMatrix(), task, callback);
+    evaluateRights(requestRights, jwt.getXyzHubMatrix(), task, callback);
   }
 }

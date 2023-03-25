@@ -22,6 +22,6 @@ package com.here.xyz.responses;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 
 @JsonTypeName(value = "NotModifiedResponse")
-public class NotModifiedResponse extends XyzResponse<NotModifiedResponse> {
+public class NotModifiedResponse extends XyzResponse {
 
 }

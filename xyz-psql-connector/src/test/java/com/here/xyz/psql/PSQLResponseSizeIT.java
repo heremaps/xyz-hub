@@ -26,7 +26,7 @@ import com.here.xyz.models.hub.psql.PsqlProcessorParams;
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.AbstractConnectorHandler;
-import com.here.xyz.events.IterateFeaturesEvent;
+import com.here.xyz.events.feature.IterateFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
@@ -58,9 +58,9 @@ public class PSQLResponseSizeIT extends PSQLAbstractIT {
 
   @Test
   public void testMaxConnectorResponseSize() throws Exception {
-    final IterateFeaturesEvent iter = new IterateFeaturesEvent()
-        .withSpace("foo")
-        .withConnectorParams(connectorParams);
+    final IterateFeaturesEvent iter = new IterateFeaturesEvent();
+    iter.setSpace("foo");
+    iter.setConnectorParams(connectorParams);
 
     connectorParams.put(AbstractConnectorHandler.MAX_UNCOMPRESSED_RESPONSE_SIZE, 1024);
     Typed result = XyzSerializable.deserialize(invokeLambda(iter.serialize()));

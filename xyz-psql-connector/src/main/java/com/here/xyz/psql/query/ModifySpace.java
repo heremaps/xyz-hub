@@ -19,18 +19,15 @@
 
 package com.here.xyz.psql.query;
 
-import static com.here.xyz.events.ModifySpaceEvent.Operation.CREATE;
-import static com.here.xyz.events.ModifySpaceEvent.Operation.DELETE;
-import static com.here.xyz.events.ModifySpaceEvent.Operation.UPDATE;
+import static com.here.xyz.events.space.ModifySpaceEvent.Operation.CREATE;
+import static com.here.xyz.events.space.ModifySpaceEvent.Operation.DELETE;
+import static com.here.xyz.events.space.ModifySpaceEvent.Operation.UPDATE;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.events.ModifySpaceEvent;
-import com.here.xyz.events.ModifySpaceEvent.Operation;
-import com.here.xyz.models.hub.Space;
+import com.here.xyz.events.space.ModifySpaceEvent;
+import com.here.xyz.events.space.ModifySpaceEvent.Operation;
 import com.here.xyz.psql.PsqlProcessor;
 import com.here.xyz.responses.SuccessResponse;
 import java.sql.ResultSet;

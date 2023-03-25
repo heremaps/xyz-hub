@@ -19,13 +19,14 @@
 
 package com.here.xyz.psql.query;
 
+import static com.here.xyz.EventTask.currentTask;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.events.ContextAwareEvent.SpaceContext;
-import com.here.xyz.events.IterateFeaturesEvent;
+import com.here.xyz.events.feature.IterateFeaturesEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQuery.QueryOperation;
@@ -50,13 +51,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.json.JSONArray;
 import org.json.JSONObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
-
-  protected static final Logger logger = LoggerFactory.getLogger(IterateFeatures.class);
-
   public static final String HPREFIX = "h07~";
   private static final String HANDLE_ENCRYPTION_PHRASE = "findFeaturesSort";
   private static String pg_hint_plan = "/*+ Set(seq_page_cost 100.0) IndexOnlyScan( ht1 ) */";
@@ -78,7 +74,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
 
   @Override
   protected @NotNull SQLQuery buildQuery(@Nonnull IterateFeaturesEvent event) throws SQLException {
-    if (isExtendedSpace(event) && event.getContext() == SpaceContext.DEFAULT) {
+    if (isExtendedSpace(event)) {
 
       SQLQuery extensionQuery = super.buildQuery(event);
       extensionQuery.setQueryFragment(
@@ -328,12 +324,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
       return false;
     } catch (Exception e) {
       // In cases where something with the check went wrong, allow the sort.
-      logger.error(
-          "{}:{} - Unexpected exception in canSortBy({}, ...)",
-          processor.logId(),
-          processor.logTime(),
-          sort,
-          e);
+      currentTask().error("Unexpected exception in canSortBy({}, ...)", sort, e);
       return true;
     }
   }

@@ -19,15 +19,20 @@
 
 package com.here.xyz.hub.auth;
 
+import static com.here.xyz.hub.rest.Context.logId;
+import static com.here.xyz.hub.rest.Context.logStream;
+import static com.here.xyz.hub.rest.Context.logTime;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 
+import com.here.xyz.events.Event;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.Task;
-import com.here.xyz.hub.task.TaskPipeline.Callback;
+import com.here.xyz.hub.task.ICallback;
 import io.vertx.core.json.Json;
+import io.vertx.ext.web.RoutingContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.Marker;
+import org.jetbrains.annotations.NotNull;
 
 public abstract class Authorization {
 
@@ -38,24 +43,35 @@ public abstract class Authorization {
     DUMMY
   }
 
-  protected static void evaluateRights(Marker marker, ActionMatrix requestRights, ActionMatrix tokenRights) throws HttpException {
-    if (tokenRights == null || !tokenRights.matches(requestRights)) {
-      logger.warn(marker, "Token access rights: {}", Json.encode(tokenRights));
-      logger.warn(marker, "Request access rights: {}", Json.encode(requestRights));
+  protected static void evaluateRights(
+      @NotNull RoutingContext context,
+      @NotNull ActionMatrix requestRights,
+      @NotNull ActionMatrix tokenRights
+  ) throws HttpException {
+    final String id = logId(context);
+    final String streamId = logStream(context);
+    final long time = logTime(context);
+    if (!tokenRights.matches(requestRights)) {
+      logger.warn("{}:{}:{}us - Token access rights: {}", id, streamId, time, Json.encode(tokenRights));
+      logger.warn("{}:{}:{}us - Request access rights: {}", id, streamId, time, Json.encode(requestRights));
       throw new HttpException(FORBIDDEN, getForbiddenMessage(requestRights, tokenRights));
-    }
-    else {
-      logger.info(marker, "Token access rights: {}", Json.encode(tokenRights));
-      logger.info(marker, "Request access rights: {}", Json.encode(requestRights));
+    } else {
+      logger.info("{}:{}:{}us - Token access rights: {}", id, streamId, time, Json.encode(tokenRights));
+      logger.info("{}:{}:{}us - Request access rights: {}", id, streamId, time, Json.encode(requestRights));
     }
   }
 
-  static <X extends Task> void evaluateRights(ActionMatrix requestRights, ActionMatrix tokenRights, X task, Callback<X> callback) {
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  static void evaluateRights(
+      @NotNull ActionMatrix requestRights,
+      @NotNull ActionMatrix tokenRights,
+      @NotNull Task task,
+      @NotNull ICallback callback) {
     try {
-      evaluateRights(task.getMarker(), requestRights, tokenRights);
-      callback.call(task);
+      evaluateRights(task.context, requestRights, tokenRights);
+      callback.success(task);
     } catch (HttpException e) {
-      callback.exception(e);
+      callback.throwException(e);
     }
   }
 

@@ -23,7 +23,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.events.ModifyFeaturesEvent;
+import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.jayway.jsonpath.Configuration;

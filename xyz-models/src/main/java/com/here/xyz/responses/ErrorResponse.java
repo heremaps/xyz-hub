@@ -29,7 +29,7 @@ import java.util.Map;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "ErrorResponse")
-public class ErrorResponse extends XyzResponse<ErrorResponse> {
+public class ErrorResponse extends XyzResponse {
 
   private XyzError error;
   private String errorMessage;

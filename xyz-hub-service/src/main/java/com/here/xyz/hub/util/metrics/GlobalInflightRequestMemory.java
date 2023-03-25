@@ -21,7 +21,7 @@ package com.here.xyz.hub.util.metrics;
 
 import static com.here.xyz.hub.util.metrics.base.Metric.MetricUnit.BYTES;
 
-import com.here.xyz.hub.task.FeatureTaskHandler;
+import com.here.xyz.hub.task.feature.FeatureTaskHandler;
 import com.here.xyz.hub.util.metrics.base.BareValuesMetric;
 import java.util.Collection;
 import java.util.Collections;

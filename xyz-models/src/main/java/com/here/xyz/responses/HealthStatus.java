@@ -21,7 +21,7 @@ package com.here.xyz.responses;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.here.xyz.events.HealthCheckEvent;
+import com.here.xyz.events.info.HealthCheckEvent;
 
 /**
  * The response being sent in response to an {@link HealthCheckEvent} when the service is healthy. If the service is not healthy it should
@@ -29,7 +29,7 @@ import com.here.xyz.events.HealthCheckEvent;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "HealthStatus")
-public class HealthStatus extends XyzResponse<HealthStatus> {
+public class HealthStatus extends XyzResponse {
 
   private String status;
 

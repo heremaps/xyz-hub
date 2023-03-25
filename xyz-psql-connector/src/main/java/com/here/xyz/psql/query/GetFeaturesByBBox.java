@@ -19,12 +19,11 @@
 
 package com.here.xyz.psql.query;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
-import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.GEO_JSON;
+import static com.here.xyz.events.feature.GetFeaturesByTileEvent.ResponseType.GEO_JSON;
 
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.events.GetFeaturesByBBoxEvent;
+import com.here.xyz.events.feature.GetFeaturesByBBoxEvent;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.psql.PsqlProcessor;
 import com.here.xyz.psql.SQLQueryBuilder;
@@ -32,7 +31,7 @@ import java.sql.SQLException;
 import javax.annotation.Nonnull;
 import org.jetbrains.annotations.NotNull;
 
-public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent<E>> extends Spatial<E> {
+public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent> extends Spatial<E> {
 
   public GetFeaturesByBBox(@NotNull E event, @NotNull PsqlProcessor psqlConnector) throws SQLException, ErrorResponseException {
     super(event, psqlConnector);
@@ -41,7 +40,7 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent<E>> extends Spat
   @Override
   protected @NotNull SQLQuery buildQuery(@Nonnull E event) throws SQLException {
     //NOTE: So far this query runner only handles queries regarding extended spaces
-    if (isExtendedSpace(event) && event.getContext() == DEFAULT) {
+    if (isExtendedSpace(event)) {
       SQLQuery geoQuery = new SQLQuery("ST_Intersects(geo, ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326))");
       final BBox bbox = event.getBbox();
       geoQuery.setNamedParameter("minLon", bbox.minLon());

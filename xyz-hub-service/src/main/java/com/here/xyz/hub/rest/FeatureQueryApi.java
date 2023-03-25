@@ -19,9 +19,9 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.GEO_JSON;
-import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
-import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
+import static com.here.xyz.events.feature.GetFeaturesByTileEvent.ResponseType.GEO_JSON;
+import static com.here.xyz.events.feature.GetFeaturesByTileEvent.ResponseType.MVT;
+import static com.here.xyz.events.feature.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
 import static com.here.xyz.hub.rest.ApiParam.Query.FORCE_2D;
 import static com.here.xyz.hub.rest.ApiParam.Query.SKIP_CACHE;
@@ -32,23 +32,22 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
-import com.here.xyz.events.GetFeaturesByBBoxEvent;
-import com.here.xyz.events.GetFeaturesByGeometryEvent;
-import com.here.xyz.events.GetFeaturesByTileEvent;
-import com.here.xyz.events.GetStatisticsEvent;
-import com.here.xyz.events.IterateFeaturesEvent;
+import com.here.xyz.events.feature.GetFeaturesByBBoxEvent;
+import com.here.xyz.events.feature.GetFeaturesByGeometryEvent;
+import com.here.xyz.events.feature.GetFeaturesByTileEvent;
+import com.here.xyz.events.info.GetStatisticsEvent;
+import com.here.xyz.events.feature.IterateFeaturesEvent;
 import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.events.feature.SearchForFeaturesEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
-import com.here.xyz.hub.task.FeatureTask;
-import com.here.xyz.hub.task.FeatureTask.BBoxQuery;
-import com.here.xyz.hub.task.FeatureTask.GeometryQuery;
-import com.here.xyz.hub.task.FeatureTask.GetStatistics;
-import com.here.xyz.hub.task.FeatureTask.IterateQuery;
-import com.here.xyz.hub.task.FeatureTask.SearchQuery;
-import com.here.xyz.hub.task.FeatureTask.TileQuery;
+import com.here.xyz.hub.task.feature.GetFeaturesByBBoxTask;
+import com.here.xyz.hub.task.feature.GetFeaturesByGeometryTask;
+import com.here.xyz.hub.task.feature.GetStatistics;
+import com.here.xyz.hub.task.feature.IterateQuery;
+import com.here.xyz.hub.task.feature.SearchQuery;
+import com.here.xyz.hub.task.feature.TileQuery;
 import com.here.xyz.hub.util.geo.GeoTools;
 import com.here.xyz.models.geojson.HQuad;
 import com.here.xyz.models.geojson.WebMercatorTile;
@@ -217,7 +216,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
           .withContext(spaceContext)
           .withAuthor(author);
 
-      final GeometryQuery task = new GeometryQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache, refSpaceId, refFeatureId);
+      final GetFeaturesByGeometryTask task = new GetFeaturesByGeometryTask(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache, refSpaceId, refFeatureId);
       task.execute(this::sendResponse, this::sendErrorResponse);
     } catch (HttpException e) {
       sendErrorResponse(context, e);
@@ -255,7 +254,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
         throw new HttpException(BAD_REQUEST,e.getMessage());
       }
 
-      final BBoxQuery task = new FeatureTask.BBoxQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache);
+      final GetFeaturesByBBoxTask task = new GetFeaturesByBBoxTask(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache);
       task.execute(this::sendResponse, this::sendErrorResponse);
     } catch (HttpException e) {
       sendErrorResponse(context, e);

@@ -19,11 +19,9 @@
 
 package com.here.xyz.psql.query;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
-
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.events.LoadFeaturesEvent;
+import com.here.xyz.events.feature.LoadFeaturesEvent;
 import com.here.xyz.psql.PsqlProcessor;
 import java.sql.SQLException;
 import java.util.Collection;
@@ -48,7 +46,7 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
         .withQueryFragment("filterWhereClause", filterWhereClause);
 
     SQLQuery query = headQuery;
-    if (event.getEnableHistory() && (!isExtendedSpace(event) || event.getContext() != DEFAULT)) {
+    if (event.getEnableHistory() && (!isExtendedSpace(event))) {
       final boolean compactHistory = !event.getEnableGlobalVersioning() && processor.connectorParams().isCompactHistory();
       if (compactHistory)
         //History does not contain Inserts

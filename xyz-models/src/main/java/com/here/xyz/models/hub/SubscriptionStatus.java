@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.View;
+import com.here.xyz.View.All;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class SubscriptionStatus {
@@ -14,11 +14,11 @@ public class SubscriptionStatus {
    * The type of the subscription
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   private State state;
 
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   private String stateReason;
 

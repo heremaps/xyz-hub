@@ -55,7 +55,7 @@ import org.jetbrains.annotations.Nullable;
     @JsonSubTypes.Type(value = ConnectorStatus.class, name = "ConnectorStatus"),
     @JsonSubTypes.Type(value = SpaceStatus.class, name = "SpaceStatus")
 })
-public abstract class XyzResponse<SELF extends XyzResponse<SELF>> extends Payload {
+public abstract class XyzResponse extends Payload {
 
   private String etag;
 
@@ -77,13 +77,6 @@ public abstract class XyzResponse<SELF extends XyzResponse<SELF>> extends Payloa
   @SuppressWarnings("WeakerAccess")
   public void setEtag(String etag) {
     this.etag = etag;
-  }
-
-  @SuppressWarnings({"unused", "UnusedReturnValue"})
-  public @NotNull SELF withEtag(String etag) {
-    setEtag(etag);
-    //noinspection unchecked
-    return (SELF) this;
   }
 
   /**

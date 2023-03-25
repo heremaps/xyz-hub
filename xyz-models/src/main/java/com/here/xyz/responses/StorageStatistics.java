@@ -3,7 +3,7 @@ package com.here.xyz.responses;
 import com.here.xyz.responses.StatisticsResponse.Value;
 import java.util.Map;
 
-public class StorageStatistics extends XyzResponse<StorageStatistics> {
+public class StorageStatistics extends XyzResponse {
 
   private Map<String, SpaceByteSizes> byteSizes;
   private long createdAt;

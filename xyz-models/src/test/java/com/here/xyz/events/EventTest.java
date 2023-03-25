@@ -31,6 +31,8 @@ import static org.junit.Assert.assertNull;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.Event.TrustedParams;
+import com.here.xyz.events.feature.GetFeaturesByTileEvent;
+import com.here.xyz.events.feature.IterateFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.LazyParsedFeatureCollectionTest;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -44,15 +46,15 @@ public class EventTest {
   @Test
   public void fromJson() throws Exception {
     final InputStream is = new ByteArrayInputStream(eventJson.getBytes());
-    final Event<?> event = new ObjectMapper().readValue(is, Event.class);
+    final Event event = new ObjectMapper().readValue(is, Event.class);
     assertNotNull(event);
     assertTrue(event instanceof IterateFeaturesEvent);
   }
 
   @Test
   public void testClone() throws Exception {
-    final Event<?> event = new ObjectMapper().readValue(eventJson, Event.class);
-    final Event<?> clone = XyzSerializable.copy(event);
+    final Event event = new ObjectMapper().readValue(eventJson, Event.class);
+    final Event clone = XyzSerializable.copy(event);
 
     assertNotSame(event, clone);
     assertTrue(event instanceof IterateFeaturesEvent);

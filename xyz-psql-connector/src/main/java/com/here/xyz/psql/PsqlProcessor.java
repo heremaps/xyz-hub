@@ -22,11 +22,11 @@ package com.here.xyz.psql;
 import static com.here.mapcreator.ext.naksha.sql.QuadbinSQL.COUNTMODE_ESTIMATED;
 import static com.here.mapcreator.ext.naksha.sql.QuadbinSQL.COUNTMODE_MIXED;
 import static com.here.mapcreator.ext.naksha.sql.QuadbinSQL.COUNTMODE_REAL;
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
-import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
-import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
-import static com.here.xyz.events.ModifySpaceEvent.Operation.CREATE;
-import static com.here.xyz.events.ModifySpaceEvent.Operation.UPDATE;
+import static com.here.xyz.EventTask.currentTask;
+import static com.here.xyz.events.feature.GetFeaturesByTileEvent.ResponseType.MVT;
+import static com.here.xyz.events.feature.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
+import static com.here.xyz.events.space.ModifySpaceEvent.Operation.CREATE;
+import static com.here.xyz.events.space.ModifySpaceEvent.Operation.UPDATE;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -36,8 +36,9 @@ import com.here.mapcreator.ext.naksha.PsqlSpaceAdminDataSource;
 import com.here.mapcreator.ext.naksha.PsqlSpaceReplicaDataSource;
 import com.here.mapcreator.ext.naksha.Naksha;
 import com.here.mapcreator.ext.naksha.PsqlSpaceMasterDataSource;
+import com.here.xyz.ExtendedEventHandler;
 import com.here.xyz.IEventContext;
-import com.here.xyz.IExtendedEventHandler;
+import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.models.hub.psql.PsqlProcessorParams;
 import com.here.mapcreator.ext.naksha.sql.H3SQL;
 import com.here.mapcreator.ext.naksha.sql.QuadbinSQL;
@@ -47,24 +48,24 @@ import com.here.xyz.NanoTime;
 import com.here.mapcreator.ext.naksha.PsqlSpace;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.events.DeleteFeaturesByTagEvent;
+import com.here.xyz.events.feature.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
-import com.here.xyz.events.GetFeaturesByBBoxEvent;
-import com.here.xyz.events.GetFeaturesByGeometryEvent;
-import com.here.xyz.events.GetFeaturesByIdEvent;
-import com.here.xyz.events.GetFeaturesByTileEvent;
-import com.here.xyz.events.GetFeaturesByTileEvent.ResponseType;
-import com.here.xyz.events.GetHistoryStatisticsEvent;
-import com.here.xyz.events.GetStatisticsEvent;
-import com.here.xyz.events.GetStorageStatisticsEvent;
-import com.here.xyz.events.HealthCheckEvent;
-import com.here.xyz.events.IterateFeaturesEvent;
-import com.here.xyz.events.IterateHistoryEvent;
-import com.here.xyz.events.LoadFeaturesEvent;
-import com.here.xyz.events.ModifyFeaturesEvent;
-import com.here.xyz.events.ModifySpaceEvent;
-import com.here.xyz.events.ModifySubscriptionEvent;
-import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.events.feature.GetFeaturesByBBoxEvent;
+import com.here.xyz.events.feature.GetFeaturesByGeometryEvent;
+import com.here.xyz.events.feature.GetFeaturesByIdEvent;
+import com.here.xyz.events.feature.GetFeaturesByTileEvent;
+import com.here.xyz.events.feature.GetFeaturesByTileEvent.ResponseType;
+import com.here.xyz.events.info.GetHistoryStatisticsEvent;
+import com.here.xyz.events.info.GetStatisticsEvent;
+import com.here.xyz.events.info.GetStorageStatisticsEvent;
+import com.here.xyz.events.info.HealthCheckEvent;
+import com.here.xyz.events.feature.IterateFeaturesEvent;
+import com.here.xyz.events.feature.history.IterateHistoryEvent;
+import com.here.xyz.events.feature.LoadFeaturesEvent;
+import com.here.xyz.events.feature.ModifyFeaturesEvent;
+import com.here.xyz.events.space.ModifySpaceEvent;
+import com.here.xyz.events.admin.ModifySubscriptionEvent;
+import com.here.xyz.events.feature.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.HQuad;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
@@ -73,7 +74,6 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.psql.query.ExtendedSpace;
-import com.here.xyz.psql.query.GetFeaturesByBBox;
 import com.here.xyz.psql.query.GetFeaturesByGeometry;
 import com.here.xyz.psql.query.GetFeaturesById;
 import com.here.xyz.psql.query.GetStorageStatistics;
@@ -129,27 +129,24 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("NotNullFieldNotInitialized")
-public class PsqlProcessor implements IExtendedEventHandler {
+public class PsqlProcessor extends ExtendedEventHandler {
 
-  public PsqlProcessor() {
+  public PsqlProcessor(@NotNull Map<@NotNull String, Object> params) throws XyzErrorException {
+    super(params);
+    connectorParams = new PsqlProcessorParams(params);
   }
 
   private static final Logger logger = LoggerFactory.getLogger(PsqlProcessor.class);
 
-  private @NotNull Event<?> event;
+  private final @NotNull PsqlProcessorParams connectorParams;
+  private @NotNull Event event;
   private @NotNull String applicationName;
-  private @NotNull PsqlProcessorParams connectorParams;
   private @NotNull PsqlSpaceAdminDataSource adminDataSource;
   private @NotNull PsqlSpaceMasterDataSource masterDataSource;
   private @NotNull PsqlSpaceReplicaDataSource replicaDataSource;
   private @NotNull String spaceId;
   private @NotNull String table;
   private @NotNull String historyTable;
-
-  @Override
-  public @NotNull Logger logger() {
-    return logger;
-  }
 
   @Override
   public void initialize(@NotNull IEventContext ctx) {
@@ -159,7 +156,6 @@ public class PsqlProcessor implements IExtendedEventHandler {
     if (raw == null) {
       throw new NullPointerException("connectorParams");
     }
-    connectorParams = new PsqlProcessorParams(raw, event.logId());
     applicationName = event.getConnectorId() + ":" + event.getStreamId();
     spaceId = event.getSpace();
     table = spaceId;
@@ -194,7 +190,7 @@ public class PsqlProcessor implements IExtendedEventHandler {
     replacements.put("idx_hst_vidsort", "idx_" + historyTable + "_vidsort");
   }
 
-  public final @NotNull Event<?> event() {
+  public final @NotNull Event event() {
     return event;
   }
 
@@ -203,16 +199,8 @@ public class PsqlProcessor implements IExtendedEventHandler {
     return false;
   }
 
-  public final @NotNull String logId() {
-    return event.logId();
-  }
-
-  public final long logTime() {
-    return event.logTime();
-  }
-
   public final @NotNull String streamId() {
-    return event.getStreamId();
+    return currentTask().streamId();
   }
 
   public final @NotNull DataSource masterDataSource() {
@@ -252,29 +240,29 @@ public class PsqlProcessor implements IExtendedEventHandler {
   }
 
   @Override
-  public @NotNull XyzResponse<?> processHealthCheckEvent(@NotNull HealthCheckEvent event) {
+  public @NotNull XyzResponse processHealthCheckEvent(@NotNull HealthCheckEvent event) {
     try {
-      logger.info("{}:{} - Received HealthCheckEvent, perform database maintenance", logId(), logTime());
+      currentTask().info("Received HealthCheckEvent, perform database maintenance");
       //Naksha.setupH3(this.event.masterPool(), this.event.logId());
       Naksha.ensureSpaceDb(adminDataSource);
       return new HealthStatus();
     } catch (SQLException e) {
       return checkSQLException(e);
     } catch (IOException e) {
-      logger.error("{}:{} - Failed to load resources", logId(), logTime(), e);
+      currentTask().error("Failed to load resources", e);
       return new ErrorResponse()
           .withStreamId(streamId())
           .withError(EXCEPTION)
           .withErrorMessage("Failed to install SQL extension in connector storage.");
     } finally {
-      logger.info("{}:{} - Finished HealthCheckEvent", logId(), logTime());
+      currentTask().info("Finished HealthCheckEvent");
     }
   }
 
   @Override
-  public @NotNull XyzResponse<?> processGetHistoryStatisticsEvent(@NotNull GetHistoryStatisticsEvent event) {
+  public @NotNull XyzResponse processGetHistoryStatisticsEvent(@NotNull GetHistoryStatisticsEvent event) {
     try {
-      logger.info("{}:{} - Received HistoryStatisticsEvent", logId(), logTime());
+      currentTask().info("Received HistoryStatisticsEvent");
       return executeQueryWithRetry(
           SQLQueryBuilder.buildGetStatisticsQuery(this, true),
           this::getHistoryStatisticsResultSetHandler,
@@ -282,15 +270,15 @@ public class PsqlProcessor implements IExtendedEventHandler {
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      logger.info("{}:{} - Finished GetHistoryStatisticsEvent", logId(), logTime());
+      currentTask().info("Finished GetHistoryStatisticsEvent");
     }
   }
 
   @Override
-  public @NotNull XyzResponse<?> processGetStatistics(@NotNull GetStatisticsEvent event)
+  public @NotNull XyzResponse processGetStatistics(@NotNull GetStatisticsEvent event)
       throws Exception {
     try {
-      logger.info("{}:{} - Received GetStatisticsEvent", logId(), logTime());
+      currentTask().info("Received GetStatisticsEvent");
       return executeQueryWithRetry(
           SQLQueryBuilder.buildGetStatisticsQuery(this, false),
           this::getStatisticsResultSetHandler,
@@ -298,15 +286,15 @@ public class PsqlProcessor implements IExtendedEventHandler {
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      logger.info("{}:{} - Finished GetStatisticsEvent", logId(), logTime());
+      currentTask().info("Finished GetStatisticsEvent");
     }
   }
 
   @Override
-  public @NotNull XyzResponse<?> processGetFeaturesByIdEvent(@NotNull GetFeaturesByIdEvent event)
+  public @NotNull XyzResponse processGetFeaturesByIdEvent(@NotNull GetFeaturesByIdEvent event)
       throws Exception {
     try {
-      logger.info("{}:{} - Received GetFeaturesByIdEvent", logId(), logTime());
+      currentTask().info("Received GetFeaturesByIdEvent");
       if (event.getIds() == null || event.getIds().size() == 0) {
         return new FeatureCollection();
       }
@@ -315,20 +303,20 @@ public class PsqlProcessor implements IExtendedEventHandler {
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      logger.info("{}:{} - Finished GetFeaturesByIdEvent", logId(), logTime());
+      currentTask().info("Finished GetFeaturesByIdEvent");
     }
   }
 
   @Override
-  public @NotNull XyzResponse<?> processGetFeaturesByGeometryEvent(
+  public @NotNull XyzResponse processGetFeaturesByGeometryEvent(
       @NotNull GetFeaturesByGeometryEvent event) throws Exception {
     try {
-      logger.info("{}:{} - Received GetFeaturesByGeometryEvent", logId(), logTime());
+      currentTask().info("Received GetFeaturesByGeometryEvent");
       return new GetFeaturesByGeometry(event, this).run();
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      logger.info("{}:{} - Finished GetFeaturesByGeometryEvent", logId(), logTime());
+      currentTask().info("Finished GetFeaturesByGeometryEvent");
     }
   }
 
@@ -370,10 +358,10 @@ public class PsqlProcessor implements IExtendedEventHandler {
   }
 
   @Override
-  public @NotNull XyzResponse<?> processGetFeaturesByBBoxEvent(
-      @NotNull GetFeaturesByBBoxEvent<?> event) throws Exception {
+  public @NotNull XyzResponse processGetFeaturesByBBoxEvent(
+      @NotNull GetFeaturesByBBoxEvent event) throws Exception {
     try {
-      logger.info("{}:{} - Received {}", logId(), logTime(), event.getClass().getSimpleName());
+      currentTask().info("Received {}", event.getClass().getSimpleName());
 
       final BBox bbox = event.getBbox();
 
@@ -635,13 +623,6 @@ public class PsqlProcessor implements IExtendedEventHandler {
         checkCanSearchFor(event);
       }
 
-      if (event.getParams() != null
-          && event.getParams().containsKey("extends")
-          && event.getContext() == DEFAULT) {
-        //noinspection unchecked,rawtypes
-        return (XyzResponse<?>) (new GetFeaturesByBBox(event, this).run());
-      }
-
       if (!bMvtRequested) {
         return executeQueryWithRetry(SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event));
       } else {
@@ -659,7 +640,7 @@ public class PsqlProcessor implements IExtendedEventHandler {
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      logger.info("{}:{} - Finished : {}", logId(), logTime(), event.getClass().getSimpleName());
+      currentTask().info("Finished : {}", event.getClass().getSimpleName());
     }
   }
 
@@ -667,7 +648,7 @@ public class PsqlProcessor implements IExtendedEventHandler {
    * Check if request parameters are valid. In case of invalidity throw an Exception
    */
   private void checkQuadbinInput(
-      String countMode, int relResolution, GetFeaturesByBBoxEvent<?> event, String streamId)
+      String countMode, int relResolution, GetFeaturesByBBoxEvent event, String streamId)
       throws ErrorResponseException {
     if (countMode != null
         && (!countMode.equalsIgnoreCase(COUNTMODE_REAL)
@@ -707,16 +688,16 @@ public class PsqlProcessor implements IExtendedEventHandler {
   }
 
   @Override
-  public @NotNull XyzResponse<?> processGetFeaturesByTileEvent(
+  public @NotNull XyzResponse processGetFeaturesByTileEvent(
       @NotNull GetFeaturesByTileEvent event) throws Exception {
     return processGetFeaturesByBBoxEvent(event);
   }
 
   @Override
-  public @NotNull XyzResponse<?> processIterateFeaturesEvent(@NotNull IterateFeaturesEvent event)
+  public @NotNull XyzResponse processIterateFeaturesEvent(@NotNull IterateFeaturesEvent event)
       throws Exception {
     try {
-      logger.info("{}:{} - Received : {}", logId(), logTime(), event.getClass().getSimpleName());
+      currentTask().info("Received : {}", event.getClass().getSimpleName());
       checkCanSearchFor(event);
 
       if (isOrderByEvent(event)) {
@@ -730,7 +711,7 @@ public class PsqlProcessor implements IExtendedEventHandler {
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      logger.info("{}:{} - Finished {}", logId(), logTime(), event.getClass().getSimpleName());
+      currentTask().info("Finished {}", event.getClass().getSimpleName());
     }
   }
 
@@ -746,10 +727,10 @@ public class PsqlProcessor implements IExtendedEventHandler {
   }
 
   @Override
-  public @NotNull XyzResponse<?> processSearchForFeaturesEvent(
-      @NotNull SearchForFeaturesEvent<?> event) throws Exception {
+  public @NotNull XyzResponse processSearchForFeaturesEvent(
+      @NotNull SearchForFeaturesEvent event) throws Exception {
     try {
-      logger.info("{}:{} Received {}", logId(), logTime(), event.getClass().getSimpleName());
+      currentTask().info("Received {}", event.getClass().getSimpleName());
       checkCanSearchFor(event);
 
       // For testing purposes.
@@ -765,15 +746,15 @@ public class PsqlProcessor implements IExtendedEventHandler {
       }
 
       //noinspection unchecked,rawtypes
-      return (XyzResponse<?>) new SearchForFeatures<>((SearchForFeaturesEvent) event, this).run();
+      return (XyzResponse) new SearchForFeatures<>((SearchForFeaturesEvent) event, this).run();
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      logger.info("{}:{} - Finished {}", logId(), logTime(), event.getClass().getSimpleName());
+      currentTask().info("Finished {}", event.getClass().getSimpleName());
     }
   }
 
-  private void checkCanSearchFor(@NotNull SearchForFeaturesEvent<?> event)
+  private void checkCanSearchFor(@NotNull SearchForFeaturesEvent event)
       throws ErrorResponseException {
     if (!Capabilities.canSearchFor(event.getPropertiesQuery(), this)) {
       throw new ErrorResponseException(
@@ -785,10 +766,10 @@ public class PsqlProcessor implements IExtendedEventHandler {
   }
 
   @Override
-  public @NotNull XyzResponse<?> processDeleteFeaturesByTagEvent(
+  public @NotNull XyzResponse processDeleteFeaturesByTagEvent(
       @NotNull DeleteFeaturesByTagEvent event) throws Exception {
     try {
-      logger.info("{}:{} Received DeleteFeaturesByTagEvent", logId(), logTime());
+      currentTask().info("Received DeleteFeaturesByTagEvent");
       if (isReadOnly()) {
         return new ErrorResponse()
             .withStreamId(streamId())
@@ -799,15 +780,15 @@ public class PsqlProcessor implements IExtendedEventHandler {
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      logger.info("{}:{} - Finished DeleteFeaturesByTagEvent", logId(), logTime());
+      currentTask().info("Finished DeleteFeaturesByTagEvent");
     }
   }
 
   @Override
-  public @NotNull XyzResponse<?> processLoadFeaturesEvent(@NotNull LoadFeaturesEvent event)
+  public @NotNull XyzResponse processLoadFeaturesEvent(@NotNull LoadFeaturesEvent event)
       throws Exception {
     try {
-      logger.info("{}:{} - Received LoadFeaturesEvent", logId(), logTime());
+      currentTask().info("Received LoadFeaturesEvent");
       if (event.getIdsMap() == null || event.getIdsMap().size() == 0) {
         return new FeatureCollection();
       }
@@ -816,15 +797,15 @@ public class PsqlProcessor implements IExtendedEventHandler {
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      logger.info("{}:{} - Finished LoadFeaturesEvent", logId(), logTime());
+      currentTask().info("Finished LoadFeaturesEvent");
     }
   }
 
   @Override
-  public @NotNull XyzResponse<?> processModifyFeaturesEvent(@NotNull ModifyFeaturesEvent event)
+  public @NotNull XyzResponse processModifyFeaturesEvent(@NotNull ModifyFeaturesEvent event)
       throws Exception {
     try {
-      logger.info("{}:{} - Received ModifyFeaturesEvent", logId(), logTime());
+      currentTask().info("Received ModifyFeaturesEvent");
       if (isReadOnly()) {
         return new ErrorResponse()
             .withStreamId(streamId())
@@ -855,15 +836,15 @@ public class PsqlProcessor implements IExtendedEventHandler {
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      logger.info("{}:{} - Finished ModifyFeaturesEvent", logId(), logTime());
+      currentTask().info("Finished ModifyFeaturesEvent");
     }
   }
 
   @Override
-  public @NotNull XyzResponse<?> processModifySpaceEvent(@NotNull ModifySpaceEvent event)
+  public @NotNull XyzResponse processModifySpaceEvent(@NotNull ModifySpaceEvent event)
       throws Exception {
     try {
-      logger.info("{}:{} - Received ModifySpaceEvent", logId(), logTime());
+      currentTask().info("Received ModifySpaceEvent");
 
       if (connectorParams().isIgnoreCreateMse()) {
         return new SuccessResponse().withStatus("OK");
@@ -872,21 +853,21 @@ public class PsqlProcessor implements IExtendedEventHandler {
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      logger.info("{}:{} - Finished ModifySpaceEvent", logId(), logTime());
+      currentTask().info("Finished ModifySpaceEvent");
     }
   }
 
   @Override
-  public @NotNull XyzResponse<?> processModifySubscriptionEvent(
+  public @NotNull XyzResponse processModifySubscriptionEvent(
       @NotNull ModifySubscriptionEvent event) throws Exception {
     try {
-      logger.info("{}:{} - Received ModifySpaceEvent", logId(), logTime());
+      currentTask().info("Received ModifySpaceEvent");
       this.validateModifySubscriptionEvent(event);
       return executeModifySubscription(event);
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      logger.info("{}:{} - Finished ModifySpaceEvent", logId(), logTime());
+      currentTask().info("Finished ModifySpaceEvent");
     }
   }
 
@@ -906,31 +887,31 @@ public class PsqlProcessor implements IExtendedEventHandler {
   }
 
   @Override
-  public @NotNull XyzResponse<?> processIterateHistoryEvent(@NotNull IterateHistoryEvent event) {
-    logger.info("{}:{} - Received IterateHistoryEvent", logId(), logTime());
+  public @NotNull XyzResponse processIterateHistoryEvent(@NotNull IterateHistoryEvent event) {
+    currentTask().info("Received IterateHistoryEvent");
     try {
       return executeIterateHistory(event);
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      logger.info("{}:{} - Finished IterateHistoryEvent", logId(), logTime());
+      currentTask().info("Finished IterateHistoryEvent");
     }
   }
 
   @Override
-  public @NotNull XyzResponse<?> processGetStorageStatisticsEvent(
+  public @NotNull XyzResponse processGetStorageStatisticsEvent(
       @NotNull GetStorageStatisticsEvent event) throws Exception {
     try {
-      logger.info("{}:{} - Received {}", logId(), logTime(), event.getClass().getSimpleName());
+      currentTask().info("Received {}", event.getClass().getSimpleName());
       return new GetStorageStatistics(event, this).run();
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      logger.info("{}:{} - Finished {}", logId(), logTime(), event.getClass().getSimpleName());
+      currentTask().info("Finished {}", event.getClass().getSimpleName());
     }
   }
 
-  protected @NotNull XyzResponse<?> iterateVersions(@NotNull IterateFeaturesEvent event)
+  protected @NotNull XyzResponse iterateVersions(@NotNull IterateFeaturesEvent event)
       throws SQLException {
     return executeIterateVersions(event);
   }
@@ -943,8 +924,8 @@ public class PsqlProcessor implements IExtendedEventHandler {
       Pattern.compile("invalid input syntax for type numeric:\\s+\"([^\"]*)\"\\s+Query:"),
       ERRVALUE_22P05 = Pattern.compile("ERROR:\\s+(.*)\\s+Detail:\\s+(.*)\\s+Where:");
 
-  protected @NotNull XyzResponse<?> checkSQLException(@NotNull SQLException e) {
-    logger.warn("{}:{} - SQL Error ({}): {}", logId(), logTime(), e.getSQLState(), e);
+  protected @NotNull XyzResponse checkSQLException(@NotNull SQLException e) {
+    logger.warn("{}:{} - SQL Error ({}): {}", e.getSQLState(), e);
 
     final @NotNull String sqlState =
         (e.getSQLState() != null ? e.getSQLState().toUpperCase() : "SNULL");
@@ -1135,12 +1116,12 @@ public class PsqlProcessor implements IExtendedEventHandler {
     } catch (Exception e) {
       try {
         if (retryCausedOnServerlessDB(e) || canRetryAttempt()) {
-          logger.info("{}:{} - Retry Query permitted.", logId(), logTime());
+          currentTask().info("Retry Query permitted.");
           return executeQuery(query, handler, useReadReplica ? readDataSource() : masterDataSource());
         }
       } catch (Exception e1) {
         if (retryCausedOnServerlessDB(e1)) {
-          logger.info("{}:{} - Retry Query permitted.", logId(), logTime());
+          currentTask().info("Retry Query permitted.");
           return executeQuery(query, handler, useReadReplica ? readDataSource() : masterDataSource());
         }
         throw e;
@@ -1155,12 +1136,12 @@ public class PsqlProcessor implements IExtendedEventHandler {
     } catch (Exception e) {
       try {
         if (retryCausedOnServerlessDB(e) || canRetryAttempt()) {
-          logger.info("{}:{} - Retry Update permitted.", logId(), logTime());
+          currentTask().info("Retry Update permitted.");
           return executeUpdate(query);
         }
       } catch (Exception e1) {
         if (retryCausedOnServerlessDB(e)) {
-          logger.info("{}:{} - Retry Update permitted.", logId(), logTime());
+          currentTask().info("Retry Update permitted.");
           return executeUpdate(query);
         }
         throw e;
@@ -1185,12 +1166,7 @@ public class PsqlProcessor implements IExtendedEventHandler {
         return false;
       }
       if (!retryAttempted) {
-        logger.warn(
-            "{}:{} - Retry based on serverless scaling detected! RemainingTime: {} {}",
-            logId(),
-            logTime(),
-            remainingSeconds,
-            e);
+        currentTask().warn("Retry based on serverless scaling detected! RemainingTime: {} {}", remainingSeconds, e);
         return true;
       }
     }
@@ -1215,19 +1191,10 @@ public class PsqlProcessor implements IExtendedEventHandler {
       query.setText(SQLQuery.replaceVars(query.text(), spaceSchema(), spaceTable()));
       final String queryText = query.text();
       final List<Object> queryParameters = query.parameters();
-      logger.debug(
-          "{}:{} - executeQuery: {} - Parameter: {}",
-          logId(),
-          logTime(),
-          queryText,
-          queryParameters);
+      currentTask().debug("executeQuery: {} - Parameter: {}", queryText, queryParameters);
       return run.query(queryText, handler, queryParameters.toArray());
     } finally {
-      logger.info(
-          "{}:{} - query time: {}ms",
-          logId(),
-          logTime(),
-          NanoTime.timeSince(start, TimeUnit.MICROSECONDS));
+      currentTask().info("query time: {}ms", NanoTime.timeSince(start, TimeUnit.MICROSECONDS));
     }
   }
 
@@ -1249,23 +1216,14 @@ public class PsqlProcessor implements IExtendedEventHandler {
       query.setText(SQLQuery.replaceVars(query.text(), spaceSchema(), spaceTable()));
       final String queryText = query.text();
       final List<Object> queryParameters = query.parameters();
-      logger.debug(
-          "{}:{} - executeUpdate: {} - Parameter: {}",
-          logId(),
-          logTime(),
-          queryText,
-          queryParameters);
+      currentTask().debug("executeUpdate: {} - Parameter: {}", queryText, queryParameters);
       return run.update(queryText, queryParameters.toArray());
     } finally {
-      logger.info(
-          "{}:{} query time: {}ms",
-          logId(),
-          logTime(),
-          NanoTime.timeSince(start, TimeUnit.MILLISECONDS));
+      currentTask().info("query time: {}ms", NanoTime.timeSince(start, TimeUnit.MILLISECONDS));
     }
   }
 
-  protected @NotNull XyzResponse<?> executeModifySpace(@NotNull ModifySpaceEvent event)
+  protected @NotNull XyzResponse executeModifySpace(@NotNull ModifySpaceEvent event)
       throws SQLException, ErrorResponseException {
     if (event.getSpaceDefinition() != null && event.getSpaceDefinition().isEnableHistory()) {
       boolean compactHistory = connectorParams().isCompactHistory();
@@ -1288,7 +1246,7 @@ public class PsqlProcessor implements IExtendedEventHandler {
     return new SuccessResponse();
   }
 
-  protected @NotNull XyzResponse<?> executeModifySubscription(
+  protected @NotNull XyzResponse executeModifySubscription(
       @NotNull ModifySubscriptionEvent event) throws SQLException {
     boolean bLastSubscriptionToDelete = event.getHasNoActiveSubscriptions();
     switch (event.getOperation()) {
@@ -1349,7 +1307,7 @@ public class PsqlProcessor implements IExtendedEventHandler {
     return oldFeatures;
   }
 
-  protected @NotNull XyzResponse<?> executeModifyFeatures(@NotNull ModifyFeaturesEvent event)
+  protected @NotNull XyzResponse executeModifyFeatures(@NotNull ModifyFeaturesEvent event)
       throws Exception {
     final boolean handleUUID = event.getEnableUUID() == Boolean.TRUE;
     final boolean transactional = event.getTransaction() == Boolean.TRUE;
@@ -1380,7 +1338,7 @@ public class PsqlProcessor implements IExtendedEventHandler {
         updates.stream().map(f -> f.getId()).collect(Collectors.toList());
     List<String> originalDeletes = new ArrayList<>(deletes.keySet());
     // Handle deletes / updates on extended spaces
-    if (forExtendingSpace && event.getContext() == DEFAULT) {
+    if (forExtendingSpace) { // && event.getContext() == DEFAULT
       if (!deletes.isEmpty()) {
         // Transform the incoming deletes into upserts with deleted flag for features which don't
         // exist in the extended layer (base)
@@ -1527,7 +1485,7 @@ public class PsqlProcessor implements IExtendedEventHandler {
             throw e; // Table does not exist yet - create it!
           } else {
 
-            logger.warn("{}:{} - Transaction has failed.", logId(), logTime(), e);
+            logger.warn("{}:{} - Transaction has failed.", e);
             connection.close();
 
             Map<String, Object> errorDetails = new HashMap<>();
@@ -1638,7 +1596,7 @@ public class PsqlProcessor implements IExtendedEventHandler {
   }
 
   @Deprecated
-  protected @NotNull XyzResponse<?> executeDeleteFeaturesByTag(
+  protected @NotNull XyzResponse executeDeleteFeaturesByTag(
       @NotNull DeleteFeaturesByTagEvent event) throws SQLException {
     boolean includeOldStates =
         event.getParams() != null && event.getParams().get(INCLUDE_OLD_STATES) == Boolean.TRUE;
@@ -1664,7 +1622,7 @@ public class PsqlProcessor implements IExtendedEventHandler {
     ensureSpace();
     retryAttempted = true;
 
-    logger.info("{}:{} - Retry the execution.", logId(), logTime());
+    currentTask().info("Retry the execution.");
     return true;
   }
 
@@ -1687,11 +1645,7 @@ public class PsqlProcessor implements IExtendedEventHandler {
 
       stmt.setQueryTimeout(calculateTimeout());
       if ((rs = stmt.executeQuery(query)).next()) {
-        logger.debug(
-            "{}:{} - Time for table check: {}ms",
-            logId(),
-            logTime(),
-            NanoTime.timeSince(start, TimeUnit.MILLISECONDS));
+        currentTask().debug("Time for table check: {}ms", NanoTime.timeSince(start, TimeUnit.MILLISECONDS));
         String oid = rs.getString(1);
         return oid != null;
       }
@@ -1699,7 +1653,7 @@ public class PsqlProcessor implements IExtendedEventHandler {
     } catch (Exception e) {
       if (!retryAttempted) {
         retryAttempted = true;
-        logger.info("{}:{} - Retry table check.", logId(), logTime());
+        currentTask().info("Retry table check.");
         return hasTable();
       } else {
         throw e;
@@ -1762,21 +1716,10 @@ public class PsqlProcessor implements IExtendedEventHandler {
           stmt.setQueryTimeout(calculateTimeout());
           stmt.executeBatch();
           connection.commit();
-          logger.debug(
-              "{}:{} - Successfully created table '{}' for space id '{}'",
-              logId(),
-              logTime(),
-              tableName,
-              spaceId());
+          currentTask().debug("Successfully created table '{}' for space id '{}'", tableName, spaceId());
         }
       } catch (Exception e) {
-        logger.error(
-            "{}:{} - Failed to create table '{}' for space id: '{}': {}",
-            logId(),
-            logTime(),
-            tableName,
-            spaceId(),
-            e);
+        currentTask().error("Failed to create table '{}' for space id: '{}': {}", tableName, spaceId(), e);
         connection.rollback();
         // check if the table was created in the meantime, by another instance.
         if (hasTable()) {
@@ -1964,12 +1907,7 @@ public class PsqlProcessor implements IExtendedEventHandler {
           stmt.setQueryTimeout(calculateTimeout());
           stmt.executeBatch();
           connection.commit();
-          logger.debug(
-              "{}:{} - Successfully created history table '{}' for space id '{}'",
-              logId(),
-              logTime(),
-              tableName,
-              spaceId());
+          currentTask().debug("Successfully created history table '{}' for space id '{}'", tableName, spaceId());
         }
       } catch (Exception e) {
         throw new SQLException("Creation of history table has failed: " + tableName, e);
@@ -2129,7 +2067,7 @@ public class PsqlProcessor implements IExtendedEventHandler {
 
     if (event() instanceof IterateFeaturesEvent
         && numFeatures > 0
-        && numFeatures == ((SearchForFeaturesEvent<?>) event()).getLimit()) {
+        && numFeatures == ((SearchForFeaturesEvent) event()).getLimit()) {
       String nextHandle = (nextDataset != null ? nextDataset + "_" : "") + nextIOffset;
       featureCollection.setHandle(nextHandle);
       featureCollection.setNextPageToken(nextHandle);
@@ -2185,12 +2123,7 @@ public class PsqlProcessor implements IExtendedEventHandler {
       try {
         feature = new ObjectMapper().readValue(rs.getString("Feature"), Feature.class);
       } catch (JsonProcessingException e) {
-        logger.error(
-            "{}:{} - Error in compactHistoryResultSetHandler for space id '{}': {}",
-            logId(),
-            logTime(),
-            spaceId(),
-            e);
+        currentTask().error("Error in compactHistoryResultSetHandler for space id '{}': {}", spaceId(), e);
         throw new SQLException("Cant read json from database!");
       }
 
@@ -2267,12 +2200,7 @@ public class PsqlProcessor implements IExtendedEventHandler {
       try {
         feature = new ObjectMapper().readValue(rs.getString("Feature"), Feature.class);
       } catch (JsonProcessingException e) {
-        logger.error(
-            "{}:{} Error in historyResultSetHandler for space id '{}': {}",
-            logId(),
-            logTime(),
-            spaceId(),
-            e);
+        currentTask().error("Error in historyResultSetHandler for space id '{}': {}", spaceId(), e);
         throw new SQLException("Cant read json from database!");
       }
 
@@ -2402,14 +2330,14 @@ public class PsqlProcessor implements IExtendedEventHandler {
         remainingSeconds >= STATEMENT_TIMEOUT_SECONDS
             ? STATEMENT_TIMEOUT_SECONDS
             : (remainingSeconds - 2);
-    logger.debug("{}:{} - New timeout for query set to '{}'", logId(), logTime(), timeout);
+    logger.debug("{}:{} - New timeout for query set to '{}'", timeout);
     return (int) timeout;
   }
 
   protected boolean isRemainingTimeSufficient(long remainingSeconds) {
     if (remainingSeconds <= MIN_REMAINING_TIME_FOR_RETRY_SECONDS) {
       logger.warn(
-          "{}:{} - No time left to execute query '{}' s", logId(), logTime(), remainingSeconds);
+          "{}:{} - No time left to execute query '{}' s", remainingSeconds);
       return false;
     }
     return true;
@@ -2421,7 +2349,7 @@ public class PsqlProcessor implements IExtendedEventHandler {
    * @param rs the result set.
    * @return the feature collection generated from the result.
    */
-  protected XyzResponse<?> getHistoryStatisticsResultSetHandler(ResultSet rs) {
+  protected XyzResponse getHistoryStatisticsResultSetHandler(ResultSet rs) {
     try {
       rs.next();
       StatisticsResponse.Value<Long> tablesize =

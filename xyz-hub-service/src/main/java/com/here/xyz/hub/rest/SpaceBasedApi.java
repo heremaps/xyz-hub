@@ -3,9 +3,7 @@ package com.here.xyz.hub.rest;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
-import com.here.xyz.events.ContextAwareEvent.SpaceContext;
-import com.here.xyz.hub.rest.ApiParam.Query;
-import com.here.xyz.hub.task.FeatureTaskHandler.InvalidStorageException;
+import com.here.xyz.hub.task.feature.FeatureTaskHandler.InvalidStorageException;
 import com.here.xyz.hub.task.Task;
 import com.here.xyz.responses.ErrorResponse;
 import io.vertx.ext.web.RoutingContext;
@@ -17,10 +15,6 @@ public abstract class SpaceBasedApi extends Api {
   protected final static int DEFAULT_FEATURE_LIMIT = 30_000;
   protected final static int MIN_LIMIT = 1;
   protected final static int HARD_LIMIT = 100_000;
-
-  protected static SpaceContext getSpaceContext(RoutingContext context) {
-    return SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()).toUpperCase());
-  }
 
   /**
    * Send an error response to the client when an exception occurred while processing a task.

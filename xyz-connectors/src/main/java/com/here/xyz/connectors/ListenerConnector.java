@@ -21,20 +21,18 @@ package com.here.xyz.connectors;
 
 
 import com.here.xyz.Typed;
-import com.here.xyz.events.ContentModifiedNotification;
-import com.here.xyz.events.DeleteFeaturesByTagEvent;
+import com.here.xyz.events.feature.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
-import com.here.xyz.events.EventNotification;
-import com.here.xyz.events.GetFeaturesByBBoxEvent;
-import com.here.xyz.events.GetFeaturesByGeometryEvent;
-import com.here.xyz.events.GetFeaturesByIdEvent;
-import com.here.xyz.events.GetFeaturesByTileEvent;
-import com.here.xyz.events.GetStatisticsEvent;
-import com.here.xyz.events.HealthCheckEvent;
-import com.here.xyz.events.IterateFeaturesEvent;
-import com.here.xyz.events.ModifyFeaturesEvent;
-import com.here.xyz.events.ModifySpaceEvent;
-import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.events.feature.GetFeaturesByBBoxEvent;
+import com.here.xyz.events.feature.GetFeaturesByGeometryEvent;
+import com.here.xyz.events.feature.GetFeaturesByIdEvent;
+import com.here.xyz.events.feature.GetFeaturesByTileEvent;
+import com.here.xyz.events.info.GetStatisticsEvent;
+import com.here.xyz.events.info.HealthCheckEvent;
+import com.here.xyz.events.feature.IterateFeaturesEvent;
+import com.here.xyz.events.feature.ModifyFeaturesEvent;
+import com.here.xyz.events.space.ModifySpaceEvent;
+import com.here.xyz.events.feature.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.ErrorResponse;
@@ -51,100 +49,15 @@ public abstract class ListenerConnector extends AbstractConnectorHandler {
   protected Typed processEvent(Event event) throws Exception {
     if (event instanceof HealthCheckEvent) {
       return processHealthCheckEvent((HealthCheckEvent) event);
-    } else if (event instanceof EventNotification) {
-      processEventNotification((EventNotification) event);
     } else {
       throw new ErrorResponseException(streamId, XyzError.NOT_IMPLEMENTED,
           "Unknown notification type '" + event.getClass().getSimpleName() + "'");
     }
-    return null;
   }
 
   @SuppressWarnings("RedundantThrows")
   @Override
   protected void initialize(Event event) throws Exception {
-  }
-
-  public void processEventNotification(EventNotification notification) throws Exception {
-    if (notification == null) {
-      throw new ErrorResponseException(streamId, XyzError.NOT_IMPLEMENTED, "Unknown event type");
-    }
-
-    final NotificationParams notificationParams = new NotificationParams(
-        eventDecryptor.decryptParams(notification.getParams(), notification.getSpace()),
-        eventDecryptor.decryptParams(notification.getConnectorParams(), notification.getSpace()),
-        eventDecryptor.decryptParams(notification.getMetadata(), notification.getSpace()),
-        notification.getTid(), notification.getAid(), notification.getJwt());
-
-    if (notification.getEvent() instanceof ErrorResponse) {
-      processErrorResponse((ErrorResponse) notification.getEvent(), notification.getEventType(), notificationParams);
-    }
-
-    final String eventType = notification.getEventType();
-
-    if ((ModifySpaceEvent.class.getSimpleName() + REQUEST).equals(eventType)) {
-      processModifySpace((ModifySpaceEvent) notification.getEvent(), notificationParams);
-    }
-    if ((ModifySpaceEvent.class.getSimpleName() + RESPONSE).equals(eventType)) {
-      processModifySpace((SuccessResponse) notification.getEvent(), notificationParams);
-    }
-    if ((GetStatisticsEvent.class.getSimpleName() + REQUEST).equals(eventType)) {
-      processGetStatistics((GetStatisticsEvent) notification.getEvent(), notificationParams);
-    }
-    if ((GetStatisticsEvent.class.getSimpleName() + RESPONSE).equals(eventType)) {
-      processGetStatistics((StatisticsResponse) notification.getEvent(), notificationParams);
-    }
-    if ((GetFeaturesByIdEvent.class.getSimpleName() + REQUEST).equals(eventType)) {
-      processGetFeaturesById((GetFeaturesByIdEvent) notification.getEvent(), notificationParams);
-    }
-    if ((GetFeaturesByIdEvent.class.getSimpleName() + RESPONSE).equals(eventType)) {
-      processGetFeaturesById((FeatureCollection) notification.getEvent(), notificationParams);
-    }
-    if ((SearchForFeaturesEvent.class.getSimpleName() + REQUEST).equals(eventType)) {
-      processSearchForFeatures((SearchForFeaturesEvent) notification.getEvent(), notificationParams);
-    }
-    if ((SearchForFeaturesEvent.class.getSimpleName() + RESPONSE).equals(eventType)) {
-      processSearchForFeatures((FeatureCollection) notification.getEvent(), notificationParams);
-    }
-    if ((IterateFeaturesEvent.class.getSimpleName() + REQUEST).equals(eventType)) {
-      processIterateFeatures((IterateFeaturesEvent) notification.getEvent(), notificationParams);
-    }
-    if ((IterateFeaturesEvent.class.getSimpleName() + RESPONSE).equals(eventType)) {
-      processIterateFeatures((FeatureCollection) notification.getEvent(), notificationParams);
-    }
-    if ((GetFeaturesByTileEvent.class.getSimpleName() + REQUEST).equals(eventType)) {
-      processGetFeaturesByTile((GetFeaturesByTileEvent) notification.getEvent(), notificationParams);
-    }
-    if ((GetFeaturesByTileEvent.class.getSimpleName() + RESPONSE).equals(eventType)) {
-      processGetFeaturesByTile((FeatureCollection) notification.getEvent(), notificationParams);
-    }
-    if ((GetFeaturesByBBoxEvent.class.getSimpleName() + REQUEST).equals(eventType)) {
-      processGetFeaturesByBBox((GetFeaturesByBBoxEvent) notification.getEvent(), notificationParams);
-    }
-    if ((GetFeaturesByBBoxEvent.class.getSimpleName() + RESPONSE).equals(eventType)) {
-      processGetFeaturesByBBox((FeatureCollection) notification.getEvent(), notificationParams);
-    }
-    if ((GetFeaturesByGeometryEvent.class.getSimpleName() + REQUEST).equals(eventType)) {
-      processGetFeaturesByGeometry((GetFeaturesByGeometryEvent) notification.getEvent(), notificationParams);
-    }
-    if ((GetFeaturesByGeometryEvent.class.getSimpleName() + RESPONSE).equals(eventType)) {
-      processGetFeaturesByGeometry((FeatureCollection) notification.getEvent(), notificationParams);
-    }
-    if ((ModifyFeaturesEvent.class.getSimpleName() + REQUEST).equals(eventType)) {
-      processModifyFeatures((ModifyFeaturesEvent) notification.getEvent(), notificationParams);
-    }
-    if ((ModifyFeaturesEvent.class.getSimpleName() + RESPONSE).equals(eventType)) {
-      processModifyFeatures((FeatureCollection) notification.getEvent(), notificationParams);
-    }
-    if ((DeleteFeaturesByTagEvent.class.getSimpleName() + REQUEST).equals(eventType)) {
-      processDeleteFeaturesByTag((DeleteFeaturesByTagEvent) notification.getEvent(), notificationParams);
-    }
-    if ((DeleteFeaturesByTagEvent.class.getSimpleName() + RESPONSE).equals(eventType)) {
-      processDeleteFeaturesByTag((FeatureCollection) notification.getEvent(), notificationParams);
-    }
-    if ((ContentModifiedNotification.class.getSimpleName() + REQUEST).equals(eventType)) {
-      processContentModifiedNotification((ContentModifiedNotification) notification.getEvent(), notificationParams);
-    }
   }
 
   @SuppressWarnings("RedundantThrows")
@@ -223,11 +136,6 @@ public abstract class ListenerConnector extends AbstractConnectorHandler {
 
   @SuppressWarnings("RedundantThrows")
   protected void processGetStatistics(StatisticsResponse response, NotificationParams notificationParams) throws Exception {
-  }
-
-  @SuppressWarnings("RedundantThrows")
-  protected void processContentModifiedNotification(ContentModifiedNotification event, NotificationParams notificationParams)
-      throws Exception {
   }
 
   @SuppressWarnings("RedundantThrows")

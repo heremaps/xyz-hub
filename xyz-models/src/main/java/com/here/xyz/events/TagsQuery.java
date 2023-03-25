@@ -21,11 +21,9 @@ package com.here.xyz.events;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import org.apache.commons.lang3.StringUtils;
 
 public class TagsQuery extends ArrayList<TagList> {
 

@@ -30,8 +30,8 @@ import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLambda;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
-import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.ConnectorApi;
+import com.here.xyz.hub.rest.Context;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.util.diff.Difference.DiffMap;
 import com.here.xyz.hub.util.diff.Patcher;
@@ -60,7 +60,7 @@ public class ConnectorHandler {
   private static final Logger logger = LogManager.getLogger();
 
   public static void getConnector(RoutingContext context, String connectorId, Handler<AsyncResult<Connector>> handler) {
-    Marker marker = Api.Context.getMarker(context);
+    Marker marker = Context.getMarker(context);
 
     Service.connectorConfigClient.get(marker, connectorId, ar -> {
       if (ar.failed()) {
@@ -74,7 +74,7 @@ public class ConnectorHandler {
   }
 
   public static void getConnectors(RoutingContext context, List<String> connectorIds, Handler<AsyncResult<List<Connector>>> handler) {
-    Marker marker = Api.Context.getMarker(context);
+    Marker marker = Context.getMarker(context);
 
     List<CompletableFuture<Connector>> completableFutureList = new ArrayList<>();
     connectorIds.forEach(connectorId -> {
@@ -103,7 +103,7 @@ public class ConnectorHandler {
   }
 
   public static void getConnectors(RoutingContext context, String ownerId, Handler<AsyncResult<List<Connector>>> handler) {
-    Marker marker = Api.Context.getMarker(context);
+    Marker marker = Context.getMarker(context);
 
     Service.connectorConfigClient.getByOwner(marker, ownerId, ar -> {
       if (ar.failed()) {
@@ -116,7 +116,7 @@ public class ConnectorHandler {
   }
 
   public static void getAllConnectors(RoutingContext context, Handler<AsyncResult<List<Connector>>> handler) {
-    Marker marker = Api.Context.getMarker(context);
+    Marker marker = Context.getMarker(context);
 
     Service.connectorConfigClient.getAll(marker, ar -> {
       if (ar.failed()) {
@@ -129,7 +129,7 @@ public class ConnectorHandler {
   }
 
   public static void createConnector(RoutingContext context, JsonObject connector, Handler<AsyncResult<Connector>> handler) {
-    Marker marker = Api.Context.getMarker(context);
+    Marker marker = Context.getMarker(context);
 
     Service.connectorConfigClient.get(marker, connector.getString("id"), ar -> {
       if (ar.failed()) {
@@ -182,7 +182,7 @@ public class ConnectorHandler {
   }
 
   public static void updateConnector(RoutingContext context, JsonObject connector, Handler<AsyncResult<Connector>> handler) {
-    Marker marker = Api.Context.getMarker(context);
+    Marker marker = Context.getMarker(context);
 
     Service.connectorConfigClient.get(marker, connector.getString("id"), ar -> {
       if (ar.failed()) {
@@ -210,7 +210,7 @@ public class ConnectorHandler {
   }
 
   public static void deleteConnector(RoutingContext context, String connectorId, Handler<AsyncResult<Connector>> handler) {
-    Marker marker = Api.Context.getMarker(context);
+    Marker marker = Context.getMarker(context);
 
     Service.connectorConfigClient.get(marker, connectorId, arGet -> {
       if (arGet.succeeded()) {
@@ -260,7 +260,7 @@ public class ConnectorHandler {
       throw new HttpException(BAD_REQUEST, "Parameter 'contactEmails' for the resource is missing or empty.");
 
     if (connector.owner == null)
-      connector.owner = Api.Context.getJWT(context).aid;
+      connector.owner = Context.jwt(context).aid;
 
     //Validate AWSLambdaRemoteFunction parameters
     Connector.RemoteFunctionConfig remoteFunctionConfig;

@@ -19,30 +19,27 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.here.xyz.hub.rest.ApiParam.Query.FORCE_2D;
 import static com.here.xyz.hub.rest.ApiParam.Query.SKIP_CACHE;
 import static io.vertx.core.http.HttpHeaders.ACCEPT;
 
-import com.here.xyz.events.ContextAwareEvent.SpaceContext;
-import com.here.xyz.events.DeleteFeaturesByTagEvent;
-import com.here.xyz.events.GetFeaturesByIdEvent;
-import com.here.xyz.events.ModifyFeaturesEvent;
-import com.here.xyz.events.PropertyQuery;
+import com.here.xyz.events.feature.DeleteFeaturesByTagEvent;
+import com.here.xyz.events.feature.GetFeaturesByIdEvent;
+import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.events.TagsQuery;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
-import com.here.xyz.hub.task.FeatureTask.ConditionalOperation;
-import com.here.xyz.hub.task.FeatureTask.DeleteOperation;
-import com.here.xyz.hub.task.FeatureTask.IdsQuery;
+import com.here.xyz.hub.task.feature.ConditionalModifyFeaturesTask;
+import com.here.xyz.hub.task.feature.DeleteFeaturesByTagTask;
+import com.here.xyz.hub.task.feature.IdsQuery;
 import com.here.xyz.hub.task.ModifyFeatureOp;
 import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.task.ModifyOp.IfNotExists;
 import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.EventTask;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.ext.web.RoutingContext;
@@ -118,6 +115,9 @@ public class FeatureApi extends SpaceBasedApi {
 
     new IdsQuery(event, context, apiResponseType, skipCache)
         .execute(this::sendResponse, this::sendErrorResponse);
+    final EventTask ctx = new EventTask();
+    ctx.start(()->{
+    });
   }
 
   /**
@@ -194,7 +194,7 @@ public class FeatureApi extends SpaceBasedApi {
       if (!tags.containsWildcard()) {
         event.setTags(tags);
       }
-      new DeleteOperation(event, context, responseType)
+      new DeleteFeaturesByTagTask(event, context, responseType)
           .execute(this::sendResponse, this::sendErrorResponse);
     } else {
       context.fail(
@@ -220,7 +220,7 @@ public class FeatureApi extends SpaceBasedApi {
 
     ModifyFeaturesEvent event = new ModifyFeaturesEvent().withTransaction(transactional).withContext(spaceContext);
     int bodySize = context.getBody() != null ? context.getBody().length() : 0;
-    ConditionalOperation task = buildConditionalOperation(event, context, apiResponseTypeType, featureModifications, ifNotExists, ifExists, transactional, cr, requireResourceExists, bodySize);
+    ConditionalModifyFeaturesTask task = buildConditionalOperation(event, context, apiResponseTypeType, featureModifications, ifNotExists, ifExists, transactional, cr, requireResourceExists, bodySize);
     final List<String> addTags = Query.queryParam(Query.ADD_TAGS, context);
     final List<String> removeTags = Query.queryParam(Query.REMOVE_TAGS, context);
     task.addTags = XyzNamespace.normalizeTags(addTags);
@@ -240,7 +240,7 @@ public class FeatureApi extends SpaceBasedApi {
     return false;
   }
 
-  private ConditionalOperation buildConditionalOperation(
+  private ConditionalModifyFeaturesTask buildConditionalOperation(
       ModifyFeaturesEvent event,
       RoutingContext context,
       ApiResponseType apiResponseTypeType,
@@ -252,9 +252,9 @@ public class FeatureApi extends SpaceBasedApi {
       boolean requireResourceExists,
       int bodySize) {
     if (featureModifications == null)
-      return new ConditionalOperation(event, context, apiResponseTypeType, ifNotExists, ifExists, transactional, cr, requireResourceExists, bodySize);
+      return new ConditionalModifyFeaturesTask(event, context, apiResponseTypeType, ifNotExists, ifExists, transactional, cr, requireResourceExists, bodySize);
 
     final ModifyFeatureOp modifyFeatureOp = new ModifyFeatureOp(featureModifications, ifNotExists, ifExists, transactional, cr);
-    return new ConditionalOperation(event, context, apiResponseTypeType, modifyFeatureOp, requireResourceExists, bodySize);
+    return new ConditionalModifyFeaturesTask(event, context, apiResponseTypeType, modifyFeatureOp, requireResourceExists, bodySize);
   }
 }

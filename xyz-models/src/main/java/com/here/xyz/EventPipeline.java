@@ -1,83 +1,254 @@
 package com.here.xyz;
 
+import static com.here.xyz.EventTask.currentTask;
+
 import com.here.xyz.events.Event;
+import com.here.xyz.exceptions.XyzErrorException;
+import com.here.xyz.models.hub.Connector;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import java.util.Arrays;
+import java.util.List;
+import java.util.function.Consumer;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
- * Default implementation of an event pipeline that by itself is an event context. This can be used to send events through a pipeline to be
+ * Default implementation of an event pipeline that provides an event context. This can be used to send events through a pipeline to be
  * handled by {@link IEventHandler event handlers}.
  */
 public class EventPipeline implements IEventContext {
 
-  protected static final Logger logger = LoggerFactory.getLogger(EventPipeline.class);
-
   /**
-   * Creates a new event context for the given event and the given event-handler.
-   *
-   * @param event    the event to wrap.
-   * @param pipeline the handler that should form the pipeline.
+   * Creates a new uninitialized event pipeline.
    */
-  public EventPipeline(@NotNull Event<?> event, @NotNull IEventHandler @NotNull [] pipeline) {
-    this.event = event;
-    this.pipeline = pipeline;
+  public EventPipeline() {
+    pipeline = EMPTY;
   }
 
   /**
-   * Creates a new event context for the given event and the given event-handler.
+   * Creates a new initialized event pipeline.
    *
-   * @param event     the event to wrap.
-   * @param pipeline  the handler that should form the pipeline.
-   * @param processor the processor to finally handle the event (basically the storage).
+   * @param handlers all events handlers to be added upfront.
    */
-  public EventPipeline(@NotNull Event<?> event, @NotNull IEventHandler @Nullable [] pipeline, @NotNull IEventHandler processor) {
-    this.event = event;
-    if (pipeline != null) {
-      this.pipeline = Arrays.copyOf(pipeline, pipeline.length + 1);
-      this.pipeline[this.pipeline.length - 1] = processor;
+  public EventPipeline(IEventHandler... handlers) {
+    if (handlers != null && handlers.length > 0) {
+      pipeline = Arrays.copyOf(handlers, handlers.length + 8);
+      end = handlers.length;
     } else {
-      this.pipeline = new IEventHandler[]{processor};
+      pipeline = EMPTY;
     }
   }
 
-  protected final @NotNull Event<?> event;
-  protected final @NotNull IEventHandler @NotNull [] pipeline;
-  protected int i = 0;
+  private @Nullable Consumer<XyzResponse> callback;
 
-  @Override
-  public @NotNull Logger logger() {
-    return logger;
+  /**
+   * The creation time of the pipeline.
+   */
+  private static final IEventHandler[] EMPTY = new IEventHandler[0];
+  protected Event event;
+  protected @NotNull IEventHandler @NotNull [] pipeline;
+  protected int next;
+  protected int end;
+
+  /**
+   * Tests whether this event pipeline is currently processing an event.
+   *
+   * @return true if this pipeline processing an event; false otherwise.
+   */
+  public boolean isRunning() {
+    return this.event != null;
+  }
+
+  /**
+   * Sets the callback, should not be called while the pipeline is executing, otherwise the behavior is undefined.
+   *
+   * @param callback The callback to invoke, when the response is available.
+   * @return this.
+   */
+  public @NotNull EventPipeline setCallback(@Nullable Consumer<XyzResponse> callback) {
+    this.callback = callback;
+    return this;
+  }
+
+  /**
+   * Returns the currently set callback.
+   *
+   * @return The currently set callback.
+   */
+  public @Nullable Consumer<XyzResponse> getCallback() {
+    return callback;
+  }
+
+  /**
+   * Add the given handler to the pipeline.
+   *
+   * @param handler the handler to add.
+   * @return this.
+   */
+  public @NotNull EventPipeline addEventHandler(@NotNull IEventHandler handler) {
+    if (end >= pipeline.length) {
+      pipeline = Arrays.copyOf(pipeline, pipeline.length + 16);
+    }
+    pipeline[end++] = handler;
+    return this;
+  }
+
+  private static final EventHandler[] EMPTY_HANDLERS = new EventHandler[0];
+
+  /**
+   * Add all declared event handler, and the storage connector to this pipeline.
+   *
+   * @param space The space for which to add the handler.
+   * @return this.
+   * @throws IllegalStateException If adding a handler or the storage connector handler failed. Leaves the pipeline in the state it had
+   *                               before calling this method.
+   */
+  public @NotNull EventPipeline addSpaceHandler(@NotNull Space space) {
+    final String storageConnectorId = space.getConnectorId();
+    if (storageConnectorId == null) {
+      throw new IllegalStateException("The space configuration is missing the connectorId");
+    }
+    final Connector storageConnector = Connector.getConnector(storageConnectorId);
+    if (storageConnector == null) {
+      throw new IllegalStateException("The connector " + storageConnectorId + " does not exist");
+    }
+    try {
+      final @NotNull EventHandler storageHandler = EventHandler.newInstance(storageConnector.eventHandlerId, storageConnector.params);
+      final @NotNull EventHandler @NotNull [] handlers;
+      final List<String> processors = space.processors;
+      if (processors != null) {
+        final int SIZE = processors.size();
+        handlers = SIZE > 0 ? new EventHandler[SIZE] : EMPTY_HANDLERS;
+        for (int i = 0; i < SIZE; i++) {
+          final String connectorId = processors.get(i);
+          if (connectorId == null) {
+            throw new IllegalStateException("The processor[" + i + "] is null");
+          }
+          final Connector connector = Connector.getConnector(connectorId);
+          if (connector == null) {
+            throw new IllegalStateException(
+                "The processor[" + i + "] refers to connector " + connectorId + ", but no such connector exists");
+          }
+          try {
+            handlers[i] = EventHandler.newInstance(connector.eventHandlerId, connector.params);
+          } catch (XyzErrorException e) {
+            throw new IllegalStateException("Failed to create an instance of the processor[" + i + "] connector " + storageConnectorId, e);
+          }
+        }
+      } else {
+        handlers = EMPTY_HANDLERS;
+      }
+
+      // Add the handlers and done.
+      for (final EventHandler handler : handlers) {
+        addEventHandler(handler);
+      }
+      addEventHandler(storageHandler);
+      return this;
+    } catch (XyzErrorException e) {
+      throw new IllegalStateException("Failed to create an instance of the storage connector " + storageConnectorId, e);
+    }
+  }
+
+  /**
+   * Add the event handlers for the given connector.
+   *
+   * @param connector the connector for which to add the event handler.
+   * @return this.
+   * @throws XyzErrorException If creating a new instance of the connector failed, leaves the pipeline in the state it had before calling
+   *                           this method.
+   */
+  public @NotNull EventPipeline addConnectorHandler(@NotNull Connector connector) throws XyzErrorException {
+    addEventHandler(EventHandler.newInstance(connector.eventHandlerId, connector.params));
+    return this;
+  }
+
+  /**
+   * Send a new event through the pipeline.
+   *
+   * @param event the event to send.
+   * @return the generated response.
+   * @throws IllegalStateException if the pipeline is already in use.
+   */
+  public XyzResponse sendEvent(@NotNull Event event) {
+    if (this.event != null) {
+      throw new IllegalStateException("Event already sent");
+    }
+    this.event = event;
+    addEventHandler(this::pipelineEnd);
+    final EventTask context = currentTask();
+    this.next = 0;
+    XyzResponse response;
+    try {
+      response = sendUpstream(event);
+    } catch (Throwable t) {
+      context.error("Uncaught exception in event pipeline", t);
+      response = new ErrorResponse()
+          .withStreamId(event.getStreamId())
+          .withError(XyzError.EXCEPTION)
+          .withErrorMessage("Unexpected exception in storage connector: " + t.getMessage());
+    }
+    assert response != null;
+    try {
+      if (callback != null) {
+        callback.accept(response);
+      }
+    } catch (Throwable t) {
+      context.error("Uncaught exception in event pipeline callback", t);
+    } finally {
+      callback = null;
+      this.event = null;
+      pipeline = EMPTY;
+      next = 0;
+      end = 0;
+    }
+    return response;
   }
 
   @Override
-  public @NotNull Event<?> event() {
+  public final @NotNull Event event() {
     return event;
   }
 
   @Override
-  public @NotNull XyzResponse<?> sendUpstream() {
-    if (i >= pipeline.length) {
-      return new ErrorResponse()
-          .withStreamId(event.getStreamId())
-          .withError(XyzError.NOT_IMPLEMENTED)
-          .withErrorMessage("Event not implemented: '" + event.getClass().getSimpleName() + "'");
+  public @NotNull XyzResponse sendUpstream(@NotNull Event event) {
+    if (next >= pipeline.length) {
+      return notImplemented();
     }
-    final IEventHandler handler = this.pipeline[i];
-    i++;
+    this.event = event;
+
+    final IEventHandler handler = this.pipeline[next];
+    next++;
     if (handler == null) {
-      logger.error("{}:{}:{} - Pipeline handler[{}] is null, skip it",
-          event.logId(), event.logTime(), event.logId(), i - 1, new NullPointerException());
-      return sendUpstream();
-    } else {
-      logger.error("{}:{}:{} - End of pipeline reached and no handle created a response",
-          event.logId(), event.logTime(), event.logId(), new NullPointerException());
-      return handler.processEvent(this);
+      currentTask().error("Pipeline handler[{}] is null, skip it", next - 1, new NullPointerException());
+      return sendUpstream(event);
     }
+    try {
+      return handler.processEvent(this);
+    } catch (XyzErrorException e) {
+      currentTask().info("Event processing failed at handler #{}", next - 1, e);
+      return e.toErrorResponse(event.getStreamId());
+    }
+  }
+
+  /**
+   * Added to the end of the pipeline, returns that the event is unimplemented.
+   *
+   * @param eventContext this.
+   * @return an unimplemented error response.
+   */
+  private @NotNull XyzResponse pipelineEnd(@NotNull IEventContext eventContext) {
+    currentTask().info("End of pipeline reached and no handle created a response", new NullPointerException());
+    return notImplemented();
+  }
+
+  private @NotNull XyzResponse notImplemented() {
+    return new ErrorResponse()
+        .withStreamId(event.getStreamId())
+        .withError(XyzError.NOT_IMPLEMENTED)
+        .withErrorMessage("Event '" + event.getClass().getSimpleName() + "' is not supported");
   }
 }

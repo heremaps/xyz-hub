@@ -201,7 +201,7 @@ public class ApiParam {
      * https://github.com/vert-x3/issues/issues/380 is resolved.
      */
     public static List<String> queryParam(String param, RoutingContext context) {
-      return Api.Context.getQueryParameters(context).getAll(param);
+      return Context.queryParameters(context).getAll(param);
     }
 
     /**

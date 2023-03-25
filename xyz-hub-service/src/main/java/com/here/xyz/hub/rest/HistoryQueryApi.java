@@ -21,10 +21,11 @@ package com.here.xyz.hub.rest;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_HERE_COMPACT_CHANGESET;
 import static com.here.xyz.hub.rest.ApiParam.Query.SKIP_CACHE;
 
-import com.here.xyz.events.GetHistoryStatisticsEvent;
-import com.here.xyz.events.IterateHistoryEvent;
+import com.here.xyz.events.info.GetHistoryStatisticsEvent;
+import com.here.xyz.events.feature.history.IterateHistoryEvent;
 import com.here.xyz.hub.rest.ApiParam.Query;
-import com.here.xyz.hub.task.FeatureTask;
+import com.here.xyz.hub.task.feature.GetHistoryStatistics;
+import com.here.xyz.hub.task.feature.IterateHistoryQuery;
 import io.vertx.ext.web.ParsedHeaderValue;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
@@ -55,7 +56,7 @@ public class HistoryQueryApi extends SpaceBasedApi{
                     .withEndVersion(endVersion)
                     .withPageToken(pageToken);
 
-            final FeatureTask.IterateHistoryQuery task = new FeatureTask.IterateHistoryQuery(event, context, responseType, skipCache);
+            final IterateHistoryQuery task = new IterateHistoryQuery(event, context, responseType, skipCache);
             task.execute(this::sendResponse, this::sendErrorResponse);
         } catch (Exception e) {
             sendErrorResponse(context, e);
@@ -63,7 +64,7 @@ public class HistoryQueryApi extends SpaceBasedApi{
     }
 
     public void getHistoryStatistics(final RoutingContext context) {
-        new FeatureTask.GetHistoryStatistics(new GetHistoryStatisticsEvent(), context, ApiResponseType.HISTORY_STATISTICS_RESPONSE, ApiParam.Query.getBoolean(context, SKIP_CACHE, false))
+        new GetHistoryStatistics(new GetHistoryStatisticsEvent(), context, ApiResponseType.HISTORY_STATISTICS_RESPONSE, ApiParam.Query.getBoolean(context, SKIP_CACHE, false))
                 .execute(this::sendResponse, this::sendErrorResponse);
     }
 }

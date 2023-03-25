@@ -19,8 +19,8 @@
 
 package com.here.xyz.hub.connectors;
 
-import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
-import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
+import static com.here.xyz.events.feature.GetFeaturesByTileEvent.ResponseType.MVT;
+import static com.here.xyz.events.feature.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
 import static io.netty.handler.codec.http.HttpHeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
@@ -41,7 +41,7 @@ import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.RelocationClient;
 import com.here.xyz.events.Event;
-import com.here.xyz.events.GetFeaturesByTileEvent;
+import com.here.xyz.events.feature.GetFeaturesByTileEvent;
 import com.here.xyz.events.RelocatedEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.RemoteFunctionClient.FunctionCall;

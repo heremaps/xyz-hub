@@ -25,7 +25,6 @@ import com.google.common.io.ByteStreams;
 import com.here.xyz.Payload;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.util.LimitedOffHeapQueue;
 import com.here.xyz.hub.util.LimitedOffHeapQueue.OffHeapBuffer;

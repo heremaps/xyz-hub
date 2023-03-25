@@ -21,14 +21,14 @@ package com.here.xyz.responses;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.here.xyz.events.GetStatisticsEvent;
+import com.here.xyz.events.info.GetStatisticsEvent;
 
 /**
  * The response that is sent for a {@link GetStatisticsEvent}.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "HistoryStatisticsResponse")
-public class HistoryStatisticsResponse extends XyzResponse<HistoryStatisticsResponse> {
+public class HistoryStatisticsResponse extends XyzResponse {
 
   private StatisticsResponse.Value<Long> count;
   @Deprecated

@@ -19,6 +19,8 @@
 
 package com.here.xyz.psql;
 
+import static com.here.xyz.EventTask.currentTask;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -230,7 +232,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
 
         try {
             if (idList.size() > 0) {
-                logger.debug("{}:{} - batch execution [{}]: {} ", processor.logId(), processor.logTime(), type, batchStmt);
+                currentTask().debug("batch execution [{}]: {} ", type, batchStmt);
 
                 batchStmt.setQueryTimeout((int)processor.calculateTimeout());
                 batchStmtResult = batchStmt.executeBatch();
@@ -238,7 +240,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
             }
 
             if (idList2.size() > 0) {
-                logger.debug("{}:{} - batch2 execution [{}]: {} ", processor.logId(), processor.logTime(), type, batchStmt2);
+                currentTask().debug("batch2 execution [{}]: {} ", type, batchStmt2);
 
                 batchStmt2.setQueryTimeout((int)processor.calculateTimeout());
                 batchStmtResult2 = batchStmt2.executeBatch();

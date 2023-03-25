@@ -20,7 +20,6 @@
 package com.here.mapcreator.ext.naksha.sql;
 
 import com.here.xyz.events.PropertyQuery;
-import com.here.xyz.events.QueryEvent;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;

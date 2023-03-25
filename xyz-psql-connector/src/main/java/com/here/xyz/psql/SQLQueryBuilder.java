@@ -18,20 +18,20 @@
  */
 package com.here.xyz.psql;
 
-import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.GEO_JSON;
+import static com.here.xyz.events.feature.GetFeaturesByTileEvent.ResponseType.GEO_JSON;
 
 import com.here.mapcreator.ext.naksha.sql.H3SQL;
 import com.here.mapcreator.ext.naksha.sql.QuadbinSQL;
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.mapcreator.ext.naksha.sql.TweaksSQL;
-import com.here.xyz.events.GetFeaturesByBBoxEvent;
-import com.here.xyz.events.GetFeaturesByTileEvent;
-import com.here.xyz.events.GetFeaturesByTileEvent.ResponseType;
-import com.here.xyz.events.GetHistoryStatisticsEvent;
-import com.here.xyz.events.IterateFeaturesEvent;
-import com.here.xyz.events.IterateHistoryEvent;
+import com.here.xyz.events.feature.GetFeaturesByBBoxEvent;
+import com.here.xyz.events.feature.GetFeaturesByTileEvent;
+import com.here.xyz.events.feature.GetFeaturesByTileEvent.ResponseType;
+import com.here.xyz.events.info.GetHistoryStatisticsEvent;
+import com.here.xyz.events.feature.IterateFeaturesEvent;
+import com.here.xyz.events.feature.history.IterateHistoryEvent;
 import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.events.QueryEvent;
+import com.here.xyz.events.feature.QueryEvent;
 import com.here.xyz.models.geojson.HQuad;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
@@ -64,7 +64,7 @@ public class SQLQueryBuilder {
         "SELECT nextval('${schema}.\"" + table.replaceAll("-", "_") + "_hst_seq\"')");
   }
 
-  public static @NotNull SQLQuery buildGetFeaturesByBBoxQuery(final @NotNull GetFeaturesByBBoxEvent<?> event)
+  public static @NotNull SQLQuery buildGetFeaturesByBBoxQuery(final @NotNull GetFeaturesByBBoxEvent event)
       throws SQLException {
     final BBox bbox = event.getBbox();
     assert bbox != null;
@@ -241,7 +241,7 @@ public class SQLQueryBuilder {
   }
 
   public static SQLQuery buildQuadbinClusteringQuery(
-      @NotNull GetFeaturesByBBoxEvent<?> event,
+      @NotNull GetFeaturesByBBoxEvent event,
       BBox bbox,
       int relResolution,
       int absResolution,

@@ -19,58 +19,49 @@
 
 package com.here.xyz.hub.task;
 
-import static com.here.xyz.hub.task.Task.TaskState.CANCELLED;
-import static com.here.xyz.hub.task.Task.TaskState.ERROR;
-import static com.here.xyz.hub.task.Task.TaskState.INIT;
-import static com.here.xyz.hub.task.Task.TaskState.IN_PROGRESS;
-import static com.here.xyz.hub.task.Task.TaskState.RESPONSE_SENT;
-import static com.here.xyz.hub.task.Task.TaskState.STARTED;
+import static com.here.xyz.hub.task.TaskState.CANCELLED;
+import static com.here.xyz.hub.task.TaskState.ERROR;
+import static com.here.xyz.hub.task.TaskState.INIT;
+import static com.here.xyz.hub.task.TaskState.IN_PROGRESS;
+import static com.here.xyz.hub.task.TaskState.RESPONSE_SENT;
+import static com.here.xyz.hub.task.TaskState.STARTED;
 
+import com.here.xyz.EventPipeline;
 import com.here.xyz.events.Event;
 import com.here.xyz.hub.auth.JWTPayload;
-import com.here.xyz.hub.connectors.models.Space.CacheProfile;
-import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.ApiResponseType;
-import com.here.xyz.hub.task.TaskPipeline.C1;
-import com.here.xyz.hub.task.TaskPipeline.C2;
-import com.here.xyz.hub.task.TaskPipeline.Callback;
+import com.here.xyz.hub.rest.Context;
 import com.here.xyz.responses.XyzResponse;
-import io.netty.util.internal.ConcurrentSet;
 import io.vertx.ext.web.RoutingContext;
+import java.util.NoSuchElementException;
 import java.util.Objects;
-import java.util.function.Consumer;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.Marker;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * A task for processing of an event.
+ * A task represents a pipeline to process an event.
  */
-public abstract class Task<T extends Event, X extends Task<T, ?>> {
+public abstract class Task extends EventPipeline {
 
-  public static final String TASK = "task";
-  private static final Logger logger = LogManager.getLogger();
+  protected static final Logger logger = LoggerFactory.getLogger(Task.class);
+
+  protected Task(@NotNull String name) {
+    this.name = name;
+  }
 
   /**
    * The corresponding routing context.
    */
-  public final RoutingContext context;
-
-  /**
-   * Describes, if cache should be ignored.
-   */
-  public final boolean skipCache;
-
-  /**
-   * Whether the request is authorized with read only credentials.
-   */
-  // TODO: Extract the access from the request context
-  public final boolean readOnlyAccess = false;
+  public final @NotNull RoutingContext context;
 
   /**
    * The response type that should be produced by this task.
    */
-  public ApiResponseType responseType;
+  public @NotNull ApiResponseType responseType;
 
   /**
    * Describes, if the response was loaded from cache.
@@ -79,25 +70,21 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
 
   /**
    * The event to process.
+   * <p>
+   * After the event has been {@link #consumeEvent() consumed}, the event gets deleted from memory and {@link #getEvent()} and
+   * {@link #consumeEvent()} will throw a {@link IllegalStateException}.
    */
-  private T event;
+  private final AtomicReference<EVENT> event = new AtomicReference<>();
 
   /**
    * A local copy of {@link Event#getIfNoneMatch()}.
    */
-  private String ifNoneMatch;
-
-  /**
-   * Whether the event was finally consumed.
-   * After having been consumed the event get's deleted from memory and neither {@link #getEvent()} nor {@link #consumeEvent()} may
-   * be called anymore. Otherwise an {@link IllegalStateException} will be thrown.
-   */
-  private boolean eventConsumed;
+  private final @Nullable String ifNoneMatch;
 
   /**
    * Indicates, if the task was executed.
    */
-  private boolean executed = false;
+  private boolean executed;
 
   /**
    * The current state / phase of this task. The state can be read to know whether an action should still be performed or may be cancelled.
@@ -105,35 +92,56 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
    *
    * @see TaskState
    */
-  private TaskState state = INIT;
+  private @NotNull TaskState state = INIT;
 
-  private TaskPipeline<X> pipeline;
+  private final @NotNull TaskPipeline<EVENT, TASK> pipeline;
 
-  private ConcurrentSet<Consumer<Task<T, X>>> cancellingHandlers = new ConcurrentSet<>();
+  public final @NotNull String logId() {
+    return getClass().getSimpleName();
+  }
+
+  public final @NotNull String logStream() {
+    return Context.logStream(context);
+  }
+
+  public long logTime() {
+    return Context.logTime(context);
+  }
+
+  private final ConcurrentHashMap<Consumer<TASK>, Boolean> cancellingHandlers = new ConcurrentHashMap<>();
 
   /**
    * @throws NullPointerException if the given context or responseType are null.
    */
-  public Task(T event, final RoutingContext context, final ApiResponseType responseType, boolean skipCache)
-      throws NullPointerException {
-    if (event == null) throw new NullPointerException("event");
-    if (context == null) {
-      throw new NullPointerException("context");
-    }
-    if (responseType == null) {
-      throw new NullPointerException("responseType");
-    }
+  public Task(
+      final @NotNull EVENT event,
+      final @NotNull RoutingContext context,
+      final @NotNull ApiResponseType responseType
+  ) throws NullPointerException {
     event.setIfNoneMatch(context.request().headers().get("If-None-Match"));
-    this.event = event;
+    event.setStreamId(Context.logStream(context));
+    this.event.set(event);
     this.ifNoneMatch = event.getIfNoneMatch();
     this.context = context;
-    context.put(TASK, this);
     this.responseType = responseType;
-    this.skipCache = skipCache;
+    Context.setTask(context, this);
+    this.pipeline = new TaskPipeline<>(context, self());
   }
 
-  public T getEvent() throws IllegalStateException {
-    if (eventConsumed) throw new IllegalStateException("Event was already consumed.");
+  /**
+   * Returns this task.
+   * @return This task.
+   */
+  @SuppressWarnings("unchecked")
+  public final @NotNull TASK self() {
+    return (TASK) this;
+  }
+
+  public @NotNull EVENT getEvent() throws IllegalStateException {
+    final EVENT event = this.event.get();
+    if (event == null) {
+      throw new IllegalStateException("Event was already consumed.");
+    }
     return event;
   }
 
@@ -144,51 +152,46 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
    *
    * @throws IllegalStateException In case the event was consumed already
    */
-  public T consumeEvent() throws IllegalStateException {
-    T event = getEvent();
-    eventConsumed = true;
-    this.event = null;
+  public @NotNull EVENT consumeEvent() throws IllegalStateException {
+    final EVENT event = this.event.getAndSet(null);
+    if (event == null) {
+      throw new IllegalStateException("Event was already consumed");
+    }
     state = IN_PROGRESS;
     return event;
-  }
-
-  protected <X extends Task<?, X>> void cleanup(X task, Callback<X> callback) {}
-
-  public String getCacheKey() {
-    return null;
   }
 
   public boolean etagMatches() {
     return XyzResponse.etagMatches(ifNoneMatch, getEtag());
   }
 
-  public void execute(C1<X> onSuccess, C2<X, Throwable> onException) {
+  public void execute(
+      final @NotNull ISuccessHandler<EVENT, TASK> onSuccess,
+      final @NotNull IErrorHandler<EVENT, TASK> onError
+  ) {
     if (!executed) {
       executed = true;
-      getPipeline()
-          .finish(
-              a -> {
-                if (state.isFinal()) return;
-                onSuccess.call(a);
-                state = RESPONSE_SENT;
-              },
-              (a, b) -> {
-                if (state.isFinal()) return;
-                state = ERROR;
-                onException.call(a, b);
-              }
-          )
-          .execute();
+      final TaskPipeline<EVENT, TASK> pipeline = getPipeline();
+      pipeline.onSuccess((task) -> {
+        if (state.isFinal()) {
+          return;
+        }
+        onSuccess.onSuccess(task);
+        state = RESPONSE_SENT;
+      });
+      pipeline.onError((task, exception) -> {
+        if (state.isFinal()) {
+          return;
+        }
+        state = ERROR;
+        onError.onError(task, exception);
+      });
+      pipeline.execute();
     }
   }
 
-  /**
-   * Returns the log marker.
-   *
-   * @return the log marker
-   */
-  public Marker getMarker() {
-    return Api.Context.getMarker(context);
+  public @NotNull String streamId() {
+    return Context.logStream(context);
   }
 
   /**
@@ -196,34 +199,23 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
    *
    * @return the payload of the JWT Token
    */
-  public JWTPayload getJwt() {
-    return Api.Context.getJWT(context);
-  }
-
-  /**
-   * Returns the cache profile.
-   *
-   * @return the cache profile
-   */
-  public CacheProfile getCacheProfile() {
-    return CacheProfile.NO_CACHE;
+  public @Nullable JWTPayload getJwt() {
+    return Context.jwt(context);
   }
 
   /**
    * Creates the execution pipeline.
    *
-   * @return the execution pipeline
+   * @param pipeline the pipeline that should be initialized.
    */
-  public abstract TaskPipeline<X> createPipeline();
+  protected abstract void initPipeline(@NotNull TaskPipeline<EVENT, TASK> pipeline);
 
   /**
    * Returns the (previously) created execution pipeline.
-   * @return
+   *
+   * @return The (previously) created execution pipeline.
    */
-  public TaskPipeline<X> getPipeline() {
-    if (pipeline == null)
-      pipeline = createPipeline();
-
+  public final @NotNull TaskPipeline<EVENT, TASK> getPipeline() {
     return pipeline;
   }
 
@@ -232,7 +224,8 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
    *
    * @return the e-tag value.
    */
-  public String getEtag() {
+  public @Nullable String getEtag() {
+    // TODO: Should we not look this up in the context.response()?
     return null;
   }
 
@@ -244,63 +237,16 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
     this.cacheHit = cacheHit;
   }
 
-  public TaskState getState() {
-    if (state == INIT && executed) return STARTED;
+  public @NotNull TaskState getState() {
+    if (state == INIT && executed) {
+      return STARTED;
+    }
     return state;
   }
 
-  public void addCancellingHandler(Consumer<Task<T, X>> cancellingHandler) {
+  public void addCancellingHandler(final @NotNull Consumer<@NotNull TASK> cancellingHandler) {
     Objects.requireNonNull(cancellingHandler);
-    cancellingHandlers.add(cancellingHandler);
-  }
-
-  /**
-   * The state can be read to know whether an action should still be performed or may be cancelled.
-   * E.g. when the task is in a final state already, it doesn't make sense to send a(nother) response or fail with another exception.
-   *
-   * Final states are: {@link TaskState#RESPONSE_SENT}
-   * The following is true for final states:
-   *  No further action should be started and pending actions should be cancelled / killed.
-   *  If cancelling of some asynchronous action is not possible the action's handler should do nothing in case it still gets called.
-   */
-  public enum TaskState {
-
-    /**
-     * Init is the first state right after the task has been created. The execution of the task has not started yet.
-     */
-    INIT,
-
-    /**
-     * The execution of the task has been started by the {@link TaskPipeline}.
-     */
-    STARTED,
-
-    /**
-     * The main action of this task is in progress. This could be a running request the system is waiting for to succeed or fail.
-     */
-    IN_PROGRESS,
-
-    /**
-     * The task's actions have been performed and the response has been sent to the client.
-     * This is a final state.
-     */
-    RESPONSE_SENT,
-
-    /**
-     * The task's execution has been cancelled. E.g. due to the request has been cancelled by the client.
-     * This is a final state.
-     */
-    CANCELLED,
-
-    /**
-     * An error happened during the execution of one of this task's actions. This could happen either during the request- or response-phase.
-     * This is a final state.
-     */
-    ERROR;
-
-    public boolean isFinal() {
-      return this == RESPONSE_SENT || this == CANCELLED || this == ERROR;
-    }
+    cancellingHandlers.put(cancellingHandler, true);
   }
 
   public void cancel() {
@@ -312,18 +258,22 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
         Call all registered CancellingHandlers
         (e.g. to cancel running / pending requests which might have been started by previous actions already)
          */
-        callCancellingHandlers();
-      }
-      catch (Exception e) {
-        logger.error(getMarker(), "Error cancelling the task.", e);
-      }
-      finally {
+        final Enumeration<Consumer<TASK>> keyEnum = cancellingHandlers.keys();
+        while (keyEnum.hasMoreElements()) {
+          try {
+            final Consumer<TASK> taskConsumer = keyEnum.nextElement();
+            taskConsumer.accept(self());
+          } catch (NoSuchElementException | NullPointerException ignore) {
+
+          } catch (Exception e) {
+            logger.error("{}:{}:{} - Uncaught exception in cancelling handler", logId(), logStream(), logTime(), e);
+          }
+        }
+      } catch (Exception e) {
+        logger.error("{}:{}:{} - Error cancelling the task.", logId(), logStream(), logTime(), e);
+      } finally {
         state = CANCELLED;
       }
     }
-  }
-
-  private void callCancellingHandlers() {
-    cancellingHandlers.forEach(cH -> cH.accept(this));
   }
 }

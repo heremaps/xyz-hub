@@ -28,7 +28,7 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "CountResponse")
 @Deprecated
-public class CountResponse extends XyzResponse<CountResponse> {
+public class CountResponse extends XyzResponse {
 
   private Long count;
   private Boolean estimated;

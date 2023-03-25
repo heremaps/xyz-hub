@@ -19,18 +19,17 @@
 
 package com.here.xyz.hub.task;
 
-import com.here.xyz.events.ModifySubscriptionEvent;
-import com.here.xyz.events.ModifySubscriptionEvent.Operation;
+import com.here.xyz.events.admin.ModifySubscriptionEvent;
+import com.here.xyz.events.admin.ModifySubscriptionEvent.Operation;
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.ApiResponseType;
+import com.here.xyz.hub.rest.Context;
 import com.here.xyz.hub.rest.HttpException;
-import com.here.xyz.hub.task.FeatureTask.ModifySubscriptionQuery;
+import com.here.xyz.hub.task.feature.ModifySubscriptionQuery;
 import com.here.xyz.models.hub.Subscription;
 import com.here.xyz.models.hub.SubscriptionStatus;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
-import io.vertx.core.Handler;
 import io.vertx.ext.web.RoutingContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -43,8 +42,8 @@ import static io.netty.handler.codec.http.HttpResponseStatus.*;
 public class SubscriptionHandler {
     private static final Logger logger = LogManager.getLogger();
 
-    public static void getSubscription(RoutingContext context, String spaceId, String subscriptionId, Handler<AsyncResult<Subscription>> handler) {
-        Marker marker = Api.Context.getMarker(context);
+    public static void getSubscription(RoutingContext context, String spaceId, String subscriptionId, io.vertx.core.Handler<AsyncResult<Subscription>> handler) {
+        Marker marker = Context.getMarker(context);
 
         Service.subscriptionConfigClient.get(marker, subscriptionId).onComplete(ar -> {
             if (ar.failed()) {
@@ -62,8 +61,8 @@ public class SubscriptionHandler {
         });
     }
 
-    public static void getSubscriptions(RoutingContext context, String source, Handler<AsyncResult<List<Subscription>>> handler) {
-        Marker marker = Api.Context.getMarker(context);
+    public static void getSubscriptions(RoutingContext context, String source, io.vertx.core.Handler<AsyncResult<List<Subscription>>> handler) {
+        Marker marker = Context.getMarker(context);
 
         Service.subscriptionConfigClient.getBySource(marker, source).onComplete(ar -> {
             if (ar.failed()) {
@@ -75,8 +74,8 @@ public class SubscriptionHandler {
         });
     }
 
-    public static void getAllSubscriptions(RoutingContext context, Handler<AsyncResult<List<Subscription>>> handler) {
-        Marker marker = Api.Context.getMarker(context);
+    public static void getAllSubscriptions(RoutingContext context, io.vertx.core.Handler<AsyncResult<List<Subscription>>> handler) {
+        Marker marker = Context.getMarker(context);
 
         Service.subscriptionConfigClient.getAll(marker).onComplete(ar -> {
             if (ar.failed()) {
@@ -88,8 +87,8 @@ public class SubscriptionHandler {
         });
     }
 
-    public static void createSubscription(RoutingContext context, Subscription subscription, Handler<AsyncResult<Subscription>> handler) {
-        Marker marker = Api.Context.getMarker(context);
+    public static void createSubscription(RoutingContext context, Subscription subscription, io.vertx.core.Handler<AsyncResult<Subscription>> handler) {
+        Marker marker = Context.getMarker(context);
         subscription.setStatus(new SubscriptionStatus().withState(SubscriptionStatus.State.ACTIVE));
         Service.subscriptionConfigClient.get(marker, subscription.getId()).onComplete(ar -> {
             if (ar.failed()) {
@@ -109,8 +108,8 @@ public class SubscriptionHandler {
 
     }
 
-    public static void createOrReplaceSubscription(RoutingContext context, Subscription subscription, Handler<AsyncResult<Subscription>> handler) {
-        Marker marker = Api.Context.getMarker(context);
+    public static void createOrReplaceSubscription(RoutingContext context, Subscription subscription, io.vertx.core.Handler<AsyncResult<Subscription>> handler) {
+        Marker marker = Context.getMarker(context);
 
         // Set status to 'ACTIVE' only when status is not present
         if(subscription.getStatus() == null || subscription.getStatus().getState() == null) {
@@ -130,7 +129,7 @@ public class SubscriptionHandler {
         });
     }
 
-    protected static void storeSubscription(RoutingContext context, Subscription subscription, Handler<AsyncResult<Subscription>> handler, Marker marker) {
+    protected static void storeSubscription(RoutingContext context, Subscription subscription, io.vertx.core.Handler<AsyncResult<Subscription>> handler, Marker marker) {
 
         Service.subscriptionConfigClient.store(marker, subscription).onComplete(ar -> {
             if (ar.failed()) {
@@ -142,8 +141,8 @@ public class SubscriptionHandler {
         });
     }
 
-    public static void deleteSubscription(RoutingContext context, Subscription subscription, Handler<AsyncResult<Subscription>> handler) {
-        Marker marker = Api.Context.getMarker(context);
+    public static void deleteSubscription(RoutingContext context, Subscription subscription, io.vertx.core.Handler<AsyncResult<Subscription>> handler) {
+        Marker marker = Context.getMarker(context);
 
         getSubscriptions(context, subscription.getSource(), ar -> {
             if(ar.failed()) {
@@ -172,8 +171,8 @@ public class SubscriptionHandler {
         });
     }
 
-    protected static void removeSubscription(RoutingContext context, Subscription subscription, Handler<AsyncResult<Subscription>> handler) {
-        Marker marker = Api.Context.getMarker(context);
+    protected static void removeSubscription(RoutingContext context, Subscription subscription, io.vertx.core.Handler<AsyncResult<Subscription>> handler) {
+        Marker marker = Context.getMarker(context);
 
         Service.subscriptionConfigClient.delete(marker, subscription).onComplete( ar -> {
             if (ar.failed()) {
@@ -185,23 +184,23 @@ public class SubscriptionHandler {
         });
     }
 
-    private static void sendEvent(RoutingContext context, Operation op, Subscription subscription, boolean hasNoActiveSubscriptions,Marker marker, Handler<AsyncResult<Subscription>> handler) {
+    private static void sendEvent(RoutingContext context, Operation op, Subscription subscription, boolean hasNoActiveSubscriptions,Marker marker, io.vertx.core.Handler<AsyncResult<Subscription>> handler) {
 
         ModifySubscriptionEvent event = new ModifySubscriptionEvent()
                 .withOperation(op)
                 .withSubscription(subscription)
-                .withStreamId(marker.getName())
+                .ensureStreamId(marker.getName())
                 .withIfNoneMatch(context.request().headers().get("If-None-Match"))
                 .withSpace(subscription.getSource())
                 .withHasNoActiveSubscriptions(hasNoActiveSubscriptions);
 
         ModifySubscriptionQuery query = new ModifySubscriptionQuery(event, context, ApiResponseType.EMPTY);
 
-        TaskPipeline.C1<ModifySubscriptionQuery> wrappedSuccessHandler = (t) -> {
+        ISuccessHandler<ModifySubscriptionQuery> wrappedSuccessHandler = (t) -> {
             handler.handle(Future.succeededFuture());
         };
 
-        TaskPipeline.C2<ModifySubscriptionQuery, Throwable> wrappedExceptionHandler = (t, e) -> {
+        ITaskStep<ModifySubscriptionQuery, Throwable> wrappedExceptionHandler = (t, e) -> {
             handler.handle((Future.failedFuture(e)));
         };
 

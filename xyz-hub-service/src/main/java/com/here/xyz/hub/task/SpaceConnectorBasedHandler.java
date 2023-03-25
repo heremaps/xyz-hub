@@ -26,7 +26,7 @@ import com.here.xyz.hub.auth.RevisionAuthorization;
 import com.here.xyz.hub.config.ConnectorConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.RpcClient;
-import com.here.xyz.hub.rest.Api;
+import com.here.xyz.hub.rest.Context;
 import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -40,7 +40,7 @@ public class SpaceConnectorBasedHandler {
   private static final Logger logger = LogManager.getLogger();
 
   public static <T extends Event<T>> Future<Void> execute(RoutingContext context, Event<T> e) {
-    final Marker marker = Api.Context.getMarker(context);
+    final Marker marker = Context.getMarker(context);
 
     return SpaceConfigClient.getInstance().get(marker, e.getSpace())
       .flatMap(space -> space == null

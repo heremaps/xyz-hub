@@ -20,8 +20,8 @@ package com.here.xyz.psql;
 
 import com.here.xyz.models.hub.psql.PsqlProcessorParams;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.events.ModifyFeaturesEvent;
-import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.feature.ModifyFeaturesEvent;
+import com.here.xyz.events.space.ModifySpaceEvent;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.*;
 import com.here.xyz.models.hub.Space;
@@ -38,128 +38,136 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertTrue;
 
 public class PSQLHistoryFullIT extends PSQLAbstractIT {
 
-    static Map<String, Object> connectorParams = new HashMap<String,Object>(){
-        {   put(PsqlProcessorParams.ID, "test-connector");
-            put(PsqlProcessorParams.COMPACT_HISTORY, false);
-            put(PsqlProcessorParams.PROPERTY_SEARCH, true);
-        }
-    };
+  static Map<String, Object> connectorParams = new HashMap<String, Object>() {
+    {
+      put(PsqlProcessorParams.ID, "test-connector");
+      put(PsqlProcessorParams.COMPACT_HISTORY, false);
+      put(PsqlProcessorParams.PROPERTY_SEARCH, true);
+    }
+  };
 
-    @BeforeClass
-    public static void init() throws Exception { initEnv(connectorParams); }
+  @BeforeClass
+  public static void init() throws Exception {
+    initEnv(connectorParams);
+  }
 
-    @After
-    public void shutdown() throws Exception { invokeDeleteTestSpace(connectorParams); }
+  @After
+  public void shutdown() throws Exception {
+    invokeDeleteTestSpace(connectorParams);
+  }
 
-    @Test
-    public void testFullHistoryTableWriting() throws Exception {
-        // =========== CREATE SPACE with UUID support ==========
-        ModifySpaceEvent mse = new ModifySpaceEvent()
-                .withSpace("foo")
-                .withOperation(ModifySpaceEvent.Operation.CREATE)
-                .withConnectorParams(connectorParams)
-                .withSpaceDefinition(new Space()
-                        .withId("foo")
-                        .withEnableHistory(true)
-                );
+  @Test
+  public void testFullHistoryTableWriting() throws Exception {
+    // =========== CREATE SPACE with UUID support ==========
+    final Space space = new Space();
+    space.setId("foo");
+    space.setEnableHistory(true);
+    final ModifySpaceEvent event = new ModifySpaceEvent();
+    event.setSpace("foo");
+    event.setOperation(ModifySpaceEvent.Operation.CREATE);
+    event.setConnectorParams(connectorParams);
+    event.setSpaceDefinition(space);
+    invokeLambda(event.serialize());
 
-        invokeLambda(mse.serialize());
+    // ============= INSERT ======================
+    XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
+    FeatureCollection collection = new FeatureCollection();
+    List<Feature> featureList = new ArrayList<>();
 
-        // ============= INSERT ======================
-        XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
-        FeatureCollection collection = new FeatureCollection();
-        List<Feature> featureList = new ArrayList<>();
+    Point point = new Point().withCoordinates(new PointCoordinates(50, 8));
+    Feature f = new Feature()
+        .withId("1234")
+        .withGeometry(point)
+        .withProperties(new Properties().with("foo", 0).withXyzNamespace(xyzNamespace));
+    featureList.add(f);
+    collection.setFeatures(featureList);
 
-        Point point = new Point().withCoordinates(new PointCoordinates(50, 8));
-        Feature f = new Feature()
-                .withId("1234")
-                .withGeometry(point)
-                .withProperties(new Properties().with("foo", 0).withXyzNamespace(xyzNamespace));
-        featureList.add(f);
-        collection.setFeatures(featureList);
+    ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
+    mfevent.setConnectorParams(connectorParams);
+    mfevent.setSpace("foo");
+    mfevent.setTransaction(true);
+    mfevent.setEnableUUID(true);
 
-        ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent()
-                .withConnectorParams(connectorParams)
-                .withSpace("foo")
-                .withTransaction(true)
-                .withEnableUUID(true);
+    mfevent.setEnableUUID(true);
+    setPUUID(collection);
+    mfevent.setInsertFeatures(collection.getFeatures());
+    invokeLambda(mfevent.serialize());
 
-        mfevent.setEnableUUID(true);
-        setPUUID(collection);
-        mfevent.setInsertFeatures(collection.getFeatures());
-        invokeLambda(mfevent.serialize());
-
-        // ============= UPDATE FEATURE 10 Times ======================
-        mfevent.setInsertFeatures(null);
-        for (int i = 1; i <= 5; i++) {
-            f.getProperties().with("foo", i);
-            mfevent.setUpdateFeatures(collection.getFeatures());
-            setPUUID(collection);
-            invokeLambda(mfevent.serialize());
-        }
-
-        // ============= DELETE ======================
-        mfevent.setDeleteFeatures(new HashMap<String,String>(){{put("1234",null);}});
-        mfevent.setUpdateFeatures(null);
-        setPUUID(collection);
-        invokeLambda(mfevent.serialize());
-
-        try (final Connection connection = dataSource().getConnection()) {
-            Statement stmt = connection.createStatement();
-            String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'foo', jsondata->'properties'->'@ns:com:here:xyz'->'deleted' desc";
-
-            ResultSet resultSet = stmt.executeQuery(sql);
-            int oldestFooValue = 0;
-            int rowCount = 0;
-
-            // Check if 5 last versions are available in history table
-            while (resultSet.next()) {
-                Feature feature = XyzSerializable.deserialize(resultSet.getString("jsondata"));
-
-                rowCount++;
-                if(rowCount == 6){
-                    // Here we will find the deleted object which has the foo=5 from the last version.
-                    assertEquals(oldestFooValue, (int) feature.getProperties().get("foo"));
-                }
-                else
-                    assertEquals(oldestFooValue++, (int) feature.getProperties().get("foo"));
-            }
-            // Check if history table has 7 entries (1x insert +5x update +1x delete)
-            assertEquals(7, rowCount);
-        }
+    // ============= UPDATE FEATURE 10 Times ======================
+    mfevent.setInsertFeatures(null);
+    for (int i = 1; i <= 5; i++) {
+      f.getProperties().with("foo", i);
+      mfevent.setUpdateFeatures(collection.getFeatures());
+      setPUUID(collection);
+      invokeLambda(mfevent.serialize());
     }
 
-    @Test
-    public void testFullHistoryTableTrigger() throws Exception {
-        int maxVersionCount = -1;
-        // =========== CREATE SPACE with UUID support ==========
-        ModifySpaceEvent mse = new ModifySpaceEvent()
-                .withSpace("foo")
-                .withOperation(ModifySpaceEvent.Operation.CREATE)
-                .withConnectorParams(connectorParams)
-                .withSpaceDefinition(new Space()
-                        .withId("foo")
-                        .withEnableHistory(true)
-                );
+    // ============= DELETE ======================
+    mfevent.setDeleteFeatures(new HashMap<String, String>() {{
+      put("1234", null);
+    }});
+    mfevent.setUpdateFeatures(null);
+    setPUUID(collection);
+    invokeLambda(mfevent.serialize());
 
-        invokeLambda(mse.serialize());
+    try (final Connection connection = dataSource().getConnection()) {
+      Statement stmt = connection.createStatement();
+      String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'foo', jsondata->'properties'->'@ns:com:here:xyz'->'deleted' desc";
 
-        try (final Connection connection = dataSource().getConnection()) {
-            Statement stmt = connection.createStatement();
-            String sql = "SELECT pg_get_triggerdef(oid) as trigger_def " +
-                    "FROM pg_trigger " +
-                    "WHERE tgname = 'TR_foo_HISTORY_WRITER';";
+      ResultSet resultSet = stmt.executeQuery(sql);
+      int oldestFooValue = 0;
+      int rowCount = 0;
 
-            ResultSet resultSet = stmt.executeQuery(sql);
-            if(!resultSet.next()) {
-                throw new Exception("History Trigger/Table is missing!");
-            }else{
-                assertTrue(resultSet.getString("trigger_def").contains("xyz_trigger_historywriter_full('"+maxVersionCount+"')"));
-            }
+      // Check if 5 last versions are available in history table
+      while (resultSet.next()) {
+        Feature feature = XyzSerializable.deserialize(resultSet.getString("jsondata"));
+
+        rowCount++;
+        if (rowCount == 6) {
+          // Here we will find the deleted object which has the foo=5 from the last version.
+          assertEquals(oldestFooValue, (int) feature.getProperties().get("foo"));
+        } else {
+          assertEquals(oldestFooValue++, (int) feature.getProperties().get("foo"));
         }
+      }
+      // Check if history table has 7 entries (1x insert +5x update +1x delete)
+      assertEquals(7, rowCount);
     }
+  }
+
+  @Test
+  public void testFullHistoryTableTrigger() throws Exception {
+    int maxVersionCount = -1;
+    // =========== CREATE SPACE with UUID support ==========
+    final Space space = new Space();
+    space.setId("foo");
+    space.setEnableHistory(true);
+
+    final ModifySpaceEvent mse = new ModifySpaceEvent();
+    mse.setSpace("foo");
+    mse.setOperation(ModifySpaceEvent.Operation.CREATE);
+    mse.setConnectorParams(connectorParams);
+    mse.setSpaceDefinition(space);
+
+    invokeLambda(mse.serialize());
+
+    try (final Connection connection = dataSource().getConnection()) {
+      Statement stmt = connection.createStatement();
+      String sql = "SELECT pg_get_triggerdef(oid) as trigger_def " +
+          "FROM pg_trigger " +
+          "WHERE tgname = 'TR_foo_HISTORY_WRITER';";
+
+      ResultSet resultSet = stmt.executeQuery(sql);
+      if (!resultSet.next()) {
+        throw new Exception("History Trigger/Table is missing!");
+      } else {
+        assertTrue(resultSet.getString("trigger_def").contains("xyz_trigger_historywriter_full('" + maxVersionCount + "')"));
+      }
+    }
+  }
 }

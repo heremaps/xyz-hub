@@ -21,17 +21,17 @@ package com.here.xyz.psql;
 
 import com.amazonaws.util.IOUtils;
 import com.here.mapcreator.ext.naksha.PsqlPool;
-import com.here.xyz.SimpleIoPipeline;
 import com.here.xyz.models.hub.psql.PsqlProcessorParams;
-import com.here.xyz.AbstractIoPipeline;
+import com.here.xyz.IoEventPipeline;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.events.HealthCheckEvent;
-import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.info.HealthCheckEvent;
+import com.here.xyz.events.space.ModifySpaceEvent;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.tools.Helper;
 import com.here.xyz.responses.SuccessResponse;
 import com.jayway.jsonpath.JsonPath;
+import java.util.Collections;
 import javax.sql.DataSource;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -71,11 +71,11 @@ public abstract class PSQLAbstractIT extends Helper {
   protected static void initEnv(Map<String, Object> connectorParameters) throws Exception {
     LOGGER.info("Setup environment...");
     connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
-    connectorParams = new PsqlProcessorParams(connectorParameters, "IntegrationTest");
+    connectorParams = new PsqlProcessorParams(connectorParameters);
 
-    HealthCheckEvent event = new HealthCheckEvent()
-        .withMinResponseTime(100)
-        .withConnectorParams(connectorParameters);
+    final HealthCheckEvent event = new HealthCheckEvent();
+    event.setMinResponseTime(100);
+    event.setConnectorParams(connectorParameters);
 
     invokeLambda(event.serialize());
     LOGGER.info("Setup environment Completed.");
@@ -85,14 +85,14 @@ public abstract class PSQLAbstractIT extends Helper {
     LOGGER.info("Creat Test space..");
 
     connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
-    ModifySpaceEvent mse = new ModifySpaceEvent()
-        .withSpace(spaceId)
-        .withOperation(ModifySpaceEvent.Operation.CREATE)
-        .withConnectorParams(connectorParameters)
-        .withSpaceDefinition(new Space()
-            .withId(spaceId)
-        );
-    SuccessResponse response = XyzSerializable.deserialize(invokeLambda(mse.serialize()));
+    final Space space = new Space();
+    space.setId(spaceId);
+    final ModifySpaceEvent event = new ModifySpaceEvent();
+    event.setSpace(spaceId);
+    event.setOperation(ModifySpaceEvent.Operation.CREATE);
+    event.setConnectorParams(connectorParameters);
+    event.setSpaceDefinition(space);
+    SuccessResponse response = XyzSerializable.deserialize(invokeLambda(event.serialize()));
     assertEquals("OK", response.getStatus());
   }
 
@@ -100,12 +100,11 @@ public abstract class PSQLAbstractIT extends Helper {
     LOGGER.info("Cleanup spaces..");
 
     connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
-    ModifySpaceEvent mse = new ModifySpaceEvent()
-        .withSpace(TEST_SPACE_ID)
-        .withOperation(ModifySpaceEvent.Operation.DELETE)
-        .withConnectorParams(connectorParameters);
-
-    String response = invokeLambda(mse.serialize());
+    final ModifySpaceEvent event = new ModifySpaceEvent();
+    event.setSpace(TEST_SPACE_ID);
+    event.setOperation(ModifySpaceEvent.Operation.DELETE);
+    event.setConnectorParams(connectorParameters);
+    String response = invokeLambda(event.serialize());
     assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
 
     LOGGER.info("Cleanup space Completed.");
@@ -117,12 +116,12 @@ public abstract class PSQLAbstractIT extends Helper {
     connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
 
     for (String space : spaces) {
-      ModifySpaceEvent mse = new ModifySpaceEvent()
-          .withSpace(space)
-          .withOperation(ModifySpaceEvent.Operation.DELETE)
-          .withConnectorParams(connectorParameters);
+      final ModifySpaceEvent event = new ModifySpaceEvent();
+      event.setSpace(space);
+      event.setOperation(ModifySpaceEvent.Operation.DELETE);
+      event.setConnectorParams(connectorParameters);
 
-      String response = invokeLambda(mse.serialize());
+      String response = invokeLambda(event.serialize());
       assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
     }
 
@@ -132,9 +131,10 @@ public abstract class PSQLAbstractIT extends Helper {
   protected String invokeLambdaFromFile(String file) throws Exception {
     InputStream jsonStream = PSQLAbstractIT.class.getResourceAsStream(file);
     ByteArrayOutputStream os = new ByteArrayOutputStream();
-    final AbstractIoPipeline pipeline = new SimpleIoPipeline(new PsqlProcessor());
+    final IoEventPipeline pipeline = new IoEventPipeline();
+    pipeline.addEventHandler(new PsqlProcessor(Collections.emptyMap()));
     assert jsonStream != null;
-    pipeline.processEvent(jsonStream, os);
+    pipeline.sendEvent(jsonStream, os);
     String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
     LOGGER.info("Response from lambda - {}", response);
     return response;
@@ -144,8 +144,9 @@ public abstract class PSQLAbstractIT extends Helper {
     LOGGER.info("Request to lambda - {}", request);
     InputStream jsonStream = new ByteArrayInputStream(request.getBytes(StandardCharsets.UTF_8));
     ByteArrayOutputStream os = new ByteArrayOutputStream();
-    final AbstractIoPipeline pipeline = new SimpleIoPipeline(new PsqlProcessor());
-    pipeline.processEvent(jsonStream, os);
+    final IoEventPipeline pipeline = new IoEventPipeline();
+    pipeline.addEventHandler(new PsqlProcessor(Collections.emptyMap()));
+    pipeline.sendEvent(jsonStream, os);
     String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
     LOGGER.info("Response from lambda - {}", response);
     return response;

@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.View;
+import com.here.xyz.View.All;
 import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 
@@ -19,7 +19,7 @@ public class Transaction extends TransactionElement {
    * A map between space-id and the corresponding transaction element.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   public Map<@NotNull String, @NotNull TransactionElement> transaction;
 
@@ -27,7 +27,7 @@ public class Transaction extends TransactionElement {
    * A map between the commit-id and the corresponding commit message.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   public Map<@NotNull String, @NotNull TransactionCommitMessage> msg;
 }

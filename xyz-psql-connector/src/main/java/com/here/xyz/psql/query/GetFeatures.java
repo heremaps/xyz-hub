@@ -19,13 +19,11 @@
 
 package com.here.xyz.psql.query;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
-
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.events.ContextAwareEvent;
-import com.here.xyz.events.QueryEvent;
-import com.here.xyz.events.SelectiveEvent;
+import com.here.xyz.events.Event;
+import com.here.xyz.events.feature.QueryEvent;
+import com.here.xyz.events.FeatureEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.PsqlProcessor;
 import com.here.xyz.psql.SQLQueryBuilder;
@@ -36,7 +34,7 @@ import java.util.List;
 import javax.annotation.Nonnull;
 import org.jetbrains.annotations.NotNull;
 
-public abstract class GetFeatures<E extends ContextAwareEvent<E>> extends ExtendedSpace<E, FeatureCollection> {
+public abstract class GetFeatures<E extends Event> extends ExtendedSpace<E, FeatureCollection> {
 
   public GetFeatures(@NotNull E event, final @NotNull PsqlProcessor psqlConnector) throws SQLException, ErrorResponseException {
     super(event, psqlConnector);
@@ -45,7 +43,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent<E>> extends Extend
 
   @Override
   protected @NotNull SQLQuery buildQuery(@Nonnull E event) throws SQLException {
-    boolean isExtended = isExtendedSpace(event) && event.getContext() == DEFAULT;
+    boolean isExtended = isExtendedSpace(event);
     SQLQuery query;
     if (isExtended) {
       query = new SQLQuery(
@@ -67,8 +65,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent<E>> extends Extend
               + "    WHERE ${{filterWhereClause}} ${{orderBy}} ${{limit}} ${{offset}}");
     }
 
-    if (event instanceof SelectiveEvent)
-      query.setQueryFragment("selection", buildSelectionFragment((SelectiveEvent<?>) event));
+    if (event instanceof FeatureEvent)
+      query.setQueryFragment("selection", buildSelectionFragment((FeatureEvent) event));
     else
       query.setQueryFragment("selection", "jsondata");
 
@@ -130,7 +128,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent<E>> extends Extend
     return processor.defaultFeatureResultSetHandler(rs);
   }
 
-  protected static SQLQuery buildSelectionFragment(SelectiveEvent event) {
+  protected static SQLQuery buildSelectionFragment(FeatureEvent event) {
     if (event.getSelection() == null || event.getSelection().size() == 0)
       return new SQLQuery("jsondata");
 
@@ -160,16 +158,16 @@ public abstract class GetFeatures<E extends ContextAwareEvent<E>> extends Extend
     return buildGeoFragment(event, true, null);
   }
 
-  protected SQLQuery buildGeoFragment(ContextAwareEvent event, SQLQuery geoOverride) {
+  protected SQLQuery buildGeoFragment(Event event, SQLQuery geoOverride) {
     return buildGeoFragment(event, true, geoOverride);
   }
 
-  protected static SQLQuery buildGeoFragment(ContextAwareEvent event, boolean convertToGeoJson) {
+  protected static SQLQuery buildGeoFragment(Event event, boolean convertToGeoJson) {
     return buildGeoFragment(event, convertToGeoJson, null);
   }
 
-  protected static SQLQuery buildGeoFragment(ContextAwareEvent event, boolean convertToGeoJson, SQLQuery geoOverride) {
-    boolean isForce2D = event instanceof SelectiveEvent ? ((SelectiveEvent) event).isForce2D() : false;
+  protected static SQLQuery buildGeoFragment(Event event, boolean convertToGeoJson, SQLQuery geoOverride) {
+    boolean isForce2D = event instanceof FeatureEvent && ((FeatureEvent) event).isForce2D();
     String geo = geoOverride != null ? "${{geoOverride}}" : ((isForce2D ? "ST_Force2D" : "ST_Force3D") + "(geo)");
 
     if (convertToGeoJson)

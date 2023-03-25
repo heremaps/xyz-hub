@@ -18,12 +18,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -382,18 +383,6 @@ public final class Naksha {
     }
   }
 
-  /**
-   * All spaces, beware to modify this map or any of its values. This is a read-only map!
-   */
-  public static final ConcurrentHashMap<@NotNull String, @NotNull Space> spaces = new ConcurrentHashMap<>();
-  private static final AtomicLong spacesLast = new AtomicLong(-1);
-
-  /**
-   * All connectors, beware to modify this map or any of its values. This is a read-only map!
-   */
-  public static final ConcurrentHashMap<@NotNull String, @NotNull Connector> connectors = new ConcurrentHashMap<>();
-  private static final AtomicLong connectorsLast = new AtomicLong(-1);
-
   // -----------------------------------------------------------------------------------------------------------------------------------
   // ---------- Static caching code
   // -----------------------------------------------------------------------------------------------------------------------------------
@@ -441,7 +430,7 @@ public final class Naksha {
           sb.setLength(0);
           sb.append("SELECT id, owner, config, i FROM ").append(MGMT_SPACE_TABLE).append(" WHERE i > ?");
           SQL = sb.toString();
-          long last = spacesLast.get();
+          long last = 0L;
           try (final PreparedStatement stmt = conn.prepareStatement(SQL)) {
             stmt.setLong(1, last);
             final ResultSet rs = stmt.executeQuery();

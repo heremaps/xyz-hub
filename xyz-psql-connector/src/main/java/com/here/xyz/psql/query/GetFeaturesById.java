@@ -21,7 +21,7 @@ package com.here.xyz.psql.query;
 
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.events.GetFeaturesByIdEvent;
+import com.here.xyz.events.feature.GetFeaturesByIdEvent;
 import com.here.xyz.psql.PsqlProcessor;
 import java.sql.SQLException;
 import org.jetbrains.annotations.NotNull;

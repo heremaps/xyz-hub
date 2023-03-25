@@ -22,11 +22,9 @@ package com.here.xyz.hub.rest.health;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
-import com.google.common.base.Strings;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.Api;
-import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.hub.util.health.Config;
 import com.here.xyz.hub.util.health.MainHealthCheck;
 import com.here.xyz.hub.util.health.checks.ClusterHealthCheck;
@@ -40,6 +38,7 @@ import com.here.xyz.hub.util.health.schema.Response;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpMethod;
+import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -72,7 +71,7 @@ public class HealthApi extends Api {
     }
     healthCheck.add(new MemoryHealthCheck())
         .add(new ClusterHealthCheck());
-    if (Service.configuration.ENABLE_CONNECTOR_HEALTH_CHECKS){
+    if (Service.configuration.ENABLE_CONNECTOR_HEALTH_CHECKS) {
       healthCheck.add(rfcHcAggregator);
     }
     if (Service.configuration.STORAGE_DB_URL != null) {
@@ -117,28 +116,10 @@ public class HealthApi extends Api {
   }
 
   public static void onHealthStatus(final RoutingContext context) {
-    try {
-      Response r = healthCheck.getResponse();
-      r.setEndpoint(NODE_HEALTHCHECK_ENDPOINT);
-      r.setNode(Node.OWN_INSTANCE.id);
-
-      String secretHeaderValue = context.request().getHeader(Config.getHealthCheckHeaderName());
-
-      //Always respond with 200 for public HC requests for now
-      int statusCode = r.isPublicRequest(secretHeaderValue) ?
-          OK.code() : r.getStatus().getSuggestedHTTPStatusCode();
-      String responseString = r.toResponseString(secretHeaderValue);
-
-      context.response().setStatusCode(statusCode)
-          .putHeader(HttpHeaders.CONTENT_TYPE, APPLICATION_JSON)
-          .end(responseString);
-    }
-    catch (Exception e) {
-      logger.error(Context.getMarker(context), "Error while doing the health-check: ", e);
-      context.response().setStatusCode(OK.code())
-          .putHeader(HttpHeaders.CONTENT_TYPE, APPLICATION_JSON)
-          .end(new JsonObject().put("status", new JsonObject().put("result", "WARNING")).encode());
-    }
+    context.response()
+        .setStatusCode(OK.code())
+        .putHeader(HttpHeaders.CONTENT_TYPE, APPLICATION_JSON)
+        .end("{\"status\":\"OK\"}");
   }
 
   public static int getHealthStatusCode() {

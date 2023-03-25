@@ -19,6 +19,8 @@
 
 package com.here.xyz.psql;
 
+import static com.here.xyz.EventTask.currentTask;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -239,20 +241,8 @@ public class DatabaseWriter {
       @NotNull String table) {
     if (e != null && e.getMessage() != null && e.getMessage().contains("does not exist")) {
       /* If table not yet exist */
-      logger.info(
-          "{}:{} - Failed to perform {} - table {} does not exists {}",
-          processor.logId(),
-          processor.logTime(),
-          action,
-          table,
-          e);
+      currentTask().info("{Failed to perform {} - table {} does not exists {}", action, table, e);
     } else
-      logger.info(
-          "{}:{} - Failed to perform {} on table {} {}",
-          processor.logId(),
-          processor.logTime(),
-          action,
-          table,
-          e);
+      currentTask().info("Failed to perform {} on table {} {}", action, table, e);
   }
 }

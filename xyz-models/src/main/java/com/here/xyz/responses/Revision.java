@@ -32,7 +32,7 @@ import com.here.xyz.responses.changesets.Changeset;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "Revision")
 @JsonInclude(Include.NON_DEFAULT)
-public class Revision extends XyzResponse<Revision> {
+public class Revision extends XyzResponse {
   /**
    * The revision number.
    */

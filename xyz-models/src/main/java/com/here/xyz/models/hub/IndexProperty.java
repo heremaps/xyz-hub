@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.View;
+import com.here.xyz.View.All;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class IndexProperty {
@@ -14,21 +14,21 @@ public class IndexProperty {
    * The JSON path to the property to index.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   public String path;
 
   /**
    * If the property should be naturally ordered ascending.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   public boolean asc = true;
 
   /**
    * Optionally decide if {@link null} values should be ordered first or last. If not explicitly defined, automatically decided.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   public Nulls nulls;
 

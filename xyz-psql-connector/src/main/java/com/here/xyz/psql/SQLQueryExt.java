@@ -20,7 +20,7 @@
 package com.here.xyz.psql;
 
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
-import com.here.xyz.events.QueryEvent;
+import com.here.xyz.events.feature.QueryEvent;
 import com.here.xyz.psql.query.GetFeatures;
 
 /**

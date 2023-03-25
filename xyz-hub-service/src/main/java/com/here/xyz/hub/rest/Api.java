@@ -21,7 +21,6 @@ package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
 import static io.netty.handler.codec.http.HttpHeaderValues.TEXT_PLAIN;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
@@ -37,18 +36,11 @@ import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.XYZHubRESTVerticle;
-import com.here.xyz.hub.auth.JWTPayload;
-import com.here.xyz.hub.connectors.models.Space.CacheProfile;
-import com.here.xyz.hub.rest.ApiParam.Query;
-import com.here.xyz.hub.task.FeatureTask;
-import com.here.xyz.hub.task.SpaceTask;
+import com.here.xyz.hub.task.feature.FeatureTask;
+import com.here.xyz.hub.task.space.SpaceTask;
 import com.here.xyz.hub.task.Task;
-import com.here.xyz.hub.task.TaskPipeline;
-import com.here.xyz.hub.util.logging.AccessLog;
+import com.here.xyz.hub.task.TaskPipelineCancelled;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.models.hub.Space.Internal;
-import com.here.xyz.models.hub.Space.Public;
-import com.here.xyz.models.hub.Space.WithConnectors;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
@@ -71,16 +63,9 @@ import io.vertx.core.json.Json;
 import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.web.RoutingContext;
 import java.io.ByteArrayOutputStream;
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
-import java.nio.charset.Charset;
 import java.util.Collections;
-import java.util.stream.Stream;
-import org.apache.commons.lang3.ArrayUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.Marker;
-import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 
 public abstract class Api {
 
@@ -360,7 +345,7 @@ public abstract class Api {
    * @param e the exception that should be used to generate an {@link ErrorResponse}, if null an internal server error is returned.
    */
   protected void sendErrorResponse(final RoutingContext context, final Throwable e) {
-    if (e instanceof TaskPipeline.PipelineCancelledException)
+    if (e instanceof TaskPipelineCancelled)
       return;
     if (e instanceof HttpException) {
       final HttpException httpException = (HttpException) e;
@@ -404,7 +389,7 @@ public abstract class Api {
         .setStatusCode(status.code())
         .setStatusMessage(status.reasonPhrase())
         .end(new ErrorResponse()
-            .withStreamId(Api.Context.getMarker(context).getName())
+            .withStreamId(Context.getMarker(context).getName())
             .withError(error)
             .withErrorMessage(errorMessage).serialize());
   }
@@ -422,7 +407,7 @@ public abstract class Api {
         .setStatusCode(httpError.status.code())
         .setStatusMessage(httpError.status.reasonPhrase())
         .end(new ErrorResponse()
-            .withStreamId(Api.Context.getMarker(context).getName())
+            .withStreamId(Context.getMarker(context).getName())
             .withErrorDetails(httpError.errorDetails)
             .withError(error)
             .withErrorMessage(httpError.getMessage()).serialize());
@@ -556,105 +541,4 @@ public abstract class Api {
     }
   }
 
-  public static final class Context {
-
-    private static final String MARKER = "marker";
-    private static final String ACCESS_LOG = "accessLog";
-    private static final String JWT = "jwt";
-    private static final String QUERY_PARAMS = "queryParams";
-
-    /**
-     * Returns the log marker for the request.
-     * TODO move to {@link com.here.xyz.hub.util.logging.LogUtil}
-     * @return the marker or null, if no marker was found.
-     */
-    public static Marker getMarker(RoutingContext context) {
-      if (context == null) {
-        return null;
-      }
-      Marker marker = context.get(MARKER);
-      if (marker == null) {
-        String sid = context.request().getHeader(STREAM_ID);
-        marker = new Log4jMarker( sid != null ? sid : STREAM_ID + "-null" );
-        context.put(MARKER, marker);
-      }
-      return marker;
-    }
-
-    /**
-     * Returns the access log object for this request.
-     * TODO move to {@link com.here.xyz.hub.util.logging.LogUtil}
-     * @param context the routing context.
-     * @return the access log object
-     */
-    public static AccessLog getAccessLog(RoutingContext context) {
-      if (context == null) {
-        return null;
-      }
-      AccessLog accessLog = context.get(ACCESS_LOG);
-      if (accessLog == null) {
-        accessLog = new AccessLog();
-        context.put(ACCESS_LOG, accessLog);
-      }
-      return accessLog;
-    }
-
-    /**
-     * Returns the log marker for the request.
-     *
-     * @return the marker or null, if no marker was found.
-     */
-    public static JWTPayload getJWT(RoutingContext context) {
-      if (context == null) {
-        return null;
-      }
-      JWTPayload payload = context.get(JWT);
-      if (payload == null && context.user() != null) {
-        payload = DatabindCodec.mapper().convertValue(context.user().principal(), JWTPayload.class);
-        context.put(JWT, payload);
-      }
-
-      return payload;
-    }
-
-    /**
-     * Returns the custom parsed query parameters.
-     *
-     * Temporary solution until https://github.com/vert-x3/issues/issues/380 is resolved.
-     */
-
-    private static final String[] nonDecodeList = { Query.TAGS };
-
-    static MultiMap getQueryParameters(RoutingContext context) {
-      MultiMap queryParams = context.get(QUERY_PARAMS);
-      if (queryParams != null) {
-        return queryParams;
-      }
-      final MultiMap map = MultiMap.caseInsensitiveMultiMap();
-
-      String query = context.request().query();
-      if (query != null && query.length() > 0) {
-        String[] paramStrings = query.split("&");
-        for (String paramString : paramStrings) {
-          int eqDelimiter = paramString.indexOf("=");
-          if (eqDelimiter > 0) {
-            String key = paramString.substring(0, eqDelimiter);
-            boolean decode = !ArrayUtils.contains(nonDecodeList,key);
-            String rawValue = paramString.substring(eqDelimiter + 1);
-            if (rawValue.length() > 0) {
-              String[] values = rawValue.split(",");
-              Stream.of(values).forEach(v -> {
-                try {
-                  map.add(key, (decode ? URLDecoder.decode(v, Charset.defaultCharset().name()) : v ));
-                } catch (UnsupportedEncodingException ignored) {
-                }
-              });
-            }
-          }
-        }
-      }
-      context.put(QUERY_PARAMS, map);
-      return map;
-    }
-  }
 }

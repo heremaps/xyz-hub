@@ -31,8 +31,7 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.decryptors.EventDecryptor;
 import com.here.xyz.connectors.decryptors.EventDecryptor.Decryptors;
 import com.here.xyz.events.Event;
-import com.here.xyz.events.HealthCheckEvent;
-import com.here.xyz.events.RelocatedEvent;
+import com.here.xyz.events.info.HealthCheckEvent;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.HealthStatus;
@@ -76,10 +75,9 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
   private static final RelocationClient relocationClient = new RelocationClient(System.getenv("S3_BUCKET"));
 
   /**
-   * The lambda client, used for warmup.
-   * Only used when running in AWS Lambda environment.
+   * The lambda client, used for warmup. Only used when running in AWS Lambda environment.
    */
-  private static final AWSLambda lambda = System.getenv("AWS_LAMBDA_FUNCTION_NAME") != null ? AWSLambdaClientBuilder.defaultClient(): null;
+  private static final AWSLambda lambda = System.getenv("AWS_LAMBDA_FUNCTION_NAME") != null ? AWSLambdaClientBuilder.defaultClient() : null;
 
   /**
    * The number of the bytes to read from an input stream and preview as a String in the logs.
@@ -125,8 +123,8 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
   protected String streamId;
 
   /**
-   * Can be used for writing Log-Entries (streamId + connectorId). The connectorId should get configured in the
-   * Connector Parameters of the Connector Config.
+   * Can be used for writing Log-Entries (streamId + connectorId). The connectorId should get configured in the Connector Parameters of the
+   * Connector Config.
    */
   protected TraceItem traceItem;
 
@@ -188,8 +186,8 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
   /**
    * The entry point for processing an event.
    *
-   * @param input The Lambda function input stream
-   * @param output The Lambda function output stream
+   * @param input   The Lambda function input stream
+   * @param output  The Lambda function output stream
    * @param context The Lambda execution environment context object
    */
   @Override
@@ -209,42 +207,35 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
         String connectorId = null;
         this.streamId = streamId != null ? streamId : event.getStreamId();
 
-        if (event.getConnectorParams() != null  && event.getConnectorParams().get("connectorId") != null)
+        if (event.getConnectorParams() != null && event.getConnectorParams().get("connectorId") != null) {
           connectorId = (String) event.getConnectorParams().get("connectorId");
+        }
 
         maxUncompressedResponseSize = getMaxUncompressedResponseSize(event);
         traceItem = new TraceItem(this.streamId, connectorId);
 
         ifNoneMatch = event.getIfNoneMatch();
 
-        if (event instanceof RelocatedEvent) {
-          handleRequest(Payload.prepareInputStream(relocationClient.processRelocatedEvent((RelocatedEvent) event)), output, context);
-          return;
-        }
         initialize(event);
         dataOut = processEvent(event);
-      }
-      catch (ErrorResponseException e) {
-        if (e.getErrorResponse().getStreamId() == null)
+      } catch (ErrorResponseException e) {
+        if (e.getErrorResponse().getStreamId() == null) {
           e.getErrorResponse().setStreamId(this.streamId);
+        }
         dataOut = e.getErrorResponse();
-      }
-      catch (Exception e) {
+      } catch (Exception e) {
         logger.error("{} Unexpected exception occurred:", traceItem, e);
         dataOut = new ErrorResponse()
             .withStreamId(this.streamId)
             .withError(XyzError.EXCEPTION)
             .withErrorMessage("Unexpected exception occurred.");
-      }
-      catch (OutOfMemoryError e) {
-       throw e;
+      } catch (OutOfMemoryError e) {
+        throw e;
       }
       writeDataOut(output, dataOut, ifNoneMatch);
-    }
-    catch (Exception e) {
+    } catch (Exception e) {
       logger.error("{} Unexpected exception occurred:", traceItem, e);
-    }
-    catch (OutOfMemoryError e) {
+    } catch (OutOfMemoryError e) {
       logger.error("{} Unexpected exception occurred (heap space):", traceItem, e);
     }
   }
@@ -278,7 +269,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
 
   /**
    * Write the output object to the output stream.
-   *
+   * <p>
    * If the serialized object is too large it will be relocated and a RelocatedEvent will be written instead.
    */
   @SuppressWarnings("UnstableApiUsage")
@@ -304,17 +295,21 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
       if (dataOut instanceof BinaryResponse) {
         //NOTE: BinaryResponses contain an ETag automatically, nothing to calculate here
         String etag = ((BinaryResponse) dataOut).getEtag();
-        if (XyzResponse.etagMatches(ifNoneMatch, etag))
-          bytes = new NotModifiedResponse().withEtag(etag).toByteArray();
-        else if (!embedded && bytes.length > GZIP_THRESHOLD_SIZE)
+        if (XyzResponse.etagMatches(ifNoneMatch, etag)) {
+          final NotModifiedResponse r = new NotModifiedResponse();
+          r.setEtag(etag);
+          bytes = r.toByteArray();
+        } else if (!embedded && bytes.length > GZIP_THRESHOLD_SIZE) {
           bytes = Payload.compress(bytes);
-      }
-      else {
+        }
+      } else {
         //Calculate ETag
         String etag = XyzResponse.calculateEtagFor(bytes);
-        if (XyzResponse.etagMatches(ifNoneMatch, etag))
-          bytes = new NotModifiedResponse().withEtag(etag).toByteArray();
-        else {
+        if (XyzResponse.etagMatches(ifNoneMatch, etag)) {
+          final NotModifiedResponse r = new NotModifiedResponse();
+          r.setEtag(etag);
+          bytes = r.toByteArray();
+        } else {
           //Handle compression and ETag injection
           byte[] etagBytes = ETAG_STRING.replace("_", etag.replace("\"", "\\\"")).getBytes();
           try (ByteArrayOutputStream os = new ByteArrayOutputStream(bytes.length - 1 + etagBytes.length)) {
@@ -335,8 +330,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
 
       //Write result
       output.write(bytes);
-    }
-    catch (Exception e) {
+    } catch (Exception e) {
       logger.error("{} Unexpected exception occurred:", traceItem, e);
     }
   }
@@ -351,7 +345,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
 
   /**
    * Processes a HealthCheckEvent event.
-   *
+   * <p>
    * This type of events are sent in regular intervals to the lambda handler and could be used to keep the handler's container active and
    * the connection to the database open.
    */
@@ -364,18 +358,22 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
       List<Thread> threads = new ArrayList<>(warmupCount);
       for (int i = 0; i < warmupCount; i++) {
         threads.add(new Thread(() -> lambda.invoke(new InvokeRequest()
-                .withFunctionName(this.context.getInvokedFunctionArn())
-                .withPayload(ByteBuffer.wrap(newEvent)))));
+            .withFunctionName(this.context.getInvokedFunctionArn())
+            .withPayload(ByteBuffer.wrap(newEvent)))));
       }
       threads.forEach(t -> t.start());
-      threads.forEach(t -> {try {t.join();} catch (InterruptedException ignore){}});
+      threads.forEach(t -> {
+        try {
+          t.join();
+        } catch (InterruptedException ignore) {
+        }
+      });
     }
 
     if (System.currentTimeMillis() < event.getMinResponseTime() + start) {
       try {
         Thread.sleep((event.getMinResponseTime() + start) - System.currentTimeMillis());
-      }
-      catch (InterruptedException e) {
+      } catch (InterruptedException e) {
         return new ErrorResponse()
             .withErrorMessage(e.getMessage())
             .withStreamId(streamId)
@@ -407,6 +405,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    * Can be used for Log-Entries: "streamId - (cid=connector -)"
    */
   public static class TraceItem {
+
     private String streamId;
     private String connectorId;
 
@@ -416,8 +415,8 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
     }
 
     @Override
-    public String toString (){
-      return (streamId != null ? streamId : "no-stream-id") + (connectorId != null ? " - cid="+connectorId+" -" : " -");
+    public String toString() {
+      return (streamId != null ? streamId : "no-stream-id") + (connectorId != null ? " - cid=" + connectorId + " -" : " -");
     }
 
     public String getStreamId() {
@@ -432,8 +431,9 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
   private long getMaxUncompressedResponseSize(Event event) {
     String size = System.getenv(MAX_UNCOMPRESSED_RESPONSE_SIZE);
 
-    if (event.getConnectorParams() != null && event.getConnectorParams().containsKey(MAX_UNCOMPRESSED_RESPONSE_SIZE))
+    if (event.getConnectorParams() != null && event.getConnectorParams().containsKey(MAX_UNCOMPRESSED_RESPONSE_SIZE)) {
       size = event.getConnectorParams().get(MAX_UNCOMPRESSED_RESPONSE_SIZE).toString();
+    }
 
     try {
       long lSize = Long.parseLong(size);

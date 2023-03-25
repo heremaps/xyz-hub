@@ -19,8 +19,11 @@
 
 package com.here.xyz.models.hub.psql;
 
+import static com.here.xyz.EventTask.currentTask;
+
+import com.here.xyz.EventPipeline;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.models.hub.ProcessorParams;
+import com.here.xyz.EventHandlerParams;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +34,7 @@ import org.jetbrains.annotations.Nullable;
  * The PostgresQL connector parameters.
  */
 @SuppressWarnings("unused")
-public class PsqlProcessorParams extends ProcessorParams {
+public class PsqlProcessorParams extends EventHandlerParams {
 
   /**
    * Paramters
@@ -65,10 +68,16 @@ public class PsqlProcessorParams extends ProcessorParams {
   private final @NotNull String adminRole;
   private final @NotNull String adminSchema;
 
+  /**
+   * Parse the given connector params into this type-safe class.
+   *
+   * @param connectorParams the connector parameters.
+   * @throws NullPointerException     if a value is {@code null} that must not be null.
+   * @throws IllegalArgumentException if a value has an invalid type, for example a map expected, and a string found.
+   */
   @SuppressWarnings("unchecked")
-  public PsqlProcessorParams(@NotNull Map<@NotNull String, @Nullable Object> connectorParams, @NotNull String logId)
+  public PsqlProcessorParams(@NotNull Map<@NotNull String, @Nullable Object> connectorParams)
       throws NullPointerException {
-    super(logId);
     Object raw = connectorParams.get("dbConfig");
     if (!(raw instanceof Map)) {
       throw new IllegalArgumentException("dbConfig");
@@ -96,7 +105,7 @@ public class PsqlProcessorParams extends ProcessorParams {
     id = parseValue(connectorParams, ID, String.class);
     connectorId = parseValue(connectorParams, CONNECTOR_ID, Long.class);
     if (connectorId <= 0L) {
-      logger.warn("{} - Illegal cid: {}", logId, connectorParams.get(CONNECTOR_ID));
+      currentTask().warn("Illegal cid: {}", connectorParams.get(CONNECTOR_ID));
     }
     autoIndexing = parseValue(connectorParams, AUTO_INDEXING, false);
     propertySearch = parseValue(connectorParams, PROPERTY_SEARCH, false);

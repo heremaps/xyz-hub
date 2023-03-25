@@ -25,17 +25,18 @@ import com.here.xyz.Payload;
 import com.here.xyz.bin.ConnectorPayload;
 import java.nio.ByteBuffer;
 import javax.annotation.Nonnull;
+import org.jetbrains.annotations.NotNull;
 
 /**
- * A wrapper class which is based on {@link XyzResponse} for binary responses from connectors.
- * Internally it uses an actual binary representation for the payload.
- *
- * An instance of {@link ConnectorPayload} will be used internally to convert it to binary form.
- * For all other protocol versions the payload will be encoded as JSON.
+ * A wrapper class which is based on {@link XyzResponse} for binary responses from connectors. Internally it uses an actual binary
+ * representation for the payload.
+ * <p>
+ * An instance of {@link ConnectorPayload} will be used internally to convert it to binary form. For all other protocol versions the payload
+ * will be encoded as JSON.
  *
  * @see Payload#VERSION
  */
-public class BinaryResponse extends XyzResponse<BinaryResponse> {
+public class BinaryResponse extends XyzResponse {
 
   public static final String BINARY_SUPPORT_VERSION = "0.6.0";
 
@@ -76,10 +77,12 @@ public class BinaryResponse extends XyzResponse<BinaryResponse> {
 
   @Override
   public String getEtag() {
-    if (super.getEtag() != null)
+    if (super.getEtag() != null) {
       return super.getEtag();
-    if (etagNeedsRecalculation)
+    }
+    if (etagNeedsRecalculation) {
       setCalculatedEtag(getBytes() == null ? null : XyzResponse.calculateEtagFor(getBytes()));
+    }
     return calculatedEtag;
   }
 
@@ -93,25 +96,28 @@ public class BinaryResponse extends XyzResponse<BinaryResponse> {
   @Override
   public byte[] toByteArray() {
     FlatBufferBuilder builder = new FlatBufferBuilder();
-    int payload = ConnectorPayload.createConnectorPayload(builder, builder.createString(getMimeType()), builder.createString(getEtag()), builder.createByteVector(getBytes()));
+    int payload = ConnectorPayload.createConnectorPayload(builder, builder.createString(getMimeType()), builder.createString(getEtag()),
+        builder.createByteVector(getBytes()));
     builder.finish(payload);
     return buffer2ByteArray(builder.dataBuffer());
   }
 
   /**
    * Deserializes a binary response from the connector.
+   *
    * @param byteArray The bytes coming in from a connector
    * @return
    */
   public static BinaryResponse fromByteArray(byte[] byteArray) {
     ConnectorPayload payload = ConnectorPayload.getRootAsConnectorPayload(ByteBuffer.wrap(byteArray));
-    return new BinaryResponse()
-        .withMimeType(payload.mimeType())
-        .withBytes(buffer2ByteArray(payload.bytesAsByteBuffer()))
-        .withEtag(payload.etag());
+    final BinaryResponse binaryResponse = new BinaryResponse();
+    binaryResponse.setMimeType(payload.mimeType());
+    binaryResponse.setBytes(buffer2ByteArray(payload.bytesAsByteBuffer()));
+    binaryResponse.setEtag(payload.etag());
+    return binaryResponse;
   }
 
-  private static final byte[] buffer2ByteArray(ByteBuffer buffer) {
+  private static byte @NotNull [] buffer2ByteArray(@NotNull ByteBuffer buffer) {
     byte[] byteArray = new byte[buffer.remaining()];
     buffer.get(byteArray);
     return byteArray;

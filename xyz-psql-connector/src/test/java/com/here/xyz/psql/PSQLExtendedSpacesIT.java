@@ -20,8 +20,8 @@ package com.here.xyz.psql;
 
 import com.here.xyz.models.hub.psql.PsqlProcessorParams;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.events.ModifyFeaturesEvent;
-import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.feature.ModifyFeaturesEvent;
+import com.here.xyz.events.space.ModifySpaceEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.models.hub.Space;
@@ -44,205 +44,210 @@ import java.util.Map;
 import static org.junit.Assert.*;
 
 public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
-    private static final String BASE1 = "base1_test";
-    private static final String BASE2 = "base2_test";
-    private static final String DELTA1 = "delta1_test";
-    private static final String DELTA2 = "delta2_test";
 
-    private static List<String> spaces = new ArrayList<String>(){{add(BASE1);add(BASE2);add(DELTA1);add(DELTA2);}};
+  private static final String BASE1 = "base1_test";
+  private static final String BASE2 = "base2_test";
+  private static final String DELTA1 = "delta1_test";
+  private static final String DELTA2 = "delta2_test";
 
-    protected static Map<String, Object> connectorParams = new HashMap<String,Object>(){
-        {   put(PsqlProcessorParams.ID, "test-connector");
-            put(PsqlProcessorParams.AUTO_INDEXING, true);
-            put(PsqlProcessorParams.PROPERTY_SEARCH, true);
-        }
-    };
+  private static List<String> spaces = new ArrayList<String>() {{
+    add(BASE1);
+    add(BASE2);
+    add(DELTA1);
+    add(DELTA2);
+  }};
 
-    @BeforeClass
-    public static void init() throws Exception {
-        initEnv(connectorParams);
-        generateTestSpaces();
+  protected static Map<String, Object> connectorParams = new HashMap<String, Object>() {
+    {
+      put(PsqlProcessorParams.ID, "test-connector");
+      put(PsqlProcessorParams.AUTO_INDEXING, true);
+      put(PsqlProcessorParams.PROPERTY_SEARCH, true);
+    }
+  };
+
+  @BeforeClass
+  public static void init() throws Exception {
+    initEnv(connectorParams);
+    generateTestSpaces();
+  }
+
+  @After
+  public void shutdown() throws Exception {
+    invokeDeleteTestSpaces(connectorParams, spaces);
+  }
+
+  @Test
+  public void checkIDX() throws Exception {
+    checkIDXTable(1, false);
+
+    Map<String, Boolean> searchableProperties = new HashMap();
+    List<List<Object>> sortableProperties = new ArrayList<>();
+    searchableProperties.put("search_test", false);
+    searchableProperties.put("search_test2", true);
+
+    /** Update Searchable and SortableProperties in Base */
+    ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent();
+    modifySpaceEvent.setSpace(BASE1);
+    modifySpaceEvent.setOperation(ModifySpaceEvent.Operation.UPDATE);
+    modifySpaceEvent.setConnectorParams(connectorParams);
+    modifySpaceEvent.setSpaceDefinition(new Space(BASE1));
+    SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
+    assertEquals("OK", response.getStatus());
+
+    /** Check if IDX-Table reflects this changes */
+    checkIDXTable(2, false);
+
+    /** Change Base Layer */
+    Map<String, Object> params = new HashMap<>();
+
+    modifySpaceEvent = new ModifySpaceEvent();
+    modifySpaceEvent.setSpace(DELTA1);
+    modifySpaceEvent.setOperation(ModifySpaceEvent.Operation.UPDATE);
+    modifySpaceEvent.setConnectorParams(connectorParams);
+    modifySpaceEvent.setParams(params);
+    modifySpaceEvent.setSpaceDefinition(new Space(DELTA1));
+    response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
+    assertEquals("OK", response.getStatus());
+
+    /** Check if IDX-Table reflects this changes */
+    checkIDXTable(3, true);
+  }
+
+  protected static void generateTestSpaces() throws Exception {
+    /** Generate:
+     * BASE
+     * DELTA1 Extends BASE
+     * DELTA2 Extends DELTA1
+     * */
+    for (String space : spaces) {
+      Map<String, Boolean> searchableProperties = new HashMap();
+      List<List<Object>> sortableProperties = new ArrayList<>();
+      Map<String, Object> params = new HashMap<>();
+      Map<String, Object> extendsL2 = new HashMap<>();
+
+      switch (space) {
+        case BASE1:
+          searchableProperties.put("search_test", true);
+          sortableProperties.add(new ArrayList<Object>() {{
+            add("sort_test");
+          }});
+          break;
+        case BASE2:
+          searchableProperties.put("search_test_base2", true);
+          break;
+        case DELTA1:
+          mockAutoIndexing();
+          break;
+        case DELTA2:
+          extendsL2.put("spaceId", DELTA1);
+          params.put("extends", extendsL2);
+      }
+
+      ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent();
+      modifySpaceEvent.setSpace(space);
+      modifySpaceEvent.setOperation(ModifySpaceEvent.Operation.CREATE);
+      modifySpaceEvent.setConnectorParams(connectorParams);
+      modifySpaceEvent.setParams(params);
+      modifySpaceEvent.setSpaceDefinition(new Space(space));
+      SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
+      assertEquals("OK", response.getStatus());
+
+      final List<Feature> features = new ArrayList<Feature>() {{
+        add(FeatureGenerator.generateFeature(new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L), null));
+      }};
+
+      ModifyFeaturesEvent modifyFeaturesEvent = new ModifyFeaturesEvent();
+      modifyFeaturesEvent.setSpace(space);
+      modifyFeaturesEvent.setConnectorParams(connectorParams);
+      modifyFeaturesEvent.setTransaction(true);
+      modifyFeaturesEvent.setInsertFeatures(features);
+      invokeLambda(modifyFeaturesEvent.serialize());
+    }
+  }
+
+  protected static void checkIDXTable(int szenario, boolean baselayerSwitch) throws Exception {
+    String q =
+        "SELECT * FROM " + ModifySpace.IDX_STATUS_TABLE + " WHERE spaceid IN ('" + BASE1 + "','" + BASE2 + "','" + DELTA1 + "','" + DELTA2
+            + "');";
+    JSONObject base1_ref = null;
+    JSONObject base2_ref = new JSONObject("{\"searchableProperties\": {\"search_test_base2\": true}}");
+    ;
+    JSONObject delta1_ref = null;
+    JSONObject delta2_ref = null;
+
+    switch (szenario) {
+      //Baseline (base1,base2,delta1,delta2 newly created)
+      case 1:
+        base1_ref = new JSONObject("{\"sortableProperties\": [[\"sort_test\"]], \"searchableProperties\": {\"search_test\": true}}");
+        delta1_ref = base1_ref;
+        delta2_ref = base1_ref;
+        break;
+      //Searchable and SortableProperties got updated in Base1
+      case 2:
+        base1_ref = new JSONObject("{\"searchableProperties\": {\"search_test\": false,\"search_test2\": true}}");
+        delta1_ref = base1_ref;
+        delta2_ref = base1_ref;
+        break;
+      //Switch Base Layer from delta_2 from base1 to bas2
+      case 3:
+        base1_ref = new JSONObject("{\"searchableProperties\": {\"search_test\": false,\"search_test2\": true}}");
+        delta2_ref = base1_ref;
+        delta1_ref = base2_ref;
     }
 
-    @After
-    public void shutdown() throws Exception { invokeDeleteTestSpaces(connectorParams, spaces); }
+    try (final Connection connection = dataSource().getConnection()) {
+      Statement stmt = connection.createStatement();
+      ResultSet resultSet = stmt.executeQuery(q);
+      int i = 0;
 
-    @Test
-    public void checkIDX() throws Exception {
-        checkIDXTable(1, false);
+      while (resultSet.next()) {
+        i++;
+        String spaceId = resultSet.getString("spaceid");
+        JSONObject idx_manual = new JSONObject(resultSet.getString("idx_manual"));
+        String autoIndexing = resultSet.getString("auto_indexing");
+        boolean idx_creation_finished = resultSet.getBoolean("idx_creation_finished");
 
-        Map<String,Boolean> searchableProperties = new HashMap();
-        List<List<Object>> sortableProperties = new ArrayList<>();
-        searchableProperties.put("search_test", false);
-        searchableProperties.put("search_test2", true);
-
-        /** Update Searchable and SortableProperties in Base */
-        ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent()
-            .withSpace(BASE1)
-            .withOperation(ModifySpaceEvent.Operation.UPDATE)
-            .withConnectorParams(connectorParams)
-            .withSpaceDefinition(
-                    new Space()
-                            .withId(BASE1)
-            );
-        SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
-        assertEquals("OK",response.getStatus());
-
-        /** Check if IDX-Table reflects this changes */
-        checkIDXTable(2, false);
-
-        /** Change Base Layer */
-        Map<String, Object> params = new HashMap<>();
-
-        modifySpaceEvent = new ModifySpaceEvent()
-                .withSpace(DELTA1)
-                .withOperation(ModifySpaceEvent.Operation.UPDATE)
-                .withConnectorParams(connectorParams)
-                .withParams(params)
-                .withSpaceDefinition(
-                        new Space()
-                                .withId(DELTA1)
-                );
-        response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
-        assertEquals("OK",response.getStatus());
-
-        /** Check if IDX-Table reflects this changes */
-        checkIDXTable(3, true);
-    }
-
-    protected static void generateTestSpaces() throws Exception {
-        /** Generate:
-         * BASE
-         * DELTA1 Extends BASE
-         * DELTA2 Extends DELTA1
-         * */
-        for (String space : spaces ) {
-            Map<String,Boolean> searchableProperties = new HashMap();
-            List<List<Object>> sortableProperties = new ArrayList<>();
-            Map<String, Object> params = new HashMap<>();
-            Map<String, Object> extendsL2 = new HashMap<>();
-
-            switch (space){
-                case BASE1:
-                    searchableProperties.put("search_test", true);
-                    sortableProperties.add(new ArrayList<Object>(){{add("sort_test");}});
-                    break;
-                case BASE2:
-                    searchableProperties.put("search_test_base2", true);
-                    break;
-                case DELTA1:
-                    mockAutoIndexing();
-                    break;
-                case DELTA2:
-                    extendsL2.put("spaceId",DELTA1);
-                    params.put("extends",extendsL2);
+        switch (spaceId) {
+          case BASE1:
+            assertTrue(base1_ref.similar(idx_manual));
+            assertNull(autoIndexing);
+            break;
+          case BASE2:
+            assertTrue(base2_ref.similar(idx_manual));
+            assertNull(autoIndexing);
+            break;
+          case DELTA1:
+            if (!baselayerSwitch) {
+              /** Inject mocked Auto-Index*/
+              delta1_ref.put("searchableProperties", ((JSONObject) delta1_ref.get("searchableProperties")).put("foo", true));
             }
+            assertTrue(delta1_ref.similar(idx_manual));
+            assertEquals("f", autoIndexing);
+            break;
+          case DELTA2:
+            /** Inject mocked Auto-Index*/
+            delta2_ref.put("searchableProperties", ((JSONObject) delta2_ref.get("searchableProperties")).put("foo", true));
 
-            ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent()
-                    .withSpace(space)
-                    .withOperation(ModifySpaceEvent.Operation.CREATE)
-                    .withConnectorParams(connectorParams)
-                    .withParams(params)
-                    .withSpaceDefinition(
-                            new Space()
-                                .withId(space)
-                    );
-            SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
-            assertEquals("OK",response.getStatus());
-
-            final List<Feature> features = new ArrayList<Feature>(){{
-                add(FeatureGenerator.generateFeature(new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L), null));
-            }};
-
-            ModifyFeaturesEvent modifyFeaturesEvent = new ModifyFeaturesEvent()
-                    .withSpace(space)
-                    .withConnectorParams(connectorParams)
-                    .withTransaction(true)
-                    .withInsertFeatures(features);
-            invokeLambda(modifyFeaturesEvent.serialize());
+            assertTrue(delta2_ref.similar(idx_manual));
+            assertEquals("f", autoIndexing);
         }
+        assertFalse(idx_creation_finished);
+      }
+      /** Are all entries are present? */
+      assertEquals(4, i);
     }
+  }
 
-    protected static void checkIDXTable(int szenario, boolean baselayerSwitch) throws Exception{
-        String q = "SELECT * FROM "+ ModifySpace.IDX_STATUS_TABLE+" WHERE spaceid IN ('"+ BASE1 +"','"+BASE2+"','"+DELTA1+"','"+DELTA2+"');";
-        JSONObject base1_ref = null;
-        JSONObject base2_ref = new JSONObject("{\"searchableProperties\": {\"search_test_base2\": true}}");;
-        JSONObject delta1_ref = null;
-        JSONObject delta2_ref = null;
+  protected static void mockAutoIndexing() throws Exception {
+    String q = "CREATE INDEX IF NOT EXISTS idx_base_test_foo_a" +
+        " ON public." + BASE1 + " USING btree" +
+        " (((jsondata -> 'properties'::text) -> 'foo'::text));" +
+        "COMMENT ON INDEX public.idx_base_test_foo_a" +
+        "    IS 'foo';";
 
-        switch (szenario){
-            //Baseline (base1,base2,delta1,delta2 newly created)
-            case 1:
-                base1_ref = new JSONObject("{\"sortableProperties\": [[\"sort_test\"]], \"searchableProperties\": {\"search_test\": true}}");
-                delta1_ref = base1_ref;
-                delta2_ref = base1_ref;
-                break;
-            //Searchable and SortableProperties got updated in Base1
-            case 2:
-                base1_ref = new JSONObject("{\"searchableProperties\": {\"search_test\": false,\"search_test2\": true}}");
-                delta1_ref = base1_ref;
-                delta2_ref = base1_ref;
-                break;
-            //Switch Base Layer from delta_2 from base1 to bas2
-            case 3:
-                base1_ref = new JSONObject("{\"searchableProperties\": {\"search_test\": false,\"search_test2\": true}}");
-                delta2_ref = base1_ref;
-                delta1_ref = base2_ref;
-        }
-
-        try (final Connection connection = dataSource().getConnection()) {
-            Statement stmt = connection.createStatement();
-            ResultSet resultSet = stmt.executeQuery(q);
-            int i = 0;
-
-            while (resultSet.next()) {
-                i++;
-                String spaceId = resultSet.getString("spaceid");
-                JSONObject idx_manual = new JSONObject(resultSet.getString("idx_manual"));
-                String autoIndexing = resultSet.getString("auto_indexing");
-                boolean idx_creation_finished = resultSet.getBoolean("idx_creation_finished");
-
-                switch (spaceId){
-                    case BASE1:
-                        assertTrue(base1_ref.similar(idx_manual));
-                        assertNull(autoIndexing);
-                        break;
-                    case BASE2:
-                        assertTrue(base2_ref.similar(idx_manual));
-                        assertNull(autoIndexing);
-                        break;
-                    case DELTA1:
-                        if(!baselayerSwitch) {
-                            /** Inject mocked Auto-Index*/
-                            delta1_ref.put("searchableProperties", ((JSONObject) delta1_ref.get("searchableProperties")).put("foo", true));
-                        }
-                        assertTrue(delta1_ref.similar(idx_manual));
-                        assertEquals("f",autoIndexing);
-                        break;
-                    case DELTA2:
-                        /** Inject mocked Auto-Index*/
-                        delta2_ref.put("searchableProperties", ((JSONObject) delta2_ref.get("searchableProperties")).put("foo", true));
-
-                        assertTrue(delta2_ref.similar(idx_manual));
-                        assertEquals("f",autoIndexing);
-                }
-                assertFalse(idx_creation_finished);
-            }
-            /** Are all entries are present? */
-            assertEquals(4, i);
-        }
+    try (final Connection connection = dataSource().getConnection()) {
+      Statement stmt = connection.createStatement();
+      stmt.execute(q);
     }
-
-    protected static void mockAutoIndexing() throws Exception{
-        String q = "CREATE INDEX IF NOT EXISTS idx_base_test_foo_a" +
-                " ON public."+ BASE1 +" USING btree" +
-                " (((jsondata -> 'properties'::text) -> 'foo'::text));" +
-                "COMMENT ON INDEX public.idx_base_test_foo_a" +
-                "    IS 'foo';";
-
-        try (final Connection connection = dataSource().getConnection()) {
-            Statement stmt = connection.createStatement();
-            stmt.execute(q);
-        }
-    }
+  }
 }

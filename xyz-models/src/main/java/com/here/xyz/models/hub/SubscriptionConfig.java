@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.View;
+import com.here.xyz.View.All;
 import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -15,7 +16,7 @@ public class SubscriptionConfig {
    * The type of the subscription.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   private SubscriptionType type;
 
   @JsonProperty

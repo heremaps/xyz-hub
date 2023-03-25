@@ -22,7 +22,7 @@ package com.here.xyz.connectors.mocks;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.connectors.NotificationParams;
 import com.here.xyz.connectors.ProcessorConnector;
-import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.space.ModifySpaceEvent;
 import com.here.xyz.responses.XyzError;
 
 @SuppressWarnings("unused")

@@ -27,7 +27,7 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Extensible;
 import com.here.xyz.Typed;
-import com.here.xyz.View;
+import com.here.xyz.View.All;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import java.util.UUID;
@@ -40,21 +40,21 @@ import org.jetbrains.annotations.Nullable;
 public class Feature extends Extensible<Feature> implements Typed {
 
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   private String id;
 
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   private BBox bbox;
 
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   private Geometry geometry;
 
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   private Properties properties;
 

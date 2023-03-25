@@ -26,7 +26,7 @@ import static com.here.xyz.hub.util.health.schema.Status.Result.UNAVAILABLE;
 import static com.here.xyz.hub.util.health.schema.Status.Result.UNKNOWN;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.here.xyz.events.HealthCheckEvent;
+import com.here.xyz.events.info.HealthCheckEvent;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.connectors.RemoteFunctionClient;
 import com.here.xyz.hub.connectors.RpcClient;

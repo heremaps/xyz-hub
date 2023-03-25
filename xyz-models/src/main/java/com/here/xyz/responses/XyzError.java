@@ -21,6 +21,8 @@ package com.here.xyz.responses;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonValue;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * An enumeration of all possible error codes that can happen while processing a request. Be aware that the XYZ Hub itself will respond
@@ -120,7 +122,7 @@ public enum XyzError {
    * @param error the error code as string.
    * @return the error code as enumeration value.
    */
-  public static XyzError forValue(String error) {
+  public static @Nullable XyzError forValue(@Nullable String error) {
     if (error == null) {
       return null;
     }
@@ -130,5 +132,24 @@ public enum XyzError {
       }
     }
     return null;
+  }
+
+  /**
+   * Returns the enumeration item for the given value or null, when the given string is no valid error code.
+   *
+   * @param error the error code as string.
+   * @param defaultValue the default error to return, when the given error is unknown.
+   * @return the error code as enumeration value.
+   */
+  public static @NotNull XyzError forValue(@Nullable String error, @NotNull XyzError defaultValue) {
+    if (error == null) {
+      return defaultValue;
+    }
+    for (final XyzError e : XyzError.values()) {
+      if (e.value.equalsIgnoreCase(error)) {
+        return e;
+      }
+    }
+    return defaultValue;
   }
 }

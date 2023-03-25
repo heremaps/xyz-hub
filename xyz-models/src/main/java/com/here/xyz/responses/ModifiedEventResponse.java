@@ -25,7 +25,7 @@ import com.here.xyz.events.Event;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "ModifiedEventResponse")
-public class ModifiedEventResponse extends ModifiedPayloadResponse<ModifiedEventResponse> {
+public class ModifiedEventResponse extends ModifiedPayloadResponse {
 
   private Event event;
 

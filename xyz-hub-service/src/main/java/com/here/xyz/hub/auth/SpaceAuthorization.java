@@ -38,9 +38,9 @@ import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.ModifyOp;
 import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.task.ModifySpaceOp;
-import com.here.xyz.hub.task.SpaceTask.ConditionalOperation;
-import com.here.xyz.hub.task.SpaceTask.MatrixReadQuery;
-import com.here.xyz.hub.task.TaskPipeline.Callback;
+import com.here.xyz.hub.task.space.SpaceTask.ConditionalOperation;
+import com.here.xyz.hub.task.space.SpaceTask.MatrixReadQuery;
+import com.here.xyz.hub.task.ICallback;
 import com.here.xyz.hub.util.diff.Difference;
 import com.here.xyz.hub.util.diff.Difference.DiffMap;
 import com.here.xyz.hub.util.diff.Patcher;
@@ -74,12 +74,12 @@ public class SpaceAuthorization extends Authorization {
 
   public static List<String> packageEdit = Collections.singletonList(PACKAGES);
 
-  public static void authorizeReadSpaces(MatrixReadQuery task, Callback<MatrixReadQuery> callback) {
+  public static void authorizeReadSpaces(MatrixReadQuery task, ICallback callback) {
     //Check if anonymous token is being used
     if (task.getJwt().anonymous) {
-      callback.exception(new HttpException(FORBIDDEN, "Accessing this resource with an anonymous token is not possible."));
+      callback.throwException(new HttpException(FORBIDDEN, "Accessing this resource with an anonymous token is not possible."));
     } else if (task.getJwt().getXyzHubMatrix() == null) {
-      callback.exception(new HttpException(FORBIDDEN, "Insufficient rights to read the requested resource."));
+      callback.throwException(new HttpException(FORBIDDEN, "Insufficient rights to read the requested resource."));
     } else {
       if (task.canReadConnectorsProperties) {
         final XyzHubActionMatrix connectorsReadMatrix = new XyzHubActionMatrix().accessConnectors(new XyzHubAttributeMap());
@@ -90,11 +90,11 @@ public class SpaceAuthorization extends Authorization {
        * No further checks are necessary. Authenticated users generally have access to this resource.
        * The resulting list response will only contain spaces the token has access to.
        */
-      callback.call(task);
+      callback.success(task);
     }
   }
 
-  public static void authorizeModifyOp(ConditionalOperation task, Callback<ConditionalOperation> callback) throws Exception {
+  public static void authorizeModifyOp(ConditionalOperation task, ICallback<ConditionalOperation> callback) throws Exception {
     final XyzHubActionMatrix tokenRights = task.getJwt().getXyzHubMatrix();
     final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
 
@@ -113,7 +113,7 @@ public class SpaceAuthorization extends Authorization {
 
     //Check if anonymous token is being used
     if (task.getJwt().anonymous) {
-      callback.exception(new HttpException(FORBIDDEN, "Accessing this resource with an anonymous token is not possible."));
+      callback.throwException(new HttpException(FORBIDDEN, "Accessing this resource with an anonymous token is not possible."));
       return;
     }
 
@@ -169,7 +169,7 @@ public class SpaceAuthorization extends Authorization {
     if (task.isRead()) {
       if (head.isShared()) {
         //User is trying to read a shared space this is allowed for any authenticated user
-        callback.call(task);
+        callback.success(task);
         return;
       }
 
@@ -178,7 +178,7 @@ public class SpaceAuthorization extends Authorization {
         throw new HttpException(FORBIDDEN, "Insufficient rights to read the requested resource.");
       }
 
-      callback.call(task);
+      callback.success(task);
       return;
     }
 
@@ -221,7 +221,7 @@ public class SpaceAuthorization extends Authorization {
           if (connectorsRights.get("accessConnectors") != null && !connectorsRights.get("accessConnectors").isEmpty()) {
             task.canReadConnectorsProperties = tokenRights != null && tokenRights.matches(connectorsRights);
             if (!task.canReadConnectorsProperties) {
-              callback.exception(new HttpException(FORBIDDEN, getForbiddenMessage(connectorsRights, tokenRights)));
+              callback.throwException(new HttpException(FORBIDDEN, getForbiddenMessage(connectorsRights, tokenRights)));
               return;
             }
           }
@@ -270,7 +270,7 @@ public class SpaceAuthorization extends Authorization {
           evaluateRights(requestRights, tokenRights, task, callback);
         }).exceptionally(t -> {
           logger.error((Marker) task.context.get("marker"), "Exception while checking connector permissions", t);
-          callback.exception(t);
+          callback.throwException(t);
           return null;
         });
   }

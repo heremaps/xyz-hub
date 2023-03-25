@@ -45,10 +45,10 @@ import static io.vertx.core.http.HttpMethod.POST;
 import static io.vertx.core.http.HttpMethod.PUT;
 
 import com.google.common.base.Strings;
-import com.here.xyz.hub.rest.Api;
+import com.here.xyz.hub.rest.Context;
 import com.here.xyz.hub.rest.HttpException;
-import com.here.xyz.hub.task.FeatureTask;
-import com.here.xyz.hub.task.TaskPipeline;
+import com.here.xyz.hub.task.feature.FeatureTask;
+import com.here.xyz.hub.task.TaskPipelineCancelled;
 import com.here.xyz.hub.util.logging.LogUtil;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AbstractVerticle;
@@ -148,7 +148,7 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
    * The final response handler.
    */
   protected void onResponseEnd(RoutingContext context) {
-    final Marker marker = Api.Context.getMarker(context);
+    final Marker marker = Context.getMarker(context);
     if (!context.response().headWritten()) {
       //The response was closed (e.g. by the client) before it could be written
       logger.info(marker, "The request was cancelled. No response has been sent.");
@@ -313,7 +313,7 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
    */
   public static void sendErrorResponse(final RoutingContext context, Throwable exception) {
     //If the request was cancelled, neither a response has to be sent nor the error should be logged.
-    if (exception instanceof TaskPipeline.PipelineCancelledException)
+    if (exception instanceof TaskPipelineCancelled)
       return;
     if (exception instanceof IllegalStateException && exception.getMessage().startsWith("Request method must be one of"))
       exception = new HttpException(METHOD_NOT_ALLOWED, exception.getMessage(), exception);
@@ -321,7 +321,7 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
     ErrorMessage error;
 
     try {
-      final Marker marker = Api.Context.getMarker(context);
+      final Marker marker = Context.getMarker(context);
 
       error = new ErrorMessage(context, exception);
       if (error.statusCode == 500) {
@@ -381,7 +381,7 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
     }
 
     public ErrorMessage(RoutingContext context, Throwable e) {
-      Marker marker = Api.Context.getMarker(context);
+      Marker marker = Context.getMarker(context);
       streamId = marker.getName();
       message = e.getMessage();
       if (e instanceof HttpException) {

@@ -19,7 +19,7 @@
 
 package com.here.xyz.hub.connectors;
 
-import com.here.xyz.events.HealthCheckEvent;
+import com.here.xyz.events.info.HealthCheckEvent;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.cache.CacheClient;
 import com.here.xyz.hub.connectors.models.Connector;

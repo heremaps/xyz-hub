@@ -21,7 +21,7 @@ package com.here.xyz.hub.connectors.test;
 
 import com.here.xyz.connectors.NotificationParams;
 import com.here.xyz.connectors.ProcessorConnector;
-import com.here.xyz.events.ModifyFeaturesEvent;
+import com.here.xyz.events.feature.ModifyFeaturesEvent;
 
 public class ExceptionPreProcessor extends ProcessorConnector {
     @Override

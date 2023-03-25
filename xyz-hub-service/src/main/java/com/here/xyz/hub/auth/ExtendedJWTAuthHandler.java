@@ -23,8 +23,8 @@ import static com.here.xyz.hub.rest.ApiParam.Query.ACCESS_TOKEN;
 
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization.AuthorizationType;
-import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.ApiParam.Query;
+import com.here.xyz.hub.rest.Context;
 import com.here.xyz.hub.util.Compression;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -98,7 +98,7 @@ public class ExtendedJWTAuthHandler extends JWTAuthHandlerImpl {
         bytearray = Compression.decompressUsingInflate(bytearray);
         jwt = new String(bytearray);
       } catch (Exception e) {
-        logger.error(Api.Context.getMarker(context), "JWT Base64 decoding or decompression failed: " + jwt, e);
+        logger.error(Context.getMarker(context), "JWT Base64 decoding or decompression failed: " + jwt, e);
         handler.handle(Future.failedFuture("Wrong auth credentials format."));
         return;
       }

@@ -1,23 +1,25 @@
 package com.here.xyz;
 
+import com.here.xyz.events.Event;
+import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.responses.XyzResponse;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The default interface that must be implemented by all event processors. A processor is code that uses a specific event context provided
- * by the host and bound to that event context, to process the bound event. Note that the host will create a new event processor and a new
- * event context for every incoming event, then bind them together and eventually aks the processor to process the event.
- *
- * <p>Basically, this is a connection of a connector, an event bound to a host context to be able to
- * process the event.
+ * The default interface that must be implemented by all event handler. A handler is code that performs actions with an event bound to an
+ * event context provided by the host application. Note that the host will create a new event pipeline for every new event, add all
+ * necessary handlers to it and then send the event through the pipeline. The pipeline itself provides the {@link IEventContext} and invokes
+ * all handlers in order. Every handler can either consume the event or {@link IEventContext#sendUpstream(Event) send it upstream}.
  */
+@FunctionalInterface
 public interface IEventHandler {
 
   /**
    * The method invoked by the XYZ-Hub directly (embedded) or indirectly, when running in an HTTP vertx or as AWS lambda.
    *
-   * @param event the event context to process.
+   * @param eventContext the event context to process.
    * @return the response to send.
+   * @throws XyzErrorException if any error occurred.
    */
-  @NotNull XyzResponse<?> processEvent(@NotNull IEventContext event);
+  @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) throws XyzErrorException;
 }

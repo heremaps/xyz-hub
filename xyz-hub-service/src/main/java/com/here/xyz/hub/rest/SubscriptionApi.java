@@ -202,7 +202,7 @@ public class SubscriptionApi extends Api {
       final XyzHubActionMatrix requestRights = new XyzHubActionMatrix()
               .manageSpaces(new XyzHubAttributeMap().withValue(SPACE, spaceId));
       try {
-        evaluateRights(Context.getMarker(context), requestRights, Context.getJWT(context).getXyzHubMatrix());
+        evaluateRights(Context.getMarker(context), requestRights, Context.jwt(context).getXyzHubMatrix());
         handler.handle(Future.succeededFuture());
       } catch (HttpException e) {
         handler.handle(Future.failedFuture(e));

@@ -24,8 +24,7 @@ import com.here.xyz.Payload;
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.Event;
-import com.here.xyz.events.HealthCheckEvent;
-import com.here.xyz.events.RelocatedEvent;
+import com.here.xyz.events.info.HealthCheckEvent;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -77,7 +76,7 @@ public class AbstractConnectorHandlerTest {
     InputStream is = new ByteArrayInputStream(HealthCheckEventString.getBytes());
     TestStorageConnector testStorageConnector = new TestStorageConnector();
     try {
-      Event<?> event = testStorageConnector.readEvent(is);
+      Event event = testStorageConnector.readEvent(is);
       assertTrue(event instanceof HealthCheckEvent);
     } catch (ErrorResponseException e) {
       e.printStackTrace();
@@ -88,7 +87,7 @@ public class AbstractConnectorHandlerTest {
   @Test
   public void writeDataOut() throws ErrorResponseException {
     TestStorageConnector testStorageConnector = new TestStorageConnector();
-    HealthCheckEvent healthCheckEvent = new HealthCheckEvent().withStreamId("TEST_STREAM_ID");
+    HealthCheckEvent healthCheckEvent = new HealthCheckEvent();
     ByteArrayOutputStream os = new ByteArrayOutputStream();
 
     // Convert the event to output stream
@@ -97,7 +96,7 @@ public class AbstractConnectorHandlerTest {
     // Read back the result
     byte[] outputBytes = os.toByteArray();
 
-    Event<?> outputEvent = testStorageConnector.readEvent(new ByteArrayInputStream(outputBytes));
+    Event outputEvent = testStorageConnector.readEvent(new ByteArrayInputStream(outputBytes));
     assertTrue(outputEvent instanceof HealthCheckEvent);
   }
 
@@ -134,12 +133,6 @@ public class AbstractConnectorHandlerTest {
   public void testRelocatedEvent() throws Exception {
     RelocationClient client = new RelocationClient("some-s3-bucket-name");
     byte[] bytes = client.relocate("STREAM_ID_EXAMPLE", HealthCheckEventString.getBytes());
-    RelocatedEvent relocated = XyzSerializable.deserialize(new ByteArrayInputStream(bytes));
-
-    InputStream input = client.processRelocatedEvent(relocated);
-    input = Payload.prepareInputStream(input);
-    Event<?> event = XyzSerializable.deserialize(input);
-    assertTrue(event instanceof HealthCheckEvent);
   }
 
   @SuppressWarnings("rawtypes")

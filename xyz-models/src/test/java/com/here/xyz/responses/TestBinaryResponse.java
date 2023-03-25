@@ -57,10 +57,10 @@ public class TestBinaryResponse {
 
   @Test
   public void testOverrideEtag() {
-    BinaryResponse br = new BinaryResponse()
-        .withEtag(SAMPLE_ETAG)
-        .withMimeType(MIME_TYPE)
-        .withBytes(SAMPLE_TEXT.getBytes());
+    BinaryResponse br = new BinaryResponse();
+    br.setEtag(SAMPLE_ETAG);
+    br.setMimeType(MIME_TYPE);
+    br.setBytes(SAMPLE_TEXT.getBytes());
 
     assertEquals(SAMPLE_ETAG, br.getEtag());
   }

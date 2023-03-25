@@ -21,7 +21,7 @@ package com.here.xyz.hub.connectors.test;
 
 import com.here.xyz.connectors.NotificationParams;
 import com.here.xyz.connectors.ProcessorConnector;
-import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.space.ModifySpaceEvent;
 
 public class DummyPreProcessor extends ProcessorConnector {
     @Override

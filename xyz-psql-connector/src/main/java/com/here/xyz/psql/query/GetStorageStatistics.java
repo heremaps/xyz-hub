@@ -19,9 +19,11 @@
 
 package com.here.xyz.psql.query;
 
+import static com.here.xyz.EventTask.currentTask;
+
 import com.here.mapcreator.ext.naksha.PsqlSpace;
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.events.GetStorageStatisticsEvent;
+import com.here.xyz.events.info.GetStorageStatisticsEvent;
 import com.here.xyz.psql.PsqlProcessor;
 import com.here.xyz.psql.SQLQueryExt;
 import com.here.xyz.responses.StatisticsResponse.Value;
@@ -66,16 +68,11 @@ public class GetStorageStatistics
             spaceId -> {
               final PsqlSpace space = processor.getSpaceById(spaceId);
               if (space == null) {
-                logger.info("{}:{} - Unknown space: {}", processor.logId(), processor.logTime(), spaceId);
+                currentTask().info("Unknown space: {}", spaceId);
               } else if (!schema.equals(space.schema)) {
-                logger.error(
-                    "{}:{} - The given space '{}' is located in schema '{}', but this connector is"
-                        + " bound to schema '{}', ignore space",
-                    processor.logId(),
-                    processor.logTime(),
-                    spaceId,
-                    space.schema,
-                    schema);
+                currentTask().error(
+                    "The given space '{}' is located in schema '{}', but this connector is bound to schema '{}', ignore space",
+                    spaceId, space.schema, schema);
               } else {
                 tableNames.add(space.table);
                 tableNames.add(space.historyTable);
@@ -98,8 +95,8 @@ public class GetStorageStatistics
             + "'"
             + " AND relname IN ("
             + tableNames.stream()
-                .map(tableName -> "'" + tableName + "'")
-                .collect(Collectors.joining(","))
+            .map(tableName -> "'" + tableName + "'")
+            .collect(Collectors.joining(","))
             + ")");
   }
 
@@ -123,9 +120,9 @@ public class GetStorageStatistics
       long tableBytes = rs.getLong(TABLE_BYTES), indexBytes = rs.getLong(INDEX_BYTES);
 
       SpaceByteSizes sizes = byteSizes.computeIfAbsent(spaceId, k -> new SpaceByteSizes());
-      if (isHistoryTable)
+      if (isHistoryTable) {
         sizes.setHistoryBytes(new Value<>(tableBytes + indexBytes).withEstimated(true));
-      else {
+      } else {
         sizes.setContentBytes(new Value<>(tableBytes).withEstimated(true));
         sizes.setSearchablePropertiesBytes(new Value<>(indexBytes).withEstimated(true));
         remainingSpaceIds.remove(spaceId);

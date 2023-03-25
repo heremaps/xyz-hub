@@ -23,8 +23,8 @@ import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
-import com.here.xyz.events.QueryEvent;
-import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.events.feature.QueryEvent;
+import com.here.xyz.events.feature.SearchForFeaturesEvent;
 import com.here.xyz.events.TagsQuery;
 import com.here.xyz.psql.PsqlProcessor;
 import java.sql.SQLException;
@@ -40,7 +40,7 @@ NOTE: All subclasses of QueryEvent are deprecated except SearchForFeaturesEvent.
 Once refactoring is complete, all members of SearchForFeaturesEvent can be pulled up to QueryEvent and QueryEvent
 can be renamed to SearchForFeaturesEvent again.
  */
-public class SearchForFeatures<E extends SearchForFeaturesEvent<E>> extends GetFeatures<E> {
+public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeatures<E> {
 
   protected boolean hasSearch;
 

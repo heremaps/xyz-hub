@@ -24,27 +24,35 @@ import com.here.xyz.responses.XyzError;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-/** An exception, which will cause the connector to respond with an ErrorResponse object. */
+/**
+ * An exception, which will cause the connector to respond with an ErrorResponse object.
+ */
 public class XyzErrorException extends Exception {
 
   private ErrorResponse errorResponse;
+
+  public XyzErrorException(@NotNull Throwable reason) {
+    super(reason.getMessage(), reason);
+    this.xyzError = XyzError.EXCEPTION;
+  }
 
   public XyzErrorException(@NotNull XyzError xyzError, @NotNull String errorMessage) {
     this(xyzError, errorMessage, null);
   }
 
-  public XyzErrorException(
-      @NotNull XyzError xyzError, @NotNull Throwable reason) {
+  public XyzErrorException(@NotNull XyzError xyzError, @NotNull Throwable reason) {
     super(reason.getMessage(), reason);
     this.xyzError = xyzError;
   }
 
-  public XyzErrorException(
-      @NotNull XyzError xyzError, @NotNull String errorMessage, @Nullable Throwable reason) {
+  public XyzErrorException(@NotNull XyzError xyzError, @NotNull String errorMessage, @Nullable Throwable reason) {
     super(errorMessage, reason);
     this.xyzError = xyzError;
   }
 
+  /**
+   * The XYZ error to return.
+   */
   public final @NotNull XyzError xyzError;
 
   public @NotNull ErrorResponse toErrorResponse(@NotNull String streamId) {

@@ -31,7 +31,7 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.here.xyz.LazyParsable;
 import com.here.xyz.LazyParsable.RawDeserializer;
 import com.here.xyz.LazyParsable.RawSerializer;
-import com.here.xyz.View;
+import com.here.xyz.View.All;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.responses.XyzResponse;
 import java.util.ArrayList;
@@ -40,66 +40,66 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "FeatureCollection")
 @JsonInclude(Include.NON_EMPTY)
-public class FeatureCollection extends XyzResponse<FeatureCollection> {
+public class FeatureCollection extends XyzResponse {
 
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   private LazyParsable<List<Feature>> features;
 
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   private BBox bbox;
 
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   private Boolean partial;
 
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   @Deprecated
   private String handle;
 
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   private String nextPageToken;
 
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   private Long count;
 
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   private List<String> inserted;
 
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   private List<String> updated;
 
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   private List<String> deleted;
 
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   private List<Feature> oldFeatures;
 
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   private List<ModificationFailure> failed;
 
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   private Integer version;
 

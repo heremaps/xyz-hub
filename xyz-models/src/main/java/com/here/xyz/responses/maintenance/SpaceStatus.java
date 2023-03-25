@@ -30,7 +30,7 @@ import java.util.Map;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "SpaceStatus")
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
-public class SpaceStatus extends XyzResponse<SpaceStatus> {
+public class SpaceStatus extends XyzResponse {
   private long runts;
 
   private long count;

@@ -23,7 +23,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.here.xyz.events.GetStatisticsEvent;
+import com.here.xyz.events.info.GetStatisticsEvent;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import java.util.List;
 
@@ -32,7 +32,7 @@ import java.util.List;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "StatisticsResponse")
-public class StatisticsResponse extends XyzResponse<StatisticsResponse> {
+public class StatisticsResponse extends XyzResponse {
 
   private Value<Long> count;
   @Deprecated

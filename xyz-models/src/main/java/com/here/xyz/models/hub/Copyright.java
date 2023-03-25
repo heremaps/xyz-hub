@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.View;
+import com.here.xyz.View.All;
 
 /**
  * The copyright information object.
@@ -18,7 +18,7 @@ public class Copyright {
    */
   @JsonProperty
   @JsonInclude(Include.NON_NULL)
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   private String label;
 
   /**
@@ -26,7 +26,7 @@ public class Copyright {
    */
   @JsonProperty
   @JsonInclude(Include.NON_NULL)
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   private String alt;
 
   public String getLabel() {

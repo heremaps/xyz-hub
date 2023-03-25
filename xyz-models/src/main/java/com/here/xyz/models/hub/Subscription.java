@@ -24,7 +24,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.View;
+import com.here.xyz.View.All;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Subscription {
@@ -33,32 +33,32 @@ public class Subscription {
    * The unique identifier of the subscription.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   private String id;
 
   /**
    * The source of the subscribed notification (usually the space).
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   private String source;
 
   /**
    * The destination of the subscribe notification.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   private String destination;
 
   /**
    * The configuration of the subscription.
    */
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   private SubscriptionConfig config;
 
   @JsonProperty
-  @JsonView(View.All.class)
+  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   private SubscriptionStatus status;
 

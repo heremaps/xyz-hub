@@ -28,7 +28,7 @@ import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public abstract class ExtendedSpace<E extends Event<E>, R extends XyzResponse<R>> extends XyzQueryRunner<E, R> {
+public abstract class ExtendedSpace<E extends Event, R extends XyzResponse> extends XyzQueryRunner<E, R> {
 
   private static final String EXTENDS = "extends";
   private static final String SPACE_ID = "spaceId";
@@ -38,29 +38,29 @@ public abstract class ExtendedSpace<E extends Event<E>, R extends XyzResponse<R>
   }
 
   @SuppressWarnings("unchecked")
-  protected static @NotNull Map<@NotNull String, @Nullable Object> getExtends(@NotNull Event<?> event) {
+  protected static @NotNull Map<@NotNull String, @Nullable Object> getExtends(@NotNull Event event) {
     final Object raw = event.getParams().get(EXTENDS);
     assert raw instanceof Map;
     return ((Map<String, Object>) raw);
   }
 
-  protected static <E extends Event<E>> boolean isExtendedSpace(@NotNull E event) {
+  protected static <E extends Event> boolean isExtendedSpace(@NotNull E event) {
     return false;
   }
 
-  protected static <E extends Event<E>> boolean is2LevelExtendedSpace(@NotNull E event) {
+  protected static <E extends Event> boolean is2LevelExtendedSpace(@NotNull E event) {
     return false;
   }
 
-  private static <E extends Event<E>> String getFirstLevelExtendedTable(@NotNull E event, @NotNull PsqlProcessor processor) {
+  private static <E extends Event> String getFirstLevelExtendedTable(@NotNull E event, @NotNull PsqlProcessor processor) {
     return null;
   }
 
-  private static <E extends Event<E>> String getSecondLevelExtendedTable(@NotNull E event, @NotNull PsqlProcessor processor) {
+  private static <E extends Event> String getSecondLevelExtendedTable(@NotNull E event, @NotNull PsqlProcessor processor) {
     return null;
   }
 
-  public static <E extends Event<E>> String getExtendedTable(@NotNull E event, @NotNull PsqlProcessor processor) {
+  public static <E extends Event> String getExtendedTable(@NotNull E event, @NotNull PsqlProcessor processor) {
     return null;
   }
 
@@ -68,7 +68,7 @@ public abstract class ExtendedSpace<E extends Event<E>, R extends XyzResponse<R>
     return getExtendedTable(event, processor);
   }
 
-  protected static <E extends Event<E>> String getIntermediateTable(@NotNull E event, @NotNull PsqlProcessor psqlConnector) {
+  protected static <E extends Event> String getIntermediateTable(@NotNull E event, @NotNull PsqlProcessor psqlConnector) {
     return null;
   }
 

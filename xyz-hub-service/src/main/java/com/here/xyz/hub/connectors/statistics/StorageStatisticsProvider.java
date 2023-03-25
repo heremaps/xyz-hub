@@ -23,7 +23,7 @@ import static com.here.xyz.events.PropertyQuery.QueryOperation.GREATER_THAN;
 import static com.here.xyz.hub.config.SpaceConfigClient.CONTENT_UPDATED_AT;
 
 import com.google.common.collect.Lists;
-import com.here.xyz.events.GetStorageStatisticsEvent;
+import com.here.xyz.events.info.GetStorageStatisticsEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQueryList;
@@ -139,7 +139,7 @@ public class StorageStatisticsProvider {
     Promise<StorageStatistics> p = Promise.promise();
 
     GetStorageStatisticsEvent event = new GetStorageStatisticsEvent()
-        .withStreamId(marker.getName())
+        .ensureStreamId(marker.getName())
         .withSpaceIds(spaceIds);
     RpcClient.getInstanceFor(storage).execute(marker, event, true, ar -> {
       if (ar.failed()) p.fail(ar.cause());

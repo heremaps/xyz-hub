@@ -31,8 +31,8 @@ import static io.vertx.core.http.HttpMethod.POST;
 import static io.vertx.core.http.HttpMethod.PUT;
 
 import com.here.xyz.hub.auth.JWTPayload;
-import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.ApiParam.Query;
+import com.here.xyz.hub.rest.Context;
 import io.vertx.core.MultiMap;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerResponse;
@@ -112,7 +112,7 @@ public class LogUtil {
    * @param context the context of the marker to become modified.
    */
   public static void addRequestInfo(RoutingContext context) {
-    AccessLog accessLog = Api.Context.getAccessLog(context);
+    AccessLog accessLog = Context.accessLog(context);
     HttpMethod method = context.request().method();
     accessLog.reqInfo.method = context.request().method().name();
     accessLog.reqInfo.uri = context.request().uri();
@@ -138,7 +138,7 @@ public class LogUtil {
    * @param context the context of the marker to become modified.
    */
   public static AccessLog addResponseInfo(RoutingContext context) {
-    AccessLog accessLog = Api.Context.getAccessLog(context);
+    AccessLog accessLog = Context.accessLog(context);
     accessLog.respInfo.statusCode = context.response().getStatusCode();
     accessLog.respInfo.statusMsg = context.response().getStatusMessage();
     accessLog.respInfo.size = context.response().bytesWritten();
@@ -146,7 +146,7 @@ public class LogUtil {
 
     accessLog.streamInfo = context.get(STREAM_INFO_CTX_KEY);
 
-    final JWTPayload tokenPayload = Api.Context.getJWT(context);
+    final JWTPayload tokenPayload = Context.jwt(context);
     if (tokenPayload != null) {
       accessLog.clientInfo.userId = tokenPayload.aid;
       accessLog.clientInfo.appId = tokenPayload.cid;
@@ -162,8 +162,8 @@ public class LogUtil {
   }
 
   public static void writeAccessLog(RoutingContext context) {
-    final AccessLog accessLog = Api.Context.getAccessLog(context);
-    final Marker marker = Api.Context.getMarker(context);
+    final AccessLog accessLog = Context.accessLog(context);
+    final Marker marker = Context.getMarker(context);
 
     accessLog.streamId = marker.getName();
     logger.log(STREAM_LEVEL, ACCESS_LOG_MARKER, accessLog.serialize());
