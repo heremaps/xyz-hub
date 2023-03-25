@@ -1,7 +1,7 @@
 ## Naksha_1.1.1
 
 - Fixes:
-  - PGSQL triggers fixed to handle missing `rtcts`, `author` and `version` fields for existing data migrated to newly created Naksha spaces
+  - PGSQL triggers fixed to handle missing `rtcts` and `version` fields for existing data migrated to newly created Naksha spaces
   - `xyz` namespace object fixed to return correct field values in API responses. We now use PGSQL based insert/update/delete feature operations.
 
 ## Naksha_1.1.0
