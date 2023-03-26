@@ -73,7 +73,7 @@ public class MessageUtil {
                     if (jsonPathExpression!=null) {
                         try {
                             final String attrValue = JsonPath.read(document, jsonPathExpression.toString());
-                            if (attrValue!=null) {
+                            if (attrValue!=null && !attrValue.equals("")) {
                                 addToAttributeMap(msgAttrMap, attrKey, attrValue);
                             }
                         } // skip this attribute in case it is not found

@@ -253,7 +253,7 @@
           </elementProp>
           <elementProp name="SPACE_ID" elementType="Argument">
             <stringProp name="Argument.name">SPACE_ID</stringProp>
-            <stringProp name="Argument.value">utm-dev:campaign</stringProp>
+            <stringProp name="Argument.value">utm-dev:sup-feature</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
             <stringProp name="Argument.desc">39ZVK252</stringProp>
           </elementProp>
@@ -6474,17 +6474,15 @@ else {
               <elementProp name="" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
                 <stringProp name="Argument.value">{&#xd;
-	&quot;id&quot;: &quot;demo:bar&quot;,&#xd;
-	&quot;title&quot;: &quot;Demo Space - Bar&quot;,&#xd;
-	&quot;description&quot;: &quot;Space for demo purpose&quot;,&#xd;
+	&quot;id&quot;: &quot;utm-e2e_qa:backup3&quot;,&#xd;
+	&quot;title&quot;: &quot;UTM E2E_QA - Backup3 space&quot;,&#xd;
+	&quot;description&quot;: &quot;Data Backup3 Space for UTM E2E_QA environment&quot;,&#xd;
 	&quot;storage&quot;: {&#xd;
 		&quot;id&quot;: &quot;psql-task-mgmt&quot;&#xd;
 	},&#xd;
 	&quot;enableUUID&quot;: true,&#xd;
 	&quot;packages&quot;: [&#xd;
-	    &quot;CM_SOURCING_DEV&quot;,&#xd;
-	    &quot;CM_MAPCREATOR_DEV&quot;,&#xd;
-	    &quot;CM_MAPCREATOR_DELTA_DEV&quot;,&#xd;
+	    &quot;CM_SOURCING_E2E&quot;,&#xd;
 	    &quot;CM_MAPCREATOR_E2E&quot;,&#xd;
 	    &quot;CM_MAPCREATOR_DELTA_E2E&quot;&#xd;
 	]&#xd;
@@ -6497,7 +6495,7 @@ else {
           <stringProp name="HTTPSampler.port"></stringProp>
           <stringProp name="HTTPSampler.protocol"></stringProp>
           <stringProp name="HTTPSampler.contentEncoding"></stringProp>
-          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/spaces?access_token=${SPACE_API_KEY}</stringProp>
+          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/spaces?access_token=ACyPrUjSzW3XkQKdGgr-o8g</stringProp>
           <stringProp name="HTTPSampler.method">POST</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
@@ -6529,7 +6527,7 @@ else {
           </ResponseAssertion>
           <hashTree/>
         </hashTree>
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Delete Space" enabled="true">
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Delete Space" enabled="false">
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
             <collectionProp name="Arguments.arguments"/>
           </elementProp>
@@ -6537,7 +6535,7 @@ else {
           <stringProp name="HTTPSampler.port"></stringProp>
           <stringProp name="HTTPSampler.protocol"></stringProp>
           <stringProp name="HTTPSampler.contentEncoding"></stringProp>
-          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/spaces/utm-dev:dummy_space_3</stringProp>
+          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/spaces/utm-e2e_qa:maptask_bck1?access_token=ACyPrUjSzW3XkQKdGgr-o8g</stringProp>
           <stringProp name="HTTPSampler.method">DELETE</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <boolProp name="HTTPSampler.auto_redirects">false</boolProp>

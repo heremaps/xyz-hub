@@ -64,6 +64,8 @@ public class PubDatabaseHandler {
             "FROM "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_space sp, "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_storage st " +
             "WHERE sp.config->'storage'->>'id' = st.id " +
             "AND st.id != ? " +
+            "AND st.config->'params'->>'ecps' IS NOT NULL " +
+            "AND st.config->'remoteFunctions'->'local'->'env'->>'ECPS_PHRASE' IS NOT NULL " +
             "GROUP BY connectorId, ecps, pswd";
 
     final private static String SPACE_UNION_CLAUSE_STR = "{{SPACE_UNION_CLAUSE}}";
