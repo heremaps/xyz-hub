@@ -31,7 +31,7 @@ import com.here.xyz.psql.query.ModifySpace;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
-import io.vertx.sqlclient.Tuple;
+import io.vertx.sqlclient.impl.ArrayTuple;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.json.JSONObject;
@@ -91,7 +91,7 @@ public class JDBCImporter extends JDBCClients{
                                 return dropIndices(job.getTargetConnector(), schema, job.getTargetTable(), idxList)
                                         .compose(f2 -> {
                                             logger.info("Start creation of Import-Trigger {}", getViewName(job.getTargetTable()));
-                                            return createTriggerOnTargetTable(job.getTargetConnector(), schema, job.getTargetTable(), job.isEnabledUUID(), job.getCsvFormat(), job.getSpaceVersion(), "ANONYMOUS")
+                                            return createTriggerOnTargetTable(job, schema)
                                                     .compose(f3 -> Future.succeededFuture());
                                         });
                             });
@@ -99,9 +99,15 @@ public class JDBCImporter extends JDBCClients{
     }
 
     public static Future<List<String>> listIndices(String clientID, String schema, String tablename){
+        SQLQuery q = new SQLQuery("select * from xyz_index_list_all_available(#{schema},#{table});");
+        q.setNamedParameter("schema",schema);
+        q.setNamedParameter("table",tablename);
+        q.substitute();
+        q = q.substituteAndUseDollarSyntax(q);
+
         return getClient(clientID)
-                .preparedQuery("select * from xyz_index_list_all_available($1,$2);")
-                .execute(Tuple.of(schema,tablename))
+                .preparedQuery(q.text())
+                .execute(new ArrayTuple(q.parameters()))
                 .map(rows -> {
                     List<String> idxList = new ArrayList<>();
                     rows.forEach(row -> idxList.add(row.getString(0)));
@@ -125,58 +131,30 @@ public class JDBCImporter extends JDBCClients{
                 .map(f->null);
     }
 
-    public static Future<String> createViewAndTrigger(String clientID, String schema, String tablename){
-        String viewName = getViewName(tablename);
-        SQLQuery q = new SQLQuery("${{create_view}} ${{create_trigger}}");
-        SQLQuery q1 = new SQLQuery("CREATE OR REPLACE VIEW ${schema}.${viewname} AS \n"
-                + "SELECT \n"
-                + "     t.jsondata as data, \n"
-                + "     t.geo as geo \n"
-                + "FROM ${schema}.${tablename} t;");
-        SQLQuery q2 = new SQLQuery("CREATE TRIGGER insertTrigger INSTEAD OF INSERT ON ${schema}.${viewname} \n"
-                + "FOR EACH ROW EXECUTE PROCEDURE xyz_viewTrigger_wkbv2('{trigger_hrn}','{trigger_schema}','{trigger_table}')"
-                .replace("{trigger_hrn}","TBD")
-                .replace("{trigger_schema}",schema)
-                .replace("{trigger_table}",tablename));
-
-        q.setQueryFragment("create_view",q1);
-        q.setQueryFragment("create_trigger",q2);
-
-        q.setVariable("viewname", viewName);
-        q.setVariable("schema", schema);
-        q.setVariable("tablename", tablename);
-        q.setVariable("hrn", "TBD");
-
-        logger.info("Create view and trigger for {}", tablename);
-
-        return getClient(clientID).query(q.substitute().text())
-                .execute()
-                .map(viewName);
-    }
-
-    public static Future<String> createTriggerOnTargetTable(String clientID, String schema, String tablename, Boolean enableUUID, CSVFormat csvFormat, Long spaceVersion, String author){
+    public static Future<String> createTriggerOnTargetTable(Job job, String schema){
+        String author = job.getAuthor() == null ? "ANONYMOUS" : job.getAuthor();
         boolean addTablenameToXYZNs = false;
-        boolean _enableUUID  = enableUUID == null ? false : enableUUID;
 
-        /**TODO: Add Read Only-Mode */
-        /**TODO: Add Author + version */
+        /** deprecated */
+        boolean _enableUUID  = job.getParam("enableUUID") == null ? false : (boolean) job.getParam("enableUUID");
 
         SQLQuery q = new SQLQuery("CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${tablename} \n"
                 + "FOR EACH ROW EXECUTE PROCEDURE ${schema}.xyz_import_trigger('{trigger_hrn}',{addTableName},{enableUUID},{spaceVersion},{author},{oldLayout});"
                 .replace("{trigger_hrn}","TBD")
                 .replace("{addTableName}", Boolean.toString(addTablenameToXYZNs))
                 .replace("{enableUUID}", Boolean.toString(_enableUUID))
-                .replace("{spaceVersion}", Long.toString(spaceVersion))
+                .replace("{spaceVersion}", Long.toString( job.getSpaceVersion()))
                 .replace("{author}", author)
                 .replace("{oldLayout}", Boolean.toString(OLD_DATABASE_LAYOUT))
         );
 
         q.setVariable("schema", schema);
-        q.setVariable("tablename", tablename);
+        q.setVariable("tablename", job.getTargetTable());
 
-        return getClient(clientID).query(q.substitute().text())
+        return getClient(job.getTargetConnector())
+                .query(q.substitute().text())
                 .execute()
-                .map(tablename);
+                .map(job.getTargetTable());
     }
 
     public static Future<Long> increaseVersionSequence(String clientID, String schema, String tablename){
@@ -212,36 +190,33 @@ public class JDBCImporter extends JDBCClients{
     /**
      * Import Data from S3
      */
-    public static Future<String> executeImportIntoView(String clientID, String schema, String tablename, String s3Bucket, String s3Path, String s3Region, long curFileSize, CSVFormat csvFormat){
-        tablename = getViewName(tablename);
-        return executeImport(clientID, schema, tablename, s3Bucket, s3Path, s3Region, curFileSize, csvFormat);
-    }
-
     public static Future<String> executeImport(String clientID, String schema, String tablename, String s3Bucket, String s3Path, String s3Region, long curFileSize, CSVFormat csvFormat){
+        SQLQuery q = new SQLQuery(("SELECT aws_s3.table_import_from_s3( "
+                + "'${schema}.${table}', "
+                + "#{columns}, "
+                + " 'DELIMITER '','' CSV ENCODING  ''UTF8'' QUOTE  ''\"'' ESCAPE '''''''' ', "
+                + " aws_commons.create_s3_uri( "
+                + "     #{s3Bucket}, "
+                + "     #{s3Path}, "
+                + "     #{s3Region}"
+                + " )),'{iml_import_hint}' as iml_import_hint")
+                    /** Need replace, because it is not possible to read a Parameter as hint */
+                    .replace("{iml_import_hint}", s3Path+":"+curFileSize));
 
-        SQLQuery q = new SQLQuery(("SELECT aws_s3.table_import_from_s3( \n"
-                + "'${schema}.${table}', \n"
-                + "'{columns}', \n"
-                + " 'DELIMITER '','' CSV ENCODING  ''UTF8'' QUOTE  ''\"'' ESCAPE '''''''' ', \n"
-                + " aws_commons.create_s3_uri( \n"
-                + "     '{s3Bucket}', \n"
-                + "     '{s3Path}', \n"
-                + "     '{s3Region}' \n"
-                + " )),'{s3Path}:{partSize}' as iml_import_hint")
-                .replace("{partSize}",Long.toString(curFileSize))
-                .replace("{s3Bucket}",s3Bucket)
-                .replace("{s3Path}",s3Path)
-                .replace("{s3Region}",s3Region)
-                .replace("{columns}", csvFormat.equals(CSVFormat.GEOJSON) ? "jsondata" : "jsondata,geo"));
+        q.setNamedParameter("s3Bucket",s3Bucket);
+        q.setNamedParameter("s3Path",s3Path);
+        q.setNamedParameter("s3Region",s3Region);
+        q.setNamedParameter("columns",csvFormat.equals(CSVFormat.GEOJSON) ? "jsondata" : "jsondata,geo");
 
-        q.setVariable("columns", tablename);
+
         q.setVariable("table", tablename);
         q.setVariable("schema", schema);
-        q.substitute();
+        q = q.substituteAndUseDollarSyntax(q);
 
         logger.info("Execute S3-Import {}->{} {}", tablename, s3Path, q.text());
-        return getClient(clientID).query(q.text())
-                .execute()
+        return getClient(clientID)
+                .preparedQuery(q.text())
+                .execute(new ArrayTuple(q.parameters()))
                 .map(row -> row.iterator().next().getString(0));
     }
 
@@ -335,16 +310,20 @@ public class JDBCImporter extends JDBCClients{
     }
 
     public static Future<Void> markMaintenance(String clientID, String schema, String spaceId){
+        SQLQuery q = new SQLQuery("UPDATE "+ModifySpace.IDX_STATUS_TABLE_FQN
+                + " SET idx_creation_finished = #{markAs} "
+                + " WHERE spaceid=#{spaceId} AND schem=#{schema};");
 
-        SQLQuery q = new SQLQuery("UPDATE "+ModifySpace.IDX_STATUS_TABLE
-                + " SET idx_creation_finished = false "
-                + " WHERE spaceid='{spaceId}' AND schem='{schema}';"
-                .replace("{schema}",schema)
-                .replace("{spaceId}",spaceId));
+        q.setNamedParameter("schema", schema);
+        q.setNamedParameter("spaceId", spaceId);
+        q.setNamedParameter("markAs", false);
+
+        q = q.substituteAndUseDollarSyntax(q);
 
         logger.info("Mark maintenance for {}",spaceId);
-        return getClient(clientID).query(q.substitute().text())
-                .execute()
+        return getClient(clientID)
+                .preparedQuery(q.text())
+                .execute(new ArrayTuple(q.parameters()))
                 .map(f -> null);
     }
 
