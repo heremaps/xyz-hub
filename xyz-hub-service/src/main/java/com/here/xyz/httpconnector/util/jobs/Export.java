@@ -53,6 +53,9 @@ public class Export extends Job {
     private Integer targetLevel;
 
     @JsonView({Public.class})
+    private String targetVersion;
+
+    @JsonView({Public.class})
     private Filters filters;
 
     public Export(){ }
@@ -107,6 +110,14 @@ public class Export extends Job {
 
     public void setTargetLevel(Integer targetLevel) {
         this.targetLevel = targetLevel;
+    }
+
+    public String getTargetVersion() {
+        return targetVersion;
+    }
+
+    public void setTargetVersion(String targetVersion) {
+        this.targetVersion = targetVersion;
     }
 
     public int getMaxTilesPerFile() {
@@ -227,6 +238,26 @@ public class Export extends Job {
 
     public Export withFilters(final Filters filters) {
         setFilters(filters);
+        return this;
+    }
+
+    public Export withExportTarget(final ExportTarget exportTarget) {
+        setExportTarget(exportTarget);
+        return this;
+    }
+
+    public Export withTargetLevel(final Integer targetLevel) {
+        setTargetLevel(targetLevel);
+        return this;
+    }
+
+    public Export withTargetVersion(final String targetVersion) {
+        setTargetVersion(targetVersion);
+        return this;
+    }
+
+    public Export withParams(Map params) {
+        setParams(params);
         return this;
     }
 
