@@ -105,6 +105,7 @@ public class JobHandler {
                     if (job == null) {
                        return Future.failedFuture(new HttpException(NOT_FOUND, "Job with Id " + jobId + " not found"));
                     }
+
                     return Future.succeededFuture(job);
                 }).compose(job -> {
                     if(job instanceof Import)
@@ -114,12 +115,24 @@ public class JobHandler {
                 });
     }
 
-    protected static void loadClientAndInjectDefaults(Job job, HApiParam.HQuery.Command command, String connectorId, String ecps, String passphrase, boolean enableHashedSpaceId)
+    protected static void loadClientAndInjectDefaults(Job job, HApiParam.HQuery.Command command, String connectorId, String ecps,
+                                                      String passphrase, boolean enableHashedSpaceId, Boolean enableUUID)
             throws HttpException {
-        //Inject Table
+
         if(job.getTargetTable() == null){
+            /** Only for debugging purpose */
             job.setTargetTable(enableHashedSpaceId ? Hasher.getHash(job.getTargetSpaceId()) : job.getTargetSpaceId());
         }
+
+        if(job.getTargetConnector() == null){
+            /** Need connectorId as JDBC-clientID for scheduled processing in ImportQueue */
+            job.setTargetConnector(connectorId);
+        }
+
+        job.addParam("enableHashedSpaceId",enableHashedSpaceId);
+
+        if(enableUUID == null)
+            job.addParam("enableUUID",enableUUID);
 
         if(command.equals(HApiParam.HQuery.Command.START) || command.equals(HApiParam.HQuery.Command.RETRY)){
             /** Add Client if missing or reload client if config has changed */
@@ -131,9 +144,6 @@ public class JobHandler {
             }catch (UnsupportedOperationException e){
                 throw new HttpException(BAD_REQUEST, "Connector is not supported!");
             }
-
-            /** Need connectorId as JDBC-clientID for scheduled processing in ImportQueue */
-            job.setTargetConnector(connectorId);
         }
     }
 

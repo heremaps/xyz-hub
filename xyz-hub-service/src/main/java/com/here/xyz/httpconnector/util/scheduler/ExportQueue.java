@@ -21,16 +21,16 @@ package com.here.xyz.httpconnector.util.scheduler;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCExporter;
 import com.here.xyz.httpconnector.config.JDBCImporter;
-import com.here.xyz.httpconnector.config.JobS3Client;
-import com.here.xyz.httpconnector.util.jobs.*;
+import com.here.xyz.httpconnector.util.jobs.Job;
+import com.here.xyz.httpconnector.util.jobs.Export;
+import com.here.xyz.httpconnector.util.jobs.ExportObject;
 import com.here.xyz.hub.Core;
 import com.mchange.v3.decode.CannotDecodeException;
-import io.vertx.core.Future;
-import io.vertx.core.Promise;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.*;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -131,13 +131,13 @@ public class ExportQueue extends JobQueue{
                         CService.configuration.JOBS_S3_BUCKET_REGION)
                 .onSuccess(statistic -> {
 //                            NODE_EXECUTED_IMPORT_MEMORY -= curFileSize;
-                            logger.info("JOB[{}] Export of '{}' succeeded!", j.getId(), j.getTargetTable());
+                            logger.info("JOB[{}] Export of '{}' succeeded!", j.getId(), j.getTargetSpaceId());
                             ((Export)j).setStatistic(statistic);
                             updateJobStatus(j, Job.Status.executed);
                         }
                 )
                 .onFailure(f -> {
-                            logger.warn("JOB[{}] Export of '{}' failed ", j.getId(), j.getTargetTable(), f);
+                            logger.warn("JOB[{}] Export of '{}' failed ", j.getId(), j.getTargetSpaceId(), f);
                             updateJobStatus(j, Job.Status.failed);
                         }
                 );

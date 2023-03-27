@@ -1,3 +1,21 @@
+/*
+ * Copyright (C) 2017-2023 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
 package com.here.xyz.hub.rest;
 
 import com.here.xyz.httpconnector.rest.HApiParam;
@@ -8,6 +26,7 @@ import com.here.xyz.hub.auth.XyzHubActionMatrix;
 import com.here.xyz.hub.auth.XyzHubAttributeMap;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.Json;
@@ -19,7 +38,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.nio.charset.Charset;
-import java.util.List;
+import java.util.Map;
 
 import static com.here.xyz.hub.auth.XyzHubAttributeMap.SPACE;
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
@@ -45,27 +64,49 @@ public class JobProxyApi extends Api{
                     .onSuccess(auth -> {
                         Service.spaceConfigClient.get(Api.Context.getMarker(context), spaceId)
                                 .onFailure(t ->  this.sendErrorResponse(context, new HttpException(BAD_REQUEST, "The resource ID does not exist!")))
-                                .onSuccess(headSpace -> {
+                                .compose(headSpace -> {
                                     if (headSpace == null) {
-                                        this.sendErrorResponse(context, new HttpException(BAD_REQUEST, "The resource ID does not exist!"));
-                                        return;
+                                        return Future.failedFuture(new HttpException(BAD_REQUEST, "The resource ID does not exist!"));
                                     }
-                                    if(headSpace.getVersionsToKeep() != 1 ) {
-                                        this.sendErrorResponse(context, new HttpException(BAD_REQUEST, "Versioning is not supported!"));
-                                        return;
+                                    if (headSpace.getVersionsToKeep() != 1) {
+                                        return Future.failedFuture(new HttpException(BAD_REQUEST, "Versioning is not supported!"));
                                     }
 
+                                    return Future.succeededFuture(headSpace);
+                                })
+                                .compose(headSpace -> {
                                     job.setTargetSpaceId(spaceId);
                                     job.setTargetConnector(headSpace.getStorage().getId());
+                                    job.addParam("versionsToKeep",headSpace.getVersionsToKeep());
 
-                                    Service.webClient
+                                    Promise<Map> p = Promise.promise();
+                                    if (headSpace.getExtension() != null) {
+                                        /** Evaluate if we have 2nd extension */
+                                        Service.spaceConfigClient.get(Api.Context.getMarker(context), headSpace.getExtension().getSpaceId())
+                                                .onSuccess(baseSpace -> {
+                                                    p.complete(headSpace.resolveCompositeParams(baseSpace));
+                                                })
+                                                .onFailure(e -> p.fail(e));
+                                    }else
+                                        p.complete(null);
+                                    return p.future();
+                                }).compose(extension -> {
+                                    if(extension != null) {
+                                        /** Add extends to jobConfig */
+                                        job.addParam("extends",extension.get("extends"));
+                                    }
+                                    return Future.succeededFuture();
+                                })
+                                .onSuccess(f -> {
+                                    Future.succeededFuture(Service.webClient
                                             .postAbs(Service.configuration.HTTP_CONNECTOR_ENDPOINT + "/jobs")
                                             .timeout(JOB_API_TIMEOUT)
                                             .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
                                             .sendBuffer(Buffer.buffer(Json.encode(job)))
                                             .onSuccess(res -> jobAPIResultHandler(context, res, spaceId))
-                                            .onFailure(f -> this.sendErrorResponse(context, new HttpException(BAD_GATEWAY, "Job-Api not ready!")));
-                                });
+                                            .onFailure(e -> this.sendErrorResponse(context, new HttpException(BAD_GATEWAY, "Job-Api not ready!"))));
+                                })
+                                .onFailure(f -> this.sendErrorResponse(context, f));
                     })
                     .onFailure(f -> this.sendErrorResponse(context, new HttpException(FORBIDDEN, "No access to this space!")));
         }catch (HttpException e){
@@ -200,12 +241,15 @@ public class JobProxyApi extends Api{
 
                                 Job job = res.bodyAsJson(Job.class);
 
+                                //TODO - resolve composite Connectors
                                 Service.connectorConfigClient.get( Api.Context.getMarker(context), job.getTargetConnector())
                                     .onFailure(t ->  this.sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()), res.bodyAsJsonObject()))
                                     .onSuccess(connector -> {
 
                                         if(connector != null && connector.params != null){
                                             String ecps = (String) connector.params.get("ecps");
+                                            /** We do not modify the job-config at this place - so we need to pass connector related information */
+
                                             Boolean enableHashedSpaceId = connector.params.get("enableHashedSpaceId") == null ? false : (Boolean) connector.params.get("enableHashedSpaceId");
 
                                             String postUrl = (Service.configuration.HTTP_CONNECTOR_ENDPOINT

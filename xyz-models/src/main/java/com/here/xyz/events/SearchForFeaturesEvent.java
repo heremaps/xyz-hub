@@ -40,6 +40,10 @@ public class SearchForFeaturesEvent<T extends SearchForFeaturesEvent> extends Se
     this.limit = Math.max(1L, Math.min(limit, MAX_LIMIT));
   }
 
+  public void setFreeLimit(long limit) {
+    this.limit = limit;
+  }
+
   @SuppressWarnings("unused")
   public T withLimit(long limit) {
     setLimit(limit);

@@ -283,4 +283,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   protected static String buildIdFragment(ContextAwareEvent event) {
     return DatabaseHandler.readVersionsToKeep(event) < 1 ? "jsondata->>'id'" : "id";
   }
+
+  public SQLQuery _buildQuery(E event) throws SQLException, ErrorResponseException {
+    return buildQuery(event);
+  }
 }

@@ -54,7 +54,6 @@ public class ExportHandler extends JobHandler{
                 })
                 .compose( f -> HubWebClient.getSpaceStatistics(job.getTargetSpaceId()))
                 .compose( statistics-> {
-                    //TODO: Check what to do if statistics not available
                     Long value = statistics.getCount().getValue();
                     if(value != null && value != 0) {
                         job.setEstimatedFeatureCount(value);
@@ -72,64 +71,44 @@ public class ExportHandler extends JobHandler{
         CService.jobConfigClient.get(marker, jobId)
                 .onSuccess(j -> {
                     /** Check State */
-                    if(!isJobStateValid(j, jobId, command, p))
-                        return;
-
-                    Export exportJob = (Export) j;
-
                     try{
-                        loadClientAndInjectDefaults(exportJob,command,connectorId,ecps,passphrase,enableHashedSpaceId);
+                        isJobStateValid(j, jobId, command, p);
+
+                        Export exportJob = (Export) j;
+                        loadClientAndInjectDefaults(exportJob, command, connectorId, ecps, passphrase, enableHashedSpaceId, null);
+
+                        switch (command){
+                            case ABORT:
+                                p.fail(new HttpException(NOT_IMPLEMENTED,"NA"));
+                                return;
+                            case CREATEUPLOADURL:
+                                p.fail(new HttpException(NOT_IMPLEMENTED, "For Export not required!"));
+                                return;
+                            case RETRY:
+                            case START:
+                                checkAndAddJob(marker, exportJob, p);
+                        }
                     }catch (HttpException e){
                         p.fail(e);
-                        return;
-                    }
-
-                    switch (command){
-                        case ABORT:
-                            p.fail(new HttpException(NOT_IMPLEMENTED,"NA"));
-                            return;
-                        case CREATEUPLOADURL:
-                            p.fail(new HttpException(NOT_IMPLEMENTED, "For Export not required!"));
-                            return;
-                        case RETRY:
-                        case START:
-                            checkAndAddJob(marker, exportJob, p);
                     }
                 });
 
         return p.future();
     }
 
-    private static boolean isJobStateValid(Job job, String jobId, HApiParam.HQuery.Command command, Promise<Job> p) {
+    private static void isJobStateValid(Job job, String jobId, HApiParam.HQuery.Command command, Promise<Job> p) throws HttpException {
         if (job == null) {
-            p.fail(new HttpException(NOT_FOUND, "Job with Id " + jobId + " not found"));
-            return false;
-        }
-
-        if(job.getStatus().equals(Job.Status.failed) && !command.equals(HApiParam.HQuery.Command.RETRY) && !command.equals(HApiParam.HQuery.Command.CREATEUPLOADURL)){
-            p.fail(new HttpException(PRECONDITION_FAILED, "Job has failed - maybe its possible to retry"));
-            return false;
+            throw new HttpException(NOT_FOUND, "Job with Id " + jobId + " not found");
         }
 
         switch (command){
-            case ABORT:
-                return true;
             case CREATEUPLOADURL:
-                p.fail(new HttpException(NOT_IMPLEMENTED, "For Export not available!"));
-                return false;
+                throw new HttpException(NOT_IMPLEMENTED, "For Export not available!");
+            case ABORT:
             case RETRY:
-                p.fail(new HttpException(NOT_IMPLEMENTED, "TBD"));
-                return false;
+                throw new HttpException(NOT_IMPLEMENTED, "TBD");
             case START:
-                try {
-                    isValidForStart(job);
-                    return true;
-                }catch (HttpException e){
-                    p.fail(e);
-                    return false;
-                }
-            default:
-                return false;
+                isValidForStart(job);
         }
     }
 }

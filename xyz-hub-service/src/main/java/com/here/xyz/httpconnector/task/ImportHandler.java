@@ -71,84 +71,62 @@ public class ImportHandler extends JobHandler{
         /** Load JobConfig */
         CService.jobConfigClient.get(marker, jobId)
                 .onSuccess(j -> {
-                    if(!isJobStateValid(j, jobId, command, p))
-                        return;
-
-                    Import importJob = (Import) j;
-                    importJob.setEnabledUUID(enableUUID);
-
                     try{
-                        loadClientAndInjectDefaults(importJob,command,connectorId,ecps,passphrase,enableHashedSpaceId);
-                    }catch (HttpException e){
-                        p.fail(e);
-                        return;
-                    }
+                        isJobStateValid(j, jobId, command, p);
 
-                    switch (command){
-                        case ABORT:
-                            p.fail(new HttpException(NOT_IMPLEMENTED,"NA"));
-                            return;
-                        case CREATEUPLOADURL:
-                            try {
-                                addUploadURL(importJob);
+                        Import importJob = (Import) j;
+                        loadClientAndInjectDefaults(importJob, command, connectorId, ecps, passphrase, enableHashedSpaceId, enableUUID);
+
+                        switch (command){
+                            case ABORT:
+                                p.fail(new HttpException(NOT_IMPLEMENTED,"NA"));
+                                return;
+                            case CREATEUPLOADURL:
+                                importJob.addImportObject(CService.jobS3Client.generateUploadURL(importJob));
+
                                 CService.jobConfigClient.update(marker, importJob)
                                         .onFailure( t-> p.fail(new HttpException(BAD_GATEWAY, t.getMessage())))
                                         .onSuccess( f-> p.complete(importJob));
-                            } catch (IOException e) {
-                                logger.error("Can`t create S3 URL ",e);
-                                p.fail(new HttpException(BAD_GATEWAY, e.getMessage()));
-                            }
-                            return;
-                        case RETRY:
-                        case START:
-                            checkAndAddJob(marker, importJob, p);
+
+                                return;
+                            case RETRY:
+                            case START:
+                                checkAndAddJob(marker, importJob, p);
+                        }
+
+                    }catch (HttpException e){
+                        p.fail(e);
+                    }catch (IOException e) {
+                        logger.error("Can`t create S3 Upload-URL ", e);
+                        p.fail(new HttpException(BAD_GATEWAY, e.getMessage()));
                     }
                 });
 
         return p.future();
     }
 
-    public static void addUploadURL(Import job) throws IOException {
-        if(job.getStatus().equals(Job.Status.failed)){
-            if(job.getErrorDescription() != null && job.getErrorDescription().equals(Import.ERROR_DESCRIPTION_UPLOAD_MISSING)) {
-                /** Reset due to creation of upload URL */
-                job.setStatus(Job.Status.waiting);
-                job.setErrorType(null);
-            }
-        }
-        job.addImportObject(CService.jobS3Client.generateUploadURL(job));
-    }
-
-    private static boolean isJobStateValid(Job job, String jobId, HApiParam.HQuery.Command command, Promise<Job> p) {
+    private static void isJobStateValid(Job job, String jobId, HApiParam.HQuery.Command command, Promise<Job> p) throws HttpException {
 
         if (job == null) {
-            p.fail(new HttpException(NOT_FOUND, "Job with Id " + jobId + " not found"));
-            return false;
-        }
-
-        if(job.getStatus().equals(Job.Status.failed) && !command.equals(HApiParam.HQuery.Command.RETRY) && !command.equals(HApiParam.HQuery.Command.CREATEUPLOADURL)){
-            p.fail(new HttpException(PRECONDITION_FAILED, "Job has failed - maybe its possible to retry"));
-            return false;
+            throw new HttpException(NOT_FOUND, "Job with Id " + jobId + " not found");
         }
 
         switch (command){
             case CREATEUPLOADURL:
                 switch (job.getStatus()){
                     case waiting:
-                        return true;
+                        return;
                     case failed:
                         if(job.getErrorDescription() != null && job.getErrorDescription().equals(Import.ERROR_DESCRIPTION_UPLOAD_MISSING)) {
                             /** Reset due to creation of upload URL */
                             job.setStatus(Job.Status.waiting);
                             job.setErrorDescription(null);
                             job.setErrorType(null);
-                            return true;
+                            return;
                         }
-                        p.fail(new HttpException(PRECONDITION_FAILED, "Invalid state: "+job.getStatus()));
-                        return false;
+                        throw new HttpException(PRECONDITION_FAILED, "Invalid state: "+job.getStatus());
                     default:
-                        p.fail(new HttpException(PRECONDITION_FAILED, "Job got already started - current status: "+job.getStatus()));
-                        return false;
+                        throw new HttpException(PRECONDITION_FAILED, "Job got already started - current status: "+job.getStatus());
                 }
             case RETRY:
                 switch (job.getStatus()){
@@ -158,43 +136,31 @@ public class ImportHandler extends JobHandler{
                             job.setStatus(Job.Status.waiting);
                             job.setErrorDescription(null);
                             job.setErrorType(null);
-                            return true;
+                            return;
                         }
-                        p.fail(new HttpException(BAD_REQUEST, "Retry not possible - please check error!"));
-                        return false;
+                        throw new HttpException(BAD_REQUEST, "Retry not possible - please check error!");
                     case waiting:
-                        p.fail(new HttpException(BAD_REQUEST, "Retry not possible - job needs to get started!"));
-                        return false;
+                        throw new HttpException(BAD_REQUEST, "Retry not possible - job needs to get started!");
                     case validating:
                         job.setStatus(Job.Status.waiting);
                         job.setErrorType(null);
-                        return true;
+                        return;
                     case preparing:
                         job.setStatus(Job.Status.validated);
                         job.setErrorType(null);
-                        return true;
+                        return;
                     case executed:
-                        return true;
+                        return;
                     case executing: //to allow this we need to check potentially the running exports first
                     case finalizing://to allow this we need to check potentially the idx creations first
                     default:
                         if(job.getErrorType() != null) {
-                            p.fail(new HttpException(BAD_REQUEST, "Retry not possible - please check error!"));
-                            return false;
+                            throw new HttpException(BAD_REQUEST, "Retry not possible - please check error!");
                         }
-                        p.fail(new HttpException(BAD_REQUEST, "Retry not possible - please check state!"));
-                        return false;
+                        throw new HttpException(BAD_REQUEST, "Retry not possible - please check state!");
                 }
             case START:
-                try {
-                    isValidForStart(job);
-                    return true;
-                }catch (HttpException e){
-                    p.fail(e);
-                    return false;
-                }
-            default:
-                return false;
+                isValidForStart(job);
         }
     }
 }

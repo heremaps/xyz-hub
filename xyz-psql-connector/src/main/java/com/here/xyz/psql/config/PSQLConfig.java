@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -83,6 +83,12 @@ public class PSQLConfig {
   private Map<String, Object> decodedECPSDatabaseSettings;
 
   private String applicationName;
+
+  public PSQLConfig(Event event, String schema) {
+      ecps = null;
+      databaseSettings = new DatabaseSettings(schema);
+      connectorParams = new ConnectorParameters(event.getConnectorParams(), null);
+  }
 
   public PSQLConfig(Event event, Context context, TraceItem traceItem) {
     this.connectorParams = event == null ? new ConnectorParameters(null, traceItem) : new ConnectorParameters(event.getConnectorParams(), traceItem);
