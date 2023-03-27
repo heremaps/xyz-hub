@@ -58,30 +58,18 @@ public class Import extends Job {
     @JsonView({Internal.class})
     private List<String> idxList;
 
-    @JsonView({Internal.class})
-    protected Boolean enabledUUID;
-
     public Import(){ }
 
-    public Import(String description, String targetSpaceId, String targetTable, boolean enabledUUID, CSVFormat csvFormat, Strategy strategy) {
+    public Import(String description, String targetSpaceId, String targetTable,CSVFormat csvFormat, Strategy strategy) {
         this.description = description;
         this.targetSpaceId = targetSpaceId;
         this.targetTable = targetTable;
-        this.enabledUUID = enabledUUID;
         this.csvFormat = csvFormat;
         this.strategy = strategy;
     }
 
     public String getType() {
         return type;
-    }
-
-    public Boolean isEnabledUUID() {
-        return enabledUUID;
-    }
-
-    public void setEnabledUUID(Boolean enabledUUID) {
-        this.enabledUUID = enabledUUID;
     }
 
     public Map<String,ImportObject> getImportObjects() {
@@ -104,11 +92,6 @@ public class Import extends Job {
 
     public Import withId(final String id) {
         setId(id);
-        return this;
-    }
-
-    public Import withEnabledUUID(Boolean enabledUUID) {
-        setEnabledUUID(enabledUUID);
         return this;
     }
 
@@ -194,6 +177,11 @@ public class Import extends Job {
 
     public Import withAuthor(String author) {
         setAuthor(author);
+        return this;
+    }
+
+    public Import withParams(Map params) {
+        setParams(params);
         return this;
     }
 

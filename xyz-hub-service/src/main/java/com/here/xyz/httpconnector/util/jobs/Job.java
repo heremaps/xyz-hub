@@ -26,6 +26,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.models.hub.Space;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -179,6 +181,12 @@ public abstract class Job {
     @JsonView({Internal.class})
     private String author;
 
+    /**
+     * Arbitrary parameters to be provided from hub
+     */
+    @JsonView({Internal.class})
+    protected Map<String, Object> params;
+
     public String getId(){
         return id;
     }
@@ -313,6 +321,27 @@ public abstract class Job {
 
     public void setAuthor(String author) {
         this.author = author;
+    }
+
+    public Object getParam(String key) {
+        if(params == null)
+            return null;
+        return params.get(key);
+    }
+
+    public Map<String, Object> getParams() {
+        return params;
+    }
+
+    public void setParams(Map<String, Object> params) {
+        this.params = params;
+    }
+
+    public void addParam(String key, Object value){
+        if(this.params == null){
+            this.params = new HashMap<>();
+        }
+        this.params.put(key,value);
     }
 
     public static class Public {
