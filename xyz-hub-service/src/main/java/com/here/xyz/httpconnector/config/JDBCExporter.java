@@ -60,14 +60,17 @@ public class JDBCExporter extends JDBCClients{
                                                                String s3Bucket, String s3Path, String s3Region,
                                                                CSVFormat csvFormat, Export.ExportTarget target,
                                                                Export.Filters filters, Map params,
-                                                               String targetVersion, int targetLevel, int maxTilesPerFile){
+                                                               String targetVersion, Integer targetLevel, int maxTilesPerFile){
         SQLQuery q;
 
         try{
+            String propertyFilter = (filters == null ? null : filters.getPropertyFilter());
+            Export.SpatialFilter spatialFilter= (filters == null ? null : filters.getSpatialFilter());
+
             switch (target.getType()){
                 case S3:
                     q = buildS3ExportQuery(schema, spaceId, s3Bucket, s3Path, s3Region, csvFormat,
-                            filters.getPropertyFilter(), filters.getSpatialFilter(), targetVersion, params);
+                            propertyFilter, spatialFilter, targetVersion, params);
                     logger.info("Execute S3-Export {}->{} {}", spaceId, s3Path, q.text());
 
                     return getClient(clientID)
@@ -86,7 +89,7 @@ public class JDBCExporter extends JDBCClients{
                 case VML:
                 default:
                     q = buildVMLExportQuery(schema, spaceId, s3Bucket, s3Path, s3Region, csvFormat, targetLevel, maxTilesPerFile,
-                            filters.getPropertyFilter(), filters.getSpatialFilter(), targetVersion, params);
+                            propertyFilter, spatialFilter, targetVersion, params);
                     logger.info("Execute VML-Export {}->{} {}", spaceId, s3Path, q.text());
 
                     return getClient(clientID)
