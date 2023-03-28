@@ -1,5 +1,3 @@
-# API Request Flow
-
 [img_api_req_flow]: diagrams/api_request_flow.png
 
 This document intends to provide high level overview of how REST API request is processed using different components. 
