@@ -55,18 +55,4 @@ public class TestCompositeSpace extends TestSpaceWithFeature {
     removeSpace("x-psql-test-2");
     removeSpace("x-psql-test");
   }
-
-  protected static void createSpaceWithExtension(String extendingSpaceId) {
-    String extensionId = extendingSpaceId + "-ext";
-    given()
-        .contentType(APPLICATION_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"id\":\""+extensionId+ "\",\"title\":\"x-psql-test-extension\",\"extends\":{\"spaceId\":\""+extendingSpaceId+"\"}}")
-        .when()
-        .post("/spaces")
-        .then()
-        .statusCode(OK.code())
-        .body("id", equalTo(extensionId))
-        .body("extends.spaceId", equalTo(extendingSpaceId));
-  }
 }

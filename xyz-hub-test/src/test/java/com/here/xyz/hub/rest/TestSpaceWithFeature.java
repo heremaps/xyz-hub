@@ -144,16 +144,20 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
   }
 
   protected static void addFeatures(String toSpace) {
+    addFeatures(toSpace,"/xyz/hub/processedData.json",252);
+  }
+
+  protected static void addFeatures(String toSpace, String contentPath, int expectedFeatureCount) {
     given()
         .contentType(APPLICATION_GEO_JSON)
         .accept(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body(content("/xyz/hub/processedData.json"))
+        .body(content(contentPath))
         .when()
         .put(getSpacesPath() + "/" + toSpace + "/features")
         .then()
         .statusCode(OK.code())
-        .body("features.size()", equalTo(252));
+        .body("features.size()", equalTo(expectedFeatureCount));
   }
 
   static void add10ThousandFeatures() throws InterruptedException {
@@ -340,7 +344,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .statusCode(NO_CONTENT.code());
   }
 
-  public void postFeature(String spaceId, Feature feature, AuthProfile authProfile) {
+  public static void postFeature(String spaceId, Feature feature, AuthProfile authProfile) {
     given()
         .contentType(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(authProfile))
@@ -387,5 +391,19 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .patch("/spaces/" + spaceId)
         .then()
         .statusCode(OK.code());
+  }
+
+  protected static void createSpaceWithExtension(String extendingSpaceId) {
+    String extensionId = extendingSpaceId + "-ext";
+    given()
+            .contentType(APPLICATION_JSON)
+            .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+            .body("{\"id\":\""+extensionId+ "\",\"title\":\"x-psql-test-extension\",\"extends\":{\"spaceId\":\""+extendingSpaceId+"\"}}")
+            .when()
+            .post("/spaces")
+            .then()
+            .statusCode(OK.code())
+            .body("id", equalTo(extensionId))
+            .body("extends.spaceId", equalTo(extendingSpaceId));
   }
 }
