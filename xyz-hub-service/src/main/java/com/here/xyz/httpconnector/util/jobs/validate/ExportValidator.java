@@ -21,6 +21,7 @@ package com.here.xyz.httpconnector.util.jobs.validate;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
+import com.here.xyz.models.geojson.implementation.Geometry;
 
 public class ExportValidator extends Validator{
     protected static int VML_EXPORT_MIN_TARGET_LEVEL = 4;
@@ -45,22 +46,30 @@ public class ExportValidator extends Validator{
             throw new Exception("Please specify exportTarget!");
 
         if(job.getExportTarget().getType().equals(Export.ExportTarget.Type.VML)){
+            if(!job.getCsvFormat().equals(Job.CSVFormat.TILEID_FC_B64))
+                throw new Exception("Invalid Format! Allowed ["+ Job.CSVFormat.TILEID_FC_B64+"]");
+
             if(job.getExportTarget().getTargetId() == null)
                 throw new Exception("Please specify the targetId!");
             if(job.getTargetLevel() == null)
                 throw new Exception("Please specify targetLevel! Allowed range ["+ ExportValidator.VML_EXPORT_MIN_TARGET_LEVEL +":"+ ExportValidator.VML_EXPORT_MAX_TARGET_LEVEL +"]");
             if(job.getTargetLevel() < ExportValidator.VML_EXPORT_MIN_TARGET_LEVEL || job.getTargetLevel() > ExportValidator.VML_EXPORT_MAX_TARGET_LEVEL)
                 throw new Exception("Invalid targetLevel! Allowed range ["+ ExportValidator.VML_EXPORT_MIN_TARGET_LEVEL +":"+ ExportValidator.VML_EXPORT_MAX_TARGET_LEVEL +"]");
+        }else if(job.getExportTarget().getType().equals(Export.ExportTarget.Type.S3)){
+            if(job.getCsvFormat().equals(Job.CSVFormat.TILEID_FC_B64))
+                throw new Exception("Invalid Format! Allowed ["+ Job.CSVFormat.JSON_WKB +","+ Job.CSVFormat.GEOJSON +"]");
         }
 
         Export.Filters filters = job.getFilters();
         if(filters != null){
             if(filters.getSpatialFilter() != null){
-                if(filters.getSpatialFilter().getGeometry() == null)
+                Geometry geometry = filters.getSpatialFilter().getGeometry();
+                if(geometry == null)
                     throw new Exception("Please specify a geometry for the spatial filter!");
                 else{
                     try {
-                        WKTHelper.geometryToWKB(filters.getSpatialFilter().getGeometry());
+                        geometry.validate();
+                        WKTHelper.geometryToWKB(geometry);
                     }catch (Exception e){
                         throw new Exception("Cant parse filter geometry!");
                     }
