@@ -18,7 +18,7 @@
  */
 package com.here.xyz.psql;
 
-import com.here.xyz.models.hub.psql.PsqlProcessorParams;
+import com.here.xyz.models.hub.psql.PsqlStorageParams;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -33,8 +33,8 @@ import static org.junit.Assert.*;
 
 public class PSQLMetaTableIT extends PSQLAbstractIT {
     protected static Map<String, Object> connectorParams = new HashMap<String,Object>(){
-        {   put(PsqlProcessorParams.ID, "test-connector");
-            put(PsqlProcessorParams.ENABLE_HASHED_SPACEID, true);
+        {   put(PsqlStorageParams.ID, "test-connector");
+            put(PsqlStorageParams.ENABLE_HASHED_SPACEID, true);
         }
     };
 

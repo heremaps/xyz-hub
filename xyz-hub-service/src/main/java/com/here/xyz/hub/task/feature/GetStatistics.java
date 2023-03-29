@@ -21,7 +21,7 @@ public class GetStatistics extends FeatureTask<GetStatisticsEvent> {
   @Nonnull
   @Override
   public @NotNull TaskPipeline<GetStatisticsEvent> initPipeline() {
-    return new TaskPipeline(context, this)
+    return new TaskPipeline(routingContext, this)
         .then(FeatureTaskHandler::resolveSpace)
         .then(FeatureAuthorization::authorize)
         .then(FeatureTaskHandler::readCache)

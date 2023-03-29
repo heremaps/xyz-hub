@@ -22,7 +22,7 @@ package com.here.xyz.psql;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import com.here.xyz.models.hub.psql.PsqlProcessorParams;
+import com.here.xyz.models.hub.psql.PsqlStorageParams;
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.AbstractConnectorHandler;
@@ -41,7 +41,7 @@ import org.junit.Test;
 public class PSQLResponseSizeIT extends PSQLAbstractIT {
 
   static Map<String, Object> connectorParams = new HashMap<String,Object>(){{
-    put(PsqlProcessorParams.ID, "test-connector");
+    put(PsqlStorageParams.ID, "test-connector");
   }};
 
   @BeforeClass

@@ -22,7 +22,7 @@ package com.here.xyz.psql.query;
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.feature.LoadFeaturesEvent;
-import com.here.xyz.psql.PsqlProcessor;
+import com.here.xyz.psql.PsqlStorage;
 import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Map;
@@ -31,7 +31,7 @@ import org.jetbrains.annotations.NotNull;
 
 public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
 
-  public LoadFeatures(@NotNull LoadFeaturesEvent event, @NotNull PsqlProcessor psqlConnector) throws SQLException, ErrorResponseException {
+  public LoadFeatures(@NotNull LoadFeaturesEvent event, @NotNull PsqlStorage psqlConnector) throws SQLException, ErrorResponseException {
     super(event, psqlConnector);
   }
 

@@ -35,7 +35,7 @@ import com.here.xyz.events.TagsQuery;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.Capabilities;
 import com.here.xyz.psql.Capabilities.IndexList;
-import com.here.xyz.psql.PsqlProcessor;
+import com.here.xyz.psql.PsqlStorage;
 import com.here.mapcreator.ext.naksha.sql.DhString;
 import com.here.xyz.psql.SQLQueryExt;
 import com.here.xyz.responses.XyzError;
@@ -64,11 +64,11 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
 
   private IterateFeaturesEvent tmpEvent; // TODO: Remove after refactoring
 
-  public IterateFeatures(@NotNull IterateFeaturesEvent event, @NotNull PsqlProcessor psqlConnector)
+  public IterateFeatures(@NotNull IterateFeaturesEvent event, @NotNull PsqlStorage psqlConnector)
       throws SQLException, ErrorResponseException {
     super(event, psqlConnector);
     limit = event.getLimit();
-    isOrderByEvent = PsqlProcessor.isOrderByEvent(event);
+    isOrderByEvent = PsqlStorage.isOrderByEvent(event);
     tmpEvent = event;
   }
 
@@ -293,7 +293,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
     return getIterateHandles(nrHandles);
   }
 
-  private static boolean canSortBy(List<String> sort, @NotNull PsqlProcessor processor) {
+  private static boolean canSortBy(List<String> sort, @NotNull PsqlStorage processor) {
     if (sort == null || sort.isEmpty()) {
       return true;
     }
@@ -617,7 +617,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
   }
 
   private static List<String> getSortFromSearchKeys(
-      List<String> searchKeys, @NotNull PsqlProcessor processor) throws Exception {
+      List<String> searchKeys, @NotNull PsqlStorage processor) throws Exception {
     List<String> indices = Capabilities.IndexList.getIndexList(processor);
     if (indices == null) {
       return null;
@@ -670,7 +670,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
   }
 
   private static @NotNull FeatureCollection requestIterationHandles(
-      @Nonnull IterateFeaturesEvent event, int nrHandles, @NotNull PsqlProcessor psqlConnector)
+      @Nonnull IterateFeaturesEvent event, int nrHandles, @NotNull PsqlStorage psqlConnector)
       throws Exception {
     event.setPart(null);
     event.setTags(null);
@@ -700,7 +700,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
   }
 
   public static @NotNull FeatureCollection findFeaturesSort(
-      @NotNull IterateFeaturesEvent event, @NotNull PsqlProcessor processor) throws Exception {
+      @NotNull IterateFeaturesEvent event, @NotNull PsqlStorage processor) throws Exception {
     boolean hasHandle = (event.getHandle() != null);
     final String table = processor.spaceTable();
 

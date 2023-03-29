@@ -19,6 +19,9 @@
 
 package com.here.xyz.hub.auth;
 
+import static com.here.xyz.hub.rest.Context.logId;
+import static com.here.xyz.hub.rest.Context.logStream;
+import static com.here.xyz.hub.rest.Context.logTime;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.UNAUTHORIZED;
 
@@ -31,6 +34,8 @@ import com.here.xyz.hub.task.feature.ConditionalModifyFeaturesTask;
 import com.here.xyz.hub.task.feature.DeleteFeaturesByTagTask;
 import com.here.xyz.hub.task.feature.GetFeaturesByGeometryTask;
 import com.here.xyz.hub.task.ICallback;
+import io.vertx.core.json.Json;
+import io.vertx.ext.web.RoutingContext;
 import org.jetbrains.annotations.NotNull;
 
 public class FeatureAuthorization extends Authorization {
@@ -93,7 +98,7 @@ public class FeatureAuthorization extends Authorization {
       @NotNull ConditionalModifyFeaturesTask task,
       @NotNull ICallback callback
   ) {
-    final JWTPayload jwt = Context.jwt(task.context);
+    final JWTPayload jwt = Context.jwt(task.routingContext);
     if (jwt == null) {
       callback.throwException(new HttpException(UNAUTHORIZED, "Missing JWT token"));
       return;
@@ -124,7 +129,7 @@ public class FeatureAuthorization extends Authorization {
    * Authorizes a delete operation.
    */
   public static void authorizeDeleteOperation(@NotNull DeleteFeaturesByTagTask task, @NotNull ICallback callback) {
-    final JWTPayload jwt = Context.jwt(task.context);
+    final JWTPayload jwt = Context.jwt(task.routingContext);
     if (jwt == null) {
       callback.throwException(new HttpException(UNAUTHORIZED, "Missing JWT token"));
       return;
@@ -133,4 +138,19 @@ public class FeatureAuthorization extends Authorization {
     requestRights.deleteFeatures(XyzHubAttributeMap.forValues(task.space.getOwner(), task.space.getId(), task.space.getPackages()));
     evaluateRights(requestRights, jwt.getXyzHubMatrix(), task, callback);
   }
+
+  protected void evaluateRights(@NotNull ActionMatrix requestRights, @NotNull ActionMatrix tokenRights) {
+    final String id = logId(context);
+    final String streamId = logStream(context);
+    final long time = logTime(context);
+    if (!tokenRights.matches(requestRights)) {
+      logger.warn("{}:{}:{}us - Token access rights: {}", id, streamId, time, Json.encode(tokenRights));
+      logger.warn("{}:{}:{}us - Request access rights: {}", id, streamId, time, Json.encode(requestRights));
+      throw new HttpException(FORBIDDEN, getForbiddenMessage(requestRights, tokenRights));
+    } else {
+      logger.info("{}:{}:{}us - Token access rights: {}", id, streamId, time, Json.encode(tokenRights));
+      logger.info("{}:{}:{}us - Request access rights: {}", id, streamId, time, Json.encode(requestRights));
+    }
+  }
+
 }

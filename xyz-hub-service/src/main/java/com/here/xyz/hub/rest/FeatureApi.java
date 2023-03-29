@@ -22,7 +22,6 @@ package com.here.xyz.hub.rest;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.here.xyz.hub.rest.ApiParam.Query.FORCE_2D;
-import static com.here.xyz.hub.rest.ApiParam.Query.SKIP_CACHE;
 import static io.vertx.core.http.HttpHeaders.ACCEPT;
 
 import com.here.xyz.events.feature.DeleteFeaturesByTagEvent;
@@ -31,9 +30,10 @@ import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.events.TagsQuery;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
+import com.here.xyz.hub.task.XyzHubTask;
 import com.here.xyz.hub.task.feature.ConditionalModifyFeaturesTask;
 import com.here.xyz.hub.task.feature.DeleteFeaturesByTagTask;
-import com.here.xyz.hub.task.feature.IdsQuery;
+import com.here.xyz.hub.task.feature.GetFeaturesByIdTask;
 import com.here.xyz.hub.task.ModifyFeatureOp;
 import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.task.ModifyOp.IfNotExists;
@@ -84,40 +84,14 @@ public class FeatureApi extends SpaceBasedApi {
    * Retrieves a feature.
    */
   private void getFeature(final RoutingContext context) {
-    getFeatures(context, ApiResponseType.FEATURE);
+    XyzHubTask.startTask(GetFeaturesByIdTask.class, context, ApiResponseType.FEATURE);
   }
 
   /**
    * Retrieves multiple features by ID.
    */
   private void getFeatures(final RoutingContext context) {
-    getFeatures(context, ApiResponseType.FEATURE_COLLECTION);
-  }
-
-  private void getFeatures(final RoutingContext context, ApiResponseType apiResponseType) {
-    final List<String> ids = apiResponseType == ApiResponseType.FEATURE_COLLECTION
-        ? Query.queryParam(Query.FEATURE_ID, context)
-        : Collections.singletonList(context.pathParam(Path.FEATURE_ID));
-
-    final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
-    final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
-    final SpaceContext spaceContext = getSpaceContext(context);
-    final String revision = Query.getString(context, Query.REVISION, null);
-    final String author = Query.getString(context, Query.AUTHOR, null);
-
-    final GetFeaturesByIdEvent event = new GetFeaturesByIdEvent()
-        .withIds(ids)
-        .withSelection(Query.getSelection(context))
-        .withForce2D(force2D)
-        .withRef(revision)
-        .withContext(spaceContext)
-        .withAuthor(author);
-
-    new IdsQuery(event, context, apiResponseType, skipCache)
-        .execute(this::sendResponse, this::sendErrorResponse);
-    final EventTask ctx = new EventTask();
-    ctx.start(()->{
-    });
+    XyzHubTask.startTask(GetFeaturesByIdTask.class, context, ApiResponseType.FEATURE_COLLECTION);
   }
 
   /**

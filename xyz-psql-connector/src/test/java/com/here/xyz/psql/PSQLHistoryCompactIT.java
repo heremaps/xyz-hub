@@ -18,7 +18,7 @@
  */
 package com.here.xyz.psql;
 
-import com.here.xyz.models.hub.psql.PsqlProcessorParams;
+import com.here.xyz.models.hub.psql.PsqlStorageParams;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.events.space.ModifySpaceEvent;
@@ -45,9 +45,9 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
 
   static Map<String, Object> connectorParams = new HashMap<String, Object>() {
     {
-      put(PsqlProcessorParams.ID, "test-connector");
-      put(PsqlProcessorParams.COMPACT_HISTORY, true);
-      put(PsqlProcessorParams.PROPERTY_SEARCH, true);
+      put(PsqlStorageParams.ID, "test-connector");
+      put(PsqlStorageParams.COMPACT_HISTORY, true);
+      put(PsqlStorageParams.PROPERTY_SEARCH, true);
     }
   };
 

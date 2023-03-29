@@ -1,6 +1,7 @@
 package com.here.xyz;
 
 import com.here.xyz.exceptions.XyzErrorException;
+import com.here.xyz.models.hub.Connector;
 import com.here.xyz.responses.XyzError;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -20,10 +21,10 @@ public abstract class EventHandler implements IEventHandler {
    * Creates a new event handler instance with the given parameters. Can only be added to one pipeline, every pipeline requires a new
    * instance of the handler.
    *
-   * @param params the parameters.
+   * @param connector the connector configuration.
    * @throws XyzErrorException if initialization of the handler failed.
    */
-  protected EventHandler(@NotNull Map<@NotNull String, @Nullable Object> params) throws XyzErrorException {
+  protected EventHandler(@NotNull Connector connector) throws XyzErrorException {
   }
 
   /**
@@ -36,7 +37,7 @@ public abstract class EventHandler implements IEventHandler {
 
   /**
    * Register the given event handler to the list of known standard handlers, so that {@link #getClass(String)} returns it and
-   * {@link #newInstance(String, Map)} can create a new instance of it. Adding the same handler multiple times will not have any effect.
+   * {@link #newInstance(Connector)} can create a new instance of it. Adding the same handler multiple times will not have any effect.
    *
    * @param id           the identifier to register.
    * @param handlerClass the processor to add.
@@ -48,9 +49,9 @@ public abstract class EventHandler implements IEventHandler {
   public static <H extends EventHandler> void register(@NotNull String id, @NotNull Class<H> handlerClass) {
     final Constructor<H> constructor;
     try {
-      constructor = handlerClass.getConstructor(Map.class);
+      constructor = handlerClass.getConstructor(Connector.class);
     } catch (NoSuchMethodException e) {
-      throw new IllegalArgumentException("Missing constructor(@NotNull Map<@NotNull String, Object) params)");
+      throw new IllegalArgumentException("Missing constructor(@NotNull Connector connector)");
     }
     final Class<EventHandler> existing = allClasses.putIfAbsent(id, handlerClass);
     if (existing != null && existing != handlerClass) {
@@ -78,24 +79,21 @@ public abstract class EventHandler implements IEventHandler {
   /**
    * Creates a new event handler and binds it to the given parameters.
    *
-   * @param id     the identifier of the event handler to create.
-   * @param params the parameters to be forwarded to the constructor of the handler.
-   * @param <H>    The handler type.
+   * @param connector the connector configuration to be instantiated.
+   * @param <H>       The handler type.
    * @return the event handler.
    * @throws XyzErrorException if the creation failed.
    */
   @SuppressWarnings("unchecked")
-  public static <H extends EventHandler> @NotNull H newInstance(
-      @NotNull String id,
-      @Nullable Map<@NotNull String, Object> params
-  ) throws XyzErrorException {
+  public static <H extends EventHandler> @NotNull H newInstance(@NotNull Connector connector) throws XyzErrorException {
+    final @NotNull String id = connector.id;
     final Class<H> handlerClass = allClasses.get(id);
     final Constructor<H> constructor = allConstructors.get(id);
     if (handlerClass == null || constructor == null) {
       throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, "No such event handler (" + id + ") exists");
     }
     try {
-      return constructor.newInstance(params != null ? params : Collections.emptyMap());
+      return constructor.newInstance(connector);
     } catch (Throwable t) {
       // Unwrap exceptions thrown by the constructor.
       if (t instanceof InvocationTargetException) {

@@ -34,7 +34,7 @@ import com.here.xyz.hub.rest.Context;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.ICallback;
 import com.here.xyz.hub.task.ModifySpaceOp;
-import com.here.xyz.hub.task.Task;
+import com.here.xyz.hub.task.XyzHubTask;
 import com.here.xyz.hub.task.TaskPipeline;
 import com.here.xyz.models.hub.Space;
 import io.vertx.ext.web.RoutingContext;
@@ -44,7 +44,7 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 import org.jetbrains.annotations.NotNull;
 
-public abstract class SpaceTask<EVENT extends SpaceEvent, TASK extends Task<EVENT, TASK>> extends Task<EVENT, TASK> {
+public abstract class SpaceTask<EVENT extends SpaceEvent, TASK extends XyzHubTask<EVENT, TASK>> extends XyzHubTask<EVENT, TASK> {
 
   public View view = View.BASIC;
 
@@ -142,7 +142,7 @@ public abstract class SpaceTask<EVENT extends SpaceEvent, TASK extends Task<EVEN
 
     @Override
     public @NotNull TaskPipeline<ModifySpaceEvent> initPipeline() {
-      return new TaskPipeline(context, this)
+      return new TaskPipeline(routingContext, this)
           .then(SpaceAuthorization::authorizeReadSpaces)
           .then(SpaceTaskHandler::readFromJWT)
           .then(SpaceTaskHandler::readSpaces)
@@ -189,7 +189,7 @@ public abstract class SpaceTask<EVENT extends SpaceEvent, TASK extends Task<EVEN
     @Nonnull
     @Override
     public @NotNull TaskPipeline<ConditionalOperation> initPipeline() {
-      return new TaskPipeline(context, this)
+      return new TaskPipeline(routingContext, this)
           .then(SpaceTaskHandler::loadSpace)
           .then(SpaceTaskHandler::preprocess)
           .then(this::verifyResourceExists)

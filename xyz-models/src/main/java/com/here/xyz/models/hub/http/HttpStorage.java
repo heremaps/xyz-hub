@@ -6,6 +6,7 @@ import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.Event;
 import com.here.xyz.exceptions.XyzErrorException;
+import com.here.xyz.models.hub.Connector;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
@@ -30,24 +31,24 @@ import org.jetbrains.annotations.Nullable;
 /**
  * A processor that sends the event to a remote server using an HTTP(s) POST.
  */
-public class HttpProcessor extends EventHandler {
+public class HttpStorage extends EventHandler {
 
   /**
    * Creates a new HTTP event handler instance with the given parameters.
    *
-   * @param params the parameters.
+   * @param connector The connector of that storage.
    * @throws XyzErrorException if initialization of the handler failed.
    */
-  public HttpProcessor(@NotNull Map<@NotNull String, @Nullable Object> params) throws XyzErrorException {
-    super(params);
+  public HttpStorage(@NotNull Connector connector) throws XyzErrorException {
+    super(connector);
     try {
-      this.params = new HttpProcessorParams(params);
+      this.params = new HttpStorageParams(connector.params);
     } catch (MalformedURLException e) {
       throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, e.getMessage());
     }
   }
 
-  private final @NotNull HttpProcessorParams params;
+  private final @NotNull HttpStorageParams params;
 
   @Override
   public @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) throws XyzErrorException {

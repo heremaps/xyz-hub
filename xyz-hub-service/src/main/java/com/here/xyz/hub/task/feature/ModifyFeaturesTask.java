@@ -26,7 +26,7 @@ public class ModifyFeaturesTask extends FeatureTask<ModifyFeaturesEvent> {
   @Nonnull
   @Override
   public @NotNull TaskPipeline<ModifyFeaturesEvent> initPipeline() {
-    return new TaskPipeline(context, this)
+    return new TaskPipeline(routingContext, this)
         .then(FeatureTaskHandler::resolveSpace)
         .then(FeatureTaskHandler::checkPreconditions)
         .then(FeatureTaskHandler::injectSpaceParams)

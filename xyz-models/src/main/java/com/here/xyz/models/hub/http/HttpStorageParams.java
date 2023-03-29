@@ -11,7 +11,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * The HTTP processor parameters. The HTTP processor will serialize the event into JSON and send it to the configured end-point.
  */
-public class HttpProcessorParams extends EventHandlerParams {
+public class HttpStorageParams extends EventHandlerParams {
 
   /**
    * Parse the given connector params into this type-safe class.
@@ -21,7 +21,7 @@ public class HttpProcessorParams extends EventHandlerParams {
    * @throws IllegalArgumentException if a value has an invalid type, for example a map expected, and a string found.
    * @throws MalformedURLException    if the given URL is invalid.
    */
-  public HttpProcessorParams(@NotNull Map<@NotNull String, @Nullable Object> connectorParams) throws MalformedURLException {
+  public HttpStorageParams(@NotNull Map<@NotNull String, @Nullable Object> connectorParams) throws MalformedURLException {
     url = new URL(parseValue(connectorParams, "url", String.class));
     connTimeout = parseValue(connectorParams, "connTimeout", TimeUnit.SECONDS.toMillis(5));
     readTimeout = parseValue(connectorParams, "readTimeout", TimeUnit.SECONDS.toMillis(60));

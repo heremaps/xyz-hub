@@ -21,7 +21,7 @@ public class IterateHistoryQuery extends ReadQuery<IterateHistoryEvent> {
   @Nonnull
   @Override
   public @NotNull TaskPipeline<IterateHistoryEvent> initPipeline() {
-    return new TaskPipeline(context, this)
+    return new TaskPipeline(routingContext, this)
         .then(FeatureTaskHandler::resolveSpace)
         .then(FeatureAuthorization::authorize)
         .then(FeatureTaskHandler::validate)

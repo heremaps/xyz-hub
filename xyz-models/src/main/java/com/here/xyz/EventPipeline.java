@@ -48,10 +48,14 @@ public class EventPipeline implements IEventContext {
    * The creation time of the pipeline.
    */
   private static final IEventHandler[] EMPTY = new IEventHandler[0];
-  protected Event event;
-  protected @NotNull IEventHandler @NotNull [] pipeline;
-  protected int next;
-  protected int end;
+
+  /**
+   * The event that is currently processed.
+   */
+  private Event event;
+  private @NotNull IEventHandler @NotNull [] pipeline;
+  private int next;
+  private int end;
 
   /**
    * Tests whether this event pipeline is currently processing an event.
@@ -96,61 +100,45 @@ public class EventPipeline implements IEventContext {
     return this;
   }
 
-  private static final EventHandler[] EMPTY_HANDLERS = new EventHandler[0];
-
   /**
    * Add all declared event handler, and the storage connector to this pipeline.
    *
    * @param space The space for which to add the handler.
    * @return this.
-   * @throws IllegalStateException If adding a handler or the storage connector handler failed. Leaves the pipeline in the state it had
-   *                               before calling this method.
+   * @throws XyzErrorException If any error occurred.
    */
-  public @NotNull EventPipeline addSpaceHandler(@NotNull Space space) {
-    final String storageConnectorId = space.getConnectorId();
-    if (storageConnectorId == null) {
-      throw new IllegalStateException("The space configuration is missing the connectorId");
+  public @NotNull EventPipeline addSpaceHandler(@NotNull Space space) throws XyzErrorException {
+    final @Nullable List<@NotNull String> connectorIds = space.getConnectorIds();
+    final int SIZE;
+    if (connectorIds == null || (SIZE = connectorIds.size()) == 0) {
+      throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT,
+          "The configuration of space " + space.getId() + " is missing the 'connectors'");
     }
-    final Connector storageConnector = Connector.getConnector(storageConnectorId);
-    if (storageConnector == null) {
-      throw new IllegalStateException("The connector " + storageConnectorId + " does not exist");
-    }
-    try {
-      final @NotNull EventHandler storageHandler = EventHandler.newInstance(storageConnector.eventHandlerId, storageConnector.params);
-      final @NotNull EventHandler @NotNull [] handlers;
-      final List<String> processors = space.processors;
-      if (processors != null) {
-        final int SIZE = processors.size();
-        handlers = SIZE > 0 ? new EventHandler[SIZE] : EMPTY_HANDLERS;
-        for (int i = 0; i < SIZE; i++) {
-          final String connectorId = processors.get(i);
-          if (connectorId == null) {
-            throw new IllegalStateException("The processor[" + i + "] is null");
-          }
-          final Connector connector = Connector.getConnector(connectorId);
-          if (connector == null) {
-            throw new IllegalStateException(
-                "The processor[" + i + "] refers to connector " + connectorId + ", but no such connector exists");
-          }
-          try {
-            handlers[i] = EventHandler.newInstance(connector.eventHandlerId, connector.params);
-          } catch (XyzErrorException e) {
-            throw new IllegalStateException("Failed to create an instance of the processor[" + i + "] connector " + storageConnectorId, e);
-          }
-        }
-      } else {
-        handlers = EMPTY_HANDLERS;
+    final @NotNull EventHandler @NotNull [] handlers = new EventHandler[SIZE];
+    for (int i = 0; i < SIZE; i++) {
+      final String connectorId = connectorIds.get(i);
+      //noinspection ConstantConditions
+      if (connectorId == null) {
+        throw new XyzErrorException(XyzError.EXCEPTION, "The processor[" + i + "] is null");
       }
+      final Connector connector = Connector.getConnectorById(connectorId);
+      if (connector == null) {
+        throw new XyzErrorException(XyzError.EXCEPTION,
+            "The processor[" + i + "] refers to connector " + connectorId + ", but no such connector exists");
+      }
+      try {
+        handlers[i] = EventHandler.newInstance(connector);
+      } catch (XyzErrorException e) {
+        throw new XyzErrorException(XyzError.EXCEPTION,
+            "Failed to create an instance of the processor[" + i + "]: " + connectorIds, e);
+      }
+    }
 
-      // Add the handlers and done.
-      for (final EventHandler handler : handlers) {
-        addEventHandler(handler);
-      }
-      addEventHandler(storageHandler);
-      return this;
-    } catch (XyzErrorException e) {
-      throw new IllegalStateException("Failed to create an instance of the storage connector " + storageConnectorId, e);
+    // Add the handlers and done.
+    for (final EventHandler handler : handlers) {
+      addEventHandler(handler);
     }
+    return this;
   }
 
   /**
@@ -162,7 +150,7 @@ public class EventPipeline implements IEventContext {
    *                           this method.
    */
   public @NotNull EventPipeline addConnectorHandler(@NotNull Connector connector) throws XyzErrorException {
-    addEventHandler(EventHandler.newInstance(connector.eventHandlerId, connector.params));
+    addEventHandler(EventHandler.newInstance(connector));
     return this;
   }
 
@@ -173,7 +161,7 @@ public class EventPipeline implements IEventContext {
    * @return the generated response.
    * @throws IllegalStateException if the pipeline is already in use.
    */
-  public XyzResponse sendEvent(@NotNull Event event) {
+  public @NotNull XyzResponse sendEvent(@NotNull Event event) {
     if (this.event != null) {
       throw new IllegalStateException("Event already sent");
     }
@@ -219,7 +207,6 @@ public class EventPipeline implements IEventContext {
       return notImplemented();
     }
     this.event = event;
-
     final IEventHandler handler = this.pipeline[next];
     next++;
     if (handler == null) {

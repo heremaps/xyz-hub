@@ -21,7 +21,6 @@ package com.here.xyz.models.hub.psql;
 
 import static com.here.xyz.EventTask.currentTask;
 
-import com.here.xyz.EventPipeline;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.EventHandlerParams;
 import java.util.ArrayList;
@@ -34,7 +33,7 @@ import org.jetbrains.annotations.Nullable;
  * The PostgresQL connector parameters.
  */
 @SuppressWarnings("unused")
-public class PsqlProcessorParams extends EventHandlerParams {
+public class PsqlStorageParams extends EventHandlerParams {
 
   /**
    * Paramters
@@ -76,8 +75,7 @@ public class PsqlProcessorParams extends EventHandlerParams {
    * @throws IllegalArgumentException if a value has an invalid type, for example a map expected, and a string found.
    */
   @SuppressWarnings("unchecked")
-  public PsqlProcessorParams(@NotNull Map<@NotNull String, @Nullable Object> connectorParams)
-      throws NullPointerException {
+  public PsqlStorageParams(@NotNull Map<@NotNull String, @Nullable Object> connectorParams) throws NullPointerException {
     Object raw = connectorParams.get("dbConfig");
     if (!(raw instanceof Map)) {
       throw new IllegalArgumentException("dbConfig");

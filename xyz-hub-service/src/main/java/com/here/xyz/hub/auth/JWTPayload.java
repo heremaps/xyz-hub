@@ -23,7 +23,6 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import io.vertx.core.json.Json;
 import io.vertx.core.json.jackson.DatabindCodec;
 import java.util.Map;
 
@@ -33,6 +32,7 @@ public class JWTPayload {
 
   public String tid;
   public String aid;
+  public String author;
   public String cid;
 
   public Map<String, Object> metadata;

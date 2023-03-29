@@ -46,7 +46,7 @@ public class Capabilities {
     return skeys;
   }
 
-  public static boolean canSearchFor(@Nullable PropertiesQuery query, @NotNull PsqlProcessor connector) {
+  public static boolean canSearchFor(@Nullable PropertiesQuery query, @NotNull PsqlStorage connector) {
     if (query == null) {
       return true;
     }
@@ -112,7 +112,7 @@ public class Capabilities {
     static long CACHE_INTERVAL_MS = TimeUnit.MINUTES.toMillis(3);
 
     /** Get list of indexed Values from a XYZ-Space */
-    public static @Nullable List<@NotNull String> getIndexList(@NotNull PsqlProcessor psqlConnector)
+    public static @Nullable List<@NotNull String> getIndexList(@NotNull PsqlStorage psqlConnector)
         throws SQLException {
       IndexList indexList = cachedIndices.get(psqlConnector.spaceId());
       if (indexList != null && indexList.expiry >= System.currentTimeMillis()) {

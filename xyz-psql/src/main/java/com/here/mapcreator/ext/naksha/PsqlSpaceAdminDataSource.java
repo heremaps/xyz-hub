@@ -1,6 +1,6 @@
 package com.here.mapcreator.ext.naksha;
 
-import com.here.xyz.models.hub.psql.PsqlProcessorParams;
+import com.here.xyz.models.hub.psql.PsqlStorageParams;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -14,7 +14,7 @@ public class PsqlSpaceAdminDataSource extends AbstractPsqlDataSource<PsqlSpaceAd
    * @param params          the PostgresQL connector parameters.
    * @param applicationName the application name.
    */
-  public PsqlSpaceAdminDataSource(@NotNull PsqlProcessorParams params, @NotNull String applicationName) {
+  public PsqlSpaceAdminDataSource(@NotNull PsqlStorageParams params, @NotNull String applicationName) {
     super(PsqlPool.get(params.getDbConfig()), applicationName);
     this.connectorParams = params;
     setSchema(params.getAdminSchema());
@@ -24,5 +24,5 @@ public class PsqlSpaceAdminDataSource extends AbstractPsqlDataSource<PsqlSpaceAd
   /**
    * The connector parameters used to create this data source.
    */
-  public final @NotNull PsqlProcessorParams connectorParams;
+  public final @NotNull PsqlStorageParams connectorParams;
 }

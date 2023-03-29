@@ -20,18 +20,20 @@
 package com.here.xyz.models.hub;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.EventHandler;
 import com.here.xyz.View;
 import com.here.xyz.View.All;
+import com.here.xyz.models.geojson.implementation.Properties;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * A connector is a configuration, which binds an event handler to specific parameters required by the handler for all spaces. This can be
@@ -40,8 +42,6 @@ import org.slf4j.LoggerFactory;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Connector {
-
-  protected static final Logger logger = LoggerFactory.getLogger(Connector.class);
 
   /**
    * All connectors, beware to modify this map or any of its values. This is a read-only map!
@@ -56,8 +56,8 @@ public class Connector {
    * @param id the connector-id.
    * @return The connector with the given ID; if any.
    */
-  public static @Nullable Connector getConnector(@NotNull String id) {
-    return connectors.get(id);
+  public static @Nullable Connector getConnectorById(@Nullable String id) {
+    return id != null ? connectors.get(id) : null;
   }
 
   /**
@@ -98,7 +98,7 @@ public class Connector {
    */
   @JsonProperty
   @JsonView(View.Protected.class)
-  public @Nullable Map<@NotNull String, @NotNull Object> params;
+  public Map<@NotNull String, @NotNull Object> params;
 
   /**
    * A list of email addresses of responsible owners for this connector. These email addresses will be used to send potential health
@@ -106,7 +106,7 @@ public class Connector {
    */
   @JsonProperty
   @JsonView(All.class)
-  public List<String> contactEmails;
+  public @Nullable List<@NotNull String> contactEmails;
 
   /**
    * An object containing the list of different HTTP headers, cookies and query parameters, and their names, that should be forwarded from
@@ -114,5 +114,33 @@ public class Connector {
    */
   @JsonProperty
   @JsonView(All.class)
-  public ConnectorForward forward;
+  public @Nullable ConnectorForward forward;
+
+  @JsonProperty
+  @JsonView(All.class)
+  public @Nullable Properties properties;
+
+  /**
+   * List of packages that this space belongs to.
+   */
+  @JsonProperty
+  @JsonView(All.class)
+  @JsonInclude(Include.NON_EMPTY)
+  public List<@NotNull String> packages;
+
+  public @NotNull Properties properties() {
+    Properties properties = this.properties;
+    if (properties == null) {
+      this.properties = properties = new Properties();
+    }
+    return properties;
+  }
+
+  public @NotNull List<@NotNull String> packages() {
+    List<@NotNull String> packages = this.packages;
+    if (packages == null) {
+      this.packages = packages = new ArrayList<>();
+    }
+    return packages;
+  }
 }

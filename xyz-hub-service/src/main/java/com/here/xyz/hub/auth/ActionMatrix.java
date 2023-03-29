@@ -145,26 +145,26 @@ public class ActionMatrix extends LinkedHashMap<String, List<AttributeMap>> {
 
     // Loop actions.
     for (final Entry<String, List<AttributeMap>> entry : requestMatrix.entrySet()) {
-      final String action = entry.getKey();
-      if (action == null) {
+      final String requestAction = entry.getKey();
+      if (requestAction == null) {
         return false;
       }
-      final List<AttributeMap> resourceList = entry.getValue();
-      if (resourceList == null || resourceList.size() == 0) {
+      final List<AttributeMap> requestResourceList = entry.getValue();
+      if (requestResourceList == null || requestResourceList.size() == 0) {
         continue;
       }
-      final List<AttributeMap> accessList = this.get(action);
-      if (accessList == null || accessList.size() == 0) {
+      final List<AttributeMap> accessResourceList = this.get(requestAction);
+      if (accessResourceList == null || accessResourceList.size() == 0) {
         return false;
       }
 
       // Loop all resources of one action.
       resourceLoop:
-      for (final AttributeMap resource : resourceList) {
+      for (final AttributeMap resource : requestResourceList) {
         if (resource == null) {
           continue;
         }
-        for (final AttributeMap access : accessList) {
+        for (final AttributeMap access : accessResourceList) {
           if (access == null) {
             continue;
           }

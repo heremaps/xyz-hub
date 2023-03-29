@@ -26,7 +26,7 @@ import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.feature.QueryEvent;
 import com.here.xyz.events.feature.SearchForFeaturesEvent;
 import com.here.xyz.events.TagsQuery;
-import com.here.xyz.psql.PsqlProcessor;
+import com.here.xyz.psql.PsqlStorage;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -44,7 +44,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
 
   protected boolean hasSearch;
 
-  public SearchForFeatures(@NotNull E event, @NotNull PsqlProcessor psqlConnector) throws SQLException, ErrorResponseException {
+  public SearchForFeatures(@NotNull E event, @NotNull PsqlStorage psqlConnector) throws SQLException, ErrorResponseException {
     super(event, psqlConnector);
   }
 

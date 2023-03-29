@@ -18,7 +18,7 @@
  */
 package com.here.xyz.psql;
 
-import com.here.xyz.models.hub.psql.PsqlProcessorParams;
+import com.here.xyz.models.hub.psql.PsqlStorageParams;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.events.space.ModifySpaceEvent;
@@ -59,9 +59,9 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
 
   protected static Map<String, Object> connectorParams = new HashMap<String, Object>() {
     {
-      put(PsqlProcessorParams.ID, "test-connector");
-      put(PsqlProcessorParams.AUTO_INDEXING, true);
-      put(PsqlProcessorParams.PROPERTY_SEARCH, true);
+      put(PsqlStorageParams.ID, "test-connector");
+      put(PsqlStorageParams.AUTO_INDEXING, true);
+      put(PsqlStorageParams.PROPERTY_SEARCH, true);
     }
   };
 

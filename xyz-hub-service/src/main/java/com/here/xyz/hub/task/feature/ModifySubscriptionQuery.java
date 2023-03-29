@@ -20,7 +20,7 @@ public class ModifySubscriptionQuery extends FeatureTask<ModifySubscriptionEvent
   @Nonnull
   @Override
   public @NotNull TaskPipeline<ModifySubscriptionEvent> initPipeline() {
-    return new TaskPipeline(context, this)
+    return new TaskPipeline(routingContext, this)
         .then(FeatureTaskHandler::resolveSpace)
         .then(FeatureTaskHandler::invoke);
   }

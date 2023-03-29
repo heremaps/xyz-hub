@@ -507,10 +507,10 @@ public class SpaceTaskHandler {
         .withSpaceDefinition(space)
         .ensureStreamId(task.getMarker().getName())
         .withParams(storageParams)
-        .withIfNoneMatch(task.context.request().headers().get("If-None-Match"))
+        .withIfNoneMatch(task.routingContext.request().headers().get("If-None-Match"))
         .withSpace(space.getId());
 
-    ModifySpaceQuery query = new ModifySpaceQuery(event, task.context, ApiResponseType.EMPTY);
+    ModifySpaceQuery query = new ModifySpaceQuery(event, task.routingContext, ApiResponseType.EMPTY);
     query.space = space;
     event.setSpace(space.getId());
 

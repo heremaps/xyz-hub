@@ -32,5 +32,4 @@ import com.here.xyz.models.geojson.implementation.Geometry;
     @JsonSubTypes.Type(value = Geometry.class)
 })
 public interface Typed extends XyzSerializable {
-
 }

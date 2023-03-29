@@ -20,7 +20,7 @@ public class LoadFeaturesQuery extends FeatureTask<LoadFeaturesEvent> {
 
   @Nonnull
   public @NotNull TaskPipeline<LoadFeaturesEvent> initPipeline() {
-    return new TaskPipeline(context, this)
+    return new TaskPipeline(routingContext, this)
         .then(FeatureTaskHandler::resolveSpace)
         .then(this::postResolveSpace)
         .then(FeatureAuthorization::authorize)

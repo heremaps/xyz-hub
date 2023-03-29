@@ -18,14 +18,12 @@ import com.here.xyz.events.space.ModifySpaceEvent;
 import com.here.xyz.events.admin.ModifySubscriptionEvent;
 import com.here.xyz.events.feature.SearchForFeaturesEvent;
 import com.here.xyz.exceptions.XyzErrorException;
+import com.here.xyz.models.hub.Connector;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
-import java.util.Map;
 import javax.annotation.Nonnull;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-import org.slf4j.Logger;
 
 /**
  * Default implementation of an extended event handler that allows to only implement handling for supported events, and optionally of some
@@ -33,8 +31,8 @@ import org.slf4j.Logger;
  */
 public class ExtendedEventHandler extends EventHandler implements IExtendedEventHandler {
 
-  public ExtendedEventHandler(@NotNull Map<@NotNull String, @Nullable Object> params) throws XyzErrorException {
-    super(params);
+  public ExtendedEventHandler(@NotNull Connector connector) throws XyzErrorException {
+    super(connector);
   }
 
   @Override

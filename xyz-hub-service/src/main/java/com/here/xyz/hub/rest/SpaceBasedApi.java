@@ -4,7 +4,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
 import com.here.xyz.hub.task.feature.FeatureTaskHandler.InvalidStorageException;
-import com.here.xyz.hub.task.Task;
+import com.here.xyz.hub.task.XyzHubTask;
 import com.here.xyz.responses.ErrorResponse;
 import io.vertx.ext.web.RoutingContext;
 
@@ -23,12 +23,12 @@ public abstract class SpaceBasedApi extends Api {
    * @param e the exception that should be used to generate an {@link ErrorResponse}, if null an internal server error is returned.
    */
   @Override
-  public void sendErrorResponse(final Task task, final Throwable e) {
+  public void sendErrorResponse(final XyzHubTask task, final Throwable e) {
     if (e instanceof InvalidStorageException) {
-      super.sendErrorResponse(task.context, new HttpException(NOT_FOUND, "The resource definition contains an invalid storage ID."));
+      super.sendErrorResponse(task.routingContext, new HttpException(NOT_FOUND, "The resource definition contains an invalid storage ID."));
     }
     else {
-      super.sendErrorResponse(task.context, e);
+      super.sendErrorResponse(task.routingContext, e);
     }
   }
 

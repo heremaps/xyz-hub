@@ -50,7 +50,6 @@ import com.here.xyz.events.feature.history.IterateHistoryEvent;
 import com.here.xyz.events.feature.LoadFeaturesEvent;
 import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.events.space.ModifySpaceEvent;
-import com.here.xyz.events.FeatureEvent;
 import com.here.xyz.hub.AbstractHttpServerVerticle;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
@@ -64,7 +63,7 @@ import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.ICallback;
 import com.here.xyz.hub.task.ModifyFeatureOp;
-import com.here.xyz.hub.task.Task;
+import com.here.xyz.hub.task.XyzHubTask;
 import com.here.xyz.hub.task.feature.TileQuery.TransformationContext;
 import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
 import com.here.xyz.hub.task.ModifyOp.Entry;
@@ -88,7 +87,6 @@ import com.here.xyz.responses.StatisticsResponse.PropertiesStatistics.Searchable
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzResponse;
 import io.vertx.core.AsyncResult;
-import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.MultiMap;
@@ -174,11 +172,11 @@ public class FeatureTaskHandler {
      * NOTE: The event may only be consumed once. Once it was consumed it should only be referenced in the request-phase. Referencing it in the
      *     response-phase will keep the whole event-data in the memory and could cause many major GCs to because of large request-payloads.
      *
-     * @see Task#consumeEvent()
+     * @see XyzHubTask#consumeEvent()
      */
     Event event = task.consumeEvent();
 
-    if (!task.connector.active) {
+    if (!task.storageConnector.active) {
       if (event instanceof ModifySpaceEvent && ((ModifySpaceEvent) event).getOperation() == ModifySpaceEvent.Operation.DELETE) {
         /*
         If the connector is inactive, allow space deletions. In this case only the space configuration gets deleted. The
@@ -189,7 +187,7 @@ public class FeatureTaskHandler {
       }
       else {
         //Abort further processing - do not: notifyProcessors, notifyListeners, invoke connector
-        callback.throwException(new HttpException(BAD_REQUEST, "Related connector is not active: " + task.connector.id));
+        callback.throwException(new HttpException(BAD_REQUEST, "Related connector is not active: " + task.storageConnector.id));
       }
       return;
     }
@@ -222,9 +220,9 @@ public class FeatureTaskHandler {
       }
       //Do the actual storage call
       try {
-        setAdditionalEventProps(task, task.connector, eventToExecute);
+        setAdditionalEventProps(task, task.storageConnector, eventToExecute);
         final long storageRequestStart = Core.currentTimeMillis();
-        responseContext.rpcContext = getRpcClient(task.connector).execute(task.getMarker(), eventToExecute, storageResult -> {
+        responseContext.rpcContext = getRpcClient(task.storageConnector).execute(task.getMarker(), eventToExecute, storageResult -> {
           if (task.getState().isFinal()) return;
           addConnectorPerformanceInfo(task, Core.currentTimeMillis() - storageRequestStart, responseContext.rpcContext, "S");
           if (storageResult.failed()) {
@@ -258,7 +256,7 @@ public class FeatureTaskHandler {
             }
           });
         });
-        AbstractHttpServerVerticle.addStreamInfo(task.context, "SReqSize", responseContext.rpcContext.getRequestSize());
+        AbstractHttpServerVerticle.addStreamInfo(task.routingContext, "SReqSize", responseContext.rpcContext.getRequestSize());
         task.addCancellingHandler(unused -> responseContext.rpcContext.cancelRequest());
       }
       catch (IllegalStateException e) {
@@ -314,9 +312,9 @@ public class FeatureTaskHandler {
   }
 
   private static <T extends FeatureTask> void addConnectorPerformanceInfo(T task, long storageTime, RpcContext rpcContext, String eventPrefix) {
-    AbstractHttpServerVerticle.addStreamInfo(task.context, eventPrefix + "Time", storageTime);
+    AbstractHttpServerVerticle.addStreamInfo(task.routingContext, eventPrefix + "Time", storageTime);
     if (rpcContext != null)
-      AbstractHttpServerVerticle.addStreamInfo(task.context, eventPrefix + "ResSize", rpcContext.getResponseSize());
+      AbstractHttpServerVerticle.addStreamInfo(task.routingContext, eventPrefix + "ResSize", rpcContext.getResponseSize());
   }
 
   private static <T extends FeatureTask> void addProcessorPerformanceInfo(T task, long processorTime, RpcContext rpcContext, int processorNo) {
@@ -352,7 +350,7 @@ public class FeatureTaskHandler {
       Service.cacheClient.get(cacheKey).onSuccess(cacheResult -> {
         if (cacheResult == null) {
           //Cache MISS: Just go on in the task pipeline
-          AbstractHttpServerVerticle.addStreamInfo(task.context, "CH",0);
+          AbstractHttpServerVerticle.addStreamInfo(task.routingContext, "CH",0);
           logger.info(task.getMarker(), "Cache MISS for cache key {}", cacheKey);
         }
         else {
@@ -360,7 +358,7 @@ public class FeatureTaskHandler {
           try {
             task.setResponse(transformCacheValue(cacheResult));
             task.setCacheHit(true);
-            AbstractHttpServerVerticle.addStreamInfo(task.context, "CH", 1);
+            AbstractHttpServerVerticle.addStreamInfo(task.routingContext, "CH", 1);
             logger.info(task.getMarker(), "Cache HIT for cache key {}", cacheKey);
           }
           catch (JsonProcessingException e) {
@@ -369,7 +367,7 @@ public class FeatureTaskHandler {
             logger.info(task.getMarker(), "Cache MISS (as of JSON parse exception) for cache key {} {}", cacheKey, e);
           }
         }
-        AbstractHttpServerVerticle.addStreamInfo(task.context, "CTime", Core.currentTimeMillis() - cacheRequestStart);
+        AbstractHttpServerVerticle.addStreamInfo(task.routingContext, "CTime", Core.currentTimeMillis() - cacheRequestStart);
         callback.success(task);
       });
     }
@@ -586,25 +584,6 @@ public class FeatureTaskHandler {
     RpcContext rpcContext;
   }
 
-  /**
-   * Resolves the space, its storage and its listeners.
-   */
-  static <E extends Event, T extends Task<E,T>> void resolveSpace(final T task, final ICallback callback) {
-    try {
-      resolveSpace(task)
-          .compose(space -> CompositeFuture.all(
-              resolveStorageConnector(task),
-              resolveListenersAndProcessors(task),
-              resolveExtendedSpaces(task, space)
-          ))
-          .onFailure(t -> callback.throwException(t))
-          .onSuccess(connector -> callback.success(task));
-    }
-    catch (Exception e) {
-      callback.throwException(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition.", e));
-    }
-  }
-
   private static Future<Space> resolveSpace(final FeatureTask<?, ?> task) {
     try {
       //FIXME: Can be removed once the Space events are handled by the SpaceTaskHandler (refactoring pending ...)
@@ -681,11 +660,11 @@ public class FeatureTaskHandler {
     logger.debug(task.getMarker(), "Given space configuration is: {}", task.space);
 
     final String storageId = task.space.getConnectorId().getId();
-    AbstractHttpServerVerticle.addStreamInfo(task.context, "SID", storageId);
+    AbstractHttpServerVerticle.addStreamInfo(task.routingContext, "SID", storageId);
     return Space.resolveConnector(task.getMarker(), storageId)
         .compose(
             connector -> {
-              task.connector = connector;
+              task.storageConnector = connector;
               return Future.succeededFuture(connector);
             },
             t -> Future.failedFuture(new InvalidStorageException("Unable to load the definition for this storage."))
@@ -762,7 +741,7 @@ public class FeatureTaskHandler {
 
   static <X extends FeatureTask> void registerRequestMemory(final X task, final ICallback<X> callback) {
     try {
-      registerRequestMemory(task.connector.id, task.requestBodySize);
+      registerRequestMemory(task.storageConnector.id, task.requestBodySize);
     }
     finally {
       callback.success(task);
@@ -844,13 +823,13 @@ public class FeatureTaskHandler {
   }
 
   private static List<Map<String, Object>> getFeatureModifications(ConditionalModifyFeaturesTask task) throws Exception {
-    if (APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST.equals(task.context.parsedHeaders().contentType().rawValue())) {
-      return getObjectsAsList(task.context);
+    if (APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST.equals(task.routingContext.parsedHeaders().contentType().rawValue())) {
+      return getObjectsAsList(task.routingContext);
     }
 
-    List<Map<String, Object>> features = getObjectsAsList(task.context);
+    List<Map<String, Object>> features = getObjectsAsList(task.routingContext);
     if (task.responseType == ApiResponseType.FEATURE) { //TODO: Replace that evil hack
-      features.get(0).put("id", task.context.pathParam(ApiParam.Path.FEATURE_ID));
+      features.get(0).put("id", task.routingContext.pathParam(ApiParam.Path.FEATURE_ID));
     }
 
     Map<String, Object> featureCollection = Collections.singletonMap("features", features);
@@ -1224,7 +1203,7 @@ public class FeatureTaskHandler {
     countEvent.setParams(task.getEvent().getParams());
 
     try {
-      getRpcClient(task.connector)
+      getRpcClient(task.storageConnector)
           .execute(task.getMarker(), countEvent, (AsyncResult<XyzResponse> eventHandler) -> {
             if (eventHandler.failed()) {
               handler.handle(Future.failedFuture((eventHandler.cause())));
@@ -1284,19 +1263,19 @@ public class FeatureTaskHandler {
 
   public static <X extends FeatureTask<?, X>> void validate(X task, ICallback<X> callback) {
     if (task instanceof ReadQuery && ((ReadQuery) task).hasPropertyQuery()
-        && !task.connector.capabilities.propertySearch) {
+        && !task.storageConnector.capabilities.propertySearch) {
       callback.throwException(new HttpException(BAD_REQUEST, "Property search queries are not supported by storage connector "
-          + "\"" + task.connector.id + "\"."));
+          + "\"" + task.storageConnector.id + "\"."));
       return;
     }
 
     if (task.getEvent() instanceof GetFeaturesByBBoxEvent) {
       GetFeaturesByBBoxEvent event = (GetFeaturesByBBoxEvent) task.getEvent();
       String clusteringType = event.getClusteringType();
-      if (clusteringType != null && (task.connector.capabilities.clusteringTypes == null
-          || !task.connector.capabilities.clusteringTypes.contains(clusteringType))) {
+      if (clusteringType != null && (task.storageConnector.capabilities.clusteringTypes == null
+          || !task.storageConnector.capabilities.clusteringTypes.contains(clusteringType))) {
         callback.throwException(new HttpException(BAD_REQUEST, "Clustering of type \"" + clusteringType + "\" is not"
-            + "supported by storage connector \"" + task.connector.id + "\"."));
+            + "supported by storage connector \"" + task.storageConnector.id + "\"."));
       }
     }
 
@@ -1334,7 +1313,7 @@ public class FeatureTaskHandler {
         StatisticsResponse response = (StatisticsResponse) task.getResponse();
         defineGlobalSearchableField(response, task);
       }
-    } else if (task instanceof IdsQuery) {
+    } else if (task instanceof GetFeaturesByIdTask) {
       //Ensure to return a FeatureCollection when there are multiple features in the response (could happen e.g. for a virtual-space)
       if (task.getResponse() instanceof FeatureCollection && ((FeatureCollection) task.getResponse()).getFeatures() != null
           && ((FeatureCollection) task.getResponse()).getFeatures().size() > 1) {
@@ -1345,7 +1324,7 @@ public class FeatureTaskHandler {
   }
 
   private static void defineGlobalSearchableField(StatisticsResponse response, FeatureTask task) {
-    if (!task.connector.capabilities.propertySearch) {
+    if (!task.storageConnector.capabilities.propertySearch) {
       response.getProperties().setSearchable(Searchable.NONE);
     }
 
@@ -1412,11 +1391,11 @@ public class FeatureTaskHandler {
       callback.success(task);
       return;
     }
-    FeatureTaskHandler.setAdditionalEventProps(task, task.connector, event);
+    FeatureTaskHandler.setAdditionalEventProps(task, task.storageConnector, event);
     try {
       final long storageRequestStart = Core.currentTimeMillis();
       EventResponseContext responseContext = new EventResponseContext(event);
-      responseContext.rpcContext = getRpcClient(task.connector).execute(task.getMarker(), event, r -> {
+      responseContext.rpcContext = getRpcClient(task.storageConnector).execute(task.getMarker(), event, r -> {
         if (task.getState().isFinal()) return;
         addConnectorPerformanceInfo(task, Core.currentTimeMillis() - storageRequestStart, responseContext.rpcContext, "LF");
         processLoadEvent(task, callback, r);
@@ -1605,22 +1584,12 @@ public class FeatureTaskHandler {
       marker = task.getMarker();
       space = task.space;
       jwt = task.getJwt();
-      cookies = task.context.request().cookieMap();
-      headers = task.context.request().headers();
-      queryParams = task.context.request().params();
+      cookies = task.routingContext.request().cookieMap();
+      headers = task.routingContext.request().headers();
+      queryParams = task.routingContext.request().params();
       if (keepTask)
         this.task = task;
     }
-  }
-
-  static <E extends Event<E>> void validateReadFeaturesParams(final Task<E> task, final ICallback<E> callback) {
-    if (task.getEvent() instanceof FeatureEvent) {
-      String ref = ((FeatureEvent) task.getEvent()).getRef();
-      if (ref != null && !isRevisionValid(ref))
-        callback.throwException(new HttpException(BAD_REQUEST, "Invalid value for revision: " + ref));
-    }
-
-    callback.success(task);
   }
 
   private static boolean isRevisionValid(String revision) {

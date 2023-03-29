@@ -202,13 +202,13 @@ public class SpaceAuthorization extends Authorization {
       connectorIds.forEach(id -> {
         CompletableFuture<Void> f = new CompletableFuture<>();
         futureList.add(f);
-        Service.connectorConfigClient.get(task.context.get("marker"), id, ar -> {
+        Service.connectorConfigClient.get(task.routingContext.get("marker"), id, ar -> {
           if (ar.succeeded()) {
             Connector c = ar.result();
             connectorsRights.accessConnectors(XyzHubAttributeMap.forIdValues(c.owner, c.id));
           } else {
             //If connector does not exist.
-            logger.warn((Marker) task.context.get("marker"), "Tried to load non-existing connector '{}'.", id, ar.cause());
+            logger.warn((Marker) task.routingContext.get("marker"), "Tried to load non-existing connector '{}'.", id, ar.cause());
             connectorsRights.accessConnectors(XyzHubAttributeMap.forIdValues(id));
           }
           f.complete(null);
@@ -269,7 +269,7 @@ public class SpaceAuthorization extends Authorization {
 
           evaluateRights(requestRights, tokenRights, task, callback);
         }).exceptionally(t -> {
-          logger.error((Marker) task.context.get("marker"), "Exception while checking connector permissions", t);
+          logger.error((Marker) task.routingContext.get("marker"), "Exception while checking connector permissions", t);
           callback.throwException(t);
           return null;
         });

@@ -9,21 +9,22 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.slf4j.Marker;
 
 /**
- * A helper class manage a task in an own thread.
+ * A configurable event pipeline, that executes events in an own dedicated thread. Basically a task (and so the event pipeline) are
+ * {@link #bind() bound} to a thread. All handlers added to the pipeline of the task can query the current task simply via
+ * {@link #currentTask()}.
+ * <p>
+ * A task may send multiple events through the attached pipeline and modify the pipeline between the events.
  */
-public abstract class EventTask extends EventPipeline implements UncaughtExceptionHandler, Logger {
+public abstract class EventTask extends EventPipelineWithLogger implements UncaughtExceptionHandler {
 
   /**
    * Internal default No Operation Task, just useful for testing or other edge cases. The NOP task binding is weak, that means all other
@@ -41,6 +42,10 @@ public abstract class EventTask extends EventPipeline implements UncaughtExcepti
     @Override
     protected @NotNull XyzResponse execute() {
       return errorResponse(XyzError.NOT_IMPLEMENTED, "Not Implemented");
+    }
+
+    @Override
+    protected void sendResponse(@NotNull XyzResponse response) {
     }
   }
 
@@ -60,13 +65,6 @@ public abstract class EventTask extends EventPipeline implements UncaughtExcepti
   private static final ThreadPoolExecutor threadPool = (ThreadPoolExecutor) Executors.newCachedThreadPool();
 
   /**
-   * Creates a new task.
-   */
-  public EventTask() {
-    this(null);
-  }
-
-  /**
    * Creates a new task. If no stream-id is given, and the thread creating this task does have an own task bound, then the new task will
    * have the same stream-id. If no stream-id is given, and the thread creating this task does <b>NOT</b> have an own task bound, then a new
    * random stream-id is generated.
@@ -83,9 +81,7 @@ public abstract class EventTask extends EventPipeline implements UncaughtExcepti
       }
     }
     this.streamId = streamId;
-    startNanos = NanoTime.now();
     attachments = new ConcurrentHashMap<>();
-    sb = new StringBuilder();
   }
 
   /**
@@ -108,6 +104,19 @@ public abstract class EventTask extends EventPipeline implements UncaughtExcepti
   }
 
   /**
+   * Returns the value for the give type; if it exists.
+   *
+   * @param valueClass the class of the value type.
+   * @param <T>        the value type.
+   * @return the value or {@code null}.
+   */
+  public <T> @Nullable T get(@NotNull Class<T> valueClass) {
+    final @NotNull ConcurrentHashMap<@NotNull Object, Object> attachments = attachments();
+    final Object value = attachments.get(valueClass);
+    return valueClass.isInstance(value) ? valueClass.cast(value) : null;
+  }
+
+  /**
    * Returns the value for the give type. This method simply uses the given class as key in the {@link #attachments()} and expects that the
    * value is of the same type. If the value is {@code null} or of a wrong type, the method will create a new instance of the given value
    * class and store it in the attachments, returning the new instance.
@@ -117,30 +126,29 @@ public abstract class EventTask extends EventPipeline implements UncaughtExcepti
    * @return the value.
    * @throws NullPointerException if creating a new value instance failed.
    */
-  @SuppressWarnings("unchecked")
-  public <T> @NotNull T get(@NotNull Class<T> valueClass) {
+  public <T> @NotNull T getOrCreate(@NotNull Class<T> valueClass) {
     final @NotNull ConcurrentHashMap<@NotNull Object, Object> attachments = attachments();
     while (true) {
       final Object o = attachments.get(valueClass);
       if (valueClass.isInstance(o)) {
-        return (T) o;
+        return valueClass.cast(o);
       }
-      final T value;
+      final T newValue;
       try {
-        value = valueClass.getDeclaredConstructor().newInstance();
+        newValue = valueClass.getDeclaredConstructor().newInstance();
       } catch (Exception e) {
         throw new NullPointerException();
       }
-      final Object oldValue = attachments.putIfAbsent(valueClass, value);
-      if (oldValue == null) {
-        return value;
+      final Object existingValue = attachments.putIfAbsent(valueClass, newValue);
+      if (existingValue == null) {
+        return newValue;
       }
-      if (valueClass.isInstance(oldValue)) {
-        return (T) oldValue;
+      if (valueClass.isInstance(existingValue)) {
+        return valueClass.cast(existingValue);
       }
       // Overwrite the existing value, because it is of the wrong type.
-      if (attachments.replace(valueClass, oldValue, value)) {
-        return value;
+      if (attachments.replace(valueClass, existingValue, newValue)) {
+        return newValue;
       }
       // Conflict, two threads seem to want to update the same key the same time!
     }
@@ -167,6 +175,7 @@ public abstract class EventTask extends EventPipeline implements UncaughtExcepti
    * The attachments of this context.
    */
   protected final @NotNull ConcurrentHashMap<@NotNull Object, Object> attachments;
+
   /**
    * The steam-id of this context.
    */
@@ -182,18 +191,15 @@ public abstract class EventTask extends EventPipeline implements UncaughtExcepti
   }
 
   /**
-   * The nano-time when creating the context.
-   */
-  public final long startNanos;
-  private final @NotNull StringBuilder sb;
-  /**
    * The thread to which this context is currently bound; if any.
    */
   @Nullable Thread thread;
+
   /**
    * The previously set uncaught exception handler.
    */
   @Nullable Thread.UncaughtExceptionHandler oldUncaughtExceptionHandler;
+
   @Nullable String oldName;
 
   /**
@@ -340,7 +346,23 @@ public abstract class EventTask extends EventPipeline implements UncaughtExcepti
   private @NotNull XyzResponse run() {
     bind();
     try {
-      return execute();
+      final @NotNull XyzResponse response = execute();
+      if (callback != null) {
+        try {
+          callback.accept(response);
+        } catch (Throwable t) {
+          error("Uncaught exception in event pipeline callback", t);
+        }
+      }
+      try {
+        sendResponse(response);
+      } catch (Throwable t) {
+        error("Uncaught exception while post processing event", t);
+      }
+      return response;
+    } catch (Throwable t) {
+      error("Uncaught exception in task execute", t);
+      return errorResponse(XyzError.EXCEPTION, "Uncaught exception in task " + getClass().getSimpleName());
     } finally {
       final long newValue = EventTask.threadCount.decrementAndGet();
       assert newValue >= 0L;
@@ -348,23 +370,45 @@ public abstract class EventTask extends EventPipeline implements UncaughtExcepti
     }
   }
 
-  /**
-   * The method invoked, when executing the task.
-   *
-   * @return The generated response.
-   */
-  abstract protected @NotNull XyzResponse execute();
+  // We need to capture the callback handling.
+
+  private @Nullable Consumer<XyzResponse> callback;
 
   /**
-   * Helper method to create a new error response from an exception.
+   * It should not be necessary to use this.
    *
-   * @param t the exception for which to return an error message.
-   * @return the error response.
+   * @param callback The callback to invoke, when the response is available.
+   * @return this.
    */
-  protected @NotNull XyzResponse errorResponse(@NotNull Throwable t) {
-    // TODO: Improve this!
-    return errorResponse(XyzError.EXCEPTION, t.getMessage());
+  @Deprecated
+  @Override
+  public @NotNull EventTask setCallback(@Nullable Consumer<XyzResponse> callback) {
+    this.callback = callback;
+    return this;
   }
+
+  @Override
+  public @Nullable Consumer<XyzResponse> getCallback() {
+    return callback;
+  }
+
+  /**
+   * Execute this task.
+   *
+   * @return the response.
+   * @throws XyzErrorException If an expected error occurred (will not be logged).
+   * @throws Throwable         If any unexpected error occurred (will be logged as error).
+   */
+  abstract protected @NotNull XyzResponse execute() throws Throwable;
+
+  /**
+   * Called before returning the response and after calling the callback. Can be used to serialize the response and send it to a socket.
+   *
+   * <p><b>Note</b>: This method should not modify the response.
+   *
+   * @param response the response.
+   */
+  abstract protected void sendResponse(@NotNull XyzResponse response);
 
   /**
    * Helper method to create a new error response.
@@ -373,429 +417,11 @@ public abstract class EventTask extends EventPipeline implements UncaughtExcepti
    * @param message the message to return.
    * @return the error response.
    */
-  protected @NotNull XyzResponse errorResponse(@NotNull XyzError error, @NotNull String message) {
+  protected final @NotNull XyzResponse errorResponse(@NotNull XyzError error, @NotNull String message) {
     final ErrorResponse r = new ErrorResponse();
     r.setError(error);
     r.setStreamId(streamId);
     r.setErrorMessage(message);
     return r;
   }
-
-  private static final Logger logger = LoggerFactory.getLogger(EventTask.class);
-
-  private @NotNull String prefix(@NotNull String message) {
-    sb.append(streamId);
-    sb.append(':');
-    sb.append(NanoTime.timeSince(startNanos, TimeUnit.MICROSECONDS));
-    sb.append("us - ");
-    sb.append(message);
-    return sb.toString();
-  }
-
-  // ------------------------------------------------------------------------------------------------------------------------------------
-  // ------------------------------------------------------------------------------------------------------------------------------------
-  // ------------------------------------------------------------------------------------------------------------------------------------
-
-  @Override
-  public String getName() {
-    return streamId;
-  }
-
-  @Override
-  public boolean isTraceEnabled() {
-    return logger.isTraceEnabled();
-  }
-
-  @Override
-  public void trace(String msg) {
-    if (logger.isTraceEnabled()) {
-      logger.trace(prefix(msg));
-    }
-  }
-
-  @Override
-  public void trace(String format, Object arg) {
-    if (logger.isTraceEnabled()) {
-      logger.trace(prefix(format), arg);
-    }
-  }
-
-  @Override
-  public void trace(String format, Object arg1, Object arg2) {
-    if (logger.isTraceEnabled()) {
-      logger.trace(prefix(format), arg1, arg2);
-    }
-  }
-
-  @Override
-  public void trace(String format, Object... arguments) {
-    if (logger.isTraceEnabled()) {
-      logger.trace(prefix(format), arguments);
-    }
-  }
-
-  @Override
-  public void trace(String msg, Throwable t) {
-    if (logger.isTraceEnabled()) {
-      logger.trace(prefix(msg), t);
-    }
-  }
-
-  @Override
-  public boolean isTraceEnabled(Marker marker) {
-    return logger.isTraceEnabled();
-  }
-
-  @Override
-  public void trace(Marker marker, String msg) {
-    if (logger.isTraceEnabled(marker)) {
-      logger.trace(marker, prefix(msg));
-    }
-  }
-
-  @Override
-  public void trace(Marker marker, String format, Object arg) {
-    if (logger.isTraceEnabled(marker)) {
-      logger.trace(marker, prefix(format), arg);
-    }
-  }
-
-  @Override
-  public void trace(Marker marker, String format, Object arg1, Object arg2) {
-    if (logger.isTraceEnabled(marker)) {
-      logger.trace(marker, prefix(format), arg1, arg2);
-    }
-  }
-
-  @Override
-  public void trace(Marker marker, String format, Object... argArray) {
-    if (logger.isTraceEnabled(marker)) {
-      logger.trace(marker, prefix(format), argArray);
-    }
-  }
-
-  @Override
-  public void trace(Marker marker, String msg, Throwable t) {
-    if (logger.isTraceEnabled(marker)) {
-      logger.trace(marker, prefix(msg), t);
-    }
-  }
-
-  @Override
-  public boolean isDebugEnabled() {
-    return logger.isDebugEnabled();
-  }
-
-  public void debug(@NotNull String message) {
-    if (logger.isDebugEnabled()) {
-      logger.debug(prefix(message));
-    }
-  }
-
-  @Override
-  public void debug(String format, Object arg) {
-    if (logger.isDebugEnabled()) {
-      logger.debug(prefix(format), arg);
-    }
-  }
-
-  @Override
-  public void debug(String format, Object arg1, Object arg2) {
-    if (logger.isDebugEnabled()) {
-      logger.debug(prefix(format), arg1, arg2);
-    }
-  }
-
-  @Override
-  public void debug(String format, Object... arguments) {
-    if (logger.isDebugEnabled()) {
-      logger.debug(prefix(format), arguments);
-    }
-  }
-
-  public void debug(@NotNull String message, @NotNull Throwable t) {
-    if (logger.isDebugEnabled()) {
-      logger.debug(prefix(message), t);
-    }
-  }
-
-  @Override
-  public boolean isDebugEnabled(Marker marker) {
-    return logger.isDebugEnabled(marker);
-  }
-
-  @Override
-  public void debug(Marker marker, String msg) {
-    if (logger.isDebugEnabled(marker)) {
-      logger.debug(marker, prefix(msg));
-    }
-  }
-
-  @Override
-  public void debug(Marker marker, String format, Object arg) {
-    if (logger.isDebugEnabled(marker)) {
-      logger.debug(marker, prefix(format), arg);
-    }
-  }
-
-  @Override
-  public void debug(Marker marker, String format, Object arg1, Object arg2) {
-    if (logger.isDebugEnabled(marker)) {
-      logger.debug(marker, prefix(format), arg1, arg2);
-    }
-  }
-
-  @Override
-  public void debug(Marker marker, String format, Object... arguments) {
-    if (logger.isDebugEnabled(marker)) {
-      logger.debug(marker, prefix(format), arguments);
-    }
-  }
-
-  @Override
-  public void debug(Marker marker, String msg, Throwable t) {
-    if (logger.isDebugEnabled(marker)) {
-      logger.debug(marker, prefix(msg), t);
-    }
-  }
-
-  @Override
-  public boolean isInfoEnabled() {
-    return logger.isInfoEnabled();
-  }
-
-  public void info(@NotNull String message) {
-    if (logger.isInfoEnabled()) {
-      logger.info(prefix(message));
-    }
-  }
-
-  @Override
-  public void info(String format, Object arg) {
-    if (logger.isInfoEnabled()) {
-      logger.info(prefix(format), arg);
-    }
-  }
-
-  @Override
-  public void info(String format, Object arg1, Object arg2) {
-    if (logger.isInfoEnabled()) {
-      logger.info(prefix(format), arg1, arg2);
-    }
-  }
-
-  @Override
-  public void info(String format, Object... arguments) {
-    if (logger.isInfoEnabled()) {
-      logger.info(prefix(format), arguments);
-    }
-  }
-
-  @Override
-  public void info(String msg, Throwable t) {
-    if (logger.isInfoEnabled()) {
-      logger.info(prefix(msg), t);
-    }
-  }
-
-  @Override
-  public boolean isInfoEnabled(Marker marker) {
-    return logger.isInfoEnabled(marker);
-  }
-
-  @Override
-  public void info(Marker marker, String msg) {
-    if (logger.isInfoEnabled(marker)) {
-      logger.info(marker, prefix(msg));
-    }
-  }
-
-  @Override
-  public void info(Marker marker, String format, Object arg) {
-    if (logger.isInfoEnabled(marker)) {
-      logger.info(marker, prefix(format), arg);
-    }
-  }
-
-  @Override
-  public void info(Marker marker, String format, Object arg1, Object arg2) {
-    if (logger.isInfoEnabled(marker)) {
-      logger.info(marker, prefix(format), arg1, arg2);
-    }
-  }
-
-  @Override
-  public void info(Marker marker, String format, Object... arguments) {
-    if (logger.isInfoEnabled(marker)) {
-      logger.info(marker, prefix(format), arguments);
-    }
-  }
-
-  @Override
-  public void info(Marker marker, String msg, Throwable t) {
-    if (logger.isInfoEnabled(marker)) {
-      logger.info(marker, prefix(msg));
-    }
-  }
-
-  @Override
-  public boolean isWarnEnabled() {
-    return logger.isWarnEnabled();
-  }
-
-  @Override
-  public void warn(String msg) {
-    if (logger.isWarnEnabled()) {
-      logger.warn(prefix(msg));
-    }
-  }
-
-  @Override
-  public void warn(String format, Object arg) {
-    if (logger.isWarnEnabled()) {
-      logger.warn(prefix(format), arg);
-    }
-  }
-
-  @Override
-  public void warn(String format, Object... arguments) {
-    if (logger.isWarnEnabled()) {
-      logger.warn(prefix(format), arguments);
-    }
-  }
-
-  @Override
-  public boolean isWarnEnabled(Marker marker) {
-    return logger.isWarnEnabled(marker);
-  }
-
-  @Override
-  public void warn(Marker marker, String msg) {
-    if (logger.isWarnEnabled(marker)) {
-      logger.warn(marker, prefix(msg));
-    }
-  }
-
-  @Override
-  public void warn(Marker marker, String format, Object arg) {
-    if (logger.isWarnEnabled(marker)) {
-      logger.warn(marker, prefix(format), arg);
-    }
-  }
-
-  @Override
-  public void warn(Marker marker, String format, Object arg1, Object arg2) {
-    if (logger.isWarnEnabled(marker)) {
-      logger.warn(marker, prefix(format), arg1, arg2);
-    }
-  }
-
-  @Override
-  public void warn(Marker marker, String format, Object... arguments) {
-    if (logger.isWarnEnabled(marker)) {
-      logger.warn(marker, prefix(format), arguments);
-    }
-  }
-
-  @Override
-  public void warn(Marker marker, String msg, Throwable t) {
-    if (logger.isWarnEnabled(marker)) {
-      logger.warn(marker, prefix(msg), t);
-    }
-  }
-
-  @Override
-  public void warn(String format, Object arg1, Object arg2) {
-    if (logger.isWarnEnabled()) {
-      logger.warn(prefix(format), arg1, arg2);
-    }
-  }
-
-  @Override
-  public void warn(String msg, Throwable t) {
-    if (logger.isWarnEnabled()) {
-      logger.warn(prefix(msg), t);
-    }
-  }
-
-  @Override
-  public boolean isErrorEnabled() {
-    return isErrorEnabled();
-  }
-
-  @Override
-  public void error(String msg) {
-    if (logger.isErrorEnabled()) {
-      logger.error(prefix(msg));
-    }
-  }
-
-  @Override
-  public void error(String format, Object arg) {
-    if (logger.isErrorEnabled()) {
-      logger.error(prefix(format), arg);
-    }
-  }
-
-  @Override
-  public void error(String format, Object arg1, Object arg2) {
-    if (logger.isErrorEnabled()) {
-      logger.error(prefix(format), arg1, arg2);
-    }
-  }
-
-  @Override
-  public void error(String format, Object... arguments) {
-    if (logger.isErrorEnabled()) {
-      logger.error(prefix(format), arguments);
-    }
-  }
-
-  @Override
-  public void error(String msg, Throwable t) {
-    if (logger.isErrorEnabled()) {
-      logger.error(prefix(msg), t);
-    }
-  }
-
-  @Override
-  public boolean isErrorEnabled(Marker marker) {
-    return isErrorEnabled(marker);
-  }
-
-  @Override
-  public void error(Marker marker, String msg) {
-    if (logger.isErrorEnabled(marker)) {
-      logger.error(marker, prefix(msg));
-    }
-  }
-
-  @Override
-  public void error(Marker marker, String format, Object arg) {
-    if (logger.isErrorEnabled(marker)) {
-      logger.error(marker, prefix(format), arg);
-    }
-  }
-
-  @Override
-  public void error(Marker marker, String format, Object arg1, Object arg2) {
-    if (logger.isErrorEnabled(marker)) {
-      logger.error(marker, prefix(format), arg1, arg2);
-    }
-  }
-
-  @Override
-  public void error(Marker marker, String format, Object... arguments) {
-    if (logger.isErrorEnabled(marker)) {
-      logger.error(marker, prefix(format), arguments);
-    }
-  }
-
-  @Override
-  public void error(Marker marker, String msg, Throwable t) {
-    if (logger.isErrorEnabled(marker)) {
-      logger.error(marker, prefix(msg), t);
-    }
-  }
-
 }

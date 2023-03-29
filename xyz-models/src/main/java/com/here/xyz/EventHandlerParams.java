@@ -2,7 +2,7 @@ package com.here.xyz;
 
 import static com.here.xyz.EventTask.currentTask;
 
-import com.here.xyz.models.hub.psql.PsqlProcessorParams;
+import com.here.xyz.models.hub.psql.PsqlStorageParams;
 import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -15,7 +15,7 @@ import org.slf4j.LoggerFactory;
 @SuppressWarnings({"SameParameterValue", "unchecked"})
 public abstract class EventHandlerParams {
 
-  protected static final Logger logger = LoggerFactory.getLogger(PsqlProcessorParams.class);
+  protected static final Logger logger = LoggerFactory.getLogger(PsqlStorageParams.class);
 
   protected EventHandlerParams() {
   }

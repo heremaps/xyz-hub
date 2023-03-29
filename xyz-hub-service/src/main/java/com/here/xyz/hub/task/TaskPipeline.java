@@ -27,7 +27,6 @@ import io.vertx.ext.web.RoutingContext;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicReference;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,7 +35,7 @@ import org.slf4j.LoggerFactory;
  *
  * @param <EVENT> the event type.
  */
-public final class TaskPipeline<EVENT extends Event, TASK extends Task<EVENT, TASK>> {
+public final class TaskPipeline<EVENT extends Event, TASK extends XyzHubTask<EVENT, TASK>> {
 
   private static final Logger logger = LoggerFactory.getLogger(TaskPipeline.class);
   private static final String logId = TaskPipeline.class.getSimpleName();

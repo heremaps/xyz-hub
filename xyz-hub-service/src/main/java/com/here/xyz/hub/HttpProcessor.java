@@ -41,10 +41,11 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.Event;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.models.hub.Connector;
-import com.here.xyz.models.hub.http.HttpProcessorParams;
+import com.here.xyz.models.hub.http.HttpStorageParams;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.JsonUtils;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClient;
@@ -58,6 +59,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.MalformedURLException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -82,21 +84,21 @@ public class HttpProcessor implements IEventHandler {
           .setPipelining(Service.configuration.HTTP_CLIENT_PIPELINING))
       /*.connectionHandler(HTTPFunctionClient::newConnectionCreated)*/;
 
-  public HttpProcessor(@NotNull RoutingContext context, @NotNull Connector connector) {
+  public HttpProcessor(@NotNull RoutingContext context, @NotNull Connector connector) throws MalformedURLException {
     this.context = context;
     this.connector = connector;
     final Map<@NotNull String, @NotNull Object> params = connector.params;
     if (params == null) {
       throw new IllegalStateException("The connector " + connector.id + " does not have 'params'");
     }
-    this.params = new HttpProcessorParams(params, logId(context));
+    this.params = new HttpStorageParams(params);
   }
 
   protected final @NotNull RoutingContext context;
   protected final @NotNull Connector connector;
-  protected final @NotNull HttpProcessorParams params;
+  protected final @NotNull HttpStorageParams params;
   private Buffer body;
-  private final AtomicReference<XyzResponse<?>> xyzResponse = new AtomicReference<>();
+  private final AtomicReference<XyzResponse> xyzResponse = new AtomicReference<>();
   private final AtomicReference<HttpException> exception = new AtomicReference<>();
   private HttpClientRequest httpRequest;
   private HttpClientResponse httpResponse;
@@ -113,7 +115,7 @@ public class HttpProcessor implements IEventHandler {
     this.notifyAll();
   }
 
-  private synchronized void returnResult(@NotNull XyzResponse<?> response) {
+  private synchronized void returnResult(@NotNull XyzResponse response) {
     xyzResponse.set(response);
     this.notifyAll();
   }
@@ -163,7 +165,7 @@ public class HttpProcessor implements IEventHandler {
         throw new NullPointerException();
       }
       if (response instanceof XyzResponse) {
-        returnResult((XyzResponse<?>) response);
+        returnResult((XyzResponse) response);
         return;
       }
       throwException(new HttpException(BAD_GATEWAY, "Failed to parse response received by HTTP connector service"));
@@ -174,11 +176,16 @@ public class HttpProcessor implements IEventHandler {
   }
 
   @Override
-  public @NotNull XyzResponse<?> processEvent(@NotNull IEventContext eventContext) {
+  public @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) {
     logger.info("{}:{}:{}us - Send event to URL: {}", logId(context), logStream(context), logTime(context), params.url);
+
+    final Event event = eventContext.event();
+    event.setConnectorId(connector.id);
+    event.setConnectorNumber(connector.number);
+    event.setConnectorParams(JsonUtils.deepCopy(connector.params));
+
     // Either Throwable or HttpClientResponse:
     final AtomicReference<Object> result = new AtomicReference<>();
-    final Event<?> event = eventContext.event();
     body = Buffer.buffer(Payload.compress(event.toByteArray()));
     //noinspection SynchronizationOnLocalVariableOrMethodParameter
     synchronized (result) {
@@ -197,7 +204,7 @@ public class HttpProcessor implements IEventHandler {
     return getResult(currentTimeMillis() + Math.max(params.connTimeout, params.readTimeout));
   }
 
-  private synchronized @NotNull XyzResponse<?> getResult(long TIMEOUT) {
+  private synchronized @NotNull XyzResponse getResult(long TIMEOUT) {
     while (xyzResponse.get() == null
         && exception.get() == null
         && currentTimeMillis() < TIMEOUT) {
@@ -209,7 +216,7 @@ public class HttpProcessor implements IEventHandler {
       } catch (InterruptedException ignore) {
       }
     }
-    final XyzResponse<?> response = xyzResponse.get();
+    final XyzResponse response = xyzResponse.get();
     if (response != null) return response;
 
     HttpException e = exception.get();

@@ -19,20 +19,65 @@
 
 package com.here.xyz.hub.auth;
 
+import com.here.xyz.exceptions.XyzErrorException;
+import com.here.xyz.models.hub.Connector;
+import com.here.xyz.models.hub.Space;
+import com.here.xyz.responses.XyzError;
 import java.util.List;
+import org.jetbrains.annotations.NotNull;
 
-@SuppressWarnings("serial")
 public class XyzHubAttributeMap extends AttributeMap {
 
+  @Deprecated
+  public static final String ID = "id";
   public static final String OWNER = "owner";
   public static final String SPACE = "space";
+  public static final String CONNECTOR = "connector";
   public static final String PACKAGES = "packages";
+  @Deprecated
   public static final String STORAGE = "storage";
+  @Deprecated
   public static final String LISTENERS = "listeners";
+  @Deprecated
   public static final String PROCESSORS = "processors";
+  @Deprecated
   public static final String SEARCHABLE_PROPERTIES = "searchableProperties";
+  @Deprecated
   public static final String SORTABLE_PROPERTIES = "sortableProperties";
-  public static final String ID = "id";
+
+  public static @NotNull AttributeMap forSpace(@NotNull Space space) {
+    final AttributeMap attributeMap = new AttributeMap();
+    attributeMap.withValue(XyzHubAttributeMap.SPACE, space.getId());
+    attributeMap.withValue(XyzHubAttributeMap.OWNER, space.properties().xyzNamespace().getOwner());
+    if (space.getPackages() != null) {
+      attributeMap.withValue(XyzHubAttributeMap.PACKAGES, space.getPackages()); // oneOf
+    }
+    return attributeMap;
+  }
+
+  public static @NotNull AttributeMap forPackage(@NotNull String packageId) {
+    final AttributeMap attributeMap = new AttributeMap();
+    attributeMap.withValue(XyzHubAttributeMap.PACKAGES, packageId);
+    return attributeMap;
+  }
+
+  public static @NotNull AttributeMap forConnector(@NotNull Connector connector) {
+    final AttributeMap attributeMap = new AttributeMap();
+    attributeMap.withValue(XyzHubAttributeMap.CONNECTOR, connector.id);
+    attributeMap.withValue(XyzHubAttributeMap.OWNER, connector.properties().xyzNamespace().getOwner());
+    if (connector.packages != null) {
+      attributeMap.withValue(XyzHubAttributeMap.PACKAGES, connector.packages); // oneOf
+    }
+    return attributeMap;
+  }
+
+  public static @NotNull AttributeMap forConnectorId(@NotNull String connectorId) throws XyzErrorException {
+    final Connector connector = Connector.getConnectorById(connectorId);
+    if (connector == null) {
+      throw new XyzErrorException(XyzError.FORBIDDEN, "Unknown connector " + connectorId);
+    }
+    return forConnector(connector);
+  }
 
   public static XyzHubAttributeMap forValues(String owner, String space, List<String> packages) {
     XyzHubAttributeMap attributeMap = new XyzHubAttributeMap();

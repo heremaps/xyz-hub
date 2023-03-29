@@ -1,6 +1,6 @@
 package com.here.mapcreator.ext.naksha;
 
-import com.here.xyz.models.hub.psql.PsqlProcessorParams;
+import com.here.xyz.models.hub.psql.PsqlStorageParams;
 import com.here.xyz.models.hub.psql.PsqlPoolConfig;
 import java.util.List;
 import org.apache.commons.lang3.RandomUtils;
@@ -12,7 +12,7 @@ import org.jetbrains.annotations.Nullable;
  */
 public class PsqlSpaceDataSource extends AbstractPsqlDataSource<PsqlSpaceDataSource> {
 
-  private static @NotNull PsqlPool readOnlyPool(@NotNull PsqlProcessorParams params) {
+  private static @NotNull PsqlPool readOnlyPool(@NotNull PsqlStorageParams params) {
     final List<@NotNull PsqlPoolConfig> dbReplicas = params.getDbReplicas();
     final int SIZE = dbReplicas.size();
     if (SIZE == 0) {
@@ -35,7 +35,7 @@ public class PsqlSpaceDataSource extends AbstractPsqlDataSource<PsqlSpaceDataSou
    * @param historyTable    the history table; if null table plus "_hst".
    */
   public PsqlSpaceDataSource(
-      @NotNull PsqlProcessorParams params,
+      @NotNull PsqlStorageParams params,
       @NotNull String applicationName,
       @NotNull String spaceId,
       boolean readOnly,
@@ -54,7 +54,7 @@ public class PsqlSpaceDataSource extends AbstractPsqlDataSource<PsqlSpaceDataSou
   /**
    * The connector parameters used to create this data source.
    */
-  public final @NotNull PsqlProcessorParams connectorParams;
+  public final @NotNull PsqlStorageParams connectorParams;
 
   /**
    * The space identifier.

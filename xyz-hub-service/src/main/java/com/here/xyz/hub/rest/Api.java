@@ -38,7 +38,7 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.XYZHubRESTVerticle;
 import com.here.xyz.hub.task.feature.FeatureTask;
 import com.here.xyz.hub.task.space.SpaceTask;
-import com.here.xyz.hub.task.Task;
+import com.here.xyz.hub.task.XyzHubTask;
 import com.here.xyz.hub.task.TaskPipelineCancelled;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.BinaryResponse;
@@ -99,7 +99,7 @@ public abstract class Api {
    *
    * @return true if a response was sent; false otherwise.
    */
-  private boolean sendEmptyResponse(final Task task) {
+  private boolean sendEmptyResponse(final XyzHubTask task) {
     if (ApiResponseType.EMPTY == task.responseType) {
       if (task instanceof FeatureTask) {
         final FeatureTask featureTask = (FeatureTask) task;
@@ -108,15 +108,15 @@ public abstract class Api {
           // Note: This is only a warning as it is generally not our fault, so its no real error in the service.
           logger.warn(task.getMarker(), "Received an error response: {}", errorResponse);
           if (XyzError.TIMEOUT.equals(errorResponse.getError())) {
-            sendErrorResponse(task.context, GATEWAY_TIMEOUT, XyzError.TIMEOUT, DEFAULT_GATEWAY_TIMEOUT_MESSAGE);
+            sendErrorResponse(task.routingContext, GATEWAY_TIMEOUT, XyzError.TIMEOUT, DEFAULT_GATEWAY_TIMEOUT_MESSAGE);
           } else {
-            sendErrorResponse(task.context, BAD_GATEWAY, errorResponse.getError(), DEFAULT_BAD_GATEWAY_MESSAGE);
+            sendErrorResponse(task.routingContext, BAD_GATEWAY, errorResponse.getError(), DEFAULT_BAD_GATEWAY_MESSAGE);
           }
           return true;
         }
       }
 
-      task.context.response().setStatusCode(NO_CONTENT.code()).end();
+      task.routingContext.response().setStatusCode(NO_CONTENT.code()).end();
       return true;
     }
 
@@ -130,10 +130,10 @@ public abstract class Api {
    * @param task the task for which to generate the "Not Modified" response.
    * @return true if a response has been send; false if not.
    */
-  private boolean sendNotModifiedResponseIfNoneMatch(final Task task) {
+  private boolean sendNotModifiedResponseIfNoneMatch(final XyzHubTask task) {
     //If the task has an ETag, set it in the HTTP header.
     if (task.getEtag() != null) {
-      final RoutingContext context = task.context;
+      final RoutingContext context = task.routingContext;
       final HttpServerResponse httpResponse = context.response();
       final MultiMap httpHeaders = httpResponse.headers();
       httpHeaders.add(HttpHeaders.ETAG, task.getEtag());
@@ -162,9 +162,9 @@ public abstract class Api {
       // Note: This is only a warning as it is generally not our fault, so its no real error in the service.
       logger.warn(task.getMarker(), "Received an error response: {}", errorResponse);
       if (XyzError.TIMEOUT.equals(errorResponse.getError())) {
-        sendErrorResponse(task.context, GATEWAY_TIMEOUT, XyzError.TIMEOUT, DEFAULT_GATEWAY_TIMEOUT_MESSAGE);
+        sendErrorResponse(task.routingContext, GATEWAY_TIMEOUT, XyzError.TIMEOUT, DEFAULT_GATEWAY_TIMEOUT_MESSAGE);
       } else {
-        sendErrorResponse(task.context, BAD_GATEWAY, errorResponse.getError(), DEFAULT_BAD_GATEWAY_MESSAGE);
+        sendErrorResponse(task.routingContext, BAD_GATEWAY, errorResponse.getError(), DEFAULT_BAD_GATEWAY_MESSAGE);
       }
       return;
     }
@@ -209,7 +209,7 @@ public abstract class Api {
             }
             catch (JsonProcessingException e) {
               logger.error(task.getMarker(), "The service received an invalid response and is unable to serialize it.", e);
-              sendErrorResponse(task.context, INTERNAL_SERVER_ERROR, XyzError.EXCEPTION,
+              sendErrorResponse(task.routingContext, INTERNAL_SERVER_ERROR, XyzError.EXCEPTION,
                   "The service received an invalid response and is unable to serialize it.");
             }
             return;
@@ -260,7 +260,7 @@ public abstract class Api {
     }
 
     logger.warn(task.getMarker(), "Invalid response for request {}: {}, stack-trace: {}", task.responseType, response, new Exception());
-    sendErrorResponse(task.context, BAD_GATEWAY, XyzError.EXCEPTION,
+    sendErrorResponse(task.routingContext, BAD_GATEWAY, XyzError.EXCEPTION,
         "Received an invalid response from the storage connector, expected '" + task.responseType.name() + "', but received: '"
             + response.getClass().getSimpleName() + "'");
   }
@@ -324,7 +324,7 @@ public abstract class Api {
     // Invalid response.
     logger.error(task.getMarker(), "Invalid response for requested type {}: {}, stack-trace: {}", task.responseType,
         task.responseSpaces, new Exception());
-    sendErrorResponse(task.context, INTERNAL_SERVER_ERROR, XyzError.EXCEPTION,
+    sendErrorResponse(task.routingContext, INTERNAL_SERVER_ERROR, XyzError.EXCEPTION,
         "Internally generated invalid response, expected: " + task.responseType);
   }
 
@@ -334,8 +334,8 @@ public abstract class Api {
    * @param task the task for which to return an error response.
    * @param e the exception that should be used to generate an {@link ErrorResponse}, if null an internal server error is returned.
    */
-  void sendErrorResponse(final Task task, final Throwable e) {
-    sendErrorResponse(task.context, e);
+  void sendErrorResponse(final XyzHubTask task, final Throwable e) {
+    sendErrorResponse(task.routingContext, e);
   }
 
   /**
@@ -418,11 +418,11 @@ public abstract class Api {
    *
    * @param task the task for which to return a Not Found response.
    */
-  private void sendNotFoundResponse(final Task task) {
-    task.context.response()
+  private void sendNotFoundResponse(final XyzHubTask task) {
+    task.routingContext.response()
         .setStatusCode(NOT_FOUND.code())
         .putHeader(HttpHeaders.CONTENT_TYPE, TEXT_PLAIN)
-        .end(task.context.request().uri());
+        .end(task.routingContext.request().uri());
   }
 
   /**
@@ -430,7 +430,7 @@ public abstract class Api {
    *
    * @param task the task for which to return a Not Found response.
    */
-  private void sendNotFoundJsonResponse(final Task task) {
+  private void sendNotFoundJsonResponse(final XyzHubTask task) {
     sendErrorResponse(task, new HttpException(NOT_FOUND, "The requested resource does not exist."));
   }
 
@@ -439,7 +439,7 @@ public abstract class Api {
    *
    * @param task the task for which to return the JSON response.
    */
-  private void sendJsonResponse(final Task<?, ?> task, final String json) {
+  private void sendJsonResponse(final XyzHubTask<?, ?> task, final String json) {
     sendResponse(task, OK, APPLICATION_JSON, json.getBytes());
   }
 
@@ -448,7 +448,7 @@ public abstract class Api {
    *
    * @param task the task for which to return the GeoJSON response.
    */
-  private void sendGeoJsonResponse(final Task task, final String geoJson) {
+  private void sendGeoJsonResponse(final XyzHubTask task, final String geoJson) {
     sendResponse(task, OK, APPLICATION_GEO_JSON, geoJson.getBytes());
   }
 
@@ -459,7 +459,7 @@ public abstract class Api {
    * @param mimeType
    * @param bytes
    */
-  private void sendBinaryResponse(Task task, String mimeType, byte[] bytes) {
+  private void sendBinaryResponse(XyzHubTask task, String mimeType, byte[] bytes) {
     sendResponse(task, OK, mimeType, bytes);
   }
 
@@ -469,8 +469,8 @@ public abstract class Api {
     return XYZHttpContentCompressor.isCompressionEnabled(context.request().getHeader(ACCEPT_ENCODING)) ? serviceSize : httpSize;
   }
 
-  private void sendResponse(final Task task, HttpResponseStatus status, String contentType, final byte[] response) {
-    HttpServerResponse httpResponse = task.context.response().setStatusCode(status.code());
+  private void sendResponse(final XyzHubTask task, HttpResponseStatus status, String contentType, final byte[] response) {
+    HttpServerResponse httpResponse = task.routingContext.response().setStatusCode(status.code());
 
     CacheProfile cacheProfile = task.getCacheProfile();
     if (cacheProfile.browserTTL > 0) {
@@ -482,8 +482,8 @@ public abstract class Api {
         httpResponse.putHeader(CONTENT_TYPE, contentType);
 
       httpResponse.end();
-    } else if (response.length > getMaxResponseLength(task.context)) {
-      sendErrorResponse(task.context, new HttpException(RESPONSE_PAYLOAD_TOO_LARGE, RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE));
+    } else if (response.length > getMaxResponseLength(task.routingContext)) {
+      sendErrorResponse(task.routingContext, new HttpException(RESPONSE_PAYLOAD_TOO_LARGE, RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE));
     } else {
       httpResponse.putHeader(CONTENT_TYPE, contentType);
       httpResponse.end(Buffer.buffer(response));

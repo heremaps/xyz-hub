@@ -5,7 +5,7 @@ import com.here.xyz.models.hub.SubscriptionConfig;
 import com.here.xyz.models.hub.psql.PsqlPoolConfig;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.hub.Subscription;
-import com.here.xyz.models.hub.psql.PsqlProcessorParams;
+import com.here.xyz.models.hub.psql.PsqlStorageParams;
 import com.here.xyz.pub.models.*;
 import io.vertx.core.json.Json;
 import org.apache.logging.log4j.LogManager;
@@ -171,7 +171,7 @@ public class PubDatabaseHandler {
                     final String tableName = rs.getString(2);
                     try {
                         final String rawParams = rs.getString(3);
-                        final PsqlProcessorParams params = XyzSerializable.deserialize(rawParams, PsqlProcessorParams.class);
+                        final PsqlStorageParams params = XyzSerializable.deserialize(rawParams, PsqlStorageParams.class);
                         if (params == null)
                             throw new NullPointerException("params");
                         final PsqlPoolConfig dbConfig = params.getDbConfig();
@@ -279,7 +279,7 @@ public class PubDatabaseHandler {
                 final String connectorId = rs.getString(1);
                 try {
                     final String rawParams = rs.getString(2);
-                    final PsqlProcessorParams params = XyzSerializable.deserialize(rawParams, PsqlProcessorParams.class);
+                    final PsqlStorageParams params = XyzSerializable.deserialize(rawParams, PsqlStorageParams.class);
                     if (params == null) throw new NullPointerException("params");
                     final PsqlPoolConfig dbConfig = params.getDbConfig();
                     dto = new ConnectorDTO();

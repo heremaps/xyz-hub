@@ -1,6 +1,6 @@
 package com.here.mapcreator.ext.naksha;
 
-import com.here.xyz.models.hub.psql.PsqlProcessorParams;
+import com.here.xyz.models.hub.psql.PsqlStorageParams;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -9,12 +9,12 @@ import org.jetbrains.annotations.Nullable;
  */
 public class PsqlSpaceMasterDataSource extends PsqlSpaceDataSource {
 
-  public PsqlSpaceMasterDataSource(@NotNull PsqlProcessorParams params, @NotNull String applicationName, @NotNull String spaceId) {
+  public PsqlSpaceMasterDataSource(@NotNull PsqlStorageParams params, @NotNull String applicationName, @NotNull String spaceId) {
     super(params, applicationName, spaceId, false, null, null);
   }
 
   public PsqlSpaceMasterDataSource(
-      @NotNull PsqlProcessorParams params,
+      @NotNull PsqlStorageParams params,
       @NotNull String applicationName,
       @NotNull String spaceId,
       @Nullable String table,

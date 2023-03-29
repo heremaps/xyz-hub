@@ -4,9 +4,8 @@ import static com.here.mapcreator.ext.naksha.sql.MaintenanceSQL.XYZ_CONFIG;
 
 import com.here.mapcreator.ext.naksha.sql.MaintenanceSQL;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Space;
-import com.here.xyz.models.hub.psql.PsqlProcessorParams;
+import com.here.xyz.models.hub.psql.PsqlStorageParams;
 import com.here.xyz.models.hub.psql.PsqlPoolConfig;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -18,13 +17,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Arrays;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -239,7 +235,7 @@ public final class Naksha {
     final StringBuilder sb = NakshaThreadLocal.get().sb();
     String SQL;
 
-    final PsqlProcessorParams connectorParams = dataSource.connectorParams;
+    final PsqlStorageParams connectorParams = dataSource.connectorParams;
     sb.setLength(0);
     final String ADMIN_SCHEMA = escapeId(connectorParams.getAdminSchema(), sb).toString();
     sb.setLength(0);

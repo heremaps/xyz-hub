@@ -39,7 +39,8 @@ import com.here.mapcreator.ext.naksha.PsqlSpaceMasterDataSource;
 import com.here.xyz.ExtendedEventHandler;
 import com.here.xyz.IEventContext;
 import com.here.xyz.exceptions.XyzErrorException;
-import com.here.xyz.models.hub.psql.PsqlProcessorParams;
+import com.here.xyz.models.hub.Connector;
+import com.here.xyz.models.hub.psql.PsqlStorageParams;
 import com.here.mapcreator.ext.naksha.sql.H3SQL;
 import com.here.mapcreator.ext.naksha.sql.QuadbinSQL;
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
@@ -129,16 +130,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("NotNullFieldNotInitialized")
-public class PsqlProcessor extends ExtendedEventHandler {
+public class PsqlStorage extends ExtendedEventHandler {
 
-  public PsqlProcessor(@NotNull Map<@NotNull String, Object> params) throws XyzErrorException {
-    super(params);
-    connectorParams = new PsqlProcessorParams(params);
+  public PsqlStorage(@NotNull Connector connector) throws XyzErrorException {
+    super(connector);
+    if (connector.params == null) {
+      throw new XyzErrorException(EXCEPTION, "Missing 'params' in connector configuration");
+    }
+    connectorParams = new PsqlStorageParams(connector.params);
   }
 
-  private static final Logger logger = LoggerFactory.getLogger(PsqlProcessor.class);
+  private static final Logger logger = LoggerFactory.getLogger(PsqlStorage.class);
 
-  private final @NotNull PsqlProcessorParams connectorParams;
+  private final @NotNull PsqlStorageParams connectorParams;
   private @NotNull Event event;
   private @NotNull String applicationName;
   private @NotNull PsqlSpaceAdminDataSource adminDataSource;
@@ -231,7 +235,7 @@ public class PsqlProcessor extends ExtendedEventHandler {
     return historyTable;
   }
 
-  public final @NotNull PsqlProcessorParams connectorParams() {
+  public final @NotNull PsqlStorageParams connectorParams() {
     return connectorParams;
   }
 

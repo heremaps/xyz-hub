@@ -25,8 +25,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.jetbrains.annotations.NotNull;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * This class provides the utility to run a single database query which is described by an incoming object
@@ -44,9 +42,9 @@ public abstract class QueryRunner<E, R> implements ResultSetHandler<R> {
 
   private final @NotNull SQLQuery query;
   private boolean useReadReplica;
-  protected final @NotNull PsqlProcessor processor;
+  protected final @NotNull PsqlStorage processor;
 
-  public QueryRunner(@NotNull E input, final @NotNull PsqlProcessor processor) throws SQLException, ErrorResponseException {
+  public QueryRunner(@NotNull E input, final @NotNull PsqlStorage processor) throws SQLException, ErrorResponseException {
     this.processor = processor;
     query = buildQuery(input);
   }

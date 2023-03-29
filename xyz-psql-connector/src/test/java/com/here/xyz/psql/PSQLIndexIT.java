@@ -18,7 +18,7 @@
  */
 package com.here.xyz.psql;
 
-import com.here.xyz.models.hub.psql.PsqlProcessorParams;
+import com.here.xyz.models.hub.psql.PsqlStorageParams;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.info.GetStatisticsEvent;
 import com.here.xyz.events.feature.ModifyFeaturesEvent;
@@ -47,9 +47,9 @@ public class PSQLIndexIT extends PSQLAbstractIT {
 
   static Map<String, Object> connectorParams = new HashMap<String, Object>() {
     {
-      put(PsqlProcessorParams.ID, "test-connector");
-      put(PsqlProcessorParams.AUTO_INDEXING, true);
-      put(PsqlProcessorParams.PROPERTY_SEARCH, true);
+      put(PsqlStorageParams.ID, "test-connector");
+      put(PsqlStorageParams.AUTO_INDEXING, true);
+      put(PsqlStorageParams.PROPERTY_SEARCH, true);
     }
   };
 
@@ -97,7 +97,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
     assertEquals("OK", response.getStatus());
 
     /** Increase to 5 allowed Indices */
-    connectorParams.put(PsqlProcessorParams.ON_DEMAND_IDX_LIMIT, 5);
+    connectorParams.put(PsqlStorageParams.ON_DEMAND_IDX_LIMIT, 5);
     /** deactivated ones does not get into account - result will be 5 which are required */
     searchableProperties.put("foo5", true);
     searchableProperties.put("foo6", false);
@@ -230,7 +230,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
     }};
 
     /** Increase to 5 allowed Indices */
-    connectorParams.put(PsqlProcessorParams.ON_DEMAND_IDX_LIMIT, 5);
+    connectorParams.put(PsqlStorageParams.ON_DEMAND_IDX_LIMIT, 5);
 
     ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent();
     modifySpaceEvent.setSpace("foo");

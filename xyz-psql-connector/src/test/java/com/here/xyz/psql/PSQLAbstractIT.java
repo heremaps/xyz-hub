@@ -21,7 +21,8 @@ package com.here.xyz.psql;
 
 import com.amazonaws.util.IOUtils;
 import com.here.mapcreator.ext.naksha.PsqlPool;
-import com.here.xyz.models.hub.psql.PsqlProcessorParams;
+import com.here.xyz.models.hub.Connector;
+import com.here.xyz.models.hub.psql.PsqlStorageParams;
 import com.here.xyz.IoEventPipeline;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
@@ -61,7 +62,7 @@ public abstract class PSQLAbstractIT extends Helper {
     }
   };
 
-  protected static PsqlProcessorParams connectorParams;
+  protected static PsqlStorageParams connectorParams;
 
   protected static DataSource dataSource() {
     assert connectorParams != null;
@@ -71,7 +72,7 @@ public abstract class PSQLAbstractIT extends Helper {
   protected static void initEnv(Map<String, Object> connectorParameters) throws Exception {
     LOGGER.info("Setup environment...");
     connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
-    connectorParams = new PsqlProcessorParams(connectorParameters);
+    connectorParams = new PsqlStorageParams(connectorParameters);
 
     final HealthCheckEvent event = new HealthCheckEvent();
     event.setMinResponseTime(100);
@@ -132,7 +133,8 @@ public abstract class PSQLAbstractIT extends Helper {
     InputStream jsonStream = PSQLAbstractIT.class.getResourceAsStream(file);
     ByteArrayOutputStream os = new ByteArrayOutputStream();
     final IoEventPipeline pipeline = new IoEventPipeline();
-    pipeline.addEventHandler(new PsqlProcessor(Collections.emptyMap()));
+    // TODO: We need to create a pre-configured connector for the test, because the connector is the PSQL storage for a specific db!
+    pipeline.addEventHandler(new PsqlStorage(new Connector()));
     assert jsonStream != null;
     pipeline.sendEvent(jsonStream, os);
     String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
@@ -145,7 +147,8 @@ public abstract class PSQLAbstractIT extends Helper {
     InputStream jsonStream = new ByteArrayInputStream(request.getBytes(StandardCharsets.UTF_8));
     ByteArrayOutputStream os = new ByteArrayOutputStream();
     final IoEventPipeline pipeline = new IoEventPipeline();
-    pipeline.addEventHandler(new PsqlProcessor(Collections.emptyMap()));
+    // TODO: We need to create a pre-configured connector for the test, because the connector is the PSQL storage for a specific db!
+    pipeline.addEventHandler(new PsqlStorage(new Connector()));
     pipeline.sendEvent(jsonStream, os);
     String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
     LOGGER.info("Response from lambda - {}", response);

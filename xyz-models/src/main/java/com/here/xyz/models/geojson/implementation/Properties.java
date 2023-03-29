@@ -44,7 +44,7 @@ public class Properties extends Extensible<Properties> {
     this.xyzNamespace = xyzNamespace;
   }
 
-  public @NotNull XyzNamespace useXyzNamespace() {
+  public @NotNull XyzNamespace xyzNamespace() {
     if (xyzNamespace == null) {
       xyzNamespace = new XyzNamespace();
     }

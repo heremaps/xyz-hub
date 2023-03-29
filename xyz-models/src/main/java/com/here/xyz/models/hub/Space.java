@@ -29,6 +29,8 @@ import com.here.xyz.View;
 import com.here.xyz.View.All;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -40,7 +42,6 @@ import org.jetbrains.annotations.Nullable;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "Space")
-@SuppressWarnings("unused")
 public class Space {
 
   /**
@@ -51,6 +52,7 @@ public class Space {
 
   /**
    * Create new space initialized with the given identifier.
+   *
    * @param id the identifier.
    */
   public Space(@NotNull String id) {
@@ -70,7 +72,7 @@ public class Space {
    * @param id the space-id.
    * @return The space with the given ID; if any.
    */
-  public static @Nullable Space getSpace(@NotNull String id) {
+  public static @Nullable Space getSpaceById(@NotNull String id) {
     return spaces.get(id);
   }
 
@@ -135,19 +137,11 @@ public class Space {
   public Map<@NotNull String, Object> params;
 
   /**
-   * The identifier of the storage connector to use.
+   * The list of connector IDs (configured event handlers) to be added to the task (event handler pipeline) in order.
    */
   @JsonProperty
   @JsonView(All.class)
-  private String connectorId;
-
-  /**
-   * An optional list of connector IDs (configured event handlers) to be added in-front of the storage connector. They will be added in
-   * order.
-   */
-  @JsonProperty
-  @JsonView(All.class)
-  public @Nullable List<@Nullable String> processors;
+  public @Nullable List<@NotNull String> connectors;
 
   /**
    * The identifier of the owner of this space, most likely the HERE account ID.
@@ -291,12 +285,29 @@ public class Space {
     return this;
   }
 
-  public @Nullable String getConnectorId()  {
-    return this.connectorId;
+  public @Nullable List<@NotNull String> getConnectorIds() {
+    return connectors;
   }
 
-  public void setConnectorId(@NotNull String connectorId) {
-    this.connectorId = connectorId;
+  public @NotNull List<@NotNull String> connectorIds() {
+    List<@NotNull String> connectors = this.connectors;
+    if (connectors == null) {
+      this.connectors = connectors = new ArrayList<>();
+    }
+    return connectors;
+  }
+
+  public void setConnectorIds(@Nullable List<@NotNull String> connectorIds) {
+    connectors = connectorIds;
+  }
+
+  public void setConnectorIds(@NotNull String... connectorIds) {
+    if (connectorIds != null) {
+      connectors = new ArrayList<>(connectorIds.length);
+      Collections.addAll(connectors, connectorIds);
+    } else {
+      connectors = null;
+    }
   }
 
   public String getOwner() {
@@ -327,6 +338,14 @@ public class Space {
     return packages;
   }
 
+  public @NotNull List<@NotNull String> packages() {
+    List<@NotNull String> packages = this.packages;
+    if (packages == null) {
+      this.packages = packages = new ArrayList<>();
+    }
+    return packages;
+  }
+
   public void setPackages(final List<@NotNull String> packages) {
     this.packages = packages;
   }
@@ -335,9 +354,10 @@ public class Space {
     return properties;
   }
 
-  public @NotNull Properties withProperties() {
+  public @NotNull Properties properties() {
+    Properties properties = this.properties;
     if (properties == null) {
-      properties = new Properties();
+      this.properties = properties = new Properties();
     }
     return properties;
   }

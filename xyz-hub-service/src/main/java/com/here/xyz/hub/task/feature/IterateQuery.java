@@ -21,7 +21,7 @@ public class IterateQuery extends ReadQuery<IterateFeaturesEvent> {
   @Nonnull
   @Override
   public @NotNull TaskPipeline<IterateFeaturesEvent> initPipeline() {
-    return new TaskPipeline(context, this)
+    return new TaskPipeline(routingContext, this)
         .then(FeatureTaskHandler::resolveSpace)
         .then(FeatureAuthorization::authorize)
         .then(FeatureTaskHandler::validate)

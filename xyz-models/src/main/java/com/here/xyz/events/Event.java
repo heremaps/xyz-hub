@@ -51,7 +51,6 @@ import com.here.xyz.events.space.ModifySpaceEvent;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.EventTask;
-import com.here.xyz.util.JsonUtils;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -104,28 +103,6 @@ public abstract class Event extends Payload {
     } else {
       startNanos = NanoTime.now();
     }
-  }
-
-  /**
-   * Initialize this event for the given space.
-   *
-   * @param space The space to initialize the event for.
-   * @throws IllegalStateException if the given space does refer to not existing connector or any other information is not valid.
-   */
-  public void initForSpace(@NotNull Space space) {
-    setSpace(space.getId());
-    final String connectorId = space.getConnectorId();
-    if (connectorId == null) {
-      throw new IllegalStateException("The given space does not have a connectorId");
-    }
-    final Connector connector = Connector.getConnector(connectorId);
-    if (connector == null) {
-      throw new IllegalStateException("The connector with the id " + connectorId + " does not exist");
-    }
-    setConnectorId(connector.id);
-    setConnectorNumber(connector.number);
-    setParams(JsonUtils.deepCopy(space.params));
-    setConnectorParams(JsonUtils.deepCopy(connectorParams));
   }
 
   /**
@@ -210,24 +187,26 @@ public abstract class Event extends Payload {
   @JsonView(ExcludeFromHash.class)
   private String jwt;
 
+  /**
+   * The application-id of the application sending the event.
+   */
   @JsonView(ExcludeFromHash.class)
-  private String aid;
+  private @Nullable String aid;
 
   @JsonView(ExcludeFromHash.class)
   @JsonInclude(Include.ALWAYS)
   private String version = VERSION;
 
+  @JsonProperty
+  private @Nullable String author;
+
   /**
    * The identifier of the space.
    *
    * @return the identifier of the space.
-   * @throws IllegalStateException if the space is {@code null}.
    */
   @JsonIgnore
-  public @NotNull String getSpace() {
-    if (space == null) {
-      throw new IllegalStateException("Missing 'space' property");
-    }
+  public @Nullable String getSpace() {
     return this.space;
   }
 
@@ -428,6 +407,17 @@ public abstract class Event extends Payload {
   @SuppressWarnings({"unused", "WeakerAccess"})
   public void setAid(String aid) {
     this.aid = aid;
+  }
+
+  /**
+   * The users account ID of the token being used for the request. NOTE: This field will only be sent to "trusted" connectors.
+   */
+  public @Nullable String getAuthor() {
+    return this.author;
+  }
+
+  public void setAuthor(@Nullable String author) {
+    this.author = author;
   }
 
   /**

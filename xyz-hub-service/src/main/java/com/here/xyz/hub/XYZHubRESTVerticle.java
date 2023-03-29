@@ -37,7 +37,7 @@ import com.here.xyz.hub.rest.RevisionApi;
 import com.here.xyz.hub.rest.SpaceApi;
 import com.here.xyz.hub.rest.SubscriptionApi;
 import com.here.xyz.hub.rest.health.HealthApi;
-import com.here.xyz.hub.task.Task;
+import com.here.xyz.hub.task.XyzHubTask;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Handler;
 import io.vertx.core.MultiMap;
@@ -91,7 +91,7 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
   @Override
   protected void onRequestCancelled(RoutingContext context) {
     super.onRequestCancelled(context);
-    final Task<?,?> task = Context.task(context);
+    final XyzHubTask<?,?> task = Context.task(context);
     if (task != null) {
       //Cancel all pending actions of the task which might be in progress
       task.cancel();
