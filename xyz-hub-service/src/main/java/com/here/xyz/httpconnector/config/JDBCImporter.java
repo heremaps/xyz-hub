@@ -411,15 +411,19 @@ public class JDBCImporter extends JDBCClients{
         SQLQuery q = new SQLQuery(
                 "select '!ignore!' as ignore, datname,pid,state,backend_type,query_start,state_change,application_name,query from pg_stat_activity "
                         +"WHERE 1=1 "
-                         +"AND application_name='"+getApplicationName(clientID)+"'"
+                        +"AND application_name=#{applicationName}"
                         +"AND datname='postgres' "
                         +"AND state='active' "
                         +"AND backend_type='client backend'"
                         +"AND POSITION('!ignore!' in query) = 0"
         );
 
-        return getClient(clientID).query(q.substitute().text())
-                .execute()
+        q.setNamedParameter("applicationName", getApplicationName(clientID));
+        q = q.substituteAndUseDollarSyntax(q);
+
+        return getClient(clientID)
+                .preparedQuery(q.text())
+                .execute(new ArrayTuple(q.parameters()))
                 .onFailure(f -> logger.warn(f))
                 .map(rows -> {
                     RunningQueryStatistics statistics = new RunningQueryStatistics();

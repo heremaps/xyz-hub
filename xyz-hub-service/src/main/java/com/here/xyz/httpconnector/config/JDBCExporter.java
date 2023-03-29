@@ -119,7 +119,7 @@ public class JDBCExporter extends JDBCClients{
         s3Path = s3Path+"/export.csv";
         SQLQuery exportSelectString = generateFilteredExportQuery(schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat);
 
-        SQLQuery q = new SQLQuery("SELECT * from aws_s3.query_export_to_s3( "+
+        SQLQuery q = new SQLQuery("SELECT *,'{iml_s3_export_hint}' as iml_s3_export_hint from aws_s3.query_export_to_s3( "+
                 " ${{exportSelectString}},"+
                 " aws_commons.create_s3_uri(#{s3Bucket}, #{s3Path}, #{s3Region}),"+
                 " options := 'format csv,delimiter '','', encoding ''UTF8'', quote  ''\"'', escape '''''''' ' );"
@@ -148,7 +148,7 @@ public class JDBCExporter extends JDBCClients{
                         "   format('%s/%s/%s-%s.csv',#{s3Path}, o.qk, o.bucket, o.nrbuckets) ," +
                         "   #{s3Region}," +
                         "   'format csv')).* ," +
-                        "  o.* " +
+                        "  '{iml_vml_export_hint}' as iml_vml_export_hint " +
                         " from" +
                         "    exp_build_sql_inhabited_txt(#{clipped}, '', #{targetLevel}, ${{exportSelectString}}, #{maxTilesPerFile}::int )o"
         );
