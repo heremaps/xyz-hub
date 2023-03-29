@@ -96,6 +96,11 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         executeBatchesAndCheckOnFailures(dbh, insertIdList, insertWithoutGeometryIdList,
                 insertStmt, insertWithoutGeometryStmt, featureList, featureWithoutGeoList, fails, false, TYPE_INSERT, traceItem);
 
+        if(fails.size() > 0) {
+            logException(null, traceItem, LOG_EXCEPTION_INSERT, table);
+            throw new SQLException(INSERT_ERROR_GENERAL);
+        }
+
         return collection;
     }
 
@@ -275,7 +280,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
                 batchStmt.setQueryTimeout(dbh.calculateTimeout());
                 batchStmt.execute();
                 ResultSet rs = batchStmt.getResultSet();
-                fillFeatureListAndFailList(rs, featureList, fails, idList, handleUUID, type);
+                fillFeatureListAndFailList(rs, featureList, fails, idList, handleUUID, type, traceItem);
                 if (rs!=null) rs.close();
             }
 
@@ -285,7 +290,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
                 batchStmt2.setQueryTimeout(dbh.calculateTimeout());
                 batchStmt2.execute();
                 ResultSet rs = batchStmt2.getResultSet();
-                fillFeatureListAndFailList(rs, featureWithoutGeoList, fails, idList2, handleUUID, type);
+                fillFeatureListAndFailList(rs, featureWithoutGeoList, fails, idList2, handleUUID, type, traceItem);
                 if (rs!=null) rs.close();
             }
         }finally {
@@ -295,8 +300,8 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
     }
 
     private static void fillFeatureListAndFailList(final ResultSet rs, final List<Feature> featureList,
-                        List<FeatureCollection.ModificationFailure> fails, List<String> idList,
-                        boolean handleUUID, int type) throws SQLException, JsonProcessingException {
+                        final List<FeatureCollection.ModificationFailure> fails, final List<String> idList,
+                        final boolean handleUUID, final int type, final TraceItem traceItem) throws SQLException, JsonProcessingException {
         // Function populates:
         //      - xyz namespace as obtained from DB into feature "collection"
         //      - creates "fails" list including features for which UPDATE got failed
@@ -305,6 +310,7 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
         }
         final Boolean[] successArr = (Boolean[])rs.getArray("success").getArray();
         final String[] xyzNsArr = (String[])rs.getArray("xyz_ns").getArray();
+        final String[] errMsgArr = (String[])rs.getArray("err_msg").getArray();
 
         for (int i=0, max=successArr.length; i<max; i++) {
             if (!successArr[i]) {
@@ -320,7 +326,9 @@ public class DatabaseTransactionalWriter extends  DatabaseWriter{
                         message = handleUUID ? DELETE_ERROR_UUID : DELETE_ERROR_NOT_EXISTS;
                         break;
                 }
-                fails.add(new FeatureCollection.ModificationFailure().withId(idList.get(i)).withMessage(message));
+                final String featureId = idList.get(i);
+                logger.warn("{} DB operation type [{}] failed for id [{}], with error [{}]", traceItem, type, featureId, errMsgArr[i]);
+                fails.add(new FeatureCollection.ModificationFailure().withId(featureId).withMessage(message));
             }
             else {
                 if (featureList!=null) {

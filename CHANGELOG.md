@@ -3,8 +3,9 @@
 - Fixes:
   - PGSQL triggers fixed to handle missing `rtcts` and `version` fields for existing data migrated to newly created Naksha spaces
   - `xyz` namespace object fixed to return correct field values in API responses. We now use PGSQL based insert/update/delete feature operations.
-  - Fixed Sequencer module to skip external connectors that doesn't have DB credentials to perform sequencing
+  - Fixed Sequencer module to skip external connectors that don't have DB credentials to perform sequencing
   - Fixed Publisher module to skip SNS message attribute where it is found as empty string in message event
+  - Fixed `handle` value in Iterate API response to support subsequent iterate operations using previous `handle` as offset
 
 ## Naksha_1.1.0
 

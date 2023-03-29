@@ -64,6 +64,9 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
 
   private IterateFeaturesEvent tmpEvent; //TODO: Remove after refactoring
 
+  private static final ObjectMapper om = new ObjectMapper();
+
+
   public IterateFeatures(IterateFeaturesEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(event, dbHandler);
     limit = event.getLimit();
@@ -123,7 +126,22 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
     query.setQueryFragment("iColumn", ", i");
 
     boolean hasHandle = event.getHandle() != null;
-    start = hasHandle ? Long.parseLong(event.getHandle()) : 0L;
+    start = 0L;
+    if (hasHandle) {
+      if (event.getHandle().startsWith("{")) {
+        try {
+          // Note offset of the last returned feature record (so we know, where to continue next iterate from)
+          JsonNode jn = om.readTree(event.getHandle());
+          String off = jn.get("o").toString();
+          start = Long.parseLong(off);
+        } catch(Exception e) {
+          throw new SQLException(e);
+        }
+      }
+      else {
+        start = Long.parseLong(event.getHandle());
+      }
+    }
 
     if (hasSearch) {
       if (hasHandle)
@@ -131,7 +149,9 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
     }
     else {
       if (hasHandle)
-        query.setQueryFragment("filterWhereClause", "i > #{startOffset}");
+        // Iterate operation by supporting sorting (by using offset based iteration instead of using "i" column)
+        //query.setQueryFragment("filterWhereClause", "i > #{startOffset}");
+        query.setQueryFragment("offset", "OFFSET #{startOffset}");
 
       // Fixed missing ORDER BY clause (by using query params provided in REST API call)
       //query.setQueryFragment("orderBy", "ORDER BY i");
@@ -174,6 +194,8 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
         //Extend handle and encrypt
         final String handle;
         try {
+          // increment offset by number of records newly fetched (so next iterate can start from this offset)
+          tmpEvent.setOffset(tmpEvent.getOffset() + fc.getFeatures().size());
           handle = createHandle(tmpEvent, fc.getHandle() );
         }
         catch (Exception e) {
@@ -325,7 +347,9 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
   }
 
   private  String buildOrderByClause(IterateFeaturesEvent event) {
-    List<String> sortby = event.getHandle() != null ? convHandle2sortbyList(event.getHandle()) : event.getSort();
+    // Use sorting parameter supplied instead of reading from handle (as handle doesn't seem to have sort parameters in all scenario)
+    //List<String> sortby = event.getHandle() != null ? convHandle2sortbyList(event.getHandle()) : event.getSort();
+    List<String> sortby = event.getSort();
 
     if (sortby == null || sortby.size() == 0)
      return isPartOverI(event) ? "ORDER BY i" : "ORDER BY (jsondata->>'id')"; // in case no sort is specified
@@ -349,8 +373,11 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
   }
 
   private static List<String> convHandle2sortbyList( String handle )
-  { JSONObject jo = new JSONObject(handle);
+  {
+    if (!handle.startsWith("{")) return null;
+    JSONObject jo = new JSONObject(handle);
     JSONArray jarr = jo.getJSONArray("s");
+    if (jarr==null) return null;
     List<String> sortby = new ArrayList<String>();
     for(int i = 0; i < jarr.length(); i++)
      sortby.add(jarr.getString(i));
@@ -359,7 +386,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
   }
 
   private boolean isPartOverI(IterateFeaturesEvent event) {
-    if (event.getHandle() != null)
+    if (event.getHandle() != null && event.getHandle().startsWith("{"))
       return (new JSONObject(event.getHandle())).has("i");
 
     return event.getPart() != null && event.getSort() == null && !hasSearch;
@@ -468,29 +495,47 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
 
   private static void setEventValuesFromHandle(IterateFeaturesEvent event, String handle) throws JsonProcessingException
   {
-    ObjectMapper om = new ObjectMapper();
-    JsonNode jn = om.readTree(handle);
-    String ps = jn.get("p").toString();
-    String ts = jn.get("t").toString();
-    String ms = jn.get("m").toString();
-    PropertiesQuery pq = om.readValue( ps, PropertiesQuery.class );
-    TagsQuery tq = om.readValue( ts, TagsQuery.class );
-    Integer[] part = om.readValue(ms,Integer[].class);
+    if (handle!=null && !handle.startsWith("{")) {
+      event.setPart(null);
+      event.setPropertiesQuery(null);
+      event.setTags(null);
+      event.setOffset(0);
+      event.setHandle(handle);
+    }
+    else {
+      //ObjectMapper om = new ObjectMapper();
+      JsonNode jn = om.readTree(handle);
+      String ps = jn.get("p").toString();
+      String ts = jn.get("t").toString();
+      String ms = jn.get("m").toString();
+      String off = jn.get("o").toString(); // extract what was last offset (the position of last returned feature record)
+      PropertiesQuery pq = om.readValue( ps, PropertiesQuery.class );
+      TagsQuery tq = om.readValue( ts, TagsQuery.class );
+      Integer[] part = om.readValue(ms,Integer[].class);
+      Long offset = om.readValue(off, Long.class);
 
-    event.setPart(part);
-    event.setPropertiesQuery(pq);
-    event.setTags(tq);
-    event.setHandle(handle);
+      event.setPart(part);
+      event.setPropertiesQuery(pq);
+      event.setTags(tq);
+      event.setOffset(offset.longValue());
+      event.setHandle(handle);
+    }
   }
 
   private static String addEventValuesToHandle(IterateFeaturesEvent event, String dbhandle)  throws JsonProcessingException
   {
-   ObjectMapper om = new ObjectMapper();
-   String pQry = DhString.format( ",\"p\":%s", event.getPropertiesQuery() != null ? om.writeValueAsString(event.getPropertiesQuery()) : "[]" ),
-          tQry = DhString.format( ",\"t\":%s", event.getTags() != null ? om.writeValueAsString(event.getTags()) : "[]" ),
-          mQry = DhString.format( ",\"m\":%s", event.getPart() != null ? om.writeValueAsString(event.getPart()) : "[]" ),
-          hndl = DhString.format("%s%s%s%s}", dbhandle.substring(0, dbhandle.lastIndexOf("}")), pQry, tQry, mQry );
-   return hndl;
+    String pQry = DhString.format( ",\"p\":%s", event.getPropertiesQuery() != null ? om.writeValueAsString(event.getPropertiesQuery()) : "[]" ),
+            tQry = DhString.format( ",\"t\":%s", event.getTags() != null ? om.writeValueAsString(event.getTags()) : "[]" ),
+            mQry = DhString.format( ",\"m\":%s", event.getPart() != null ? om.writeValueAsString(event.getPart()) : "[]" ),
+            hndl = null;
+    if (dbhandle!=null && !dbhandle.startsWith("{")) {
+      // save offset in handle, so next iterate operation can resume from next position
+      hndl = DhString.format("{\"o\":%s%s%s%s}", event.getOffset(), pQry, tQry, mQry );
+    }
+    else {
+      hndl = DhString.format("%s%s%s%s}", dbhandle.substring(0, dbhandle.lastIndexOf("}")), pQry, tQry, mQry );
+    }
+    return hndl;
   }
 
   private static List<String> translateSortSysValues(List<String> sort)

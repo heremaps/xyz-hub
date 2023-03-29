@@ -92,17 +92,17 @@
           </elementProp>
           <elementProp name="DUMMY_SPACE_ID_1" elementType="Argument">
             <stringProp name="Argument.name">DUMMY_SPACE_ID_1</stringProp>
-            <stringProp name="Argument.value">utm-dev:dummy_space_1</stringProp>
+            <stringProp name="Argument.value">demo:dummy_space_1</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
           <elementProp name="DUMMY_SPACE_ID_2" elementType="Argument">
             <stringProp name="Argument.name">DUMMY_SPACE_ID_2</stringProp>
-            <stringProp name="Argument.value">utm-dev:dummy_space_2</stringProp>
+            <stringProp name="Argument.value">demo:dummy_space_2</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
           <elementProp name="DUMMY_SPACE_ID_3" elementType="Argument">
             <stringProp name="Argument.name">DUMMY_SPACE_ID_3</stringProp>
-            <stringProp name="Argument.value">utm-dev:dummy_space_3</stringProp>
+            <stringProp name="Argument.value">demo:dummy_space_3</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
           <elementProp name="DUMMY_CONNECTOR" elementType="Argument">
@@ -201,7 +201,7 @@
             <stringProp name="Argument.name">SPACE_ID</stringProp>
             <stringProp name="Argument.value">local:space_1</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
-            <stringProp name="Argument.desc">39ZVK252</stringProp>
+            <stringProp name="Argument.desc">local:space_1</stringProp>
           </elementProp>
           <elementProp name="WR_API_KEY" elementType="Argument">
             <stringProp name="Argument.name">WR_API_KEY</stringProp>
@@ -253,18 +253,18 @@
           </elementProp>
           <elementProp name="SPACE_ID" elementType="Argument">
             <stringProp name="Argument.name">SPACE_ID</stringProp>
-            <stringProp name="Argument.value">utm-dev:sup-feature</stringProp>
+            <stringProp name="Argument.value">utm-e2e_qa:campaign</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
             <stringProp name="Argument.desc">39ZVK252</stringProp>
           </elementProp>
           <elementProp name="WR_API_KEY" elementType="Argument">
             <stringProp name="Argument.name">WR_API_KEY</stringProp>
-            <stringProp name="Argument.value">AKeEo5K-ltLzrN8hoDmVFlc</stringProp>
+            <stringProp name="Argument.value">AK-DOoA0pEEWWOoBSKneXjQ</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
           <elementProp name="RD_API_KEY" elementType="Argument">
             <stringProp name="Argument.name">RD_API_KEY</stringProp>
-            <stringProp name="Argument.value">AKUG5kC6peRn01oB66dy2C8</stringProp>
+            <stringProp name="Argument.value">ACgMl1D0s1ju1ELhIW1tlnI</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
           <elementProp name="CONN_API_KEY" elementType="Argument">
@@ -275,7 +275,7 @@
           </elementProp>
           <elementProp name="SPACE_API_KEY" elementType="Argument">
             <stringProp name="Argument.name">SPACE_API_KEY</stringProp>
-            <stringProp name="Argument.value">APQtnzlw1OdsOmfW_sbDoIM</stringProp>
+            <stringProp name="Argument.value">upm.7qymBrp3yfH8GvSo</stringProp>
             <stringProp name="Argument.desc">Manage Space API Key</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
@@ -328,7 +328,7 @@
           </elementProp>
           <elementProp name="SPACE_API_KEY" elementType="Argument">
             <stringProp name="Argument.name">SPACE_API_KEY</stringProp>
-            <stringProp name="Argument.value">APQtnzlw1OdsOmfW_sbDoIM</stringProp>
+            <stringProp name="Argument.value">upm.7qymBrp3yfH8GvSo</stringProp>
             <stringProp name="Argument.desc">Manage Space API Key</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
@@ -494,7 +494,8 @@ vars.put(&quot;V_Create_Request_Str&quot;, JSON.stringify(requestStr));
             <collectionProp name="Arguments.arguments">
               <elementProp name="" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
-                <stringProp name="Argument.value">${V_Create_Request_Str}</stringProp>
+                <stringProp name="Argument.value">${V_Create_Request_Str}&#xd;
+</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
               </elementProp>
             </collectionProp>
@@ -2442,7 +2443,7 @@ else {
         </hashTree>
       </hashTree>
       <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Pos4 - Iterate Operation" enabled="true">
-        <stringProp name="ThreadGroup.on_sample_error">stopthread</stringProp>
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
           <stringProp name="LoopController.loops">${LOOP_COUNT}</stringProp>
@@ -2619,7 +2620,7 @@ else {
             <collectionProp name="Arguments.arguments">
               <elementProp name="access_token" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
-                <stringProp name="Argument.value">${WR_API_KEY}</stringProp>
+                <stringProp name="Argument.value">${RD_API_KEY}</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
                 <boolProp name="HTTPArgument.use_equals">true</boolProp>
                 <stringProp name="Argument.name">access_token</stringProp>
@@ -2688,62 +2689,115 @@ var expectedResObj = {
   &quot;properties&quot;: {
     &quot;due&quot;: 0,
     &quot;status&quot;: &quot;OPEN&quot;,
-    &quot;options&quot;: [{
-      &quot;key&quot;: &quot;EDIT&quot;,
-      &quot;value&quot;: [{
+    &quot;options&quot;: [
+      {
+        &quot;key&quot;: &quot;EDIT&quot;,
+        &quot;value&quot;: [
+          {
+            &quot;lang&quot;: &quot;en&quot;,
+            &quot;text&quot;: &quot;Edit&quot;
+          }
+        ]
+      },
+      {
+        &quot;key&quot;: &quot;ENDORSED&quot;,
+        &quot;value&quot;: [
+          {
+            &quot;lang&quot;: &quot;en&quot;,
+            &quot;text&quot;: &quot;Endorsed&quot;
+          }
+        ]
+      },
+      {
+        &quot;key&quot;: &quot;ROLLBACK_MANUALLY&quot;,
+        &quot;value&quot;: [
+          {
+            &quot;lang&quot;: &quot;en&quot;,
+            &quot;text&quot;: &quot;Rollback - Code Manually&quot;
+          }
+        ]
+      },
+      {
+        &quot;key&quot;: &quot;ROLLBACK_REJECT&quot;,
+        &quot;value&quot;: [
+          {
+            &quot;lang&quot;: &quot;en&quot;,
+            &quot;text&quot;: &quot;Rollback - Reject&quot;
+          }
+        ]
+      }
+    ],
+    &quot;headline&quot;: [
+      {
         &quot;lang&quot;: &quot;en&quot;,
-        &quot;text&quot;: &quot;Edit&quot;
-      }]
-    }, {
-      &quot;key&quot;: &quot;ENDORSED&quot;,
-      &quot;value&quot;: [{
-        &quot;lang&quot;: &quot;en&quot;,
-        &quot;text&quot;: &quot;Endorsed&quot;
-      }]
-    }, {
-      &quot;key&quot;: &quot;ROLLBACK_MANUALLY&quot;,
-      &quot;value&quot;: [{
-        &quot;lang&quot;: &quot;en&quot;,
-        &quot;text&quot;: &quot;Rollback - Code Manually&quot;
-      }]
-    }, {
-      &quot;key&quot;: &quot;ROLLBACK_REJECT&quot;,
-      &quot;value&quot;: [{
-        &quot;lang&quot;: &quot;en&quot;,
-        &quot;text&quot;: &quot;Rollback - Reject&quot;
-      }]
-    }],
-    &quot;headline&quot;: [{
-      &quot;lang&quot;: &quot;en&quot;,
-      &quot;text&quot;: &quot;A road has been CREATED&quot;
-    }],
+        &quot;text&quot;: &quot;A road has been CREATED&quot;
+      }
+    ],
     &quot;priority&quot;: 0,
     &quot;taskType&quot;: &quot;COLLECT&quot;,
-    &quot;audiences&quot;: [&quot;INTERNAL&quot;],
-    &quot;references&quot;: [{
-      &quot;ids&quot;: [&quot;ad24b3d2-9f23-4b61-b007-4dc5aeea1bc0&quot;],
-      &quot;spaceId&quot;: &quot;QsZZzwyY&quot;,
-      &quot;featureType&quot;: &quot;Road&quot;
-    }],
-    &quot;description&quot;: [{
-      &quot;lang&quot;: &quot;en&quot;,
-      &quot;text&quot;: &quot;A  Road has been CREATED, Please check this task for reference!&quot;
-    }],
+    &quot;audiences&quot;: [
+      &quot;INTERNAL&quot;
+    ],
+    &quot;references&quot;: [
+      {
+        &quot;ids&quot;: [
+          &quot;ad24b3d2-9f23-4b61-b007-4dc5aeea1bc0&quot;
+        ],
+        &quot;spaceId&quot;: &quot;QsZZzwyY&quot;,
+        &quot;featureType&quot;: &quot;Road&quot;
+      }
+    ],
+    &quot;description&quot;: [
+      {
+        &quot;lang&quot;: &quot;en&quot;,
+        &quot;text&quot;: &quot;A  Road has been CREATED, Please check this task for reference!&quot;
+      }
+    ],
     &quot;featureType&quot;: &quot;MapTask&quot;,
     &quot;isoCountryCode&quot;: &quot;DEU&quot;,
     &quot;potentialValue&quot;: 0,
     &quot;@ns:com:here:utm&quot;: {
-      &quot;tags&quot;: [&quot;tool_mapcreator_moderation_category_community_feedback_road_isocc_deu_user_type_normal&quot;, &quot;tool_mapcreator_moderation_category_road_geometry_isocc_deu_user_type_normal&quot;]
+      &quot;tags&quot;: [
+        &quot;tool_mapcreator_moderation_category_community_feedback_road_isocc_deu_user_type_normal&quot;,
+        &quot;tool_mapcreator_moderation_category_road_geometry_isocc_deu_user_type_normal&quot;
+      ]
     },
     &quot;@ns:com:here:xyz&quot;: {
-      &quot;tags&quot;: [&quot;@admin1_deu&quot;, &quot;@admin2_hesse&quot;, &quot;@admin3_neu-isenburg&quot;, &quot;@adminlevels_deu_hesse_neu-isenburg&quot;, &quot;audience_internal&quot;, &quot;category_community_feedback_road&quot;, &quot;category_road_geometry&quot;, &quot;isocc_deu&quot;, &quot;otm_maptask&quot;, &quot;priority_1&quot;, &quot;quadkey_1202033022101121&quot;, &quot;skill_level_journeyman&quot;, &quot;source_mapedit&quot;, &quot;status_open&quot;, &quot;taskproducer_mcpt&quot;, &quot;tasktype_geometry&quot;, &quot;tool_mapcreator_moderation&quot;, &quot;tool_mapcreator_moderation_category_community_feedback_road_isocc_deu_user_type_normal&quot;, &quot;tool_mapcreator_moderation_category_road_geometry_isocc_deu_user_type_normal&quot;, &quot;user_type_normal&quot;, &quot;${UTM_TAG_ID}&quot;]
+      &quot;tags&quot;: [
+        &quot;@admin1_deu&quot;,
+        &quot;@admin2_hesse&quot;,
+        &quot;@admin3_neu-isenburg&quot;,
+        &quot;@adminlevels_deu_hesse_neu-isenburg&quot;,
+        &quot;audience_internal&quot;,
+        &quot;category_community_feedback_road&quot;,
+        &quot;category_road_geometry&quot;,
+        &quot;isocc_deu&quot;,
+        &quot;otm_maptask&quot;,
+        &quot;priority_1&quot;,
+        &quot;quadkey_1202033022101121&quot;,
+        &quot;skill_level_journeyman&quot;,
+        &quot;source_mapedit&quot;,
+        &quot;status_open&quot;,
+        &quot;taskproducer_mcpt&quot;,
+        &quot;tasktype_geometry&quot;,
+        &quot;tool_mapcreator_moderation&quot;,
+        &quot;tool_mapcreator_moderation_category_community_feedback_road_isocc_deu_user_type_normal&quot;,
+        &quot;tool_mapcreator_moderation_category_road_geometry_isocc_deu_user_type_normal&quot;,
+        &quot;user_type_normal&quot;,
+        &quot;${UTM_TAG_ID}&quot;
+      ]
     }
   },
   &quot;geometry&quot;: {
     &quot;type&quot;: &quot;Point&quot;,
-    &quot;coordinates&quot;: [8.68872, 50.0561, 0]
+    &quot;coordinates&quot;: [
+      8.68872,
+      50.0561,
+      0
+    ]
   }
 };
+
 
 
 // Remove unwanted fields from RESPONSE object, before actual v/s expected comparison
@@ -6535,7 +6589,7 @@ else {
           <stringProp name="HTTPSampler.port"></stringProp>
           <stringProp name="HTTPSampler.protocol"></stringProp>
           <stringProp name="HTTPSampler.contentEncoding"></stringProp>
-          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/spaces/utm-e2e_qa:maptask_bck1?access_token=ACyPrUjSzW3XkQKdGgr-o8g</stringProp>
+          <stringProp name="HTTPSampler.path">${XYZ_URI_PREFIX}/spaces/utm-dev:dummy_space_3?access_token=APQtnzlw1OdsOmfW_sbDoIM</stringProp>
           <stringProp name="HTTPSampler.method">DELETE</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <boolProp name="HTTPSampler.auto_redirects">false</boolProp>

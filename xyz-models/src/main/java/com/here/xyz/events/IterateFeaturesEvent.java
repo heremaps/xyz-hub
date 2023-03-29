@@ -32,6 +32,7 @@ public final class IterateFeaturesEvent extends SearchForFeaturesEvent<IterateFe
   private Integer v;
   private List<String> sort;
   private Integer[] part;
+  private long offset;
 
   @Deprecated
   public Integer getV() {
@@ -95,5 +96,13 @@ public final class IterateFeaturesEvent extends SearchForFeaturesEvent<IterateFe
   public IterateFeaturesEvent withPart(Integer[] part) {
     setPart(part);
     return this;
+  }
+
+  public long getOffset() {
+    return offset;
+  }
+
+  public void setOffset(long offset) {
+    this.offset = offset;
   }
 }
