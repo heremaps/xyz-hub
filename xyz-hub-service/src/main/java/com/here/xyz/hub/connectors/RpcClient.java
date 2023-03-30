@@ -269,6 +269,15 @@ public class RpcClient {
     final String eventJson = event.serialize();
     final byte[] eventBytes = eventJson.getBytes();
     final RpcContext context = new RpcContext().withRequestSize(eventBytes.length);
+
+    //Check whether the event type is allowed on the connector
+    String region = Service.configuration == null ? null : Service.configuration.AWS_REGION;
+    if (!connector.isAllowedEventType(event.getClass().getSimpleName(), region)) {
+      callback.handle(Future.failedFuture(new HttpException(FORBIDDEN, "Event is not allowed on connector " + connector.id + " from region "
+          + region)));
+      return context;
+    }
+
     logger.info(marker, "Invoking remote function \"{}\". Total uncompressed event size: {}, Event: {}", connector.id, eventBytes.length,
             preview(eventJson, 4092));
 
