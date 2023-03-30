@@ -36,9 +36,11 @@ import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.hub.util.ARN;
 import java.net.URL;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -168,6 +170,19 @@ public class Connector {
    * An object containing the list of different params and their names that should be forwarded from Hub to the connector.
    */
   public ForwardParamsConfig forwardParamsConfig;
+
+  public Map<String, Set<String>> allowedEventTypes;
+
+  public boolean isAllowedEventType(String eventType, String region) {
+    if (allowedEventTypes == null)
+      return true;
+    Set<String> allowed = new HashSet<>();
+    if (allowedEventTypes.containsKey("*"))
+      allowed.addAll(allowedEventTypes.get("*"));
+    if (region != null && allowedEventTypes.containsKey(region))
+      allowed.addAll(allowedEventTypes.get(region));
+    return allowed.contains("*") || allowed.contains(eventType);
+  }
 
   public <T extends Connector> boolean equalTo(T other) {
     return other != null
