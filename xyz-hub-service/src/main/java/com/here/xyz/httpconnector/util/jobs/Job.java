@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,9 +18,16 @@
  */
 package com.here.xyz.httpconnector.util.jobs;
 
-import com.fasterxml.jackson.annotation.*;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.models.hub.Space;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -42,7 +49,7 @@ public abstract class Job {
                 return null;
             }
             try {
-                return valueOf(value.toUpperCase());
+                return valueOf(value);
             } catch (IllegalArgumentException e) {
                 return null;
             }
@@ -66,7 +73,7 @@ public abstract class Job {
 
     @JsonView({Public.class})
     public enum CSVFormat {
-        GEOJSON,JSON_WKT,JSON_WKB;
+        GEOJSON, JSON_WKT, JSON_WKB, TILEID_FC_B64;
 
         public static CSVFormat of(String value) {
             if (value == null) {
@@ -82,7 +89,7 @@ public abstract class Job {
 
     @JsonView({Public.class})
     public enum Strategy {
-        LASTWINS,SKIPEXISTING,ERROR;
+        LASTWINS, SKIPEXISTING, ERROR;
 
         public static Strategy of(String value) {
             if (value == null) {
@@ -174,17 +181,18 @@ public abstract class Job {
     @JsonView({Internal.class})
     private String author;
 
+    /**
+     * Arbitrary parameters to be provided from hub
+     */
+    @JsonView({Internal.class})
+    protected Map<String, Object> params;
+
     public String getId(){
         return id;
     }
 
     public void setId(final String id){
         this.id = id;
-    }
-
-    public Job withId(final String id) {
-        setId(id);
-        return this;
     }
 
     public String getErrorDescription() {
@@ -195,11 +203,6 @@ public abstract class Job {
         this.errorDescription = errorDescription;
     }
 
-    public Job withErrorDescription(final String errorDescription) {
-        setErrorDescription(errorDescription);
-        return this;
-    }
-
     public String getDescription() {
         return description;
     }
@@ -208,23 +211,12 @@ public abstract class Job {
         this.description = description;
     }
 
-    public Job withDescription(final String description) {
-        setDescription(description);
-        return this;
-    }
-
-
     public String getTargetSpaceId() {
         return targetSpaceId;
     }
 
     public void setTargetSpaceId(String targetSpaceId) {
         this.targetSpaceId = targetSpaceId;
-    }
-
-    public Job withTargetSpaceId(final String targetSpaceId) {
-        setTargetSpaceId(targetSpaceId);
-        return this;
     }
 
     public String getTargetTable() {
@@ -235,22 +227,12 @@ public abstract class Job {
         this.targetTable = targetTable;
     }
 
-    public Job withTargetTable(final String targetTable) {
-        setTargetTable(targetTable);
-        return this;
-    }
-
     public Status getStatus() {
         return status;
     }
 
     public void setStatus(Job.Status status) {
         this.status = status;
-    }
-
-    public Job withStatus(final Job.Status status) {
-        setStatus(status);
-        return this;
     }
 
     public CSVFormat getCsvFormat() {
@@ -261,22 +243,12 @@ public abstract class Job {
         this.csvFormat = csv_format;
     }
 
-    public Job withCsvFormat(CSVFormat csv_format) {
-        setCsvFormat(csv_format);
-        return this;
-    }
-
     public Strategy getStrategy() {
         return strategy;
     }
 
     public void setStrategy(Strategy strategy) {
         this.strategy = strategy;
-    }
-
-    public Job withCsvFormat(Strategy importStrategy) {
-        setStrategy(importStrategy);
-        return this;
     }
 
     public long getCreatedAt() {
@@ -287,22 +259,12 @@ public abstract class Job {
         this.createdAt = createdAt;
     }
 
-    public Job withCreatedAt(final long createdAt) {
-        setCreatedAt(createdAt);
-        return this;
-    }
-
     public long getUpdatedAt() {
         return updatedAt;
     }
 
     public void setUpdatedAt(final long updatedAt) {
         this.updatedAt = updatedAt;
-    }
-
-    public Job withUpdatedAt(final long updatedAt) {
-        setUpdatedAt(updatedAt);
-        return this;
     }
 
     public Long getExecutedAt() {
@@ -313,22 +275,12 @@ public abstract class Job {
         this.executedAt = executedAt;
     }
 
-    public Job withExecutedAt(final Long startedAt) {
-        setExecutedAt(startedAt);
-        return this;
-    }
-
     public Long getFinalizedAt() {
         return finalizedAt;
     }
 
     public void setFinalizedAt(final Long finalizedAt) {
         this.finalizedAt = finalizedAt;
-    }
-
-    public Job withFinalizedAt(final Long finalizedAt) {
-        setFinalizedAt(finalizedAt);
-        return this;
     }
 
     public Long getExp() {
@@ -339,22 +291,12 @@ public abstract class Job {
         this.exp = exp;
     }
 
-    public Job withExp(final Long exp) {
-        setExp(exp);
-        return this;
-    }
-
     public String getTargetConnector() {
         return targetConnector;
     }
 
     public void setTargetConnector(String targetConnector) {
         this.targetConnector = targetConnector;
-    }
-
-    public Job withTargetConnecto(String targetConnector) {
-        setTargetConnector(targetConnector);
-        return this;
     }
 
     public void setErrorType(String errorType){
@@ -365,22 +307,12 @@ public abstract class Job {
         return errorType;
     }
 
-    public Job withErrorType(String errorType) {
-        setErrorType(errorType);
-        return this;
-    }
-
     public Long getSpaceVersion() {
         return spaceVersion;
     }
 
     public void setSpaceVersion(final Long spaceVersion) {
         this.spaceVersion = spaceVersion;
-    }
-
-    public Job withSpaceVersion(final long spaceVersion) {
-        setSpaceVersion(spaceVersion);
-        return this;
     }
 
     public String getAuthor() {
@@ -391,17 +323,31 @@ public abstract class Job {
         this.author = author;
     }
 
-    public Job withAuthor(String author) {
-        setAuthor(author);
-        return this;
+    public Object getParam(String key) {
+        if(params == null)
+            return null;
+        return params.get(key);
+    }
+
+    public Map<String, Object> getParams() {
+        return params;
+    }
+
+    public void setParams(Map<String, Object> params) {
+        this.params = params;
+    }
+
+    public void addParam(String key, Object value){
+        if(this.params == null){
+            this.params = new HashMap<>();
+        }
+        this.params.put(key,value);
     }
 
     public static class Public {
-
     }
 
     public static class Internal extends Space.Internal {
-
     }
 
     public Job(){ }

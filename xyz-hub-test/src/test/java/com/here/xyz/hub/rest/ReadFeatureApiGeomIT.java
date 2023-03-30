@@ -49,29 +49,7 @@ public class ReadFeatureApiGeomIT extends TestSpaceWithFeature {
   public static void setup() {
     remove();
     createSpace();
-    addFeatures();
-  }
-
-  public static void addFeatures(){
-    /** Write 11 Features:
-     * 3x point
-     * 1x multiPoint
-     * 2x lineString
-     * 1x multilineString
-     * 2x polygon
-     * 1x multipolygon
-     * 1x without geometry
-     * */
-    given()
-            .contentType(APPLICATION_GEO_JSON)
-            .accept(APPLICATION_GEO_JSON)
-            .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-            .body(content("/xyz/hub/mixedGeometryTypes.json"))
-            .when()
-            .put(getSpacesPath() + "/x-psql-test/features")
-            .then()
-            .statusCode(OK.code())
-            .body("features.size()", equalTo(11));
+    addFeatures("x-psql-test", "/xyz/hub/mixedGeometryTypes.json", 11);
   }
 
   @AfterClass

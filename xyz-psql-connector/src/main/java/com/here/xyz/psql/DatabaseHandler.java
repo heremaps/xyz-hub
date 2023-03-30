@@ -368,6 +368,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             query.replaceUnnamedParameters();
             query.replaceFragments();
             query.replaceNamedParameters();
+
             return executeQuery(query, handler, useReadReplica ? readDataSource : dataSource);
         } catch (Exception e) {
             try {
@@ -1956,6 +1957,10 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     public PSQLConfig getConfig() {
         return config;
+    }
+
+    public void setConfig(PSQLConfig config) {
+        this.config = config;
     }
 
     public DataSource getDataSource() {

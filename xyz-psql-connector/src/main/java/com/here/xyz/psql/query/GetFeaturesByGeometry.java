@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,19 +35,7 @@ public class GetFeaturesByGeometry extends Spatial<GetFeaturesByGeometryEvent, F
 
   @Override
   protected SQLQuery buildGeoFilter(GetFeaturesByGeometryEvent event) {
-    final int radius = event.getRadius();
-
-    SQLQuery geoFilter = event.getH3Index() != null
-        ? new SQLQuery("(h3ToGeoBoundaryDeg(('x' || #{h3Index})::bit(60)::bigint))").withNamedParameter("h3Index", event.getH3Index())
-        : new SQLQuery("ST_GeomFromText(#{wkbGeometry}" + (radius != 0 ? "" : ", 4326") + ")")
-            .withNamedParameter("wkbGeometry", WKTHelper.geometryToWKB(event.getGeometry()));
-
-    if (radius != 0)
-      //Wrap the geoFilter with ST_Buffer to enlarge the input geometry
-      geoFilter = new SQLQuery("ST_Buffer(${{wrappedGeoFilter}}::geography, #{radius})::geometry")
-          .withQueryFragment("wrappedGeoFilter", geoFilter)
-          .withNamedParameter("radius", radius);
-    return geoFilter;
+    return buildSpatialGeoFilter(event);
   }
 
   @Override
@@ -60,4 +48,21 @@ public class GetFeaturesByGeometry extends Spatial<GetFeaturesByGeometryEvent, F
 
     return super.buildGeoFragment(event, clippedGeo);
   }
+
+  public static SQLQuery buildSpatialGeoFilter(GetFeaturesByGeometryEvent event){
+    final int radius = event.getRadius();
+
+    SQLQuery geoFilter = event.getH3Index() != null
+            ? new SQLQuery("(h3ToGeoBoundaryDeg(('x' || #{h3Index})::bit(60)::bigint))").withNamedParameter("h3Index", event.getH3Index())
+            : new SQLQuery("ST_GeomFromText(#{wkbGeometry}" + (radius != 0 ? "" : ", 4326") + ")")
+            .withNamedParameter("wkbGeometry", WKTHelper.geometryToWKB(event.getGeometry()));
+
+    if (radius != 0)
+      //Wrap the geoFilter with ST_Buffer to enlarge the input geometry
+      geoFilter = new SQLQuery("ST_Buffer(${{wrappedGeoFilter}}::geography, #{radius})::geometry")
+              .withQueryFragment("wrappedGeoFilter", geoFilter)
+              .withNamedParameter("radius", radius);
+    return geoFilter;
+  }
+
 }

@@ -80,6 +80,8 @@ public class RDSStatus {
 
         int totalRunningIDXQueries;
         int totalRunningImportQueries;
+        int totalRunningS3ExportQueries;
+        int totalRunningVMLExportQueries;
         long totalInflightImportBytes;
 
         public CurrentMetrics(JSONObject currentMetrics, RunningQueryStatistics runningQueryStatistics, double maxMemInGB){
@@ -95,6 +97,8 @@ public class RDSStatus {
             this.totalRunningIDXQueries = runningQueryStatistics.getRunningIndexQueries();
             this.totalRunningImportQueries = runningQueryStatistics.getRunningImports();
             this.totalInflightImportBytes = runningQueryStatistics.getImportBytesInProgress();
+            this.totalRunningVMLExportQueries = runningQueryStatistics.getRunningVMLExports();
+            this.totalRunningS3ExportQueries = runningQueryStatistics.getRunningS3Exports();
         }
 
         public double getCpuLoad() {
@@ -119,15 +123,17 @@ public class RDSStatus {
 
         public double getCapacityUnits() {return capacityUnits;}
 
+        public long getTotalInflightImportBytes() { return totalInflightImportBytes; }
+
         public int getTotalRunningIDXQueries() {
             return totalRunningIDXQueries;
         }
 
-        public long getTotalInflightImportBytes() {
-            return totalInflightImportBytes;
-        }
+        public int getTotalRunningImportQueries() { return totalRunningImportQueries; }
 
-        public long getTotalRunningImportQueries() { return totalRunningImportQueries; }
+        public int getTotalRunningS3ExportQueries() { return totalRunningS3ExportQueries; }
+
+        public int getTotalRunningVMLExportQueries() { return totalRunningVMLExportQueries; }
     }
 
     public static class Limits{

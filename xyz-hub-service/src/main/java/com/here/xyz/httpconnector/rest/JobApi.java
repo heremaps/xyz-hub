@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,15 +19,23 @@
 
 package com.here.xyz.httpconnector.rest;
 
+import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException;
 import com.here.xyz.httpconnector.rest.HApiParam.HQuery;
 import com.here.xyz.httpconnector.rest.HApiParam.HQuery.Command;
 import com.here.xyz.httpconnector.rest.HApiParam.Path;
+import com.here.xyz.httpconnector.task.ExportHandler;
 import com.here.xyz.httpconnector.task.ImportHandler;
+import com.here.xyz.httpconnector.task.JobHandler;
+import com.here.xyz.httpconnector.util.jobs.Export;
+import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.HttpException;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
+
+import java.net.URL;
+import java.util.HashMap;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
 
@@ -45,9 +53,15 @@ public class JobApi extends Api {
   private void postJob(final RoutingContext context) {
     try {
       Job job = HApiParam.HQuery.getJobInput(context);
-      ImportHandler.postJob(job, Api.Context.getMarker(context))
-              .onFailure(t -> this.sendErrorResponse(context, t))
-              .onSuccess(j -> this.sendResponse(context, CREATED, j));
+      if(job instanceof Import) {
+        ImportHandler.postJob((Import)job, Api.Context.getMarker(context))
+                .onFailure(e -> this.sendError(e, context))
+                .onSuccess(j -> this.sendResponse(context, CREATED, j));
+      }else if(job instanceof Export){
+        ExportHandler.postJob((Export)job, Api.Context.getMarker(context))
+                .onFailure(e -> this.sendError(e, context))
+                .onSuccess(j -> this.sendResponse(context, CREATED, j));
+      }
     }catch (HttpException e){
       this.sendErrorResponse(context, e);
     }
@@ -60,8 +74,8 @@ public class JobApi extends Api {
       Job job = HApiParam.HQuery.getJobInput(context);
       job.setId(jobId);
 
-      ImportHandler.patchJob(job, Api.Context.getMarker(context))
-              .onFailure(t -> this.sendErrorResponse(context, t))
+      JobHandler.patchJob(job, Api.Context.getMarker(context))
+              .onFailure(e -> this.sendError(e, context))
               .onSuccess(j -> this.sendResponse(context, OK, j));
     }catch (HttpException e){
       this.sendErrorResponse(context, e);
@@ -71,8 +85,8 @@ public class JobApi extends Api {
   private void getJob(final RoutingContext context) {
     String jobId = context.pathParam(Path.JOB_ID);
 
-    ImportHandler.getJob(jobId, Api.Context.getMarker(context))
-            .onFailure(t -> this.sendErrorResponse(context, t))
+    JobHandler.getJob(jobId, Api.Context.getMarker(context))
+            .onFailure(e -> this.sendError(e, context))
             .onSuccess(job -> this.sendResponse(context, OK, job));
   }
 
@@ -81,16 +95,16 @@ public class JobApi extends Api {
     Job.Status jobStatus = HQuery.getJobStatus(context);
     String targetSpaceId = HQuery.getString(context, HQuery.TARGET_SPACEID , null);
 
-    ImportHandler.getJobs( Api.Context.getMarker(context), jobType, jobStatus, targetSpaceId)
-            .onFailure(t -> this.sendErrorResponse(context, t))
+    JobHandler.getJobs( Api.Context.getMarker(context), jobType, jobStatus, targetSpaceId)
+            .onFailure(e -> this.sendError(e, context))
             .onSuccess(jobs -> this.sendResponse(context, OK, jobs));
   }
 
   private void deleteJob(final RoutingContext context) {
     String jobId = context.pathParam(Path.JOB_ID);
 
-    ImportHandler.deleteJob(jobId, Api.Context.getMarker(context))
-            .onFailure(t -> this.sendErrorResponse(context, t))
+    JobHandler.deleteJob(jobId, Api.Context.getMarker(context))
+            .onFailure(e -> this.sendError(e, context))
             .onSuccess(job -> this.sendResponse(context, OK, job));
   }
 
@@ -107,10 +121,9 @@ public class JobApi extends Api {
 
     String jobId = context.pathParam(Path.JOB_ID);
 
-    ImportHandler.postExecute(jobId, params[0], params[1], params[2], command, enableHashedSpaceId, enableUUID, Api.Context.getMarker(context))
+    JobHandler.postExecute(jobId, params[0], params[1], params[2], command, enableHashedSpaceId, enableUUID, Api.Context.getMarker(context))
             .onFailure(t -> this.sendErrorResponse(context, t))
             .onSuccess(job -> {
-
               switch (command){
                 case START:
                 case RETRY:
@@ -118,8 +131,31 @@ public class JobApi extends Api {
                   context.response().setStatusCode(NO_CONTENT.code()).end();
                   return;
                 case CREATEUPLOADURL:
-                  context.response().setStatusCode(NO_CONTENT.code()).end();
+                  Import importJob = (Import)job;
+                  try{
+                    final String latestObject = "part_"+(importJob.getImportObjects().size()-1)+".csv";
+
+                    HashMap<String,URL> urlObj = new HashMap<String,URL>(){{
+                      put("ulr",importJob.getImportObjects().get(latestObject).getUploadUrl());
+                    }};
+                    this.sendResponse(context, CREATED, urlObj);
+                  }catch (Exception e){
+                    logger.error(Api.Context.getMarker(context), "Unexpected Error during create CREATEUPLOADURL", e);
+                    this.sendErrorResponse(context, new HttpException(BAD_GATEWAY, "Unexpected Error!"));
+                  }
+                  //context.response().setStatusCode(NO_CONTENT.code()).end();
               }
             });
+  }
+
+  private void sendError(Throwable e, RoutingContext context){
+    if (e instanceof HttpException) {
+      this.sendErrorResponse(context, e);
+    }else if (e instanceof AmazonDynamoDBException){
+      this.sendErrorResponse(context, new HttpException(BAD_REQUEST, "Payload is wrong!"));
+    }else {
+      logger.warn(Api.Context.getMarker(context), "Unexpected Error during saving a Job", e);
+      this.sendErrorResponse(context, new HttpException(BAD_GATEWAY, e.getMessage()));
+    }
   }
 }

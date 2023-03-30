@@ -25,6 +25,8 @@ import java.time.ZoneOffset;
 public class RunningQueryStatistic {
     private static String IDX_QUERY_IDENTIFIER = "index if not";
     private static String IMPORT_QUERY_IDENTIFIER = "iml_import_hint";
+    private static String S3_EXPORT_QUERY_IDENTIFIER = "iml_s3_export_hint";
+    private static String VML_EXPORT_QUERY_IDENTIFIER = "iml_vml_export_hint";
 
     private int pid;
     private String state;
@@ -37,7 +39,7 @@ public class RunningQueryStatistic {
     protected RunningQueryStatistic.QueryType queryType;
 
     public enum QueryType {
-        IMPORT_IDX, IMPORT_S3, OTHER;
+        IMPORT_IDX, IMPORT_S3, EXPORT_S3, EXPORT_VML, OTHER;
 
         public static QueryType of(String value) {
             if (value == null) {
@@ -75,13 +77,17 @@ public class RunningQueryStatistic {
         if(this.query != null) {
             try {
                 if (this.query.toLowerCase().indexOf(IDX_QUERY_IDENTIFIER) != -1) {
-                    this.queryType = RunningQueryStatistic.QueryType.IMPORT_IDX;
+                    this.queryType = QueryType.IMPORT_IDX;
                     this.query = query.substring(query.indexOf("idx_") + 4, query.indexOf(" ON ") - 1);
                 }else if (this.query.toLowerCase().indexOf(IMPORT_QUERY_IDENTIFIER) != -1) {
-                    this.queryType = RunningQueryStatistic.QueryType.IMPORT_S3;
+                    this.queryType = QueryType.IMPORT_S3;
                     this.query = query.substring(query.indexOf(")),'") + 4, query.indexOf("as " + IMPORT_QUERY_IDENTIFIER) - 2);
                     this.bytesInProgress = Long.parseLong(this.query.substring(this.query.indexOf(":") + 1));
                     this.query = this.query.substring(0,this.query.indexOf(":"));
+                }else if (this.query.toLowerCase().indexOf(S3_EXPORT_QUERY_IDENTIFIER) != -1) {
+                    this.queryType = QueryType.EXPORT_S3;
+                }else if (this.query.toLowerCase().indexOf(VML_EXPORT_QUERY_IDENTIFIER) != -1) {
+                    this.queryType = QueryType.EXPORT_VML;
                 }else
                     this.queryType = RunningQueryStatistic.QueryType.OTHER;
             } catch (Exception e) {}

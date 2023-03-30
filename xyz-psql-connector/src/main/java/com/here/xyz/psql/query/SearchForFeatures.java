@@ -94,7 +94,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
     return "userValue_" + key + (counter == null ? "" : "" + counter);
   }
 
-  private static SQLQuery generatePropertiesQuery(SearchForFeaturesEvent event) {
+  public static SQLQuery generatePropertiesQuery(SearchForFeaturesEvent event) {
     PropertiesQuery properties = event.getPropertiesQuery();
     if (properties == null || properties.size() == 0) {
       return null;
@@ -180,7 +180,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
     return query;
   }
 
-  protected static SQLQuery generateSearchQuery(final SearchForFeaturesEvent event) { //TODO: Make private again
+  public static SQLQuery generateSearchQuery(final SearchForFeaturesEvent event) {
     final SQLQuery propertiesQuery = generatePropertiesQuery(event);
     final SQLQuery tagsQuery = generateTagsQuery(event.getTags());
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ public class JDBCClients {
     private static final Logger logger = LogManager.getLogger();
     private static final String APPLICATION_NAME_PREFIX = "job_engine_";
     public static final String CONFIG_CLIENT_ID = "config_client";
-    private static Map<String, DBClient> clients = new HashMap<>();
+    private static volatile Map<String, DBClient> clients = new HashMap<>();
 
     public static void addClientIfRequired(String id, String ecps, String passphrase) throws CannotDecodeException, UnsupportedOperationException {
         DatabaseSettings settings = ECPSTool.readDBSettingsFromECPS(ecps, passphrase);

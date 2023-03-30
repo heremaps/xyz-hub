@@ -26,21 +26,34 @@ public class RunningQueryStatistics{
     private long importBytesInProgress;
     private int runningIndexQueries;
     private int runningImports;
+    private int runningS3Exports;
+    private int runningVMLExports;
 
     public RunningQueryStatistics(){
         runningIndexQueries = 0;
         runningImports = 0;
+        runningVMLExports = 0;
+        runningS3Exports = 0;
         runningQueryStatisticList = new ArrayList<>();
     }
 
     public void addRunningQueryStatistic(RunningQueryStatistic runningQueryStatistic){
         this.runningQueryStatisticList.add(runningQueryStatistic);
-        if(runningQueryStatistic.queryType.equals(RunningQueryStatistic.QueryType.IMPORT_S3)) {
-            importBytesInProgress += runningQueryStatistic.getBytesInProgress();
-            runningImports++;
+        switch (runningQueryStatistic.queryType){
+            case IMPORT_S3:
+                importBytesInProgress += runningQueryStatistic.getBytesInProgress();
+                runningImports++;
+                break;
+            case IMPORT_IDX:
+                runningIndexQueries++;
+                break;
+            case EXPORT_S3:
+                runningS3Exports++;
+                break;
+            case EXPORT_VML:
+                runningVMLExports++;
+                break;
         }
-        if(runningQueryStatistic.queryType.equals(RunningQueryStatistic.QueryType.IMPORT_IDX))
-            runningIndexQueries++;
     }
 
     public List<RunningQueryStatistic> getRunningQueries() {
@@ -57,5 +70,13 @@ public class RunningQueryStatistics{
 
     public int getRunningImports() {
         return runningImports;
+    }
+
+    public int getRunningS3Exports() {
+        return runningS3Exports;
+    }
+
+    public int getRunningVMLExports() {
+        return runningVMLExports;
     }
 }
