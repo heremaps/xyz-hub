@@ -30,7 +30,7 @@ public class VReadFeatureApiGeomIT extends ReadFeatureApiGeomIT {
     String spaceId = "x-psql-test";
     removeSpace(spaceId);
     VersioningBaseIT.createSpace(spaceId, getCreateSpacePath(), 10);
-    addFeatures();
+    addFeatures(spaceId, "/xyz/hub/mixedGeometryTypes.json", 11);
   }
   @AfterClass
   public static void tearDown() {
