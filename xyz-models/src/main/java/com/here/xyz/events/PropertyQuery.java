@@ -28,7 +28,7 @@ import java.util.List;
 public class PropertyQuery {
 
   private String key;
-  private QueryOperation operation;
+  private QueryOperator operation;
   private List<Object> values;
 
   @SuppressWarnings("unused")
@@ -48,17 +48,17 @@ public class PropertyQuery {
   }
 
   @SuppressWarnings("unused")
-  public QueryOperation getOperation() {
+  public QueryOperator getOperation() {
     return this.operation;
   }
 
   @SuppressWarnings("WeakerAccess")
-  public void setOperation(QueryOperation operation) {
+  public void setOperation(QueryOperator operation) {
     this.operation = operation;
   }
 
   @SuppressWarnings("unused")
-  public PropertyQuery withOperation(QueryOperation operation) {
+  public PropertyQuery withOperation(QueryOperator operation) {
     setOperation(operation);
     return this;
   }
@@ -79,5 +79,4 @@ public class PropertyQuery {
     return this;
   }
 
-  public enum QueryOperation {EQUALS, NOT_EQUALS, LESS_THAN, GREATER_THAN, LESS_THAN_OR_EQUALS, GREATER_THAN_OR_EQUALS, CONTAINS }
 }

@@ -29,7 +29,7 @@ import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.feature.IterateFeaturesEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
-import com.here.xyz.events.PropertyQuery.QueryOperation;
+import com.here.xyz.events.QueryOperator;
 import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.events.TagsQuery;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -683,7 +683,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
       if (entry.get(2) != null) {
         PropertyQuery pqry = new PropertyQuery();
         pqry.setKey("id");
-        pqry.setOperation(QueryOperation.LESS_THAN);
+        pqry.setOperation(QueryOperator.LESS_THAN);
         pqry.setValues(Arrays.asList(entry.get(2)));
         PropertiesQuery pqs = new PropertiesQuery();
         PropertyQueryList pql = new PropertyQueryList();

@@ -20,6 +20,8 @@
 package com.here.xyz.events;
 
 import java.util.List;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 public class FeatureEvent extends Event {
 
@@ -30,13 +32,16 @@ public class FeatureEvent extends Event {
 
   private String author;
 
-  @SuppressWarnings("unused")
-  public List<String> getSelection() {
+  /**
+   * The selection of properties to return.
+   *
+   * @return The list of properties to return; {@code null} if all properties should be returned.
+   */
+  public @Nullable List<@NotNull String> getSelection() {
     return this.selection;
   }
 
-  @SuppressWarnings("WeakerAccess")
-  public void setSelection(List<String> selection) {
+  public void setSelection(@Nullable List<@NotNull String> selection) {
     this.selection = selection;
   }
 

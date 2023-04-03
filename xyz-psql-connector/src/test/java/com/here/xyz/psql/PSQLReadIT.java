@@ -363,7 +363,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     // =========== QUERY WITH MULTIPOLYGON + PROPERTIES_SEARCH ==========
     PropertiesQuery pq = new PropertiesQuery();
     PropertyQueryList pql = new PropertyQueryList();
-    pql.add(new PropertyQuery().withKey("properties.foo").withOperation(PropertyQuery.QueryOperation.LESS_THAN_OR_EQUALS)
+    pql.add(new PropertyQuery().withKey("properties.foo").withOperation(QueryOperator.LESS_THAN_OR_EQUALS)
         .withValues(new ArrayList<>(Collections.singletonList(7.1))));
     pq.add(pql);
 
@@ -428,7 +428,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
     pq = new PropertiesQuery();
     pql = new PropertyQueryList();
-    pql.add(new PropertyQuery().withKey("geometry.type").withOperation(PropertyQuery.QueryOperation.EQUALS)
+    pql.add(new PropertyQuery().withKey("geometry.type").withOperation(QueryOperator.EQUALS)
         .withValues(new ArrayList<>(Collections.singletonList("Polygon"))));
     pq.add(pql);
 

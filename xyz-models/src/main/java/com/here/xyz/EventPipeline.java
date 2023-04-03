@@ -119,18 +119,18 @@ public class EventPipeline implements IEventContext {
       final String connectorId = connectorIds.get(i);
       //noinspection ConstantConditions
       if (connectorId == null) {
-        throw new XyzErrorException(XyzError.EXCEPTION, "The processor[" + i + "] is null");
+        throw new XyzErrorException(XyzError.EXCEPTION, "The connector[" + i + "] is null");
       }
       final Connector connector = Connector.getConnectorById(connectorId);
       if (connector == null) {
         throw new XyzErrorException(XyzError.EXCEPTION,
-            "The processor[" + i + "] refers to connector " + connectorId + ", but no such connector exists");
+            "The connector[" + i + "] with id " + connectorId + " does not exists");
       }
       try {
         handlers[i] = EventHandler.newInstance(connector);
       } catch (XyzErrorException e) {
         throw new XyzErrorException(XyzError.EXCEPTION,
-            "Failed to create an instance of the processor[" + i + "]: " + connectorIds, e);
+            "Failed to create an instance of the connector[" + i + "]: " + connectorIds, e);
       }
     }
 

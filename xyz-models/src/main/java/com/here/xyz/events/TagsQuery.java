@@ -24,6 +24,8 @@ import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 public class TagsQuery extends ArrayList<TagList> {
 
@@ -40,24 +42,27 @@ public class TagsQuery extends ArrayList<TagList> {
   }
 
   @SuppressWarnings("WeakerAccess")
-  public static TagsQuery fromQueryParameter(List<String> tagsQueryParam) {
-    TagsQuery result = new TagsQuery();
+  public static @NotNull TagsQuery fromQueryParameter(@Nullable List<@Nullable String> tagsQueryParam) {
+    final TagsQuery result = new TagsQuery();
 
     if (tagsQueryParam == null || tagsQueryParam.size() == 0) {
       return result;
     }
 
-    String operatorPlus = "-#:plus:#-";
+    final String operatorPlus = "-#:plus:#-";
+    for (String s : tagsQueryParam) {
+      if (s == null || s.length() == 0) {
+        continue;
+      }
 
-    for (String s : tagsQueryParam) 
-    {
-     if (s == null || s.length() == 0) continue;
+      try {
+        s = URLDecoder.decode(s.replaceAll("\\+", operatorPlus), "utf-8");
+      } catch (UnsupportedEncodingException e) {
+        e.printStackTrace();
+      }
 
-     try { s = URLDecoder.decode(s.replaceAll("\\+",operatorPlus), "utf-8"); }
-     catch (UnsupportedEncodingException e) { e.printStackTrace(); }
-   
-     final String[] split = s.split( operatorPlus );
-     result.add(new TagList(split));
+      final String[] split = s.split(operatorPlus);
+      result.add(new TagList(split));
     }
 
     return result;
