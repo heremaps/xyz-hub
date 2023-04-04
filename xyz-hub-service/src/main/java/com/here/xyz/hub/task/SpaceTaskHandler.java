@@ -644,7 +644,7 @@ public class SpaceTaskHandler {
         TagConfigClient.getInstance().deleteTagsForSpace(task.getMarker(), spaceId)
             .onSuccess(a-> callback.call(task))
             .onFailure(a->{
-              logger.error(task.getMarker(), "Failed to delete tags for space {}", spaceId);
+              logger.error(task.getMarker(), "Failed to delete tags for space {}", spaceId, a);
               callback.call(task);
             });
       }
