@@ -24,7 +24,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.View.All;
+import com.here.xyz.View;
 import com.here.xyz.XyzSerializable;
 import java.text.Normalizer;
 import java.util.ArrayList;
@@ -42,42 +42,42 @@ public class XyzNamespace implements XyzSerializable {
    * The space ID the feature belongs to.
    */
   @JsonProperty
-  @JsonView(All.class)
+  @JsonView(View.All.class)
   private String space;
 
   /**
    * The timestamp, when a feature was created.
    */
   @JsonProperty
-  @JsonView(All.class)
+  @JsonView(View.All.class)
   private long createdAt;
 
   /**
    * The timestamp, when a feature was last updated.
    */
   @JsonProperty
-  @JsonView(All.class)
+  @JsonView(View.All.class)
   private long updatedAt;
 
   /**
    * The transaction number of this state.
    */
   @JsonProperty
-  @JsonView(All.class)
+  @JsonView(View.All.class)
   private String txn;
 
   /**
    * The uuid of the feature, when the client modifies the feature, it must not modify the uuid.
    */
   @JsonProperty
-  @JsonView(All.class)
+  @JsonView(View.All.class)
   private String uuid;
 
   /**
    * The previous uuid of the feature.
    */
   @JsonProperty
-  @JsonView(All.class)
+  @JsonView(View.All.class)
   @JsonInclude(Include.NON_NULL)
   private String puuid;
 
@@ -85,7 +85,7 @@ public class XyzNamespace implements XyzSerializable {
    * The merge uuid of the feature.
    */
   @JsonProperty
-  @JsonView(All.class)
+  @JsonView(View.All.class)
   @JsonInclude(Include.NON_NULL)
   private String muuid;
 
@@ -93,7 +93,7 @@ public class XyzNamespace implements XyzSerializable {
    * The list of tags attached to the feature.
    */
   @JsonProperty
-  @JsonView(All.class)
+  @JsonView(View.All.class)
   @JsonInclude(Include.NON_EMPTY)
   private List<@NotNull String> tags;
 
@@ -101,21 +101,21 @@ public class XyzNamespace implements XyzSerializable {
    * The operation that lead to the current state of the namespace. Should be a value from {@link Action}.
    */
   @JsonProperty
-  @JsonView(All.class)
+  @JsonView(View.All.class)
   private String action;
 
   /**
    * The version of the feature, the first version (1) will always be in the state CREATED.
    */
   @JsonProperty
-  @JsonView(All.class)
+  @JsonView(View.All.class)
   private long version = 0L;
 
   /**
    * The author that changed the feature in the current revision.
    */
   @JsonProperty
-  @JsonView(All.class)
+  @JsonView(View.All.class)
   @JsonInclude(Include.NON_NULL)
   private String author;
 
@@ -123,7 +123,7 @@ public class XyzNamespace implements XyzSerializable {
    * The application that changed the feature in the current revision.
    */
   @JsonProperty
-  @JsonView(All.class)
+  @JsonView(View.All.class)
   @JsonInclude(Include.NON_NULL)
   private String app_id;
 
@@ -131,7 +131,7 @@ public class XyzNamespace implements XyzSerializable {
    * The identifier of the owner of this connector.
    */
   @JsonProperty
-  @JsonView(All.class)
+  @JsonView(View.All.class)
   @JsonInclude(Include.NON_NULL)
   private String owner;
 
@@ -313,12 +313,12 @@ public class XyzNamespace implements XyzSerializable {
   }
 
   @SuppressWarnings("WeakerAccess")
-  public void setTnx(String txn) {
+  public void setTxn(String txn) {
     this.txn = txn;
   }
 
   public @NotNull XyzNamespace withTxn(String txn) {
-    setTnx(txn);
+    setTxn(txn);
     return this;
   }
 

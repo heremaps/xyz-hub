@@ -488,7 +488,7 @@ BEGIN
        author := xyz_config.naksha_tx_get_author(OLD.jsondata);
        xyz := NEW.jsondata->'properties'->'@ns:com:here:xyz';
        xyz := jsonb_set(xyz, '{"action"}', ('"UPDATE"')::jsonb, true);
-       xyz := jsonb_set(xyz, '{"version"}', (''||(xyz_config.naksha_json_version(OLD.jsondata)+1::int8))::jsonb, true);
+       xyz := jsonb_set(xyz, '{"version"}', coalesce((''||(xyz_config.naksha_json_version(OLD.jsondata)+1::int8)),'1')::jsonb, true);
        xyz := jsonb_set(xyz, '{"author"}', coalesce(author, 'null')::jsonb, true);
        xyz := jsonb_set(xyz, '{"appId"}', coalesce(app_id, 'null')::jsonb, true);
        xyz := jsonb_set(xyz, '{"puuid"}', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'uuid', true);
@@ -496,7 +496,7 @@ BEGIN
        xyz := jsonb_set(xyz, '{"txn"}', ('"'||((txn)::text)||'"')::jsonb, true);
        xyz := jsonb_set(xyz, '{"createdAt"}', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'createdAt', true);
        xyz := jsonb_set(xyz, '{"updatedAt"}', (ts_millis::text)::jsonb, true);
-       xyz := jsonb_set(xyz, '{"rtcts"}', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'rtcts', true);
+       xyz := jsonb_set(xyz, '{"rtcts"}', coalesce(OLD.jsondata->'properties'->'@ns:com:here:xyz'->'rtcts',OLD.jsondata->'properties'->'@ns:com:here:xyz'->'createdAt'), true);
        xyz := jsonb_set(xyz, '{"rtuts"}', (rts_millis::text)::jsonb, true);
        NEW.jsondata = jsonb_set(NEW.jsondata, '{"properties","@ns:com:here:xyz"}', xyz, true);
        NEW.i = i;
@@ -545,7 +545,7 @@ BEGIN
       xyz := '{}'::jsonb;
     END IF;
     xyz := jsonb_set(xyz, '{"action"}', ('"DELETE"')::jsonb, true);
-    xyz := jsonb_set(xyz, '{"version"}', (''||(xyz_config.naksha_json_version(OLD.jsondata)+1::int8))::jsonb, true);
+    xyz := jsonb_set(xyz, '{"version"}', coalesce((''||(xyz_config.naksha_json_version(OLD.jsondata)+1::int8)),'1')::jsonb, true);
     xyz := jsonb_set(xyz, '{"author"}', coalesce(author, 'null')::jsonb, true);
     xyz := jsonb_set(xyz, '{"appId"}', coalesce(app_id, 'null')::jsonb, true);
     xyz := jsonb_set(xyz, '{"puuid"}', xyz->'uuid', true);
@@ -1017,5 +1017,313 @@ BEGIN
     EXECUTE sql;
 EXCEPTION WHEN OTHERS THEN
     RAISE NOTICE '%, sql = %', SQLERRM, sql;
+END
+$BODY$;
+
+DROP FUNCTION IF EXISTS xyz_config.naksha_bulk_insert(TEXT, TEXT, jsonb[], geometry[]);
+
+CREATE OR REPLACE FUNCTION xyz_config.naksha_bulk_insert( in_schema TEXT, in_table TEXT, in_jsondata_arr jsonb[], in_geo_arr geometry[] )
+    RETURNS TABLE
+            (
+                success   bool[],
+                xyz_ns    jsonb[],
+                err_code  TEXT[],
+                err_msg   TEXT[]
+            )
+    LANGUAGE 'plpgsql' VOLATILE
+AS
+$BODY$
+DECLARE
+    -- local variables
+    stmt        TEXT;
+    arr_size    int;
+    idx         int;
+    xyz_ns      jsonb := null;
+    -- return variables
+    out_success_arr     bool[];
+    out_xyz_ns_arr      jsonb[];
+    out_err_code_arr    TEXT[];
+    out_err_msg_arr     TEXT[];
+BEGIN
+    arr_size := array_length(in_jsondata_arr, 1);
+    idx := 1;
+
+    WHILE idx <= arr_size
+    LOOP
+        -- initialize array elements
+        out_success_arr[idx]    := FALSE;
+        out_xyz_ns_arr[idx]     := null;
+        out_err_code_arr[idx]   := null;
+        out_err_msg_arr[idx]    := null;
+        BEGIN
+            IF (in_geo_arr IS NULL OR in_geo_arr[idx] IS NULL) THEN
+                stmt := format('INSERT INTO "%s"."%s" (jsondata, geo) VALUES (%L, NULL) '
+                            || 'RETURNING jsondata->''properties''->''@ns:com:here:xyz'' ',
+                                in_schema, in_table, in_jsondata_arr[idx]);
+            ELSE
+                stmt := format('INSERT INTO "%s"."%s" (jsondata, geo) VALUES (%L, %L) '
+                            || 'RETURNING jsondata->''properties''->''@ns:com:here:xyz'' ',
+                                in_schema, in_table, in_jsondata_arr[idx], ST_Force3D(ST_GeomFromWKB(in_geo_arr[idx],4326)));
+            END IF;
+            -- execute statement
+            EXECUTE stmt INTO xyz_ns;
+            -- Operation successful
+            out_success_arr[idx] := TRUE;
+            out_xyz_ns_arr[idx] := xyz_ns;
+        EXCEPTION
+            WHEN OTHERS THEN
+                --RAISE NOTICE '% - %, sql = %', SQLSTATE, SQLERRM, stmt;
+                out_err_code_arr[idx] := SQLSTATE;
+                out_err_msg_arr[idx] := SQLERRM;
+        END;
+        idx := idx + 1;
+    END LOOP;
+
+    RETURN QUERY SELECT out_success_arr     AS "success",
+                        out_xyz_ns_arr      AS "xyz_ns",
+                        out_err_code_arr    AS "err_code",
+                        out_err_msg_arr     AS "err_msg"
+                        ;
+END
+$BODY$;
+
+DROP FUNCTION IF EXISTS xyz_config.naksha_bulk_update(TEXT, TEXT, TEXT[], TEXT[], jsonb[], geometry[]);
+
+CREATE OR REPLACE FUNCTION xyz_config.naksha_bulk_update( in_schema TEXT, in_table TEXT,
+        in_id_arr TEXT[], in_uuid_arr TEXT[], in_jsondata_arr jsonb[], in_geo_arr geometry[] )
+    RETURNS TABLE
+            (
+                success   bool[],
+                xyz_ns    jsonb[],
+                err_code  TEXT[],
+                err_msg   TEXT[]
+            )
+    LANGUAGE 'plpgsql' VOLATILE
+AS
+$BODY$
+DECLARE
+    -- local variables
+    stmt        TEXT;
+    arr_size    int;
+    idx         int;
+    xyz_ns      jsonb;
+    row_count   bigint;
+    -- return variables
+    out_success_arr     bool[];
+    out_xyz_ns_arr      jsonb[];
+    out_err_code_arr    TEXT[];
+    out_err_msg_arr     TEXT[];
+BEGIN
+    arr_size := array_length(in_id_arr, 1);
+    idx := 1;
+
+    WHILE idx <= arr_size
+    LOOP
+        -- initialize array elements
+        out_success_arr[idx]    := FALSE;
+        out_xyz_ns_arr[idx]     := null;
+        out_err_code_arr[idx]   := null;
+        out_err_msg_arr[idx]    := null;
+        BEGIN
+            stmt := format('UPDATE "%s"."%s" SET jsondata = %L ', in_schema, in_table, in_jsondata_arr[idx]);
+            IF (in_geo_arr IS NOT NULL AND in_geo_arr[idx] IS NOT NULL) THEN
+                stmt := stmt || format(', geo = %L ', ST_Force3D(ST_GeomFromWKB(in_geo_arr[idx],4326)));
+            END IF;
+            stmt := stmt || format('WHERE jsondata->>''id'' = $1 ');
+            IF (in_uuid_arr IS NOT NULL AND in_uuid_arr[idx] IS NOT NULL) THEN
+                stmt := stmt || format('AND jsondata->''properties''->''@ns:com:here:xyz''->>''uuid'' = $2 ');
+            END IF;
+            stmt := stmt || format('RETURNING jsondata->''properties''->''@ns:com:here:xyz'' ');
+
+            -- execute statement
+            IF (in_uuid_arr IS NOT NULL AND in_uuid_arr[idx] IS NOT NULL) THEN
+                EXECUTE stmt INTO xyz_ns USING in_id_arr[idx], in_uuid_arr[idx];
+            ELSE
+                EXECUTE stmt INTO xyz_ns USING in_id_arr[idx];
+            END IF;
+            GET CURRENT DIAGNOSTICS row_count = ROW_COUNT;
+            IF (row_count <= 0) THEN
+                out_err_code_arr[idx] := 'P0002';
+                out_err_msg_arr[idx] := 'No data found';
+            ELSE
+                -- Operation successful
+                out_success_arr[idx] := TRUE;
+                out_xyz_ns_arr[idx] := xyz_ns;
+            END IF;
+        EXCEPTION
+            WHEN OTHERS THEN
+                --RAISE NOTICE '% - %, sql = %', SQLSTATE, SQLERRM, stmt;
+                out_err_code_arr[idx] := SQLSTATE;
+                out_err_msg_arr[idx] := SQLERRM;
+        END;
+        idx := idx + 1;
+    END LOOP;
+
+    RETURN QUERY SELECT out_success_arr     AS "success",
+                        out_xyz_ns_arr      AS "xyz_ns",
+                        out_err_code_arr    AS "err_code",
+                        out_err_msg_arr     AS "err_msg"
+                        ;
+END
+$BODY$;
+
+DROP FUNCTION IF EXISTS xyz_config.naksha_bulk_delete(TEXT, TEXT, TEXT[], TEXT[]);
+
+CREATE OR REPLACE FUNCTION xyz_config.naksha_bulk_delete( in_schema TEXT, in_table TEXT, in_id_arr TEXT[], in_uuid_arr TEXT[] )
+    RETURNS TABLE
+            (
+                success   bool[],
+                xyz_ns    jsonb[],
+                err_code  TEXT[],
+                err_msg   TEXT[]
+            )
+    LANGUAGE 'plpgsql' VOLATILE
+AS
+$BODY$
+DECLARE
+    -- local variables
+    stmt        TEXT;
+    arr_size    int;
+    idx         int;
+    xyz_ns      jsonb;
+    row_count   bigint;
+    -- return variables
+    out_success_arr     bool[];
+    out_xyz_ns_arr      jsonb[];
+    out_err_code_arr    TEXT[];
+    out_err_msg_arr     TEXT[];
+BEGIN
+    arr_size := array_length(in_id_arr, 1);
+    idx := 1;
+
+    WHILE idx <= arr_size
+    LOOP
+        -- initialize array elements
+        out_success_arr[idx]    := FALSE;
+        out_xyz_ns_arr[idx]     := null;
+        out_err_code_arr[idx]   := null;
+        out_err_msg_arr[idx]    := null;
+        BEGIN
+            stmt := 'DELETE FROM "%s"."%s" WHERE jsondata->>''id'' = $1 ';
+            IF (in_uuid_arr IS NOT NULL AND in_uuid_arr[idx] IS NOT NULL) THEN
+                stmt := stmt || 'AND jsondata->''properties''->''@ns:com:here:xyz''->>''uuid'' = $2 ';
+            END IF;
+            stmt := stmt || 'RETURNING jsondata->''properties''->''@ns:com:here:xyz'' ';
+            stmt := format(stmt, in_schema, in_table);
+
+            -- execute statement
+            IF (in_uuid_arr IS NOT NULL AND in_uuid_arr[idx] IS NOT NULL) THEN
+                EXECUTE stmt INTO xyz_ns USING in_id_arr[idx], in_uuid_arr[idx];
+            ELSE
+                EXECUTE stmt INTO xyz_ns USING in_id_arr[idx];
+            END IF;
+            GET CURRENT DIAGNOSTICS row_count = ROW_COUNT;
+            IF (row_count <= 0) THEN
+                out_err_code_arr[idx] := 'P0002';
+                out_err_msg_arr[idx] := 'No data found';
+            ELSE
+                -- Operation successful
+                out_success_arr[idx] := TRUE;
+                out_xyz_ns_arr[idx] := xyz_ns;
+            END IF;
+        EXCEPTION
+            WHEN OTHERS THEN
+                --RAISE NOTICE '% - %, sql = %', SQLSTATE, SQLERRM, stmt;
+                out_err_code_arr[idx] := SQLSTATE;
+                out_err_msg_arr[idx] := SQLERRM;
+        END;
+        idx := idx + 1;
+    END LOOP;
+
+    RETURN QUERY SELECT out_success_arr     AS "success",
+                        out_xyz_ns_arr      AS "xyz_ns",
+                        out_err_code_arr    AS "err_code",
+                        out_err_msg_arr     AS "err_msg"
+                        ;
+END
+$BODY$;
+
+DROP FUNCTION IF EXISTS xyz_config.naksha_bulk_soft_delete(TEXT,TEXT,bigint[],TEXT[],TEXT[]);
+
+CREATE OR REPLACE FUNCTION xyz_config.naksha_bulk_soft_delete( _schema TEXT, _table TEXT,
+                                        in_versionNum_arr bigint[], in_id_arr TEXT[], in_uuid_arr TEXT[])
+    RETURNS TABLE
+            (
+                success   bool[],
+                xyz_ns    jsonb[],
+                err_code  TEXT[],
+                err_msg   TEXT[]
+            )
+    LANGUAGE 'plpgsql' VOLATILE
+AS
+$BODY$
+DECLARE
+    -- local variables
+    stmt        TEXT;
+    arr_size    int;
+    idx         int;
+    xyz_ns      jsonb;
+    row_count   bigint;
+    -- return variables
+    out_success_arr     bool[];
+    out_xyz_ns_arr      jsonb[];
+    out_err_code_arr    TEXT[];
+    out_err_msg_arr     TEXT[];
+BEGIN
+    arr_size := array_length(in_id_arr, 1);
+    idx := 1;
+
+    WHILE idx <= arr_size
+    LOOP
+        -- initialize array elements
+        out_success_arr[idx]    := FALSE;
+        out_xyz_ns_arr[idx]     := null;
+        out_err_code_arr[idx]   := null;
+        out_err_msg_arr[idx]    := null;
+        BEGIN
+            stmt := 'UPDATE "%s"."%s" SET jsondata = jsonb_set( jsondata, ''{properties,@ns:com:here:xyz}'', '
+                    || '    ('
+                    || '        (jsondata->''properties''->''@ns:com:here:xyz'')::jsonb '
+                    || '        || (''{"uuid": "''||(jsondata->''properties''->''@ns:com:here:xyz''->>''uuid'')||''_deleted"}'')::jsonb '
+                    || '        || (''{"version": '||in_versionNum_arr[idx]||'}'')::jsonb '
+                    || '        || (''{"updatedAt": ''||(extract(epoch from now()) * 1000)::bigint||'' }'')::jsonb '
+                    || '        || (''{"deleted": true }'')::jsonb '
+                    || '    )'
+                    || ')'
+                    || 'WHERE jsondata->>''id'' = $1 ';
+            IF (in_uuid_arr IS NOT NULL AND in_uuid_arr[idx] IS NOT NULL) THEN
+                stmt := stmt || 'AND jsondata->''properties''->''@ns:com:here:xyz''->>''uuid'' = $2 ';
+            END IF;
+            stmt := stmt || 'RETURNING jsondata->''properties''->''@ns:com:here:xyz'' ';
+            stmt := format(stmt, _schema, _table);
+
+            IF (in_uuid_arr IS NOT NULL AND in_uuid_arr[idx] IS NOT NULL) THEN
+                EXECUTE stmt INTO xyz_ns USING in_id_arr[idx], in_uuid_arr[idx];
+            ELSE
+                EXECUTE stmt INTO xyz_ns USING in_id_arr[idx];
+            END IF;
+            GET CURRENT DIAGNOSTICS row_count = ROW_COUNT;
+            IF (row_count <= 0) THEN
+                out_err_code_arr[idx] := 'P0002';
+                out_err_msg_arr[idx] := 'No data found';
+            ELSE
+                -- Operation successful
+                out_success_arr[idx] := TRUE;
+                out_xyz_ns_arr[idx] := xyz_ns;
+            END IF;
+        EXCEPTION
+            WHEN OTHERS THEN
+                --RAISE NOTICE '% - %, sql = %', SQLSTATE, SQLERRM, stmt;
+                out_err_code_arr[idx] := SQLSTATE;
+                out_err_msg_arr[idx] := SQLERRM;
+        END;
+        idx := idx + 1;
+    END LOOP;
+
+    RETURN QUERY SELECT out_success_arr     AS "success",
+                        out_xyz_ns_arr      AS "xyz_ns",
+                        out_err_code_arr    AS "err_code",
+                        out_err_msg_arr     AS "err_msg"
+                        ;
 END
 $BODY$;

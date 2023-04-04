@@ -1079,9 +1079,6 @@ public class FeatureTaskHandler {
       nsXyz.setTags(null);
     }
 
-    // current entry position
-    nsXyz.setInputPosition(inputPosition);
-
     // Timestamp fields
     long now = Core.currentTimeMillis();
     nsXyz.setCreatedAt(isInsert ? now : entry.head.useProperties().getXyzNamespace().getCreatedAt());

@@ -1,13 +1,10 @@
 package com.here.xyz.pub.db;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.models.hub.SubscriptionConfig;
-import com.here.xyz.models.hub.psql.PsqlPoolConfig;
-import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.hub.Subscription;
-import com.here.xyz.models.hub.psql.PsqlStorageParams;
+import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.pub.models.*;
 import io.vertx.core.json.Json;
+import io.vertx.core.json.JsonObject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import java.security.GeneralSecurityException;
@@ -71,6 +68,18 @@ public class PubDatabaseHandler {
             "FROM "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_space sp, "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_storage st " +
             "WHERE sp.config->'storage'->>'id' = st.id AND st.id != ? " +
             "GROUP BY connectorId";
+/*
+    Note: We do not want connectors without DB credentials!
+
+     final private static String FETCH_CONNECTORS_AND_SPACES =
+            "SELECT st.id AS connectorId, st.config->'params'->>'ecps' AS ecps, st.config->'remoteFunctions'->'local'->'env'->>'ECPS_PHRASE' AS pswd," +
+            "       array_agg(sp.id) AS spaceIds, array_agg(COALESCE(sp.config->'storage'->'params'->>'tableName', sp.id)) AS tableNames " +
+            "FROM "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_space sp, "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_storage st " +
+            "WHERE sp.config->'storage'->>'id' = st.id " +
+            "AND st.id != ? " +
+            "AND st.config->'params'->>'ecps' IS NOT NULL " +
+            "AND st.config->'remoteFunctions'->'local'->'env'->>'ECPS_PHRASE' IS NOT NULL " +
+            "GROUP BY connectorId, ecps, pswd";*/
 
     final private static String SPACE_UNION_CLAUSE_STR = "{{SPACE_UNION_CLAUSE}}";
     final private static String UPDATE_TXN_SEQUENCE =
@@ -127,7 +136,7 @@ public class PubDatabaseHandler {
             while (rs.next()) {
                 final String cfgJsonStr = rs.getString("config");
                 final Subscription sub = new Subscription();
-                sub.setConfig(Json.decodeValue(cfgJsonStr, SubscriptionConfig.class));
+                sub.setConfig(Json.decodeValue(cfgJsonStr, Subscription.SubscriptionConfig.class));
                 sub.setId(rs.getString("id"));
                 sub.setSource(rs.getString("source"));
                 if (subList == null) {
