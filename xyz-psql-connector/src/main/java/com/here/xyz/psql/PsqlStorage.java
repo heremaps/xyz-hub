@@ -1454,8 +1454,12 @@ public class PsqlStorage extends ExtendedEventHandler {
         }
 
         if (transactional) {
-          /** Commit SQLS in one transaction */
-          connection.commit();
+          if (fails == null || fails.isEmpty()) {
+            /** Commit SQLS in one transaction */
+            connection.commit();
+          } else {
+            connection.rollback();
+          }
         }
 
       } catch (Exception e) {
